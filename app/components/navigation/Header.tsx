@@ -1,67 +1,55 @@
 'use client'
 
-import {
-  Popover,
-  PopoverButton,
-  PopoverPanel,
-  Menu,
-  MenuButton,
-  MenuItem,
-  MenuItems,
-} from '@headlessui/react'
+import { useState, useEffect } from 'react'
+import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import {
   MagnifyingGlassIcon,
   ChevronDownIcon,
-  GlobeAltIcon,
 } from '@heroicons/react/20/solid'
-import { Bars3Icon, BellIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline'
 import Button from '../ui/Button'
 import Image from 'next/image'
 
-const user = {
-  name: 'Chelsea Hagon',
-  email: 'chelsea.hagon@example.com',
-  imageUrl:
-    'https://images.unsplash.com/photo-1550525811-e5869dd03032?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
+interface HeaderProps {
+  transparent?: boolean
 }
 
-const navigation = [
-  { name: 'Dashboard', href: '#', current: true },
-  { name: 'Calendar', href: '#', current: false },
-  { name: 'Teams', href: '#', current: false },
-  { name: 'Directory', href: '#', current: false },
-]
+export default function Header({ transparent = false }: HeaderProps) {
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
 
-const userNavigation = [
-  { name: 'Your profile', href: '#' },
-  { name: 'Settings', href: '#' },
-  { name: 'Sign out', href: '#' },
-]
+  useEffect(() => {
+    if (!transparent) return
 
-const services = [
-  { name: 'Holiday Packages', href: '#' },
-  { name: 'Honeymoon Tours', href: '#' },
-  { name: 'Corporate Travel', href: '#' },
-  { name: 'Pilgrimage Tours', href: '#' },
-]
+    const threshold = 60
 
-const languages = [
-  { name: 'English', code: 'En' },
-  { name: 'Hindi', code: 'Hi' },
-  { name: 'Tamil', code: 'Ta' },
-]
+    const handleScroll = () => {
+      setScrolled(window.scrollY > threshold)
+    }
 
-export default function Header() {
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [transparent])
+
+  // Derived state: is header currently "solid"
+  const isSolid = !transparent || scrolled
+
   return (
-    <>
-      <Popover
-        as="header"
-        className="relative bg-white shadow-sm shadow-neutral-200/80 data-open:fixed data-open:inset-0 data-open:z-40 data-open:overflow-y-auto lg:overflow-y-visible data-open:lg:overflow-y-visible"
+    <div className="sticky top-0 left-0 z-(--z-sticky)">
+      <motion.header
+        animate={{
+          backgroundColor: isSolid ? 'rgba(255,255,255,1)' : 'rgba(255,255,255,0)',
+          boxShadow: isSolid
+            ? '0 1px 3px 0 rgba(163,163,163,0.2)'
+            : '0 0 0 0 rgba(0,0,0,0)',
+        }}
+        transition={{ duration: 0.35, ease: 'easeInOut' }}
+        className="relative h-(--header-height)"
       >
-        <div className="mx-auto max-w-container px-4 sm:px-6 lg:px-8 py-2.5">
-          <div className="flex items-center justify-between gap-4 lg:gap-6">
+        <div className="mx-auto max-w-container px-4 sm:px-6 lg:px-8 h-full">
+          <div className="flex items-center justify-between gap-4 lg:gap-6 h-full">
 
-            {/* ── Logo ── */}
+            {/* Logo */}
             <div className="flex shrink-0 items-center">
               <a href="#">
                 <Image
@@ -75,195 +63,124 @@ export default function Header() {
               </a>
             </div>
 
-
+            {/* Search */}
             <div className="flex-1 md:px-8 lg:px-0 xl:col-span-6">
-              <div className=" max-w-80 m-auto">
-                <div className="flex items-center px-6 py-3.5 md:mx-auto md:max-w-3xl lg:mx-0 lg:max-w-none xl:px-0 ">
+              <div className="max-w-80 m-auto">
+                <div className="flex items-center px-6 py-3.5 md:mx-auto md:max-w-3xl lg:mx-0 lg:max-w-none xl:px-0">
                   <div className="grid w-full grid-cols-1">
                     <input
                       name="search"
                       placeholder="Search"
-                      className="col-start-1 row-start-1 block w-full rounded-full bg-white py-2 pr-3 pl-12 text-neutral-900 outline-1 -outline-offset-1 outline-neutral-300 placeholder-color focus:outline-2 focus:-outline-offset-2 focus:outline-primary-400 sm:text-sm/6 shadow-md shadow-gray-200/70"
+                      className={`col-start-1 row-start-1 block w-full rounded-full py-2 pr-3 pl-12 outline-1 -outline-offset-1 placeholder-color focus:outline-2 focus:-outline-offset-2 focus:outline-primary-400 sm:text-sm/6 transition-all duration-300  ${
+                        isSolid
+                          ? 'bg-white text-neutral-900 outline-neutral-300 shadow-md shadow-gray-200/70'
+                          : 'bg-white/15 text-white outline-white/30 placeholder:text-white/70! backdrop-blur-sm shadow-none'
+                      }`}
                     />
                     <MagnifyingGlassIcon
                       aria-hidden="true"
-                      className="pointer-events-none col-start-1 row-start-1 ml-5 size-5 self-center text-muted"
+                      className={`pointer-events-none col-start-1 row-start-1 ml-5 size-5 self-center transition-colors duration-300 z-10 ${
+                        isSolid ? 'text-muted' : 'text-white/70'
+                      }`}
                     />
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* ── Right nav (desktop) ── */}
-            <div className="hidden lg:flex lg:items-center lg:gap-7">
-
-              {/* Services dropdown */}
-              <Menu as="div" className="relative">
-                <MenuButton className="flex items-center gap-1  font-semibold text-neutral-900 hover:text-red-600 transition-colors">
+            {/* Right nav (desktop) */}
+            <div className="hidden lg:flex lg:items-center lg:gap-10">
+              <div className="relative">
+                <motion.button
+                  animate={{ color: isSolid ? '#171717' : '#ffffff' }}
+                  transition={{ duration: 0.3 }}
+                  className="flex items-center gap-1 font-semibold hover:text-red-500 transition-colors"
+                >
                   Services
-                  <ChevronDownIcon className="size-6 text-disabled" />
-                </MenuButton>
-                <MenuItems className="absolute right-0 z-20 mt-2 w-52 origin-top-right rounded-xl bg-white shadow-lg ring-1 ring-neutral-200 focus:outline-none py-1">
-                  {services.map((item) => (
-                    <MenuItem key={item.name}>
-                      {({ focus }: { focus: boolean }) => (
-                        <a
-                          href={item.href}
-                          className={`block px-4 py-2.5 text-sm text-neutral-700 transition-colors ${focus ? 'bg-red-50 text-red-600' : ''
-                            }`}
-                        >
-                          {item.name}
-                        </a>
-                      )}
-                    </MenuItem>
-                  ))}
-                </MenuItems>
-              </Menu>
+                  <ChevronDownIcon className="size-6 opacity-50" />
+                </motion.button>
+              </div>
 
-
-              {/* Language selector */}
-              <Menu as="div" className="relative">
-                <MenuButton className="flex flex-col items-start gap-1 text-neutral-700 hover:text-red-600 transition-colors outline-none">
-                  <span className="text-xs text-secondary leading-none">Language</span>
-                  <span className="flex items-center gap-0.5  font-semibold leading-tight">
+              <div className="relative">
+                <motion.button
+                  animate={{ color: isSolid ? '#404040' : '#ffffff' }}
+                  transition={{ duration: 0.3 }}
+                  className="flex flex-col items-start gap-1 hover:text-red-500 transition-colors outline-none"
+                >
+                  <span className="text-xs leading-none opacity-60">Language</span>
+                  <span className="flex items-center gap-0.5 font-semibold leading-tight">
                     En
-                    <ChevronDownIcon className="size-4.5 text-disabled" />
+                    <ChevronDownIcon className="size-4.5 opacity-50" />
                   </span>
-                </MenuButton>
-                <MenuItems className="absolute right-0 z-20 mt-2 w-36 origin-top-right rounded-xl bg-white shadow-lg ring-1 ring-neutral-200 focus:outline-none py-1">
-                  {languages.map((lang) => (
-                    <MenuItem key={lang.code}>
-                      {({ focus }: { focus: boolean }) => (
-                        <button
-                          className={`w-full text-left px-4 py-2.5 text-sm text-neutral-700 transition-colors ${focus ? 'bg-red-50 text-red-600' : ''
-                            }`}
-                        >
-                          {lang.name}
-                        </button>
-                      )}
-                    </MenuItem>
-                  ))}
-                </MenuItems>
-              </Menu>
+                </motion.button>
+              </div>
 
-              <Button variant="premium" size="md" >
+              <Button variant="premium" size="md">
                 Pay Now
               </Button>
             </div>
 
-            {/* ── Mobile menu toggle ── */}
+            {/* Mobile menu toggle */}
             <div className="flex items-center lg:hidden">
-              <PopoverButton className="group relative -mx-2 inline-flex items-center justify-center rounded-md p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-500 focus:outline-2 focus:-outline-offset-1 focus:outline-red-600">
+              <motion.button
+                animate={{ color: isSolid ? '#a3a3a3' : '#ffffff' }}
+                transition={{ duration: 0.3 }}
+                onClick={() => setMobileOpen(!mobileOpen)}
+                className="group relative -mx-2 inline-flex items-center justify-center rounded-md p-2 hover:bg-white/10 focus:outline-2 focus:-outline-offset-1 focus:outline-red-600"
+              >
                 <span className="absolute -inset-0.5" />
                 <span className="sr-only">Open menu</span>
-                <Bars3Icon aria-hidden="true" className="block size-6 group-data-open:hidden" />
-                <XMarkIcon aria-hidden="true" className="hidden size-6 group-data-open:block" />
-              </PopoverButton>
+                {mobileOpen
+                  ? <XMarkIcon aria-hidden="true" className="size-6" />
+                  : <Bars3Icon aria-hidden="true" className="size-6" />
+                }
+              </motion.button>
             </div>
           </div>
         </div>
 
-        {/* ── Mobile panel ── */}
-        <PopoverPanel
-          as="nav"
-          aria-label="Global"
-          className="absolute left-0 z-20 w-full bg-white shadow-lg lg:hidden"
-        >
-          {/* Mobile search */}
-          <div className="px-4 pt-3 pb-2">
-            <div className="grid grid-cols-1">
-              <input
-                name="search-mobile"
-                placeholder="Search location"
-                className="col-start-1 row-start-1 block w-full rounded-full bg-white py-2.5 pr-4 pl-11 text-neutral-900 outline-1 -outline-offset-1 outline-neutral-200 placeholder:text-neutral-400 focus:outline-2 focus:-outline-offset-2 focus:outline-red-400 text-sm shadow-sm ring-1 ring-neutral-200"
-              />
-              <MagnifyingGlassIcon
-                aria-hidden="true"
-                className="pointer-events-none col-start-1 row-start-1 ml-4 size-4 self-center text-neutral-400"
-              />
-            </div>
-          </div>
-
-          {/* Mobile nav links */}
-          <div className="relative mx-auto space-y-0.5 px-3 pt-1 pb-3">
-            {navigation.map((item) => (
-              <a
-                key={item.name}
-                href={item.href}
-                aria-current={item.current ? 'page' : undefined}
-                className={`block rounded-md px-3 py-2.5 text-sm font-medium transition-colors ${item.current
-                    ? 'bg-red-50 text-red-600'
-                    : 'text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900'
-                  }`}
-              >
-                {item.name}
-              </a>
-            ))}
-
-            {/* Services in mobile */}
-            <div className="pt-1 border-t border-neutral-100">
-              <p className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-neutral-400">
-                Services
-              </p>
-              {services.map((item) => (
-                <a
-                  key={item.name}
-                  href={item.href}
-                  className="block rounded-md px-3 py-2.5 text-sm text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900"
-                >
-                  {item.name}
-                </a>
-              ))}
-            </div>
-          </div>
-
-          {/* Mobile user section */}
-          <div className="relative border-t border-neutral-200 pt-4 pb-3">
-            <div className="mx-auto flex max-w-3xl items-center px-4 sm:px-6">
-              <div className="shrink-0">
-                <img
-                  alt=""
-                  src={user.imageUrl}
-                  className="size-9 rounded-full bg-neutral-100 ring-1 ring-black/5"
+        {/* Mobile panel */}
+        {mobileOpen && (
+          <nav
+            aria-label="Global"
+            className="absolute left-0 z-20 w-full bg-white shadow-lg lg:hidden"
+          >
+            <div className="px-4 pt-3 pb-2">
+              <div className="grid grid-cols-1">
+                <input
+                  name="search-mobile"
+                  placeholder="Search location"
+                  className="col-start-1 row-start-1 block w-full rounded-full bg-white py-2.5 pr-4 pl-11 text-neutral-900 outline-1 -outline-offset-1 outline-neutral-200 placeholder:text-neutral-400 focus:outline-2 focus:-outline-offset-2 focus:outline-red-400 text-sm shadow-sm ring-1 ring-neutral-200"
+                />
+                <MagnifyingGlassIcon
+                  aria-hidden="true"
+                  className="pointer-events-none col-start-1 row-start-1 ml-4 size-4 self-center text-neutral-400"
                 />
               </div>
-              <div className="ml-3">
-                <div className="text-sm font-semibold text-neutral-800">{user.name}</div>
-                <div className="text-xs text-neutral-500">{user.email}</div>
-              </div>
-              <button
-                type="button"
-                className="relative ml-auto shrink-0 rounded-full p-1 text-neutral-400 hover:text-neutral-500 focus:outline-2 focus:outline-offset-2 focus:outline-red-600"
-              >
-                <span className="absolute -inset-1.5" />
-                <span className="sr-only">View notifications</span>
-                <BellIcon aria-hidden="true" className="size-5" />
+            </div>
+
+            <div className="px-6 pt-3 pb-2 border-t border-neutral-100">
+              <button className="flex items-center gap-1 text-sm font-semibold text-neutral-700 hover:text-red-600 transition-colors">
+                Services
+                <ChevronDownIcon className="size-4 text-disabled" />
               </button>
             </div>
 
-            <div className="mx-auto mt-3 max-w-3xl space-y-0.5 px-3 sm:px-4">
-              {userNavigation.map((item) => (
-                <a
-                  key={item.name}
-                  href={item.href}
-                  className="block rounded-md px-3 py-2.5 text-sm text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900"
-                >
-                  {item.name}
-                </a>
-              ))}
+            <div className="px-6 pb-3">
+              <button className="flex items-center gap-1 text-sm font-semibold text-neutral-700 hover:text-red-600 transition-colors">
+                Language (En)
+                <ChevronDownIcon className="size-4 text-disabled" />
+              </button>
             </div>
 
-            <div className="mt-4 px-4 sm:px-6">
+            <div className="px-4 pb-4 sm:px-6 border-t border-neutral-200 pt-4">
               <Button variant="error" size="md">
                 Pay Now
               </Button>
             </div>
-          </div>
-        </PopoverPanel>
-      </Popover>
-    </>
+          </nav>
+        )}
+      </motion.header>
+    </div>
   )
 }
-
-
-

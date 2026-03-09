@@ -1,6 +1,9 @@
 @import "tailwindcss";
 
 @theme {
+    --font-body: var(--font-inter), sans-serif;
+    --font-heading: var(--font-poppins), sans-serif;
+
     --color-primary-50: oklch(97.1% 0.013 17.38);
     --color-primary-100: oklch(93.6% 0.032 17.717);
     --color-primary-200: oklch(88.5% 0.062 18.334);
@@ -100,11 +103,13 @@
 @layer base {
     :root {
 
+        --header-height: 70px;
+
         --max-width-container: 1280px;
 
         --radius-card: theme(borderRadius.xl);
         --radius-button: theme(borderRadius.xl);
-        --radius-input: theme(borderRadius.lg);
+        --radius-input: theme(borderRadius.xl);
         --radius-pill: 9999px;
 
 
@@ -131,7 +136,7 @@
         --ring-focus: var(--color-primary-400);
 
         --border-default: var(--color-neutral-200);
-        --border-muted: var(--color-neutral-100);
+        --border-muted: color-mix(in oklch, var(--color-neutral-300) 65%, transparent);
         --border-strong: var(--color-neutral-400);
         --border-focus: var(--color-primary-400);
 
@@ -195,7 +200,6 @@
     .bg-brand {
         background-color: var(--bg-brand);
     }
-
 
 
     .bg-brand-active {
@@ -349,4 +353,26 @@
     .rounded-input {
         border-radius: var(--radius-input);
     }
+
+
+}
+
+@layer components {
+    .duo_icons path:first-child {
+        @apply fill-neutral-400 opacity-30!;
+    }
+
+    .duo_icons path:last-child {
+        @apply fill-neutral-900;
+    }
+
+    .duo_icons_active path:first-child {
+        @apply fill-red-300;
+    }
+
+    .duo_icons_active path:last-child {
+        @apply fill-white opacity-40!;
+    }
+
+
 }
