@@ -61,6 +61,13 @@ const heroTabsPremium: HeroTab[] = [
     { key: 'hotels', label: 'Hotels', icon: BuildingIcon },
 ]
 
+const heroTabsPremiumSm: HeroTab[] = [
+    { key: 'flights', label: 'Flights', icon: AirplaneTiltIcon, badge: 'Offer' },
+    { key: 'holidays', label: 'Holidays', icon: IslandIcon },
+    { key: 'hotels', label: 'Hotels', icon: BuildingIcon },
+    { key: 'heliride', label: 'Heli Ride', icon: HelicopterIcon },
+]
+
 const heroTabs: HeroTab[] = [
     { key: 'bus', label: 'Bus', icon: BusIcon },
     { key: 'train', label: 'Train', icon: TrainIcon },
@@ -182,171 +189,207 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
     const fields = fieldMap[activeTab]
 
     return (
-        <section ref={sectionRef} className="relative flex flex-col items-center justify-center overflow-hidden px-4 py-10 sm:pt-12 sm:pb-22 -mt-(--header-height)">
+        <>
+            <section ref={sectionRef} className="relative flex flex-col items-center justify-center overflow-hidden px-4 py-12  sm:pb-22 -mt-header-height ">
 
-            {/* ── Background image stack ── */}
-            {/* motion.div carries the scroll-driven scale — wraps ALL slides so the
+                {/* ── Background image stack ── */}
+                {/* motion.div carries the scroll-driven scale — wraps ALL slides so the
                 scale applies uniformly regardless of which image is active.
                 overflow-hidden on the parent section clips the scaled overflow. */}
-            <motion.div
-                className="absolute inset-0 overflow-hidden"
-                style={{ scale: bgScale }}
-            >
-                {bgImages.map((src, i) => (
-                    <motion.div
-                        key={src}
-                        className="absolute inset-0"
-                        initial={false}
-                        animate={{ opacity: i === currentIndex ? 1 : 0 }}
-                        transition={{ duration: 1.4, ease: 'easeInOut' }}
-                    >
-                        <Image
-                            src={src}
-                            alt={`Hero background ${i + 1}`}
-                            fill
-                            className="object-cover"
-                            priority={i === 0}
-                            style={{
-                                // Ken Burns (slow zoom while slide is active) — independent of scroll scale
-                                transform: i === currentIndex ? 'scale(1.04)' : 'scale(1)',
-                                transition: `transform ${slideInterval}ms ease-in-out`,
-                            }}
-                        />
-                    </motion.div>
-                ))}
-            </motion.div>
-
-            {/* Overlay — sits above scaled image stack, does not scale with it */}
-            <div className="absolute inset-0 bg-linear-to-b from-neutral-950/55 via-neutral-900/40 to-neutral-950/65 z-10 pointer-events-none" />
-
-            {/* Slide dots */}
-            {bgImages.length > 1 && (
-                <SlideDots total={bgImages.length} active={currentIndex} />
-            )}
-
-            {/* Spacer to push content below sticky header */}
-            <div className="h-(--header-height) relative z-10" />
-
-            {/* ── Hero headline ── */}
-            <div className="relative z-10 text-center mb-8 sm:mb-10 px-2">
-                <AnimatePresence mode="wait">
-                    <motion.h1
-                        key={currentIndex}
-                        initial={{ opacity: 0, y: 14 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        transition={{ duration: 0.6, ease: 'easeOut' }}
-                        className="text-3xl sm:text-4xl md:text-5xl font-bold text-white drop-shadow-lg leading-tight tracking-tight font-heading"
-                    >
-                        {bgTitles[currentIndex % bgTitles.length]}
-                    </motion.h1>
-                </AnimatePresence>
-                <motion.p
-                    key={currentIndex}
-                    initial={{ opacity: 0, x: 14 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.8, ease: 'easeOut' }}
-                    className="mt-3 text-sm sm:text-base text-white/80 max-w-xl mx-auto leading-relaxed">
-                    {bgParas[currentIndex % bgParas.length]}
-                </motion.p>
-            </div>
-
-            {/* ── Search engine card ── */}
-            <div className="relative z-10 w-full max-w-container px-4 sm:px-6 lg:px-8 mt-16">
-                <div className="rounded-3xl bg-white/20 backdrop-blur-[2px] shadow-2xl shadow-black/30 ring-[0.1em] ring-inset ring-white/30 ">
-
-                    {/* Tab row */}
-                    <div className="overflow-x-auto scrollbar-none border-b border-neutral-100 bg-white w-max m-auto -translate-y-1/2 py-3 px-5 rounded-2xl flex items-center divide-x divide-(--border-muted) shadow-xl shadow-gray-600">
-                        <div className="flex items-center gap-4 pr-3">
-                            {heroTabsPremium.map((tab) => {
-                                const isActive = activeTab === tab.key
-                                return (
-                                    <button
-                                        key={tab.key}
-                                        onClick={() => setActiveTab(tab.key)}
-                                        className={`relative flex flex-col items-center gap-2 px-3 sm:px-4 py-2.5 min-w-16 sm:min-w-18 transition-all rounded-xl shrink-0 ${isActive
-                                            ? 'bg-red-500 text-white shadow-md shadow-red-300/40'
-                                            : 'text-neutral-900 hover:text-neutral-800 hover:bg-neutral-100'
-                                            }`}
-                                    >
-                                        <span className={isActive ? 'text-white' : 'text-neutral-900'}>
-                                            <tab.icon
-                                                className={`size-9 ${isActive ? 'duo_icons_active' : 'duo_icons'}`}
-                                                weight="duotone"
-                                            />
-                                        </span>
-                                        <span className="whitespace-nowrap leading-none font-heading text-sm font-semibold">
-                                            {tab.label}
-                                        </span>
-                                    </button>
-                                )
-                            })}
-                        </div>
-
-                        <div className="flex items-center gap-3 pl-3">
-                            {heroTabs.map((tab) => {
-                                const isActive = activeTab === tab.key
-                                return (
-                                    <button
-                                        key={tab.key}
-                                        onClick={() => setActiveTab(tab.key)}
-                                        className={`relative flex flex-col items-center gap-2 px-3 sm:px-4 py-2.5 min-w-16 sm:min-w-18 text-sm font-medium transition-all rounded-xl shrink-0 ${isActive
-                                            ? 'bg-red-500 text-white shadow-md shadow-red-300/40'
-                                            : 'text-neutral-900 hover:text-neutral-800 hover:bg-neutral-100'
-                                            }`}
-                                    >
-                                        <span className={isActive ? 'text-white' : 'text-neutral-900'}>
-                                            <tab.icon
-                                                className={`size-9 ${isActive ? 'duo_icons_active' : 'duo_icons'}`}
-                                                weight="duotone"
-                                            />
-                                        </span>
-                                        <span className="whitespace-nowrap leading-none font-heading">
-                                            {tab.label}
-                                        </span>
-                                    </button>
-                                )
-                            })}
-                        </div>
-                    </div>
-
-                    {/* Fields */}
-                    <div className="px-4 sm:px-6 pt-5">
+                <motion.div
+                    className="absolute inset-0 overflow-hidden"
+                    style={{ scale: bgScale }}
+                >
+                    {bgImages.map((src, i) => (
                         <motion.div
-                            key={activeTab}
-                            initial={{ opacity: 0, y: 9 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.25, ease: 'easeOut' }}
-                            className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4"
+                            key={src}
+                            className="absolute inset-0"
+                            initial={false}
+                            animate={{ opacity: i === currentIndex ? 1 : 0 }}
+                            transition={{ duration: 1.4, ease: 'easeInOut' }}
                         >
-                            {fields.map((field) => (
-                                <div key={field.label} className="flex flex-col gap-1.5">
-                                    <label className="text-xs sm:text-sm font-medium text-inverse pl-1">
-                                        {field.label}
-                                    </label>
-                                    <input
-                                        type={field.type ?? 'text'}
-                                        placeholder={field.placeholder}
-                                        className="w-full rounded-(--radius-input) border border-neutral-200 bg-white px-3 py-2.5 text-sm text-neutral-800 placeholder-color shadow-sm outline-none focus:border-red-400 focus:border-[0.13em] focus:ring-[0.12em] focus:ring-red-100 transition"
-                                    />
-                                </div>
-                            ))}
+                            <Image
+                                src={src}
+                                alt={`Hero background ${i + 1}`}
+                                fill
+                                className="object-cover"
+                                priority={i === 0}
+                                style={{
+                                    // Ken Burns (slow zoom while slide is active) — independent of scroll scale
+                                    transform: i === currentIndex ? 'scale(1.04)' : 'scale(1)',
+                                    transition: `transform ${slideInterval}ms ease-in-out`,
+                                }}
+                            />
                         </motion.div>
+                    ))}
+                </motion.div>
 
-                        <div className="flex justify-center mt-6 translate-y-1/2">
-                            <Button
-                                variant="premium"
-                                size="lg"
-                                className="rounded-full px-12 font-bold text-base shadow-lg shadow-red-400/40 hover:shadow-red-400/60"
+
+
+                {/* Overlay — sits above scaled image stack, does not scale with it */}
+                <div className="absolute inset-0 bg-linear-to-b from-neutral-950/55 via-neutral-900/40 to-neutral-950/65 z-10 pointer-events-none" />
+
+                {/* Slide dots */}
+                {bgImages.length > 1 && (
+                    <SlideDots total={bgImages.length} active={currentIndex} />
+                )}
+
+                {/* Spacer to push content below sticky header */}
+                <div className="h-header-height relative z-10" />
+
+                {/* ── Hero headline ── */}
+                <div className="relative z-10 text-center mb-8 sm:mb-10 px-2">
+                    <AnimatePresence mode="wait">
+                        <motion.h1
+                            key={currentIndex}
+                            initial={{ opacity: 0, y: 14 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            transition={{ duration: 0.6, ease: 'easeOut' }}
+                            className="text-3xl sm:text-4xl md:text-5xl font-bold text-white drop-shadow-lg leading-tight tracking-tight font-heading"
+                        >
+                            {bgTitles[currentIndex % bgTitles.length]}
+                        </motion.h1>
+                    </AnimatePresence>
+                    <motion.p
+                        key={currentIndex}
+                        initial={{ opacity: 0, x: 14 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.8, ease: 'easeOut' }}
+                        className="mt-3 text-sm sm:text-base text-neutral-300 max-w-xl mx-auto leading-relaxed">
+                        {bgParas[currentIndex % bgParas.length]}
+                    </motion.p>
+                </div>
+
+                {/* ── Search engine card ── */}
+                <div className="hidden md:block relative z-10 w-full screen-space mt-16">
+                    <div className="rounded-3xl bg-white/20 backdrop-blur-[2px] shadow-2xl shadow-black/30 ring-[0.1em] ring-inset ring-white/30 ">
+
+                        {/* Tab row */}
+                        <div className="overflow-x-auto scrollbar-none border-b border-neutral-100 bg-white w-[85%] xl:w-max m-auto -translate-y-1/2 py-3 px-5 rounded-2xl flex items-center divide-x divide-(--border-muted) shadow-xl shadow-gray-600">
+                            <div className="flex items-center gap-4 pr-3">
+                                {heroTabsPremium.map((tab) => {
+                                    const isActive = activeTab === tab.key
+                                    return (
+                                        <button
+                                            key={tab.key}
+                                            onClick={() => setActiveTab(tab.key)}
+                                            className={`relative flex flex-col items-center gap-2 px-3 sm:px-4 py-2.5 min-w-16 sm:min-w-18 transition-all rounded-xl shrink-0 ${isActive
+                                                ? 'bg-red-500 text-white shadow-md shadow-red-300/40'
+                                                : 'text-neutral-900 hover:text-neutral-800 hover:bg-neutral-100'
+                                                }`}
+                                        >
+                                            <span className={isActive ? 'text-white' : 'text-neutral-900'}>
+                                                <tab.icon
+                                                    className={`size-9 ${isActive ? 'duo_icons_active' : 'duo_icons'}`}
+                                                    weight="duotone"
+                                                />
+                                            </span>
+                                            <span className="whitespace-nowrap leading-none font-heading text-sm font-semibold">
+                                                {tab.label}
+                                            </span>
+                                        </button>
+                                    )
+                                })}
+                            </div>
+
+                            <div className="flex items-center gap-3 pl-3">
+                                {heroTabs.map((tab) => {
+                                    const isActive = activeTab === tab.key
+                                    return (
+                                        <button
+                                            key={tab.key}
+                                            onClick={() => setActiveTab(tab.key)}
+                                            className={`relative flex flex-col items-center gap-2 px-3 sm:px-4 py-2.5 min-w-16 sm:min-w-18 text-sm font-medium transition-all rounded-xl shrink-0 ${isActive
+                                                ? 'bg-red-500 text-white shadow-md shadow-red-300/40'
+                                                : 'text-neutral-900 hover:text-neutral-800 hover:bg-neutral-100'
+                                                }`}
+                                        >
+                                            <span className={isActive ? 'text-white' : 'text-neutral-900'}>
+                                                <tab.icon
+                                                    className={`size-9 ${isActive ? 'duo_icons_active' : 'duo_icons'}`}
+                                                    weight="duotone"
+                                                />
+                                            </span>
+                                            <span className="whitespace-nowrap leading-none font-heading">
+                                                {tab.label}
+                                            </span>
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Fields */}
+                        <div className="px-4 sm:px-6 pt-5">
+                            <motion.div
+                                key={activeTab}
+                                initial={{ opacity: 0, y: 9 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.25, ease: 'easeOut' }}
+                                className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4"
                             >
-                                Search
-                            </Button>
+                                {fields.map((field) => (
+                                    <div key={field.label} className="flex flex-col gap-1.5">
+                                        <label className="text-xs sm:text-sm font-medium font-heading text-inverse pl-1">
+                                            {field.label}
+                                        </label>
+                                        <input
+                                            type={field.type ?? 'text'}
+                                            placeholder={field.placeholder}
+                                            className="w-full rounded-input border border-neutral-200 bg-white px-3 py-2.5 text-sm text-neutral-800 placeholder-color shadow-sm outline-none focus:border-red-400 focus:border-[0.13em] focus:ring-[0.12em] focus:ring-red-100 transition"
+                                        />
+                                    </div>
+                                ))}
+                            </motion.div>
+
+                            <div className="flex justify-center mt-6 translate-y-1/2">
+                                <Button
+                                    variant="premium"
+                                    size="lg"
+                                    className="rounded-pill px-12 font-bold text-base shadow-lg shadow-red-400/40 hover:shadow-red-400/60"
+                                >
+                                    Search
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 </div>
+            </section>
+
+            <div className='relative screen-space z-30'>
+                <div className="overflow-x-auto scrollbar-none border-b border-neutral-100 bg-white w-full   m-auto -translate-y-1/2 py-3 px-5 rounded-2xl flex items-center justify-center  shadow-xl shadow-gray-300/80 md:hidden">
+                    <div className="flex items-center gap-4 pr-3">
+                        {heroTabsPremiumSm.map((tab) => {
+                            const isActive = activeTab === tab.key
+                            return (
+                                <button
+                                    key={tab.key}
+                                    onClick={() => setActiveTab(tab.key)}
+                                    className={`relative flex flex-col items-center gap-2 px-3 sm:px-4 py-2.5 min-w-16 sm:min-w-18 transition-all rounded-xl shrink-0 ${isActive
+                                        ? 'bg-red-500 text-white shadow-md shadow-red-300/40'
+                                        : 'text-neutral-900 hover:text-neutral-800 hover:bg-neutral-100'
+                                        }`}
+                                >
+                                    <span className={isActive ? 'text-white' : 'text-neutral-900'}>
+                                        <tab.icon
+                                            className={`size-9 ${isActive ? 'duo_icons_active' : 'duo_icons'}`}
+                                            weight="duotone"
+                                        />
+                                    </span>
+                                    <span className="whitespace-nowrap leading-none font-heading text-sm font-semibold">
+                                        {tab.label}
+                                    </span>
+                                </button>
+                            )
+                        })}
+                    </div>
+                </div>
             </div>
-        </section>
+        </>
+
+
     )
 }
 

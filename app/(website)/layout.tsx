@@ -7,7 +7,7 @@ export default function WebsiteLayout({
 }) {
   return (
     <>
-      <Header transparent={true} />
+      <Header transparent={true}/>
       <div className="mx-auto">
         {children}
       </div>

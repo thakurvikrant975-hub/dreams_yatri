@@ -88,30 +88,28 @@
     --color-info-900: oklch(39.1% 0.09 240.876);
     --color-info-950: oklch(29.3% 0.066 243.157);
 
-    --z-base: 1;
-    --z-dropdown: 100;
-    --z-sticky: 200;
-    --z-overlay: 400;
-    --z-modal: 500;
-    --z-toast: 600;
-    --z-tooltip: 700;
 
+    --radius-card: theme(borderRadius.xl);
+    --radius-button: theme(borderRadius.xl);
+    --radius-input: theme(borderRadius.xl);
+    --radius-pill: 9999px;
 
+    --spacing-header-height: 70px;
 
 }
 
 @layer base {
     :root {
 
-        --header-height: 70px;
-
         --max-width-container: 1280px;
 
-        --radius-card: theme(borderRadius.xl);
-        --radius-button: theme(borderRadius.xl);
-        --radius-input: theme(borderRadius.xl);
-        --radius-pill: 9999px;
-
+        --z-base: 1;
+        --z-dropdown: 100;
+        --z-sticky: 200;
+        --z-overlay: 400;
+        --z-modal: 500;
+        --z-toast: 600;
+        --z-tooltip: 700;
 
         --bg-page: var(--color-neutral-50);
         --bg-surface: oklch(100% 0.00011 271.152);
@@ -168,14 +166,11 @@
         background-color: var(--bg-page);
         color: var(--text-primary);
     }
+
 }
 
 
 @layer utilities {
-
-    .max-w-container {
-        max-width: var(--max-width-container);
-    }
 
     .bg-page {
         background-color: var(--bg-page);
@@ -346,18 +341,21 @@
         --tw-ring-color: var(--ring-focus);
     }
 
-    .rounded-button {
-        border-radius: var(--radius-button);
-    }
-
-    .rounded-input {
-        border-radius: var(--radius-input);
-    }
 
 
 }
 
 @layer components {
+
+    .py-section {
+        @apply py-8;
+    }
+
+    .screen-space {
+        @apply mx-auto px-4 sm:px-6 lg:px-8;
+        max-width: var(--max-width-container);
+    }
+
     .duo_icons path:first-child {
         @apply fill-neutral-400 opacity-30!;
     }
@@ -371,7 +369,7 @@
     }
 
     .duo_icons_active path:last-child {
-        @apply fill-white ;
+        @apply fill-white;
     }
 
 

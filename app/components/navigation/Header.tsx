@@ -6,13 +6,15 @@ import {
   MagnifyingGlassIcon,
   ChevronDownIcon,
 } from '@heroicons/react/20/solid'
-import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline'
+import { Bars3Icon, XMarkIcon, UserIcon } from '@heroicons/react/24/solid'
 import Button from '../ui/Button'
 import Image from 'next/image'
 
 interface HeaderProps {
   transparent?: boolean
 }
+
+
 
 export default function Header({ transparent = false }: HeaderProps) {
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -44,44 +46,42 @@ export default function Header({ transparent = false }: HeaderProps) {
             : '0 0 0 0 rgba(0,0,0,0)',
         }}
         transition={{ duration: 0.35, ease: 'easeInOut' }}
-        className="relative h-(--header-height)"
+        className="relative h-header-height"
       >
-        <div className="mx-auto max-w-container px-4 sm:px-6 lg:px-8 h-full">
+        <div className="screen-space h-full">
           <div className="flex items-center justify-between gap-4 lg:gap-6 h-full">
 
             {/* Logo */}
-            <div className="flex shrink-0 items-center">
+            <div className={`flex shrink-0 items-center  ${isSolid ? 'brightness-100': 'brightness-130'}`}>
               <a href="#">
                 <Image
                   alt="Dreams Yatri"
                   src="/dy_logo.webp"
                   width={160}
                   height={42}
-                  className="h-auto w-40"
+                  className="h-auto w-46"
                   priority
                 />
               </a>
             </div>
 
             {/* Search */}
-            <div className="flex-1 md:px-8 lg:px-0 xl:col-span-6">
+            <div className=" hidden md:block md:flex-1 md:px-8 lg:px-0 xl:col-span-6">
               <div className="max-w-80 m-auto">
                 <div className="flex items-center px-6 py-3.5 md:mx-auto md:max-w-3xl lg:mx-0 lg:max-w-none xl:px-0">
                   <div className="grid w-full grid-cols-1">
                     <input
                       name="search"
                       placeholder="Search"
-                      className={`col-start-1 row-start-1 block w-full rounded-full py-2 pr-3 pl-12 outline-1 -outline-offset-1 placeholder-color focus:outline-2 focus:-outline-offset-2 focus:outline-primary-400 sm:text-sm/6 transition-all duration-300  ${
-                        isSolid
-                          ? 'bg-white text-neutral-900 outline-neutral-300 shadow-md shadow-gray-200/70'
-                          : 'bg-white/15 text-white outline-white/30 placeholder:text-white/70! backdrop-blur-sm shadow-none'
-                      }`}
+                      className={`col-start-1 row-start-1 block w-full rounded-full py-2 pr-3 pl-12 outline-1 -outline-offset-1 placeholder-color focus:outline-2 focus:-outline-offset-2 focus:outline-primary-400 sm:text-sm/6 transition-all duration-300  ${isSolid
+                        ? 'bg-white text-neutral-900 outline-neutral-300 shadow-md shadow-gray-200/70'
+                        : 'bg-white/15 text-white outline-white/30 placeholder:text-white/70! backdrop-blur-sm shadow-none'
+                        }`}
                     />
                     <MagnifyingGlassIcon
                       aria-hidden="true"
-                      className={`pointer-events-none col-start-1 row-start-1 ml-5 size-5 self-center transition-colors duration-300 z-10 ${
-                        isSolid ? 'text-muted' : 'text-white/70'
-                      }`}
+                      className={`pointer-events-none col-start-1 row-start-1 ml-5 size-5 self-center transition-colors duration-300 z-10 ${isSolid ? 'text-muted' : 'text-white/70'
+                        }`}
                     />
                   </div>
                 </div>
@@ -89,12 +89,12 @@ export default function Header({ transparent = false }: HeaderProps) {
             </div>
 
             {/* Right nav (desktop) */}
-            <div className="hidden lg:flex lg:items-center lg:gap-10">
+            <div className="hidden lg:flex lg:items-center lg:gap-8">
               <div className="relative">
                 <motion.button
                   animate={{ color: isSolid ? '#171717' : '#ffffff' }}
                   transition={{ duration: 0.3 }}
-                  className="flex items-center gap-1 font-semibold hover:text-red-500 transition-colors"
+                  className="flex items-center gap-1 font-semibold hover:text-red-500 transition-colors font-heading"
                 >
                   Services
                   <ChevronDownIcon className="size-6 opacity-50" />
@@ -108,15 +108,29 @@ export default function Header({ transparent = false }: HeaderProps) {
                   className="flex flex-col items-start gap-1 hover:text-red-500 transition-colors outline-none"
                 >
                   <span className="text-xs leading-none opacity-60">Language</span>
-                  <span className="flex items-center gap-0.5 font-semibold leading-tight">
+                  <span className="flex items-center gap-0.5 font-semibold font-heading leading-tight">
                     En
                     <ChevronDownIcon className="size-4.5 opacity-50" />
                   </span>
                 </motion.button>
               </div>
 
+              <div className='relative'>
+                <motion.button
+                  animate={{ color: isSolid ? '#6A7282' : '#ffffff' }}
+                  transition={{ duration: 0.3 }}
+                  className={`size-9 rounded-full flex justify-center items-center ring-1 
+              ${isSolid
+                      ? 'bg-neutral-100 text-neutral-900 outline-neutral-300 shadow-md shadow-gray-300/60 ring-(--border-muted)'
+                      : 'bg-white/15 text-white outline-white/30  backdrop-blur-sm shadow-none ring-white/40'
+                    }
+                `}>
+                  <UserIcon className={`size-4.5 `} />
+                </motion.button>
+              </div>
+
               <Button variant="premium" size="md">
-                Pay Now
+                Register
               </Button>
             </div>
 
