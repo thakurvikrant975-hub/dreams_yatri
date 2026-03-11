@@ -1,4 +1,5 @@
 'use client'
+import React from "react"
 import StatItem from "../ui/StatItem"
 import { StatItemI } from "@/app/types/components/ui/StatItem"
 import { AirplaneTiltIcon, MapPinIcon, VanIcon, StarIcon } from "@phosphor-icons/react"
@@ -12,16 +13,16 @@ const TRUST_ITEMS: StatItemI[] = [
 
 export default function TrustSignals() {
     return (
-        <section className="w-full py-section">
-            <div className="screen-space">
+        <section className="w-full border-b border-b-(--border-default) py-section">
+            <div className="screen-space ">
                 <div className="hidden lg:flex items-stretch justify-between">
                     {TRUST_ITEMS.map((item, i) => (
-                        <>
-                            <StatItem key={item.label} item={item} />
+                        <React.Fragment key={item.label}>
+                            <StatItem item={item} />
                             {i < TRUST_ITEMS.length - 1 && (
-                                <div key={`${i}`} className="self-center h-16 w-px bg-(--border-muted) shrink-0" />
+                                <div className="self-center h-16 w-px bg-(--border-muted) shrink-0" />
                             )}
-                        </>
+                        </React.Fragment>
                     ))}
                 </div>
 

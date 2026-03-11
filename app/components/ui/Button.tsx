@@ -9,7 +9,7 @@ const buttonVariants = cva(
       variant: {
         primary:
           'bg-primary-500 text-inverse hover:bg-primary-400',
-        premium: 'bg-gradient-to-r from-primary-400 to-primary-600 text-white hover:from-primary-500 hover:to-primary-700 focus:ring-primary-500 hover:scale-105',
+        premium: 'bg-gradient-to-r from-primary-400 to-primary-600 text-white hover:from-primary-500 hover:to-primary-700 focus:ring-primary-500 ',
         secondary:
           'bg-gray-600/80 text-white hover:bg-gray-700 focus:ring-gray-500 disabled:bg-gray-300',
         outline:

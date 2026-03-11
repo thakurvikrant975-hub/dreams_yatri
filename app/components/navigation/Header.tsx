@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
+import { motion } from 'framer-motion'
 import {
   MagnifyingGlassIcon,
   ChevronDownIcon,
@@ -9,6 +9,7 @@ import {
 import { Bars3Icon, XMarkIcon, UserIcon } from '@heroicons/react/24/solid'
 import Button from '../ui/Button'
 import Image from 'next/image'
+import Link from 'next/link'
 
 interface HeaderProps {
   transparent?: boolean
@@ -53,7 +54,7 @@ export default function Header({ transparent = false }: HeaderProps) {
 
             {/* Logo */}
             <div className={`flex shrink-0 items-center  ${isSolid ? 'brightness-100': 'brightness-130'}`}>
-              <a href="#">
+              <Link href="/">
                 <Image
                   alt="Dreams Yatri"
                   src="/dy_logo.webp"
@@ -62,7 +63,7 @@ export default function Header({ transparent = false }: HeaderProps) {
                   className="h-auto w-46"
                   priority
                 />
-              </a>
+              </Link>
             </div>
 
             {/* Search */}
