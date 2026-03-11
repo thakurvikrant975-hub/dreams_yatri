@@ -262,7 +262,7 @@ export default function AvantiSection() {
   return (
     <section
       ref={sectionRef}
-      className="relative overflow-hidden py-20 lg:py-28 bg-gradient-to-br from-[#0a0f1e] via-[#111827] to-[#0d1117]"
+      className="relative overflow-hidden py-section  bg-linear-to-br bg-neutral-900"
     >
       {/* Grid background */}
       <div
@@ -277,10 +277,10 @@ export default function AvantiSection() {
       />
 
       {/* Radial glow */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/4 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-red-500/[0.07] blur-3xl pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/4 -translate-y-1/2 size-150 rounded-full bg-red-500/[0.07] blur-3xl pointer-events-none" />
 
       {/* Content */}
-      <div className="relative max-w-6xl mx-auto px-6 lg:px-10">
+      <div className="relative screen-space ">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
 
           {/* LEFT COL */}
@@ -344,17 +344,6 @@ export default function AvantiSection() {
         </div>
       </div>
 
-      {/* Keyframes via style tag — only for custom animations not in default Tailwind */}
-      <style>{`
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(16px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes glowPulse {
-          0%, 100% { box-shadow: 0 8px 24px rgba(239,68,68,0.3); }
-          50%       { box-shadow: 0 8px 48px rgba(239,68,68,0.6); }
-        }
-      `}</style>
     </section>
   );
 }

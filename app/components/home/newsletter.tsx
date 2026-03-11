@@ -232,8 +232,8 @@ function WhatsAppCard() {
 
 export default function NewsletterSection() {
   return (
-    <section className="py-16 lg:py-20 bg-slate-50">
-      <div className="max-w-5xl mx-auto px-6 lg:px-10 flex flex-col gap-6">
+    <section className="py-section bg-surface-muted">
+      <div className="screen-space flex flex-col gap-6">
         <EmailCard />
         <WhatsAppCard />
       </div>

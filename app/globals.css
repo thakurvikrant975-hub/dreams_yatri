@@ -351,7 +351,7 @@
 @layer components {
 
     .py-section {
-        @apply py-8;
+        @apply py-16 lg:py-20;
     }
 
     .screen-space {

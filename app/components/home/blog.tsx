@@ -104,8 +104,8 @@ export default function BlogsSection() {
   const { ref, visible } = useScrollVisible();
 
   return (
-    <section ref={ref} className="py-20 lg:py-24 bg-slate-50">
-      <div className="max-w-6xl mx-auto px-6 lg:px-10">
+    <section ref={ref} className="py-section">
+      <div className="screen-space">
         <div
           className={`transition-all duration-700 ${
             visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"

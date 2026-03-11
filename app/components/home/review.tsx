@@ -114,8 +114,8 @@ export default function TestimonialsSection() {
   };
 
   return (
-    <section ref={ref} className="py-20 lg:py-24 bg-white overflow-hidden">
-      <div className="max-w-6xl mx-auto px-6 lg:px-10">
+    <section ref={ref} className="py-section bg-surface-muted overflow-hidden">
+      <div className="screen-space">
         {/* Header row */}
         <div
           className={`flex items-end justify-between mb-8 transition-all duration-700 ${

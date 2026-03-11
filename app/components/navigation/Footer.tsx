@@ -172,7 +172,7 @@ export default function Footer() {
   return (
     <footer className="bg-[#0f1623] text-slate-300">
       {/* Main grid */}
-      <div className="max-w-7xl mx-auto px-6 lg:px-10 pt-14 pb-10">
+      <div className="screen-space pt-14 pb-10">
         <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-12">
 
           {/* Left — Brand + Contact */}
