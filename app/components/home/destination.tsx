@@ -12,6 +12,7 @@ import {
     CaretRightIcon,
     IslandIcon,
 } from '@phosphor-icons/react'
+import SectionHeader from '../ui/SectionHeader'
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 type DestinationItem = Omit<DestinationCardProps, 'onClick'> & {
@@ -146,38 +147,42 @@ function DestinationRow({
             {/* Row header */}
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2.5">
-                    <RowIcon weight="duotone" className="size-5 text-neutral-700" />
-                    <Heading level={4} className="!text-xl font-bold">
+                    <RowIcon weight="duotone" className="size-7 duo_icons" />
+                    <Heading level={3} className="font-bold">
                         {label}
                     </Heading>
                 </div>
 
                 <div className="flex items-center gap-2">
                     {/* Prev / Next */}
-                    <button
+                    <Button
                         onClick={() => scroll('left')}
-                        className="flex items-center justify-center size-8 rounded-full border border-(--border-muted) bg-white hover:bg-neutral-50 text-neutral-600 transition shadow-sm"
+                        size='auto'
                         aria-label="Scroll left"
+                        variant='outline'
+                        className='p-2.5 rounded-full'
                     >
-                        <CaretLeftIcon weight="bold" className="size-3.5" />
-                    </button>
-                    <button
+                        <CaretLeftIcon weight="bold" className="size-3.5 text-(--text-secondary)" />
+                    </Button>
+                    <Button
                         onClick={() => scroll('right')}
-                        className="flex items-center justify-center size-8 rounded-full border border-(--border-muted) bg-white hover:bg-neutral-50 text-neutral-600 transition shadow-sm"
+                        size='auto'
+                        variant='outline'
                         aria-label="Scroll right"
+                        className='p-2.5 rounded-full'
                     >
-                        <CaretRightIcon weight="bold" className="size-3.5" />
-                    </button>
+                        <CaretRightIcon weight="bold" className="size-3.5 text-(--text-secondary)" />
+                    </Button>
 
                     {/* View All */}
                     <Button
                         variant="outline"
                         size="sm"
-                        className="gap-1.5 font-semibold text-sm"
+                        className="gap-1.5 font-heading font-medium text-sm"
                         onClick={onViewAll}
                     >
                         View All
-                        <ArrowRightIcon weight="bold" className="size-3.5" />
+                        <ArrowRightIcon weight="bold" className="size-3.5 text-(--text-muted)" />
                     </Button>
                 </div>
             </div>
@@ -185,26 +190,18 @@ function DestinationRow({
             {/* Divider */}
             <div className="h-px bg-(--border-muted) mb-5" />
 
-            {/* Scrollable card row */}
             <div
                 ref={scrollRef}
-                className="flex gap-4 overflow-x-auto scrollbar-none pb-2 -mx-1 px-1"
+                className="flex gap-9 overflow-x-auto scrollbar-none pb-2 -mx-1 px-1"
             >
                 {items.map((item) => (
-                    <div key={item.slug} className="shrink-0 w-[220px] sm:w-[260px] relative">
-                        {/* "Most Popular" badge — top-left ribbon */}
-                        {item.badge && (
-                            <span className="absolute top-3 left-3 z-20 text-[10px] font-bold bg-primary-500 text-white px-2.5 py-1 rounded-md leading-none shadow-sm">
-                                {item.badge}
-                            </span>
-                        )}
+                    <div key={item.slug} className="shrink-0 w-80">
                         <DestinationCard
                             name={item.name}
                             packageCount={item.packageCount}
                             image={item.image}
                             icon={item.icon}
                             onClick={() => onItemClick?.(item.slug)}
-                            className="h-[300px] sm:h-[340px]"
                         />
                     </div>
                 ))}
@@ -226,22 +223,11 @@ export default function ExploreDestinations({
             <div className="screen-space">
 
                 {/* ── Section header ── */}
-                <div className="mb-8">
-                    <Text
-                        size="sm"
-                        weight="semibold"
-                        intent="primary"
-                        className="mb-1 uppercase tracking-widest"
-                    >
-                        India &amp; Beyond
-                    </Text>
-                    <Heading level={2} className="mb-1">
-                        Explore By Destinations
-                    </Heading>
-                    <Text size="sm" intent="muted">
-                        From Himalayan peaks to tropical shores
-                    </Text>
-                </div>
+                <SectionHeader
+                    tag='India & Beyond'
+                    title='Explore By Destinations'
+                    subtitle='From Himalayan peaks to tropical shores'
+                />
 
                 {/* ── Domestic ── */}
                 <DestinationRow

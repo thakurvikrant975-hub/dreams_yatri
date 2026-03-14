@@ -3,6 +3,7 @@
 import React from 'react'
 import Image from 'next/image'
 import Card from '../ui/Card'
+import { Heading, Text } from '../ui/Typography'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface DestinationCardProps {
@@ -25,44 +26,51 @@ export default function DestinationCard({
     className = '',
 }: DestinationCardProps) {
     return (
-        <Card
-            asArticle
-            variant="elevated"
-            radius="xl"
-            padding="none"
-            hoverable
-            className={`overflow-hidden w-full aspect-3/4 cursor-pointer group ${className}`}
-            onClick={onClick}
-        >
-            {/* ── Full-bleed image ── */}
-            <div className="absolute inset-0">
-                <Image
-                    src={image}
-                    alt={name}
-                    fill
-                    className="object-cover transition-transform duration-700 group-hover:scale-105"
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 320px"
-                />
-                {/* Bottom gradient for text legibility */}
-                <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/10 to-transparent" />
+        <div className="w-full relative">
+            <div className="absolute h-full w-1/5 right-0 top-0 flex items-center">
+              <div className="h-[80%] flex-1 bg-gray-400/45 rounded-e-xl"></div>
+              <div className="h-[60%] flex-1 bg-gray-300/80 rounded-e-xl"></div>
+              <div className="h-[40%] flex-1 bg-gray-200/75 rounded-e-xl"></div>
             </div>
+            <Card
+                asArticle
+                variant="elevated"
+                radius="xl"
+                padding="none"
+                className={`overflow-hidden w-4/5 aspect-3/4 cursor-pointer group  ${className}`}
+                onClick={onClick}
+            >
 
-            {/* ── Icon pill — top right ── */}
-            {Icon && (
-                <div className="absolute top-3 right-3 z-10 flex items-center justify-center size-9 rounded-xl bg-white/20 backdrop-blur-md border border-white/30 text-white shadow-sm">
-                    <Icon weight="duotone" className="size-5" />
+                {/* ── Full-bleed image ── */}
+                <div className="absolute inset-0">
+                    <Image
+                        src={image}
+                        alt={name}
+                        fill
+                        className="object-cover transition-transform duration-300 group-hover:scale-110"
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 320px"
+                    />
+                    {/* Bottom gradient for text legibility */}
+                    <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/10 to-transparent" />
                 </div>
-            )}
 
-            {/* ── Text — bottom left ── */}
-            <div className="absolute bottom-0 left-0 right-0 z-10 px-4 pb-4 pt-8">
-                <h3 className="font-heading font-bold text-white text-xl leading-tight">
-                    {name}
-                </h3>
-                <p className="text-white/75 text-sm mt-0.5 font-medium">
-                    {packageCount} Packages
-                </p>
-            </div>
-        </Card>
+                {/* ── Icon pill — top right ── */}
+                {Icon && (
+                    <div className="absolute top-3 right-3 z-10 flex items-center justify-center size-9 rounded-xl bg-neutral-900/20 backdrop-blur-[1px]  text-neutral-100 shadow-sm">
+                        <Icon weight="duotone" className="size-5" />
+                    </div>
+                )}
+
+                {/* ── Text — bottom left ── */}
+                <div className="absolute bottom-0 left-0 right-0 z-10 px-4 pb-4 pt-8">
+                    <Heading level={3} weight='semibold' intent='inverse'>
+                        {name}
+                    </Heading>
+                    <Text size='sm' intent='muted'>
+                        {packageCount} Packages
+                    </Text>
+                </div>
+            </Card>
+        </div>
     )
 }

@@ -4,6 +4,7 @@ import StatItem from "../ui/StatItem"
 import { StatItemI } from "@/app/types/components/ui/StatItem"
 import { AirplaneTiltIcon, MapPinIcon, VanIcon, StarIcon } from "@phosphor-icons/react"
 
+
 const TRUST_ITEMS: StatItemI[] = [
     { icon: AirplaneTiltIcon, label: 'Happy Travelers', value: '10,000 +' },
     { icon: MapPinIcon, label: 'Destinations Covered', value: '500 +' },
@@ -13,7 +14,7 @@ const TRUST_ITEMS: StatItemI[] = [
 
 export default function TrustSignals() {
     return (
-        <section className="w-full border-b border-b-(--border-default) py-section">
+        <section className="w-full border-b border-b-(--border-default) py-12">
             <div className="screen-space ">
                 <div className="hidden lg:flex items-stretch justify-between">
                     {TRUST_ITEMS.map((item, i) => (
@@ -26,7 +27,6 @@ export default function TrustSignals() {
                     ))}
                 </div>
 
-                {/* ── Mobile: 2-col grid ── */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:hidden gap-x-8">
                     {TRUST_ITEMS.map((item, i) => (
                         <div

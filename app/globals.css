@@ -117,11 +117,11 @@
         --bg-surface: oklch(100% 0.00011 271.152);
         --bg-surface-muted: var(--color-neutral-100);
         --bg-surface-elevated: oklch(100% 0.00011 271.152);
-        --bg-surface-inverse: var(--color-neutral-900);
+        --bg-surface-inverse: var(--color-neutral-950);
 
         --text-primary: var(--color-neutral-900);
-        --text-secondary: var(--color-neutral-600);
-        --text-muted: color-mix(in oklch, var(--color-neutral-500) 75%, transparent);
+        --text-secondary: color-mix(in oklch, var(--color-neutral-600) 85%, transparent);
+        --text-muted: var(--color-neutral-400);
         --text-disabled: var(--color-neutral-400);
         --text-inverse: oklch(100% 0.00011 271.152);
         --text-brand: var(--color-primary-500);
@@ -136,7 +136,7 @@
         --ring-focus: var(--color-primary-400);
 
         --border-default: var(--color-neutral-200);
-        --border-muted: color-mix(in oklch, var(--color-neutral-300) 65%, transparent);
+        --border-muted: color-mix(in oklch, var(--color-neutral-300) 70%, transparent);
         --border-strong: var(--color-neutral-400);
         --border-focus: var(--color-primary-400);
 
@@ -350,6 +350,7 @@
 
 @layer components {
 
+
     .py-section {
         @apply py-16 lg:py-20;
     }
@@ -375,5 +376,29 @@
         @apply fill-white;
     }
 
+}
 
+.bg-gradient {
+    background-image: linear-gradient(315deg, #55f222, #00fff6 31.98%, #e88aff 66.47%, #ffd719);
+}
+
+@keyframes pulse-ring {
+    0% {
+        transform: scale(0.9);
+        box-shadow: 0 0 0 0 color-mix(in oklch, var(--color-success-500) 50%, transparent);
+    }
+
+    70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 10px color-mix(in oklch, var(--color-success-500) 0%, transparent);
+    }
+
+    100% {
+        transform: scale(0.9);
+        box-shadow: 0 0 0 0 color-mix(in oklch, var(--color-success-500) 0%, transparent);
+    }
+}
+
+@utility animate-pulse-ring {
+    animation: pulse-ring 1.5s infinite;
 }

@@ -1,7 +1,7 @@
-import React from 'react'
+'use client'
 import { StatItemI } from '@/app/types/components/ui/StatItem';
-
-
+import { Text } from './Typography';
+import Card from './Card';
 
 function StatItem({ item, fullWidth }: { item: StatItemI; fullWidth?: boolean }) {
     return (
@@ -9,17 +9,17 @@ function StatItem({ item, fullWidth }: { item: StatItemI; fullWidth?: boolean })
             className={`flex items-center gap-3 px-5 py-5 lg:py-4 '
                 }`}
         >
-            <div className="flex items-center justify-center  rounded-xl bg-white border border-(--border-default) shadow-md shadow-neutral-300/80 shrink-0 text-xl select-none p-2.5 lg:p-3  ">
-                <item.icon weight='fill' className='text-neutral-400 size-6 lg:size-8' />
-            </div>
+            <Card className='size-13 rounded-xl flex justify-center items-center'>
+                <item.icon weight='fill' className='text-neutral-400 size-6 lg:size-7' />
+            </Card>
 
             <div className="flex flex-col gap-0.5 min-w-0">
-                <span className="text-xs lg:text-sm text-neutral-500 leading-none whitespace-nowrap">
+                <Text as='span' size='sm' intent='secondary'>
                     {item.label}
-                </span>
-                <span className="text-2xl lg:text-3xl font-bold font-heading text-neutral-900 leading-tight whitespace-nowrap">
+                </Text>
+                <Text as='span' size='2xl' weight='bold' className='font-heading'>
                     {item.value}
-                </span>
+                </Text>
             </div>
         </div>
     )

@@ -2,36 +2,40 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/app/lib/utils'
 import React from 'react'
 
-// ─── Text variants shared across heading + body ───────────────────────────────
+
 const textVariants = cva('', {
     variants: {
         intent: {
-            default:  'text-neutral-900',
-            muted:    'text-neutral-500',
-            inverse:  'text-white',
-            primary:  'text-primary-500',
-            error:    'text-error-500',
-            success:  'text-success-600',
+            primary: 'text-primary',
+            secondary: 'text-secondary',
+            muted: 'text-muted',
+            disabled: 'text-disabled',
+            inverse: 'text-inverse',
+            brand: 'text-brand ',
+            error: 'text-error-500',
+            success: 'text-success-600',
+            warning: 'text-warning-500',
+            info: 'text-info-600'
         },
         align: {
-            left:   'text-left',
+            left: 'text-left',
             center: 'text-center',
-            right:  'text-right',
+            right: 'text-right',
         },
         truncate: {
-            true:  'truncate',
+            true: 'truncate',
             false: '',
         },
         balance: {
-            true:  'text-balance',
+            true: 'text-balance',
             false: '',
         },
     },
     defaultVariants: {
-        intent:   'default',
-        align:    'left',
-        truncate: true,
-        balance:  false,
+        intent: 'primary',
+        align: 'left',
+        truncate: false,
+        balance: false,
     },
 })
 
@@ -47,15 +51,15 @@ const headingVariants = cva('font-heading font-bold tracking-tight leading-tight
             6: 'text-sm sm:text-base',
         },
         weight: {
-            normal:      'font-normal',
-            medium:      'font-medium',
-            semibold:    'font-semibold',
-            bold:        'font-bold',
-            extrabold:   'font-extrabold',
+            normal: 'font-normal',
+            medium: 'font-medium',
+            semibold: 'font-semibold',
+            bold: 'font-bold',
+            extrabold: 'font-extrabold',
         },
     },
     defaultVariants: {
-        level:  1,
+        level: 1,
         weight: 'bold',
     },
 })
@@ -64,21 +68,23 @@ const headingVariants = cva('font-heading font-bold tracking-tight leading-tight
 const textBodyVariants = cva('font-body leading-relaxed', {
     variants: {
         size: {
-            xs:   'text-xs',
-            sm:   'text-sm',
-            base: 'text-base',
-            lg:   'text-lg',
-            xl:   'text-xl',
+            xs: 'text-[10px] sm:text-xs',
+            sm: 'text-xs sm:text-sm',
+            base: 'text-sm sm:text-base',
+            lg: 'text-base sm:text-lg',
+            xl: 'text-lg sm:text-xl',
+            '2xl': 'text-xl sm:text-2xl',
+            '3xl': 'text-2xl sm:text-3xl',
         },
         weight: {
-            normal:   'font-normal',
-            medium:   'font-medium',
+            normal: 'font-normal',
+            medium: 'font-medium',
             semibold: 'font-semibold',
-            bold:     'font-bold',
+            bold: 'font-bold',
         },
     },
     defaultVariants: {
-        size:   'base',
+        size: 'base',
         weight: 'normal',
     },
 })
@@ -88,16 +94,16 @@ type HeadingTag = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'
 
 interface HeadingProps
     extends React.HTMLAttributes<HTMLHeadingElement>,
-        VariantProps<typeof headingVariants>,
-        VariantProps<typeof textVariants> {
+    VariantProps<typeof headingVariants>,
+    VariantProps<typeof textVariants> {
     /** Override the rendered HTML tag while keeping visual level styling */
     as?: HeadingTag
 }
 
 interface TextProps
     extends React.HTMLAttributes<HTMLElement>,
-        VariantProps<typeof textBodyVariants>,
-        VariantProps<typeof textVariants> {
+    VariantProps<typeof textBodyVariants>,
+    VariantProps<typeof textVariants> {
     as?: 'p' | 'span' | 'label' | 'div' | 'li'
 }
 
@@ -196,8 +202,8 @@ Text.displayName = 'Text'
  */
 interface LabelProps
     extends React.LabelHTMLAttributes<HTMLLabelElement>,
-        VariantProps<typeof textBodyVariants>,
-        VariantProps<typeof textVariants> {}
+    VariantProps<typeof textBodyVariants>,
+    VariantProps<typeof textVariants> { }
 
 export const Label = React.forwardRef<HTMLLabelElement, LabelProps>(
     ({ children, className, size = 'sm', weight = 'medium', intent, align, ...props }, ref) => {

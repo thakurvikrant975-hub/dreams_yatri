@@ -6,11 +6,12 @@ import { Heading, Text } from '../ui/Typography'
 import Button from '../ui/Button'
 import { ArrowRightIcon } from '@phosphor-icons/react'
 import PackageGrid from '../ui/Grid'
+import { FadeUp } from '../ui/motion'
+import SectionHeader from '../ui/SectionHeader'
 
-// ─── Sample data — replace with API/props ────────────────────────────────────
 const PACKAGES: Omit<PackageCardProps, 'onRequestCallback' | 'onClick'>[] = [
     {
-        title: 'Best Manali Package For Adults And Ch...',
+        title: 'Best Manali Package For Adults And Childrens',
         images: [
             'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=800&auto=format&fit=crop',
             'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&auto=format&fit=crop',
@@ -110,8 +111,6 @@ const PACKAGES: Omit<PackageCardProps, 'onRequestCallback' | 'onClick'>[] = [
             { days: 2, place: 'Jaipur' },
             { days: 1, place: 'Jodhpur' },
             { days: 1, place: 'Udaipur' },
-            { days: 2, place: 'Jaisalmer' },
-            { days: 1, place: 'Pushkar' },
         ],
         originalPrice: 50000,
         discountedPrice: 34000,
@@ -130,7 +129,7 @@ const PACKAGES: Omit<PackageCardProps, 'onRequestCallback' | 'onClick'>[] = [
             { days: 2, place: 'Kochi' },
             { days: 2, place: 'Munnar' },
             { days: 2, place: 'Alleppey' },
-            { days: 1, place: 'Kovalam' },
+
         ],
         originalPrice: 50000,
         discountedPrice: 34000,
@@ -154,31 +153,11 @@ export default function TrendingPackages({
             <div className="screen-space">
                 {/* ── Section header ── */}
                 <div className="flex items-end justify-between mb-6">
-                    <div>
-                        {/* Eyebrow */}
-                        <Text
-                            size="sm"
-                            weight="semibold"
-                            intent="primary"
-                            className="mb-1 flex items-center gap-1.5"
-                        >
-                            {/* Decorative dot cluster */}
-                            <span className="inline-flex gap-0.5">
-                                <span className="size-1.5 rounded-full bg-primary-400 opacity-60" />
-                                <span className="size-1.5 rounded-full bg-primary-500" />
-                                <span className="size-1.5 rounded-full bg-primary-400 opacity-60" />
-                            </span>
-                            Handpicked for You
-                        </Text>
-
-                        <Heading level={2} className="mb-1">
-                            Trending Experiences
-                        </Heading>
-
-                        <Text size="sm" intent="muted">
-                            Curated packages designed around your travel style
-                        </Text>
-                    </div>
+                    <SectionHeader
+                     tag='Handpicked For You'
+                     title='Trending Experiences'
+                     subtitle='Curated packages designed around your travel style'
+                    />
 
                     {/* View All — desktop only */}
                     <Button

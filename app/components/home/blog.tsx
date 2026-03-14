@@ -1,7 +1,7 @@
 'use client'
-import { BlogPost, BlogCardProps } from "@/app/types/home";
-import useScrollVisible from "@/app/hooks/useScrollVisible";
+import { BlogPost } from "@/app/types/home";
 import SectionHeader from "../ui/SectionHeader";
+import BlogCard from "../ui/BlogCard";
 
 const BLOG_POSTS: BlogPost[] = [
   {
@@ -54,62 +54,13 @@ const BLOG_POSTS: BlogPost[] = [
   },
 ];
 
-function BlogCard({ post, visible, index }: BlogCardProps) {
-  return (
-    <div
-      className={`group cursor-pointer transition-all duration-500 ${
-        visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
-      }`}
-      style={{ transitionDelay: `${index * 80}ms` }}
-    >
-      {/* Image */}
-      <div className="rounded-2xl overflow-hidden mb-4 aspect-4/3 bg-slate-100">
-        <img
-          src={post.image}
-          alt={post.title}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-        />
-      </div>
-
-      {/* Meta */}
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-slate-400 text-xs">{post.date}</span>
-        <span className="text-slate-300 text-xs">·</span>
-        <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-          {post.category}
-        </span>
-      </div>
-
-      {/* Title */}
-      <h3 className="font-bold text-slate-900 text-base leading-snug mb-2 group-hover:text-rose-500 transition-colors">
-        {post.title}
-      </h3>
-
-      {/* Excerpt */}
-      <p className="text-slate-500 text-sm leading-relaxed mb-4 line-clamp-2">{post.excerpt}</p>
-
-      {/* CTA */}
-      <button
-        type="button"
-        className="text-xs font-semibold text-white bg-rose-500 hover:bg-rose-600 px-4 py-2 rounded-full transition-colors"
-      >
-        Read More
-      </button>
-    </div>
-  );
-}
-
-
 export default function BlogsSection() {
-  const { ref, visible } = useScrollVisible();
 
   return (
-    <section ref={ref} className="py-section">
+    <section className="py-section">
       <div className="screen-space">
         <div
-          className={`transition-all duration-700 ${
-            visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
-          }`}
+          className={`transition-all duration-700 `}
         >
           <SectionHeader
             tag="Real journeys. Real memories."
@@ -122,7 +73,6 @@ export default function BlogsSection() {
             <BlogCard
               key={post.id}
               post={post}
-              visible={visible}
               index={i}
             />
           ))}

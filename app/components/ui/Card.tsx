@@ -7,7 +7,7 @@ const cardVariants = cva(
         variants: {
             variant: {
                 default: 'border border-(--border-muted)',
-                elevated: 'shadow-xl shadow-neutral-300/60',
+                elevated: 'shadow-xl shadow-neutral-300/60 ring-1 ring-inset ring-(--border-default)',
                 flat: 'bg-neutral-50',
                 ghost: 'bg-transparent',
             },

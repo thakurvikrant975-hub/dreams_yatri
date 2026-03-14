@@ -13,11 +13,6 @@ export interface HeroField {
     type?: string
 }
 
-export interface Feature {
-    icon: string;
-    title: string;
-    description: string;
-}
 
 export interface Review {
     id: number;
@@ -40,15 +35,15 @@ export interface BlogPost {
 
 export interface SectionHeaderProps {
     tag: string;
-    tagColor?: string;
     title: string;
     subtitle?: string;
+    icon?: React.ElementType;
 }
 
 export interface FeatureCardProps {
-    feature: Feature;
-    visible: boolean;
-    index: number;
+    icon: React.ElementType;
+    title: string;
+    description: string;
 }
 
 export interface ReviewCardProps {
@@ -57,6 +52,5 @@ export interface ReviewCardProps {
 
 export interface BlogCardProps {
     post: BlogPost;
-    visible: boolean;
     index: number;
 }

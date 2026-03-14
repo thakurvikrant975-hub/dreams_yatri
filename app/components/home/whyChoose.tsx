@@ -1,61 +1,45 @@
 "use client";
-import { FeatureCardProps, Feature } from "@/app/types/home";
-import useScrollVisible from "@/app/hooks/useScrollVisible";
-import SectionHeader from "../ui/SectionHeader";
 
-const FEATURES: Feature[] = [
+import SectionHeader from "../ui/SectionHeader";
+import FeatureCard from "../ui/FeatureCard";
+import { FeatureCardProps } from "@/app/types/home";
+import { Cog8ToothIcon, UsersIcon, ClockIcon, CurrencyRupeeIcon } from "@heroicons/react/24/solid";
+
+const FEATURES: FeatureCardProps[] = [
   {
-    icon: "⚙️",
+    icon: Cog8ToothIcon,
     title: "100% Customizable",
     description: "Every trip built from scratch — your dates, budget, interests, and pace.",
   },
   {
-    icon: "🧭",
+    icon: UsersIcon,
     title: "Local Destination Experts",
     description: "On-ground specialists who know every road, stay, and hidden gem.",
   },
   {
-    icon: "🕐",
+    icon: ClockIcon,
     title: "24×7 Support",
     description: "Real humans available round the clock — before, during, and after travel.",
   },
   {
-    icon: "💳",
+    icon: CurrencyRupeeIcon,
     title: "Transparent Pricing",
     description: "No hidden charges. No surprise bills. What you see is exactly what you pay.",
   },
 ];
 
-function FeatureCard({ feature, visible, index }: FeatureCardProps) {
-  return (
-    <div
-      className={`bg-white rounded-2xl p-6 border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 ${
-        visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
-      }`}
-      style={{ transitionDelay: `${index * 100}ms`, transitionDuration: "600ms" }}
-    >
-      <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-2xl mb-4">
-        {feature.icon}
-      </div>
-      <h3 className="font-bold text-slate-900 text-base mb-2">{feature.title}</h3>
-      <p className="text-slate-500 text-sm leading-relaxed">{feature.description}</p>
-    </div>
-  );
-}
 
 export default function WhyChooseUsSection() {
-  const { ref, visible } = useScrollVisible();
+
 
   return (
     <section
-      ref={ref}
+
       className="py-section"
     >
       <div className="screen-space">
         <div
-          className={`transition-all duration-700 ${
-            visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
-          }`}
+          className={`transition-all duration-700 `}
         >
           <SectionHeader
             tag="WHY CHOOSE US"
@@ -68,9 +52,9 @@ export default function WhyChooseUsSection() {
           {FEATURES.map((feature, i) => (
             <FeatureCard
               key={feature.title}
-              feature={feature}
-              visible={visible}
-              index={i}
+              title={feature.title}
+              icon={feature.icon}
+              description={feature.description}
             />
           ))}
         </div>

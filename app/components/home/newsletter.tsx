@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, ChangeEvent, FormEvent } from "react";
-
+import Input from "../forms/Input";
+import Label from "../forms/Label";
+import { Heading, Text } from "../ui/Typography";
+import Button from "../ui/Button";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface EmailFormState {
@@ -93,7 +96,7 @@ function EmailCard() {
   return (
     <div className="relative rounded-2xl overflow-hidden bg-white border border-slate-200 shadow-sm">
       {/* Top accent bar */}
-      <div className="h-1.5 w-full bg-gradient-to-r from-rose-400 to-red-500" />
+      <div className="h-1.5 w-full bg-linear-to-r from-rose-400 to-red-500" />
 
       {/* Background pattern */}
       <TravelPattern color="rgba(239,68,68,0.06)" />
@@ -106,76 +109,67 @@ function EmailCard() {
           Email Alerts
         </div>
 
-        <h3 className="text-xl font-extrabold text-slate-900 mb-1.5">
+        <Heading level={3} weight='bold'>
           Get Exclusive Deals in Your Inbox
-        </h3>
-        <p className="text-slate-500 text-sm mb-6 max-w-lg">
+        </Heading>
+        <Text intent='secondary' size='sm' className="mt-1.5">
           Flash sales, seasonal packages, and early-bird offers — delivered before they sell out. No spam. Unsubscribe anytime.
-        </p>
+        </Text>
 
         {status.type === "success" ? (
           <div className="flex items-center gap-2 text-emerald-600 font-medium text-sm bg-emerald-50 border border-emerald-200 px-4 py-3 rounded-xl">
-            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
             {status.message}
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4 mt-4">
             {/* Row 1 */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-slate-700">Your Name</label>
-                <input
+                <Label required>Your Name</Label>
+                <Input
                   type="text"
                   name="name"
                   value={form.name}
                   onChange={handleChange}
                   placeholder="eg. Rahul Sharma"
                   required
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all bg-white"
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-slate-700">Phone (Optional)</label>
-                <input
+                <Label required>Phone No</Label>
+                <Input
                   type="tel"
                   name="phone"
                   value={form.phone}
                   onChange={handleChange}
                   placeholder="eg. 9812345678"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all bg-white"
+                  required
                 />
               </div>
             </div>
 
             {/* Row 2 — email + submit */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-slate-700">Email Address</label>
+              <Label required>Email Address</Label>
               <div className="flex gap-2">
-                <input
+                <Input
                   type="email"
                   name="email"
                   value={form.email}
                   onChange={handleChange}
                   placeholder="eg. rahul@gmail.com"
                   required
-                  className="flex-1 px-4 py-3 rounded-xl border border-slate-200 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all bg-white"
+                  wrapperClassName="flex-1"
                 />
-                <button
+                <Button
                   type="submit"
-                  disabled={status.type === "loading"}
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-rose-500 to-red-600 text-white text-sm font-semibold shadow-md shadow-rose-200 hover:shadow-rose-300 hover:-translate-y-0.5 active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
+                  variant='premium'
                 >
-                  {status.type === "loading" ? (
-                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                    </svg>
-                  ) : (
-                    <>Subscribe <ArrowRightIcon /></>
-                  )}
-                </button>
+                  Subscribe <ArrowRightIcon />
+                </Button>
               </div>
             </div>
           </form>
@@ -206,19 +200,19 @@ function WhatsAppCard() {
           WhatsApp Alerts
         </div>
 
-        <h3 className="text-xl font-extrabold text-slate-900 mb-1.5">
+        <Heading level={3} weight='bold'>
           Join Our WhatsApp Deal Community
-        </h3>
-        <p className="text-slate-500 text-sm mb-6 max-w-lg">
+        </Heading>
+        <Text intent='secondary' size='sm' className="mt-1.5">
           Instant deal alerts, last-minute offers, and personalized trip suggestions — straight to your WhatsApp.{" "}
           <span className="font-semibold text-slate-700">6,800+ travelers</span> already inside.
-        </p>
+        </Text>
 
         <a
           href={WHATSAPP_LINK}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-2.5 px-6 py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 text-white text-sm font-semibold shadow-md shadow-green-200 hover:shadow-green-300 hover:-translate-y-0.5 active:scale-95 transition-all"
+          className="inline-flex items-center gap-2.5 px-6 py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 text-white text-sm font-semibold shadow-md shadow-green-200 hover:shadow-green-300 hover:-translate-y-0.5 active:scale-95 transition-all mt-5"
         >
           <WhatsAppIcon size={18} />
           Join WhatsApp Community

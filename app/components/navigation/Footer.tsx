@@ -170,7 +170,7 @@ const SOCIAL_LINKS: SocialLink[] = [
 
 export default function Footer() {
   return (
-    <footer className="bg-[#0f1623] text-slate-300">
+    <footer className="bg-surface-inverse text-slate-300">
       {/* Main grid */}
       <div className="screen-space pt-14 pb-10">
         <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-12">

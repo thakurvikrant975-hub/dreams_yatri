@@ -4,15 +4,16 @@ import React, { useState } from 'react'
 import Image from 'next/image'
 import { Card, CardMedia, CardBody, CardFooter } from '../ui/Card'
 import Button from '../ui/Button'
-import { Heading } from '../ui/Typography'
+import { Heading, Text } from '../ui/Typography'
 import {
     BedIcon,
     ForkKnifeIcon,
     CarIcon,
     StarIcon,
     ArrowsOutIcon,
-    PhoneIcon,
 } from '@phosphor-icons/react'
+
+import { CalendarDaysIcon, PhoneIcon } from '@heroicons/react/24/solid'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface Itinerary {
@@ -68,8 +69,9 @@ function ItineraryRow({ items }: { items: Itinerary[] }) {
             {visible.map((item, i) => (
                 <React.Fragment key={i}>
                     <span>
-                        <span className="font-bold text-neutral-900">{item.days}D</span>{' '}
-                        {item.place}
+                        <Text as='span' size='sm' weight='semibold' className='font-heading'>{item.days}D</Text>{' '}
+                        <Text as='span' size='sm' intent='secondary'>{item.place}</Text>
+
                     </span>
                     {(i < visible.length - 1 || overflow > 0) && (
                         <span className="text-neutral-400 select-none">•</span>
@@ -131,8 +133,6 @@ export default function PackageCard({
     discountedPrice,
     inclusions = ['hotel', 'meals', 'cab', 'activities'],
     badge,
-    badgeColor = 'teal',
-    offerTag,
     onRequestCallback,
     onClick,
     className = '',
@@ -151,20 +151,20 @@ export default function PackageCard({
                 onClick={onClick}
             >
                 {/* ── Image ── */}
-                <CardMedia className="w-full aspect-3/2 rounded-t-xl">
+                <CardMedia className="w-full aspect-3/2 rounded-t-xl ">
                     <Image
                         src={images[activeImage]}
                         alt={title}
                         fill
                         className="object-cover transition-opacity duration-500"
-                        sizes="(max-width: 768px) 100vw, 384px"
+                        sizes="(max-width: 768px) 100vw, 384px "
                     />
 
 
                     {/* Expand icon */}
                     <button
                         onClick={(e) => e.stopPropagation()}
-                        className="absolute top-3 right-3 z-10 flex items-center justify-center size-8 rounded-lg bg-black/30 text-white backdrop-blur-sm hover:bg-black/50 transition"
+                        className="absolute top-3 right-3 z-10 flex items-center justify-center size-8 rounded-lg bg-neutral-900/20 text-white backdrop-blur-[1px] group-hover:bg-primary-500 transition"
                         aria-label="Expand image"
                     >
                         <ArrowsOutIcon weight="bold" className="size-4" />
@@ -183,27 +183,27 @@ export default function PackageCard({
                     <div className="absolute inset-x-0 bottom-0 h-16 bg-linear-to-t from-black/40 to-transparent pointer-events-none" />
                 </CardMedia>
 
+
                 {/* ── Body ── */}
                 <CardBody className="pt-3.5 pb-2">
                     {/* Title */}
-                    <Heading level={3} weight='semibold' className='group-hover:text-primary-500'>
+                    <Heading level={3} weight='semibold' truncate={true}>
                         {title}
                     </Heading>
 
                     {/* Duration + Rating row */}
-                    <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center justify-between mb-3 mt-1">
                         <div className="flex items-center gap-1.5 text-xs text-neutral-500">
-                            {/* Calendar icon inline SVG — avoids extra import */}
-                            <svg className="size-3.5 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                                <rect x="1.5" y="2.5" width="13" height="12" rx="1.5" />
-                                <path d="M1.5 6.5h13M5 1v3M11 1v3" strokeLinecap="round" />
-                            </svg>
-                            {duration}
+                            <CalendarDaysIcon className='size-4 text-(--text-muted)' />
+                            <Text as='span' size='sm' intent='secondary' >
+                                {duration}
+                            </Text>
+
                         </div>
                         <div className="flex items-center gap-1 text-xs font-medium text-neutral-700">
-                            <StarIcon weight="fill" className="size-3.5 text-amber-400" />
-                            <span className="font-bold">{rating.toFixed(1)}</span>
-                            <span className="text-neutral-400">({reviewCount})</span>
+                            <StarIcon weight="fill" className="size-3.5 text-warning-500" />
+                            <Text as='span' size='sm' weight='semibold' className='font-heading text-warning-500'>{rating.toFixed(1)}</Text>
+                            <Text as='span' size='sm' intent='secondary'>({reviewCount})</Text>
                         </div>
                     </div>
 
@@ -214,21 +214,50 @@ export default function PackageCard({
 
                     {/* Price row */}
                     <div className="flex items-center justify-between">
-                        <div className="flex flex-col gap-0.5">
-                            <span className="text-xs text-neutral-400 line-through leading-none">
-                                {formatINR(originalPrice)}
-                            </span>
-                            <div className="flex items-center gap-2">
-                                <span className="text-lg font-bold font-heading text-neutral-900 leading-none">
-                                    {formatINR(discountedPrice)}
-                                </span>
+
+                        <div className='flex flex-col gap-0.5'>
+                            <div className="flex items-center gap-5">
+                                <Text as='span' weight='medium' intent='secondary' className='relative w-max px-1 after:absolute after:top-1/2 after:left-0 after:h-[0.1em] after:w-full after:bg-error-500 after:z-10 after:-translate-y-1/2'>
+                                    {formatINR(originalPrice)}
+                                </Text>
+
                                 {savings > 0 && (
-                                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full leading-none">
-                                        Save {formatINR(savings)}
-                                    </span>
+                                    <div className=" bg-success-200/80 px-1.5 py-2 leading-none relative">
+                                        <div className="absolute h-full right-full top-0 translate-x-0.75">
+                                            <svg width="8" className='h-full' viewBox="0 0 8 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <path d="M0.122702 2.76817L5.30177 0.391188L5.24993 5.18586L0.122702 2.76817Z" fill="#C8F9D8" />
+                                                <path d="M0.0687989 7.97813L5.2477 5.60128L5.19619 10.3959L0.0687989 7.97813Z" fill="#C8F9D8" />
+                                                <path d="M0.0168407 13.2093L5.15504 10.8L5.18508 15.5947L0.0168407 13.2093Z" fill="#C8F9D8" />
+                                                <path d="M0.0687989 18.4127L5.2477 16.0358L5.19619 20.8305L0.0687989 18.4127Z" fill="#C8F9D8" />
+                                                <path d="M0.0687989 23.63L5.2477 21.2531L5.19619 26.0478L0.0687989 23.63Z" fill="#C8F9D8" />
+                                                <path d="M0.0687989 28.8473L5.2477 26.4704L5.19619 31.2651L0.0687989 28.8473Z" fill="#C8F9D8" />
+                                            </svg>
+
+                                        </div>
+                                        <div className='absolute h-full left-full top-0 -translate-x-0.75'>
+                                            <svg width="9" className='h-full' viewBox="0 0 9 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <path d="M7.96176 2.73853L1.9868 0.387159L2.04623 5.13042L7.96176 2.73853Z" fill="#C8F9D8" />
+                                                <path d="M8.02133 7.89331L2.04637 5.54194L2.1058 10.2852L8.02133 7.89331Z" fill="#C8F9D8" />
+                                                <path d="M8.08053 13.0683L2.15252 10.6849L2.11787 15.4282L8.08053 13.0683Z" fill="#C8F9D8" />
+                                                <path d="M8.02133 18.2161L2.04637 15.8647L2.1058 20.608L8.02133 18.2161Z" fill="#C8F9D8" />
+                                                <path d="M8.02133 23.3774L2.04637 21.0261L2.1058 25.7693L8.02133 23.3774Z" fill="#C8F9D8" />
+                                                <path d="M8.02133 28.5386L2.04637 26.1872L2.1058 30.9305L8.02133 28.5386Z" fill="#C8F9D8" />
+                                            </svg>
+
+                                        </div>
+                                        <span className='text-[11px] font-heading font-semibold text-success-600 h-max block'>Save {formatINR(savings)}</span>
+
+                                    </div>
                                 )}
                             </div>
+
+                            <Text as='span' weight='bold' size='xl' className='font-heading px-1 relative z-10 after:absolute after:bottom-0 after:left-0 after:h-1.5  after:w-full after:bg-success-200/80 after:-z-10 w-max'>
+                                {formatINR(discountedPrice)} 
+                                <Text as='span' intent='secondary' className='font-body'>/Adult</Text>
+                            </Text>
+
                         </div>
+
 
                         {/* Inclusions */}
                         <div className="flex items-center gap-2">
@@ -237,8 +266,8 @@ export default function PackageCard({
                                 return Icon ? (
                                     <Icon
                                         key={key}
-                                        weight="duotone"
-                                        className="size-4.5 text-neutral-400"
+                                        weight="fill"
+                                        className="size-4.5 text-(--text-muted)"
                                         title={key}
                                     />
                                 ) : null
@@ -253,10 +282,10 @@ export default function PackageCard({
                         {/* Phone icon button */}
                         <button
                             onClick={(e) => { e.stopPropagation(); onRequestCallback?.() }}
-                            className="flex items-center justify-center size-11 rounded-xl border-2 border-primary-500 text-primary-500 hover:bg-primary-50 transition shrink-0"
+                            className="flex items-center justify-center size-11 rounded-xl border-[0.12em] border-primary-500 text-primary-500 hover:bg-primary-50 transition shrink-0"
                             aria-label="Call"
                         >
-                            <PhoneIcon weight="fill" className="size-4.5" />
+                            <PhoneIcon  className="size-4.5" />
                         </button>
 
                         {/* Request Callback */}
