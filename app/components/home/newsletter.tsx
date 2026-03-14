@@ -1,22 +1,17 @@
 "use client";
 
 import { useState, ChangeEvent, FormEvent } from "react";
+import { motion } from "framer-motion";
 import Input from "../forms/Input";
 import Label from "../forms/Label";
 import { Heading, Text } from "../ui/Typography";
 import Button from "../ui/Button";
+import { fadeRight, fadeLeft, staggerContainer, staggerItem } from "@/app/lib/motionPresets";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface EmailFormState {
-  name: string;
-  phone: string;
-  email: string;
-}
-
-interface FormStatus {
-  type: "idle" | "loading" | "success" | "error";
-  message: string;
-}
+interface EmailFormState { name: string; phone: string; email: string; }
+interface FormStatus { type: "idle" | "loading" | "success" | "error"; message: string; }
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -45,24 +40,14 @@ function ArrowRightIcon() {
   );
 }
 
-// ─── Background Pattern ───────────────────────────────────────────────────────
-
 function TravelPattern({ color = "rgba(0,0,0,0.045)" }: { color?: string }) {
   return (
-    <svg
-      className="absolute inset-0 w-full h-full pointer-events-none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
+    <svg className="absolute inset-0 w-full h-full pointer-events-none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <defs>
         <pattern id="travel-pattern" x="0" y="0" width="80" height="80" patternUnits="userSpaceOnUse">
-          {/* Airplane */}
           <text x="8" y="22" fontSize="18" fill={color} transform="rotate(-30 18 18)">✈</text>
-          {/* Location pin */}
           <text x="48" y="52" fontSize="14" fill={color}>📍</text>
-          {/* Star / snowflake */}
           <text x="28" y="68" fontSize="12" fill={color}>✳</text>
-          {/* Map */}
           <text x="60" y="20" fontSize="13" fill={color}>🗺</text>
         </pattern>
       </defs>
@@ -71,154 +56,142 @@ function TravelPattern({ color = "rgba(0,0,0,0.045)" }: { color?: string }) {
   );
 }
 
-// ─── Email Subscription Card ──────────────────────────────────────────────────
+// ─── Email Card ───────────────────────────────────────────────────────────────
 
 function EmailCard() {
   const [form, setForm] = useState<EmailFormState>({ name: "", phone: "", email: "" });
   const [status, setStatus] = useState<FormStatus>({ type: "idle", message: "" });
 
-  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) =>
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-  };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!form.name.trim() || !form.email.trim()) return;
-
     setStatus({ type: "loading", message: "" });
-
-    // Replace with your actual API call
     await new Promise((res) => setTimeout(res, 1000));
     setStatus({ type: "success", message: "You're subscribed! Watch your inbox for exclusive deals." });
     setForm({ name: "", phone: "", email: "" });
   };
 
   return (
-    <div className="relative rounded-2xl overflow-hidden bg-white border border-slate-200 shadow-sm">
-      {/* Top accent bar */}
+    <motion.div
+      className="relative rounded-2xl overflow-hidden bg-white border border-slate-200 shadow-sm"
+      variants={fadeRight}
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: false, amount: 0.2 }}
+    >
       <div className="h-1.5 w-full bg-linear-to-r from-rose-400 to-red-500" />
-
-      {/* Background pattern */}
       <TravelPattern color="rgba(239,68,68,0.06)" />
 
-      {/* Content */}
-      <div className="relative px-6 pt-6 pb-8">
-        {/* Badge */}
-        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-50 border border-rose-200 text-rose-500 text-xs font-semibold mb-5">
-          <EmailIcon />
-          Email Alerts
-        </div>
-
-        <Heading level={3} weight='bold'>
-          Get Exclusive Deals in Your Inbox
-        </Heading>
-        <Text intent='secondary' size='sm' className="mt-1.5">
-          Flash sales, seasonal packages, and early-bird offers — delivered before they sell out. No spam. Unsubscribe anytime.
-        </Text>
-
-        {status.type === "success" ? (
-          <div className="flex items-center gap-2 text-emerald-600 font-medium text-sm bg-emerald-50 border border-emerald-200 px-4 py-3 rounded-xl">
-            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-            {status.message}
+      <motion.div
+        className="relative px-6 pt-6 pb-8"
+        variants={staggerContainer(0.1, 0.15)}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: false, amount: 0.2 }}
+      >
+        <motion.div variants={staggerItem}>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-50 border border-rose-200 text-rose-500 text-xs font-semibold mb-5">
+            <EmailIcon />
+            Email Alerts
           </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-            {/* Row 1 */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <Label required>Your Name</Label>
-                <Input
-                  type="text"
-                  name="name"
-                  value={form.name}
-                  onChange={handleChange}
-                  placeholder="eg. Rahul Sharma"
-                  required
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label required>Phone No</Label>
-                <Input
-                  type="tel"
-                  name="phone"
-                  value={form.phone}
-                  onChange={handleChange}
-                  placeholder="eg. 9812345678"
-                  required
-                />
-              </div>
-            </div>
+        </motion.div>
 
-            {/* Row 2 — email + submit */}
-            <div className="flex flex-col gap-1.5">
-              <Label required>Email Address</Label>
-              <div className="flex gap-2">
-                <Input
-                  type="email"
-                  name="email"
-                  value={form.email}
-                  onChange={handleChange}
-                  placeholder="eg. rahul@gmail.com"
-                  required
-                  wrapperClassName="flex-1"
-                />
-                <Button
-                  type="submit"
-                  variant='premium'
-                >
-                  Subscribe <ArrowRightIcon />
-                </Button>
-              </div>
+        <motion.div variants={staggerItem}>
+          <Heading level={3} weight="bold">Get Exclusive Deals in Your Inbox</Heading>
+          <Text intent="secondary" size="sm" className="mt-1.5">
+            Flash sales, seasonal packages, and early-bird offers — delivered before they sell out. No spam. Unsubscribe anytime.
+          </Text>
+        </motion.div>
+
+        <motion.div variants={staggerItem} className="mt-4">
+          {status.type === "success" ? (
+            <div className="flex items-center gap-2 text-emerald-600 font-medium text-sm bg-emerald-50 border border-emerald-200 px-4 py-3 rounded-xl">
+              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              {status.message}
             </div>
-          </form>
-        )}
-      </div>
-    </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <Label required>Your Name</Label>
+                  <Input type="text" name="name" value={form.name} onChange={handleChange} placeholder="eg. Rahul Sharma" required />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label required>Phone No</Label>
+                  <Input type="tel" name="phone" value={form.phone} onChange={handleChange} placeholder="eg. 9812345678" required />
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label required>Email Address</Label>
+                <div className="flex gap-2">
+                  <Input type="email" name="email" value={form.email} onChange={handleChange} placeholder="eg. rahul@gmail.com" required wrapperClassName="flex-1" />
+                  <Button type="submit" variant="premium">Subscribe <ArrowRightIcon /></Button>
+                </div>
+              </div>
+            </form>
+          )}
+        </motion.div>
+      </motion.div>
+    </motion.div>
   );
 }
 
 // ─── WhatsApp Card ────────────────────────────────────────────────────────────
 
-const WHATSAPP_LINK = "https://chat.whatsapp.com/your-group-link"; // ← replace
+const WHATSAPP_LINK = "https://chat.whatsapp.com/your-group-link";
 
 function WhatsAppCard() {
   return (
-    <div className="relative rounded-2xl overflow-hidden bg-white border border-slate-200 shadow-sm">
-      {/* Top accent bar */}
+    <motion.div
+      className="relative rounded-2xl overflow-hidden bg-white border border-slate-200 shadow-sm"
+      variants={fadeLeft}
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: false, amount: 0.2 }}
+    >
       <div className="h-1.5 w-full bg-gradient-to-r from-green-400 to-emerald-500" />
-
-      {/* Background pattern */}
       <TravelPattern color="rgba(34,197,94,0.07)" />
 
-      {/* Content */}
-      <div className="relative px-6 pt-6 pb-8">
-        {/* Badge */}
-        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-50 border border-green-200 text-green-600 text-xs font-semibold mb-5">
-          <WhatsAppIcon size={14} />
-          WhatsApp Alerts
-        </div>
+      <motion.div
+        className="relative px-6 pt-6 pb-8"
+        variants={staggerContainer(0.1, 0.15)}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: false, amount: 0.2 }}
+      >
+        <motion.div variants={staggerItem}>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-50 border border-green-200 text-green-600 text-xs font-semibold mb-5">
+            <WhatsAppIcon size={14} />
+            WhatsApp Alerts
+          </div>
+        </motion.div>
 
-        <Heading level={3} weight='bold'>
-          Join Our WhatsApp Deal Community
-        </Heading>
-        <Text intent='secondary' size='sm' className="mt-1.5">
-          Instant deal alerts, last-minute offers, and personalized trip suggestions — straight to your WhatsApp.{" "}
-          <span className="font-semibold text-slate-700">6,800+ travelers</span> already inside.
-        </Text>
+        <motion.div variants={staggerItem}>
+          <Heading level={3} weight="bold">Join Our WhatsApp Deal Community</Heading>
+          <Text intent="secondary" size="sm" className="mt-1.5">
+            Instant deal alerts, last-minute offers, and personalized trip suggestions — straight to your WhatsApp.{" "}
+            <span className="font-semibold text-slate-700">6,800+ travelers</span> already inside.
+          </Text>
+        </motion.div>
 
-        <a
-          href={WHATSAPP_LINK}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2.5 px-6 py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 text-white text-sm font-semibold shadow-md shadow-green-200 hover:shadow-green-300 hover:-translate-y-0.5 active:scale-95 transition-all mt-5"
-        >
-          <WhatsAppIcon size={18} />
-          Join WhatsApp Community
-        </a>
-      </div>
-    </div>
+        <motion.div variants={staggerItem}>
+          <a
+            href={WHATSAPP_LINK}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2.5 px-6 py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 text-white text-sm font-semibold shadow-md shadow-green-200 hover:shadow-green-300 hover:-translate-y-0.5 active:scale-95 transition-all mt-5"
+          >
+            <WhatsAppIcon size={18} />
+            Join WhatsApp Community
+          </a>
+        </motion.div>
+      </motion.div>
+    </motion.div>
   );
 }
 

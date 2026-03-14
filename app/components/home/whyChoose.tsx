@@ -1,9 +1,11 @@
 "use client";
 
+import { motion } from "framer-motion";
 import SectionHeader from "../ui/SectionHeader";
 import FeatureCard from "../ui/FeatureCard";
 import { FeatureCardProps } from "@/app/types/home";
 import { Cog8ToothIcon, UsersIcon, ClockIcon, CurrencyRupeeIcon } from "@heroicons/react/24/solid";
+import { staggerContainer, staggerItemZoom } from "@/app/lib/motionPresets";
 
 const FEATURES: FeatureCardProps[] = [
   {
@@ -28,36 +30,36 @@ const FEATURES: FeatureCardProps[] = [
   },
 ];
 
-
 export default function WhyChooseUsSection() {
-
-
   return (
-    <section
-
-      className="py-section"
-    >
+    <section className="py-section">
       <div className="screen-space">
-        <div
-          className={`transition-all duration-700 `}
-        >
-          <SectionHeader
-            tag="WHY CHOOSE US"
-            title="The Dreams Yatri Difference"
-            subtitle="Everything we do is built around one thing — making your journey extraordinary."
-          />
-        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {FEATURES.map((feature, i) => (
-            <FeatureCard
-              key={feature.title}
-              title={feature.title}
-              icon={feature.icon}
-              description={feature.description}
-            />
+        {/* SectionHeader has its own internal stagger */}
+        <SectionHeader
+          tag="WHY CHOOSE US"
+          title="The Dreams Yatri Difference"
+          subtitle="Everything we do is built around one thing — making your journey extraordinary."
+        />
+
+        <motion.div
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5"
+          variants={staggerContainer(0.1, 0.05)}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: false, amount: 0.15 }}
+        >
+          {FEATURES.map((feature) => (
+            <motion.div key={feature.title} variants={staggerItemZoom}>
+              <FeatureCard
+                title={feature.title}
+                icon={feature.icon}
+                description={feature.description}
+              />
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
+
       </div>
     </section>
   );

@@ -1,10 +1,12 @@
 "use client";
 
 import { useRef } from "react";
+import { motion } from "framer-motion";
 import { Review } from "@/app/types/home";
 import { FcGoogle } from "react-icons/fc";
 import SectionHeader from "../ui/SectionHeader";
 import ReviewCard from "../ui/ReviewCard";
+import { fadeLeft, fadeRight, staggerContainer, staggerItem } from "@/app/lib/motionPresets";
 
 const REVIEWS: Review[] = [
   {
@@ -52,7 +54,6 @@ const REVIEWS: Review[] = [
 ];
 
 export default function TestimonialsSection() {
-
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const scroll = (dir: "left" | "right") => {
@@ -61,20 +62,24 @@ export default function TestimonialsSection() {
   };
 
   return (
-    <section  className="py-section bg-surface-muted overflow-hidden">
+    <section className="py-section bg-surface-muted overflow-hidden">
       <div className="screen-space">
-        {/* Header row */}
-        <div
-          className={`flex items-end justify-between mb-8 transition-all duration-700 `}
-        >
+
+        {/* Header row — label from left, arrows from right */}
+        <div className="flex items-end justify-between mb-8">
           <SectionHeader
             icon={FcGoogle}
-            tag='Real Traveler Reviews'
-            title='What Our Guests Say'
+            tag="Real Traveler Reviews"
+            title="What Our Guests Say"
           />
 
-          {/* Nav arrows */}
-          <div className="flex items-center gap-2 shrink-0">
+          <motion.div
+            className="flex items-center gap-2 shrink-0"
+            variants={fadeLeft}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: false, amount: 0.3 }}
+          >
             <button
               type="button"
               onClick={() => scroll("left")}
@@ -93,19 +98,30 @@ export default function TestimonialsSection() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
               </svg>
             </button>
-          </div>
+          </motion.div>
         </div>
 
-        {/* Scrollable cards */}
-        <div
+        {/* Scrollable cards — staggered */}
+        <motion.div
           ref={scrollRef}
-          className={`flex gap-5 overflow-x-auto snap-x snap-mandatory pb-8 pl-4 scrollbar-hide transition-all duration-700 delay-200 `}
+          className="flex gap-5 overflow-x-auto snap-x snap-mandatory pb-8 pl-4 scrollbar-hide"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+          variants={staggerContainer(0.12, 0.1)}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: false, amount: 0.1 }}
         >
           {REVIEWS.map((review) => (
-            <ReviewCard key={review.id} review={review} />
+            <motion.div
+              key={review.id}
+              variants={staggerItem}
+              className="snap-start shrink-0"
+            >
+              <ReviewCard review={review} />
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
+
       </div>
     </section>
   );

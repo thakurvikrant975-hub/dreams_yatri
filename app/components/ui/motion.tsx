@@ -1,9 +1,5 @@
 'use client'
 
-// ============================================================
-// components/motion/index.tsx
-// Ready-to-use wrapper components — no boilerplate per use
-// ============================================================
 
 import { motion, useScroll, useTransform } from 'framer-motion'
 import { useRef } from 'react'
@@ -56,7 +52,7 @@ function injectTiming(variants: object, delay = 0, duration?: number) {
 
 // ── Fade ──────────────────────────────────────────────────────
 
-export function FadeUp({ children, delay = 0, duration, className, once = true, ...props }: MotionDivProps) {
+export function FadeUp({ children, delay = 0, duration, className, once = false, ...props }: MotionDivProps) {
     return (
         <motion.div
             variants={injectTiming(fadeUp, delay, duration)}
@@ -72,7 +68,7 @@ export function FadeUp({ children, delay = 0, duration, className, once = true, 
     )
 }
 
-export function FadeDown({ children, delay = 0, duration, className, once = true, ...props }: MotionDivProps) {
+export function FadeDown({ children, delay = 0, duration, className, once = false, ...props }: MotionDivProps) {
     return (
         <motion.div
             variants={injectTiming(fadeDown, delay, duration)}
@@ -88,7 +84,7 @@ export function FadeDown({ children, delay = 0, duration, className, once = true
     )
 }
 
-export function FadeLeft({ children, delay = 0, duration, className, once = true, ...props }: MotionDivProps) {
+export function FadeLeft({ children, delay = 0, duration, className, once = false, ...props }: MotionDivProps) {
     return (
         <motion.div
             variants={injectTiming(fadeLeft, delay, duration)}
@@ -104,7 +100,7 @@ export function FadeLeft({ children, delay = 0, duration, className, once = true
     )
 }
 
-export function FadeRight({ children, delay = 0, duration, className, once = true, ...props }: MotionDivProps) {
+export function FadeRight({ children, delay = 0, duration, className, once = false, ...props }: MotionDivProps) {
     return (
         <motion.div
             variants={injectTiming(fadeRight, delay, duration)}
@@ -120,7 +116,7 @@ export function FadeRight({ children, delay = 0, duration, className, once = tru
     )
 }
 
-export function FadeIn({ children, delay = 0, duration, className, once = true, ...props }: MotionDivProps) {
+export function FadeIn({ children, delay = 0, duration, className, once = false, ...props }: MotionDivProps) {
     return (
         <motion.div
             variants={injectTiming(fadeIn, delay, duration)}
@@ -136,7 +132,7 @@ export function FadeIn({ children, delay = 0, duration, className, once = true, 
     )
 }
 
-export function FadeUpFar({ children, delay = 0, duration, className, once = true, ...props }: MotionDivProps) {
+export function FadeUpFar({ children, delay = 0, duration, className, once = false, ...props }: MotionDivProps) {
     return (
         <motion.div
             variants={injectTiming(fadeUpFar, delay, duration)}
@@ -155,7 +151,7 @@ export function FadeUpFar({ children, delay = 0, duration, className, once = tru
 
 // ── Zoom ──────────────────────────────────────────────────────
 
-export function ZoomIn({ children, delay = 0, duration, className, once = true, ...props }: MotionDivProps) {
+export function ZoomIn({ children, delay = 0, duration, className, once = false, ...props }: MotionDivProps) {
     return (
         <motion.div
             variants={injectTiming(zoomIn, delay, duration)}
@@ -171,7 +167,7 @@ export function ZoomIn({ children, delay = 0, duration, className, once = true, 
     )
 }
 
-export function ZoomOut({ children, delay = 0, duration, className, once = true, ...props }: MotionDivProps) {
+export function ZoomOut({ children, delay = 0, duration, className, once = false, ...props }: MotionDivProps) {
     return (
         <motion.div
             variants={injectTiming(zoomOut, delay, duration)}
@@ -187,7 +183,7 @@ export function ZoomOut({ children, delay = 0, duration, className, once = true,
     )
 }
 
-export function ZoomPop({ children, delay = 0, duration, className, once = true, ...props }: MotionDivProps) {
+export function ZoomPop({ children, delay = 0, duration, className, once = false, ...props }: MotionDivProps) {
     return (
         <motion.div
             variants={injectTiming(zoomPop, delay, duration)}
@@ -203,7 +199,7 @@ export function ZoomPop({ children, delay = 0, duration, className, once = true,
     )
 }
 
-export function ZoomRotate({ children, delay = 0, duration, className, once = true, ...props }: MotionDivProps) {
+export function ZoomRotate({ children, delay = 0, duration, className, once = false, ...props }: MotionDivProps) {
     return (
         <motion.div
             variants={injectTiming(zoomRotate, delay, duration)}
@@ -222,7 +218,7 @@ export function ZoomRotate({ children, delay = 0, duration, className, once = tr
 
 // ── Blur ──────────────────────────────────────────────────────
 
-export function BlurIn({ children, delay = 0, duration, className, once = true, ...props }: MotionDivProps) {
+export function BlurIn({ children, delay = 0, duration, className, once = false, ...props }: MotionDivProps) {
     return (
         <motion.div
             variants={injectTiming(blurIn, delay, duration)}
@@ -238,7 +234,7 @@ export function BlurIn({ children, delay = 0, duration, className, once = true, 
     )
 }
 
-export function BlurUp({ children, delay = 0, duration, className, once = true, ...props }: MotionDivProps) {
+export function BlurUp({ children, delay = 0, duration, className, once = false, ...props }: MotionDivProps) {
     return (
         <motion.div
             variants={injectTiming(blurUp, delay, duration)}
@@ -254,7 +250,7 @@ export function BlurUp({ children, delay = 0, duration, className, once = true, 
     )
 }
 
-export function BlurFocus({ children, delay = 0, duration, className, once = true, ...props }: MotionDivProps) {
+export function BlurFocus({ children, delay = 0, duration, className, once = false, ...props }: MotionDivProps) {
     return (
         <motion.div
             variants={injectTiming(blurFocus, delay, duration)}
@@ -273,7 +269,7 @@ export function BlurFocus({ children, delay = 0, duration, className, once = tru
 
 // ── Flip ──────────────────────────────────────────────────────
 
-export function FlipX({ children, delay = 0, className, once = true, ...props }: MotionDivProps) {
+export function FlipX({ children, delay = 0, className, once = false, ...props }: MotionDivProps) {
     return (
         <motion.div
             variants={injectTiming(flipX, delay)}
@@ -290,7 +286,7 @@ export function FlipX({ children, delay = 0, className, once = true, ...props }:
     )
 }
 
-export function FlipY({ children, delay = 0, className, once = true, ...props }: MotionDivProps) {
+export function FlipY({ children, delay = 0, className, once = false, ...props }: MotionDivProps) {
     return (
         <motion.div
             variants={injectTiming(flipY, delay)}
@@ -310,7 +306,7 @@ export function FlipY({ children, delay = 0, className, once = true, ...props }:
 
 // ── Skew ──────────────────────────────────────────────────────
 
-export function SkewUp({ children, delay = 0, className, once = true, ...props }: MotionDivProps) {
+export function SkewUp({ children, delay = 0, className, once = false, ...props }: MotionDivProps) {
     return (
         <motion.div
             variants={injectTiming(skewUp, delay)}
@@ -326,7 +322,7 @@ export function SkewUp({ children, delay = 0, className, once = true, ...props }
     )
 }
 
-export function SkewLeft({ children, delay = 0, className, once = true, ...props }: MotionDivProps) {
+export function SkewLeft({ children, delay = 0, className, once = false, ...props }: MotionDivProps) {
     return (
         <motion.div
             variants={injectTiming(skewLeft, delay)}
@@ -345,7 +341,7 @@ export function SkewLeft({ children, delay = 0, className, once = true, ...props
 
 // ── Clip / Wipe ───────────────────────────────────────────────
 
-export function ClipLeft({ children, delay = 0, className, once = true, ...props }: MotionDivProps) {
+export function ClipLeft({ children, delay = 0, className, once = false, ...props }: MotionDivProps) {
     return (
         <motion.div
             variants={injectTiming(clipLeft, delay)}
@@ -361,7 +357,7 @@ export function ClipLeft({ children, delay = 0, className, once = true, ...props
     )
 }
 
-export function ClipRight({ children, delay = 0, className, once = true, ...props }: MotionDivProps) {
+export function ClipRight({ children, delay = 0, className, once = false, ...props }: MotionDivProps) {
     return (
         <motion.div
             variants={injectTiming(clipRight, delay)}
@@ -377,7 +373,7 @@ export function ClipRight({ children, delay = 0, className, once = true, ...prop
     )
 }
 
-export function ClipUp({ children, delay = 0, className, once = true, ...props }: MotionDivProps) {
+export function ClipUp({ children, delay = 0, className, once = false, ...props }: MotionDivProps) {
     return (
         <motion.div
             variants={injectTiming(clipUp, delay)}
@@ -393,7 +389,7 @@ export function ClipUp({ children, delay = 0, className, once = true, ...props }
     )
 }
 
-export function ClipCenter({ children, delay = 0, className, once = true, ...props }: MotionDivProps) {
+export function ClipCenter({ children, delay = 0, className, once = false, ...props }: MotionDivProps) {
     return (
         <motion.div
             variants={injectTiming(clipCenter, delay)}
@@ -412,7 +408,7 @@ export function ClipCenter({ children, delay = 0, className, once = true, ...pro
 
 // ── Special ───────────────────────────────────────────────────
 
-export function TiltIn({ children, delay = 0, className, once = true, ...props }: MotionDivProps) {
+export function TiltIn({ children, delay = 0, className, once = false, ...props }: MotionDivProps) {
     return (
         <motion.div
             variants={injectTiming(tiltIn, delay)}
@@ -429,7 +425,7 @@ export function TiltIn({ children, delay = 0, className, once = true, ...props }
     )
 }
 
-export function Rise({ children, delay = 0, className, once = true, ...props }: MotionDivProps) {
+export function Rise({ children, delay = 0, className, once = false, ...props }: MotionDivProps) {
     return (
         <motion.div
             variants={injectTiming(rise, delay)}
@@ -445,7 +441,7 @@ export function Rise({ children, delay = 0, className, once = true, ...props }: 
     )
 }
 
-export function Glitch({ children, delay = 0, className, once = true, ...props }: MotionDivProps) {
+export function Glitch({ children, delay = 0, className, once = false, ...props }: MotionDivProps) {
     return (
         <motion.div
             variants={injectTiming(glitch, delay)}
@@ -489,7 +485,7 @@ export function Pulse({ children, delay = 0, className, ...props }: MotionDivPro
     )
 }
 
-export function SlideUp({ children, delay = 0, className, once = true, ...props }: MotionDivProps) {
+export function SlideUp({ children, delay = 0, className, once = false, ...props }: MotionDivProps) {
     return (
         <motion.div
             variants={injectTiming(slideUp, delay)}
@@ -519,7 +515,7 @@ type StaggerProps = {
     once?: boolean
 }
 
-export function Stagger({ children, staggerDelay = 0.1, delayChildren = 0, className, once = true }: StaggerProps) {
+export function Stagger({ children, staggerDelay = 0.1, delayChildren = 0, className, once = false }: StaggerProps) {
     return (
         <motion.div
             variants={staggerContainer(staggerDelay, delayChildren)}

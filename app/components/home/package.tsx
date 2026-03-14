@@ -1,13 +1,14 @@
 'use client'
 
 import React from 'react'
+import { motion } from 'framer-motion'
 import PackageCard, { type PackageCardProps } from '../packages/Packages'
-import { Heading, Text } from '../ui/Typography'
 import Button from '../ui/Button'
 import { ArrowRightIcon } from '@phosphor-icons/react'
 import PackageGrid from '../ui/Grid'
-import { FadeUp } from '../ui/motion'
 import SectionHeader from '../ui/SectionHeader'
+import { Stagger } from '@/app/components/ui/motion'
+import { staggerItem, fadeIn, fadeRight } from '@/app/lib/motionPresets'
 
 const PACKAGES: Omit<PackageCardProps, 'onRequestCallback' | 'onClick'>[] = [
     {
@@ -129,7 +130,6 @@ const PACKAGES: Omit<PackageCardProps, 'onRequestCallback' | 'onClick'>[] = [
             { days: 2, place: 'Kochi' },
             { days: 2, place: 'Munnar' },
             { days: 2, place: 'Alleppey' },
-
         ],
         originalPrice: 50000,
         discountedPrice: 34000,
@@ -151,42 +151,70 @@ export default function TrendingPackages({
     return (
         <section className="w-full py-section">
             <div className="screen-space">
-                {/* ── Section header ── */}
+
+                {/* ── Section header + View All button ── */}
                 <div className="flex items-end justify-between mb-6">
+                    {/* SectionHeader already has its own internal animations */}
                     <SectionHeader
-                     tag='Handpicked For You'
-                     title='Trending Experiences'
-                     subtitle='Curated packages designed around your travel style'
+                        tag='Handpicked For You'
+                        title='Trending Experiences'
+                        subtitle='Curated packages designed around your travel style'
                     />
 
-                    {/* View All — desktop only */}
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="hidden sm:flex items-center gap-1.5 text-primary-500 hover:text-primary-600 font-semibold shrink-0"
-                        onClick={onViewAll}
+                    <motion.div
+                        variants={fadeRight}
+                        initial="hidden"
+                        whileInView="visible"
+                        viewport={{ once: false, amount: 0.3 }}
+                        className="hidden sm:block shrink-0"
                     >
-                        View All
-                        <ArrowRightIcon className="size-4" weight="bold" />
-                    </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="flex items-center gap-1.5 text-primary-500 hover:text-primary-600 font-semibold"
+                            onClick={onViewAll}
+                        >
+                            View All
+                            <ArrowRightIcon className="size-4" weight="bold" />
+                        </Button>
+                    </motion.div>
                 </div>
 
                 {/* ── Divider ── */}
-                <div className="h-px w-full bg-(--border-muted) mb-8" />
+                <motion.div
+                    variants={fadeIn}
+                    initial="hidden"
+                    whileInView="visible"
+                    viewport={{ once: false, amount: 0.5 }}
+                    className="h-px w-full bg-(--border-muted) mb-8"
+                />
 
-                {/* ── Package grid ── */}
-                <PackageGrid>
-                    {packages.map((pkg) => (
-                        <PackageCard
-                            key={pkg.title}
-                            {...pkg}
-                            onRequestCallback={() => onRequestCallback?.(pkg.title)}
-                        />
-                    ))}
-                </PackageGrid>
+                {/* ── Package grid — staggered cards ── */}
+                <Stagger
+                    staggerDelay={0.3}
+                    delayChildren={0.2}
+                    once={false}
+                >
+                    <PackageGrid>
+                        {packages.map((pkg) => (
+                            <motion.div key={pkg.title} variants={staggerItem}>
+                                <PackageCard
+                                    {...pkg}
+                                    onRequestCallback={() => onRequestCallback?.(pkg.title)}
+                                />
+                            </motion.div>
+                        ))}
+                    </PackageGrid>
+                </Stagger>
 
-                {/* View All — mobile only */}
-                <div className="flex justify-center mt-8 sm:hidden">
+                {/* ── View All — mobile ── */}
+                <motion.div
+                    variants={fadeIn}
+                    initial="hidden"
+                    whileInView="visible"
+                    viewport={{ once: false, amount: 0.5 }}
+                    className="flex justify-center mt-8 sm:hidden"
+                >
                     <Button
                         variant="outline"
                         size="md"
@@ -196,7 +224,7 @@ export default function TrendingPackages({
                         View All Packages
                         <ArrowRightIcon className="size-4" weight="bold" />
                     </Button>
-                </div>
+                </motion.div>
 
             </div>
         </section>

@@ -1,7 +1,8 @@
 'use client'
 
 import React, { useRef } from 'react'
-import { Heading, Text } from '../ui/Typography'
+import { motion } from 'framer-motion'
+import { Heading } from '../ui/Typography'
 import DestinationCard, { type DestinationCardProps } from '../destinations/Destination'
 import Button from '../ui/Button'
 import {
@@ -13,6 +14,7 @@ import {
     IslandIcon,
 } from '@phosphor-icons/react'
 import SectionHeader from '../ui/SectionHeader'
+import { staggerContainer, staggerItem, fadeIn, fadeUp, fadeRight, fadeLeft } from '@/app/lib/motionPresets'
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 type DestinationItem = Omit<DestinationCardProps, 'onClick'> & {
@@ -21,94 +23,21 @@ type DestinationItem = Omit<DestinationCardProps, 'onClick'> & {
 }
 
 const DOMESTIC: DestinationItem[] = [
-    {
-        slug: 'himachal-pradesh',
-        name: 'Himachal Pradesh',
-        packageCount: 32,
-        image: 'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=800&auto=format&fit=crop',
-        icon: IslandIcon,
-        badge: 'Most Popular',
-    },
-    {
-        slug: 'kashmir',
-        name: 'Kashmir',
-        packageCount: 102,
-        image: 'https://images.unsplash.com/photo-1614591276564-7b3e69347a48?w=800&auto=format&fit=crop',
-        icon: IslandIcon,
-    },
-    {
-        slug: 'kerala',
-        name: 'Kerala',
-        packageCount: 25,
-        image: 'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=800&auto=format&fit=crop',
-        icon: IslandIcon,
-    },
-    {
-        slug: 'goa',
-        name: 'Goa',
-        packageCount: 15,
-        image: 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=800&auto=format&fit=crop',
-        icon: IslandIcon,
-    },
-    {
-        slug: 'rajasthan',
-        name: 'Rajasthan',
-        packageCount: 28,
-        image: 'https://images.unsplash.com/photo-1477587458883-47145ed94245?w=800&auto=format&fit=crop',
-        icon: IslandIcon,
-    },
-    {
-        slug: 'uttarakhand',
-        name: 'Uttarakhand',
-        packageCount: 19,
-        image: 'https://images.unsplash.com/photo-1502786129293-79981df4e689?w=800&auto=format&fit=crop',
-        icon: IslandIcon,
-    },
+    { slug: 'himachal-pradesh', name: 'Himachal Pradesh', packageCount: 32, image: 'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=800&auto=format&fit=crop', icon: IslandIcon, badge: 'Most Popular' },
+    { slug: 'kashmir', name: 'Kashmir', packageCount: 102, image: 'https://images.unsplash.com/photo-1614591276564-7b3e69347a48?w=800&auto=format&fit=crop', icon: IslandIcon },
+    { slug: 'kerala', name: 'Kerala', packageCount: 25, image: 'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=800&auto=format&fit=crop', icon: IslandIcon },
+    { slug: 'goa', name: 'Goa', packageCount: 15, image: 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=800&auto=format&fit=crop', icon: IslandIcon },
+    { slug: 'rajasthan', name: 'Rajasthan', packageCount: 28, image: 'https://images.unsplash.com/photo-1477587458883-47145ed94245?w=800&auto=format&fit=crop', icon: IslandIcon },
+    { slug: 'uttarakhand', name: 'Uttarakhand', packageCount: 19, image: 'https://images.unsplash.com/photo-1502786129293-79981df4e689?w=800&auto=format&fit=crop', icon: IslandIcon },
 ]
 
 const INTERNATIONAL: DestinationItem[] = [
-    {
-        slug: 'dubai',
-        name: 'Dubai',
-        packageCount: 50,
-        image: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=800&auto=format&fit=crop',
-        icon: IslandIcon,
-    },
-    {
-        slug: 'switzerland',
-        name: 'Switzerland',
-        packageCount: 99,
-        image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&auto=format&fit=crop',
-        icon: IslandIcon,
-    },
-    {
-        slug: 'france',
-        name: 'France',
-        packageCount: 102,
-        image: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=800&auto=format&fit=crop',
-        icon: IslandIcon,
-    },
-    {
-        slug: 'japan',
-        name: 'Japan',
-        packageCount: 55,
-        image: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=800&auto=format&fit=crop',
-        icon: IslandIcon,
-    },
-    {
-        slug: 'thailand',
-        name: 'Thailand',
-        packageCount: 44,
-        image: 'https://images.unsplash.com/photo-1528181304800-259b08848526?w=800&auto=format&fit=crop',
-        icon: IslandIcon,
-    },
-    {
-        slug: 'maldives',
-        name: 'Maldives',
-        packageCount: 30,
-        image: 'https://images.unsplash.com/photo-1514282401047-d79a71a590e8?w=800&auto=format&fit=crop',
-        icon: IslandIcon,
-    },
+    { slug: 'dubai', name: 'Dubai', packageCount: 50, image: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=800&auto=format&fit=crop', icon: IslandIcon },
+    { slug: 'switzerland', name: 'Switzerland', packageCount: 99, image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&auto=format&fit=crop', icon: IslandIcon },
+    { slug: 'france', name: 'France', packageCount: 102, image: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=800&auto=format&fit=crop', icon: IslandIcon },
+    { slug: 'japan', name: 'Japan', packageCount: 55, image: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=800&auto=format&fit=crop', icon: IslandIcon },
+    { slug: 'thailand', name: 'Thailand', packageCount: 44, image: 'https://images.unsplash.com/photo-1528181304800-259b08848526?w=800&auto=format&fit=crop', icon: IslandIcon },
+    { slug: 'maldives', name: 'Maldives', packageCount: 30, image: 'https://images.unsplash.com/photo-1514282401047-d79a71a590e8?w=800&auto=format&fit=crop', icon: IslandIcon },
 ]
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -120,7 +49,7 @@ interface ExploreDestinationsProps {
     onViewAllInternational?: () => void
 }
 
-// ─── Row with scroll nav ──────────────────────────────────────────────────────
+// ─── Row ──────────────────────────────────────────────────────────────────────
 function DestinationRow({
     label,
     icon: RowIcon,
@@ -143,59 +72,66 @@ function DestinationRow({
     }
 
     return (
-        <div className="mb-10">
-            {/* Row header */}
+        <motion.div
+            className="mb-10"
+            variants={fadeUp}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: false, amount: 0.1 }}
+        >
+            {/* Row header — label slides from left, controls slide from right */}
             <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2.5">
+                <motion.div
+                    className="flex items-center gap-2.5"
+                    variants={fadeRight}
+                    initial="hidden"
+                    whileInView="visible"
+                    viewport={{ once: false, amount: 0.3 }}
+                >
                     <RowIcon weight="duotone" className="size-7 duo_icons" />
-                    <Heading level={3} className="font-bold">
-                        {label}
-                    </Heading>
-                </div>
+                    <Heading level={3} className="font-bold">{label}</Heading>
+                </motion.div>
 
-                <div className="flex items-center gap-2">
-                    {/* Prev / Next */}
-                    <Button
-                        onClick={() => scroll('left')}
-                        size='auto'
-                        aria-label="Scroll left"
-                        variant='outline'
-                        className='p-2.5 rounded-full'
-                    >
+                <motion.div
+                    className="flex items-center gap-2"
+                    variants={fadeLeft}
+                    initial="hidden"
+                    whileInView="visible"
+                    viewport={{ once: false, amount: 0.3 }}
+                >
+                    <Button onClick={() => scroll('left')} size='auto' aria-label="Scroll left" variant='outline' className='p-2.5 rounded-full hidden sm:block'>
                         <CaretLeftIcon weight="bold" className="size-3.5 text-(--text-secondary)" />
                     </Button>
-                    <Button
-                        onClick={() => scroll('right')}
-                        size='auto'
-                        variant='outline'
-                        aria-label="Scroll right"
-                        className='p-2.5 rounded-full'
-                    >
+                    <Button onClick={() => scroll('right')} size='auto' variant='outline' aria-label="Scroll right" className='p-2.5 rounded-full hidden sm:block'>
                         <CaretRightIcon weight="bold" className="size-3.5 text-(--text-secondary)" />
                     </Button>
-
-                    {/* View All */}
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-1.5 font-heading font-medium text-sm"
-                        onClick={onViewAll}
-                    >
+                    <Button variant="outline" size="sm" className="gap-1.5 font-heading font-medium text-sm hidden sm:block" onClick={onViewAll}>
                         View All
                         <ArrowRightIcon weight="bold" className="size-3.5 text-(--text-muted)" />
                     </Button>
-                </div>
+                </motion.div>
             </div>
 
             {/* Divider */}
-            <div className="h-px bg-(--border-muted) mb-5" />
+            <motion.div
+                className="h-px bg-(--border-muted) mb-5"
+                variants={fadeIn}
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: false, amount: 0.5 }}
+            />
 
-            <div
+            {/* Cards — staggered */}
+            <motion.div
                 ref={scrollRef}
                 className="flex gap-9 overflow-x-auto scrollbar-none pb-2 -mx-1 px-1"
+                variants={staggerContainer(0.07, 0.1)}
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: false, amount: 0.1 }}
             >
                 {items.map((item) => (
-                    <div key={item.slug} className="shrink-0 w-80">
+                    <motion.div key={item.slug} variants={staggerItem} className="shrink-0 w-80">
                         <DestinationCard
                             name={item.name}
                             packageCount={item.packageCount}
@@ -203,10 +139,10 @@ function DestinationRow({
                             icon={item.icon}
                             onClick={() => onItemClick?.(item.slug)}
                         />
-                    </div>
+                    </motion.div>
                 ))}
-            </div>
-        </div>
+            </motion.div>
+        </motion.div>
     )
 }
 
@@ -222,14 +158,12 @@ export default function ExploreDestinations({
         <section className="w-full py-section overflow-hidden bg-surface-muted">
             <div className="screen-space">
 
-                {/* ── Section header ── */}
                 <SectionHeader
                     tag='India & Beyond'
                     title='Explore By Destinations'
                     subtitle='From Himalayan peaks to tropical shores'
                 />
 
-                {/* ── Domestic ── */}
                 <DestinationRow
                     label="Domestic"
                     icon={MapPinIcon}
@@ -238,7 +172,6 @@ export default function ExploreDestinations({
                     onItemClick={onDestinationClick}
                 />
 
-                {/* ── International ── */}
                 <DestinationRow
                     label="International"
                     icon={AirplaneTiltIcon}

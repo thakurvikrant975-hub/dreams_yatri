@@ -108,7 +108,6 @@ export const zoomRotate: Variants = {
   exit: { opacity: 0, scale: 0.8, rotate: 4, transition: transitions.instant },
 }
 
-
 // ── FLIP VARIANTS ────────────────────────────────────────────
 
 export const flipX: Variants = {
@@ -128,7 +127,6 @@ export const flipYBack: Variants = {
   visible: { opacity: 1, rotateY: 0, transition: transitions.expo },
   exit: { opacity: 0, rotateY: -40, transition: transitions.expoFast },
 }
-
 
 // ── BLUR VARIANTS ────────────────────────────────────────────
 
@@ -150,7 +148,6 @@ export const blurFocus: Variants = {
   exit: { opacity: 0, filter: 'blur(15px) brightness(0.6)', transition: transitions.smooth },
 }
 
-
 // ── SKEW VARIANTS ────────────────────────────────────────────
 
 export const skewUp: Variants = {
@@ -164,7 +161,6 @@ export const skewLeft: Variants = {
   visible: { opacity: 1, x: 0, skewX: 0, transition: transitions.expo },
   exit: { opacity: 0, x: 20, skewX: -4, transition: transitions.expoFast },
 }
-
 
 // ── CLIP / WIPE VARIANTS ──────────────────────────────────────
 // Note: clipPath in Framer Motion — wrap element in overflow:hidden container
@@ -192,7 +188,6 @@ export const clipCenter: Variants = {
   visible: { clipPath: 'inset(0 0%)', opacity: 1, transition: { duration: 0.9, ease: [0.16, 1, 0.3, 1] } },
   exit: { clipPath: 'inset(0 50%)', transition: transitions.expoFast },
 }
-
 
 // ── SPECIAL / SIGNATURE VARIANTS ─────────────────────────────
 

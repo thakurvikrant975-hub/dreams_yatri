@@ -41,7 +41,7 @@ export default function NeuralNetworkBackground() {
       scene.fog = new THREE.FogExp2(BG_COLOR, 0.002);
 
       camera = new THREE.PerspectiveCamera(65, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
-      camera.position.set(0, 8, 55);
+      camera.position.set(0, 8, 28);
 
       renderer = new THREE.WebGLRenderer({
         canvas,
@@ -106,22 +106,20 @@ export default function NeuralNetworkBackground() {
       controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.dampingFactor = 0.05;
-      controls.rotateSpeed = 0.6;
+      controls.rotateSpeed = 0;
       controls.enableZoom = false;
       controls.enablePan = false;
-      controls.enableRotate = true;
+      controls.enableRotate = false;
       controls.autoRotate = true;
-      controls.autoRotateSpeed = 0.2;
-      controls.minDistance = 20;
-      controls.maxDistance = 100;
+      controls.autoRotateSpeed = 0.3;
 
       composer = new EffectComposer(renderer);
       composer.addPass(new RenderPass(scene, camera));
       const bloom = new UnrealBloomPass(
         new THREE.Vector2(canvas.clientWidth, canvas.clientHeight),
-        1.8,   // strength — original codepen value
-        0.6,   // radius
-        0.7    // threshold
+        1.4,   // strength
+        0.4,   // radius
+        0.85   // threshold — higher = less bleed into dark areas
       );
       bloom.clearColor = new THREE.Color(BG_COLOR);
       composer.addPass(bloom);
@@ -130,8 +128,8 @@ export default function NeuralNetworkBackground() {
       // Brand color palette — #FB2B37 based
       const palette = [
         new THREE.Color(0xFB2B37), // primary brand red
-        new THREE.Color(0xE01A25), // darker red
-        new THREE.Color(0xFF6B73), // light pink-red
+        new THREE.Color(0x460808), // darker red
+        new THREE.Color(0xFFA1A3), // light pink-red
         new THREE.Color(0xC41520), // deep crimson
         new THREE.Color(0xFF9BA0), // soft rose
       ];
@@ -168,28 +166,26 @@ export default function NeuralNetworkBackground() {
       nodesGeo.setAttribute('nodeColor', new THREE.Float32BufferAttribute(nodeColors, 3));
       nodesGeo.setAttribute('distanceFromRoot', new THREE.Float32BufferAttribute(distancesFromRoot, 1));
 
-      // Direct uniform objects — NOT cloned. triggerPulse mutates these by reference.
-      const sharedPulsePositions = [
-        new THREE.Vector3(1e4, 1e4, 1e4),
-        new THREE.Vector3(1e4, 1e4, 1e4),
-        new THREE.Vector3(1e4, 1e4, 1e4),
-      ];
-      const sharedPulseTimes = { value: [-1e4, -1e4, -1e4] as number[] };
-      const sharedPulseColors = [
-        new THREE.Color(0xFB2B37),
-        new THREE.Color(0xFF6B73),
-        new THREE.Color(0xFFFFFF),
-      ];
+      // Shared pulse state — 3 simultaneous pulses cycling
+      const pulseUniforms = {
+        uTime:           { value: 0.0 },
+        uBaseNodeSize:   { value: 0.55 },
+        uPulsePositions: { value: [
+          new THREE.Vector3(1e4, 1e4, 1e4),
+          new THREE.Vector3(1e4, 1e4, 1e4),
+          new THREE.Vector3(1e4, 1e4, 1e4),
+        ]},
+        uPulseTimes:     { value: [-1e4, -1e4, -1e4] },
+        uPulseColors:    { value: [
+          new THREE.Color(0xFB2B37),
+          new THREE.Color(0xFF6B73),
+          new THREE.Color(0xFFFFFF),
+        ]},
+        uPulseSpeed:     { value: 16.0 },
+      };
 
       const nodesMat = new THREE.ShaderMaterial({
-        uniforms: {
-          uTime:           { value: 0.0 },
-          uBaseNodeSize:   { value: 0.55 },
-          uPulsePositions: { value: sharedPulsePositions },
-          uPulseTimes:     { value: sharedPulseTimes.value },
-          uPulseColors:    { value: sharedPulseColors },
-          uPulseSpeed:     { value: 18.0 },
-        },
+        uniforms: THREE.UniformsUtils.clone(pulseUniforms),
         vertexShader: `
           attribute float nodeSize; attribute float nodeType; attribute vec3 nodeColor; attribute float distanceFromRoot;
           uniform float uTime; uniform float uBaseNodeSize;
@@ -290,14 +286,7 @@ export default function NeuralNetworkBackground() {
       connGeo.setAttribute('pathIndex', new THREE.Float32BufferAttribute(pathIndices, 1));
 
       const connMat = new THREE.ShaderMaterial({
-        uniforms: {
-          uTime:           { value: 0.0 },
-          uBaseNodeSize:   { value: 0.55 },
-          uPulsePositions: { value: sharedPulsePositions },
-          uPulseTimes:     { value: sharedPulseTimes.value },
-          uPulseColors:    { value: sharedPulseColors },
-          uPulseSpeed:     { value: 18.0 },
-        },
+        uniforms: THREE.UniformsUtils.clone(pulseUniforms),
         vertexShader: `
           attribute vec3 startPoint; attribute vec3 endPoint;
           attribute float connectionStrength; attribute float pathIndex; attribute vec3 connectionColor;
@@ -369,7 +358,7 @@ export default function NeuralNetworkBackground() {
       // Drag vs tap disambiguation
       let pointerDownX = 0;
       let pointerDownY = 0;
-      const DRAG_THRESHOLD = 4; // px — OrbitControls consumes drags; taps are very small movements
+      const DRAG_THRESHOLD = 6; // px
 
       function triggerPulse(clientX: number, clientY: number) {
         const rect = canvas.getBoundingClientRect();
@@ -378,33 +367,31 @@ export default function NeuralNetworkBackground() {
 
         raycaster.setFromCamera(pointer, camera);
 
-        // Plane facing camera, placed at world origin depth
+        // Interaction plane faces the camera at the network's rough depth
         interactionPlane.normal.copy(camera.position).normalize();
-        interactionPlane.constant = -interactionPlane.normal.dot(new THREE.Vector3(0, 0, 0));
+        interactionPlane.constant = -(
+          interactionPlane.normal.dot(camera.position) - camera.position.length() * 0.5
+        );
 
         if (!raycaster.ray.intersectPlane(interactionPlane, interactionPoint)) return;
 
         const t = clock.getElapsedTime();
         lastPulseIndex = (lastPulseIndex + 1) % 3;
 
-        // Mutate shared arrays directly — uniforms already reference these objects
-        sharedPulsePositions[lastPulseIndex].copy(interactionPoint);
-        sharedPulseTimes.value[lastPulseIndex] = t;
+        // Pick a random brand-toned pulse color
+        const pulseColors = [
+          new THREE.Color(0xFB2B37),
+          new THREE.Color(0xFF6B73),
+          new THREE.Color(0xFFFFFF),
+          new THREE.Color(0xFF9BA0),
+        ];
+        const randColor = pulseColors[Math.floor(Math.random() * pulseColors.length)];
 
-        // Random brand-toned color
-        const brandColors = [0xFB2B37, 0xFF6B73, 0xFFFFFF, 0xFF9BA0];
-        sharedPulseColors[lastPulseIndex].setHex(brandColors[Math.floor(Math.random() * brandColors.length)]);
-
-        // Mark uniforms dirty on both meshes
-        if (nodesMesh) {
-          nodesMesh.material.uniforms.uPulsePositions.value = sharedPulsePositions;
-          nodesMesh.material.uniforms.uPulseTimes.value = sharedPulseTimes.value;
-          nodesMesh.material.uniforms.uPulseColors.value = sharedPulseColors;
-        }
-        if (connectionsMesh) {
-          connectionsMesh.material.uniforms.uPulsePositions.value = sharedPulsePositions;
-          connectionsMesh.material.uniforms.uPulseTimes.value = sharedPulseTimes.value;
-          connectionsMesh.material.uniforms.uPulseColors.value = sharedPulseColors;
+        for (const mesh of [nodesMesh, connectionsMesh]) {
+          if (!mesh) continue;
+          mesh.material.uniforms.uPulsePositions.value[lastPulseIndex].copy(interactionPoint);
+          mesh.material.uniforms.uPulseTimes.value[lastPulseIndex] = t;
+          mesh.material.uniforms.uPulseColors.value[0].copy(randColor);
         }
       }
 
