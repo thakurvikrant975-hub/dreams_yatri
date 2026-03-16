@@ -2,8 +2,8 @@
 
 import React from "react"
 import { motion } from "framer-motion"
-import StatItem from "../ui/StatItem"
-import { Stagger, FadeUp } from "../ui/motion"
+import StatItem from "@/app/components/ui/StatItem"
+import { Stagger, FadeUp } from "@/app/components/ui/motion"
 import { staggerItem } from "@/app/lib/motionPresets"
 import { StatItemI } from "@/app/types/components/ui/StatItem"
 import { AirplaneTiltIcon, MapPinIcon, VanIcon, StarIcon } from "@phosphor-icons/react"

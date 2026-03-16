@@ -1,8 +1,7 @@
-"use client";
-
+'use client'
 import { motion } from "framer-motion";
-import SectionHeader from "../ui/SectionHeader";
-import FeatureCard from "../ui/FeatureCard";
+import SectionHeader from "@/app/components/ui/SectionHeader";
+import FeatureCard from "@/app/components/ui/FeatureCard";
 import { FeatureCardProps } from "@/app/types/home";
 import { Cog8ToothIcon, UsersIcon, ClockIcon, CurrencyRupeeIcon } from "@heroicons/react/24/solid";
 import { staggerContainer, staggerItemZoom } from "@/app/lib/motionPresets";

@@ -2,10 +2,10 @@
 
 import { useState, ChangeEvent, FormEvent } from "react";
 import { motion } from "framer-motion";
-import Input from "../forms/Input";
-import Label from "../forms/Label";
-import { Heading, Text } from "../ui/Typography";
-import Button from "../ui/Button";
+import Input from "@/app/components/forms/Input";
+import Label from "@/app/components/forms/Label";
+import { Heading, Text } from "@/app/components/ui/Typography";
+import Button from "@/app/components/ui/Button";
 import { fadeRight, fadeLeft, staggerContainer, staggerItem } from "@/app/lib/motionPresets";
 
 // ─── Types ────────────────────────────────────────────────────────────────────

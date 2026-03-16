@@ -28,9 +28,9 @@ export default function DestinationCard({
     return (
         <div className="w-full relative">
             <div className="absolute h-full w-1/5 right-0 top-0 flex items-center">
-              <div className="h-[80%] flex-1 bg-gray-400/45 rounded-e-xl"></div>
-              <div className="h-[60%] flex-1 bg-gray-300/80 rounded-e-xl"></div>
-              <div className="h-[40%] flex-1 bg-gray-200/75 rounded-e-xl"></div>
+              <div className="h-[80%] flex-1 bg-neutral-400/45 rounded-e-xl"></div>
+              <div className="h-[60%] flex-1 bg-neutral-300/80 rounded-e-xl"></div>
+              <div className="h-[40%] flex-1 bg-neutral-200/75 rounded-e-xl"></div>
             </div>
             <Card
                 asArticle

@@ -2,9 +2,9 @@
 
 import React, { useRef } from 'react'
 import { motion } from 'framer-motion'
-import { Heading } from '../ui/Typography'
-import DestinationCard, { type DestinationCardProps } from '../destinations/Destination'
-import Button from '../ui/Button'
+import { Heading } from '@/app/components/ui/Typography'
+import DestinationCard, { type DestinationCardProps } from '@/app/components/destinations/Destination'
+import Button from '@/app/components/ui/Button'
 import {
     MapPinIcon,
     AirplaneTiltIcon,
@@ -13,7 +13,7 @@ import {
     CaretRightIcon,
     IslandIcon,
 } from '@phosphor-icons/react'
-import SectionHeader from '../ui/SectionHeader'
+import SectionHeader from '@/app/components/ui/SectionHeader'
 import { staggerContainer, staggerItem, fadeIn, fadeUp, fadeRight, fadeLeft } from '@/app/lib/motionPresets'
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
@@ -105,7 +105,7 @@ function DestinationRow({
                     <Button onClick={() => scroll('right')} size='auto' variant='outline' aria-label="Scroll right" className='p-2.5 rounded-full hidden sm:block'>
                         <CaretRightIcon weight="bold" className="size-3.5 text-(--text-secondary)" />
                     </Button>
-                    <Button variant="outline" size="sm" className="gap-1.5 font-heading font-medium text-sm hidden sm:block" onClick={onViewAll}>
+                    <Button variant="outline" size="sm" className="gap-1.5 font-heading font-medium text-sm hidden sm:flex sm:gap-2 sm:items-center" onClick={onViewAll}>
                         View All
                         <ArrowRightIcon weight="bold" className="size-3.5 text-(--text-muted)" />
                     </Button>

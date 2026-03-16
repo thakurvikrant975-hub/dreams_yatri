@@ -1,8 +1,8 @@
 'use client'
 import { BlogCardProps } from "@/app/types/home";
 import Image from "next/image";
-import { Heading, Text } from "./Typography";
-import Button from "./Button";
+import { Heading, Text } from "../ui/Typography";
+import Button from "../ui/Button";
 
 export default function BlogCard({ post, index }: BlogCardProps) {
     return (

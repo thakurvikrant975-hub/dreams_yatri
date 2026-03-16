@@ -1,12 +1,11 @@
 'use client'
 
-import React from 'react'
 import { motion } from 'framer-motion'
-import PackageCard, { type PackageCardProps } from '../packages/Packages'
-import Button from '../ui/Button'
+import PackageCard, { type PackageCardProps } from '@/app/components/packages/Packages'
+import Button from '@/app/components/ui/Button'
 import { ArrowRightIcon } from '@phosphor-icons/react'
-import PackageGrid from '../ui/Grid'
-import SectionHeader from '../ui/SectionHeader'
+import PackageGrid from '@/app/components/packages/PackageGrid'
+import SectionHeader from '@/app/components/ui/SectionHeader'
 import { Stagger } from '@/app/components/ui/motion'
 import { staggerItem, fadeIn, fadeRight } from '@/app/lib/motionPresets'
 

@@ -43,7 +43,7 @@ const textVariants = cva('', {
 const headingVariants = cva('font-heading font-bold tracking-tight leading-tight', {
     variants: {
         level: {
-            1: 'text-3xl sm:text-4xl md:text-5xl',
+            1: 'text-3xl  md:text-4xl',
             2: 'text-2xl sm:text-3xl',
             3: 'text-lg sm:text-lg',
             4: 'text-lg sm:text-xl',

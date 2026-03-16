@@ -1,9 +1,8 @@
 'use client'
-
 import { motion } from "framer-motion";
 import { BlogPost } from "@/app/types/home";
-import SectionHeader from "../ui/SectionHeader";
-import BlogCard from "../ui/BlogCard";
+import SectionHeader from "@/app/components/ui/SectionHeader";
+import BlogCard from "../components/blog/BlogCard";
 import { staggerContainer, staggerItem } from "@/app/lib/motionPresets";
 
 const BLOG_POSTS: BlogPost[] = [

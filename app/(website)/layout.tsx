@@ -1,5 +1,3 @@
-import Header from "../components/navigation/Header";
-
 export default function WebsiteLayout({
   children,
 }: {
@@ -7,7 +5,6 @@ export default function WebsiteLayout({
 }) {
   return (
     <>
-      <Header transparent={true} />
       <div className="mx-auto">
         {children}
       </div>

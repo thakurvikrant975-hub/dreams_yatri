@@ -349,19 +349,23 @@
 
 }
 
-    html,
-    body {
-        width: 100%;
-        margin: 0;
-        padding: 0;
-        overflow-x: hidden;
-    }
+html,
+body {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+}
 
 @layer components {
 
 
     .py-section {
-        @apply py-16 lg:py-20;
+        @apply py-14 lg:py-18;
+    }
+
+    .py-section-sm {
+        @apply py-12 lg:py-16;
     }
 
     .screen-space {
@@ -370,7 +374,7 @@
     }
 
     .duo_icons path:first-child {
-        @apply fill-neutral-400 opacity-30!;
+        @apply fill-neutral-400 opacity-30 !;
     }
 
     .duo_icons path:last-child {
@@ -378,7 +382,7 @@
     }
 
     .duo_icons_active path:first-child {
-        @apply fill-red-300 opacity-40!;
+        @apply fill-red-300 opacity-40 !;
     }
 
     .duo_icons_active path:last-child {
@@ -410,4 +414,31 @@
 
 @utility animate-pulse-ring {
     animation: pulse-ring 1.5s infinite;
+}
+
+
+
+@keyframes shimmer {
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+.skeleton-box {
+    position: relative;
+    overflow: hidden;
+    background-color: var(--color-neutral-200, #e2e8f0);
+}
+
+.skeleton-box::after {
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background-image: linear-gradient(90deg,
+            rgba(255, 255, 255, 0) 0%,
+            rgba(255, 255, 255, 0.2) 20%,
+            rgba(255, 255, 255, 0.5) 60%,
+            rgba(255, 255, 255, 0) 100%);
+    animation: shimmer 1.8s infinite;
+    content: '';
 }

@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Heading, Text } from "../ui/Typography";
-import Button from "../ui/Button";
+import { Heading, Text } from "@/app/components/ui/Typography";
+import Button from "@/app/components/ui/Button";
 import { ArrowRightIcon, PaperPlaneTiltIcon } from "@phosphor-icons/react";
 import { MicrophoneIcon } from "@heroicons/react/24/solid";
-import NeuralNetworkBackground from "../ui/Neuralnetworkbackground";
+import NeuralNetworkBackground from "@/app/home/decoration/Neuralnetworkbackground";
 import {
   fadeRight, fadeLeft, fadeUp, fadeIn,
   staggerContainer, staggerItem,
@@ -28,9 +28,9 @@ const chatMessages = [
       </>
     ),
     packages: [
-      { title: "Shimla Manali Romantic Escape",  price: "₹45,999" },
-      { title: "Dharamshala-Dalhousie Bliss",    price: "₹42,500" },
-      { title: "Kasol-Tosh Mountain Retreat",    price: "₹38,900" },
+      { title: "Shimla Manali Romantic Escape", price: "₹45,999" },
+      { title: "Dharamshala-Dalhousie Bliss", price: "₹42,500" },
+      { title: "Kasol-Tosh Mountain Retreat", price: "₹38,900" },
     ],
   },
 ];

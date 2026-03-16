@@ -4,8 +4,8 @@ import { useRef } from "react";
 import { motion } from "framer-motion";
 import { Review } from "@/app/types/home";
 import { FcGoogle } from "react-icons/fc";
-import SectionHeader from "../ui/SectionHeader";
-import ReviewCard from "../ui/ReviewCard";
+import SectionHeader from "@/app/components/ui/SectionHeader";
+import ReviewCard from "@/app/components/ui/ReviewCard";
 import { fadeLeft, fadeRight, staggerContainer, staggerItem } from "@/app/lib/motionPresets";
 
 const REVIEWS: Review[] = [

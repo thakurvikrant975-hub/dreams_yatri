@@ -1,9 +1,8 @@
 'use client'
 
-
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion'
-import Button from '../ui/Button';
+import Button from '@/app/components/ui/Button';
 import Image from 'next/image';
 import {
     AirplaneTiltIcon,
@@ -15,7 +14,7 @@ import {
     CableCarIcon,
     BoatIcon,
 } from '@phosphor-icons/react';
-import { HelicopterIcon } from '../icons/cusomIcon';
+import { HelicopterIcon } from '@/app/components/icons/cusomIcon';
 
 import { EngineKeys } from '@/app/types/engine';
 import { HeroTab, HeroField } from '@/app/types/home';
