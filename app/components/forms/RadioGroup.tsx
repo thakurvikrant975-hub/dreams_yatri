@@ -5,7 +5,8 @@ import { cn } from '@/app/lib/utils';
 import { CheckIcon, ArrowRightIcon } from '@heroicons/react/24/solid';
 import { RadioGroupProps } from '@/app/types/components/ui/form/RadioGroup';
 import { RadioContextType } from '@/app/types/components/ui/form/RadioGroup';
-
+import Image from 'next/image';
+import { Text } from '../ui/Typography';
 
 const RadioContext = createContext<RadioContextType | null>(null);
 
@@ -128,27 +129,28 @@ export function RadioImageCard({
       onClick={() => !isDisabled && setValue(value)}
       disabled={isDisabled}
       className={cn(
-        'flex flex-col w-[110px] shrink-0 rounded-[14px] overflow-hidden transition-all duration-150 border-2',
-        isSelected ? 'border-primary-500' : 'border-transparent',
+        'flex flex-col w-24 shrink-0 rounded-[14px]  transition-all duration-150 ',
         isDisabled && 'opacity-50 cursor-not-allowed',
         className
       )}
     >
       {/* Image */}
-      <div className="relative w-full h-20">
-        <img
+      <div className="relative w-full">
+        <Image
           src={image}
           alt={label}
-          className="w-full h-full object-cover rounded-[11px]"
+          width={500}
+          height={500}
+          className={cn("w-full aspect-square object-cover rounded-[11px] ", isSelected ? 'ring-[0.12em] ring-offset-3 ring-primary-500' : '' )}
         />
         <span className="absolute bottom-1.5 left-2 text-[13px] font-semibold text-white drop-shadow-sm">
           {label}
         </span>
       </div>
       {/* Price */}
-      <div className="px-1 py-1.5 text-center bg-surface">
-        <p className="text-[10px] text-muted">{priceLabel}</p>
-        <p className="text-[13px] font-semibold text-primary">{price}</p>
+      <div className="py-1.5 ">
+        <Text size='xs' intent='secondary'>{priceLabel}</Text>
+        <Text size='sm' intent='primary' weight='bold'>{price}</Text>
       </div>
     </button>
   );
@@ -174,10 +176,10 @@ export function RadioRoute({ value, stops, disabled, className }: RadioRouteProp
       onClick={() => !isDisabled && setValue(value)}
       disabled={isDisabled}
       className={cn(
-        'w-full flex items-center justify-between px-4 py-3.5 rounded-2xl border transition-all duration-150 cursor-pointer',
+        'w-full flex items-center justify-between px-4 py-3.5 rounded-2xl border transition-all duration-150 cursor-pointer shadow-md shadow-neutral-200/85',
         isSelected
           ? 'border-primary-400 bg-primary-50'
-          : 'border-neutral-200 bg-surface hover:bg-neutral-50',
+          : 'border-(--border-muted) bg-surface hover:bg-neutral-50',
         isDisabled && 'opacity-50 cursor-not-allowed',
         className
       )}
@@ -204,8 +206,8 @@ export function RadioRoute({ value, stops, disabled, className }: RadioRouteProp
 
       {/* Check indicator */}
       {isSelected && (
-        <span className="size-7 rounded-full bg-primary-500 flex items-center justify-center shrink-0">
-          <CheckIcon className="size-3.5 text-white" />
+        <span className="size-5 rounded-full bg-primary-500 flex items-center justify-center shrink-0">
+          <CheckIcon className="size-3 text-white" />
         </span>
       )}
     </button>
@@ -232,7 +234,7 @@ export function RadioPill({ value, children, disabled, className }: RadioPillPro
       onClick={() => !isDisabled && setValue(value)}
       disabled={isDisabled}
       className={cn(
-        'inline-flex items-center gap-2 px-4 py-2 rounded-full border-[1.5px] text-sm font-medium transition-all duration-150',
+        'inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border-[0.1em] text-sm font-medium transition-all duration-150 shadow-md shadow-neutral-200/80',
         isSelected
           ? 'border-primary-500 text-primary-500 bg-primary-50'
           : 'border-neutral-300 text-primary bg-surface hover:border-neutral-400',
@@ -242,7 +244,7 @@ export function RadioPill({ value, children, disabled, className }: RadioPillPro
     >
       {children}
       {isSelected && (
-        <span className="size-5 rounded-full bg-primary-500 flex items-center justify-center shrink-0">
+        <span className="size-4.5 rounded-full bg-primary-500 flex items-center justify-center shrink-0">
           <CheckIcon className="size-2.5 text-white" />
         </span>
       )}

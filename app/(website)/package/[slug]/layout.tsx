@@ -4,6 +4,7 @@ import PackageTab from "./components/PackageTab";
 import PricingCard from "./components/SidebardCards/PricingCard";
 import CoupenCard from "./components/SidebardCards/CoupenCard";
 import EnquiryForm from "./components/SidebardCards/EnquiryForm";
+import Footer from "@/app/components/navigation/Footer";
 
 export default async function WebsiteLayout({
     children,
@@ -18,6 +19,7 @@ export default async function WebsiteLayout({
         <>
             <div className="mx-auto">
                 <Header />
+                
                 <PackageHero
                     title="Shimla Manali Tour Package With Scenic Views"
                     duration="7D/6N"
@@ -69,6 +71,8 @@ export default async function WebsiteLayout({
                         </div>
                     </aside>
                 </div>
+
+                <Footer />
 
             </div>
         </>

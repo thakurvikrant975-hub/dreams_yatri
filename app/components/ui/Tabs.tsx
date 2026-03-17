@@ -34,7 +34,7 @@ const tabVariants = cva(
   }
 );
 
-const tabIconVariants = cva('-ml-0.5 mr-2 size-4 transition-colors duration-200', {
+const tabIconVariants = cva('-ml-0.5 mr-2 size-5 transition-colors duration-200', {
   variants: {
     active: {
       true:  'text-primary-500',

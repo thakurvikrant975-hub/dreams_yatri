@@ -3,7 +3,7 @@
 import { useRouter, usePathname } from 'next/navigation';
 import {
     CalendarDateRangeIcon,
-    DocumentIcon,
+    DocumentTextIcon,
     ShieldCheckIcon
 } from '@heroicons/react/24/solid';
 
@@ -15,7 +15,7 @@ export default function PackageTab({ slug }: { slug: string }) {
 
     const tabs = [
         { id: 'Itinary', label: 'Itinary', icon: CalendarDateRangeIcon, path: `/package/${slug}` },
-        { id: 'Policies', label: 'Policies', icon: DocumentIcon, path: `/package/${slug}/policy` },
+        { id: 'Policies', label: 'Policies', icon: DocumentTextIcon, path: `/package/${slug}/policy` },
         { id: 'Highlights', label: 'Highlights And Summary', icon: ShieldCheckIcon, path: `/package/${slug}/policy` },
     ];
 

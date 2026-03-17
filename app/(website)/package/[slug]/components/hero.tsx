@@ -5,7 +5,9 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import { ShareNetworkIcon, ImagesIcon, CarIcon, BedIcon, ForkKnifeIcon, BinocularsIcon } from '@phosphor-icons/react'
-import { Heading, Text } from '@/app/components/ui/Typography'
+import { Heading, Text } from '@/app/components/ui/Typography';
+import Breadcrumps from '@/app/components/ui/Breadcrumps';
+import Button from '@/app/components/ui/Button';
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -32,12 +34,12 @@ interface PackageHeroProps {
 // ─── Inclusion icon map ───────────────────────────────────────
 
 const INCLUSION_ICONS: Record<Inclusion['key'], React.ElementType> = {
-  transfer:    CarIcon,
-  stay:        BedIcon,
-  breakfast:   ForkKnifeIcon,
-  meals:       ForkKnifeIcon,
+  transfer: CarIcon,
+  stay: BedIcon,
+  breakfast: ForkKnifeIcon,
+  meals: ForkKnifeIcon,
   sightseeing: BinocularsIcon,
-  activities:  BinocularsIcon,
+  activities: BinocularsIcon,
 }
 
 // ─── Component ────────────────────────────────────────────────
@@ -58,39 +60,45 @@ export default function PackageHero({
 
   return (
     <div className="w-full screen-space py-10">
+      <Breadcrumps
+        cat={{ label: 'Packages', link: '/' }}
+        title={title}
+      />
 
       {/* ── Title ── */}
-      <Heading level={1}>
+      <Heading level={1} weight='semibold'>
         {title}
       </Heading>
 
       {/* ── Meta row: duration + itinerary stops ── */}
-      <div className="flex items-center gap-4 mb-5 flex-wrap">
+      <div className="flex items-center gap-4 mt-2 flex-wrap">
         {/* Duration pill */}
-        <span className="inline-flex items-center px-3 py-1.5 rounded-lg bg-neutral-100 text-neutral-800 text-sm font-bold font-heading border border-neutral-200">
-          {duration}
+        <span className="inline-flex items-center px-3 py-1.5 rounded-pill bg-white border border-neutral-200">
+          <Text as='span' size='sm' weight='bold' intent='secondary'>
+            {duration}
+          </Text>
         </span>
 
         {/* Divider */}
-        <div className="h-5 w-px bg-neutral-200" />
+        <div className="h-6 w-px bg-(--border-muted)" />
 
         {/* Itinerary stops */}
         <div className="flex items-center gap-4 flex-wrap">
           {itinerary.map((stop, i) => (
             <div key={i} className="flex items-center gap-1.5">
-              <span className="text-xl font-extrabold text-neutral-900 leading-none font-heading">
+              <Text as='span' size='3xl' intent='muted' weight='bold' className=" leading-none font-heading">
                 {stop.days}
-              </span>
+              </Text>
               <div className="flex flex-col leading-tight">
-                <span className="text-[10px] text-neutral-400 font-medium uppercase tracking-wide">
+                <Text as='span' size='xss' intent='secondary' weight='medium' className="font-medium font-heading tracking-wide">
                   Days in
-                </span>
-                <span className="text-sm font-semibold text-neutral-700">
+                </Text>
+                <Text as='span' size='sm' intent='primary' weight='semibold' className="font-heading">
                   {stop.place}
-                </span>
+                </Text>
               </div>
               {i < itinerary.length - 1 && (
-                <div className="ml-2 h-4 w-px bg-neutral-200" />
+                <div className="ml-2 h-6 w-px bg-(--border-default)" />
               )}
             </div>
           ))}
@@ -98,11 +106,12 @@ export default function PackageHero({
       </div>
 
       {/* ── Inclusions + Share row ── */}
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-3 mt-4">
         <div className="flex items-center gap-1 flex-wrap">
-          <span className="text-[11px] font-bold uppercase tracking-widest text-neutral-400 mr-2">
+          <Text size='sm' weight='semibold'  className="uppercase mr-2">
             Inclusion
-          </span>
+          </Text>
+          <div className="h-6 w-px bg-(--border-muted)" />
           {inclusions.map((inc) => {
             const Icon = INCLUSION_ICONS[inc.key]
             return (
@@ -110,21 +119,22 @@ export default function PackageHero({
                 key={inc.key}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-neutral-600 text-sm"
               >
-                <Icon weight="duotone" className="size-4 text-neutral-500 shrink-0" />
-                <span className="font-medium">{inc.label}</span>
+                <Icon weight='fill' className="size-5 text-muted shrink-0" />
+                <Text as='span' size='sm' intent='secondary' >{inc.label}</Text>
               </div>
             )
           })}
         </div>
 
         {/* Share button */}
-        <button
+        <Button
           onClick={onShare}
-          className="flex items-center gap-2 px-4 py-2 rounded-full border border-neutral-200 bg-white text-neutral-700 text-sm font-medium hover:border-primary-300 hover:text-primary-600 transition-colors shadow-sm"
+          variant='outline'
+          size='sm'
         >
           Share
-          <ShareNetworkIcon weight="bold" className="size-4" />
-        </button>
+          <ShareNetworkIcon weight="bold" className="size-4 text-muted" />
+        </Button>
       </div>
 
       {/* ── Photo grid ── */}

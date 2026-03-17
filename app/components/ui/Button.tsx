@@ -1,6 +1,4 @@
-'use client'
 import { cva, type VariantProps } from 'class-variance-authority';
-import React from 'react';
 
 const buttonVariants = cva(
   'rounded-button flex items-center justify-center gap-2 font-medium transition duration-200 cursor-pointer active:scale-95 disabled:pointer-events-none relative z-10',

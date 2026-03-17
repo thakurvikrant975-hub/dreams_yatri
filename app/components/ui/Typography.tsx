@@ -68,6 +68,7 @@ const headingVariants = cva('font-heading font-bold tracking-tight leading-tight
 const textBodyVariants = cva('font-body leading-relaxed', {
     variants: {
         size: {
+            xss: 'text-[8px] sm:text-[10px]',
             xs: 'text-[10px] sm:text-xs',
             sm: 'text-xs sm:text-sm',
             base: 'text-sm sm:text-base',
@@ -81,6 +82,7 @@ const textBodyVariants = cva('font-body leading-relaxed', {
             medium: 'font-medium',
             semibold: 'font-semibold',
             bold: 'font-bold',
+            extrabold: 'font-extrabold'
         },
     },
     defaultVariants: {
