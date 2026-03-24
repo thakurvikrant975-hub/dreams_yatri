@@ -16,7 +16,7 @@ export default function PackageTab({ slug }: { slug: string }) {
     const tabs = [
         { id: 'Itinary', label: 'Itinary', icon: CalendarDateRangeIcon, path: `/package/${slug}` },
         { id: 'Policies', label: 'Policies', icon: DocumentTextIcon, path: `/package/${slug}/policy` },
-        { id: 'Highlights', label: 'Highlights And Summary', icon: ShieldCheckIcon, path: `/package/${slug}/policy` },
+        { id: 'Highlights', label: 'Highlights And Summary', icon: ShieldCheckIcon, path: `/package/${slug}/summary` },
     ];
 
     const activeTab =

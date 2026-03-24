@@ -178,7 +178,7 @@ export function RadioRoute({ value, stops, disabled, className }: RadioRouteProp
       className={cn(
         'w-full flex items-center justify-between px-4 py-3.5 rounded-2xl border transition-all duration-150 cursor-pointer shadow-md shadow-neutral-200/85',
         isSelected
-          ? 'border-primary-400 bg-primary-50'
+          ? 'border-primary-300 bg-primary-50'
           : 'border-(--border-muted) bg-surface hover:bg-neutral-50',
         isDisabled && 'opacity-50 cursor-not-allowed',
         className
@@ -190,14 +190,14 @@ export function RadioRoute({ value, stops, disabled, className }: RadioRouteProp
           <span key={stop} className="flex items-center gap-2">
             <span className={cn(
               'text-sm font-semibold',
-              isSelected ? 'text-primary-500' : 'text-primary'
+              isSelected ? 'text-brand' : 'text-primary'
             )}>
               {stop}
             </span>
             {i < stops.length - 1 && (
               <ArrowRightIcon className={cn(
                 'size-3.5 shrink-0',
-                isSelected ? 'text-primary-500' : 'text-muted'
+                isSelected ? 'text-brand' : 'text-muted'
               )} />
             )}
           </span>
@@ -236,7 +236,7 @@ export function RadioPill({ value, children, disabled, className }: RadioPillPro
       className={cn(
         'inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border-[0.1em] text-sm font-medium transition-all duration-150 shadow-md shadow-neutral-200/80',
         isSelected
-          ? 'border-primary-500 text-primary-500 bg-primary-50'
+          ? 'border-primary-400 text-brand bg-primary-50'
           : 'border-neutral-300 text-primary bg-surface hover:border-neutral-400',
         isDisabled && 'opacity-50 cursor-not-allowed',
         className

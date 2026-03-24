@@ -59,7 +59,7 @@ export default function PackageHero({
   const gridImages = images.slice(1, 6) // up to 5 grid images
 
   return (
-    <div className="w-full screen-space py-10">
+    <div className="w-full ">
       <Breadcrumps
         cat={{ label: 'Packages', link: '/' }}
         title={title}

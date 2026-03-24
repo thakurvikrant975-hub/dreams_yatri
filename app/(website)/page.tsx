@@ -1,4 +1,5 @@
-export const revalidate = 1800 // ISR every 30 minutes
+// export const revalidate = 1800 // ISR every 30 minutes
+
 import Hero from "@/app/home/hero";
 import TrustSignals from "@/app/home/trust";
 import PackageSection from "@/app/home/package";

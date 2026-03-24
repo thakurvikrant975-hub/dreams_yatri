@@ -52,7 +52,7 @@ const accordionVariants = cva('w-full', {
   variants: {
     variant: {
       default:  'flex flex-col gap-2',
-      bordered: 'flex flex-col divide-y divide-neutral-200 border border-neutral-200 rounded-2xl overflow-hidden',
+      bordered: 'flex flex-col divide-y divide-neutral-200 border border-(--border-muted) rounded-2xl overflow-hidden',
       ghost:    'flex flex-col gap-1',
     },
   },

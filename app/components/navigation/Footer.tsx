@@ -170,106 +170,109 @@ const SOCIAL_LINKS: SocialLink[] = [
 
 export default function Footer() {
   return (
-    <footer className="bg-surface-inverse text-slate-300">
-      {/* Main grid */}
-      <div className="screen-space pt-14 pb-10">
-        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-12">
+    <footer className="overflow-hidden mt-3">
+      <img src="/footer_banner.webp" alt="footer image" className="w-full aspect-1920/245 translate-y-2 saturate-200 scale-101" />
+      <div className="bg-surface-inverse text-slate-300">
+        {/* Main grid */}
+        <div className="screen-space pt-7 pb-10">
+          <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-12">
 
-          {/* Left — Brand + Contact */}
-          <div className="flex flex-col gap-7">
-            {/* Logo */}
-            <Link href="/">
-              <Image
-                alt="Dreams Yatri"
-                src="/dy_logo.webp"
-                width={160}
-                height={42}
-                className="h-auto w-46"
-                priority
-              />
-            </Link>
+            {/* Left — Brand + Contact */}
+            <div className="flex flex-col gap-7">
+              {/* Logo */}
+              <Link href="/">
+                <Image
+                  alt="Dreams Yatri"
+                  src="/dy_logo.webp"
+                  width={160}
+                  height={42}
+                  className="h-auto w-46"
+                  priority
+                />
+              </Link>
 
-            {/* Tagline */}
-            <p className="text-slate-400 text-sm leading-relaxed max-w-[260px]">
-              Expert-crafted journeys across India & beyond. Powered by local expertise, transparent pricing, and Avanti AI — since 2019.
-            </p>
+              {/* Tagline */}
+              <p className="text-slate-400 text-sm leading-relaxed max-w-[260px]">
+                Expert-crafted journeys across India & beyond. Powered by local expertise, transparent pricing, and Avanti AI — since 2019.
+              </p>
 
-            {/* Contact */}
-            <div className="flex flex-col gap-4">
-              {CONTACT_ITEMS.map((item) => (
-                <div key={item.label} className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-white/[0.06] border border-white/[0.08] flex items-center justify-center flex-shrink-0 text-slate-400">
-                    {item.icon}
+              {/* Contact */}
+              <div className="flex flex-col gap-4">
+                {CONTACT_ITEMS.map((item) => (
+                  <div key={item.label} className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-white/[0.06] border border-white/[0.08] flex items-center justify-center flex-shrink-0 text-slate-400">
+                      {item.icon}
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-500 tracking-widest uppercase mb-0.5">
+                        {item.label}
+                      </p>
+                      {item.href ? (
+                        <a
+                          href={item.href}
+                          className="text-sm text-slate-300 hover:text-white transition-colors"
+                        >
+                          {item.value}
+                        </a>
+                      ) : (
+                        <p className="text-sm text-slate-300">{item.value}</p>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-500 tracking-widest uppercase mb-0.5">
-                      {item.label}
-                    </p>
-                    {item.href ? (
-                      <a
-                        href={item.href}
-                        className="text-sm text-slate-300 hover:text-white transition-colors"
-                      >
-                        {item.value}
-                      </a>
-                    ) : (
-                      <p className="text-sm text-slate-300">{item.value}</p>
-                    )}
-                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Right — Link columns */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-8">
+              {FOOTER_COLUMNS.map((col) => (
+                <div key={col.heading}>
+                  <h4 className="text-white font-bold text-sm mb-4">{col.heading}</h4>
+                  <ul className="flex flex-col gap-2.5">
+                    {col.links.map((link) => (
+                      <li key={link.label}>
+                        <Link
+                          href={link.href}
+                          className="text-sm text-slate-400 hover:text-white transition-colors"
+                        >
+                          {link.label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               ))}
             </div>
-          </div>
 
-          {/* Right — Link columns */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-8">
-            {FOOTER_COLUMNS.map((col) => (
-              <div key={col.heading}>
-                <h4 className="text-white font-bold text-sm mb-4">{col.heading}</h4>
-                <ul className="flex flex-col gap-2.5">
-                  {col.links.map((link) => (
-                    <li key={link.label}>
-                      <Link
-                        href={link.href}
-                        className="text-sm text-slate-400 hover:text-white transition-colors"
-                      >
-                        {link.label}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div className="max-w-7xl mx-auto px-6 lg:px-10">
+          <div className="border-t border-white/[0.07]" />
+        </div>
+
+        {/* Bottom bar */}
+        <div className="max-w-7xl mx-auto px-6 lg:px-10 py-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-slate-500 text-sm">
+            © {new Date().getFullYear()} Dreams Yatri. All rights reserved.
+          </p>
+
+          {/* Social icons */}
+          <div className="flex items-center gap-2">
+            {SOCIAL_LINKS.map((social) => (
+              <a
+                key={social.label}
+                href={social.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={social.label}
+                className="w-9 h-9 rounded-xl bg-white/6 border border-white/[0.07] flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.12] hover:border-white/[0.15] transition-all"
+              >
+                {social.icon}
+              </a>
             ))}
           </div>
-
-        </div>
-      </div>
-
-      {/* Divider */}
-      <div className="max-w-7xl mx-auto px-6 lg:px-10">
-        <div className="border-t border-white/[0.07]" />
-      </div>
-
-      {/* Bottom bar */}
-      <div className="max-w-7xl mx-auto px-6 lg:px-10 py-5 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <p className="text-slate-500 text-sm">
-          © {new Date().getFullYear()} Dreams Yatri. All rights reserved.
-        </p>
-
-        {/* Social icons */}
-        <div className="flex items-center gap-2">
-          {SOCIAL_LINKS.map((social) => (
-            <a
-              key={social.label}
-              href={social.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={social.label}
-              className="w-9 h-9 rounded-xl bg-white/6 border border-white/[0.07] flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.12] hover:border-white/[0.15] transition-all"
-            >
-              {social.icon}
-            </a>
-          ))}
         </div>
       </div>
     </footer>

@@ -24,7 +24,7 @@ const tabVariants = cva(
   {
     variants: {
       active: {
-        true:  'border-primary-500 text-primary-500',
+        true:  'border-primary-500 text-brand',
         false: 'border-transparent text-secondary hover:border-neutral-300 hover:text-primary',
       },
     },
