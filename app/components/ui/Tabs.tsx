@@ -20,7 +20,7 @@ interface TabsProps {
 // ─── CVA ─────────────────────────────────────────────────────────────────────
 
 const tabVariants = cva(
-  'group inline-flex items-center border-b-2 px-1 py-4 text-sm font-medium transition-colors duration-200 cursor-pointer',
+  'group inline-flex items-center border-b-2 px-1 pb-4 pt-1 text-sm font-medium transition-colors duration-200 cursor-pointer',
   {
     variants: {
       active: {
@@ -50,7 +50,7 @@ const tabIconVariants = cva('-ml-0.5 mr-2 size-5 transition-colors duration-200'
 
 const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onTabChange }) => {
   return (
-    <div className="mt-6">
+    <>
 
       {/* Mobile — select dropdown */}
       <div className="grid grid-cols-1 sm:hidden">
@@ -101,7 +101,7 @@ const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onTabChange }) => {
         </div>
       </div>
 
-    </div>
+    </>
   );
 };
 

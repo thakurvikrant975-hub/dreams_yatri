@@ -187,7 +187,7 @@ export function RadioRoute({ value, stops, disabled, className }: RadioRouteProp
       {/* Stops with arrows */}
       <div className="flex items-center gap-2">
         {stops.map((stop, i) => (
-          <span key={stop} className="flex items-center gap-2">
+          <span key={i} className="flex items-center gap-2">
             <span className={cn(
               'text-sm font-semibold',
               isSelected ? 'text-brand' : 'text-primary'

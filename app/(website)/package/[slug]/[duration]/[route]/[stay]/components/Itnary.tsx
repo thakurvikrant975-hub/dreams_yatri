@@ -7,11 +7,9 @@ import Accordion from '@/app/components/ui/Accordian';
 import { Heading, Text } from '@/app/components/ui/Typography';
 import {
   CheckIcon,
-  XCircleIcon,
   MoonIcon,
   ArrowRightEndOnRectangleIcon,
   ArrowLeftStartOnRectangleIcon,
-  BellAlertIcon,
   BuildingOffice2Icon,
   CalendarDateRangeIcon,
   XMarkIcon
@@ -66,7 +64,7 @@ interface ItineraryProps {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const TABS = [
+export const TABS = [
   { id: 'Plan', label: 'Plan', icon: CalendarDateRangeIcon },
   { id: 'Transfer', label: 'Transfer', icon: CarIcon },
   { id: 'Hotels', label: 'Hotels', icon: BuildingOffice2Icon },

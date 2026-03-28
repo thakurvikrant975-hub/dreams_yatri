@@ -9,14 +9,14 @@ import {
 
 import Tabs from '@/app/components/ui/Tabs';
 
-export default function PackageTab({ slug }: { slug: string }) {
+export default function PackageTab({ slug, duration, route, stay }: { slug: string, duration: string, route: string, stay: string }) {
     const router = useRouter();
     const pathname = usePathname();
 
     const tabs = [
-        { id: 'Itinary', label: 'Itinary', icon: CalendarDateRangeIcon, path: `/package/${slug}` },
-        { id: 'Policies', label: 'Policies', icon: DocumentTextIcon, path: `/package/${slug}/policy` },
-        { id: 'Highlights', label: 'Highlights And Summary', icon: ShieldCheckIcon, path: `/package/${slug}/summary` },
+        { id: 'Itinary', label: 'Itinary', icon: CalendarDateRangeIcon, path: `/package/${slug}/${duration}/${route}/${stay}` },
+        { id: 'Policies', label: 'Policies', icon: DocumentTextIcon, path: `/package/${slug}/${duration}/${route}/${stay}/policy` },
+        { id: 'Highlights', label: 'Highlights And Summary', icon: ShieldCheckIcon, path: `/package/${slug}/${duration}/${route}/${stay}/summary` },
     ];
 
     const activeTab =

@@ -27,6 +27,7 @@ interface PackageHeroProps {
   itinerary: ItineraryStop[]
   inclusions: Inclusion[]
   images: string[]           // first image = large hero, rest = grid
+  region: { label: string, slug: string }
   onShare?: () => void
   onViewGallery?: () => void
 }
@@ -51,6 +52,7 @@ export default function PackageHero({
   inclusions,
   images,
   onShare,
+  region,
   onViewGallery,
 }: PackageHeroProps) {
   const [heroLoaded, setHeroLoaded] = useState(false)
@@ -61,7 +63,7 @@ export default function PackageHero({
   return (
     <div className="w-full ">
       <Breadcrumps
-        cat={{ label: 'Packages', link: '/' }}
+        cat={{ label: region.label , link: `/region/${region.slug}` }}
         title={title}
       />
 
@@ -108,7 +110,7 @@ export default function PackageHero({
       {/* ── Inclusions + Share row ── */}
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3 mt-4">
         <div className="flex items-center gap-1 flex-wrap">
-          <Text size='sm' weight='semibold'  className="uppercase mr-2">
+          <Text size='sm' weight='semibold' className="uppercase mr-2">
             Inclusion
           </Text>
           <div className="h-6 w-px bg-(--border-muted)" />

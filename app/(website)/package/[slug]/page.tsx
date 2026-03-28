@@ -1,4 +1,3 @@
-// app/(website)/package/[slug]/page.tsx
 import { redirect, notFound } from "next/navigation";
 import { db } from "@/app/lib/db";
 

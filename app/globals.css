@@ -120,7 +120,7 @@
         --bg-surface-inverse: var(--color-neutral-950);
 
         --text-primary: var(--color-neutral-900);
-        --text-secondary: color-mix(in oklch, var(--color-neutral-600) 85%, transparent);
+        --text-secondary: color-mix(in oklch, var(--color-neutral-600) 95%, transparent);
         --text-muted: var(--color-neutral-400);
         --text-disabled: var(--color-neutral-400);
         --text-inverse: oklch(100% 0.00011 271.152);
@@ -425,9 +425,9 @@ body {
 }
 
 .skeleton-box {
+    @apply bg-neutral-300/80;
     position: relative;
     overflow: hidden;
-    background-color: var(--color-neutral-200, #e2e8f0);
 }
 
 .skeleton-box::after {
