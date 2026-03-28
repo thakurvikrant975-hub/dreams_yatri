@@ -1,7 +1,15 @@
 // app/services/api/packages.api.ts
 import { apiClient } from "./client";
 import type { ApiSuccess, PaginationParams } from "@/app/types";
-import type { PackagePageData, PackageHotel, PackageActivity, PricingRow } from "@/app/types/package-page.types";
+import type { PackagePageData, PackageHotel, PackageActivity } from "@/app/types/package-page.types";
+
+// app/types/package-page.types.ts
+export type PricingRow = {
+    route_index: number | null;
+    stay_category_id: number;
+    price: number;
+    original_price: number | null;
+};
 
 export const packagesApi = {
 
