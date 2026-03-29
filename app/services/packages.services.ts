@@ -8,8 +8,8 @@ export const packagesService = {
   getAll: (pagination: PaginationInput) =>
     packagesRepository.findMany(pagination),
 
-  getPageData: (slug: string, duration: string) =>
-    packagesRepository.findPageData(slug, duration),
+  getPageData: (slug: string, duration: string, route: string, stay: string) =>
+    packagesRepository.findPageData(slug, duration, route, stay),
 
   getPricing: (slug: string) =>
     packagesRepository.findPricing(slug),
