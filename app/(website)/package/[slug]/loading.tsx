@@ -34,9 +34,7 @@ function loading() {
             </div>
             <div>
 
-              <div className="bg-white rounded-2xl ring-1 ring-(--border-default)">
-                <ItinaryHeaderSkelton />
-              </div>
+              <ItinaryHeaderSkelton />
 
             </div>
           </div>

@@ -21,9 +21,15 @@ import {
   ForkKnifeIcon,
   ParachuteIcon,
   AirplaneTiltIcon,
-  MapPinIcon
+  MapPinIcon,
+  StarAndCrescentIcon,
+  CoffeeIcon,
+  BowlSteamIcon,
+  CheersIcon
 } from '@phosphor-icons/react';
 import { div } from 'motion/react-client';
+import { CheckInIcon, CheckOutIcon } from '@/app/components/icons/cusomIcon';
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -49,12 +55,12 @@ interface StaySection { type: 'stay'; nights: number; hotelName: string; stars: 
 interface ActivitySection { type: 'activity'; startTime?: string; duration?: string; name: string; images: { src: string; label: string }[] }
 interface FoodSection { type: 'food'; meals: { meal: MealType; restaurant: string; items: string }[] }
 
-type DaySection = FlightSection | CabSection | StaySection | ActivitySection | FoodSection;
+export type DaySection = FlightSection | CabSection | StaySection | ActivitySection | FoodSection;
 
-interface ItineraryDay {
+export interface ItineraryDay {
   day: number;
   title: string;
-  description?: string;
+  description?: string | null;
   sections: DaySection[];
 }
 
@@ -250,8 +256,8 @@ function SectionTrigger({
   return (
     <div className="flex items-center gap-5 w-full">
       <div className="flex items-center gap-2">
-        <Icon weight='duotone' className="size-6 duo_icons" />
-        <Text size='base' weight='semibold' intent='primary' className="font-heading">{title}</Text>
+        <Icon weight='duotone' className="size-7 duo_icons" />
+        <Text size='sm' weight='bold' intent='primary' className="font-heading">{title}</Text>
         {subtitle && (
           <Text size='xs' className=" text-secondary">{subtitle}</Text>
         )}
@@ -287,7 +293,7 @@ function StayContent({ section }: { section: StaySection }) {
       <div className='flex-1'>
         <div className="flex items-start justify-between mb-3">
           <div className='flex gap-3 items-center '>
-            <Text size='sm' weight='semibold' className=" font-heading text-primary leading-tight">
+            <Text size='base' weight='semibold' className=" font-heading text-primary leading-tight">
               {section.hotelName}
             </Text>
             <p className="text-warning-500 text-sm tracking-widest mt-0.5">
@@ -298,36 +304,44 @@ function StayContent({ section }: { section: StaySection }) {
 
         {/* Check In + Check Out — same TravelTransfer pattern */}
         <div className="flex">
-          <div className="w-full border-l-[0.12em] border-l-(--border-default) flex-1 flex flex-col gap-6 mb-3">
+          <div className="w-full border-l-[0.2em] border-l-(--border-default) flex-1 flex flex-col gap-2 mb-3">
 
             {/* Check In */}
-            <div className="relative after:absolute after:w-0.5 after:h-full after:max-h-8 after:left-0 after:top-0 after:bg-primary-400 after:-translate-x-[0.12em]">
-              <div className="flex gap-3">
-                <div className="size-7 flex items-center justify-center ml-1 shrink-0">
-                  <ArrowRightEndOnRectangleIcon className="size-5 text-muted" />
+            <div className="relative after:absolute after:w-[0.2em] after:h-full after:max-h-8 after:left-0 after:top-0 after:bg-primary-400 after:-translate-x-[0.2em]">
+              <div className="flex  gap-3">
+                <div className="size-7 flex items-center justify-center ml-3 shrink-0">
+                  <span className='text-muted size-7'>
+                    <CheckInIcon />
+                  </span>
                 </div>
-                <div className="flex gap-3 w-full">
+                <div className="flex gap-3 w-full mt-0.5">
                   <Text size="sm" intent="primary" className="w-max mb-0.5 font-heading shrink-0">
                     Check In:
                   </Text>
-                  <div className="space-y-1.5 flex-1">
-                    <Text size="sm" intent="primary" weight="semibold" className="font-heading">
-                      {section.checkIn}
-                    </Text>
-                    <span className="inline-flex items-center gap-1.5 text-[12px] text-muted border border-(--border-default) rounded-lg px-2.5 py-1 bg-surface-muted">
-                      <MoonIcon className="size-3.5" />
-                      {section.nights} Night{section.nights !== 1 ? 's' : ''}
-                    </span>
-                  </div>
+                  <Text size="sm" intent="primary" weight="semibold" className="font-heading">
+                    {section.checkIn}
+                  </Text>
                 </div>
               </div>
             </div>
 
+            <div className="h-8 w-full flex items-stretch">
+              <div className="w-18" />
+              <div className="h-full flex-1 border-l-[0.2em] border-l-(--border-default) px-3 flex items-center gap-0.5">
+                <Text as='span' size="sm" weight='medium' intent='secondary'>
+                  {section.nights} Night{section.nights !== 1 ? 's' : ''}
+                </Text>
+                <StarAndCrescentIcon weight='duotone' className="size-5 text-muted ml-2" />
+              </div>
+            </div>
+
             {/* Check Out */}
-            <div className="relative after:absolute after:w-0.5 after:h-full after:max-h-8 after:left-0 after:top-0 after:bg-primary-400 after:-translate-x-[0.12em]">
+            <div className="relative after:absolute after:w-[0.2em] after:h-full after:max-h-8 after:left-0 after:top-0 after:bg-primary-400 after:-translate-x-[0.2em]">
               <div className="flex gap-3">
-                <div className="size-7 flex items-center justify-center ml-1 shrink-0">
-                  <ArrowLeftStartOnRectangleIcon className="size-5 text-muted" />
+                <div className="size-7 flex items-center justify-center ml-3 shrink-0">
+                  <span className='text-muted size-7'>
+                    <CheckOutIcon />
+                  </span>
                 </div>
                 <div className="flex gap-3 w-full">
                   <Text size="sm" intent="primary" className="w-max mb-0.5 font-heading shrink-0">
@@ -346,23 +360,29 @@ function StayContent({ section }: { section: StaySection }) {
         </div>
 
         {/* Inclusions */}
-        <div className="flex items-center gap-x-4 gap-y-2 flex-wrap border border-(--border-default) rounded-xl px-3.5 py-2.5 bg-surface-muted/50">
-          <Text size="xs" intent="muted" weight="semibold" className="font-heading">
+        <div className="flex items-center gap-x-4 gap-y-2 flex-wrap bg-neutral-50 ring-1 ring-inset ring-neutral-100 shadow-lg shadow-neutral-200/70 rounded-xl px-3.5 py-2.5 ">
+          <Text size="xs" intent="primary" weight="semibold" className="font-heading">
             Inclusion :
           </Text>
-          {section.inclusions.map(({ label, status }) => (
-            <div key={label} className="flex items-center gap-1.5">
-              <span className={cn(
-                'size-4 rounded-full flex items-center justify-center shrink-0',
-                status === 'included' ? 'bg-success-100' : 'bg-error-100'
-              )}>
-                {status === 'included'
-                  ? <CheckIcon className="size-2.5 text-success-600" />
-                  : <XMarkIcon className="size-2.5 text-error-500" />}
-              </span>
-              <Text size="sm" intent="primary">{label}</Text>
-            </div>
-          ))}
+          <div className='grid grid-cols-3 flex-1'>
+            {section.inclusions.map(({ label, status }) => (
+              <div key={label} className="flex items-center gap-2 justify-between border-r border-r-(--border-default) px-3">
+                <div className='flex gap-1.5 items-center'>
+                  <CoffeeIcon className='text-muted size-6' />
+                  <Text size="sm" intent="primary">{label}</Text>
+                </div>
+                <span className={cn(
+                  'size-4 rounded-full flex items-center justify-center shrink-0',
+                  status === 'included' ? 'bg-success-100' : 'bg-error-100'
+                )}>
+                  {status === 'included'
+                    ? <CheckIcon className="size-2.5 text-success-600" />
+                    : <XMarkIcon className="size-2.5 text-error-500" />}
+                </span>
+              </div>
+            ))}
+          </div>
+
         </div>
 
         {/* Image grid */}

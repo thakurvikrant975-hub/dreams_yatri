@@ -1,3 +1,6 @@
+// things to do - 
+// 1. .room_pricing?.[0] to actual option in original and discounted price calculation
+
 import { notFound } from "next/navigation";
 import { packagesRepository } from "@/app/repositories/packages.repository";
 import PackageHero from "./components/hero";
@@ -7,7 +10,7 @@ import StayCategory from "./components/inputs/StayCategory";
 import PricingCard from "./components/SidebarCards/PricingCard";
 import CoupenCard from "./components/SidebarCards/CoupenCard";
 import EnquiryForm from "./components/SidebarCards/EnquiryForm";
-import ItinerarySection from "./components/Itnary";
+import ItinerarySection, {ItineraryDay,  DaySection } from "./components/Itnary";
 import { RouteOption } from "@/app/types/package-page.types";
 import DestinationRoutes from "./components/inputs/DestinationRoutes";
 
@@ -166,7 +169,52 @@ export default async function PackagePage({
 
     // ItinerarySection
 
-    
+    const itinerary: ItineraryDay[] = data.currentDuration.filteredItinerary.map(i => ({
+        day: i.day,
+        title: i.title,
+        description: i.description,
+        sections: [
+            // hotels, activities, tranfers etc ....
+            ...(i.hotel ? [{
+                type: "stay",
+                nights: Number(i.hotel_days) - 1,
+                hotelName: i.hotel.name,
+                stars: i.hotel.star_rating ?? 0,
+                checkIn: i.hotel.check_in_time ?? "",
+                checkOut: i.hotel.check_out_time ?? "",
+                inclusions: [
+                    {
+                        label: "Breakfast",
+                        status: i.meals?.includes("Breakfast") ? "included" : "excluded",
+                    },
+                    {
+                        label: "Lunch",
+                        status: i.meals?.includes("Lunch") ? "included" : "excluded",
+                    },
+                    {
+                        label: "Dinner",
+                        status: i.meals?.includes("Dinner") ? "included" : "excluded",
+                    },
+                ],
+                images: i.hotel.images?.map(img =>  img.url) || [],
+            }] : []),
+
+            ...(i.activity_details ?
+                i.activity_details.map(activity => ({
+                    type: "activity",
+                    name: activity.name,
+                    images: activity.images?.map(img => ({    // string[] → {src, label}[]
+                        src: img.url,
+                        label: img.alt ?? activity.name,
+                    })) ?? [],
+                }))
+                : [])
+        ] as DaySection[]
+    }))
+
+    console.log(itinerary);
+
+
 
     return (
         <div>
@@ -203,40 +251,7 @@ export default async function PackagePage({
                         <StayCategory stayOptions={stayOptions} baseURL={`/package/${slug}`} durationSlug={duration} routeSlug={route} staySlug={stay} />
 
                         <ItinerarySection
-                            days={[
-                                {
-                                    day: 1,
-                                    title: "Arrival in Srinagar",
-                                    description: "Arrive at Srinagar airport, transfer to hotel.",
-                                    sections: [
-                                        {
-                                            type: "stay",
-                                            nights: 1,
-                                            hotelName: "Hotel Grand Palace",
-                                            stars: 4,
-                                            checkIn: "2:00 PM",
-                                            checkOut: "11:00 AM",
-                                            inclusions: [
-                                                { label: "Breakfast", status: "included" },
-                                                { label: "Dinner", status: "included" },
-                                            ],
-                                            images: ["https://placehold.co/400x300"],
-                                        },
-                                    ],
-                                },
-                                {
-                                    day: 2,
-                                    title: "Srinagar Sightseeing",
-                                    description: "Dal Lake shikara ride, Mughal Gardens.",
-                                    sections: [
-                                        {
-                                            type: "activity",
-                                            name: "Dal Lake Shikara, Mughal Gardens",
-                                            images: [],
-                                        },
-                                    ],
-                                },
-                            ]}
+                            days={itinerary}
                         />
                     </div>
                 </div>
