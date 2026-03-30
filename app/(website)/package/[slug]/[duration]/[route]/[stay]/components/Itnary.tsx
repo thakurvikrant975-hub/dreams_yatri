@@ -29,7 +29,7 @@ import {
 } from '@phosphor-icons/react';
 import { div } from 'motion/react-client';
 import { CheckInIcon, CheckOutIcon } from '@/app/components/icons/cusomIcon';
-
+import Image from 'next/image';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -368,7 +368,9 @@ function StayContent({ section }: { section: StaySection }) {
             {section.inclusions.map(({ label, status }) => (
               <div key={label} className="flex items-center gap-2 justify-between border-r border-r-(--border-default) px-3">
                 <div className='flex gap-1.5 items-center'>
-                  <CoffeeIcon className='text-muted size-6' />
+                  {
+                    label === 'Breakfast' ? <CoffeeIcon weight='fill' className='text-muted size-6' /> : label === 'Lunch' ? <BowlSteamIcon weight='fill' className='text-muted size-6' /> : label === 'Dinner' ? <CheersIcon weight='fill' className='text-muted size-6' /> : null
+                  }
                   <Text size="sm" intent="primary">{label}</Text>
                 </div>
                 <span className={cn(
@@ -407,17 +409,20 @@ function StayContent({ section }: { section: StaySection }) {
 
 function ActivityContent({ section }: { section: ActivitySection }) {
   return (
-    <div className="mt-2">
-      <p className="text-[13px] font-semibold text-primary mb-2">{section.name}</p>
-      <div className="grid grid-cols-2 gap-1.5">
-        {section.images.map(({ src, label }, i) => (
-          <div key={i} className="relative rounded-xl overflow-hidden">
-            <img src={src} alt={label} className="w-full h-24 object-cover" />
-            <div className="absolute inset-x-0 bottom-0 bg-linear-to-r from-black/60 to-transparent px-2 py-1.5">
-              <p className="text-[10px] text-white font-medium">{label}</p>
+    <div className="mt-2 flex">
+      <div className="w-10"></div>
+      <div className='flex-1'>
+        <p className="text-[13px] font-semibold text-primary mb-2">{section.name}</p>
+        <div className="grid grid-cols-2 gap-1.5">
+          {section.images.map(({ src, label }, i) => (
+            <div key={i} className="relative rounded-xl overflow-hidden">
+              <img src={src} alt={label} className="w-full aspect-5/3 object-cover" />
+              <div className="absolute inset-x-0 bottom-0 bg-linear-to-r from-black/60 to-transparent px-2 py-1.5">
+                <p className="text-[10px] text-white font-medium">{label}</p>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -557,20 +562,22 @@ export default function ItinerarySection({ days }: ItineraryProps) {
             className=" mb-2"
           >
             {/* Day Trigger */}
-            <Accordion.Trigger className="px-4 py-3.5 border-b border-(--border-muted)">
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <span className="shrink-0 bg-brand  px-3 py-1 rounded-pill">
-                  <Text intent='inverse' size='xs' weight='semibold' className='font-heading'>
-                    Day {day}
-                  </Text>
+            <div className="px-4">
+              <Accordion.Trigger className="py-3.5 border-b border-(--border-muted) rounded-none">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <span className="shrink-0 bg-brand  px-3 py-1 rounded-pill">
+                    <Text intent='inverse' size='xs' weight='semibold' className='font-heading'>
+                      Day {day}
+                    </Text>
 
-                </span>
-                <Text as='span' intent='primary' weight='semibold' size='base' truncate={true} className='font-heading'>
-                  {title}
-                </Text>
-              </div>
-              <Accordion.Chevron className="size-5 text-neutral-400 shrink-0" />
-            </Accordion.Trigger>
+                  </span>
+                  <Text as='span' intent='primary' weight='semibold' size='base' truncate={true} className='font-heading'>
+                    {title}
+                  </Text>
+                </div>
+                <Accordion.Chevron className="size-5 text-neutral-400 shrink-0" />
+              </Accordion.Trigger>
+            </div>
 
             {/* Day Content */}
             <Accordion.Content className="px-4 pb-2 pt-0">
