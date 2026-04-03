@@ -248,6 +248,7 @@ model hotels {
   id             Int      @id @default(autoincrement())
   name           String
   slug           String   @unique
+  thumbnail      String?  // ← NEW — R2 key for package cards / listings
   description    String?
   meta_title     String?
   meta_desc      String?
@@ -264,41 +265,40 @@ model hotels {
   created_at     DateTime @default(now())
   updated_at     DateTime @updatedAt
 
-  destination  destinations          @relation(fields: [destination_id], references: [id])
-  images       hotel_images[]
-  room_pricing hotel_room_pricing[]
-  packages     package_hotels[]
-  itineraries  package_itineraries[]
+  destination      destinations            @relation(fields: [destination_id], references: [id])
+  images           hotel_images[]
+  image_categories hotel_image_categories[]
+  room_pricing     hotel_room_pricing[]
+  packages         package_hotels[]
+  itineraries      package_itineraries[]
 
   @@index([destination_id, is_active])
   @@index([slug])
 }
 
-// ── Hotel Room Pricing ────────────────────────────────────────────────────────
-model hotel_room_pricing {
+// ── Hotel Image Categories — no slug ─────────────────────────────────────
+model hotel_image_categories {
   id              Int      @id @default(autoincrement())
   hotel_id        Int
-  room_type       String
-  description     String?
-  occupancy       Int      @default(2)
-  price_per_night Decimal  @db.Decimal(10, 2)
-  original_price  Decimal? @db.Decimal(10, 2)
-  season          String   @default("all")
-  amenities       Json?
+  room_pricing_id Int?     // null = hotel-level, set = room-specific
+  name            String
+  is_required     Boolean  @default(false)
+  is_system       Boolean  @default(false)
   sort_order      Int      @default(0)
-  margin_percentage Decimal @db.Decimal(5, 2) @default(10)
-  is_active       Boolean  @default(true)
 
-  hotel hotels @relation(fields: [hotel_id], references: [id])
+  hotel        hotels              @relation(fields: [hotel_id], references: [id])
+  room_pricing hotel_room_pricing? @relation(fields: [room_pricing_id], references: [id])
+  images       hotel_images[]
 
-  @@index([hotel_id, is_active])
-  @@index([hotel_id, season])
+  @@index([hotel_id])
+  @@index([room_pricing_id])
 }
 
-// ── Hotel Images ──────────────────────────────────────────────────────────────
+// ── Hotel Images — add category_id ───────────────────────────────────────
 model hotel_images {
   id          Int      @id @default(autoincrement())
   hotel_id    Int
+  category_id Int
   url         String
   thumbnail   String?
   blur_base64 String?
@@ -307,10 +307,35 @@ model hotel_images {
   is_primary  Boolean  @default(false)
   created_at  DateTime @default(now())
 
-  hotel hotels @relation(fields: [hotel_id], references: [id])
+  hotel    hotels                 @relation(fields: [hotel_id], references: [id])
+  category hotel_image_categories @relation(fields: [category_id], references: [id])
 
   @@index([hotel_id])
+  @@index([category_id])
 }
+
+// ── hotel_room_pricing — add image_categories relation ────────────────────
+model hotel_room_pricing {
+  id                Int      @id @default(autoincrement())
+  hotel_id          Int
+  room_type         String
+  description       String?
+  occupancy         Int      @default(2)
+  price_per_night   Decimal  @db.Decimal(10, 2)
+  original_price    Decimal? @db.Decimal(10, 2)
+  season            String   @default("all")
+  amenities         Json?
+  sort_order        Int      @default(0)
+  margin_percentage Decimal  @db.Decimal(5, 2) @default(10)
+  is_active         Boolean  @default(true)
+
+  hotel            hotels                   @relation(fields: [hotel_id], references: [id])
+  image_categories hotel_image_categories[]
+
+  @@index([hotel_id, is_active])
+  @@index([hotel_id, season])
+}
+
 
 // ── Package Hotels ────────────────────────────────────────────────────────────
 model package_hotels {

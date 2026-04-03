@@ -4,6 +4,7 @@
 import { PrismaClient } from "../app/generated/prisma";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
+import { ALL_SYSTEM_HOTEL_CATEGORIES } from "@/lib/hotelImageCategories";
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, ssl: false });
 const db = new PrismaClient({ adapter: new PrismaPg(pool as never) });
@@ -75,25 +76,118 @@ async function seed() {
   console.log("✅ Pricing rules: 5");
 
   // ── 4. HOTELS ─────────────────────────────────────────────────────────────
-  const hotelNehru = await db.hotels.create({ data: { name: "Hotel Nehru Palace", slug: "hotel-nehru-palace", destination_id: kashmir.id, star_rating: 5, category: "hotel", description: "Luxury 5-star hotel overlooking Dal Lake.", meta_title: "Hotel Nehru Palace | Dreams Yatri", meta_desc: "Book Hotel Nehru Palace.", address: "Boulevard Road, Dal Lake, Srinagar", check_in_time: "14:00", check_out_time: "11:00", amenities: ["wifi", "pool", "spa", "restaurant", "parking", "gym"] } });
-  const hotelGrand = await db.hotels.create({ data: { name: "Grand Houseboat Srinagar", slug: "grand-houseboat-srinagar", destination_id: kashmir.id, star_rating: 4, category: "houseboat", description: "Traditional Kashmiri cedar wood houseboat on Dal Lake.", meta_title: "Grand Houseboat Dal Lake | Dreams Yatri", meta_desc: "Stay on a traditional houseboat.", address: "Nagin Lake, Boulevard Road, Srinagar", check_in_time: "13:00", check_out_time: "10:00", amenities: ["wifi", "restaurant", "shikara-ride", "lake-view"] } });
-  const hotelDal = await db.hotels.create({ data: { name: "Dal View Resort", slug: "dal-view-resort", destination_id: kashmir.id, star_rating: 3, category: "resort", description: "Budget-friendly resort with Dal Lake views.", meta_title: "Dal View Resort | Dreams Yatri", meta_desc: "Affordable resort with lake views.", address: "Nagin Lake Road, Srinagar", check_in_time: "14:00", check_out_time: "11:00", amenities: ["wifi", "restaurant", "parking", "lake-view"] } });
-  const hotelManu = await db.hotels.create({ data: { name: "Hotel Manuallaya Manali", slug: "hotel-manuallaya-manali", destination_id: himachal.id, star_rating: 4, category: "resort", description: "Riverside resort in deodar forests of Manali.", meta_title: "Hotel Manuallaya Manali | Dreams Yatri", meta_desc: "Luxury riverside resort in Old Manali.", address: "Old Manali Road, Manali, HP", check_in_time: "14:00", check_out_time: "11:00", amenities: ["wifi", "spa", "restaurant", "bonfire", "mountain-view"] } });
-  const hotelSnow = await db.hotels.create({ data: { name: "Snow Valley Resort Shimla", slug: "snow-valley-resort-shimla", destination_id: himachal.id, star_rating: 3, category: "hotel", description: "Heritage colonial property on the Shimla Ridge.", meta_title: "Snow Valley Resort Shimla | Dreams Yatri", meta_desc: "Heritage hotel on Shimla Ridge.", address: "The Ridge, Shimla, HP", check_in_time: "13:00", check_out_time: "12:00", amenities: ["wifi", "restaurant", "valley-view", "parking"] } });
+
+  const hotelNehru = await db.hotels.create({
+    data: {
+      name: "Hotel Nehru Palace", slug: "hotel-nehru-palace",
+      destination_id: kashmir.id, star_rating: 5, category: "hotel",
+      description: "Luxury 5-star hotel overlooking Dal Lake.",
+      address: "Boulevard Road, Dal Lake, Srinagar",
+      check_in_time: "14:00", check_out_time: "11:00",
+      amenities: ["wifi", "pool", "spa", "restaurant", "parking", "gym"],
+    }
+  });
+  const hotelGrand = await db.hotels.create({
+    data: {
+      name: "Grand Houseboat Srinagar", slug: "grand-houseboat-srinagar",
+      destination_id: kashmir.id, star_rating: 4, category: "houseboat",
+      description: "Traditional Kashmiri cedar wood houseboat on Dal Lake.",
+      address: "Nagin Lake, Boulevard Road, Srinagar",
+      check_in_time: "13:00", check_out_time: "10:00",
+      amenities: ["wifi", "restaurant", "shikara-ride", "lake-view"],
+    }
+  });
+  const hotelDal = await db.hotels.create({
+    data: {
+      name: "Dal View Resort", slug: "dal-view-resort",
+      destination_id: kashmir.id, star_rating: 3, category: "resort",
+      description: "Budget-friendly resort with Dal Lake views.",
+      address: "Nagin Lake Road, Srinagar",
+      check_in_time: "14:00", check_out_time: "11:00",
+      amenities: ["wifi", "restaurant", "parking", "lake-view"],
+    }
+  });
+  const hotelManu = await db.hotels.create({
+    data: {
+      name: "Hotel Manuallaya Manali", slug: "hotel-manuallaya-manali",
+      destination_id: himachal.id, star_rating: 4, category: "resort",
+      description: "Riverside resort in deodar forests of Manali.",
+      address: "Old Manali Road, Manali, HP",
+      check_in_time: "14:00", check_out_time: "11:00",
+      amenities: ["wifi", "spa", "restaurant", "bonfire", "mountain-view"],
+    }
+  });
+  const hotelSnow = await db.hotels.create({
+    data: {
+      name: "Snow Valley Resort Shimla", slug: "snow-valley-resort-shimla",
+      destination_id: himachal.id, star_rating: 3, category: "hotel",
+      description: "Heritage colonial property on the Shimla Ridge.",
+      address: "The Ridge, Shimla, HP",
+      check_in_time: "13:00", check_out_time: "12:00",
+      amenities: ["wifi", "restaurant", "valley-view", "parking"],
+    }
+  });
   console.log("✅ Hotels: 5");
+
+  // ── 5. IMAGE CATEGORIES (must exist before images) ────────────────────────
+
+  async function seedHotelCategories(hotelId: number) {
+    const cats = await db.hotel_image_categories.createManyAndReturn({
+      data: ALL_SYSTEM_HOTEL_CATEGORIES.map((cat, i) => ({
+        hotel_id: hotelId,
+        room_pricing_id: null,
+        name: cat.name,
+        is_required: cat.is_required,
+        is_system: cat.is_system,
+        sort_order: i,
+      })),
+    });
+    return {
+      facade: cats.find(c => c.name === "Facade / Exterior")!,
+      lobby: cats.find(c => c.name === "Lobby / Reception")!,
+    };
+  }
+
+  const nehruCats = await seedHotelCategories(hotelNehru.id);
+  const grandCats = await seedHotelCategories(hotelGrand.id);
+  const dalCats = await seedHotelCategories(hotelDal.id);
+  const manuCats = await seedHotelCategories(hotelManu.id);
+  const snowCats = await seedHotelCategories(hotelSnow.id);
+  console.log("✅ Hotel image categories created");
+
+  // ── 6. ROOM PRICING (before images so room category IDs exist) ────────────
+
+  await db.hotel_room_pricing.createMany({
+    data: [
+      { hotel_id: hotelNehru.id, room_type: "Deluxe", description: "Dal Lake view room with balcony", occupancy: 2, price_per_night: 9000, original_price: 11000, margin_percentage: 18, season: "all", amenities: ["AC", "TV", "lake-view", "balcony"], sort_order: 1 },
+      { hotel_id: hotelNehru.id, room_type: "Suite", description: "Luxury suite with jacuzzi", occupancy: 2, price_per_night: 18000, original_price: 22000, margin_percentage: 25, season: "all", amenities: ["AC", "TV", "jacuzzi", "butler"], sort_order: 2 },
+      { hotel_id: hotelGrand.id, room_type: "Standard Cabin", description: "Traditional cedar cabin on Dal Lake", occupancy: 2, price_per_night: 4500, original_price: 5500, margin_percentage: 12, season: "all", amenities: ["AC", "TV", "lake-view"], sort_order: 1 },
+      { hotel_id: hotelGrand.id, room_type: "Deluxe Cabin", description: "Premium cabin with sit-out deck", occupancy: 2, price_per_night: 7000, original_price: 8500, margin_percentage: 20, season: "all", amenities: ["AC", "TV", "lake-view", "deck"], sort_order: 2 },
+      { hotel_id: hotelDal.id, room_type: "Standard", description: "Clean comfortable room", occupancy: 2, price_per_night: 2500, original_price: 3200, margin_percentage: 10, season: "all", amenities: ["AC", "TV"], sort_order: 1 },
+      { hotel_id: hotelDal.id, room_type: "Deluxe", description: "Room with partial lake view", occupancy: 2, price_per_night: 3500, original_price: 4500, margin_percentage: 15, season: "all", amenities: ["AC", "TV", "lake-view"], sort_order: 2 },
+      { hotel_id: hotelManu.id, room_type: "Deluxe", description: "Forest view room with balcony", occupancy: 2, price_per_night: 6500, original_price: 8000, margin_percentage: 18, season: "all", amenities: ["heater", "TV", "forest-view", "balcony"], sort_order: 1 },
+      { hotel_id: hotelManu.id, room_type: "Suite", description: "River view suite with jacuzzi", occupancy: 2, price_per_night: 12000, original_price: 15000, margin_percentage: 22, season: "all", amenities: ["heater", "TV", "river-view", "jacuzzi"], sort_order: 2 },
+      { hotel_id: hotelSnow.id, room_type: "Standard", description: "Comfortable room city view", occupancy: 2, price_per_night: 2800, original_price: 3500, margin_percentage: 10, season: "all", amenities: ["heater", "TV"], sort_order: 1 },
+      { hotel_id: hotelSnow.id, room_type: "Deluxe", description: "Valley view room with balcony", occupancy: 2, price_per_night: 4500, original_price: 5800, margin_percentage: 15, season: "all", amenities: ["heater", "TV", "valley-view"], sort_order: 2 },
+    ],
+  });
+  console.log("✅ Hotel room pricing: 10 rows");
+
+  // ── 7. IMAGES (now categories exist) ──────────────────────────────────────
 
   await db.hotel_images.createMany({
     data: [
-      { hotel_id: hotelNehru.id, url: "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200", thumbnail: "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400", alt: "Hotel Nehru Palace", sort_order: 1, is_primary: true },
-      { hotel_id: hotelNehru.id, url: "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=1200", thumbnail: "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=400", alt: "Nehru Palace room", sort_order: 2, is_primary: false },
-      { hotel_id: hotelGrand.id, url: "https://images.unsplash.com/photo-1596178060671-7a80dc8059ea?w=1200", thumbnail: "https://images.unsplash.com/photo-1596178060671-7a80dc8059ea?w=400", alt: "Grand Houseboat", sort_order: 1, is_primary: true },
-      { hotel_id: hotelGrand.id, url: "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=1200", thumbnail: "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=400", alt: "Houseboat interior", sort_order: 2, is_primary: false },
-      { hotel_id: hotelDal.id, url: "https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=1200", thumbnail: "https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=400", alt: "Dal View Resort", sort_order: 1, is_primary: true },
-      { hotel_id: hotelManu.id, url: "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=1200", thumbnail: "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=400", alt: "Manuallaya exterior", sort_order: 1, is_primary: true },
-      { hotel_id: hotelManu.id, url: "https://images.unsplash.com/photo-1549880338-65ddcdfd017b?w=1200", thumbnail: "https://images.unsplash.com/photo-1549880338-65ddcdfd017b?w=400", alt: "Manuallaya mountain", sort_order: 2, is_primary: false },
-      { hotel_id: hotelSnow.id, url: "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=1200", thumbnail: "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=400", alt: "Snow Valley exterior", sort_order: 1, is_primary: true },
-    ]
+      { hotel_id: hotelNehru.id, category_id: nehruCats.facade.id, url: "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200", thumbnail: "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400", alt: "Hotel Nehru Palace exterior", sort_order: 1, is_primary: true },
+      { hotel_id: hotelNehru.id, category_id: nehruCats.lobby.id, url: "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=1200", thumbnail: "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=400", alt: "Nehru Palace lobby", sort_order: 1, is_primary: false },
+      { hotel_id: hotelGrand.id, category_id: grandCats.facade.id, url: "https://images.unsplash.com/photo-1596178060671-7a80dc8059ea?w=1200", thumbnail: "https://images.unsplash.com/photo-1596178060671-7a80dc8059ea?w=400", alt: "Grand Houseboat exterior", sort_order: 1, is_primary: true },
+      { hotel_id: hotelGrand.id, category_id: grandCats.lobby.id, url: "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=1200", thumbnail: "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=400", alt: "Houseboat interior", sort_order: 1, is_primary: false },
+      { hotel_id: hotelDal.id, category_id: dalCats.facade.id, url: "https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=1200", thumbnail: "https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=400", alt: "Dal View Resort", sort_order: 1, is_primary: true },
+      { hotel_id: hotelManu.id, category_id: manuCats.facade.id, url: "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=1200", thumbnail: "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=400", alt: "Manuallaya exterior", sort_order: 1, is_primary: true },
+      { hotel_id: hotelManu.id, category_id: manuCats.lobby.id, url: "https://images.unsplash.com/photo-1549880338-65ddcdfd017b?w=1200", thumbnail: "https://images.unsplash.com/photo-1549880338-65ddcdfd017b?w=400", alt: "Manuallaya mountain", sort_order: 1, is_primary: false },
+      { hotel_id: hotelSnow.id, category_id: snowCats.facade.id, url: "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=1200", thumbnail: "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=400", alt: "Snow Valley exterior", sort_order: 1, is_primary: true },
+    ],
   });
+  console.log("✅ Hotel images: 8 rows");
 
   await db.hotel_room_pricing.createMany({
     data: [
@@ -456,11 +550,11 @@ async function seed() {
   const withActs = await db.package_itineraries.count({ where: { NOT: { activity_ids: { equals: [] } } } });
   console.log(`\n   itinerary rows with activity_ids → ${withActs}`);
   console.log("\n📍 Test URLs:");
-  console.log("   /package/kashmir-grand-tour/6-days/route-0/deluxe");
-  console.log("   /package/kashmir-grand-tour/6-days/route-1/standard");
-  console.log("   /package/kashmir-grand-tour/4-days/route-0/deluxe");
-  console.log("   /package/shimla-manali-classic/7-days/route-0/deluxe");
-  console.log("   /package/shimla-manali-classic/7-days/route-1/standard");
+  console.log("   /packages/kashmir-grand-tour/6-days/route-0/deluxe");
+  console.log("   /packages/kashmir-grand-tour/6-days/route-1/standard");
+  console.log("   /packages/kashmir-grand-tour/4-days/route-0/deluxe");
+  console.log("   /packages/shimla-manali-classic/7-days/route-0/deluxe");
+  console.log("   /packages/shimla-manali-classic/7-days/route-1/standard");
   console.log("\n🎉 Seed complete.");
 }
 

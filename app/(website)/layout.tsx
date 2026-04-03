@@ -5,7 +5,7 @@ export default function WebsiteLayout({
 }) {
   return (
     <>
-      <div className="mx-auto">
+      <div className="mx-auto" data-layout='website'>
         {children}
       </div>
     </>
