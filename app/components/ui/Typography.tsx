@@ -43,12 +43,22 @@ const textVariants = cva('', {
 const headingVariants = cva('font-heading font-bold tracking-tight leading-tight', {
     variants: {
         level: {
-            1: 'text-3xl  md:text-4xl',
-            2: 'text-2xl sm:text-3xl',
-            3: 'text-lg sm:text-lg',
-            4: 'text-lg sm:text-xl',
-            5: 'text-base sm:text-lg',
-            6: 'text-sm sm:text-base',
+            1: 'text-xl  md:text-3xl',
+            2: 'text-xl sm:text-2xl',
+            3: 'text-lg sm:text-xl',
+            4: 'text-base sm:text-lg',
+            5: 'text-sm sm:text-base',
+            6: 'text-xs sm:text-sm',
+        },
+        size: {
+            xss: 'text-[8px] sm:text-[10px]',
+            xs: 'text-[10px] sm:text-xs',
+            sm: 'text-xs sm:text-sm',
+            base: 'text-sm sm:text-base',
+            lg: 'text-base sm:text-lg',
+            xl: 'text-lg sm:text-xl',
+            '2xl': 'text-xl sm:text-2xl',
+            '3xl': 'text-2xl sm:text-3xl',
         },
         weight: {
             normal: 'font-normal',
@@ -124,6 +134,7 @@ export const Heading = React.forwardRef<HTMLHeadingElement, HeadingProps>(
             className,
             level = 1,
             weight,
+            size,
             intent,
             align,
             truncate,
@@ -139,7 +150,7 @@ export const Heading = React.forwardRef<HTMLHeadingElement, HeadingProps>(
             <Tag
                 ref={ref}
                 className={cn(
-                    headingVariants({ level, weight }),
+                    headingVariants({  level, weight, size }),
                     textVariants({ intent, align, truncate, balance }),
                     className
                 )}
