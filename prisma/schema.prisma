@@ -554,6 +554,7 @@ model Otp {
   id        String    @id @default(cuid())
   phone     String
   code      Int
+  attempts  Int       @default(0)   // ← track wrong attempts
   expiresAt DateTime
   usedAt    DateTime?
   createdAt DateTime  @default(now())
