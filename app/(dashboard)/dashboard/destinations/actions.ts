@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/app/lib/db";
-import { deleteFromR2 } from "@/lib/r2/r2delete";
+import { deleteFromR2 } from "@/app/lib/r2/r2delete";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 

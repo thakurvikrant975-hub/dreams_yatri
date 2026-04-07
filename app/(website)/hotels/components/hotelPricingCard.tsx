@@ -14,7 +14,7 @@ type PricingCardProps = {
     className?: string;
 };
 
-const PricingCard: React.FC<PricingCardProps> = ({
+const HotelPricingCard: React.FC<PricingCardProps> = ({
     originalPrice,
     discountedPrice,
     savings,
@@ -45,4 +45,4 @@ const PricingCard: React.FC<PricingCardProps> = ({
     );
 };
 
-export default PricingCard;
+export default HotelPricingCard;

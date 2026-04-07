@@ -3,7 +3,7 @@
 
 import { useState, useRef } from "react";
 import { ImageIcon, X, Loader2, CheckCircle2, Upload } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/lib/utils";
 
 export type UploadedImage = {
     key: string;   // R2 key — what gets stored in DB

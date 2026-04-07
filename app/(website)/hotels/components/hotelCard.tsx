@@ -2,7 +2,7 @@
 import { MapPinIcon } from '@phosphor-icons/react';
 import Card from '@/app/components/ui/Card';
 import { Heading, Text } from '@/app/components/ui/Typography';
-import { cn } from '@/lib/utils';
+import { cn } from '@/app/lib/utils';
 import SavingsBadge from '@/app/components/packages/SavingBadge';
 import { ArrowTopRightOnSquareIcon } from '@heroicons/react/20/solid';
 import { HotelCardData } from '@/app/types/hotels/hotels';

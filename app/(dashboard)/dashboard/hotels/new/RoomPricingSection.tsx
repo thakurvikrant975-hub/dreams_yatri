@@ -15,7 +15,7 @@ import {
   TableHead, TableHeader, TableRow,
 } from "../../components/ui/table";
 import { Plus, Pencil, Trash2, Check, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/lib/utils";
 
 
 // ── Types ─────────────────────────────────────────────────────────────────

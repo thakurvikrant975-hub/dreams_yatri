@@ -11,12 +11,16 @@ import TestimonialsSection from "@/app/home/review";
 import NewsletterSection from "@/app/home/newsletter";
 import Footer from "../components/navigation/Footer";
 import Header from "../components/navigation/Header";
+import ModalRoot from "../components/modals/ModalRoot";
+
 
 export default function Home() {
 
+
   return (
     <>
-      <Header transparent={true}/>
+      <ModalRoot />
+      <Header transparent={true} />
       <main>
         <Hero />
         <TrustSignals />

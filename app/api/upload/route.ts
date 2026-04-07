@@ -1,6 +1,6 @@
 // app/api/upload/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { uploadToR2 } from "@/lib/r2/r2upload";
+import { uploadToR2 } from "@/app/lib/r2/r2upload";
 
 const VALID_FOLDERS = ["regions", "destinations", "hotels", "packages", "activities"];
 const ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif"];

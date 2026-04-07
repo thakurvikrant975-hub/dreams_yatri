@@ -19,6 +19,9 @@ import { HelicopterIcon } from '@/app/components/icons/cusomIcon';
 import { EngineKeys } from '@/app/types/engine';
 import { HeroTab, HeroField } from '@/app/types/home';
 
+import ShowLogin from '../lib/show-login';
+
+
 // ─── Default hero images (override via props) ───────────────────────────────
 const DEFAULT_IMAGES = [
     'https://images.unsplash.com/photo-1614591276564-7b3e69347a48?q=80&w=2074&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
@@ -156,6 +159,9 @@ function SlideDots({ total, active }: { total: number; active: number }) {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
+ 
+    ShowLogin();
+
     const [activeTab, setActiveTab] = useState<EngineKeys>('flights')
     const [currentIndex, setCurrentIndex] = useState(0)
     const [prevIndex, setPrevIndex] = useState<number | null>(null)

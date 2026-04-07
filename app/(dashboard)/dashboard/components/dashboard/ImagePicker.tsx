@@ -10,7 +10,7 @@ import {
 import { ImageIcon, X, Upload, Loader2, GripVertical, Star, AlertCircle } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 

@@ -1,13 +1,13 @@
 "use server";
 
 import { db } from "@/app/lib/db";
-import { deleteFromR2 } from "@/lib/r2/r2delete";
+import { deleteFromR2 } from "@/app/lib/r2/r2delete";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
   ALL_SYSTEM_HOTEL_CATEGORIES,
   getRoomCategoryName,
-} from "@/lib/hotelImageCategories"
+} from "@/app/lib/hotelImageCategories"
 
 // ── Schemas ───────────────────────────────────────────────────────────────
 

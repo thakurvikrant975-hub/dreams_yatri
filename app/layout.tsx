@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Inter, Poppins} from "next/font/google";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/lib/utils";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -27,7 +27,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={cn(inter.variable, poppins.variable, "font-mono")}>
+    <html  lang="en" className={cn(inter.variable, poppins.variable, "font-mono")}>
       <body className="antialiased">
         {children}
       </body>

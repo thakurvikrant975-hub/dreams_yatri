@@ -15,7 +15,7 @@ import {
   ChevronLeft, ChevronRight,
   Check, Loader2, AlertCircle,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/app/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 

@@ -224,7 +224,7 @@
         }
 
         .text-secondary {
-            color: var(--text-secondary);
+            color: var(--text-secondary) !important;
         }
 
         .text-muted {

@@ -4,7 +4,7 @@
 import { PrismaClient } from "../app/generated/prisma";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
-import { ALL_SYSTEM_HOTEL_CATEGORIES } from "@/lib/hotelImageCategories";
+import { ALL_SYSTEM_HOTEL_CATEGORIES } from "@/app/lib/hotelImageCategories";
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, ssl: false });
 const db = new PrismaClient({ adapter: new PrismaPg(pool as never) });

@@ -10,6 +10,7 @@ import { MapPinIcon } from "@phosphor-icons/react";
 import { cn } from "@/app/lib/utils";
 import Image from "next/image";
 import Card from "@/app/components/ui/Card";
+import HotelPricingCard from "../components/hotelPricingCard";
 
 const BASE = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
 
@@ -55,7 +56,7 @@ function ImageGallery({ images }: { images: HotelImage[] }) {
         {
           images.map((img, i) => (
             <Image
-             key={i}
+              key={i}
               src={imgUrl(img.url)}
               alt={img.alt ?? "Hotel photo"}
               width="405"
@@ -257,6 +258,15 @@ export function HotelDetailView({ hotel }: { hotel: HotelDetail }) {
         {/* ── Right column — sticky info ── */}
         <aside className="space-y-6">
           <div className="sticky top-6 space-y-4">
+
+              {/* Pricing Card */}  
+              <HotelPricingCard
+                originalPrice={lowestRoom.original_price ?? lowestRoom.price_per_night}
+                discountedPrice={lowestRoom.price_per_night}
+                savings={lowestRoom.original_price ? lowestRoom.original_price - lowestRoom.price_per_night : 0}
+                packageName={lowestRoom.room_type}
+              />    
+
 
             {/* Check-in / out */}
             <Card className="px-4 py-3">
