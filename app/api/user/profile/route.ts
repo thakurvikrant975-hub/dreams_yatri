@@ -2,6 +2,8 @@ import { NextRequest ,NextResponse } from "next/server";
 import { db } from "@/app/lib/db";
 import { getAuthenticatedUser } from "@/app/lib/functions/getAuthenticatedUser";
 import { Gender, MaritalStatus } from "@/app/generated/prisma";
+import { success } from "zod";
+
 
 // To get user data
 export async function GET(req:NextRequest) {
@@ -168,5 +170,42 @@ export async function DELETE(req:NextRequest) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    
+    const {confirmation_title} = await req.json();
+
+    if(!confirmation_title){
+        return NextResponse.json(
+            {"error": "Name is required!"}, {status: 400}
+        )
+    }
+
+    const user = await db.user.findUnique({
+        where: {id:sessionUser.id},
+        select: {name: true}
+    });
+
+    if(!user){
+        return NextResponse.json({"error": "User not found"},{status: 404})
+    }
+
+    if(!user.name){
+        return NextResponse.json({"error":"User has no name set. Cannot verify confirmation."},{status:400})
+    }
+
+
+    if(confirmation_title !== user.name.toUpperCase()){
+        return NextResponse.json(
+            {"error":"Type your name in capital letters to confirm."},{status: 403}
+        )
+    }
+
+    await db.user.update({
+        where: {id:sessionUser.id},
+        data: {status: "DELETED"}
+    }
+    );
+
+    return NextResponse.json(
+        {success: "Account deleted successfully."},
+        {status: 200}
+    )
 }
