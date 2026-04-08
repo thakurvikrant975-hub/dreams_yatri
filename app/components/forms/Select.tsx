@@ -197,7 +197,7 @@ export function Option({ value, children, disabled }: OptionProps) {
                 'px-3 py-2 text-sm cursor-pointer transition select-none',
                 disabled && 'opacity-50 cursor-not-allowed',
                 isSelected
-                    ? 'bg-blue-500 text-white'
+                    ? 'bg-primary-500 text-white'
                     : 'hover:bg-neutral-100 dark:hover:bg-zinc-700'
             )}
         >

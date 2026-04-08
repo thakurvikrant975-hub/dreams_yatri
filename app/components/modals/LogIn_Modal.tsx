@@ -6,7 +6,7 @@ import Input from '../forms/Input';
 import Label from '../forms/Label';
 import Button from '../ui/Button';
 import { useState } from 'react';
-import { Select } from '../forms/Select';
+import { Select, Option } from '../forms/Select';
 
 // ─── Country Codes ─────────────────────────────────────────────────────────────
 
@@ -62,7 +62,7 @@ function LoginModal() {
 
       <ModalHeader onClose={closeModal}>Log In</ModalHeader>
 
-      <ModalBody className="space-y-1">
+      <ModalBody className="space-y-1 min-h-100">
 
         {/* ── Method Toggle ── */}
         <div className="flex rounded-xl bg-surface-muted p-1 gap-1 mb-4">
@@ -89,19 +89,18 @@ function LoginModal() {
             <div className="flex gap-2 mt-1">
 
               {/* Country Code Selector */}
-              <select
+              <Select
                 value={countryCode}
-                onChange={(e) => setCountryCode(e.target.value)}
-                className="h-11 px-2 rounded-xl text-sm font-medium bg-surface ring-[0.09em] ring-inset ring-neutral-400/80
-                           hover:ring-neutral-300 focus:ring-2 focus:ring-primary-400 outline-none cursor-pointer
-                           text-primary min-w-[80px]"
+                onChange={(val) => setCountryCode(val)}
+                maxHeight='sm'
+                className='min-w-30 h-full'
               >
                 {COUNTRY_CODES.map(({ code, flag, label }) => (
-                  <option key={code} value={code}>
-                    {flag} {label} {code}
-                  </option>
+                  <Option key={code} value={code}>
+                    {flag} {code}
+                  </Option>
                 ))}
-              </select>
+              </Select>
 
               <Input
                 id="phone"
@@ -135,16 +134,15 @@ function LoginModal() {
         <Divider label="or continue with" />
 
         {/* ── Google SSO ── */}
-        <button
+        <Button
           type="button"
-          className="w-full flex items-center justify-center gap-3 h-11 rounded-xl border border-neutral-200
-                     bg-white hover:bg-neutral-50 text-sm font-medium text-primary transition-colors
-                     ring-[0.09em] ring-inset ring-neutral-300 hover:ring-neutral-400 focus:outline-none
-                     focus:ring-2 focus:ring-primary-400"
+          variant="outline"
+          size="md"
+          className='w-full'
         >
           <GoogleIcon />
           Continue with Google
-        </button>
+        </Button>
 
         {/* ── Terms ── */}
         <p className="text-[11px] text-center text-[--text-muted] pt-2">
