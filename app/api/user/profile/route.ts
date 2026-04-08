@@ -5,6 +5,7 @@ import { Gender, MaritalStatus } from "@/app/generated/prisma";
 import { success } from "zod";
 
 
+
 // To get user data
 export async function GET(req:NextRequest) {
 
