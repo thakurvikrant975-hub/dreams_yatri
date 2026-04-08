@@ -569,12 +569,14 @@ model VerificationToken {
 
 model Otp {
   id        String    @id @default(cuid())
-  phone     String
+  phone     String?                        // ← add ?
+  email     String?                        // ← add ?
   code      Int
-  attempts  Int       @default(0)   // ← track wrong attempts
+  attempts  Int       @default(0)
   expiresAt DateTime
   usedAt    DateTime?
   createdAt DateTime  @default(now())
 
   @@index([phone])
+  @@index([email])                         // ← add email index
 }
