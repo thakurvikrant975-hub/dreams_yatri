@@ -6,7 +6,11 @@ import React from 'react'
 import { cn } from '@/app/lib/utils'
 import { Heading } from '../ui/Typography'
 
-export interface ModalProps {
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type ModalAs = 'div' | 'form'
+
+interface ModalBaseProps {
   open: boolean
   onClose: (value: boolean) => void
   children: React.ReactNode
@@ -14,12 +18,28 @@ export interface ModalProps {
   className?: string
 }
 
+interface ModalAsDivProps extends ModalBaseProps {
+  as?: 'div'
+  onSubmit?: never
+  id?: string
+}
+
+interface ModalAsFormProps extends ModalBaseProps {
+  as: 'form'
+  onSubmit?: React.SubmitEventHandler
+  id?: string
+}
+
+export type ModalProps = ModalAsDivProps | ModalAsFormProps
+
 export interface ModalHeaderProps {
   children: React.ReactNode
   onClose?: (value: boolean) => void
   showCloseButton?: boolean
   className?: string
 }
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const maxWidthClasses = {
   sm: 'sm:max-w-sm',
@@ -31,14 +51,39 @@ const maxWidthClasses = {
   '4xl': 'sm:max-w-4xl',
 }
 
+const panelBase = cn(
+  'relative w-full transform overflow-hidden rounded-2xl text-left transition-all',
+  'bg-white shadow-xl shadow-neutral-400',
+  'dark:bg-linear-to-b',
+  'dark:after:absolute dark:after:-z-10 dark:after:inset-0.5 dark:after:rounded-[inherit]',
+  'data-closed:translate-y-4 data-closed:opacity-0 data-closed:sm:translate-y-0 data-closed:sm:scale-95',
+  'data-enter:duration-300 data-leave:duration-200',
+)
+
+// ─── Modal ────────────────────────────────────────────────────────────────────
+
 export default function Modal({
   open,
   onClose,
   children,
   maxWidth = 'lg',
   className,
+  as = 'div',
+  onSubmit,
+  id,
   ...props
 }: ModalProps) {
+
+  const innerProps =
+    as === 'form'
+      ? {
+          as: 'form' as const,
+          onSubmit,
+          id,
+          noValidate: true, // let Zod own validation, not browser
+        }
+      : { as: 'div' as const, id }
+
   return (
     <Dialog open={open} onClose={onClose} className="relative z-50" {...props}>
       <DialogBackdrop
@@ -54,24 +99,31 @@ export default function Modal({
         <div className="flex min-h-full items-end justify-center p-4 sm:items-center sm:p-0">
           <DialogPanel
             transition
-            className={cn(
-              'relative w-full transform overflow-hidden rounded-2xl text-left transition-all',
-              'bg-white shadow-xl shadow-neutral-400',
-              'dark:bg-linear-to-b  ',
-              'dark:after:absolute dark:after:-z-10 dark:after:inset-0.5 dark:after:rounded-[inherit]',
-              'data-closed:translate-y-4 data-closed:opacity-0 data-closed:sm:translate-y-0 data-closed:sm:scale-95',
-              'data-enter:duration-300 data-leave:duration-200',
-              maxWidthClasses[maxWidth],
-              className
-            )}
+            className={cn(panelBase, maxWidthClasses[maxWidth], className)}
           >
-            {children}
+            {/* Polymorphic inner wrapper — form or div */}
+            {as === 'form' ? (
+              <form
+                onSubmit={onSubmit}
+                id={id}
+                noValidate
+                className="flex flex-col"
+              >
+                {children}
+              </form>
+            ) : (
+              <div id={id} className="flex flex-col">
+                {children}
+              </div>
+            )}
           </DialogPanel>
         </div>
       </div>
     </Dialog>
   )
 }
+
+// ─── ModalHeader ──────────────────────────────────────────────────────────────
 
 export function ModalHeader({
   children,
@@ -87,12 +139,13 @@ export function ModalHeader({
         className
       )}
     >
-      <Heading level={2} weight='semibold' size='lg' className='flex gap-2 items-center'>
+      <Heading level={2} weight="semibold" size="lg" className="flex gap-2 items-center">
         {children}
       </Heading>
 
       {showCloseButton && onClose && (
         <button
+          type="button" // critical — prevents accidental form submission
           onClick={() => onClose(false)}
           aria-label="Close modal"
           className={cn(
@@ -108,6 +161,8 @@ export function ModalHeader({
   )
 }
 
+// ─── ModalBody ────────────────────────────────────────────────────────────────
+
 export function ModalBody({
   children,
   className,
@@ -119,8 +174,7 @@ export function ModalBody({
     <div
       className={cn(
         'px-5 py-4 max-h-125 overflow-y-auto',
-        'bg-white',
-        ' dark:text-zinc-200',
+        'bg-white dark:text-zinc-200',
         className
       )}
     >
@@ -128,6 +182,8 @@ export function ModalBody({
     </div>
   )
 }
+
+// ─── ModalFooter ──────────────────────────────────────────────────────────────
 
 export function ModalFooter({
   children,
