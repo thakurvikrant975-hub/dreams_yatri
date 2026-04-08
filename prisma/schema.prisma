@@ -474,10 +474,21 @@ enum MaritalStatus {
   WIDOWED
 }
 
+enum Role {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  BANNED
+  DELETED
+}
+
 model User {
-  id            String    @id @default(cuid())
-  phone         String    @unique
-  country_code String @default("+91") 
+  id           String  @id @default(cuid())
+  phone        String  @unique
+  country_code String  @default("+91")
 
   // NextAuth required
   name          String?
@@ -485,17 +496,21 @@ model User {
   emailVerified DateTime?
   image         String?
 
-  // Personal
-  gender                 Gender?
-  dateOfBirth            DateTime?
-  nationality            String?
-  maritalStatus          MaritalStatus?
-  anniversary            DateTime?
+  // Role
+  role Role @default(USER)
+  status UserStatus @default(ACTIVE)
 
+
+  // Personal
+  gender        Gender?
+  dateOfBirth   DateTime?
+  nationality   String?
+  maritalStatus MaritalStatus?
+  anniversary   DateTime?
 
   // Location
-  state                  String?
-  city                   String?
+  state String?
+  city  String?
 
   // Travel Documents
   passportNumber         String?   @unique
@@ -503,10 +518,10 @@ model User {
   passportIssuingCountry String?
 
   // Tax
-  panNumber              String?   @unique
+  panNumber String? @unique
 
   // Flags
-  isProfileComplete      Boolean   @default(false)
+  isProfileComplete Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
