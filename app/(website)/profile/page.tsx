@@ -23,6 +23,7 @@ import {
   StarIcon,
   GlobeAltIcon,
 } from '@heroicons/react/24/solid'
+import Card from '@/app/components/ui/Card'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -49,10 +50,10 @@ const NAV_ITEMS: NavItem[] = [
 
 function StatCard({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
   return (
-    <div className="flex flex-col items-center gap-1 px-4 py-3 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 min-w-20">
-      <span className="text-white/80">{icon}</span>
-      <span className="text-lg font-bold text-white leading-none">{value}</span>
-      <span className="text-[11px] text-white/60 font-medium whitespace-nowrap">{label}</span>
+    <div className="flex flex-col items-center gap-1 px-4 py-3 rounded-xl bg-neutral-50 backdrop-blur-sm ring-1 ring-inset ring-(--border-default) border-white/20 min-w-20">
+      <span className="text-muted">{icon}</span>
+      <span className="text-lg font-bold text-primary leading-none">{value}</span>
+      <span className="text-[11px] text-secondary font-medium whitespace-nowrap">{label}</span>
     </div>
   )
 }
@@ -71,15 +72,15 @@ function Section({
   className?: string
 }) {
   return (
-    <div className={cn('bg-white rounded-2xl border border-neutral-200/80 shadow-sm overflow-hidden', className)}>
-      <div className="px-6 py-4 border-b border-neutral-100 bg-linear-to-r from-primary-50/60 to-transparent">
-        <Heading level={3} size="base" weight="semibold" className="text-primary">
+    <Card className={cn(className, ' overflow-hidden p-px')}>
+      <div className="px-6 py-4 bg-neutral-50 rounded-t-[inherit] border-b border-b-(--border-default)">
+        <Heading level={3} size="base" weight="semibold" className="text-primary ">
           {title}
         </Heading>
         {subtitle && <p className="text-xs text-[--text-muted] mt-0.5">{subtitle}</p>}
       </div>
       <div className="px-6 py-5">{children}</div>
-    </div>
+    </Card>
   )
 }
 
@@ -96,62 +97,23 @@ function EditableField({
   type?: string
   placeholder?: string
 }) {
-  const [editing, setEditing] = useState(false)
+  
   const [val, setVal] = useState(value)
-  const [saved, setSaved] = useState(false)
 
-  function handleSave() {
-    setEditing(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
-  }
 
   return (
     <div className="group">
       <Label htmlFor={label}>{label}</Label>
       <div className="flex items-center gap-2 mt-1">
-        {editing ? (
-          <>
-            <Input
+         <Input
               id={label}
               type={type}
               value={val}
               onChange={(e) => setVal(e.target.value)}
               size="md"
-              className="flex-1"
+              wrapperClassName='flex-1'
               autoFocus
             />
-            <Button size="sm" onClick={handleSave}>
-              Save
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setEditing(false)}>
-              Cancel
-            </Button>
-          </>
-        ) : (
-          <>
-            <div
-              className={cn(
-                'flex-1 h-11 px-3 flex items-center rounded-xl text-sm font-medium',
-                'bg-surface-muted ring-[0.09em] ring-inset ring-neutral-200',
-                'text-primary'
-              )}
-            >
-              {val || <span className="text-[--text-muted]">{placeholder}</span>}
-            </div>
-            <button
-              onClick={() => setEditing(true)}
-              className="p-2 rounded-lg text-[--text-muted] hover:text-primary hover:bg-primary-50 transition-colors"
-              aria-label={`Edit ${label}`}
-            >
-              {saved ? (
-                <CheckIcon className="size-4 text-success-600" />
-              ) : (
-                <PencilSquareIcon className="size-4" />
-              )}
-            </button>
-          </>
-        )}
       </div>
     </div>
   )
@@ -351,32 +313,32 @@ export default function ProfilePage() {
     <div data-layout="website" className="min-h-screen ">
 
       {/* ── Hero Header ───────────────────────────────────────────────────── */}
-      <div className="relative bg-linear-to-br from-primary-600 via-primary-500 to-primary-700 overflow-hidden">
+      <Card >
 
         {/* Decorative blobs */}
-        <div className="absolute -top-20 -right-20 size-72 rounded-full bg-white/5 blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-10 size-48 rounded-full bg-white/5 blur-2xl pointer-events-none" />
+        <div className="absolute -top-20 -right-20 size-72 rounded-full bg-primary-500/10 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-10 size-48 rounded-full bg-primary-500/10 blur-2xl pointer-events-none" />
 
-        <div className="relative max-w-5xl mx-auto px-4 sm:px-6 pt-10 pb-16">
+        <div className="relative mx-auto px-4 sm:px-6 pt-10 pb-16">
           <div className="flex flex-col sm:flex-row items-start sm:items-end gap-5">
 
             <AvatarUpload />
 
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <Heading level={1} size="2xl" weight="bold" className="text-white truncate">
+                <Heading level={1} size="2xl" weight="bold" className="text-neutral-900 truncate">
                   Karan Thakur
                 </Heading>
-                <span className="hidden sm:inline-flex items-center gap-1 bg-white/15 border border-white/25 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                <span className="hidden sm:inline-flex items-center gap-1 bg-white/15 border border-white/25 text-secondary text-[10px] font-semibold px-2 py-0.5 rounded-full">
                   <StarIcon className="size-3 text-yellow-300" />
                   Explorer
                 </span>
               </div>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-white/70 text-xs">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-secondary text-xs">
                 <span className="flex items-center gap-1">
-                  <MapPinIcon className="size-3.5" /> Shimla, Himachal Pradesh
+                  <MapPinIcon className="size-3.5 text-muted" /> +91 98765 43210
                 </span>
-                <span>Member since Jan 2023</span>
+                <span>example@email.com</span>
               </div>
             </div>
 
@@ -389,7 +351,7 @@ export default function ProfilePage() {
 
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* ── Body ──────────────────────────────────────────────────────────── */}
       <div className=" mt-5 pb-16">
@@ -424,8 +386,8 @@ export default function ProfilePage() {
             </div>
 
             {/* Desktop: vertical card */}
-            <div className="hidden lg:block bg-white rounded-2xl border border-neutral-200/80 shadow-sm overflow-hidden">
-              <div className="px-4 py-3 border-b border-neutral-100 bg-linear-to-r from-primary-50/60 to-transparent">
+            <Card className="hidden lg:block p-px">
+              <div className="px-4 py-3 border-b border-b-(--border-default) bg-neutral-50 rounded-t-[inherit]">
                 <p className="text-[11px] font-bold text-[--text-muted] uppercase tracking-wider">Account Settings</p>
               </div>
               <nav className="p-2">
@@ -436,8 +398,8 @@ export default function ProfilePage() {
                     className={cn(
                       'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left',
                       activeNav === item.key
-                        ? 'bg-primary-50 text-primary'
-                        : 'text-[--text-muted] hover:bg-neutral-50 hover:text-primary'
+                        ? 'bg-neutral-100 text-primary'
+                        : 'text-secondary hover:bg-neutral-50 hover:text-primary hover:ring-1 hover:ring-inset hover:ring-neutral-100 hover:shadow-sm hover:shadow-neutral-200'
                     )}
                   >
                     <span className={cn(
@@ -458,14 +420,14 @@ export default function ProfilePage() {
 
               {/* Logout */}
               <div className="p-2 border-t border-neutral-100 mt-1">
-                <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-error-600 hover:bg-error-50 transition-colors">
+                <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-error-600 hover:bg-error-50 hover:ring-error-100 hover:shadow-sm hover:shadow-error-200/80 transition-colors">
                   <span className="size-8 rounded-lg flex items-center justify-center bg-error-50">
                     <ArrowRightOnRectangleIcon className="size-5" />
                   </span>
                   Log Out
                 </button>
               </div>
-            </div>
+            </Card>
           </aside>
 
           {/* ── Main Content ─────────────────────────────────────────────── */}
