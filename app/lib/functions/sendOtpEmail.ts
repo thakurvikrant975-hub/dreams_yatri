@@ -1,12 +1,10 @@
 // app/lib/functions/sendOtpEmail.ts
 
 export async function sendOtpEmail(email: string, otp: number): Promise<boolean> {
-  // Using any transactional email service — Resend is simplest for Next.js
-  // npm install resend
   const { Resend } = await import("resend");
   const resend = new Resend(process.env.RESEND_API_KEY);
 
-  const { error } = await resend.emails.send({
+  const { data, error } = await resend.emails.send({
     from:    "Dreams Yatri <noreply@dreamsyatri.com>",
     to:      email,
     subject: "Your Dreams Yatri OTP",
@@ -20,5 +18,11 @@ export async function sendOtpEmail(email: string, otp: number): Promise<boolean>
     `,
   });
 
-  return !error;
+  if (error) {
+    console.error("[sendOtpEmail] Resend error:", error); // ← check terminal
+    return false;
+  }
+
+  console.log("[sendOtpEmail] Sent successfully:", data);
+  return true;
 }
