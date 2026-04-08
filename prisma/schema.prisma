@@ -477,6 +477,7 @@ enum MaritalStatus {
 model User {
   id            String    @id @default(cuid())
   phone         String    @unique
+  country_code String @default("+91") 
 
   // NextAuth required
   name          String?
@@ -490,6 +491,7 @@ model User {
   nationality            String?
   maritalStatus          MaritalStatus?
   anniversary            DateTime?
+
 
   // Location
   state                  String?
@@ -554,6 +556,7 @@ model Otp {
   id        String    @id @default(cuid())
   phone     String
   code      Int
+  attempts  Int       @default(0)   // ← track wrong attempts
   expiresAt DateTime
   usedAt    DateTime?
   createdAt DateTime  @default(now())

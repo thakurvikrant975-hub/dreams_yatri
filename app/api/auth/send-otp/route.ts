@@ -13,18 +13,23 @@ export async function POST(req:NextRequest) {
     }
 
     const recentOtp = await db.otp.findFirst({
-        where:{
+        where: {
             phone,
-            createdAt: {gte: new Date(Date.now() - 120 * 1000)},  //checking otp if its not expired 120 sec
+            createdAt: { gte: new Date(Date.now() - 120 * 1000) }, // last 120 seconds
             usedAt: null,
         },
-    })
+    });
 
-    if(recentOtp){
+    if (recentOtp) {
+        // Calculate remaining time
+        const otpLifetime = 120 * 1000; // 120 seconds in milliseconds
+        const elapsed = Date.now() - recentOtp.createdAt.getTime();
+        const remaining = Math.ceil((otpLifetime - elapsed) / 1000); // in seconds
+
         return NextResponse.json(
-            {error: "OTP already sent. Wait 120 seconds."},
-            {status: 429}
-        )
+            { error: `OTP already sent. Wait ${remaining} seconds.` },
+            { status: 429 }
+        );
     }
 
     const code = generateOtp();
