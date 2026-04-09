@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { signIn } from 'next-auth/react';
 import axios from 'axios';
 
+
 const COUNTRY_CODES = [
   { code: '+91', flag: '🇮🇳', label: 'IN' },
   { code: '+1',  flag: '🇺🇸', label: 'US' },
@@ -235,7 +236,7 @@ function LoginModal() {
               variant="outline"
               size="md"
               className="w-full"
-              onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+              onClick={() => signIn("google", { callbackUrl: "/profile" })}
             >
               <GoogleIcon />
               Continue with Google

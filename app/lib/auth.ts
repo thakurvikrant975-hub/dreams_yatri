@@ -12,28 +12,28 @@ import type { User } from "next-auth";
 declare module "next-auth" {
   interface Session {
     user: {
-      id:                string;
-      phone:             string | null;
-      role:              Role;
-      status:            UserStatus;
+      id: string;
+      phone: string | null;
+      role: Role;
+      status: UserStatus;
       isProfileComplete: boolean;
     } & DefaultSession["user"];
   }
 
   interface User {
-    phone:             string | null;
-    role:              Role;
-    status:            UserStatus;
+    phone: string | null;
+    role: Role;
+    status: UserStatus;
     isProfileComplete: boolean;
   }
 }
 
 declare module "next-auth/jwt" {
   interface JWT {
-    userId:            string;
-    phone:             string | null;
-    role:              Role;
-    status:            UserStatus;
+    userId: string;
+    phone: string | null;
+    role: Role;
+    status: UserStatus;
     isProfileComplete: boolean;
   }
 }
@@ -41,19 +41,24 @@ declare module "next-auth/jwt" {
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: {
     strategy: "jwt",
-    maxAge:   6 * 30 * 24 * 60 * 60, // 6 months
+    maxAge: 6 * 30 * 24 * 60 * 60, // 6 months
   },
+
+  jwt: {
+    maxAge: 6 * 30 * 24 * 60 * 60, // 6 months
+  },
+
 
   providers: [
     Google({
-      clientId:     process.env.GOOGLE_CLIENT_ID!,
+      clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
 
     Credentials({
       credentials: {
-        phone:             { label: "Phone",               type: "text" },
-        code:              { label: "OTP",                 type: "text" },
+        phone: { label: "Phone", type: "text" },
+        code: { label: "OTP", type: "text" },
         magicSessionToken: { label: "Magic Session Token", type: "text" }, // ← added
       },
 
@@ -94,19 +99,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           if (user.status === "BANNED" || user.status === "DELETED") return null;
 
           return {
-            id:                user.id,
-            email:             user.email,
-            name:              user.name,
-            phone:             user.phone,
-            role:              user.role,
-            status:            user.status,
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            phone: user.phone,
+            role: user.role,
+            status: user.status,
             isProfileComplete: user.isProfileComplete,
           } as User;
         }
 
         // ── Phone OTP Login ─────────────────────────────────────────
         const phone = credentials?.phone as string;
-        const code  = parseInt(credentials?.code as string, 10);
+        const code = parseInt(credentials?.code as string, 10);
 
         if (!phone || isNaN(code)) return null;
 
@@ -114,7 +119,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           where: {
             phone,
             code,
-            usedAt:    null,
+            usedAt: null,
             expiresAt: { gte: new Date() },
           },
           orderBy: { createdAt: "desc" },
@@ -124,11 +129,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         await db.otp.update({
           where: { id: otp.id },
-          data:  { usedAt: new Date() },
+          data: { usedAt: new Date() },
         });
 
         const user = await db.user.upsert({
-          where:  { phone },
+          where: { phone },
           update: {},
           create: { phone },
         });
@@ -136,12 +141,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (user.status === "BANNED" || user.status === "DELETED") return null;
 
         return {
-          id:                user.id,
-          phone:             user.phone,
-          role:              user.role,
-          status:            user.status,
-          name:              user.name,
-          email:             user.email,
+          id: user.id,
+          phone: user.phone,
+          role: user.role,
+          status: user.status,
+          name: user.name,
+          email: user.email,
           isProfileComplete: user.isProfileComplete,
         } as User;
       },
@@ -159,9 +164,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           if (!existingUser) {
             await db.user.create({
               data: {
-                email:         user.email!,
-                name:          user.name  ?? null,
-                image:         user.image ?? null,
+                email: user.email!,
+                name: user.name ?? null,
+                image: user.image ?? null,
                 emailVerified: new Date(),
               },
             });
@@ -171,9 +176,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             }
             await db.user.update({
               where: { email: user.email! },
-              data:  {
-                name:          user.name  ?? existingUser.name,
-                image:         user.image ?? existingUser.image,
+              data: {
+                name: user.name ?? existingUser.name,
+                image: user.image ?? existingUser.image,
                 emailVerified: existingUser.emailVerified ?? new Date(),
               },
             });
@@ -189,30 +194,30 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
     async jwt({ token, user, account }) {
       if (user) {
-        token.userId            = user.id ?? "";
-        token.phone             = user.phone ?? null;
-        token.role              = user.role;
-        token.status            = user.status;
+        token.userId = user.id ?? "";
+        token.phone = user.phone ?? null;
+        token.role = user.role;
+        token.status = user.status;
         token.isProfileComplete = user.isProfileComplete;
       }
 
       if (account?.provider === "google" && token.email) {
         const dbUser = await db.user.findUnique({
-          where:  { email: token.email },
+          where: { email: token.email },
           select: {
-            id:                true,
-            phone:             true,
-            role:              true,
-            status:            true,
+            id: true,
+            phone: true,
+            role: true,
+            status: true,
             isProfileComplete: true,
           },
         });
 
         if (dbUser) {
-          token.userId            = dbUser.id;
-          token.phone             = dbUser.phone;
-          token.role              = dbUser.role;
-          token.status            = dbUser.status;
+          token.userId = dbUser.id;
+          token.phone = dbUser.phone;
+          token.role = dbUser.role;
+          token.status = dbUser.status;
           token.isProfileComplete = dbUser.isProfileComplete;
         }
       }
@@ -221,13 +226,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
 
     async session({ session, token }) {
-      session.user.id               = token.userId;
-      session.user.phone            = token.phone;
-      session.user.role             = token.role;
-      session.user.status           = token.status;
+      session.user.id = token.userId;
+      session.user.phone = token.phone;
+      session.user.role = token.role;
+      session.user.status = token.status;
       session.user.isProfileComplete = token.isProfileComplete;
       return session;
     },
   },
+
+  pages: {
+    signIn: '/',
+  },
+
+  secret: process.env.AUTH_SECRET,
 
 });
