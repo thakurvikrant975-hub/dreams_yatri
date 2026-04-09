@@ -1,4 +1,5 @@
 // auth.ts
+
 import NextAuth, { DefaultSession } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
@@ -38,7 +39,10 @@ declare module "next-auth/jwt" {
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  session: { strategy: "jwt" },
+  session: {
+    strategy: "jwt",
+    maxAge:   6 * 30 * 24 * 60 * 60, // 6 months
+  },
 
   providers: [
     Google({
@@ -48,11 +52,59 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
     Credentials({
       credentials: {
-        phone: { label: "Phone", type: "text" },
-        code:  { label: "OTP",   type: "text" },
+        phone:             { label: "Phone",               type: "text" },
+        code:              { label: "OTP",                 type: "text" },
+        magicSessionToken: { label: "Magic Session Token", type: "text" }, // ← added
       },
 
       async authorize(credentials): Promise<User | null> {
+
+        // ── Magic Link Login ────────────────────────────────────────
+        if (credentials?.magicSessionToken) {
+          const magicToken = credentials.magicSessionToken as string;
+          console.log("[authorize] magicToken received:", magicToken);
+
+          const magicSession = await db.magicSession.findUnique({
+            where: { token: magicToken },
+          });
+
+          console.log("[authorize] magicSession:", magicSession);
+
+          if (!magicSession) {
+            console.log("[authorize] token not found or already used");
+            return null;
+          }
+
+          if (magicSession.expiresAt < new Date()) {
+            console.log("[authorize] token expired");
+            await db.magicSession.delete({ where: { token: magicToken } });
+            return null;
+          }
+
+          // Consume token — one time use
+          await db.magicSession.delete({ where: { token: magicToken } });
+
+          const user = await db.user.findUnique({
+            where: { email: magicSession.email },
+          });
+
+          console.log("[authorize] user found:", user?.id);
+
+          if (!user) return null;
+          if (user.status === "BANNED" || user.status === "DELETED") return null;
+
+          return {
+            id:                user.id,
+            email:             user.email,
+            name:              user.name,
+            phone:             user.phone,
+            role:              user.role,
+            status:            user.status,
+            isProfileComplete: user.isProfileComplete,
+          } as User;
+        }
+
+        // ── Phone OTP Login ─────────────────────────────────────────
         const phone = credentials?.phone as string;
         const code  = parseInt(credentials?.code as string, 10);
 
@@ -114,33 +166,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               },
             });
           } else {
-            // Block banned/deleted from Google login too
             if (existingUser.status === "BANNED" || existingUser.status === "DELETED") {
               return false;
             }
-
             await db.user.update({
               where: { email: user.email! },
               data:  {
-                name:  user.name  ?? existingUser.name,
-                image: user.image ?? existingUser.image,
+                name:          user.name  ?? existingUser.name,
+                image:         user.image ?? existingUser.image,
                 emailVerified: existingUser.emailVerified ?? new Date(),
               },
             });
           }
-
           return true;
         } catch (error) {
           console.error("[signIn] Google user save failed:", error);
           return false;
         }
       }
-
       return true;
     },
 
     async jwt({ token, user, account }) {
-      // Credentials login — user object is available
       if (user) {
         token.userId            = user.id ?? "";
         token.phone             = user.phone ?? null;
@@ -149,7 +196,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.isProfileComplete = user.isProfileComplete;
       }
 
-      // Google login — fetch full DB record after signIn callback
       if (account?.provider === "google" && token.email) {
         const dbUser = await db.user.findUnique({
           where:  { email: token.email },
@@ -175,16 +221,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
 
     async session({ session, token }) {
-      session.user.id                = token.userId;
-      session.user.phone             = token.phone;
-      session.user.role              = token.role;
-      session.user.status            = token.status;
+      session.user.id               = token.userId;
+      session.user.phone            = token.phone;
+      session.user.role             = token.role;
+      session.user.status           = token.status;
       session.user.isProfileComplete = token.isProfileComplete;
       return session;
     },
   },
 
-  pages: {
-    signIn: "/login",
-  },
 });

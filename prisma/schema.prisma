@@ -580,3 +580,12 @@ model Otp {
   @@index([phone])
   @@index([email])                         // ← add email index
 }
+
+
+model MagicSession {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  email     String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
