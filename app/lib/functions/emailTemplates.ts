@@ -5,6 +5,7 @@ const BRAND_DARK   = "#111111";
 const BORDER_COLOR = "#e5e7eb";
 const TEXT_MUTED   = "#6b7280";
 const BG_LIGHT     = "#f9fafb";
+const PRE_HEADING  = "oklch(55.1% 0.027 264.364)"
 
 function baseTemplate(content: string): string {
   return `
@@ -18,8 +19,8 @@ function baseTemplate(content: string): string {
 
             <!-- Header -->
             <tr>
-              <td style="background:#aaa;border-radius:8px 8px 0 0;padding:28px 40px;text-align:center;">
-                <span style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:0.5px;">Dreams Yatri</span>
+              <td style="background:oklch(92.2% 0 0);border-radius:8px 8px 0 0;padding:28px 40px;text-align:center;">
+                <img src='/dy_logo.svg' style='height:50px'>
               </td>
             </tr>
 
@@ -52,7 +53,7 @@ function baseTemplate(content: string): string {
 
 export function otpEmailTemplate(otp: number): string {
   const content = `
-    <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:${BRAND_RED};letter-spacing:1px;text-transform:uppercase;">Verification Code</p>
+    <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:${PRE_HEADING};letter-spacing:1px;text-transform:uppercase;">Verification Code</p>
     <h1 style="margin:0 0 24px;font-size:24px;font-weight:700;color:${BRAND_DARK};">Your one-time password</h1>
 
     <p style="margin:0 0 28px;font-size:15px;color:#374151;line-height:1.6;">
@@ -86,7 +87,7 @@ export function otpEmailTemplate(otp: number): string {
 
 export function magicLinkEmailTemplate(url: string): string {
   const content = `
-    <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:${BRAND_RED};letter-spacing:1px;text-transform:uppercase;">Sign In Link</p>
+    <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:${PRE_HEADING};letter-spacing:1px;text-transform:uppercase;">Sign In Link</p>
     <h1 style="margin:0 0 24px;font-size:24px;font-weight:700;color:${BRAND_DARK};">Sign in to Dreams Yatri</h1>
 
     <p style="margin:0 0 32px;font-size:15px;color:#374151;line-height:1.6;">
@@ -124,7 +125,7 @@ export function magicLinkEmailTemplate(url: string): string {
           <p style="margin:0 0 8px;font-size:12px;color:${TEXT_MUTED};">
             Button not working? Copy and paste this link into your browser:
           </p>
-          <p style="margin:0;font-size:12px;color:${BRAND_RED};word-break:break-all;">${url}</p>
+          <a href='${url}' style="margin:0;font-size:12px;color:oklch(62.3% 0.214 259.815);word-break:break-all;">${url}</a>
         </td>
       </tr>
     </table>
