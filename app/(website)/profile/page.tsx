@@ -154,8 +154,8 @@ function PersonalInfoPanel() {
         </div>
       </Section>
 
-      <Section title="Travel Preferences" subtitle="Help us personalise your experience">
-        <TravelPreferencesPanel />
+      <Section title="More Infomation" subtitle="Help us to know you more">
+         <></>
       </Section>
     </div>
   )
@@ -164,45 +164,205 @@ function PersonalInfoPanel() {
 // ─── Travel Preferences Panel ─────────────────────────────────────────────────
 
 function TravelPreferencesPanel() {
-  const [tripTypes, setTripTypes] = useState(['Adventure', 'Pilgrimage'])
-  const [budgets, setBudgets] = useState(['Budget'])
+  const [tripTypes, setTripTypes]   = useState<string[]>(['Adventure', 'Pilgrimage'])
+  const [groupType, setGroupType]   = useState<string | null>(null)
+  const [budget, setBudget]         = useState<string | null>('Budget')
+  const [duration, setDuration]     = useState<string | null>(null)
+  const [months, setMonths]         = useState<string[]>([])
 
-  const allTripTypes = ['Adventure', 'Leisure', 'Pilgrimage', 'Honeymoon', 'Family', 'Corporate', 'Backpacking']
-  const allBudgets   = ['Budget', 'Mid-range', 'Luxury', 'Ultra-luxury']
+  const allTripTypes = [
+    { label: 'Adventure', icon: '⛰️' },
+    { label: 'Leisure',   icon: '🌴' },
+    { label: 'Pilgrimage',icon: '🧳' },
+    { label: 'Honeymoon', icon: '❤️' },
+    { label: 'Family',    icon: '👨‍👩‍👧' },
+    { label: 'Corporate', icon: '💼' },
+    { label: 'Backpacking',icon: '🏕️' },
+    { label: 'Wildlife',  icon: '🐆' },
+  ]
 
-  function toggle(arr: string[], setArr: (v: string[]) => void, val: string) {
+  const groupOptions = [
+    { label: 'Solo',   sub: 'Just me',    icon: '👤' },
+    { label: 'Couple', sub: '2 travellers', icon: '💑' },
+    { label: 'Family', sub: 'With kids',  icon: '👨‍👩‍👧' },
+    { label: 'Group',  sub: '6+ people',  icon: '👥' },
+  ]
+
+  const budgetOptions = [
+    { label: 'Budget',       range: 'Under ₹15,000'   },
+    { label: 'Mid-range',    range: '₹15K – 35K'      },
+    { label: 'Luxury',       range: '₹35K – 75K'      },
+    { label: 'Ultra-luxury', range: '₹75,000+'        },
+  ]
+
+  const durationOptions = [
+    'Weekend (2–3N)',
+    'Short (4–5N)',
+    'Week (6–8N)',
+    'Long (9–14N)',
+    'Extended (15N+)',
+  ]
+
+  const monthOptions = [
+    { label: 'Jan', peak: false },
+    { label: 'Feb', peak: false },
+    { label: 'Mar', peak: true  },
+    { label: 'Apr', peak: true  },
+    { label: 'May', peak: true  },
+    { label: 'Jun', peak: false },
+    { label: 'Jul', peak: false },
+    { label: 'Aug', peak: false },
+    { label: 'Sep', peak: true  },
+    { label: 'Oct', peak: true  },
+    { label: 'Nov', peak: true  },
+    { label: 'Dec', peak: false },
+  ]
+
+  function toggleMulti(arr: string[], setArr: (v: string[]) => void, val: string) {
     setArr(arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val])
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      <Section title="Travel Preferences" subtitle="Help use personalise your experience">
+      <div className="space-y-4">
+
+      {/* Trip Type — multi-select */}
       <div>
-        <p className="text-xs font-semibold text-[--text-muted] uppercase tracking-wide mb-2">Trip Type</p>
+        <SectionLabel title="Trip Type" hint="Select all that apply" />
         <div className="flex flex-wrap gap-2">
-          {allTripTypes.map(t => (
+          {allTripTypes.map(({ label, icon }) => (
             <TravelBadge
-              key={t} label={t}
-              active={tripTypes.includes(t)}
-              onClick={() => toggle(tripTypes, setTripTypes, t)}
+              key={label}
+              label={`${icon} ${label}`}
+              active={tripTypes.includes(label)}
+              onClick={() => toggleMulti(tripTypes, setTripTypes, label)}
             />
           ))}
         </div>
       </div>
+
+      {/* Travelling As — single-select */}
       <div>
-        <p className="text-xs font-semibold text-[--text-muted] uppercase tracking-wide mb-2">Budget Range</p>
+        <SectionLabel title="Travelling As" />
+        <div className="grid grid-cols-4 gap-2">
+          {groupOptions.map(({ label, sub, icon }) => (
+            <button
+              key={label}
+              onClick={() => setGroupType(label)}
+              className={cn(
+                'flex flex-col items-center gap-1 rounded-lg border p-3 text-center transition-colors',
+                groupType === label
+                  ? 'border-[--accent] bg-[--accent-subtle] text-[--accent]'
+                  : 'border-[--border] bg-[--surface] text-[--text] hover:bg-[--surface-hover]'
+              )}
+            >
+              <span className="text-xl">{icon}</span>
+              <span className="text-xs font-semibold">{label}</span>
+              <span className={cn('text-[10px]', groupType === label ? 'text-[--accent]' : 'text-[--text-muted]')}>
+                {sub}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Budget — single-select with INR anchoring */}
+      <div >
+        <SectionLabel title="Budget Per Person"/>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {budgetOptions.map(({ label, range }) => (
+            <button
+              key={label}
+              onClick={() => setBudget(label)}
+              className={cn(
+                'flex flex-col rounded-lg border p-3 text-left transition-colors',
+                budget === label
+                  ? 'border-[--accent] bg-[--accent-subtle]'
+                  : 'border-[--border] bg-[--surface] hover:bg-[--surface-hover]'
+              )}
+            >
+              <span className={cn('text-xs font-semibold', budget === label ? 'text-[--accent]' : 'text-[--text]')}>
+                {label}
+              </span>
+              <span className={cn('text-[10px] mt-0.5', budget === label ? 'text-[--accent]' : 'text-[--text-muted]')}>
+                {range}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Duration — single-select */}
+      <div>
+        <SectionLabel title="Trip Duration" />
         <div className="flex flex-wrap gap-2">
-          {allBudgets.map(b => (
+          {durationOptions.map(d => (
             <TravelBadge
-              key={b} label={b}
-              active={budgets.includes(b)}
-              onClick={() => toggle(budgets, setBudgets, b)}
+              key={d}
+              label={d}
+              active={duration === d}
+              onClick={() => setDuration(prev => prev === d ? null : d)}
             />
           ))}
         </div>
       </div>
-      <div className="flex justify-end pt-1">
+
+      {/* Travel Month — multi-select with peak indicators */}
+      <div>
+        <SectionLabel
+          title="Preferred Month"
+          hint={<>Select all that work &nbsp;<span className="text-amber-500">●</span> peak season</>}
+        />
+        <div className="grid grid-cols-6 gap-1.5">
+          {monthOptions.map(({ label, peak }) => (
+            <button
+              key={label}
+              onClick={() => toggleMulti(months, setMonths, label)}
+              className={cn(
+                'relative flex flex-col items-center rounded-md border py-2 text-xs transition-colors',
+                months.includes(label)
+                  ? 'border-[--accent] bg-[--accent-subtle] font-semibold text-[--accent]'
+                  : 'border-[--border] bg-[--surface] text-[--text] hover:bg-[--surface-hover]'
+              )}
+            >
+              {label}
+              {peak && (
+                <span className={cn(
+                  'mt-1 h-1 w-1 rounded-full',
+                  months.includes(label) ? 'bg-[--accent]' : 'bg-amber-400'
+                )} />
+              )}
+            </button>
+          ))}
+        </div>
+        <p className="mt-1.5 text-[10px] text-[--text-muted]">
+          Peak months reflect Himachal Pradesh &amp; Kashmir seasonality
+        </p>
+      </div>
+
+      <div className="flex justify-end border-t border-[--border] pt-3">
         <Button size="sm">Save Preferences</Button>
       </div>
+      </div>
+      </Section>
+    </div>
+  )
+}
+
+/* ── Helpers ─────────────────────────────────────────────── */
+
+function SectionLabel({
+  title,
+  hint,
+}: {
+  title: string
+  hint?: React.ReactNode
+}) {
+  return (
+    <div className="mb-2 flex items-baseline gap-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-[--text-muted]">{title}</p>
+      {hint && <span className="text-[10px] text-[--text-muted]">{hint}</span>}
     </div>
   )
 }
@@ -304,7 +464,7 @@ export default function ProfilePage() {
   const panels: Record<NavKey, React.ReactNode> = {
     personal:      <PersonalInfoPanel />,
     security:      <SecurityPanel />,
-    preferences:   <PlaceholderPanel title="Travel Preferences" />,
+    preferences:   <TravelPreferencesPanel/>,
     payments:      <PlaceholderPanel title="Payment Methods" />,
     notifications: <PlaceholderPanel title="Notification Settings" />,
   }
