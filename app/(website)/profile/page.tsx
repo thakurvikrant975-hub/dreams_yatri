@@ -224,6 +224,60 @@ function TravelPreferencesPanel() {
     setArr(arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val])
   }
 
+
+const budgetMap: Record<string, string> = {
+  'Budget':       'Budget',
+  'Mid-range':    'MidRange',
+  'Luxury':       'Luxury',
+  'Ultra-luxury': 'UltraLuxury',
+}
+
+const durationMap: Record<string, string> = {
+  'Weekend (2–3N)':  'Weekend',
+  'Short (4–5N)':    'Short',
+  'Week (6–8N)':     'Week',
+  'Long (9–14N)':    'Long',
+  'Extended (15N+)': 'Extended',
+}
+
+const [saving, setSaving] = useState(false)
+const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
+
+async function handleSave() {
+  const payload = {
+    tripTypes,
+    groupType:  groupType  ?? undefined,
+    budget:     budget     ? budgetMap[budget]     : undefined,
+    duration:   duration   ? durationMap[duration] : undefined,
+    months,
+  }
+
+  setSaving(true)
+  setSaveStatus('idle')
+
+  try {
+    const res = await fetch('/api/user/preferences', {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+    })
+
+    if (!res.ok) {
+      const { error } = await res.json().catch(() => ({ error: 'Unknown error' }))
+      console.error('Preferences save failed:', error)
+      setSaveStatus('error')
+      return
+    }
+
+    setSaveStatus('success')
+  } catch (e) {
+    console.error('Network error:', e)
+    setSaveStatus('error')
+  } finally {
+    setSaving(false)
+  }
+}
+
   return (
     <div className="space-y-5">
       <Section title="Travel Preferences" subtitle="Help use personalise your experience">
@@ -343,10 +397,18 @@ function TravelPreferencesPanel() {
             </p>
           </div>
 
-          <div className="flex justify-end border-t border-[--border] pt-3">
-            <Button size="sm">Save Preferences</Button>
-          </div>
-        </div>
+      <div className="flex items-center justify-end gap-3 border-t border-[--border] pt-3">
+  {saveStatus === 'success' && (
+    <span className="text-xs text-green-600 font-medium">Preferences saved</span>
+  )}
+  {saveStatus === 'error' && (
+    <span className="text-xs text-red-500 font-medium">Failed to save. Try again.</span>
+  )}
+  <Button size="sm" onClick={handleSave} disabled={saving}>
+    {saving ? 'Saving…' : 'Save Preferences'}
+  </Button>
+</div>
+      </div>
       </Section>
     </div>
   )
