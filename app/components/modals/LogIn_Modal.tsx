@@ -215,7 +215,7 @@ function LoginModal() {
           variant="outline"
           size="md"
           className='w-full'
-          onClick={() => signIn("google", { callbackUrl: "/dashboard" })}        >
+          onClick={() => signIn("google", { callbackUrl: "/profile" })}        >
           <GoogleIcon />
           Continue with Google
         </Button>
