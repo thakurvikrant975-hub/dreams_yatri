@@ -2,6 +2,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/app/lib/db";
+import { randomBytes } from "crypto";
+// app/api/auth/magic-link/verify/route.ts
 
 export async function GET(req: NextRequest) {
   try {
@@ -9,64 +11,66 @@ export async function GET(req: NextRequest) {
     const token = searchParams.get("token");
     const email = searchParams.get("email");
 
+    console.log("[magic-link/verify] token:", token);
+    console.log("[magic-link/verify] email:", email);
+
     if (!token || !email) {
-      return NextResponse.redirect(
-        new URL("/login?error=invalid_link", req.url)
-      );
+      return NextResponse.redirect(new URL("/?auth_error=invalid_link", req.url));
     }
 
     const verificationToken = await db.verificationToken.findUnique({
       where: { token },
     });
 
-    // Token not found
+    console.log("[magic-link/verify] verificationToken:", verificationToken);
+
     if (!verificationToken) {
-      return NextResponse.redirect(
-        new URL("/login?error=invalid_link", req.url)
-      );
+      return NextResponse.redirect(new URL("/?auth_error=invalid_link", req.url));
     }
 
-    // Email mismatch
     if (verificationToken.identifier !== email) {
-      return NextResponse.redirect(
-        new URL("/login?error=invalid_link", req.url)
-      );
+      console.log("[magic-link/verify] email mismatch");
+      return NextResponse.redirect(new URL("/?auth_error=invalid_link", req.url));
     }
 
-    // Expired
     if (verificationToken.expires < new Date()) {
+      console.log("[magic-link/verify] token expired");
       await db.verificationToken.delete({ where: { token } });
-      return NextResponse.redirect(
-        new URL("/login?error=link_expired", req.url)
-      );
+      return NextResponse.redirect(new URL("/?auth_error=link_expired", req.url));
     }
 
-    // ✅ Valid — consume token
+    console.log("[magic-link/verify] deleting verification token...");
     await db.verificationToken.delete({ where: { token } });
 
-    // Upsert user
+    console.log("[magic-link/verify] upserting user...");
     await db.user.upsert({
       where:  { email },
       update: { emailVerified: new Date() },
-      create: {
+      create: { email, emailVerified: new Date() },
+    });
+
+    console.log("[magic-link/verify] creating magic session...");
+    const magicToken = randomBytes(32).toString("hex");
+
+    await db.magicSession.create({
+      data: {
+        token:     magicToken,
         email,
-        phone:         "",
-        emailVerified: new Date(),
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
       },
     });
 
-    // Redirect with email so frontend can call signIn("credentials")
+    console.log("[magic-link/verify] redirecting to magic-callback...");
     return NextResponse.redirect(
       new URL(
-        `/login?magic=success&email=${encodeURIComponent(email)}`,
+        `/auth/magic-callback?token=${magicToken}&email=${encodeURIComponent(email)}`,
         req.url
       )
     );
 
   } catch (error) {
-    console.error("[magic-link/verify]", error);
-    return NextResponse.redirect(
-      new URL("/login?error=server_error", req.url)
-    );
+    // ← paste whatever prints here
+    console.error("[magic-link/verify] CRASH:", error);
+    return NextResponse.redirect(new URL("/?auth_error=server_error", req.url));
   }
 }

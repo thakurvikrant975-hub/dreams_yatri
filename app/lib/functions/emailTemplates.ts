@@ -6,6 +6,10 @@ const BORDER_COLOR = "#e5e7eb";
 const TEXT_MUTED   = "#6b7280";
 const BG_LIGHT     = "#f9fafb";
 const PRE_HEADING  = "oklch(55.1% 0.027 264.364)"
+const SITE_URL  = process.env.NEXT_PUBLIC_BASE_URL;
+
+
+
 
 function baseTemplate(content: string): string {
   return `
@@ -20,7 +24,7 @@ function baseTemplate(content: string): string {
             <!-- Header -->
             <tr>
               <td style="background:oklch(92.2% 0 0);border-radius:8px 8px 0 0;padding:28px 40px;text-align:center;">
-                <img src='/dy_logo.svg' style='height:50px'>
+                <img src='${SITE_URL}/dy_logo.webp' style='height:50px'>
               </td>
             </tr>
 

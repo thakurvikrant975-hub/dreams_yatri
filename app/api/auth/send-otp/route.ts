@@ -1,4 +1,4 @@
-// app/api/auth/send-otp/route.ts
+// app/auth/magic-link/verify/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/app/lib/db";
@@ -11,7 +11,7 @@ import { randomBytes } from "crypto";
 const isValidPhone = (value: string) => /^\+?[1-9]\d{9,14}$/.test(value);
 const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
-const OTP_COOLDOWN_MS  = 120 * 1000;      // 120 seconds
+const OTP_COOLDOWN_MS  = 1 * 1000;      // 120 seconds
 const OTP_EXPIRY_MS    = 10 * 60 * 1000;  // 10 minutes
 
 export async function POST(req: NextRequest) {
@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
         data: { identifier: identity, token, expires },
       });
 
-      const magicUrl = `${process.env.NEXTAUTH_URL}/api/auth/magic-link/verify?token=${token}&email=${encodeURIComponent(identity)}`;
+      const magicUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/api/auth/magic-link/verify?token=${token}&email=${encodeURIComponent(identity)}`;
 
       const sent = await sendEmail({
         to:      identity,
