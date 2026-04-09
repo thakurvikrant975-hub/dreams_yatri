@@ -2,8 +2,10 @@
 import NextAuth, { DefaultSession } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
-import { db } from "./db";
+import { db } from "@/app/lib/db";
 import { Role, UserStatus } from "../generated/prisma";
+
+
 import type { User } from "next-auth";
 
 declare module "next-auth" {

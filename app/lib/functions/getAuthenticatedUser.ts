@@ -1,5 +1,5 @@
 import "server-only";
-import { auth } from "@/auth";
+import { auth } from "@/app/lib/auth";
 import { db } from "@/app/lib/db";
 
 export async function getAuthenticatedUser() {
