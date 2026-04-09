@@ -1,5 +1,5 @@
 // middleware.ts
-import { auth } from "@/auth";
+import { auth } from "@/app/lib/auth";
 
 export const runtime = "nodejs";
 
