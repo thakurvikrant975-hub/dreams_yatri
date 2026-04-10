@@ -532,6 +532,9 @@ model User {
 
   travelPreference TravelPreference?
 
+  bookings         Booking[]
+  payments         Payment[]
+
 }
 
 model Account {
@@ -662,4 +665,124 @@ model TravelPreference {
   updatedAt  DateTime      @updatedAt
 
   @@map("travel_preferences")
+}
+
+
+// schema.prisma — add these models
+
+enum BookingStatus {
+  UPCOMING
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum PaymentMethod {
+  UPI
+  CARD
+  NET_BANKING
+  WALLET
+  EMI
+  CASH
+}
+
+enum PaymentGateway {
+  RAZORPAY
+  PHONEPE
+  PAYU
+  OFFLINE
+}
+
+model Destination {
+  id       String @id @default(cuid())
+  name     String                        // "Kashmir", "Shimla"
+  country  String @default("India")
+  image    String?
+
+  bookings Booking[]
+}
+
+model Booking {
+  id            String        @id @default(cuid())
+  bookingNumber String        @unique   // human-readable e.g. DY-2024-0001
+  userId        String
+  destinationId String
+
+  // Trip details
+  tripType      TripType
+  startDate     DateTime
+  endDate       DateTime
+  duration      Int           // in nights
+  travellers    Int           @default(1)
+  status        BookingStatus @default(UPCOMING)
+
+  // Pricing
+  totalAmount   Decimal       @db.Decimal(10, 2)
+  paidAmount    Decimal       @db.Decimal(10, 2) @default(0)
+  currency      String        @default("INR")
+
+  // Meta
+  notes         String?
+  cancelledAt   DateTime?
+  cancelReason  String?
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  destination   Destination   @relation(fields: [destinationId], references: [id])
+  payments      Payment[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("bookings")
+}
+
+model Payment {
+  id                String         @id @default(cuid())
+  bookingId         String
+  userId            String
+
+  // Amount
+  amount            Decimal        @db.Decimal(10, 2)
+  currency          String         @default("INR")
+
+  // Gateway details
+  gateway           PaymentGateway
+  method            PaymentMethod?
+  status            PaymentStatus  @default(PENDING)
+
+  // Razorpay / PhonePe specific
+  gatewayOrderId    String?        // razorpay_order_id / phonepe txn ref
+  gatewayPaymentId  String?        @unique  // razorpay_payment_id
+  gatewaySignature  String?        // for Razorpay verification
+
+  // Refund
+  refundId          String?
+  refundAmount      Decimal?       @db.Decimal(10, 2)
+  refundedAt        DateTime?
+
+  // Meta
+  failureReason     String?
+  paidAt            DateTime?
+
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  // Relations
+  booking           Booking        @relation(fields: [bookingId], references: [id])
+  user              User           @relation(fields: [userId], references: [id])
+
+  @@index([bookingId])
+  @@index([userId])
+  @@index([gatewayOrderId])
+  @@map("payments")
 }
