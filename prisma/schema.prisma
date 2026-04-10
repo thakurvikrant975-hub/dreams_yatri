@@ -48,6 +48,8 @@ model destinations {
   hotels     hotels[]
   activities activities[]
 
+  bookings Booking[]   // ← add this
+
   @@index([region_id])
   @@index([slug])
 }
@@ -700,26 +702,18 @@ enum PaymentGateway {
   OFFLINE
 }
 
-model Destination {
-  id       String @id @default(cuid())
-  name     String                        // "Kashmir", "Shimla"
-  country  String @default("India")
-  image    String?
-
-  bookings Booking[]
-}
 
 model Booking {
   id            String        @id @default(cuid())
-  bookingNumber String        @unique   // human-readable e.g. DY-2024-0001
+  bookingNumber String        @unique
   userId        String
-  destinationId String
+  destinationId Int                               // ← Int to match destinations.id
 
   // Trip details
   tripType      TripType
   startDate     DateTime
   endDate       DateTime
-  duration      Int           // in nights
+  duration      Int
   travellers    Int           @default(1)
   status        BookingStatus @default(UPCOMING)
 
@@ -736,9 +730,8 @@ model Booking {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  // Relations
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  destination   Destination   @relation(fields: [destinationId], references: [id])
+  destination   destinations  @relation(fields: [destinationId], references: [id])  // ← existing model
   payments      Payment[]
 
   @@index([userId])
