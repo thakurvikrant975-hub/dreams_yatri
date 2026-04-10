@@ -738,7 +738,7 @@ model Payment {
   // Amount
   amount            Decimal        @db.Decimal(10, 2)
   currency          String         @default("INR")
-
+ 
   // Gateway details
   gateway           PaymentGateway
   method            PaymentMethod?
