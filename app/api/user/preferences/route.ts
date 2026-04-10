@@ -1,12 +1,11 @@
 // app/api/user/preferences/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/app/lib/db"; 
+import { db } from "@/app/lib/db";
 import { getAuthenticatedUser } from "@/app/lib/functions/getAuthenticatedUser";
 import { TripType, GroupType, BudgetTier, TripDuration, TravelMonth } from "@/app/generated/prisma";
 
 // ─── GET ───────────────────────────────────────────────────────────────────
-
 export async function GET() {
   const sessionUser = await getAuthenticatedUser();
   if (!sessionUser) {
@@ -21,7 +20,6 @@ export async function GET() {
 }
 
 // ─── PATCH ─────────────────────────────────────────────────────────────────
-
 export async function PATCH(req: NextRequest) {
   const sessionUser = await getAuthenticatedUser();
   if (!sessionUser) {
