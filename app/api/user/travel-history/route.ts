@@ -1,33 +1,50 @@
 // app/api/user/travel-history/route.ts
 
-import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/app/lib/db";
+import { NextRequest }          from "next/server";
+import { z }                    from "zod/v4";
+import { db }                   from "@/app/lib/db";
+import { ApiResponse }          from "@/app/lib/api-response";
+import { handleApiError }       from "@/app/lib/api-error";
 import { getAuthenticatedUser } from "@/app/lib/functions/getAuthenticatedUser";
-import { BookingStatus } from "@/app/generated/prisma";
-// app/api/user/travel-history/route.ts
+import { BookingStatus }        from "@/app/generated/prisma";
+
+// ─── Zod Schema ───────────────────────────────────────────────────────────────
+
+const querySchema = z.object({
+  status: z.enum(Object.values(BookingStatus) as [string, ...string[]]).optional(),
+  page:   z.coerce.number().int().min(1).default(1),
+  limit:  z.coerce.number().int().min(1).max(100).default(10),
+});
+
+// ─── GET ──────────────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
   try {
     const sessionUser = await getAuthenticatedUser();
-    if (!sessionUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!sessionUser) return ApiResponse.error("Unauthorized", "UNAUTHORIZED", 401);
 
+    // ── Validate query params ────────────────────────────────────────────────
     const { searchParams } = new URL(req.url);
-    const status = searchParams.get("status") as BookingStatus | null;
-    const page   = parseInt(searchParams.get("page")  ?? "1");
-    const limit  = parseInt(searchParams.get("limit") ?? "10");
-    const skip   = (page - 1) * limit;
 
-    if (status && !Object.values(BookingStatus).includes(status)) {
-      return NextResponse.json({ error: "Invalid status filter." }, { status: 400 });
+    const parsed = querySchema.safeParse({
+      status: searchParams.get("status") ?? undefined,
+      page:   searchParams.get("page")   ?? 1,
+      limit:  searchParams.get("limit")  ?? 10,
+    });
+
+    if (!parsed.success) {
+      return ApiResponse.badRequest(parsed.error.issues[0]?.message ?? "Invalid query params");
     }
+
+    const { status, page, limit } = parsed.data;
+    const skip = (page - 1) * limit;
 
     const where = {
       userId: sessionUser.id,
-      ...(status ? { status } : {}),
+      ...(status ? { status: status as BookingStatus } : {}),
     };
 
+    // ── Query ────────────────────────────────────────────────────────────────
     const [bookings, total] = await Promise.all([
       db.booking.findMany({
         where,
@@ -51,10 +68,10 @@ export async function GET(req: NextRequest) {
           createdAt:     true,
           destination: {
             select: {
-                id:        true,
-                name:      true,
-                thumbnail: true,
-                country:   true,
+              id:        true,
+              name:      true,
+              thumbnail: true,
+              country:   true,
             },
           },
           payments: {
@@ -73,8 +90,7 @@ export async function GET(req: NextRequest) {
       db.booking.count({ where }),
     ]);
 
-    return NextResponse.json({
-      bookings,
+    return ApiResponse.ok(bookings, {
       pagination: {
         total,
         page,
@@ -84,10 +100,6 @@ export async function GET(req: NextRequest) {
     });
 
   } catch (error) {
-    console.error("[travel-history]", error);
-    return NextResponse.json(
-      { error: "Internal server error.", detail: (error as Error).message },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

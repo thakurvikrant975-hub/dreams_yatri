@@ -1,23 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import Image from 'next/image'
 import { cn } from '@/app/lib/utils'
-import Button from '@/app/components/ui/Button'
-import Input from '@/app/components/forms/Input'
-import Label from '@/app/components/forms/Label'
+
 import { Heading } from '@/app/components/ui/Typography'
 import { signOut } from "next-auth/react"
 import {
   UserCircleIcon,
-  ShieldCheckIcon,
   HeartIcon,
   CreditCardIcon,
-  BellIcon,
   ArrowRightOnRectangleIcon,
-  PencilSquareIcon,
-  CheckIcon,
-  CameraIcon,
 } from '@heroicons/react/24/outline'
 
 import {

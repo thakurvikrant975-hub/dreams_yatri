@@ -32,7 +32,7 @@ export const Err = (
     success: false,
     error: { code, message, cause },
 });
-
+ 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 export const Result = {
