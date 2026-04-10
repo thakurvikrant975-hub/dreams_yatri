@@ -1,104 +1,105 @@
-import { NextRequest ,NextResponse } from "next/server";
-import { db } from "@/app/lib/db";
+// app/api/user/profile/route.ts
+
+import { NextRequest }        from "next/server";
+import { z }                  from "zod/v4";
+import { db }                 from "@/app/lib/db";
+import { ApiResponse }        from "@/app/lib/api-response";
+import { handleApiError }     from "@/app/lib/api-error";
 import { getAuthenticatedUser } from "@/app/lib/functions/getAuthenticatedUser";
 import { Gender, MaritalStatus } from "@/app/generated/prisma";
-import { success } from "zod";
 
+// ─── Zod Schemas ──────────────────────────────────────────────────────────────
 
+const patchProfileSchema = z.object({
+  name:                   z.string().min(1).max(100).optional(),
+  email:                  z.email().optional(),
+  gender:                 z.enum(Object.values(Gender) as [string, ...string[]]).optional(),
+  dateOfBirth:            z.string().date().optional(),
+  nationality:            z.string().min(1).max(100).optional(),
+  state:                  z.string().min(1).max(100).optional(),
+  city:                   z.string().min(1).max(100).optional(),
+  maritalStatus:          z.enum(Object.values(MaritalStatus) as [string, ...string[]]).optional(),
+  anniversary:            z.string().date().optional(),
+  passportNumber:         z.string().min(5).max(20).optional(),
+  passportExpiryDate:     z.string().date().optional(),
+  passportIssuingCountry: z.string().min(1).max(100).optional(),
+  panNumber:              z.string().regex(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, "Invalid PAN format").optional(),
+  country_code:           z.string().min(1).max(6).optional(),
+});
 
-// To get user data
-export async function GET(req:NextRequest) {
+const deleteProfileSchema = z.object({
+  confirmation_title: z.string().min(1, "confirmation_title is required"),
+});
 
-    // Checking if user is logged in or not
+// ─── GET ──────────────────────────────────────────────────────────────────────
+
+export async function GET() {
+  try {
     const sessionUser = await getAuthenticatedUser();
-    if (!sessionUser) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    if (!sessionUser) return ApiResponse.error("Unauthorized", "UNAUTHORIZED", 401);
 
     const user = await db.user.findUnique({
-        where: {id:sessionUser.id},
-        select: {
-            id:                     true,
-            phone:                  true,
-            country_code:           true,
-            name:                   true,
-            email:                  true,
-            gender:                 true,
-            dateOfBirth:            true,
-            nationality:            true,
-            maritalStatus:          true,
-            anniversary:            true,
-            state:                  true,
-            city:                   true,
-            passportNumber:         true,
-            passportExpiryDate:     true,
-            passportIssuingCountry: true,
-            panNumber:              true,
-            isProfileComplete:      true,
-            createdAt:              true,
-            updatedAt:              true,
-        },
+      where:  { id: sessionUser.id },
+      select: {
+        id:                     true,
+        phone:                  true,
+        country_code:           true,
+        name:                   true,
+        email:                  true,
+        gender:                 true,
+        dateOfBirth:            true,
+        nationality:            true,
+        maritalStatus:          true,
+        anniversary:            true,
+        state:                  true,
+        city:                   true,
+        passportNumber:         true,
+        passportExpiryDate:     true,
+        passportIssuingCountry: true,
+        panNumber:              true,
+        isProfileComplete:      true,
+        createdAt:              true,
+        updatedAt:              true,
+      },
     });
 
-    if(!user){
-        return NextResponse.json({"error": "User not found"},{status: 404})
-    }
+    if (!user) return ApiResponse.notFound("User");
 
-    return NextResponse.json({user});
+    return ApiResponse.ok(user);
+
+  } catch (error) {
+    return handleApiError(error);
+  }
 }
 
+// ─── PATCH ────────────────────────────────────────────────────────────────────
 
-
-
-
-
-// To update user data
-export async function PATCH(req:NextRequest) {
-    // Checking if user is logged in or not
+export async function PATCH(req: NextRequest) {
+  try {
     const sessionUser = await getAuthenticatedUser();
-    if (!sessionUser) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!sessionUser) return ApiResponse.error("Unauthorized", "UNAUTHORIZED", 401);
+
+    // ── Parse & validate body ────────────────────────────────────────────────
+    const body   = await req.json();
+    const parsed = patchProfileSchema.safeParse(body);
+
+    if (!parsed.success) {
+      const message = parsed.error.issues[0]?.message ?? "Validation error";
+      return ApiResponse.badRequest(message);
     }
 
-    const body = await req.json();
-      const {
-        name,
-        email,
-        gender,
-        dateOfBirth,
-        nationality,
-        state,
-        city,
-        maritalStatus,
-        anniversary,
-        passportNumber,
-        passportExpiryDate,
-        passportIssuingCountry,
-        panNumber,
-        country_code,
-    } = body;
+    const {
+      name, email, gender, dateOfBirth, nationality, state, city,
+      maritalStatus, anniversary, passportNumber, passportExpiryDate,
+      passportIssuingCountry, panNumber, country_code,
+    } = parsed.data;
 
-    if(gender && !Object.values(Gender).includes(gender)){
-        return NextResponse.json({error: "Invalid gender value."},{status: 400 });
-    }
-
-    if(maritalStatus && !Object.values(MaritalStatus).includes(maritalStatus)){
-        return NextResponse.json({error: "Invalid marital status value."},{status: 400 });
-    }
-
-    if (panNumber && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(panNumber)) {
-        return NextResponse.json({ error: "Invalid PAN number format" }, { status: 400 });
-    }
-
+    // ── Business rule — anniversary only for married ──────────────────────────
     if (anniversary && maritalStatus && maritalStatus !== MaritalStatus.MARRIED) {
-        return NextResponse.json(
-        { error: "Anniversary can only be set for married users." },
-        { status: 400 }
-        );
+      return ApiResponse.badRequest("Anniversary can only be set for married users.");
     }
 
-
+    // ── Build update payload ─────────────────────────────────────────────────
     const data: Record<string, unknown> = {};
 
     if (name                    !== undefined) data.name                   = name;
@@ -117,96 +118,83 @@ export async function PATCH(req:NextRequest) {
     if (passportExpiryDate      !== undefined) data.passportExpiryDate     = new Date(passportExpiryDate);
 
     if (Object.keys(data).length === 0) {
-        return NextResponse.json({ error: "No fields provided to update" }, { status: 400 });
+      return ApiResponse.badRequest("No fields provided to update.");
     }
 
+    // ── Update user ──────────────────────────────────────────────────────────
     const updatedUser = await db.user.update({
-        where: {id: sessionUser.id},
-        data,
+      where: { id: sessionUser.id },
+      data,
     });
 
-    const requiredFields = ["name", "email", "gender", "dateOfBirth","nationality", "state", "city"] as const;
-
+    // ── Auto-compute profile completeness ─────────────────────────────────────
+    const requiredFields = ["name", "email", "gender", "dateOfBirth", "nationality", "state", "city"] as const;
     const isProfileComplete = requiredFields.every(
-        (f) => updatedUser[f] !== null && updatedUser[f] !== undefined
+      f => updatedUser[f] !== null && updatedUser[f] !== undefined
     );
 
     const finalUser = await db.user.update({
-        where: {id: sessionUser.id},
-        data: {isProfileComplete},
-        select:{
-            id:                     true,
-            phone:                  true,
-            country_code:           true,
-            name:                   true,
-            email:                  true,
-            gender:                 true,
-            dateOfBirth:            true,
-            nationality:            true,
-            maritalStatus:          true,
-            anniversary:            true,
-            state:                  true,
-            city:                   true,
-            passportNumber:         true,
-            passportExpiryDate:     true,
-            passportIssuingCountry: true,
-            panNumber:              true,
-            isProfileComplete:      true,
-            updatedAt:              true,
-        },
+      where:  { id: sessionUser.id },
+      data:   { isProfileComplete },
+      select: {
+        id: true, phone: true, country_code: true, name: true, email: true,
+        gender: true, dateOfBirth: true, nationality: true, maritalStatus: true,
+        anniversary: true, state: true, city: true, passportNumber: true,
+        passportExpiryDate: true, passportIssuingCountry: true, panNumber: true,
+        isProfileComplete: true, updatedAt: true,
+      },
     });
-    return NextResponse.json({ user: finalUser });
+
+    return ApiResponse.ok(finalUser);
+
+  } catch (error) {
+    return handleApiError(error);
+  }
 }
 
+// ─── DELETE ───────────────────────────────────────────────────────────────────
 
-
-
-
-
-// To Delete user data
-export async function DELETE(req:NextRequest) {
-    // Checking if user is logged in or not
+export async function DELETE(req: NextRequest) {
+  try {
     const sessionUser = await getAuthenticatedUser();
-    if (!sessionUser) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!sessionUser) return ApiResponse.error("Unauthorized", "UNAUTHORIZED", 401);
+
+    // ── Validate body ────────────────────────────────────────────────────────
+    const body   = await req.json();
+    const parsed = deleteProfileSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return ApiResponse.badRequest(parsed.error.issues[0]?.message ?? "Validation error");
     }
 
-    const {confirmation_title} = await req.json();
+    const { confirmation_title } = parsed.data;
 
-    if(!confirmation_title){
-        return NextResponse.json(
-            {"error": "Name is required!"}, {status: 400}
-        )
-    }
-
+    // ── Fetch user name ───────────────────────────────────────────────────────
     const user = await db.user.findUnique({
-        where: {id:sessionUser.id},
-        select: {name: true}
+      where:  { id: sessionUser.id },
+      select: { name: true },
     });
 
-    if(!user){
-        return NextResponse.json({"error": "User not found"},{status: 404})
+    if (!user)       return ApiResponse.notFound("User");
+    if (!user.name)  return ApiResponse.badRequest("User has no name set. Cannot verify confirmation.");
+
+    if (confirmation_title !== user.name.toUpperCase()) {
+      return ApiResponse.error(
+        "confirmation_title does not match. Type your name in capital letters.",
+        "FORBIDDEN",
+        403
+      );
     }
 
-    if(!user.name){
-        return NextResponse.json({"error":"User has no name set. Cannot verify confirmation."},{status:400})
-    }
-
-
-    if(confirmation_title !== user.name.toUpperCase()){
-        return NextResponse.json(
-            {"error":"Type your name in capital letters to confirm."},{status: 403}
-        )
-    }
-
+    // ── Soft delete ───────────────────────────────────────────────────────────
     await db.user.update({
-        where: {id:sessionUser.id},
-        data: {status: "DELETED"}
-    }
-    );
+      where: { id: sessionUser.id },
+      data:  { status: "DELETED" },
+    });
 
-    return NextResponse.json(
-        {success: "Account deleted successfully."},
-        {status: 200}
-    )
+    return ApiResponse.ok({ message: "Account deleted successfully." });
+
+  } catch (error) {
+    return handleApiError(error);
+  }
 }
