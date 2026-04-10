@@ -1,6 +1,5 @@
 // app/api/user/preferences/route.ts
 
-<<<<<<< HEAD
 import { NextRequest }           from "next/server";
 import { z }                     from "zod/v4";
 import { db }                    from "@/app/lib/db";
@@ -24,14 +23,6 @@ const patchPreferencesSchema = z.object({
 });
 
 // ─── GET ──────────────────────────────────────────────────────────────────────
-=======
-import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/app/lib/db"; 
-import { getAuthenticatedUser } from "@/app/lib/functions/getAuthenticatedUser";
-import { TripType, GroupType, BudgetTier, TripDuration, TravelMonth } from "@/app/generated/prisma";
-
-// ─── GET ───────────────────────────────────────────────────────────────────
->>>>>>> profile-api
 
 export async function GET() {
   try {
@@ -49,11 +40,7 @@ export async function GET() {
   }
 }
 
-<<<<<<< HEAD
-// ─── PATCH ────────────────────────────────────────────────────────────────────
-=======
 // ─── PATCH ─────────────────────────────────────────────────────────────────
->>>>>>> profile-api
 
 export async function PATCH(req: NextRequest) {
   try {

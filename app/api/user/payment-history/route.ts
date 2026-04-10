@@ -19,16 +19,9 @@ const querySchema = z.object({
 // ─── GET ──────────────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
-<<<<<<< HEAD
   try {
     const sessionUser = await getAuthenticatedUser();
     if (!sessionUser) return ApiResponse.error("Unauthorized", "UNAUTHORIZED", 401);
-=======
-  const sessionUser = await getAuthenticatedUser();
-  if (!sessionUser) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  } 
->>>>>>> profile-api
 
     // ── Validate query params ────────────────────────────────────────────────
     const { searchParams } = new URL(req.url);
