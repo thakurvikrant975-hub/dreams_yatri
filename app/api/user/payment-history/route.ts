@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   const sessionUser = await getAuthenticatedUser();
   if (!sessionUser) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  } 
 
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status") as PaymentStatus | null;
