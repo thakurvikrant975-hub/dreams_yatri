@@ -26,7 +26,7 @@ interface ModalAsDivProps extends ModalBaseProps {
 
 interface ModalAsFormProps extends ModalBaseProps {
   as: 'form'
-  onSubmit?: React.SubmitEventHandler
+  onSubmit?: React.FormEventHandler<HTMLFormElement>; 
   id?: string
 }
 

@@ -7,23 +7,20 @@ import Label from '../forms/Label';
 import Button from '../ui/Button';
 import { Select, Option } from '../forms/Select';
 import { phoneLoginSchema, emailLoginSchema, PHONE_RULES, type CountryCode } from '@/app/lib/validators/login';
-import { handleApiError } from '@/app/lib/api-error';
-import { z } from 'zod'
+import { z } from 'zod';
 import { signIn } from 'next-auth/react';
+import axios from 'axios';
 
-// ─── Country Codes here ─────────────────────────────────────────────────────────────
 
 const COUNTRY_CODES = [
   { code: '+91', flag: '🇮🇳', label: 'IN' },
-  { code: '+1', flag: '🇺🇸', label: 'US' },
+  { code: '+1',  flag: '🇺🇸', label: 'US' },
   { code: '+44', flag: '🇬🇧', label: 'UK' },
   { code: '+61', flag: '🇦🇺', label: 'AU' },
-  { code: '+971', flag: '🇦🇪', label: 'AE' },
+  { code: '+971',flag: '🇦🇪', label: 'AE' },
   { code: '+65', flag: '🇸🇬', label: 'SG' },
   { code: '+60', flag: '🇲🇾', label: 'MY' },
 ];
-
-// ─── Divider ───────────────────────────────────────────────────────────────────
 
 function Divider({ label = 'or' }: { label?: string }) {
   return (
@@ -34,8 +31,6 @@ function Divider({ label = 'or' }: { label?: string }) {
     </div>
   );
 }
-
-// ─── Google Icon ───────────────────────────────────────────────────────────────
 
 function GoogleIcon() {
   return (
@@ -48,28 +43,23 @@ function GoogleIcon() {
   );
 }
 
-// ─── Main Component ────────────────────────────────────────────────────────────
-
 type LoginMethod = 'phone' | 'email';
 
 function LoginModal() {
   const { isOpen, type, closeModal } = useModal();
-  const [errors, setErrors] = useState<Record<string, string>>({});
-
+  const [errors, setErrors]         = useState<Record<string, string>>({});
   const [countryCode, setCountryCode] = useState('+91');
   const [activeMethod, setActiveMethod] = useState<LoginMethod>('phone');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
+  const [phone, setPhone]   = useState('');
+  const [email, setEmail]   = useState('');
+  const [sent, setSent]     = useState(false);       // ← used below
+  const [loading, setLoading] = useState(false);
 
   function clearErrorIfValid(field: string, schema: z.ZodType, value: unknown) {
-    if (!errors[field]) return; // no error showing — skip parse cost
+    if (!errors[field]) return;
     const result = schema.safeParse(value);
     if (result.success) {
-      setErrors((prev) => {
-        const next = { ...prev };
-        delete next[field];
-        return next;
-      });
+      setErrors((prev) => { const next = { ...prev }; delete next[field]; return next; });
     }
   }
 
@@ -86,18 +76,16 @@ function LoginModal() {
   }
 
   function handleCountryCodeChange(val: string) {
-  setCountryCode(val);
-  if (errors.phone) {
-    setErrors((prev) => {
-      const next = { ...prev };
-      delete next.phone;
-      return next;
-    });
+    setCountryCode(val);
+    if (errors.phone) {
+      setErrors((prev) => { const next = { ...prev }; delete next.phone; return next; });
+    }
   }
-}
 
-  function handleSubmit(event: React.SubmitEvent) {
-    event.preventDefault();
+  // ── FIX 1: correct type, unified handler ──────────────────────────────────
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
     const result = activeMethod === 'phone'
       ? phoneLoginSchema.safeParse({ countryCode, phone })
       : emailLoginSchema.safeParse({ email });
@@ -108,28 +96,49 @@ function LoginModal() {
         acc[key] = issue.message;
         return acc;
       }, {} as Record<string, string>);
-
       setErrors(fieldErrors);
       return;
     }
 
     setErrors({});
-    // proceed → OTP / magic link call
+    setLoading(true);
+
+    // ── FIX 2: dispatch based on active method ─────────────────────────────
+    if (activeMethod === 'email') {
+      try {
+        await axios.post('/api/auth/send-otp', { email });
+        setSent(true);
+      } catch (err: any) {
+        // ── FIX 3: setErrors not setError ─────────────────────────────────
+        setErrors({ email: err.response?.data?.error || 'Something went wrong.' });
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    if (activeMethod === 'phone') {
+      try {
+        await axios.post('/api/auth/otp', { phone: `${countryCode}${phone}` });
+        // TODO: transition to OTP verification step
+      } catch (err: any) {
+        setErrors({ phone: err.response?.data?.error || 'Failed to send OTP.' });
+      } finally {
+        setLoading(false);
+      }
+    }
   }
-
-
 
   if (!isOpen || type !== 'login-modal') return null;
 
   return (
     <Modal
-      as='form'
+      as="form"
       open={isOpen}
       onClose={closeModal}
       data-layout="website"
       onSubmit={handleSubmit}
     >
-
       <ModalHeader onClose={closeModal}>Log In</ModalHeader>
 
       <ModalBody className="space-y-1 min-h-100">
@@ -140,7 +149,7 @@ function LoginModal() {
             <button
               key={method}
               type="button"
-              onClick={() => setActiveMethod(method)}
+              onClick={() => { setActiveMethod(method); setSent(false); setErrors({}); }}
               className={`flex-1 py-1.5 text-sm font-medium rounded-lg capitalize transition-all
                 ${activeMethod === method
                   ? 'bg-white text-primary shadow-sm'
@@ -152,94 +161,114 @@ function LoginModal() {
           ))}
         </div>
 
-        {/* ── Phone Input ── */}
-        {activeMethod === 'phone' && (
-          <div>
-            <Label htmlFor="phone">Phone Number</Label>
-            <div className="flex gap-2 mt-1">
-
-              {/* Country Code Selector */}
-              <Select
-                value={countryCode}
-                onChange={handleCountryCodeChange}
-                maxHeight='sm'
-                className='min-w-30 h-full max-h-11'
-              >
-                {COUNTRY_CODES.map(({ code, flag, label }) => (
-                  <Option key={code} value={code}>
-                    {flag} {code}
-                  </Option>
-                ))}
-              </Select>
-
-              <Input
-                id="phone"
-                type="tel"
-                placeholder='Enter phone number'
-                size="md"
-                className="flex-1"
-                value={phone}
-                onChange={handlePhoneChange}
-                inputMode="numeric"
-                maxLength={PHONE_RULES[countryCode as CountryCode]?.length ?? 15}
-                wrapperClassName="w-full"
-                error={errors.phone}
-              />
-            </div>
+        {/* ── FIX 4: Email sent state ── */}
+        {activeMethod === 'email' && sent ? (
+          <div className="text-center py-4 space-y-2">
+            <p className="text-sm font-medium">Check your inbox</p>
+            <p className="text-xs text-[--text-muted]">
+              Magic link sent to <strong>{email}</strong>. Expires in 10 minutes.
+            </p>
+            <button
+              type="button"
+              className="text-xs underline text-[--text-muted] hover:text-primary"
+              onClick={() => { setSent(false); setEmail(''); }}
+            >
+              Use a different email
+            </button>
           </div>
-        )}
+        ) : (
+          <>
+            {/* ── Phone Input ── */}
+            {activeMethod === 'phone' && (
+              <div>
+                <Label htmlFor="phone">Phone Number</Label>
+                <div className="flex gap-2 mt-1">
+                  <Select
+                    value={countryCode}
+                    onChange={handleCountryCodeChange}
+                    maxHeight="sm"
+                    className="min-w-30 h-full max-h-11"
+                  >
+                    {COUNTRY_CODES.map(({ code, flag, label }) => (
+                      <Option key={code} value={code}>
+                        {flag} {code}
+                      </Option>
+                    ))}
+                  </Select>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    placeholder="Enter phone number"
+                    size="md"
+                    className="flex-1"
+                    value={phone}
+                    onChange={handlePhoneChange}
+                    inputMode="numeric"
+                    maxLength={PHONE_RULES[countryCode as CountryCode]?.length ?? 15}
+                    wrapperClassName="w-full"
+                    error={errors.phone}
+                  />
+                </div>
+              </div>
+            )}
 
-        {/* ── Email Input ── */}
-        {activeMethod === 'email' && (
-          <div>
-            <Label htmlFor="email">Email Address</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="you@example.com"
+            {/* ── Email Input ── */}
+            {activeMethod === 'email' && (
+              <div>
+                <Label htmlFor="email">Email Address</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  size="md"
+                  className="mt-1"
+                  value={email}
+                  onChange={handleEmailChange}
+                  error={errors.email}
+                />
+              </div>
+            )}
+
+            <Divider label="or continue with" />
+
+            <Button
+              type="button"
+              variant="outline"
               size="md"
-              className="mt-1"
-              value={email}
-              onChange={handleEmailChange}
-              error={errors.email}
-            />
-          </div>
+              className="w-full"
+              onClick={() => signIn("google", { callbackUrl: "/profile" })}
+            >
+              <GoogleIcon />
+              Continue with Google
+            </Button>
+
+            <p className="text-[11px] text-center text-[--text-muted] pt-2">
+              By continuing, you agree to our{' '}
+              <a href="/terms" className="underline hover:text-primary">Terms</a>
+              {' '}and{' '}
+              <a href="/privacy" className="underline hover:text-primary">Privacy Policy</a>.
+            </p>
+          </>
         )}
-
-        {/* ── Divider ── */}
-        <Divider label="or continue with" />
-
-        {/* ── Google SSO ── */}
-        <Button
-          type="button"
-          variant="outline"
-          size="md"
-          className='w-full'
-          onClick={() => signIn("google", { callbackUrl: "/profile" })}        >
-          <GoogleIcon />
-          Continue with Google
-        </Button>
-
-        {/* ── Terms ── */}
-        <p className="text-[11px] text-center text-[--text-muted] pt-2">
-          By continuing, you agree to our{' '}
-          <a href="/terms" className="underline hover:text-primary">Terms</a>
-          {' '}and{' '}
-          <a href="/privacy" className="underline hover:text-primary">Privacy Policy</a>.
-        </p>
 
       </ModalBody>
 
-      <ModalFooter>
-        <div className="flex items-center justify-end gap-3">
-          <Button type="button" onClick={closeModal} variant="outline" size="sm">
-            Cancel
-          </Button>
-          <Button type='submit' size="sm">
-            {activeMethod === 'phone' ? 'Send OTP' : 'Continue'}
-          </Button>
-        </div>
-      </ModalFooter>
+      {/* ── FIX 5: hide footer after email sent ── */}
+      {!sent && (
+        <ModalFooter>
+          <div className="flex items-center justify-end gap-3">
+            <Button type="button" onClick={closeModal} variant="outline" size="sm">
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" disabled={loading}>
+              {loading
+                ? 'Please wait...'
+                : activeMethod === 'phone' ? 'Send OTP' : 'Send Magic Link'
+              }
+            </Button>
+          </div>
+        </ModalFooter>
+      )}
 
     </Modal>
   );

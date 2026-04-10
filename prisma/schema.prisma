@@ -489,7 +489,7 @@ enum UserStatus {
 
 model User {
   id           String  @id @default(cuid())
-  phone String? @unique
+  phone        String? @unique 
   country_code String
 
   // NextAuth required
@@ -531,6 +531,9 @@ model User {
   // NextAuth relations
   accounts Account[]
   sessions Session[]
+
+  travelPreference TravelPreference?
+
 }
 
 model Account {
