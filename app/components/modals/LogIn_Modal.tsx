@@ -9,8 +9,9 @@ import { Select, Option } from '../forms/Select';
 import { phoneLoginSchema, emailLoginSchema, PHONE_RULES, type CountryCode } from '@/app/lib/validators/login';
 import { handleApiError } from '@/app/lib/api-error';
 import { z } from 'zod'
+import { signIn } from 'next-auth/react';
 
-// ─── Country Codes ─────────────────────────────────────────────────────────────
+// ─── Country Codes here ─────────────────────────────────────────────────────────────
 
 const COUNTRY_CODES = [
   { code: '+91', flag: '🇮🇳', label: 'IN' },
@@ -214,7 +215,7 @@ function LoginModal() {
           variant="outline"
           size="md"
           className='w-full'
-        >
+          onClick={() => signIn("google", { callbackUrl: "/profile" })}        >
           <GoogleIcon />
           Continue with Google
         </Button>

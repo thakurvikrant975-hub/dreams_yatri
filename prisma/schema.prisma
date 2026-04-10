@@ -488,7 +488,7 @@ enum UserStatus {
 model User {
   id           String  @id @default(cuid())
   phone String? @unique
-  country_code String  @default("+91")
+  country_code String
 
   // NextAuth required
   name          String?

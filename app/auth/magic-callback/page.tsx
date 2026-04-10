@@ -26,7 +26,7 @@ export default function MagicCallbackPage() {
       if (result?.error || !result?.ok) {
         router.replace("/?auth_error=invalid_link");
       } else {
-        router.replace("/dashboard");
+        router.replace("/profile");
       }
     });
   }, []);
