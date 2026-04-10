@@ -1,7 +1,7 @@
 // app/api/user/preferences/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/app/lib/db"; 
+import { db } from "@/app/lib/db";
 import { getAuthenticatedUser } from "@/app/lib/functions/getAuthenticatedUser";
 import { TripType, GroupType, BudgetTier, TripDuration, TravelMonth } from "@/app/generated/prisma";
 

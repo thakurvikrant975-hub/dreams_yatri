@@ -492,37 +492,29 @@ model User {
   phone        String? @unique 
   country_code String
 
-  // NextAuth required
   name          String?
-  email         String?   @unique
+  email         String?  @unique
   emailVerified DateTime?
   image         String?
 
-  // Role
-  role Role @default(USER)
+  role   Role       @default(USER)
   status UserStatus @default(ACTIVE)
 
-
-  // Personal
   gender        Gender?
   dateOfBirth   DateTime?
   nationality   String?
   maritalStatus MaritalStatus?
   anniversary   DateTime?
 
-  // Location
   state String?
   city  String?
 
-  // Travel Documents
-  passportNumber         String?   @unique
+  passportNumber         String?  @unique
   passportExpiryDate     DateTime?
   passportIssuingCountry String?
 
-  // Tax
   panNumber String? @unique
 
-  // Flags
   isProfileComplete Boolean @default(false)
 
   createdAt DateTime @default(now())
@@ -532,11 +524,10 @@ model User {
   accounts Account[]
   sessions Session[]
 
+  // ── Add these three ───────────────────────────────
   travelPreference TravelPreference?
-
   bookings         Booking[]
   payments         Payment[]
-
 }
 
 model Account {
