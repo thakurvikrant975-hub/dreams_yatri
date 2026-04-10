@@ -35,6 +35,7 @@ import { TravelPreferencesPanel } from './components/TravelPreferencesPanel'
 import { PlaceholderPanel } from './components/PlaceholderPanel'
 import { AvatarUpload } from './components/AvatarUpload'
 import { StatCard } from './components/StatCard'
+import { ProfileUser } from '@/app/types/profile'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -64,8 +65,9 @@ const NAV_ITEMS: NavItem[] = [
 
 // ─── Profile Page ─────────────────────────────────────────────────────────────
 
-export default function Profile() {
-  const [activeNav, setActiveNav] = useState<NavKey>('personal')
+export default function Profile({user}: {user: any}) {
+  const [activeNav, setActiveNav] = useState<NavKey>('personal');
+  console.log(user);
 
   const panels: Record<NavKey, React.ReactNode> = {
     personal: <PersonalInfoPanel />,

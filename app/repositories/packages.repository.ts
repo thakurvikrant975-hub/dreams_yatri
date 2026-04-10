@@ -373,7 +373,6 @@ export const packagesRepository = {
     }
   },
 
-
   // ── Fresh pricing — no cache ──────────────────────────────────────────────
   findPricing: async (packageSlug: string) => {
     const pkg = await db.packages.findUnique({
