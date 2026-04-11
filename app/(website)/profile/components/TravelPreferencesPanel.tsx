@@ -1,145 +1,236 @@
-// app/(website)/profile/components/TravelPreferencesPanel.tsx
-
 'use client'
 
-import { Section }       from "./Section"
-import { SectionLabel }  from "./SectionLabel"
-import { TravelBadge }   from "./TravelBadge"
-import { useState }      from "react"
-import { cn }            from "@/app/lib/utils"
-import Button            from "@/app/components/ui/Button"
+import { Section } from "./Section"
+import { SectionLabel } from "./SectionLabel"
+import { TravelBadge } from "./TravelBadge"
+import { useEffect, useState } from "react"
+import { cn } from "@/app/lib/utils"
+import Button from "@/app/components/ui/Button"
 
-// ── Maps — DB enum → display label ───────────────────────────────────────────
+// ── Maps — DB enum → display label ───────────────────────────
 const BUDGET_DB_TO_UI: Record<string, string> = {
-  Budget:      "Budget",
-  MidRange:    "Mid-range",
-  Luxury:      "Luxury",
+  Budget: "Budget",
+  MidRange: "Mid-range",
+  Luxury: "Luxury",
   UltraLuxury: "Ultra-luxury",
-};
+}
 
 const DURATION_DB_TO_UI: Record<string, string> = {
   Weekend: "Weekend (2–3N)",
-  Short:   "Short (4–5N)",
-  Week:    "Week (6–8N)",
-  Long:    "Long (9–14N)",
-  Extended:"Extended (15N+)",
-};
+  Short: "Short (4–5N)",
+  Week: "Week (6–8N)",
+  Long: "Long (9–14N)",
+  Extended: "Extended (15N+)",
+}
 
 const budgetMap: Record<string, string> = {
-  "Budget":       "Budget",
-  "Mid-range":    "MidRange",
-  "Luxury":       "Luxury",
+  "Budget": "Budget",
+  "Mid-range": "MidRange",
+  "Luxury": "Luxury",
   "Ultra-luxury": "UltraLuxury",
-};
+}
 
 const durationMap: Record<string, string> = {
-  "Weekend (2–3N)":  "Weekend",
-  "Short (4–5N)":    "Short",
-  "Week (6–8N)":     "Week",
-  "Long (9–14N)":    "Long",
+  "Weekend (2–3N)": "Weekend",
+  "Short (4–5N)": "Short",
+  "Week (6–8N)": "Week",
+  "Long (9–14N)": "Long",
   "Extended (15N+)": "Extended",
-};
+}
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────
 
-export function TravelPreferencesPanel({ preferences }: { preferences: any }) {
+export function TravelPreferencesPanel() {
 
-  // ── Initialize from DB values ─────────────────────────────────────────────
-  const [tripTypes, setTripTypes] = useState<string[]>(preferences?.tripTypes  ?? []);
-  const [groupType, setGroupType] = useState<string | null>(preferences?.groupType ?? null);
-  const [budget,    setBudget]    = useState<string | null>(
-    preferences?.budget   ? (BUDGET_DB_TO_UI[preferences.budget]     ?? null) : null
-  );
-  const [duration,  setDuration]  = useState<string | null>(
-    preferences?.duration ? (DURATION_DB_TO_UI[preferences.duration] ?? null) : null
-  );
-  const [months,    setMonths]    = useState<string[]>(preferences?.months ?? []);
+  // ✅ EMPTY initial state (NO preferences)
+  const [tripTypes, setTripTypes] = useState<string[]>([])
+  const [groupType, setGroupType] = useState<string | null>(null)
+  const [budget, setBudget] = useState<string | null>(null)
+  const [duration, setDuration] = useState<string | null>(null)
+  const [months, setMonths] = useState<string[]>([])
 
-  const [saving,     setSaving]     = useState(false);
-  const [saveStatus, setSaveStatus] = useState<"idle" | "success" | "error">("idle");
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<"idle" | "success" | "error">("idle")
 
-  // ── Static options ────────────────────────────────────────────────────────
-  const allTripTypes = [
-    { label: "Adventure",   icon: "⛰️" },
-    { label: "Leisure",     icon: "🌴" },
-    { label: "Pilgrimage",  icon: "🧳" },
-    { label: "Honeymoon",   icon: "❤️" },
-    { label: "Family",      icon: "👨‍👩‍👧" },
-    { label: "Corporate",   icon: "💼" },
-    { label: "Backpacking", icon: "🏕️" },
-    { label: "Wildlife",    icon: "🐆" },
-  ];
+  // ✅ FETCH DATA FROM API
+  useEffect(() => {
+    async function fetchPreferences() {
+      try {
+        const res = await fetch("/api/user/preferences")
 
-  const groupOptions = [
-    { label: "Solo",   sub: "Just me",      icon: "👤" },
-    { label: "Couple", sub: "2 travellers", icon: "💑" },
-    { label: "Family", sub: "With kids",    icon: "👨‍👩‍👧" },
-    { label: "Group",  sub: "6+ people",    icon: "👥" },
-  ];
+        if (!res.ok) throw new Error("Failed to fetch")
 
-  const budgetOptions = [
-    { label: "Budget",       range: "Under ₹15,000" },
-    { label: "Mid-range",    range: "₹15K – 35K"    },
-    { label: "Luxury",       range: "₹35K – 75K"    },
-    { label: "Ultra-luxury", range: "₹75,000+"       },
-  ];
+        const data = await res.json()
 
-  const durationOptions = [
-    "Weekend (2–3N)", "Short (4–5N)", "Week (6–8N)", "Long (9–14N)", "Extended (15N+)",
-  ];
+        // ✅ SET STATE FROM API
+        setTripTypes(data?.tripTypes ?? [])
+        setGroupType(data?.groupType ?? null)
 
-  const monthOptions = [
-    { label: "Jan", peak: false }, { label: "Feb", peak: false },
-    { label: "Mar", peak: true  }, { label: "Apr", peak: true  },
-    { label: "May", peak: true  }, { label: "Jun", peak: false },
-    { label: "Jul", peak: false }, { label: "Aug", peak: false },
-    { label: "Sep", peak: true  }, { label: "Oct", peak: true  },
-    { label: "Nov", peak: true  }, { label: "Dec", peak: false },
-  ];
+        setBudget(
+          data?.budget
+            ? BUDGET_DB_TO_UI[data.budget] ?? null
+            : null
+        )
+
+        setDuration(
+          data?.duration
+            ? DURATION_DB_TO_UI[data.duration] ?? null
+            : null
+        )
+
+        setMonths(data?.months ?? [])
+
+      } catch (err) {
+        console.error("Error loading preferences:", err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchPreferences()
+  }, [])
 
   function toggleMulti(arr: string[], setArr: (v: string[]) => void, val: string) {
-    setArr(arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val]);
+    setArr(arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val])
   }
 
   async function handleSave() {
-    setSaving(true);
-    setSaveStatus("idle");
+    setSaving(true)
+    setSaveStatus("idle")
 
     const payload = {
       tripTypes,
-      groupType: groupType  ?? undefined,
-      budget:    budget     ? budgetMap[budget]     : undefined,
-      duration:  duration   ? durationMap[duration] : undefined,
+      groupType: groupType ?? undefined,
+      budget: budget ? budgetMap[budget] : undefined,
+      duration: duration ? durationMap[duration] : undefined,
       months,
-    };
+    }
 
     try {
       const res = await fetch("/api/user/preferences", {
-        method:  "PATCH",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify(payload),
-      });
+        body: JSON.stringify(payload),
+      })
 
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
-        console.error("Preferences save failed:", json.error);
-        setSaveStatus("error");
-        return;
-      }
+      if (!res.ok) throw new Error("Save failed")
 
-      setSaveStatus("success");
+      setSaveStatus("success")
     } catch (e) {
-      console.error("Network error:", e);
-      setSaveStatus("error");
+      console.error(e)
+      setSaveStatus("error")
     } finally {
-      setSaving(false);
+      setSaving(false)
     }
   }
+
+  // ── UI (UNCHANGED) ─────────────────────
+
+  const allTripTypes = [
+    { label: "Adventure", icon: "⛰️" },
+    { label: "Leisure", icon: "🌴" },
+    { label: "Pilgrimage", icon: "🧳" },
+    { label: "Honeymoon", icon: "❤️" },
+    { label: "Family", icon: "👨‍👩‍👧" },
+    { label: "Corporate", icon: "💼" },
+    { label: "Backpacking", icon: "🏕️" },
+    { label: "Wildlife", icon: "🐆" },
+  ]
+
+  const groupOptions = [
+    { label: "Solo", sub: "Just me", icon: "👤" },
+    { label: "Couple", sub: "2 travellers", icon: "💑" },
+    { label: "Family", sub: "With kids", icon: "👨‍👩‍👧" },
+    { label: "Group", sub: "6+ people", icon: "👥" },
+  ]
+
+  const budgetOptions = [
+    { label: "Budget", range: "Under ₹15,000" },
+    { label: "Mid-range", range: "₹15K – 35K" },
+    { label: "Luxury", range: "₹35K – 75K" },
+    { label: "Ultra-luxury", range: "₹75,000+" },
+  ]
+
+  const durationOptions = [
+    "Weekend (2–3N)", "Short (4–5N)", "Week (6–8N)", "Long (9–14N)", "Extended (15N+)",
+  ]
+
+  const monthOptions = [
+    { label: "Jan", peak: false }, { label: "Feb", peak: false },
+    { label: "Mar", peak: true }, { label: "Apr", peak: true },
+    { label: "May", peak: true }, { label: "Jun", peak: false },
+    { label: "Jul", peak: false }, { label: "Aug", peak: false },
+    { label: "Sep", peak: true }, { label: "Oct", peak: true },
+    { label: "Nov", peak: true }, { label: "Dec", peak: false },
+  ]
 
   return (
     <div className="space-y-5">
       <Section title="Travel Preferences" subtitle="Help us personalise your experience">
         <div className="space-y-4">
+
+
+        {loading && (
+        <div className="space-y-5 animate-pulse">
+
+          {/* Trip Type */}
+          <div>
+            <div className="h-4 w-32 bg-neutral-200 rounded mb-2" />
+            <div className="flex flex-wrap gap-2">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="h-8 w-20 bg-neutral-200 rounded-full" />
+              ))}
+            </div>
+          </div>
+
+          {/* Travelling As */}
+          <div>
+            <div className="h-4 w-36 bg-neutral-200 rounded mb-2" />
+            <div className="grid grid-cols-4 gap-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-20 bg-neutral-200 rounded-lg" />
+              ))}
+            </div>
+          </div>
+
+          {/* Budget */}
+          <div>
+            <div className="h-4 w-40 bg-neutral-200 rounded mb-2" />
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-16 bg-neutral-200 rounded-lg" />
+              ))}
+            </div>
+          </div>
+
+          {/* Duration */}
+          <div>
+            <div className="h-4 w-36 bg-neutral-200 rounded mb-2" />
+            <div className="flex flex-wrap gap-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="h-8 w-24 bg-neutral-200 rounded-full" />
+              ))}
+            </div>
+          </div>
+
+          {/* Months */}
+          <div>
+            <div className="h-4 w-44 bg-neutral-200 rounded mb-2" />
+            <div className="grid grid-cols-6 gap-1.5">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <div key={i} className="h-10 bg-neutral-200 rounded-md" />
+              ))}
+            </div>
+          </div>
+
+          {/* Button */}
+          <div className="flex justify-end">
+            <div className="h-9 w-32 bg-neutral-200 rounded-md" />
+          </div>
+
+        </div>
+        )}
 
           {/* Trip Type */}
           <div>
@@ -159,27 +250,27 @@ export function TravelPreferencesPanel({ preferences }: { preferences: any }) {
           {/* Travelling As */}
           <div>
             <SectionLabel title="Travelling As" />
-          {/* Travelling As */}
-          <div className="grid grid-cols-4 gap-2">
-            {groupOptions.map(({ label, sub, icon }) => (
-              <button
-                key={label}
-                onClick={() => setGroupType(label)}
-                className={cn(
-                  'flex flex-col items-center gap-1 rounded-lg border p-3 text-center transition-colors',
-                  groupType === label
-                    ? 'bg-primary text-white border-primary shadow-sm'
-                    : 'bg-white text-secondary border-neutral-200 hover:border-primary/30 hover:text-primary'
-                )}
-              >
-                <span className="text-xl">{icon}</span>
-                <span className="text-xs font-semibold">{label}</span>
-                <span className={cn('text-[10px]', groupType === label ? 'text-white/80' : 'text-neutral-400')}>
-                  {sub}
-                </span>
-              </button>
-            ))}
-          </div>
+        {/* Travelling As */}
+        <div className="grid grid-cols-4 gap-2">
+          {groupOptions.map(({ label, sub, icon }) => (
+            <button
+              key={label}
+              onClick={() => setGroupType(label)}
+              className={cn(
+                'flex flex-col items-center gap-1 rounded-lg border p-3 text-center transition-colors',
+                groupType === label
+                  ? 'bg-primary text-white border-primary shadow-sm'
+                  : 'bg-white text-secondary border-neutral-200 hover:border-primary/30 hover:text-primary'
+              )}
+            >
+              <span className="text-xl">{icon}</span>
+              <span className="text-xs font-semibold">{label}</span>
+              <span className={cn('text-[10px]', groupType === label ? 'text-white/80' : 'text-neutral-400')}>
+                {sub}
+              </span>
+            </button>
+          ))}
+        </div>
           </div>
 
           {/* Budget */}

@@ -60,7 +60,7 @@ const NAV_ITEMS: NavItem[] = [
 
 // ─── Profile Page ─────────────────────────────────────────────────────────────
 
-export default function Profile({ user, preferences }: { user: any; preferences: any }) {
+export default function Profile({ user }: { user: any }) {
 
 
   const [activeNav, setActiveNav] = useState<NavKey>('personal');
@@ -69,7 +69,7 @@ export default function Profile({ user, preferences }: { user: any; preferences:
 const panels: Record<NavKey, React.ReactNode> = {
   personal:        <PersonalInfoPanel userBasicInfo={user} />,
   security:        <SecurityPanel />,
-  preferences:     <TravelPreferencesPanel preferences={preferences} />,
+  preferences:     <TravelPreferencesPanel />,
   "travel-history":<TravelHistoryPanel />,   // ← replace PlaceholderPanel
   payments:        <PaymentHistoryPanel/>,
   notifications:   <PlaceholderPanel title="Notification Settings" />,
