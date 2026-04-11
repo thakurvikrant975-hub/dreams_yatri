@@ -770,3 +770,94 @@ model Payment {
   @@index([gatewayOrderId])
   @@map("payments")
 }
+
+
+model RegionAll {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  countries  CountryAll[]
+  subregions SubregionAll[]
+
+  @@map("regions_all")
+}
+
+model SubregionAll {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  region    RegionAll    @relation(fields: [regionId], references: [id])
+  regionId  Int          @map("region_id")
+  countries CountryAll[]
+
+  @@index([regionId])
+  @@map("subregions_all")
+}
+
+model CountryAll {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(255)
+  iso2        String?  @db.Char(2)
+  phonecode   String?  @db.VarChar(255)
+  capital     String?  @db.VarChar(255)
+  currency    String?  @db.VarChar(255)
+  currencyName String? @map("currency_name") @db.VarChar(255)
+  nationality String?  @db.VarChar(255)
+  latitude    Decimal? @db.Decimal(10, 8)
+  longitude   Decimal? @db.Decimal(11, 8)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  regionRelation    RegionAll?    @relation(fields: [regionId], references: [id])
+  regionId          Int?          @map("region_id")
+  subregionRelation SubregionAll? @relation(fields: [subregionId], references: [id])
+  subregionId       Int?          @map("subregion_id")
+
+  states StateAll[]
+  cities CityAll[]
+
+  @@index([regionId])
+  @@index([subregionId])
+  @@map("countries_all")
+}
+
+model StateAll {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(255)
+  countryCode String   @map("country_code") @db.Char(2)
+  latitude    Decimal? @db.Decimal(10, 8)
+  longitude   Decimal? @db.Decimal(11, 8)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  country   CountryAll @relation(fields: [countryId], references: [id])
+  countryId Int        @map("country_id")
+  cities    CityAll[]
+
+  @@index([countryId])
+  @@map("states_all")
+}
+
+model CityAll {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(255)
+  stateCode   String   @map("state_code") @db.VarChar(255)
+  countryCode String   @map("country_code") @db.Char(2)
+  latitude    Decimal  @db.Decimal(10, 8)
+  longitude   Decimal  @db.Decimal(11, 8)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  state     StateAll   @relation(fields: [stateId], references: [id])
+  stateId   Int        @map("state_id")
+  country   CountryAll @relation(fields: [countryId], references: [id])
+  countryId Int        @map("country_id")
+
+  @@index([stateId])
+  @@index([countryId])
+  @@map("cities_all")
+}
