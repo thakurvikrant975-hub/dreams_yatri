@@ -10,28 +10,65 @@ export default async function ProfilePage() {
     const session = await auth();
     if (!session?.user) redirect("/");
 
-    const [user, preferences] = await Promise.all([
+    const userId = session.user.id;
+
+    // ─── Fetch everything in parallel (OPTIMIZED) ───────────────────────────
+    const [user, preferences, totalTrips] = await Promise.all([
       db.user.findUnique({
-        where:  { id: session.user.id },
+        where: { id: userId },
         select: {
-          id: true, phone: true, country_code: true, name: true, email: true,
-          gender: true, dateOfBirth: true, nationality: true, maritalStatus: true,
-          anniversary: true, state: true, city: true, passportNumber: true,
-          passportExpiryDate: true, passportIssuingCountry: true, panNumber: true,
-          isProfileComplete: true, createdAt: true, updatedAt: true,
+          id: true,
+          phone: true,
+          country_code: true,
+          name: true,
+          email: true,
+          gender: true,
+          dateOfBirth: true,
+          nationality: true,
+          maritalStatus: true,
+          anniversary: true,
+          state: true,
+          city: true,
+          passportNumber: true,
+          passportExpiryDate: true,
+          passportIssuingCountry: true,
+          panNumber: true,
+          isProfileComplete: true,
+          createdAt: true,
+          updatedAt: true,
         },
       }),
+
       db.travelPreference.findUnique({
-        where: { userId: session.user.id },
+        where: { userId },
+      }),
+
+      db.booking.count({
+        where: {
+          userId,
+          status: "COMPLETED",
+        },
       }),
     ]);
 
+    // ─── Safety check ───────────────────────────────────────────────────────
     if (!user) redirect("/");
 
-    return <Profile user={user} preferences={preferences} />;
+    // ─── Merge computed stats ───────────────────────────────────────────────
+    const enrichedUser = {
+      ...user,
+      totalTrips,
+    };
 
-  } catch (err) {
-    console.error(err);
+    return (
+      <Profile
+        user={enrichedUser}
+        preferences={preferences}
+      />
+    );
+
+  } catch (error) {
+    console.error("ProfilePage error:", error);
     redirect("/");
   }
 }

@@ -12,6 +12,7 @@ import {
   HeartIcon,
   CreditCardIcon,
   ArrowRightOnRectangleIcon,
+  CalendarIcon
 } from '@heroicons/react/24/outline'
 
 import {
@@ -47,9 +48,9 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { key: 'personal', label: 'Personal Info', icon: <UserCircleIcon className="size-5" /> },
-    { key: 'travel-history', label: 'Travel History', icon: <SuitcaseRollingIcon className="size-5" /> },
   // { key: 'security', label: 'Login & Security', icon: <ShieldCheckIcon className="size-5" /> },
   { key: 'preferences', label: 'Travel Preferences', icon: <HeartIcon className="size-5" /> },
+  { key: 'travel-history', label: 'Travel History', icon: <SuitcaseRollingIcon className="size-5" /> },
   { key: 'payments', label: 'Payments', icon: <CreditCardIcon className="size-5" /> },
   // { key: 'notifications', label: 'Notifications', icon: <BellIcon className="size-5" />, badge: '3' },
 ]
@@ -107,12 +108,28 @@ const panels: Record<NavKey, React.ReactNode> = {
               </div>
             </div>
 
+
+
             {/* Stats */}
-            <div className="flex gap-2 mt-2 sm:mt-0">
-              <StatCard icon={<GlobeAltIcon className="size-4" />} value="12" label="Trips" />
-              <StatCard icon={<HeartIcon className="size-4" />} value="5" label="Saved" />
-              <StatCard icon={<StarIcon className="size-4" />} value="4.9" label="Rating" />
-            </div>
+          <div className="flex gap-2 mt-2 sm:mt-0">
+            <StatCard
+              icon={<GlobeAltIcon className="size-4" />}
+              value={user?.totalTrips ?? 0}
+              label="Trips"
+            />
+
+            <StatCard
+              icon={<HeartIcon className="size-4" />}
+              value={user?.wishlistCount ?? 0}
+              label="Wishlist"
+            />
+
+            <StatCard
+              icon={<CalendarIcon className="size-4" />}
+              value={user?.upcomingTrips ?? 0}
+              label="Upcoming"
+            />
+          </div>
 
           </div>
         </div>

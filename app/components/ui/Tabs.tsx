@@ -2,6 +2,7 @@
 import React from 'react';
 import { cva } from 'class-variance-authority';
 import { ChevronDown } from 'lucide-react';
+import { cn } from '@/app/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -94,10 +95,29 @@ const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onTabChange }) => {
                       className={tabIconVariants({ active: isActive })}
                     />
                   )}
-                  <div className='flex gap-2 items-center '>
-                    <span>{tab.label}</span>
+                  <div
+                    className={cn(
+                      "flex items-center gap-2 px-3 py-1.5 rounded-full transition-all",
+                      isActive
+                        ? "bg-primary/10 text-primary"
+                        : "text-neutral-500 hover:bg-neutral-100"
+                    )}
+                  >
+                    <span className="text-sm font-medium">
+                      {tab.label}
+                    </span>
+
                     {tab.caption && (
-                      <span className='py-1 px-1.5 rounded-full bg-neutral-50 text-secondary'>{tab.caption}</span>
+                      <span
+                        className={cn(
+                          "text-xs font-semibold px-2 py-0.5 rounded-full",
+                          isActive
+                            ? "bg-primary text-white"
+                            : "bg-neutral-100 text-neutral-500"
+                        )}
+                      >
+                        {tab.caption}
+                      </span>
                     )}
                   </div>
                 </button>
