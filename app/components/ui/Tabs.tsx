@@ -9,6 +9,7 @@ interface Tab {
   id: string;
   label: string;
   icon?: React.ElementType;
+  caption?: string;
 }
 
 interface TabsProps {
@@ -24,7 +25,7 @@ const tabVariants = cva(
   {
     variants: {
       active: {
-        true:  'border-primary-500 text-brand',
+        true: 'border-primary-500 text-brand',
         false: 'border-transparent text-secondary hover:border-neutral-300 hover:text-primary',
       },
     },
@@ -37,7 +38,7 @@ const tabVariants = cva(
 const tabIconVariants = cva('-ml-0.5 mr-2 size-5 transition-colors duration-200', {
   variants: {
     active: {
-      true:  'text-primary-500',
+      true: 'text-primary-500',
       false: 'text-muted group-hover:text-secondary',
     },
   },
@@ -93,7 +94,12 @@ const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onTabChange }) => {
                       className={tabIconVariants({ active: isActive })}
                     />
                   )}
-                  <span>{tab.label}</span>
+                  <div className='flex gap-2 items-center '>
+                    <span>{tab.label}</span>
+                    {tab.caption && (
+                      <span className='py-1 px-1.5 rounded-full bg-neutral-50 text-secondary'>{tab.caption}</span>
+                    )}
+                  </div>
                 </button>
               );
             })}

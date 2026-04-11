@@ -26,6 +26,7 @@ import Card from '@/app/components/ui/Card'
 import { PersonalInfoPanel } from './components/PersonalInfoPanel'
 import { SecurityPanel } from './components/SecurityPanel'
 import { TravelPreferencesPanel } from './components/TravelPreferencesPanel'
+import { TravelHistoryPanel } from './components/TravelHistoryPanel'
 import { PlaceholderPanel } from './components/PlaceholderPanel'
 import { AvatarUpload } from './components/AvatarUpload'
 import { StatCard } from './components/StatCard'
@@ -66,8 +67,8 @@ export default function Profile({ user, preferences }: { user: any; preferences:
 const panels: Record<NavKey, React.ReactNode> = {
   personal:        <PersonalInfoPanel userBasicInfo={user} />,
   security:        <SecurityPanel />,
-  preferences:     <TravelPreferencesPanel preferences={preferences} />,  // ← add preferences
-  "travel-history":<PlaceholderPanel title="Travel History" />,           // ← not TravelPreferencesPanel
+  preferences:     <TravelPreferencesPanel preferences={preferences} />,
+  "travel-history":<TravelHistoryPanel />,   // ← replace PlaceholderPanel
   payments:        <PlaceholderPanel title="Payment Methods" />,
   notifications:   <PlaceholderPanel title="Notification Settings" />,
 }
