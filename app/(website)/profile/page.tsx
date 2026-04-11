@@ -10,7 +10,7 @@ export default async function ProfilePage() {
     const session = await auth();
     if (!session?.user) redirect("/");
 
-    const [user] = await Promise.all([
+    const [user, totalTrips, upcomingTrips] = await Promise.all([
       db.user.findUnique({
         where:  { id: session.user.id },
         select: {
@@ -18,17 +18,29 @@ export default async function ProfilePage() {
           gender: true, dateOfBirth: true, nationality: true, maritalStatus: true,
           anniversary: true, state: true, city: true, passportNumber: true,
           passportExpiryDate: true, passportIssuingCountry: true, panNumber: true,
-          isProfileComplete: true, createdAt: true, updatedAt: true, 
+          isProfileComplete: true, createdAt: true, updatedAt: true,
         },
+      }),
+      db.booking.count({
+        where: { userId: session.user.id, status: "COMPLETED" },
+      }),
+      db.booking.count({
+        where: { userId: session.user.id, status: "UPCOMING" },
       }),
     ]);
 
-    
-    
-
     if (!user) redirect("/");
 
-    return <Profile user={user}/>;
+    return (
+      <Profile
+        user={{
+          ...user,
+          totalTrips,
+          upcomingTrips,
+          wishlistCount: 0,   // ← placeholder until wishlist feature is built
+        }}
+      />
+    );
 
   } catch (err) {
     console.error(err);

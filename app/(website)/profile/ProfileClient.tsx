@@ -110,7 +110,7 @@ const panels: Record<NavKey, React.ReactNode> = {
 
 
 
-            {/* Stats */}
+          {/* Stats */}
           <div className="flex gap-2 mt-2 sm:mt-0">
             <StatCard
               icon={<GlobeAltIcon className="size-4" />}
@@ -149,7 +149,7 @@ const panels: Record<NavKey, React.ReactNode> = {
                   key={item.key}
                   onClick={() => setActiveNav(item.key)}
                   className={cn(
-                    'flex items-center gap-1.5 whitespace-nowrap px-3.5 py-2 rounded-xl text-xs font-semibold transition-all',
+                    'flex items-center gap-1.5 whitespace-nowrap px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ',
                     activeNav === item.key
                       ? 'bg-primary text-white shadow-sm'
                       : 'bg-white text-[--text-muted] border border-neutral-200 hover:border-primary/30'
@@ -178,7 +178,7 @@ const panels: Record<NavKey, React.ReactNode> = {
                     key={item.key}
                     onClick={() => setActiveNav(item.key)}
                     className={cn(
-                      'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left',
+                      'w-full flex cursor-pointer items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left',
                       activeNav === item.key
                         ? 'bg-neutral-100 text-primary'
                         : 'text-secondary hover:bg-neutral-50 hover:text-primary hover:ring-1 hover:ring-inset hover:ring-neutral-100 hover:shadow-sm hover:shadow-neutral-200'
