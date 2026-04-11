@@ -28,6 +28,7 @@ import { SecurityPanel } from './components/SecurityPanel'
 import { TravelPreferencesPanel } from './components/TravelPreferencesPanel'
 import { TravelHistoryPanel } from './components/TravelHistoryPanel'
 import { PlaceholderPanel } from './components/PlaceholderPanel'
+import { PaymentHistoryPanel } from './components/PaymentHistoryPanel'
 import { AvatarUpload } from './components/AvatarUpload'
 import { StatCard } from './components/StatCard'
 
@@ -69,7 +70,7 @@ const panels: Record<NavKey, React.ReactNode> = {
   security:        <SecurityPanel />,
   preferences:     <TravelPreferencesPanel preferences={preferences} />,
   "travel-history":<TravelHistoryPanel />,   // ← replace PlaceholderPanel
-  payments:        <PlaceholderPanel title="Payment Methods" />,
+  payments:        <PaymentHistoryPanel/>,
   notifications:   <PlaceholderPanel title="Notification Settings" />,
 }
 
