@@ -14,7 +14,7 @@ export function Section({
   className?: string
 }) {
   return (
-    <Card className={cn(className, ' overflow-hidden p-px')}>
+    <Card className={cn(className, ' p-px')}>
       <div className="px-6 py-4 bg-neutral-50 rounded-t-[inherit] border-b border-b-(--border-default)">
         <Heading level={3} size="base" weight="semibold" className="text-primary ">
           {title}

@@ -8,6 +8,8 @@ import Button from "@/app/components/ui/Button";
 import Label from "@/app/components/forms/Label";
 import Input from "@/app/components/forms/Input";
 import { Select, Option } from "@/app/components/forms/Select";
+import { SearchSelect, type SearchSelectOption } from "@/app/components/forms/SearchSelect";
+import { DatePicker } from "@/app/components/forms/DatePicker";
 
 interface UserBasicInfo {
   name: string | null;
@@ -28,6 +30,14 @@ interface UserBasicInfo {
 }
 
 type SaveStatus = "idle" | "success" | "error";
+
+type GeoState = {
+  countryId: number | null;
+  countryName: string;
+  stateId: number | null;
+  stateName: string;
+  cityName: string;
+};
 
 function toDateString(val: Date | string | null): string {
   if (!val) return "";
@@ -55,6 +65,7 @@ export function PersonalInfoPanel({ userBasicInfo }: { userBasicInfo: UserBasicI
     panNumber: userBasicInfo.panNumber ?? "",
   });
 
+
   // ── Separate state per section ─────────────────────────────────────────────
   const [basicSaving, setBasicSaving] = useState(false);
   const [basicStatus, setBasicStatus] = useState<SaveStatus>("idle");
@@ -63,6 +74,40 @@ export function PersonalInfoPanel({ userBasicInfo }: { userBasicInfo: UserBasicI
   const [docSaving, setDocSaving] = useState(false);
   const [docStatus, setDocStatus] = useState<SaveStatus>("idle");
   const [docError, setDocError] = useState("");
+
+  const [geo, setGeo] = useState<GeoState>({
+    countryId: null,
+    countryName: "",
+    stateId: null,
+    stateName: "",
+    cityName: "",
+  });
+
+  function handleCountryChange(opt: SearchSelectOption) {
+    setGeo({
+      countryId: opt.id,
+      countryName: opt.name,
+      stateId: null,   // ← reset downstream
+      stateName: "",
+      cityName: "",
+    });
+  }
+
+  function handleStateChange(opt: SearchSelectOption) {
+    setGeo(prev => ({
+      ...prev,
+      stateId: opt.id,
+      stateName: opt.name,
+      cityName: "",       // ← reset downstream
+    }));
+  }
+
+  function handleCityChange(opt: SearchSelectOption) {
+    setGeo(prev => ({
+      ...prev,
+      cityName: opt.name, // id -1 = custom, still stored as name
+    }));
+  }
 
   function handleChange(field: keyof typeof form, value: string) {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -82,12 +127,13 @@ export function PersonalInfoPanel({ userBasicInfo }: { userBasicInfo: UserBasicI
           email: form.email || undefined,
           gender: form.gender || undefined,
           dateOfBirth: form.dateOfBirth || undefined,
-          nationality: form.nationality || undefined,
-          state: form.state || undefined,
-          city: form.city || undefined,
           maritalStatus: form.maritalStatus || undefined,
           anniversary: form.anniversary || undefined,
           country_code: form.country_code || undefined,
+          // ── geo fields come from geo state, not form ──
+          nationality: geo.countryName || undefined,
+          state: geo.stateName || undefined,
+          city: geo.cityName || undefined,
         }),
       });
 
@@ -149,11 +195,13 @@ export function PersonalInfoPanel({ userBasicInfo }: { userBasicInfo: UserBasicI
 
           <div>
             <Label htmlFor="date-of-birth">Date of Birth</Label>
-            <Input
+            <DatePicker
               id="date-of-birth"
               value={form.dateOfBirth}
-              onChange={e => handleChange("dateOfBirth", e.target.value)}
-              type="date" />
+              onChange={val => handleChange("dateOfBirth", val)}
+              placeholder="Select date of birth"
+              maxDate={new Date().toISOString().split("T")[0]}
+            />
           </div>
 
           <div >
@@ -173,58 +221,68 @@ export function PersonalInfoPanel({ userBasicInfo }: { userBasicInfo: UserBasicI
           </div>
 
           <div>
-            <Label htmlFor="nationality">
-              Nationality
-            </Label>
-            <Input
-              id="nationality"
-              value={form.nationality}
-              onChange={e => handleChange("nationality", e.target.value)}
-              placeholder="Indian" />
+            <Label htmlFor="country">Country</Label>
+            <SearchSelect
+              value={geo.countryName}
+              placeholder="Search country..."
+              fetchUrl="/api/geo/countries"
+              onChange={handleCountryChange}
+            />
           </div>
 
+          {/* State — disabled until country selected */}
           <div>
-            <Label htmlFor="state">
-              State
-            </Label>
-            <Input
-              id="state"
-              value={form.state}
-              onChange={e => handleChange("state", e.target.value)}
-              placeholder="Himachal Pradesh" />
+            <Label htmlFor="state">State</Label>
+            <SearchSelect
+              value={geo.stateName}
+              placeholder={geo.countryId ? "Search state..." : "Select country first"}
+              fetchUrl="/api/geo/states"
+              extraParams={geo.countryId ? { countryId: geo.countryId } : {}}
+              onChange={handleStateChange}
+              disabled={!geo.countryId}
+            />
           </div>
 
+          {/* City — disabled until state selected, allows custom */}
           <div>
-            <Label htmlFor="city">
-              City
-            </Label>
-            <Input
-              id="city"
-              value={form.city}
-              onChange={e => handleChange("city", e.target.value)}
-              placeholder="Shimla" />
+            <Label htmlFor="city">City</Label>
+            <SearchSelect
+              value={geo.cityName}
+              placeholder={geo.stateId ? "Search city..." : "Select state first"}
+              fetchUrl="/api/geo/cities"
+              extraParams={geo.stateId ? { stateId: geo.stateId } : {}}
+              onChange={handleCityChange}
+              disabled={!geo.stateId}
+              allowCustom={true}           // ← city allows manual entry
+            />
           </div>
 
           <div>
             <Label htmlFor="marital-status">
               Marital Status
             </Label>
-            <Input
+            <Select
               id="marital-status"
               value={form.maritalStatus}
-              onChange={e => handleChange("maritalStatus", e.target.value)}
-              placeholder="SINGLE / MARRIED" />
+              onChange={val => handleChange("maritalStatus", val)}
+              placeholder="Your Marital Status  "
+              className="h-11"
+            >
+              <Option value="Single">Single</Option>
+              <Option value="Married">Married</Option>
+            </Select>
           </div>
 
           <div>
             <Label htmlFor="anniversary">
               Anniversary
             </Label>
-            <Input
+            <DatePicker
               id="anniversary"
               value={form.anniversary}
-              onChange={e => handleChange("anniversary", e.target.value)}
-              type="date" />
+              onChange={val => handleChange("anniversary", val)}
+              placeholder="Select anniversary"
+            />
           </div>
 
         </div>
