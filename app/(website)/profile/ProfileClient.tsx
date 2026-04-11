@@ -1,3 +1,5 @@
+//app/(website)/profile/ProfileClient.tsx
+
 'use client'
 
 import { useState } from 'react'
@@ -27,7 +29,6 @@ import { TravelPreferencesPanel } from './components/TravelPreferencesPanel'
 import { PlaceholderPanel } from './components/PlaceholderPanel'
 import { AvatarUpload } from './components/AvatarUpload'
 import { StatCard } from './components/StatCard'
-import { ProfileUser } from '@/app/types/profile'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -51,24 +52,25 @@ const NAV_ITEMS: NavItem[] = [
   // { key: 'notifications', label: 'Notifications', icon: <BellIcon className="size-5" />, badge: '3' },
 ]
 
-// ─── Stat Card ────────────────────────────────────────────────────────────────
 
 
 
 // ─── Profile Page ─────────────────────────────────────────────────────────────
 
-export default function Profile({user}: {user: any}) {
+export default function Profile({ user, preferences }: { user: any; preferences: any }) {
+
+
   const [activeNav, setActiveNav] = useState<NavKey>('personal');
   console.log(user);
 
-  const panels: Record<NavKey, React.ReactNode> = {
-    personal: <PersonalInfoPanel />,
-    security: <SecurityPanel />,
-    preferences: <TravelPreferencesPanel />,
-    "travel-history": <TravelPreferencesPanel />,
-    payments: <PlaceholderPanel title="Payment Methods" />,
-    notifications: <PlaceholderPanel title="Notification Settings" />,
-  }
+const panels: Record<NavKey, React.ReactNode> = {
+  personal:        <PersonalInfoPanel userBasicInfo={user} />,
+  security:        <SecurityPanel />,
+  preferences:     <TravelPreferencesPanel preferences={preferences} />,  // ← add preferences
+  "travel-history":<PlaceholderPanel title="Travel History" />,           // ← not TravelPreferencesPanel
+  payments:        <PlaceholderPanel title="Payment Methods" />,
+  notifications:   <PlaceholderPanel title="Notification Settings" />,
+}
 
   return (
     <div data-layout="website" className="min-h-screen ">
@@ -88,7 +90,7 @@ export default function Profile({user}: {user: any}) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <Heading level={1} size="2xl" weight="bold" className="text-neutral-900 truncate">
-                  Karan Thakur
+                  {user.name}
                 </Heading>
                 <span className="hidden sm:inline-flex items-center gap-1 bg-white/15 border border-white/25 text-secondary text-[10px] font-semibold px-2 py-0.5 rounded-full">
                   <StarIcon className="size-3 text-yellow-300" />
@@ -97,9 +99,9 @@ export default function Profile({user}: {user: any}) {
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-secondary text-xs">
                 <span className="flex items-center gap-1">
-                  <MapPinIcon className="size-3.5 text-muted" /> +91 98765 43210
+                  <MapPinIcon className="size-3.5 text-muted" /> {user.country_code} {user.phone}
                 </span>
-                <span>example@email.com</span>
+                <span>{user.email}</span>
               </div>
             </div>
 

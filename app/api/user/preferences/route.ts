@@ -1,5 +1,3 @@
-// app/api/user/preferences/route.ts
-
 
 import { NextRequest }           from "next/server";
 import { z }                     from "zod/v4";
@@ -41,7 +39,6 @@ export async function GET() {
   }
 }
 
-// ─── PATCH ────────────────────────────────────────────────────────────────────
 
 export async function PATCH(req: NextRequest) {
   try {
