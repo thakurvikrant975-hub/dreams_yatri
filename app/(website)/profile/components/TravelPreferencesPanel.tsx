@@ -1,369 +1,403 @@
+// app/(website)/profile/components/TravelPreferencesPanel.tsx
+
 'use client'
 
-import { Section } from "./Section"
-import { SectionLabel } from "./SectionLabel"
-import { TravelBadge } from "./TravelBadge"
 import { useEffect, useState } from "react"
-import { cn } from "@/app/lib/utils"
-import Button from "@/app/components/ui/Button"
+import { Section }             from "./Section"
+import { SectionLabel }        from "./SectionLabel"
+import { TravelBadge }         from "./TravelBadge"
+import Button                  from "@/app/components/ui/Button"
+import { cn }                  from "@/app/lib/utils"
+import {
+  MountainIcon,
+  UmbrellaIcon,
+  HeartIcon,
+  UsersIcon,
+  BriefcaseIcon,
+  BackpackIcon,
+  PawPrintIcon,
+  UserIcon,
+  HeartHandshakeIcon,
+  BabyIcon,
+  WalletIcon,
+  SparklesIcon,
+  CrownIcon,
+  GemIcon,
+  CalendarIcon,
+  ClockIcon,
+} from "lucide-react"
 
-// ── Maps — DB enum → display label ───────────────────────────
+// ── Maps ──────────────────────────────────────────────────────────────────────
+
 const BUDGET_DB_TO_UI: Record<string, string> = {
-  Budget: "Budget",
-  MidRange: "Mid-range",
-  Luxury: "Luxury",
-  UltraLuxury: "Ultra-luxury",
-}
-
+  Budget: "Budget", MidRange: "Mid-range", Luxury: "Luxury", UltraLuxury: "Ultra-luxury",
+};
 const DURATION_DB_TO_UI: Record<string, string> = {
-  Weekend: "Weekend (2–3N)",
-  Short: "Short (4–5N)",
-  Week: "Week (6–8N)",
-  Long: "Long (9–14N)",
-  Extended: "Extended (15N+)",
-}
-
+  Weekend: "Weekend (2–3N)", Short: "Short (4–5N)", Week: "Week (6–8N)",
+  Long: "Long (9–14N)", Extended: "Extended (15N+)",
+};
 const budgetMap: Record<string, string> = {
-  "Budget": "Budget",
-  "Mid-range": "MidRange",
-  "Luxury": "Luxury",
-  "Ultra-luxury": "UltraLuxury",
-}
-
+  "Budget": "Budget", "Mid-range": "MidRange", "Luxury": "Luxury", "Ultra-luxury": "UltraLuxury",
+};
 const durationMap: Record<string, string> = {
-  "Weekend (2–3N)": "Weekend",
-  "Short (4–5N)": "Short",
-  "Week (6–8N)": "Week",
-  "Long (9–14N)": "Long",
-  "Extended (15N+)": "Extended",
-}
+  "Weekend (2–3N)": "Weekend", "Short (4–5N)": "Short", "Week (6–8N)": "Week",
+  "Long (9–14N)": "Long", "Extended (15N+)": "Extended",
+};
 
-// ─────────────────────────────────────────
+// ── Static data ───────────────────────────────────────────────────────────────
+
+const allTripTypes = [
+  { label: "Adventure",   icon: MountainIcon      },
+  { label: "Leisure",     icon: UmbrellaIcon      },
+  { label: "Pilgrimage",  icon: HeartHandshakeIcon },
+  { label: "Honeymoon",   icon: HeartIcon         },
+  { label: "Family",      icon: BabyIcon          },
+  { label: "Corporate",   icon: BriefcaseIcon     },
+  { label: "Backpacking", icon: BackpackIcon      },
+  { label: "Wildlife",    icon: PawPrintIcon      },
+];
+
+const groupOptions = [
+  { label: "Solo",   sub: "Just me",       icon: UserIcon  },
+  { label: "Couple", sub: "2 travellers",  icon: HeartIcon },
+  { label: "Family", sub: "With kids",     icon: UsersIcon },
+  { label: "Group",  sub: "6+ people",     icon: UsersIcon },
+];
+
+const budgetOptions = [
+  { label: "Budget",       range: "Under ₹15,000", icon: WalletIcon   },
+  { label: "Mid-range",    range: "₹15K – 35K",    icon: SparklesIcon },
+  { label: "Luxury",       range: "₹35K – 75K",    icon: CrownIcon    },
+  { label: "Ultra-luxury", range: "₹75,000+",      icon: GemIcon      },
+];
+
+const durationOptions = [
+  { label: "Weekend (2–3N)", sub: "Quick escape"    },
+  { label: "Short (4–5N)",   sub: "Mini vacation"   },
+  { label: "Week (6–8N)",    sub: "Standard trip"   },
+  { label: "Long (9–14N)",   sub: "Deep dive"       },
+  { label: "Extended (15N+)",sub: "Long journey"    },
+];
+
+const monthOptions = [
+  { label: "Jan", peak: false }, { label: "Feb", peak: false },
+  { label: "Mar", peak: true  }, { label: "Apr", peak: true  },
+  { label: "May", peak: true  }, { label: "Jun", peak: false },
+  { label: "Jul", peak: false }, { label: "Aug", peak: false },
+  { label: "Sep", peak: true  }, { label: "Oct", peak: true  },
+  { label: "Nov", peak: true  }, { label: "Dec", peak: false },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export function TravelPreferencesPanel() {
+  const [tripTypes, setTripTypes] = useState<string[]>([]);
+  const [groupType, setGroupType] = useState<string | null>(null);
+  const [budget,    setBudget]    = useState<string | null>(null);
+  const [duration,  setDuration]  = useState<string | null>(null);
+  const [months,    setMonths]    = useState<string[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [saving,    setSaving]    = useState(false);
+  const [saveStatus,setSaveStatus]= useState<"idle" | "success" | "error">("idle");
 
-  // ✅ EMPTY initial state (NO preferences)
-  const [tripTypes, setTripTypes] = useState<string[]>([])
-  const [groupType, setGroupType] = useState<string | null>(null)
-  const [budget, setBudget] = useState<string | null>(null)
-  const [duration, setDuration] = useState<string | null>(null)
-  const [months, setMonths] = useState<string[]>([])
-
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [saveStatus, setSaveStatus] = useState<"idle" | "success" | "error">("idle")
-
-  // ✅ FETCH DATA FROM API
   useEffect(() => {
     async function fetchPreferences() {
       try {
-        const res = await fetch("/api/user/preferences")
-
-        if (!res.ok) throw new Error("Failed to fetch")
-
-        const data = await res.json()
-
-        // ✅ SET STATE FROM API
-        setTripTypes(data?.tripTypes ?? [])
-        setGroupType(data?.groupType ?? null)
-
-        setBudget(
-          data?.budget
-            ? BUDGET_DB_TO_UI[data.budget] ?? null
-            : null
-        )
-
-        setDuration(
-          data?.duration
-            ? DURATION_DB_TO_UI[data.duration] ?? null
-            : null
-        )
-
-        setMonths(data?.months ?? [])
-
-      } catch (err) {
-        console.error("Error loading preferences:", err)
+        const res  = await fetch("/api/user/preferences");
+        if (!res.ok) throw new Error();
+        const json = await res.json();
+        const data = json.data ?? json;
+        setTripTypes(data?.tripTypes ?? []);
+        setGroupType(data?.groupType ?? null);
+        setBudget(data?.budget   ? (BUDGET_DB_TO_UI[data.budget]     ?? null) : null);
+        setDuration(data?.duration ? (DURATION_DB_TO_UI[data.duration] ?? null) : null);
+        setMonths(data?.months ?? []);
+      } catch {
+        console.error("Error loading preferences");
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
     }
-
-    fetchPreferences()
-  }, [])
+    fetchPreferences();
+  }, []);
 
   function toggleMulti(arr: string[], setArr: (v: string[]) => void, val: string) {
-    setArr(arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val])
+    setArr(arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val]);
   }
 
   async function handleSave() {
-    setSaving(true)
-    setSaveStatus("idle")
-
-    const payload = {
-      tripTypes,
-      groupType: groupType ?? undefined,
-      budget: budget ? budgetMap[budget] : undefined,
-      duration: duration ? durationMap[duration] : undefined,
-      months,
-    }
-
+    setSaving(true);
+    setSaveStatus("idle");
     try {
       const res = await fetch("/api/user/preferences", {
-        method: "PATCH",
+        method:  "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-
-      if (!res.ok) throw new Error("Save failed")
-
-      setSaveStatus("success")
-    } catch (e) {
-      console.error(e)
-      setSaveStatus("error")
+        body:    JSON.stringify({
+          tripTypes,
+          groupType: groupType  ?? undefined,
+          budget:    budget     ? budgetMap[budget]     : undefined,
+          duration:  duration   ? durationMap[duration] : undefined,
+          months,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      setSaveStatus("success");
+    } catch {
+      setSaveStatus("error");
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
   }
 
-  // ── UI (UNCHANGED) ─────────────────────
-
-  const allTripTypes = [
-    { label: "Adventure", icon: "⛰️" },
-    { label: "Leisure", icon: "🌴" },
-    { label: "Pilgrimage", icon: "🧳" },
-    { label: "Honeymoon", icon: "❤️" },
-    { label: "Family", icon: "👨‍👩‍👧" },
-    { label: "Corporate", icon: "💼" },
-    { label: "Backpacking", icon: "🏕️" },
-    { label: "Wildlife", icon: "🐆" },
-  ]
-
-  const groupOptions = [
-    { label: "Solo", sub: "Just me", icon: "👤" },
-    { label: "Couple", sub: "2 travellers", icon: "💑" },
-    { label: "Family", sub: "With kids", icon: "👨‍👩‍👧" },
-    { label: "Group", sub: "6+ people", icon: "👥" },
-  ]
-
-  const budgetOptions = [
-    { label: "Budget", range: "Under ₹15,000" },
-    { label: "Mid-range", range: "₹15K – 35K" },
-    { label: "Luxury", range: "₹35K – 75K" },
-    { label: "Ultra-luxury", range: "₹75,000+" },
-  ]
-
-  const durationOptions = [
-    "Weekend (2–3N)", "Short (4–5N)", "Week (6–8N)", "Long (9–14N)", "Extended (15N+)",
-  ]
-
-  const monthOptions = [
-    { label: "Jan", peak: false }, { label: "Feb", peak: false },
-    { label: "Mar", peak: true }, { label: "Apr", peak: true },
-    { label: "May", peak: true }, { label: "Jun", peak: false },
-    { label: "Jul", peak: false }, { label: "Aug", peak: false },
-    { label: "Sep", peak: true }, { label: "Oct", peak: true },
-    { label: "Nov", peak: true }, { label: "Dec", peak: false },
-  ]
+  if (loading) return <LoadingSkeleton />;
 
   return (
     <div className="space-y-5">
       <Section title="Travel Preferences" subtitle="Help us personalise your experience">
-        <div className="space-y-4">
+        <div className="space-y-6">
 
-
-        {loading && (
-        <div className="space-y-5 animate-pulse">
-
-          {/* Trip Type */}
-          <div>
-            <div className="h-4 w-32 bg-neutral-200 rounded mb-2" />
-            <div className="flex flex-wrap gap-2">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="h-8 w-20 bg-neutral-200 rounded-full" />
-              ))}
-            </div>
-          </div>
-
-          {/* Travelling As */}
-          <div>
-            <div className="h-4 w-36 bg-neutral-200 rounded mb-2" />
-            <div className="grid grid-cols-4 gap-2">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-20 bg-neutral-200 rounded-lg" />
-              ))}
-            </div>
-          </div>
-
-          {/* Budget */}
-          <div>
-            <div className="h-4 w-40 bg-neutral-200 rounded mb-2" />
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-16 bg-neutral-200 rounded-lg" />
-              ))}
-            </div>
-          </div>
-
-          {/* Duration */}
-          <div>
-            <div className="h-4 w-36 bg-neutral-200 rounded mb-2" />
-            <div className="flex flex-wrap gap-2">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="h-8 w-24 bg-neutral-200 rounded-full" />
-              ))}
-            </div>
-          </div>
-
-          {/* Months */}
-          <div>
-            <div className="h-4 w-44 bg-neutral-200 rounded mb-2" />
-            <div className="grid grid-cols-6 gap-1.5">
-              {Array.from({ length: 12 }).map((_, i) => (
-                <div key={i} className="h-10 bg-neutral-200 rounded-md" />
-              ))}
-            </div>
-          </div>
-
-          {/* Button */}
-          <div className="flex justify-end">
-            <div className="h-9 w-32 bg-neutral-200 rounded-md" />
-          </div>
-
-        </div>
-        )}
-
-          {/* Trip Type */}
+          {/* ── Trip Type ──────────────────────────────────────────────── */}
           <div>
             <SectionLabel title="Trip Type" hint="Select all that apply" />
-            <div className="flex flex-wrap gap-2">
-              {allTripTypes.map(({ label, icon }) => (
-                <TravelBadge
-                  key={label}
-                  label={`${icon} ${label}`}
-                  active={tripTypes.includes(label)}
-                  onClick={() => toggleMulti(tripTypes, setTripTypes, label)}
-                />
-              ))}
+            <div className="flex flex-wrap gap-2 mt-2">
+              {allTripTypes.map(({ label, icon: Icon }) => {
+                const active = tripTypes.includes(label);
+                return (
+                  <button
+                    key={label}
+                    onClick={() => toggleMulti(tripTypes, setTripTypes, label)}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all cursor-pointer",
+                      active
+                        ? "bg-primary text-white border-primary shadow-sm"
+                        : "bg-white text-neutral-600 border-neutral-200 hover:border-primary/40 hover:text-primary"
+                    )}
+                  >
+                    <Icon size={13} />
+                    {label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Travelling As */}
+          {/* ── Travelling As ──────────────────────────────────────────── */}
           <div>
             <SectionLabel title="Travelling As" />
-        {/* Travelling As */}
-        <div className="grid grid-cols-4 gap-2">
-          {groupOptions.map(({ label, sub, icon }) => (
-            <button
-              key={label}
-              onClick={() => setGroupType(label)}
-              className={cn(
-                'flex flex-col items-center gap-1 rounded-lg border p-3 text-center transition-colors',
-                groupType === label
-                  ? 'bg-primary text-white border-primary shadow-sm'
-                  : 'bg-white text-secondary border-neutral-200 hover:border-primary/30 hover:text-primary'
-              )}
-            >
-              <span className="text-xl">{icon}</span>
-              <span className="text-xs font-semibold">{label}</span>
-              <span className={cn('text-[10px]', groupType === label ? 'text-white/80' : 'text-neutral-400')}>
-                {sub}
-              </span>
-            </button>
-          ))}
-        </div>
-          </div>
-
-          {/* Budget */}
-          <div>
-            <SectionLabel title="Budget Per Person" />
-          {/* Budget Per Person */}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {budgetOptions.map(({ label, range }) => (
-              <button
-                key={label}
-                onClick={() => setBudget(label)}
-                className={cn(
-                  'flex flex-col rounded-lg border p-3 text-left transition-colors',
-                  budget === label
-                    ? 'bg-primary text-white border-primary shadow-sm'
-                    : 'bg-white border-neutral-200 hover:border-primary/30'
-                )}
-              >
-                <span className={cn('text-xs font-semibold', budget === label ? 'text-white' : 'text-primary')}>
-                  {label}
-                </span>
-                <span className={cn('text-[10px] mt-0.5', budget === label ? 'text-white/80' : 'text-neutral-400')}>
-                  {range}
-                </span>
-              </button>
-            ))}
-          </div>
-          </div>
-
-          {/* Duration */}
-          <div>
-            <SectionLabel title="Trip Duration" />
-            <div className="flex flex-wrap gap-2">
-              {durationOptions.map(d => (
-                <TravelBadge
-                  key={d}
-                  label={d}
-                  active={duration === d}
-                  onClick={() => setDuration(prev => prev === d ? null : d)}
-                />
-              ))}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
+              {groupOptions.map(({ label, sub, icon: Icon }) => {
+                const active = groupType === label;
+                return (
+                  <button
+                    key={label}
+                    onClick={() => setGroupType(label)}
+                    className={cn(
+                      "flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center transition-all cursor-pointer",
+                      active
+                        ? "bg-primary text-white border-primary shadow-sm"
+                        : "bg-white text-neutral-600 border-neutral-200 hover:border-primary/30 hover:text-primary hover:bg-primary/5"
+                    )}
+                  >
+                    <span className={cn(
+                      "size-8 rounded-lg flex items-center justify-center",
+                      active ? "bg-white/20" : "bg-neutral-100"
+                    )}>
+                      <Icon size={16} className={active ? "text-white" : "text-neutral-500"} />
+                    </span>
+                    <span className="text-xs font-semibold">{label}</span>
+                    <span className={cn("text-[10px]", active ? "text-white/70" : "text-neutral-400")}>
+                      {sub}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Months */}
+          {/* ── Budget ─────────────────────────────────────────────────── */}
+          <div>
+            <SectionLabel title="Budget Per Person" />
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
+              {budgetOptions.map(({ label, range, icon: Icon }) => {
+                const active = budget === label;
+                return (
+                  <button
+                    key={label}
+                    onClick={() => setBudget(label)}
+                    className={cn(
+                      "flex flex-col gap-2 rounded-xl border p-3 text-left transition-all cursor-pointer",
+                      active
+                        ? "bg-primary text-white border-primary shadow-sm"
+                        : "bg-white border-neutral-200 hover:border-primary/30 hover:bg-primary/5"
+                    )}
+                  >
+                    <span className={cn(
+                      "size-7 rounded-lg flex items-center justify-center",
+                      active ? "bg-white/20" : "bg-neutral-100"
+                    )}>
+                      <Icon size={14} className={active ? "text-white" : "text-neutral-500"} />
+                    </span>
+                    <div>
+                      <p className={cn("text-xs font-semibold", active ? "text-white" : "text-neutral-800")}>
+                        {label}
+                      </p>
+                      <p className={cn("text-[10px] mt-0.5", active ? "text-white/70" : "text-neutral-400")}>
+                        {range}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── Trip Duration ──────────────────────────────────────────── */}
+          <div>
+            <SectionLabel title="Trip Duration" />
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
+              {durationOptions.map(({ label, sub }) => {
+                const active = duration === label;
+                return (
+                  <button
+                    key={label}
+                    onClick={() => setDuration(prev => prev === label ? null : label)}
+                    className={cn(
+                      "flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-all cursor-pointer",
+                      active
+                        ? "bg-primary text-white border-primary shadow-sm"
+                        : "bg-white border-neutral-200 hover:border-primary/30 hover:bg-primary/5"
+                    )}
+                  >
+                    <span className={cn(
+                      "size-7 shrink-0 rounded-lg flex items-center justify-center",
+                      active ? "bg-white/20" : "bg-neutral-100"
+                    )}>
+                      <ClockIcon size={13} className={active ? "text-white" : "text-neutral-500"} />
+                    </span>
+                    <div>
+                      <p className={cn("text-xs font-semibold", active ? "text-white" : "text-neutral-800")}>
+                        {label}
+                      </p>
+                      <p className={cn("text-[10px]", active ? "text-white/70" : "text-neutral-400")}>
+                        {sub}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── Preferred Month ────────────────────────────────────────── */}
           <div>
             <SectionLabel
               title="Preferred Month"
               hint={<>Select all that work &nbsp;<span className="text-amber-500">●</span> peak season</>}
             />
-            {/* Preferred Month */}
-            <div className="grid grid-cols-6 gap-1.5">
-              {monthOptions.map(({ label, peak }) => (
-                <button
-                  key={label}
-                  onClick={() => toggleMulti(months, setMonths, label)}
-                  className={cn(
-                    'relative flex flex-col items-center rounded-md border py-2 text-xs transition-colors',
-                    months.includes(label)
-                      ? 'bg-primary text-white border-primary font-semibold shadow-sm'
-                      : 'bg-white text-secondary border-neutral-200 hover:border-primary/30 hover:text-primary'
-                  )}
-                >
-                  {label}
-                  {peak && (
-                    <span className={cn(
-                      'mt-1 h-1 w-1 rounded-full',
-                      months.includes(label) ? 'bg-white' : 'bg-amber-400'
-                    )} />
-                  )}
-                </button>
-              ))}
+            <div className="grid grid-cols-6 gap-1.5 mt-2">
+              {monthOptions.map(({ label, peak }) => {
+                const active = months.includes(label);
+                return (
+                  <button
+                    key={label}
+                    onClick={() => toggleMulti(months, setMonths, label)}
+                    className={cn(
+                      "relative flex flex-col items-center rounded-lg border py-2.5 text-xs font-medium transition-all cursor-pointer",
+                      active
+                        ? "bg-primary text-white border-primary shadow-sm"
+                        : "bg-white text-neutral-600 border-neutral-200 hover:border-primary/30 hover:text-primary hover:bg-primary/5"
+                    )}
+                  >
+                    {label}
+                    {peak && (
+                      <span className={cn(
+                        "mt-1 h-1 w-1 rounded-full",
+                        active ? "bg-white" : "bg-amber-400"
+                      )} />
+                    )}
+                  </button>
+                );
+              })}
             </div>
-            <p className="mt-1.5 text-[10px] text-[--text-muted]">
-              Peak months reflect Himachal Pradesh &amp; Kashmir seasonality
-            </p>
+            <div className="flex items-center gap-1.5 mt-2">
+              <CalendarIcon size={11} className="text-neutral-400" />
+              <p className="text-[10px] text-neutral-400">
+                Peak months reflect Himachal Pradesh &amp; Kashmir seasonality
+              </p>
+            </div>
           </div>
 
-          {/* Save */}
-          <div className="flex items-center justify-end gap-3 border-t border-[--border] pt-3">
+          {/* ── Save ───────────────────────────────────────────────────── */}
+          <div className="flex items-center justify-end gap-3 border-t border-neutral-100 pt-4">
             {saveStatus === "success" && (
               <span className="text-xs text-green-600 font-medium">Preferences saved</span>
             )}
             {saveStatus === "error" && (
               <span className="text-xs text-red-500 font-medium">Failed to save. Try again.</span>
             )}
-            <Button size="sm" onClick={handleSave} disabled={saving}>
+            <Button size="sm" loading={saving} onClick={handleSave}>
               {saving ? "Saving…" : "Save Preferences"}
             </Button>
           </div>
 
         </div>
       </Section>
+    </div>
+  );
+}
+
+// ─── Loading Skeleton ─────────────────────────────────────────────────────────
+
+function LoadingSkeleton() {
+  return (
+    <div className="space-y-5">
+      <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+        <div className="px-6 py-4 bg-neutral-50 border-b border-neutral-100">
+          <div className="h-4 w-40 bg-neutral-200 rounded animate-pulse" />
+        </div>
+        <div className="px-6 py-5 space-y-6 animate-pulse">
+          <div>
+            <div className="h-3 w-24 bg-neutral-200 rounded mb-3" />
+            <div className="flex flex-wrap gap-2">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="h-7 w-24 bg-neutral-200 rounded-full" />
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="h-3 w-28 bg-neutral-200 rounded mb-3" />
+            <div className="grid grid-cols-4 gap-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-20 bg-neutral-200 rounded-xl" />
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="h-3 w-32 bg-neutral-200 rounded mb-3" />
+            <div className="grid grid-cols-4 gap-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-20 bg-neutral-200 rounded-xl" />
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="h-3 w-28 bg-neutral-200 rounded mb-3" />
+            <div className="grid grid-cols-3 gap-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="h-12 bg-neutral-200 rounded-xl" />
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="h-3 w-36 bg-neutral-200 rounded mb-3" />
+            <div className="grid grid-cols-6 gap-1.5">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <div key={i} className="h-10 bg-neutral-200 rounded-lg" />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
