@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { Section } from "./Section";
 import Tabs from "@/app/components/ui/Tabs";
-import Button from "@/app/components/ui/Button";
 import { cn } from "@/app/lib/utils";
 import { EmptyState } from "./EmptyState";
 import { ReceiptIcon } from "@phosphor-icons/react";
@@ -213,8 +212,8 @@ export function PaymentHistoryPanel() {
         {/* Loading */}
         {loading && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {[1,2,3].map(i => (
-              <div key={i} className="h-24 bg-neutral-100 rounded-xl animate-pulse" />
+            {[1,2,3,4,5,6].map(i => (
+              <div key={i} className="h-56 bg-neutral-100 rounded-xl animate-pulse" />
             ))}
           </div>
         )}
