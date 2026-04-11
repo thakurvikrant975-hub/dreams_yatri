@@ -152,49 +152,50 @@ export function PaymentHistoryPanel() {
     { id: "FAILED", label: "Failed", caption: String(counts.FAILED) },
     { id: "REFUNDED", label: "Refunded", caption: String(counts.REFUNDED) },
   ];
+// Replace the entire fetchPayments function and useEffect with this
 
-  // Fetch payments
-  async function fetchPayments(status?: string) {
-    setLoading(true);
-    setError("");
-
+// Fetch counts once on mount — independent of active tab
+useEffect(() => {
+  async function fetchCounts() {
     try {
-      const params = new URLSearchParams();
-      if (status) params.set("status", status);
-
-      const res = await fetch(`/api/user/payment-history?${params}`);
-      const json = await res.json();
-
-      if (!res.ok) {
-        setError("Failed to load");
-        return;
-      }
-
-      const data: Payment[] = json.data ?? [];
-      setPayments(data);
-
-      // counts from current data
-      const SUCCESS = data.filter(p => p.status === "SUCCESS").length;
-      const FAILED = data.filter(p => p.status === "FAILED").length;
-      const REFUNDED = data.filter(p => p.status === "REFUNDED").length;
-
+      const [all, success, failed, refunded] = await Promise.all([
+        fetch("/api/user/payment-history?limit=1").then(r => r.json()),
+        fetch("/api/user/payment-history?status=SUCCESS&limit=1").then(r => r.json()),
+        fetch("/api/user/payment-history?status=FAILED&limit=1").then(r => r.json()),
+        fetch("/api/user/payment-history?status=REFUNDED&limit=1").then(r => r.json()),
+      ]);
       setCounts({
-        all: data.length,
-        SUCCESS,
-        FAILED,
-        REFUNDED,
+        all:      all.meta?.pagination?.total      ?? 0,
+        SUCCESS:  success.meta?.pagination?.total  ?? 0,
+        FAILED:   failed.meta?.pagination?.total   ?? 0,
+        REFUNDED: refunded.meta?.pagination?.total ?? 0,
       });
-
-    } catch {
-      setError("Network error");
-    } finally {
-      setLoading(false);
-    }
+    } catch {}
   }
+  fetchCounts();
+}, []); // ← empty deps — runs once only
 
-  useEffect(() => {
-    fetchPayments(activeTab);
-  }, [activeTab]);
+// Fetch payments when tab changes — only updates the list, never touches counts
+async function fetchPayments(status: string) {
+  setLoading(true);
+  setError("");
+  try {
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    const res  = await fetch(`/api/user/payment-history?${params}`);
+    const json = await res.json();
+    if (!res.ok) { setError("Failed to load"); return; }
+    setPayments(json.data ?? []);
+  } catch {
+    setError("Network error");
+  } finally {
+    setLoading(false);
+  }
+}
+
+useEffect(() => {
+  fetchPayments(activeTab);
+}, [activeTab]);
 
   return (
     <div className="space-y-5">
