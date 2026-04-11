@@ -159,54 +159,54 @@ export function TravelPreferencesPanel({ preferences }: { preferences: any }) {
           {/* Travelling As */}
           <div>
             <SectionLabel title="Travelling As" />
-{/* Travelling As */}
-<div className="grid grid-cols-4 gap-2">
-  {groupOptions.map(({ label, sub, icon }) => (
-    <button
-      key={label}
-      onClick={() => setGroupType(label)}
-      className={cn(
-        'flex flex-col items-center gap-1 rounded-lg border p-3 text-center transition-colors',
-        groupType === label
-          ? 'bg-primary text-white border-primary shadow-sm'
-          : 'bg-white text-secondary border-neutral-200 hover:border-primary/30 hover:text-primary'
-      )}
-    >
-      <span className="text-xl">{icon}</span>
-      <span className="text-xs font-semibold">{label}</span>
-      <span className={cn('text-[10px]', groupType === label ? 'text-white/80' : 'text-neutral-400')}>
-        {sub}
-      </span>
-    </button>
-  ))}
-</div>
+          {/* Travelling As */}
+          <div className="grid grid-cols-4 gap-2">
+            {groupOptions.map(({ label, sub, icon }) => (
+              <button
+                key={label}
+                onClick={() => setGroupType(label)}
+                className={cn(
+                  'flex flex-col items-center gap-1 rounded-lg border p-3 text-center transition-colors',
+                  groupType === label
+                    ? 'bg-primary text-white border-primary shadow-sm'
+                    : 'bg-white text-secondary border-neutral-200 hover:border-primary/30 hover:text-primary'
+                )}
+              >
+                <span className="text-xl">{icon}</span>
+                <span className="text-xs font-semibold">{label}</span>
+                <span className={cn('text-[10px]', groupType === label ? 'text-white/80' : 'text-neutral-400')}>
+                  {sub}
+                </span>
+              </button>
+            ))}
+          </div>
           </div>
 
           {/* Budget */}
           <div>
             <SectionLabel title="Budget Per Person" />
-{/* Budget Per Person */}
-<div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-  {budgetOptions.map(({ label, range }) => (
-    <button
-      key={label}
-      onClick={() => setBudget(label)}
-      className={cn(
-        'flex flex-col rounded-lg border p-3 text-left transition-colors',
-        budget === label
-          ? 'bg-primary text-white border-primary shadow-sm'
-          : 'bg-white border-neutral-200 hover:border-primary/30'
-      )}
-    >
-      <span className={cn('text-xs font-semibold', budget === label ? 'text-white' : 'text-primary')}>
-        {label}
-      </span>
-      <span className={cn('text-[10px] mt-0.5', budget === label ? 'text-white/80' : 'text-neutral-400')}>
-        {range}
-      </span>
-    </button>
-  ))}
-</div>
+          {/* Budget Per Person */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {budgetOptions.map(({ label, range }) => (
+              <button
+                key={label}
+                onClick={() => setBudget(label)}
+                className={cn(
+                  'flex flex-col rounded-lg border p-3 text-left transition-colors',
+                  budget === label
+                    ? 'bg-primary text-white border-primary shadow-sm'
+                    : 'bg-white border-neutral-200 hover:border-primary/30'
+                )}
+              >
+                <span className={cn('text-xs font-semibold', budget === label ? 'text-white' : 'text-primary')}>
+                  {label}
+                </span>
+                <span className={cn('text-[10px] mt-0.5', budget === label ? 'text-white/80' : 'text-neutral-400')}>
+                  {range}
+                </span>
+              </button>
+            ))}
+          </div>
           </div>
 
           {/* Duration */}
@@ -230,29 +230,29 @@ export function TravelPreferencesPanel({ preferences }: { preferences: any }) {
               title="Preferred Month"
               hint={<>Select all that work &nbsp;<span className="text-amber-500">●</span> peak season</>}
             />
-{/* Preferred Month */}
-<div className="grid grid-cols-6 gap-1.5">
-  {monthOptions.map(({ label, peak }) => (
-    <button
-      key={label}
-      onClick={() => toggleMulti(months, setMonths, label)}
-      className={cn(
-        'relative flex flex-col items-center rounded-md border py-2 text-xs transition-colors',
-        months.includes(label)
-          ? 'bg-primary text-white border-primary font-semibold shadow-sm'
-          : 'bg-white text-secondary border-neutral-200 hover:border-primary/30 hover:text-primary'
-      )}
-    >
-      {label}
-      {peak && (
-        <span className={cn(
-          'mt-1 h-1 w-1 rounded-full',
-          months.includes(label) ? 'bg-white' : 'bg-amber-400'
-        )} />
-      )}
-    </button>
-  ))}
-</div>
+            {/* Preferred Month */}
+            <div className="grid grid-cols-6 gap-1.5">
+              {monthOptions.map(({ label, peak }) => (
+                <button
+                  key={label}
+                  onClick={() => toggleMulti(months, setMonths, label)}
+                  className={cn(
+                    'relative flex flex-col items-center rounded-md border py-2 text-xs transition-colors',
+                    months.includes(label)
+                      ? 'bg-primary text-white border-primary font-semibold shadow-sm'
+                      : 'bg-white text-secondary border-neutral-200 hover:border-primary/30 hover:text-primary'
+                  )}
+                >
+                  {label}
+                  {peak && (
+                    <span className={cn(
+                      'mt-1 h-1 w-1 rounded-full',
+                      months.includes(label) ? 'bg-white' : 'bg-amber-400'
+                    )} />
+                  )}
+                </button>
+              ))}
+            </div>
             <p className="mt-1.5 text-[10px] text-[--text-muted]">
               Peak months reflect Himachal Pradesh &amp; Kashmir seasonality
             </p>

@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
     console.log("[magic-link/verify] email:", email);
 
     if (!token || !email) {
+      console.log("token or email is missing")
       return NextResponse.redirect(new URL("/?auth_error=invalid_link", req.url));
     }
 

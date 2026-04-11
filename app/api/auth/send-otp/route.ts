@@ -143,3 +143,11 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+export async function GET() {
+  const user = await db.user.findFirst({
+    where: { email: "your@email.com" },
+    select: { id: true, name: true, email: true },
+  });
+  return NextResponse.json(user);
+}

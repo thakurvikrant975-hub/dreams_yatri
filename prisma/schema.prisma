@@ -490,7 +490,7 @@ enum UserStatus {
 model User {
   id           String  @id @default(cuid())
   phone        String? @unique 
-  country_code String
+  country_code String?  // ← add ?
 
   name          String?
   email         String?  @unique
