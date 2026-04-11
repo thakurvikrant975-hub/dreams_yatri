@@ -1,16 +1,12 @@
 // app/api/user/preferences/route.ts
 
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
->>>>>>> ee035399dd7093e0ae53f9ea63dfd7c4c6cc4864
+
 import { NextRequest }           from "next/server";
 import { z }                     from "zod/v4";
 import { db }                    from "@/app/lib/db";
 import { ApiResponse }           from "@/app/lib/api-response";
 import { handleApiError }        from "@/app/lib/api-error";
 import { getAuthenticatedUser }  from "@/app/lib/functions/getAuthenticatedUser";
-<<<<<<< HEAD
 import { TripType, GroupType, BudgetTier, TripDuration, TravelMonth } from "@/app/generated/prisma";
 
 // ─── Zod Schema ───────────────────────────────────────────────────────────────
@@ -28,33 +24,6 @@ const patchPreferencesSchema = z.object({
 });
 
 // ─── GET ──────────────────────────────────────────────────────────────────────
-=======
-import { TripType, GroupType, BudgetTier, TripDuration, TravelMonth } from "@/app/generated/prisma";
-
-// ─── Zod Schema ───────────────────────────────────────────────────────────────
-
-const patchPreferencesSchema = z.object({
-  tripTypes: z.array(
-    z.enum(Object.values(TripType) as [string, ...string[]])
-  ).optional(),
-  groupType: z.enum(Object.values(GroupType)   as [string, ...string[]]).optional(),
-  budget:    z.enum(Object.values(BudgetTier)  as [string, ...string[]]).optional(),
-  duration:  z.enum(Object.values(TripDuration)as [string, ...string[]]).optional(),
-  months:    z.array(
-    z.enum(Object.values(TravelMonth) as [string, ...string[]])
-  ).optional(),
-});
-
-// ─── GET ──────────────────────────────────────────────────────────────────────
-=======
-import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/app/lib/db"; 
-import { getAuthenticatedUser } from "@/app/lib/functions/getAuthenticatedUser";
-import { TripType, GroupType, BudgetTier, TripDuration, TravelMonth } from "@/app/generated/prisma";
-
-// ─── GET ───────────────────────────────────────────────────────────────────
->>>>>>> profile-api
->>>>>>> ee035399dd7093e0ae53f9ea63dfd7c4c6cc4864
 
 export async function GET() {
   try {
@@ -72,15 +41,7 @@ export async function GET() {
   }
 }
 
-<<<<<<< HEAD
 // ─── PATCH ────────────────────────────────────────────────────────────────────
-=======
-<<<<<<< HEAD
-// ─── PATCH ────────────────────────────────────────────────────────────────────
-=======
-// ─── PATCH ─────────────────────────────────────────────────────────────────
->>>>>>> profile-api
->>>>>>> ee035399dd7093e0ae53f9ea63dfd7c4c6cc4864
 
 export async function PATCH(req: NextRequest) {
   try {

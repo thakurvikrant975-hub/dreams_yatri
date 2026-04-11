@@ -5,14 +5,21 @@ import { useEffect } from "react";
 import { useSession } from "next-auth/react";
 
 export default function ShowLogin() {
-    const { status } = useSession();
+    const { data: session, status } = useSession();
     const openModal = useModal((s) => s.openModal);
+
+
 
     useEffect(() => {
         if (status === "unauthenticated") {
             openModal('login-modal');
         }
-    }, [openModal, status]);
+
+        if (status === "authenticated" && session) {
+            openModal('onboarding-modal');
+        }
+
+    }, [openModal, status, session]);
 
 
 
