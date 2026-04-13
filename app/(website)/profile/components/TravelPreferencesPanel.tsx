@@ -26,6 +26,8 @@ import {
   CalendarIcon,
   ClockIcon,
 } from "lucide-react"
+import Label from "@/app/components/forms/Label"
+import { Heading, Text } from "@/app/components/ui/Typography"
 
 // ── Maps ──────────────────────────────────────────────────────────────────────
 
@@ -169,11 +171,11 @@ export function TravelPreferencesPanel() {
                     className={cn(
                       "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all cursor-pointer",
                       active
-                        ? "bg-primary text-white border-primary shadow-sm"
-                        : "bg-white text-neutral-600 border-neutral-200 hover:border-primary/40 hover:text-primary"
+                        ? "bg-primary-100 text-primary-600 border-primary-200 shadow-sm"
+                        : "bg-neutral-100 text-secondary border-(--border-default)  hover:bg-white"
                     )}
                   >
-                    <Icon size={13} />
+                    <Icon size={13} className={active ? "text-primary-400" : "text-muted"} />
                     {label}
                   </button>
                 );
@@ -194,20 +196,20 @@ export function TravelPreferencesPanel() {
                     className={cn(
                       "flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center transition-all cursor-pointer",
                       active
-                        ? "bg-primary text-white border-primary shadow-sm"
-                        : "bg-white text-neutral-600 border-neutral-200 hover:border-primary/30 hover:text-primary hover:bg-primary/5"
+                        ? "bg-primary-100 text-white border-primary-200 shadow-sm"
+                        : "bg-neutral-100 text-secondary border-(--border-default) hover:border-primary/30 hover:text-primary hover:bg-primary/5 "
                     )}
                   >
                     <span className={cn(
-                      "size-8 rounded-lg flex items-center justify-center",
-                      active ? "bg-white/20" : "bg-neutral-100"
+                      "size-10 rounded-lg flex items-center justify-center",
+                      active ? "bg-primary-500" : "bg-white shadow-md shadow-neutral-200"
                     )}>
-                      <Icon size={16} className={active ? "text-white" : "text-neutral-500"} />
+                      <Icon size={16} className={active ? "text-white" : "text-muted"} />
                     </span>
-                    <span className="text-xs font-semibold">{label}</span>
-                    <span className={cn("text-[10px]", active ? "text-white/70" : "text-neutral-400")}>
-                      {sub}
-                    </span>
+                    <Text size='sm' weight='semibold' className={active ? "text-primary-600" : "text-primary" }>{label}</Text>
+                    <Text size='xs' className={active ? "text-primary-500" : "text-secondary"}>{ 
+                      sub
+                    }</Text>
                   </button>
                 );
               })}
@@ -227,23 +229,23 @@ export function TravelPreferencesPanel() {
                     className={cn(
                       "flex flex-col gap-2 rounded-xl border p-3 text-left transition-all cursor-pointer",
                       active
-                        ? "bg-primary text-white border-primary shadow-sm"
-                        : "bg-white border-neutral-200 hover:border-primary/30 hover:bg-primary/5"
+                        ? "bg-primary-100 text-white border-primary-200 shadow-sm"
+                        : "bg-neutral-50 border-(--border-default) hover:border-primary/30 hover:bg-primary/5"
                     )}
                   >
                     <span className={cn(
-                      "size-7 rounded-lg flex items-center justify-center",
-                      active ? "bg-white/20" : "bg-neutral-100"
+                      "size-10 rounded-lg flex items-center justify-center",
+                      active ? "bg-primary-500" : "bg-white shadow-md shadow-neutral-200"
                     )}>
-                      <Icon size={14} className={active ? "text-white" : "text-neutral-500"} />
+                      <Icon className={cn('size-4', active ? "text-white" : "text-neutral-500")} />
                     </span>
                     <div>
-                      <p className={cn("text-xs font-semibold", active ? "text-white" : "text-neutral-800")}>
+                      <Text size='sm' weight='semibold' className={cn( active ? "text-primary-600" : "text-primary")}>
                         {label}
-                      </p>
-                      <p className={cn("text-[10px] mt-0.5", active ? "text-white/70" : "text-neutral-400")}>
+                      </Text>
+                      <Text size='xs' className={cn("mt-0.5", active ? "text-primary-500" : "text-secondary")}>
                         {range}
-                      </p>
+                      </Text>
                     </div>
                   </button>
                 );
@@ -264,23 +266,23 @@ export function TravelPreferencesPanel() {
                     className={cn(
                       "flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-all cursor-pointer",
                       active
-                        ? "bg-primary text-white border-primary shadow-sm"
-                        : "bg-white border-neutral-200 hover:border-primary/30 hover:bg-primary/5"
+                        ? "bg-primary-100 text-primary border-primary-200 shadow-sm"
+                        : "bg-neutral-100 border-(--border-default) hover:border-primary/30 hover:bg-primary/5"
                     )}
                   >
                     <span className={cn(
                       "size-7 shrink-0 rounded-lg flex items-center justify-center",
-                      active ? "bg-white/20" : "bg-neutral-100"
+                      active ? "bg-primary-500" : "bg-white shadow-md shadow-neutral-200"
                     )}>
                       <ClockIcon size={13} className={active ? "text-white" : "text-neutral-500"} />
                     </span>
                     <div>
-                      <p className={cn("text-xs font-semibold", active ? "text-white" : "text-neutral-800")}>
+                      <Text size="xs" className={cn("font-semibold", active ? "text-primary-600" : "text-neutral-800")}>
                         {label}
-                      </p>
-                      <p className={cn("text-[10px]", active ? "text-white/70" : "text-neutral-400")}>
+                      </Text>
+                      <Text size="xss" className={cn("mt-0.5", active ? "text-primary-500" : "text-secondary")}>
                         {sub}
-                      </p>
+                      </Text>
                     </div>
                   </button>
                 );
@@ -304,15 +306,15 @@ export function TravelPreferencesPanel() {
                     className={cn(
                       "relative flex flex-col items-center rounded-lg border py-2.5 text-xs font-medium transition-all cursor-pointer",
                       active
-                        ? "bg-primary text-white border-primary shadow-sm"
-                        : "bg-white text-neutral-600 border-neutral-200 hover:border-primary/30 hover:text-primary hover:bg-primary/5"
+                        ? "bg-primary-100 text-primary-500 border-primary-400 shadow-sm"
+                        : "bg-neutral-100 text-neutral-600 border-neutral-200 hover:border-primary/30 hover:text-primary hover:bg-primary/5"
                     )}
                   >
                     {label}
                     {peak && (
                       <span className={cn(
                         "mt-1 h-1 w-1 rounded-full",
-                        active ? "bg-white" : "bg-amber-400"
+                        active ? "bg-primary-400" : "bg-warning-400"
                       )} />
                     )}
                   </button>
@@ -321,14 +323,14 @@ export function TravelPreferencesPanel() {
             </div>
             <div className="flex items-center gap-1.5 mt-2">
               <CalendarIcon size={11} className="text-neutral-400" />
-              <p className="text-[10px] text-neutral-400">
+              <Text size="xss" className="text-secondary">
                 Peak months reflect Himachal Pradesh &amp; Kashmir seasonality
-              </p>
+              </Text>
             </div>
           </div>
 
           {/* ── Save ───────────────────────────────────────────────────── */}
-          <div className="flex items-center justify-end gap-3 border-t border-neutral-100 pt-4">
+          <div className="flex items-center justify-end gap-3 border-t border-(--border-default) pt-4">
             {saveStatus === "success" && (
               <span className="text-xs text-green-600 font-medium">Preferences saved</span>
             )}

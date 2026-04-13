@@ -358,11 +358,13 @@ export function PersonalInfoPanel({ userBasicInfo }: { userBasicInfo: UserBasicI
           </div>
           <div>
             <Label htmlFor="passport-expiry-date">Passport Expiry Date</Label>
-            <Input
+          <DatePicker
               id="passport-expiry-date"
               value={form.passportExpiryDate}
-              onChange={e => handleChange("passportExpiryDate", e.target.value)}
-              type="date" />
+              onChange={val => handleChange("passportExpiryDate", val)}
+              placeholder="Select passport expiry date"
+              minDate={new Date().toISOString().split("T")[0]}
+            />
           </div>
           <div>
             <Label htmlFor="pan-number">PAN Number</Label>
