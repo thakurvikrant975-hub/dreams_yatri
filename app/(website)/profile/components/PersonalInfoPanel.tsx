@@ -185,7 +185,7 @@ export function PersonalInfoPanel({ userBasicInfo }: { userBasicInfo: UserBasicI
       <Section title="Basic Details" subtitle="Your name and contact information">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <Label htmlFor="full-name">Full Name</Label>
+            <Label htmlFor="full-name" required>Full Name</Label>
             <Input
               id="full-name"
               value={form.name}
@@ -268,8 +268,8 @@ export function PersonalInfoPanel({ userBasicInfo }: { userBasicInfo: UserBasicI
               placeholder="Your Marital Status  "
               className="h-11"
             >
-              <Option value="Single">Single</Option>
-              <Option value="Married">Married</Option>
+              <Option value="SINGLE">Single</Option>
+              <Option value="MARRIED">Married</Option>
             </Select>
           </div>
 
@@ -297,7 +297,33 @@ export function PersonalInfoPanel({ userBasicInfo }: { userBasicInfo: UserBasicI
       </Section>
 
       <Section title="Contact Details" subtitle="Your preferred contact information for discounts and offers">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 ">
+          <div>
+            <Label htmlFor="phone-number">Phone Number</Label>
+            <div className="flex flex-row items-stretch gap-2">
+              <Select
+                id="country-code"
+                value={form.country_code}
+                onChange={val => handleChange("country_code", val)}
+                placeholder="+91"
+                className="min-w-18 h-full"
+              >
+                <Option value="+91">+91</Option>
+                <Option value="+1">+1 </Option>
+                <Option value="+44">+44 </Option>
+                <Option value="+61">+61 </Option>
+              </Select>
+
+              <Input
+                id="phone-number"
+                value={form.phone}
+                onChange={e => handleChange("phone", e.target.value)}
+                placeholder="+91"
+                wrapperClassName="flex-1"
+              />
+            </div>
+
+          </div>
           <div>
             <Label htmlFor="email">Email Address</Label>
             <Input
@@ -306,22 +332,7 @@ export function PersonalInfoPanel({ userBasicInfo }: { userBasicInfo: UserBasicI
               onChange={e => handleChange("email", e.target.value)}
               placeholder="you@example.com" />
           </div>
-          <div>
-            <Label htmlFor="country-code">Country Code</Label>
-            <Input
-              id="country-code"
-              value={form.country_code}
-              onChange={e => handleChange("country_code", e.target.value)}
-              placeholder="+91" />
-          </div>
-          <div>
-            <Label htmlFor="phone-number">Phone Number</Label>
-            <Input
-              id="phone-number"
-              value={form.phone}
-              onChange={e => handleChange("phone", e.target.value)}
-              placeholder="+91" />
-          </div>
+
         </div>
       </Section>
 
@@ -338,11 +349,12 @@ export function PersonalInfoPanel({ userBasicInfo }: { userBasicInfo: UserBasicI
           </div>
           <div>
             <Label htmlFor="passport-issuing-country">Passport Issuing Country</Label>
-            <Input
-              id="passport-issuing-country"
-              value={form.passportIssuingCountry}
-              onChange={e => handleChange("passportIssuingCountry", e.target.value)}
-              placeholder="India" />
+            <SearchSelect
+              value={geo.countryName}
+              placeholder="Search country..."
+              fetchUrl="/api/geo/countries"
+              onChange={handleCountryChange}
+            />
           </div>
           <div>
             <Label htmlFor="passport-expiry-date">Passport Expiry Date</Label>

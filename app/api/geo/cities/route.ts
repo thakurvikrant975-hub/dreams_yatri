@@ -5,7 +5,6 @@ import { db } from "@/app/lib/db";
 export async function GET(req: NextRequest) {
   const q       = req.nextUrl.searchParams.get("q")?.trim() ?? "";
   const stateId = req.nextUrl.searchParams.get("stateId");
-  const limit   = parseInt(req.nextUrl.searchParams.get("limit") ?? "5");
 
   if (!stateId) return NextResponse.json([]);
 
@@ -16,7 +15,7 @@ export async function GET(req: NextRequest) {
     },
     select:  { id: true, name: true },
     orderBy: { name: "asc" },
-    take:    Math.min(limit, 10),
+    take:    15,  // ← only cities are limited
   });
 
   return NextResponse.json(cities);

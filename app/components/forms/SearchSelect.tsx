@@ -7,23 +7,21 @@ import { ChevronDownIcon, MagnifyingGlassIcon } from "@heroicons/react/24/solid"
 import axios from "axios";
 
 export interface SearchSelectOption {
-  id:   number;
+  id: number;
   name: string;
 }
 
 interface SearchSelectProps {
-  value?:         string;
-  placeholder?:   string;
-  fetchUrl:       string;
-  extraParams?:   Record<string, string | number>;
-  onChange:       (option: SearchSelectOption) => void;
-  disabled?:      boolean;
-  error?:         string;
-  allowCustom?:   boolean;
+  value?: string;
+  placeholder?: string;
+  fetchUrl: string;
+  extraParams?: Record<string, string | number>;
+  onChange: (option: SearchSelectOption) => void;
+  disabled?: boolean;
+  error?: string;
+  allowCustom?: boolean;
 }
 
-const DEFAULT_LIMIT = 5;   // shown on open before typing
-const SEARCH_LIMIT  = 10;  // shown after typing
 
 export function SearchSelect({
   value,
@@ -35,15 +33,15 @@ export function SearchSelect({
   error,
   allowCustom = false,
 }: SearchSelectProps) {
-  const [query,   setQuery]   = useState("");
+  const [query, setQuery] = useState("");
   const [options, setOptions] = useState<SearchSelectOption[]>([]);
-  const [open,    setOpen]    = useState(false);
+  const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const wrapperRef  = useRef<HTMLDivElement>(null);
-  const inputRef    = useRef<HTMLInputElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cancelRef   = useRef<AbortController | null>(null);
+  const cancelRef = useRef<AbortController | null>(null);
 
   // ── Close on outside click ───────────────────────────────────────────────────
   useEffect(() => {
@@ -65,12 +63,11 @@ export function SearchSelect({
     setLoading(true);
 
     try {
-      const limit = q.trim() ? SEARCH_LIMIT : DEFAULT_LIMIT;
+
 
       const { data } = await axios.get<SearchSelectOption[]>(fetchUrl, {
         params: {
           q,
-          limit,
           ...extraParams,
         },
         signal: cancelRef.current.signal,
@@ -82,7 +79,7 @@ export function SearchSelect({
     } finally {
       setLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchUrl, JSON.stringify(extraParams)]);
 
   // ── Open dropdown ────────────────────────────────────────────────────────────
@@ -129,7 +126,7 @@ export function SearchSelect({
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      if (cancelRef.current)   cancelRef.current.abort();
+      if (cancelRef.current) cancelRef.current.abort();
     };
   }, []);
 
@@ -144,8 +141,8 @@ export function SearchSelect({
           disabled
             ? "bg-neutral-100 text-neutral-500 ring-neutral-300 cursor-not-allowed"
             : error
-            ? "text-error-800 ring-error-300 bg-error-500/15"
-            : "bg-white text-neutral-900 hover:ring-neutral-400 ring-neutral-400/60"
+              ? "text-error-800 ring-error-300 bg-error-500/15"
+              : "bg-white text-neutral-900 hover:ring-neutral-400 ring-neutral-400/60"
         )}
       >
         <span className={cn("truncate", !value && "text-neutral-400")}>
@@ -159,7 +156,7 @@ export function SearchSelect({
 
       {/* ── Dropdown ── */}
       {open && !disabled && (
-        <div className="absolute z-50 mt-1.5 w-full rounded-xl bg-white shadow-lg ring-1 ring-black/10 overflow-hidden">
+        <div className="absolute z-50 mt-1.5 w-full rounded-xl bg-white shadow-lg ring-1 ring-black/10 overflow-hidden max-h-70">
 
           {/* Search input */}
           <div className="flex items-center gap-2 px-3 py-2 border-b border-neutral-100">
@@ -200,7 +197,7 @@ export function SearchSelect({
                     onClick={() => handleSelect(opt)}
                     className={cn(
                       "px-3 py-2 text-sm cursor-pointer hover:bg-neutral-100 transition select-none",
-                      value === opt.name && "bg-primary-50 text-primary-600 font-medium"
+                      value === opt.name && "bg-primary-500 text-white font-medium pointer-events-none"
                     )}
                   >
                     {opt.name}
@@ -230,13 +227,13 @@ export function SearchSelect({
           </div>
 
           {/* Footer hint */}
-          {!query && options.length > 0 && (
+          {/* {!query && options.length >= 15 && (
             <div className="px-3 py-1.5 border-t border-neutral-100">
               <p className="text-[10px] text-neutral-400">
-                Showing {DEFAULT_LIMIT} defaults — type to search more
+                Showing top 15 — type to search more
               </p>
             </div>
-          )}
+          )} */}
         </div>
       )}
 

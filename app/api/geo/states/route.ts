@@ -2,11 +2,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/app/lib/db";
 
-// app/api/geo/states/route.ts
 export async function GET(req: NextRequest) {
   const q         = req.nextUrl.searchParams.get("q")?.trim() ?? "";
   const countryId = req.nextUrl.searchParams.get("countryId");
-  const limit     = parseInt(req.nextUrl.searchParams.get("limit") ?? "5");
 
   if (!countryId) return NextResponse.json([]);
 
@@ -17,7 +15,7 @@ export async function GET(req: NextRequest) {
     },
     select:  { id: true, name: true },
     orderBy: { name: "asc" },
-    take:    Math.min(limit, 10),
+    // ← no take limit — return all states for that country
   });
 
   return NextResponse.json(states);
