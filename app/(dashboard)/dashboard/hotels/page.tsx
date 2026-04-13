@@ -9,6 +9,8 @@ import {
 } from "../components/ui/breadcrumb";
 import { getHotels } from "./actions";
 import { HotelsTableClient } from "./HotelsTableClient";
+import { Field } from "../components/ui/field";
+import { Input } from "../components/ui/input";
 
 // ── Skeleton ──────────────────────────────────────────────────────────────
 
@@ -97,12 +99,21 @@ export default function HotelsPage() {
                         <p className="text-sm text-muted-foreground">Manage hotel properties across all destinations</p>
                     </div>
                 </div>
-                <Button asChild>
-                    <Link href="/dashboard/hotels/new">
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add Hotel
-                    </Link>
-                </Button>
+
+
+                <div className="flex items-center gap-8">
+                    <Field orientation="horizontal">
+                        <Input type="search" placeholder="Search..." className="w-[220px] h-10 w-64" />
+                        <Button className="cursor-pointer h-10 w-24">Search</Button>
+                    </Field>
+
+                    <Button asChild className="h-10">
+                        <Link href="/dashboard/hotels/new">
+                            <Plus className="mr-2 h-5 w-4" />
+                            Add Hotel
+                        </Link>
+                    </Button>
+                </div>
             </div>
 
             <Suspense fallback={

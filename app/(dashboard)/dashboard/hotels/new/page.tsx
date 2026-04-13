@@ -7,6 +7,9 @@ import {
 } from "../../components/ui/breadcrumb";
 import { getDestinationsForSelect } from "../actions";
 import { HotelCreateForm } from "./HotelCreateForm";
+import { Field } from "../../components/ui/field";
+import { Input } from "../../components/ui/input";
+
 
 export default async function NewHotelPage() {
     const destinations = await getDestinationsForSelect();
@@ -27,6 +30,8 @@ export default async function NewHotelPage() {
                 <Button variant="ghost" size="icon" asChild>
                     <Link href="/dashboard/hotels"><ChevronLeft className="h-4 w-4" /></Link>
                 </Button>
+
+
                 <div>
                     <h1 className="text-xl font-semibold">Add Hotel</h1>
                     <p className="text-sm text-muted-foreground">Fill in hotel details, rooms and upload photos</p>
