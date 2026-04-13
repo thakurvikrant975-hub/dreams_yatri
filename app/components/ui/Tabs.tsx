@@ -2,6 +2,7 @@
 import React from 'react';
 import { cva } from 'class-variance-authority';
 import { ChevronDown } from 'lucide-react';
+import { cn } from '@/app/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -9,6 +10,7 @@ interface Tab {
   id: string;
   label: string;
   icon?: React.ElementType;
+  caption?: string;
 }
 
 interface TabsProps {
@@ -24,7 +26,7 @@ const tabVariants = cva(
   {
     variants: {
       active: {
-        true:  'border-primary-500 text-brand',
+        true: 'border-primary-500 text-brand',
         false: 'border-transparent text-secondary hover:border-neutral-300 hover:text-primary',
       },
     },
@@ -37,7 +39,7 @@ const tabVariants = cva(
 const tabIconVariants = cva('-ml-0.5 mr-2 size-5 transition-colors duration-200', {
   variants: {
     active: {
-      true:  'text-primary-500',
+      true: 'text-primary-500',
       false: 'text-muted group-hover:text-secondary',
     },
   },
@@ -93,7 +95,31 @@ const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onTabChange }) => {
                       className={tabIconVariants({ active: isActive })}
                     />
                   )}
-                  <span>{tab.label}</span>
+                  <div
+                    className={cn(
+                      "flex items-center gap-2 px-3 py-1.5 rounded-full transition-all",
+                      isActive
+                        ? "bg-primary/10 text-primary"
+                        : "text-neutral-500 hover:bg-neutral-100"
+                    )}
+                  >
+                    <span className="text-sm font-medium">
+                      {tab.label}
+                    </span>
+
+                    {tab.caption && (
+                      <span
+                        className={cn(
+                          "text-xs font-semibold px-2 py-0.5 rounded-full",
+                          isActive
+                            ? "bg-primary text-white"
+                            : "bg-neutral-100 text-neutral-500"
+                        )}
+                      >
+                        {tab.caption}
+                      </span>
+                    )}
+                  </div>
                 </button>
               );
             })}

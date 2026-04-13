@@ -154,43 +154,46 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
 
   callbacks: {
-    async signIn({ user, account }) {
-      if (account?.provider === "google") {
-        try {
-          const existingUser = await db.user.findUnique({
-            where: { email: user.email! },
-          });
+// app/lib/auth.ts — signIn callback only
 
-          if (!existingUser) {
-            await db.user.create({
-              data: {
-                email: user.email!,
-                name: user.name ?? null,
-                image: user.image ?? null,
-                emailVerified: new Date(),
-              },
-            });
-          } else {
-            if (existingUser.status === "BANNED" || existingUser.status === "DELETED") {
-              return false;
-            }
-            await db.user.update({
-              where: { email: user.email! },
-              data: {
-                name: user.name ?? existingUser.name,
-                image: user.image ?? existingUser.image,
-                emailVerified: existingUser.emailVerified ?? new Date(),
-              },
-            });
-          }
-          return true;
-        } catch (error) {
-          console.error("[signIn] Google user save failed:", error);
+async signIn({ user, account }) {
+  if (account?.provider === "google") {
+    try {
+      const existingUser = await db.user.findUnique({
+        where:  { email: user.email! },
+        select: { id: true, status: true }, // ← only need id and status
+      });
+
+      if (!existingUser) {
+        // First login — create with Google data
+        await db.user.create({
+          data: {
+            email:         user.email!,
+            name:          user.name  ?? null,
+            image:         user.image ?? null,
+            emailVerified: new Date(),
+          },
+        });
+      } else {
+        if (existingUser.status === "BANNED" || existingUser.status === "DELETED") {
           return false;
         }
+
+        // Returning user — ONLY update emailVerified, never touch name or image
+        await db.user.update({
+          where: { id: existingUser.id },
+          data:  { emailVerified: new Date() },
+        });
       }
+
       return true;
-    },
+    } catch (error) {
+      console.error("[signIn] Google user save failed:", error);
+      return false;
+    }
+  }
+  return true;
+},
 
     async jwt({ token, user, account }) {
       if (user) {

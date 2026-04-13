@@ -12,6 +12,7 @@ import {
   HeartIcon,
   CreditCardIcon,
   ArrowRightOnRectangleIcon,
+  CalendarIcon
 } from '@heroicons/react/24/outline'
 
 import {
@@ -26,7 +27,9 @@ import Card from '@/app/components/ui/Card'
 import { PersonalInfoPanel } from './components/PersonalInfoPanel'
 import { SecurityPanel } from './components/SecurityPanel'
 import { TravelPreferencesPanel } from './components/TravelPreferencesPanel'
+import { TravelHistoryPanel } from './components/TravelHistoryPanel'
 import { PlaceholderPanel } from './components/PlaceholderPanel'
+import { PaymentHistoryPanel } from './components/PaymentHistoryPanel'
 import { AvatarUpload } from './components/AvatarUpload'
 import { StatCard } from './components/StatCard'
 
@@ -45,9 +48,9 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { key: 'personal', label: 'Personal Info', icon: <UserCircleIcon className="size-5" /> },
-    { key: 'travel-history', label: 'Travel History', icon: <SuitcaseRollingIcon className="size-5" /> },
   // { key: 'security', label: 'Login & Security', icon: <ShieldCheckIcon className="size-5" /> },
   { key: 'preferences', label: 'Travel Preferences', icon: <HeartIcon className="size-5" /> },
+  { key: 'travel-history', label: 'Travel History', icon: <SuitcaseRollingIcon className="size-5" /> },
   { key: 'payments', label: 'Payments', icon: <CreditCardIcon className="size-5" /> },
   // { key: 'notifications', label: 'Notifications', icon: <BellIcon className="size-5" />, badge: '3' },
 ]
@@ -57,7 +60,7 @@ const NAV_ITEMS: NavItem[] = [
 
 // ─── Profile Page ─────────────────────────────────────────────────────────────
 
-export default function Profile({ user, preferences }: { user: any; preferences: any }) {
+export default function Profile({ user }: { user: any }) {
 
 
   const [activeNav, setActiveNav] = useState<NavKey>('personal');
@@ -66,9 +69,9 @@ export default function Profile({ user, preferences }: { user: any; preferences:
 const panels: Record<NavKey, React.ReactNode> = {
   personal:        <PersonalInfoPanel userBasicInfo={user} />,
   security:        <SecurityPanel />,
-  preferences:     <TravelPreferencesPanel preferences={preferences} />,  // ← add preferences
-  "travel-history":<PlaceholderPanel title="Travel History" />,           // ← not TravelPreferencesPanel
-  payments:        <PlaceholderPanel title="Payment Methods" />,
+  preferences:     <TravelPreferencesPanel />,
+  "travel-history":<TravelHistoryPanel />,   // ← replace PlaceholderPanel
+  payments:        <PaymentHistoryPanel/>,
   notifications:   <PlaceholderPanel title="Notification Settings" />,
 }
 
@@ -105,12 +108,28 @@ const panels: Record<NavKey, React.ReactNode> = {
               </div>
             </div>
 
-            {/* Stats */}
-            <div className="flex gap-2 mt-2 sm:mt-0">
-              <StatCard icon={<GlobeAltIcon className="size-4" />} value="12" label="Trips" />
-              <StatCard icon={<HeartIcon className="size-4" />} value="5" label="Saved" />
-              <StatCard icon={<StarIcon className="size-4" />} value="4.9" label="Rating" />
-            </div>
+
+
+          {/* Stats */}
+          <div className="flex gap-2 mt-2 sm:mt-0">
+            <StatCard
+              icon={<GlobeAltIcon className="size-4" />}
+              value={user?.totalTrips ?? 0}
+              label="Trips"
+            />
+
+            <StatCard
+              icon={<HeartIcon className="size-4" />}
+              value={user?.wishlistCount ?? 0}
+              label="Wishlist"
+            />
+
+            <StatCard
+              icon={<CalendarIcon className="size-4" />}
+              value={user?.upcomingTrips ?? 0}
+              label="Upcoming"
+            />
+          </div>
 
           </div>
         </div>
@@ -130,7 +149,7 @@ const panels: Record<NavKey, React.ReactNode> = {
                   key={item.key}
                   onClick={() => setActiveNav(item.key)}
                   className={cn(
-                    'flex items-center gap-1.5 whitespace-nowrap px-3.5 py-2 rounded-xl text-xs font-semibold transition-all',
+                    'flex items-center gap-1.5 whitespace-nowrap px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ',
                     activeNav === item.key
                       ? 'bg-primary text-white shadow-sm'
                       : 'bg-white text-[--text-muted] border border-neutral-200 hover:border-primary/30'
@@ -159,7 +178,7 @@ const panels: Record<NavKey, React.ReactNode> = {
                     key={item.key}
                     onClick={() => setActiveNav(item.key)}
                     className={cn(
-                      'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left',
+                      'w-full flex cursor-pointer items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left',
                       activeNav === item.key
                         ? 'bg-neutral-100 text-primary'
                         : 'text-secondary hover:bg-neutral-50 hover:text-primary hover:ring-1 hover:ring-inset hover:ring-neutral-100 hover:shadow-sm hover:shadow-neutral-200'

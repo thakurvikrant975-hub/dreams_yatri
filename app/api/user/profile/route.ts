@@ -38,34 +38,42 @@ export async function GET() {
     const sessionUser = await getAuthenticatedUser();
     if (!sessionUser) return ApiResponse.error("Unauthorized", "UNAUTHORIZED", 401);
 
-    const user = await db.user.findUnique({
-      where:  { id: sessionUser.id },
-      select: {
-        id:                     true,
-        phone:                  true,
-        country_code:           true,
-        name:                   true,
-        email:                  true,
-        gender:                 true,
-        dateOfBirth:            true,
-        nationality:            true,
-        maritalStatus:          true,
-        anniversary:            true,
-        state:                  true,
-        city:                   true,
-        passportNumber:         true,
-        passportExpiryDate:     true,
-        passportIssuingCountry: true,
-        panNumber:              true,
-        isProfileComplete:      true,
-        createdAt:              true,
-        updatedAt:              true,
-      },
-    });
+    const [user, totalTrips] = await Promise.all([
+      db.user.findUnique({
+        where:  { id: sessionUser.id },
+        select: {
+          id:                     true,
+          phone:                  true,
+          country_code:           true,
+          name:                   true,
+          email:                  true,
+          gender:                 true,
+          dateOfBirth:            true,
+          nationality:            true,
+          maritalStatus:          true,
+          anniversary:            true,
+          state:                  true,
+          city:                   true,
+          passportNumber:         true,
+          passportExpiryDate:     true,
+          passportIssuingCountry: true,
+          panNumber:              true,
+          isProfileComplete:      true,
+          createdAt:              true,
+          updatedAt:              true,
+        },
+      }),
+      db.booking.count({
+        where: {
+          userId: sessionUser.id,
+          status: "COMPLETED",
+        },
+      }),
+    ]);
 
     if (!user) return ApiResponse.notFound("User");
 
-    return ApiResponse.ok(user);
+    return ApiResponse.ok({ ...user, totalTrips });
 
   } catch (error) {
     return handleApiError(error);
