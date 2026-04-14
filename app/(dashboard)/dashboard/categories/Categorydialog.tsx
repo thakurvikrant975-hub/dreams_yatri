@@ -15,6 +15,7 @@ import {
     SelectValue,
 } from "../components/ui/select";
 import { toast } from "sonner";
+import { cn } from "@/app/lib/utils";
 
 import {
     MultiStepModal,
@@ -38,18 +39,19 @@ function buildInitialData(
 
     return {
         basic: {
-            name: category.name,
-            slug: category.slug,
-            parent_id: category.parent_id ? String(category.parent_id) : "none",
+            name:       category.name,
+            slug:       category.slug,
+            type:       category.parent_id ? "sub" : "parent",
+            parent_id:  category.parent_id ? String(category.parent_id) : "",
             sort_order: String(category.sort_order),
         },
         details: {
             description: category.description ?? "",
-            is_active: category.is_active,
+            is_active:   category.is_active,
         },
         seo: {
             meta_title: category.meta_title ?? "",
-            meta_desc: category.meta_desc ?? "",
+            meta_desc:  category.meta_desc  ?? "",
         },
     };
 }
@@ -59,30 +61,32 @@ function buildInitialData(
 function makeSteps(): Step[] {
     return [
         {
-            id: "basic",
-            title: "Basic Info",
-            description: "Name, slug and parent",
-            icon: <Tag className="h-4 w-4" />,
+            id:          "basic",
+            title:       "Basic Info",
+            description: "Name, slug and type",
+            icon:        <Tag className="h-4 w-4" />,
             validate: (data) => {
                 if (!data.name) return "Category name is required";
                 if (!data.slug) return "Slug is required";
                 if (!/^[a-z0-9-]+$/.test(data.slug as string))
                     return "Slug must be lowercase letters, numbers and hyphens only";
+                if (data.type === "sub" && !data.parent_id)
+                    return "Please select a parent category";
                 return null;
             },
         },
         {
-            id: "details",
-            title: "Details",
+            id:          "details",
+            title:       "Details",
             description: "Description and settings",
-            icon: <Settings2 className="h-4 w-4" />,
+            icon:        <Settings2 className="h-4 w-4" />,
         },
         {
-            id: "seo",
-            title: "SEO",
+            id:          "seo",
+            title:       "SEO",
             description: "Meta title and description",
-            icon: <Search className="h-4 w-4" />,
-            optional: true,
+            icon:        <Search className="h-4 w-4" />,
+            optional:    true,
         },
     ];
 }
@@ -95,21 +99,26 @@ function BasicInfoStep({
     category,
     parentCategories,
 }: {
-    category?: CategoryWithRelations;
-    parentCategories: CategoryForSelect[];
+    category?:         CategoryWithRelations;
+    parentCategories:  CategoryForSelect[];
 }) {
     const { stepData, setStepData } = useMultiStep();
     const data = stepData["basic"] ?? {};
 
-    const name = (data.name as string) ?? "";
-    const slug = (data.slug as string) ?? "";
-    const parent_id = (data.parent_id as string) ?? "none";
+    const name       = (data.name       as string) ?? "";
+    const slug       = (data.slug       as string) ?? "";
+    const type       = (data.type       as string) ?? "parent";
+    const parent_id  = (data.parent_id  as string) ?? "";
     const sort_order = (data.sort_order as string) ?? "0";
+
+    // In edit mode, filter out self from parent options
+    const availableParents = parentCategories.filter(
+        (p) => p.id !== category?.id,
+    );
 
     function handleNameChange(e: React.ChangeEvent<HTMLInputElement>) {
         const newName = e.target.value;
         if (category) {
-            // Edit mode: don't auto-update slug
             setStepData("basic", { ...data, name: newName });
         } else {
             const newSlug = newName
@@ -122,35 +131,159 @@ function BasicInfoStep({
         }
     }
 
-    // Filter out the current category from parent options (can't be own parent)
-    const availableParents = parentCategories.filter(
-        (p) => p.id !== category?.id,
-    );
+    function handleTypeChange(newType: "parent" | "sub") {
+        setStepData("basic", {
+            ...data,
+            type:      newType,
+            parent_id: newType === "parent" ? "" : parent_id,
+        });
+    }
 
     return (
-        <div className="space-y-4">
-            {/* Name */}
+        <div className="space-y-5">
+
+            {/* ── Type selector ── */}
+            {!category && (
+                <div className="space-y-2">
+                    <Label>Category Type <span className="text-destructive">*</span></Label>
+                    <div className="grid grid-cols-2 gap-3">
+                        {/* Parent option */}
+                        <button
+                            type="button"
+                            onClick={() => handleTypeChange("parent")}
+                            className={cn(
+                                "flex flex-col items-start gap-1.5 rounded-xl border-2 p-4 text-left transition-all",
+                                type === "parent"
+                                    ? "border-primary bg-primary/5"
+                                    : "border-border hover:border-muted-foreground/40 hover:bg-muted/30",
+                            )}
+                        >
+                            <div className={cn(
+                                "h-8 w-8 rounded-lg flex items-center justify-center",
+                                type === "parent" ? "bg-primary/10" : "bg-muted",
+                            )}>
+                                <Tag className={cn(
+                                    "h-4 w-4",
+                                    type === "parent" ? "text-primary" : "text-muted-foreground",
+                                )} />
+                            </div>
+                            <div>
+                                <p className={cn(
+                                    "text-sm font-semibold",
+                                    type === "parent" ? "text-primary" : "text-foreground",
+                                )}>
+                                    Parent Category
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                    Top-level group e.g. "International"
+                                </p>
+                            </div>
+                        </button>
+
+                        {/* Subcategory option */}
+                        <button
+                            type="button"
+                            onClick={() => handleTypeChange("sub")}
+                            className={cn(
+                                "flex flex-col items-start gap-1.5 rounded-xl border-2 p-4 text-left transition-all",
+                                type === "sub"
+                                    ? "border-primary bg-primary/5"
+                                    : "border-border hover:border-muted-foreground/40 hover:bg-muted/30",
+                            )}
+                        >
+                            <div className={cn(
+                                "h-8 w-8 rounded-lg flex items-center justify-center",
+                                type === "sub" ? "bg-primary/10" : "bg-muted",
+                            )}>
+                                <GitBranch className={cn(
+                                    "h-4 w-4",
+                                    type === "sub" ? "text-primary" : "text-muted-foreground",
+                                )} />
+                            </div>
+                            <div>
+                                <p className={cn(
+                                    "text-sm font-semibold",
+                                    type === "sub" ? "text-primary" : "text-foreground",
+                                )}>
+                                    Subcategory
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                    Nested under a parent e.g. "Dubai"
+                                </p>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Parent dropdown (only when type = sub) ── */}
+            {type === "sub" && (
+                <div className="space-y-1.5">
+                    <Label>
+                        Parent Category <span className="text-destructive">*</span>
+                    </Label>
+                    {availableParents.length === 0 ? (
+                        <div className="rounded-lg border border-dashed p-4 text-center">
+                            <p className="text-sm text-muted-foreground">
+                                No parent categories found.
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                Create a parent category first, then add subcategories.
+                            </p>
+                        </div>
+                    ) : (
+                        <Select
+                            value={parent_id}
+                            onValueChange={(v) =>
+                                setStepData("basic", { ...data, parent_id: v })
+                            }
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select parent category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {availableParents.map((p) => (
+                                    <SelectItem key={p.id} value={String(p.id)}>
+                                        {p.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
+                    {parent_id && (
+                        <p className="text-xs text-muted-foreground">
+                            Will appear under:{" "}
+                            <span className="font-medium text-foreground">
+                                {availableParents.find((p) => String(p.id) === parent_id)?.name}
+                            </span>
+                        </p>
+                    )}
+                </div>
+            )}
+
+            {/* ── Name ── */}
             <div className="space-y-1.5">
                 <Label htmlFor="c-name">
-                    Category Name <span className="text-destructive">*</span>
+                    {type === "sub" ? "Subcategory" : "Category"} Name{" "}
+                    <span className="text-destructive">*</span>
                 </Label>
                 <Input
                     id="c-name"
-                    placeholder="International Tours"
+                    placeholder={type === "sub" ? "Dubai" : "International Tours"}
                     value={name}
                     onChange={handleNameChange}
                     autoComplete="off"
                 />
             </div>
 
-            {/* Slug */}
+            {/* ── Slug ── */}
             <div className="space-y-1.5">
                 <Label htmlFor="c-slug">
                     Slug <span className="text-destructive">*</span>
                 </Label>
                 <Input
                     id="c-slug"
-                    placeholder="international-tours"
+                    placeholder={type === "sub" ? "dubai" : "international-tours"}
                     value={slug}
                     onChange={(e) =>
                         setStepData("basic", {
@@ -168,57 +301,14 @@ function BasicInfoStep({
                     }
                 />
                 <p className="text-xs text-muted-foreground">
-                    {category ? (
-                        "Slug cannot be changed after creation"
-                    ) : (
-                        <>
-                            URL:{" "}
-                            dreamsyatri.com/packages/
-                            <strong>{slug || "international-tours"}</strong>
-                        </>
-                    )}
-                </p>
-            </div>
-
-            {/* Parent Category */}
-            <div className="space-y-1.5">
-                <Label className="flex items-center gap-1.5">
-                    <GitBranch className="h-3.5 w-3.5" />
-                    Parent Category
-                    <span className="text-xs text-muted-foreground font-normal">
-                        (optional — leave empty for top-level)
-                    </span>
-                </Label>
-                <Select
-                    value={parent_id}
-                    onValueChange={(v) =>
-                        setStepData("basic", { ...data, parent_id: v })
+                    {category
+                        ? "Slug cannot be changed after creation"
+                        : <>URL: dreamsyatri.com/packages/<strong>{slug || (type === "sub" ? "dubai" : "international-tours")}</strong></>
                     }
-                >
-                    <SelectTrigger>
-                        <SelectValue placeholder="Top-level category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="none">
-                            <span className="text-muted-foreground">
-                                — No parent (top-level)
-                            </span>
-                        </SelectItem>
-                        {availableParents.map((p) => (
-                            <SelectItem key={p.id} value={String(p.id)}>
-                                {p.name}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                    {parent_id === "none"
-                        ? "This will be a top-level category."
-                        : `This will appear as a subcategory under "${availableParents.find((p) => String(p.id) === parent_id)?.name ?? ""}".`}
                 </p>
             </div>
 
-            {/* Sort Order */}
+            {/* ── Sort Order ── */}
             <div className="space-y-1.5">
                 <Label htmlFor="c-sort">Sort Order</Label>
                 <Input
@@ -228,10 +318,7 @@ function BasicInfoStep({
                     placeholder="0"
                     value={sort_order}
                     onChange={(e) =>
-                        setStepData("basic", {
-                            ...data,
-                            sort_order: e.target.value,
-                        })
+                        setStepData("basic", { ...data, sort_order: e.target.value })
                     }
                 />
                 <p className="text-xs text-muted-foreground">
@@ -248,10 +335,9 @@ function BasicInfoStep({
 
 function DetailsStep() {
     const { stepData, setStepData } = useMultiStep();
-    const data = stepData["details"] ?? {};
-
-    const description = (data.description as string) ?? "";
-    const is_active = (data.is_active as boolean) ?? true;
+    const data      = stepData["details"] ?? {};
+    const description = (data.description as string)  ?? "";
+    const is_active   = (data.is_active   as boolean) ?? true;
 
     return (
         <div className="space-y-4">
@@ -262,10 +348,7 @@ function DetailsStep() {
                     placeholder="A brief description of this category..."
                     value={description}
                     onChange={(e) =>
-                        setStepData("details", {
-                            ...data,
-                            description: e.target.value,
-                        })
+                        setStepData("details", { ...data, description: e.target.value })
                     }
                     rows={4}
                 />
@@ -295,21 +378,18 @@ function DetailsStep() {
 
 function SEOStep() {
     const { stepData, setStepData } = useMultiStep();
-    const data = stepData["seo"] ?? {};
-
+    const data       = stepData["seo"] ?? {};
     const meta_title = (data.meta_title as string) ?? "";
-    const meta_desc = (data.meta_desc as string) ?? "";
-    const titleLen = meta_title.length;
-    const descLen = meta_desc.length;
+    const meta_desc  = (data.meta_desc  as string) ?? "";
+    const titleLen   = meta_title.length;
+    const descLen    = meta_desc.length;
 
     return (
         <div className="space-y-5">
             <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                     <Label htmlFor="c-meta-title">Meta Title</Label>
-                    <span
-                        className={`text-xs ${titleLen > 60 ? "text-destructive" : "text-muted-foreground"}`}
-                    >
+                    <span className={`text-xs ${titleLen > 60 ? "text-destructive" : "text-muted-foreground"}`}>
                         {titleLen}/60
                     </span>
                 </div>
@@ -318,10 +398,7 @@ function SEOStep() {
                     placeholder="International Tour Packages | Dreams Yatri"
                     value={meta_title}
                     onChange={(e) =>
-                        setStepData("seo", {
-                            ...data,
-                            meta_title: e.target.value,
-                        })
+                        setStepData("seo", { ...data, meta_title: e.target.value })
                     }
                 />
             </div>
@@ -329,9 +406,7 @@ function SEOStep() {
             <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                     <Label htmlFor="c-meta-desc">Meta Description</Label>
-                    <span
-                        className={`text-xs ${descLen > 160 ? "text-destructive" : "text-muted-foreground"}`}
-                    >
+                    <span className={`text-xs ${descLen > 160 ? "text-destructive" : "text-muted-foreground"}`}>
                         {descLen}/160
                     </span>
                 </div>
@@ -352,7 +427,7 @@ function SEOStep() {
                         Search Preview
                     </p>
                     <p className="text-xs text-green-700 dark:text-green-500">
-                        dreamsyatri.com/packages/international-tours
+                        dreamsyatri.com/packages/...
                     </p>
                     <p className="text-sm text-blue-600 dark:text-blue-400 font-medium leading-tight">
                         {meta_title || "Page title"}
@@ -367,6 +442,32 @@ function SEOStep() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SHARED — build FormData from step data
+// ─────────────────────────────────────────────────────────────────────────────
+
+function buildFormData(
+    data: Record<string, unknown>,
+    fallback?: CategoryWithRelations,
+): FormData {
+    const formData = new FormData();
+
+    formData.append("name",        (data.name        as string) ?? fallback?.name        ?? "");
+    formData.append("slug",        (data.slug        as string) ?? fallback?.slug        ?? "");
+    formData.append("sort_order",  (data.sort_order  as string) ?? String(fallback?.sort_order ?? 0));
+    formData.append("description", (data.description as string) ?? fallback?.description ?? "");
+    formData.append("is_active",   String(data.is_active ?? fallback?.is_active ?? true));
+    formData.append("meta_title",  (data.meta_title  as string) ?? fallback?.meta_title  ?? "");
+    formData.append("meta_desc",   (data.meta_desc   as string) ?? fallback?.meta_desc   ?? "");
+
+    // parent_id: only set if type is "sub" and parent_id is selected
+    const type      = (data.type      as string) ?? (fallback?.parent_id ? "sub" : "parent");
+    const parent_id = (data.parent_id as string) ?? "";
+    formData.append("parent_id", type === "sub" && parent_id ? parent_id : "");
+
+    return formData;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // CREATE DIALOG
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -375,33 +476,14 @@ export function CreateCategoryDialog({
 }: {
     parentCategories: CategoryForSelect[];
 }) {
-    const [open, setOpen] = useState(false);
+    const [open,      setOpen]         = useState(false);
     const [isPending, startTransition] = useTransition();
-
     const STEPS = makeSteps();
 
     async function handleComplete(data: Record<string, unknown>) {
         startTransition(async () => {
-            const formData = new FormData();
-
-            formData.append("name", (data.name as string) ?? "");
-            formData.append("slug", (data.slug as string) ?? "");
-            formData.append(
-                "parent_id",
-                data.parent_id && data.parent_id !== "none"
-                    ? (data.parent_id as string)
-                    : "",
-            );
-            formData.append("sort_order", (data.sort_order as string) ?? "0");
-            formData.append("description", (data.description as string) ?? "");
-            formData.append("is_active", String(data.is_active ?? true));
-            formData.append("meta_title", (data.meta_title as string) ?? "");
-            formData.append("meta_desc", (data.meta_desc as string) ?? "");
-
-            const result = await createCategory(
-                { success: false, message: "" },
-                formData,
-            );
+            const formData = buildFormData(data);
+            const result   = await createCategory({ success: false, message: "" }, formData);
 
             if (result.success) {
                 toast.success(result.message);
@@ -446,47 +528,20 @@ export function EditCategoryDialog({
     category,
     parentCategories,
 }: {
-    category: CategoryWithRelations;
+    category:         CategoryWithRelations;
     parentCategories: CategoryForSelect[];
 }) {
-    const [open, setOpen] = useState(false);
+    const [open,      setOpen]         = useState(false);
     const [isPending, startTransition] = useTransition();
 
-    const STEPS = makeSteps();
+    const STEPS       = makeSteps();
     const initialData = buildInitialData(category);
 
     async function handleComplete(data: Record<string, unknown>) {
         startTransition(async () => {
-            const formData = new FormData();
-
-            formData.append("name", (data.name as string) ?? category.name);
-            formData.append("slug", category.slug); // slug locked
-            formData.append(
-                "parent_id",
-                data.parent_id && data.parent_id !== "none"
-                    ? (data.parent_id as string)
-                    : "",
-            );
-            formData.append(
-                "sort_order",
-                (data.sort_order as string) ?? String(category.sort_order),
-            );
-            formData.append(
-                "description",
-                (data.description as string) ?? category.description ?? "",
-            );
-            formData.append(
-                "is_active",
-                String(data.is_active ?? category.is_active),
-            );
-            formData.append(
-                "meta_title",
-                (data.meta_title as string) ?? category.meta_title ?? "",
-            );
-            formData.append(
-                "meta_desc",
-                (data.meta_desc as string) ?? category.meta_desc ?? "",
-            );
+            // Slug is always locked on edit
+            const formData = buildFormData(data, category);
+            formData.set("slug", category.slug);
 
             const result = await updateCategory(
                 category.id,

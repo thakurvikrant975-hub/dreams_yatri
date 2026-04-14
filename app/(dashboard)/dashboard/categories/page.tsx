@@ -2,12 +2,8 @@ import { Suspense } from "react";
 import { Tag } from "lucide-react";
 import { Skeleton } from "../components/ui/skeleton";
 import {
-    Breadcrumb,
-    BreadcrumbItem,
-    BreadcrumbLink,
-    BreadcrumbList,
-    BreadcrumbPage,
-    BreadcrumbSeparator,
+    Breadcrumb, BreadcrumbItem, BreadcrumbLink,
+    BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "../components/ui/breadcrumb";
 import { getCategories, getParentCategoriesForSelect } from "./actions";
 import { CategoriesTable } from "./Categoriestable";
@@ -15,27 +11,17 @@ import { CreateCategoryDialog } from "./Categorydialog";
 import { LayoutGrid, CheckCircle, GitBranch, Package } from "lucide-react";
 import { StatsGrid, type Stat } from "../components/dashboard/StatsGrid";
 
-// ── Skeleton ──────────────────────────────────────────────────────────────
+const PAGE_SIZE = 10;
 
 function TableSkeleton() {
     return (
         <div className="rounded-xl border bg-card overflow-hidden">
             <div className="bg-muted/50 px-4 py-3 grid grid-cols-6 gap-4">
-                {Array.from({ length: 6 }).map((_, i) => (
-                    <Skeleton key={i} className="h-4" />
-                ))}
+                {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-4" />)}
             </div>
             {Array.from({ length: 5 }).map((_, i) => (
-                <div
-                    key={i}
-                    className="px-4 py-3 grid grid-cols-6 gap-4 border-t items-center"
-                >
-                    <div className="flex items-center gap-2">
-                        <div className="space-y-1">
-                            <Skeleton className="h-4 w-28" />
-                            <Skeleton className="h-3 w-20" />
-                        </div>
-                    </div>
+                <div key={i} className="px-4 py-3 grid grid-cols-6 gap-4 border-t items-center">
+                    <Skeleton className="h-4 w-28" />
                     <Skeleton className="h-5 w-20" />
                     <Skeleton className="h-5 w-16" />
                     <Skeleton className="h-4 w-10 mx-auto" />
@@ -50,27 +36,24 @@ function TableSkeleton() {
     );
 }
 
-// ── Async data component ──────────────────────────────────────────────────
-
-async function CategoriesData() {
+async function CategoriesData({ page }: { page: number }) {
     const [categories, parentCategories] = await Promise.all([
         getCategories(),
         getParentCategoriesForSelect(),
     ]);
 
-    const totalCategories = categories.length;
-    const topLevel = categories.filter((c) => c.parent_id === null).length;
-    const subCategories = categories.filter((c) => c.parent_id !== null).length;
+    const topLevel = categories.filter((c) => c.parent_id === null);
+    const totalPages = Math.ceil(topLevel.length / PAGE_SIZE);
+    const paginated = topLevel.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
     const activeCount = categories.filter((c) => c.is_active).length;
-    const inPackages = categories.reduce(
-        (acc, c) => acc + c._count.packages,
-        0,
-    );
+    const subCategories = categories.filter((c) => c.parent_id !== null).length;
+    const inPackages = categories.reduce((acc, c) => acc + c._count.packages, 0);
 
     const statsData: Stat[] = [
         {
             label: "Total Categories",
-            value: String(totalCategories),
+            value: String(categories.length),
             icon: <LayoutGrid className="h-4 w-4" />,
         },
         {
@@ -97,25 +80,31 @@ async function CategoriesData() {
             <StatsGrid stats={statsData} />
             <CategoriesTable
                 categories={categories}
+                paginatedTopLevel={paginated}
                 parentCategories={parentCategories}
+                currentPage={page}
+                totalPages={totalPages}
+                pageSize={PAGE_SIZE}
             />
         </>
     );
 }
-
-// ── Create button with data ───────────────────────────────────────────────
 
 async function CreateButtonData() {
     const parentCategories = await getParentCategoriesForSelect();
     return <CreateCategoryDialog parentCategories={parentCategories} />;
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────
+export default async function CategoriesPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ page?: string }>;
+}) {
+    const params = await searchParams;
+    const page = Math.max(1, Number(params.page ?? 1));
 
-export default function CategoriesPage() {
     return (
         <div className="space-y-6">
-            {/* Breadcrumb */}
             <Breadcrumb>
                 <BreadcrumbList>
                     <BreadcrumbItem>
@@ -128,7 +117,6 @@ export default function CategoriesPage() {
                 </BreadcrumbList>
             </Breadcrumb>
 
-            {/* Header */}
             <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -141,22 +129,18 @@ export default function CategoriesPage() {
                         </p>
                     </div>
                 </div>
-
                 <Suspense fallback={<Skeleton className="h-9 w-36" />}>
                     <CreateButtonData />
                 </Suspense>
             </div>
 
-            {/* Data */}
             <Suspense
+                key={page}
                 fallback={
                     <div className="space-y-4">
                         <div className="grid grid-cols-4 gap-4">
                             {Array.from({ length: 4 }).map((_, i) => (
-                                <div
-                                    key={i}
-                                    className="rounded-xl border bg-card p-4 space-y-2"
-                                >
+                                <div key={i} className="rounded-xl border bg-card p-4 space-y-2">
                                     <Skeleton className="h-3 w-16" />
                                     <Skeleton className="h-7 w-10" />
                                 </div>
@@ -166,7 +150,7 @@ export default function CategoriesPage() {
                     </div>
                 }
             >
-                <CategoriesData />
+                <CategoriesData page={page} />
             </Suspense>
         </div>
     );

@@ -21,7 +21,6 @@ import {
     ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatDistanceToNow } from "date-fns";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -33,8 +32,16 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "../components/ui/alert-dialog";
+import {
+    Pagination,
+    PaginationContent,
+    PaginationEllipsis,
+    PaginationItem,
+    PaginationLink,
+    PaginationNext,
+    PaginationPrevious,
+} from "../components/ui/pagination";
 import { EditCategoryDialog } from "./Categorydialog";
-
 import {
     deleteCategory,
     toggleCategoryActive,
@@ -91,7 +98,8 @@ function DeleteCategoryDialog({
                         )}
                         {packageCount > 0 && (
                             <span className="block mt-2 text-destructive font-medium">
-                                ⚠ {packageCount} package(s) are linked. Unlink them first.
+                                ⚠ {packageCount} package(s) are linked. Unlink them
+                                first.
                             </span>
                         )}
                     </AlertDialogDescription>
@@ -111,7 +119,7 @@ function DeleteCategoryDialog({
     );
 }
 
-// ── Subcategory Row (indented) ────────────────────────────────────────────
+// ── Subcategory Row ───────────────────────────────────────────────────────
 
 function SubcategoryRow({
     child,
@@ -136,7 +144,6 @@ function SubcategoryRow({
 
     return (
         <TableRow className="hover:bg-muted/20 bg-muted/5">
-            {/* Name — indented */}
             <TableCell>
                 <div className="flex items-center gap-2 pl-8">
                     <div className="w-px h-4 bg-border" />
@@ -151,24 +158,20 @@ function SubcategoryRow({
                 </div>
             </TableCell>
 
-            {/* Slug */}
             <TableCell>
                 <Badge variant="outline" className="font-mono text-xs">
                     {child.slug}
                 </Badge>
             </TableCell>
 
-            {/* Parent — self */}
             <TableCell>
                 <span className="text-xs text-muted-foreground italic">—</span>
             </TableCell>
 
-            {/* Children count */}
             <TableCell className="text-center">
                 <span className="text-xs text-muted-foreground">—</span>
             </TableCell>
 
-            {/* Packages */}
             <TableCell className="text-center">
                 <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
                     <Package className="h-3 w-3" />
@@ -176,7 +179,6 @@ function SubcategoryRow({
                 </div>
             </TableCell>
 
-            {/* Status */}
             <TableCell className="text-center">
                 <Switch
                     checked={child.is_active}
@@ -185,10 +187,8 @@ function SubcategoryRow({
                 />
             </TableCell>
 
-            {/* Added — empty for sub */}
             <TableCell className="text-xs text-muted-foreground">—</TableCell>
 
-            {/* Actions */}
             <TableCell className="text-right">
                 <div className="flex items-center justify-end gap-1">
                     {full && (
@@ -211,17 +211,107 @@ function SubcategoryRow({
     );
 }
 
+// ── Pagination ────────────────────────────────────────────────────────────
+
+function TablePagination({
+    currentPage,
+    totalPages,
+}: {
+    currentPage: number;
+    totalPages: number;
+}) {
+    if (totalPages <= 1) return null;
+
+    function getPageNumbers(): (number | "ellipsis")[] {
+        const pages: (number | "ellipsis")[] = [];
+
+        if (totalPages <= 5) {
+            return Array.from({ length: totalPages }, (_, i) => i + 1);
+        }
+
+        pages.push(1);
+        if (currentPage > 3) pages.push("ellipsis");
+
+        const start = Math.max(2, currentPage - 1);
+        const end = Math.min(totalPages - 1, currentPage + 1);
+        for (let i = start; i <= end; i++) pages.push(i);
+
+        if (currentPage < totalPages - 2) pages.push("ellipsis");
+        pages.push(totalPages);
+
+        return pages;
+    }
+
+    return (
+        <div className="border-t px-4 py-3 flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+                Page {currentPage} of {totalPages}
+            </p>
+            <Pagination>
+                <PaginationContent>
+                    <PaginationItem>
+                        <PaginationPrevious
+                            href={`?page=${currentPage - 1}`}
+                            aria-disabled={currentPage === 1}
+                            className={
+                                currentPage === 1
+                                    ? "pointer-events-none opacity-50"
+                                    : ""
+                            }
+                        />
+                    </PaginationItem>
+
+                    {getPageNumbers().map((p, i) =>
+                        p === "ellipsis" ? (
+                            <PaginationItem key={`ellipsis-${i}`}>
+                                <PaginationEllipsis />
+                            </PaginationItem>
+                        ) : (
+                            <PaginationItem key={p}>
+                                <PaginationLink
+                                    href={`?page=${p}`}
+                                    isActive={p === currentPage}
+                                >
+                                    {p}
+                                </PaginationLink>
+                            </PaginationItem>
+                        ),
+                    )}
+
+                    <PaginationItem>
+                        <PaginationNext
+                            href={`?page=${currentPage + 1}`}
+                            aria-disabled={currentPage === totalPages}
+                            className={
+                                currentPage === totalPages
+                                    ? "pointer-events-none opacity-50"
+                                    : ""
+                            }
+                        />
+                    </PaginationItem>
+                </PaginationContent>
+            </Pagination>
+        </div>
+    );
+}
+
 // ── Main Table ────────────────────────────────────────────────────────────
 
 export function CategoriesTable({
     categories,
+    paginatedTopLevel,
     parentCategories,
+    currentPage,
+    totalPages,
 }: {
     categories: CategoryWithRelations[];
+    paginatedTopLevel: CategoryWithRelations[];
     parentCategories: CategoryForSelect[];
+    currentPage: number;
+    totalPages: number;
+    pageSize: number;
 }) {
     const [isPending, startTransition] = useTransition();
-    // Track which parent rows are expanded to show children
     const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
     function toggleExpanded(id: number) {
@@ -236,16 +326,11 @@ export function CategoriesTable({
     function handleToggle(id: number, current: boolean) {
         startTransition(async () => {
             await toggleCategoryActive(id, !current);
-            toast.success(
-                `Category ${!current ? "activated" : "deactivated"}`,
-            );
+            toast.success(`Category ${!current ? "activated" : "deactivated"}`);
         });
     }
 
-    // Only top-level categories in the main rows
-    const topLevel = categories.filter((c) => c.parent_id === null);
-
-    if (topLevel.length === 0) {
+    if (paginatedTopLevel.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center py-20 border rounded-xl bg-muted/30">
                 <Tag className="h-10 w-10 text-muted-foreground mb-3" />
@@ -270,22 +355,18 @@ export function CategoriesTable({
                         <TableHead className="text-center">Subcategories</TableHead>
                         <TableHead className="text-center">Packages</TableHead>
                         <TableHead className="text-center">Status</TableHead>
-                        <TableHead>Added</TableHead>
+                        <TableHead>Order</TableHead>
                         <TableHead className="text-right w-[100px]">Actions</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {topLevel.map((cat) => {
+                    {paginatedTopLevel.map((cat) => {
                         const hasChildren = cat.children.length > 0;
                         const isExpanded = expanded.has(cat.id);
 
                         return (
                             <>
-                                {/* ── Parent Row ── */}
-                                <TableRow
-                                    key={cat.id}
-                                    className="hover:bg-muted/30"
-                                >
+                                <TableRow key={cat.id} className="hover:bg-muted/30">
                                     {/* Name + expand toggle */}
                                     <TableCell>
                                         <div className="flex items-center gap-2">
@@ -293,11 +374,6 @@ export function CategoriesTable({
                                                 <button
                                                     onClick={() => toggleExpanded(cat.id)}
                                                     className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted transition-colors shrink-0"
-                                                    aria-label={
-                                                        isExpanded
-                                                            ? "Collapse subcategories"
-                                                            : "Expand subcategories"
-                                                    }
                                                 >
                                                     {isExpanded ? (
                                                         <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
@@ -316,7 +392,7 @@ export function CategoriesTable({
                                                     {cat.name}
                                                 </p>
                                                 <p className="text-xs text-muted-foreground">
-                                                    Sort: {cat.sort_order}
+                                                    /{cat.slug}
                                                 </p>
                                             </div>
                                         </div>
@@ -334,10 +410,7 @@ export function CategoriesTable({
 
                                     {/* Parent */}
                                     <TableCell>
-                                        <Badge
-                                            variant="secondary"
-                                            className="text-xs"
-                                        >
+                                        <Badge variant="secondary" className="text-xs">
                                             Top Level
                                         </Badge>
                                     </TableCell>
@@ -367,7 +440,7 @@ export function CategoriesTable({
                                         </div>
                                     </TableCell>
 
-                                    {/* Status toggle */}
+                                    {/* Status */}
                                     <TableCell className="text-center">
                                         <Switch
                                             checked={cat.is_active}
@@ -378,10 +451,9 @@ export function CategoriesTable({
                                         />
                                     </TableCell>
 
-                                    {/* Added — categories don't have created_at in your schema,
-                                        so we show sort_order instead. If you add created_at, swap this. */}
+                                    {/* Sort order */}
                                     <TableCell className="text-xs text-muted-foreground">
-                                        Order #{cat.sort_order}
+                                        #{cat.sort_order}
                                     </TableCell>
 
                                     {/* Actions */}
@@ -401,7 +473,7 @@ export function CategoriesTable({
                                     </TableCell>
                                 </TableRow>
 
-                                {/* ── Subcategory Rows (expanded) ── */}
+                                {/* Subcategory rows */}
                                 {isExpanded &&
                                     cat.children.map((child) => (
                                         <SubcategoryRow
@@ -416,6 +488,11 @@ export function CategoriesTable({
                     })}
                 </TableBody>
             </Table>
+
+            <TablePagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+            />
         </div>
     );
 }
