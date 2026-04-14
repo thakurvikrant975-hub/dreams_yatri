@@ -18,12 +18,13 @@ function OnBoardingModal() {
             open={isOpen}
             onClose={closeModal}
             data-layout="website"
+            maxWidth='2xl'
         >
             <ModalHeader onClose={closeModal}>
-                <h2 className='text-xl font-semibold'>Complete Your Profile</h2>
+                Complete Your Profile
             </ModalHeader>
-            <ModalBody>
-                <div className='space-y-4'>
+            <ModalBody className='min-h-70'>
+                <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
                     <div>
                         <Label htmlFor="name">Full Name</Label>
                         <Input id="name" placeholder="Enter your full name" />
