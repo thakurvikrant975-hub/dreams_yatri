@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import { Plus, Tag, Search, Settings2, Pencil, GitBranch } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -30,13 +30,20 @@ import {
     type CategoryForSelect,
 } from "./actions";
 
+// ── SEO title generator ───────────────────────────────────────────────────
+
+function generateSeoTitle(name: string): string {
+    if (!name.trim()) return "";
+    const cleaned = name.trim();
+    return `${cleaned.charAt(0).toUpperCase()}${cleaned.slice(1)} Travel Packages | DreamsYatri`;
+}
+
 // ── Build initial data for edit mode ─────────────────────────────────────
 
 function buildInitialData(
     category?: CategoryWithRelations,
 ): Record<string, Record<string, unknown>> {
     if (!category) return {};
-
     return {
         basic: {
             name:       category.name,
@@ -50,11 +57,20 @@ function buildInitialData(
             is_active:   category.is_active,
         },
         seo: {
-            meta_title: category.meta_title ?? "",
-            meta_desc:  category.meta_desc  ?? "",
+            meta_title:       category.meta_title ?? "",
+            meta_desc:        category.meta_desc  ?? "",
+            seo_title_edited: !!(category.meta_title),
         },
     };
 }
+
+// ── Default empty step data (used to reset form on close) ─────────────────
+
+const EMPTY_STEP_DATA: Record<string, Record<string, unknown>> = {
+    basic:   { name: "", slug: "", type: "parent", parent_id: "", sort_order: "0" },
+    details: { description: "", is_active: true },
+    seo:     { meta_title: "", meta_desc: "", seo_title_edited: false },
+};
 
 // ── Step definitions ──────────────────────────────────────────────────────
 
@@ -99,8 +115,8 @@ function BasicInfoStep({
     category,
     parentCategories,
 }: {
-    category?:         CategoryWithRelations;
-    parentCategories:  CategoryForSelect[];
+    category?:        CategoryWithRelations;
+    parentCategories: CategoryForSelect[];
 }) {
     const { stepData, setStepData } = useMultiStep();
     const data = stepData["basic"] ?? {};
@@ -111,24 +127,33 @@ function BasicInfoStep({
     const parent_id  = (data.parent_id  as string) ?? "";
     const sort_order = (data.sort_order as string) ?? "0";
 
-    // In edit mode, filter out self from parent options
-    const availableParents = parentCategories.filter(
-        (p) => p.id !== category?.id,
-    );
+    const availableParents = parentCategories.filter((p) => p.id !== category?.id);
 
     function handleNameChange(e: React.ChangeEvent<HTMLInputElement>) {
         const newName = e.target.value;
+
+        // Always update auto SEO title if user hasn't overridden it
+        const seoData = stepData["seo"] ?? {};
+        if (!(seoData.seo_title_edited as boolean)) {
+            setStepData("seo", {
+                ...seoData,
+                meta_title: generateSeoTitle(newName),
+            });
+        }
+
         if (category) {
             setStepData("basic", { ...data, name: newName });
-        } else {
-            const newSlug = newName
-                .toLowerCase()
-                .replace(/[^a-z0-9\s-]/g, "")
-                .replace(/\s+/g, "-")
-                .replace(/-+/g, "-")
-                .trim();
-            setStepData("basic", { ...data, name: newName, slug: newSlug });
+            return;
         }
+
+        // Create mode: auto-generate slug
+        const newSlug = newName
+            .toLowerCase()
+            .replace(/[^a-z0-9\s-]/g, "")
+            .replace(/\s+/g, "-")
+            .replace(/-+/g, "-")
+            .trim();
+        setStepData("basic", { ...data, name: newName, slug: newSlug });
     }
 
     function handleTypeChange(newType: "parent" | "sub") {
@@ -142,12 +167,13 @@ function BasicInfoStep({
     return (
         <div className="space-y-5">
 
-            {/* ── Type selector ── */}
+            {/* ── Type selector (create mode only) ── */}
             {!category && (
                 <div className="space-y-2">
-                    <Label>Category Type <span className="text-destructive">*</span></Label>
+                    <Label>
+                        Category Type <span className="text-destructive">*</span>
+                    </Label>
                     <div className="grid grid-cols-2 gap-3">
-                        {/* Parent option */}
                         <button
                             type="button"
                             onClick={() => handleTypeChange("parent")}
@@ -162,16 +188,10 @@ function BasicInfoStep({
                                 "h-8 w-8 rounded-lg flex items-center justify-center",
                                 type === "parent" ? "bg-primary/10" : "bg-muted",
                             )}>
-                                <Tag className={cn(
-                                    "h-4 w-4",
-                                    type === "parent" ? "text-primary" : "text-muted-foreground",
-                                )} />
+                                <Tag className={cn("h-4 w-4", type === "parent" ? "text-primary" : "text-muted-foreground")} />
                             </div>
                             <div>
-                                <p className={cn(
-                                    "text-sm font-semibold",
-                                    type === "parent" ? "text-primary" : "text-foreground",
-                                )}>
+                                <p className={cn("text-sm font-semibold", type === "parent" ? "text-primary" : "text-foreground")}>
                                     Parent Category
                                 </p>
                                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -180,7 +200,6 @@ function BasicInfoStep({
                             </div>
                         </button>
 
-                        {/* Subcategory option */}
                         <button
                             type="button"
                             onClick={() => handleTypeChange("sub")}
@@ -195,16 +214,10 @@ function BasicInfoStep({
                                 "h-8 w-8 rounded-lg flex items-center justify-center",
                                 type === "sub" ? "bg-primary/10" : "bg-muted",
                             )}>
-                                <GitBranch className={cn(
-                                    "h-4 w-4",
-                                    type === "sub" ? "text-primary" : "text-muted-foreground",
-                                )} />
+                                <GitBranch className={cn("h-4 w-4", type === "sub" ? "text-primary" : "text-muted-foreground")} />
                             </div>
                             <div>
-                                <p className={cn(
-                                    "text-sm font-semibold",
-                                    type === "sub" ? "text-primary" : "text-foreground",
-                                )}>
+                                <p className={cn("text-sm font-semibold", type === "sub" ? "text-primary" : "text-foreground")}>
                                     Subcategory
                                 </p>
                                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -216,7 +229,7 @@ function BasicInfoStep({
                 </div>
             )}
 
-            {/* ── Parent dropdown (only when type = sub) ── */}
+            {/* ── Parent dropdown ── */}
             {type === "sub" && (
                 <div className="space-y-1.5">
                     <Label>
@@ -224,9 +237,7 @@ function BasicInfoStep({
                     </Label>
                     {availableParents.length === 0 ? (
                         <div className="rounded-lg border border-dashed p-4 text-center">
-                            <p className="text-sm text-muted-foreground">
-                                No parent categories found.
-                            </p>
+                            <p className="text-sm text-muted-foreground">No parent categories found.</p>
                             <p className="text-xs text-muted-foreground mt-1">
                                 Create a parent category first, then add subcategories.
                             </p>
@@ -234,9 +245,7 @@ function BasicInfoStep({
                     ) : (
                         <Select
                             value={parent_id}
-                            onValueChange={(v) =>
-                                setStepData("basic", { ...data, parent_id: v })
-                            }
+                            onValueChange={(v) => setStepData("basic", { ...data, parent_id: v })}
                         >
                             <SelectTrigger>
                                 <SelectValue placeholder="Select parent category" />
@@ -288,17 +297,11 @@ function BasicInfoStep({
                     onChange={(e) =>
                         setStepData("basic", {
                             ...data,
-                            slug: e.target.value
-                                .toLowerCase()
-                                .replace(/[^a-z0-9-]/g, "-"),
+                            slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
                         })
                     }
                     readOnly={!!category}
-                    className={
-                        category
-                            ? "bg-muted text-muted-foreground cursor-not-allowed"
-                            : ""
-                    }
+                    className={category ? "bg-muted text-muted-foreground cursor-not-allowed" : ""}
                 />
                 <p className="text-xs text-muted-foreground">
                     {category
@@ -335,7 +338,7 @@ function BasicInfoStep({
 
 function DetailsStep() {
     const { stepData, setStepData } = useMultiStep();
-    const data      = stepData["details"] ?? {};
+    const data        = stepData["details"] ?? {};
     const description = (data.description as string)  ?? "";
     const is_active   = (data.is_active   as boolean) ?? true;
 
@@ -378,29 +381,84 @@ function DetailsStep() {
 
 function SEOStep() {
     const { stepData, setStepData } = useMultiStep();
-    const data       = stepData["seo"] ?? {};
-    const meta_title = (data.meta_title as string) ?? "";
-    const meta_desc  = (data.meta_desc  as string) ?? "";
-    const titleLen   = meta_title.length;
-    const descLen    = meta_desc.length;
+    const data      = stepData["seo"]   ?? {};
+    const basicData = stepData["basic"] ?? {};
+
+    const meta_title       = (data.meta_title       as string)  ?? "";
+    const meta_desc        = (data.meta_desc        as string)  ?? "";
+    const seo_title_edited = (data.seo_title_edited as boolean) ?? false;
+    const categoryName     = (basicData.name        as string)  ?? "";
+
+    const titleLen = meta_title.length;
+    const descLen  = meta_desc.length;
+
+    // Keep auto title in sync as user types name on step 1
+    const prevName = useRef(categoryName);
+    useEffect(() => {
+        if (prevName.current !== categoryName) {
+            prevName.current = categoryName;
+            if (!seo_title_edited) {
+                setStepData("seo", {
+                    ...data,
+                    meta_title: generateSeoTitle(categoryName),
+                });
+            }
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [categoryName]);
+
+    function handleTitleChange(e: React.ChangeEvent<HTMLInputElement>) {
+        setStepData("seo", {
+            ...data,
+            meta_title:       e.target.value,
+            seo_title_edited: true,   // lock auto-gen the moment user types
+        });
+    }
+
+    function handleTitleReset() {
+        setStepData("seo", {
+            ...data,
+            meta_title:       generateSeoTitle(categoryName),
+            seo_title_edited: false,  // re-enable auto-gen
+        });
+    }
 
     return (
         <div className="space-y-5">
             <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                    <Label htmlFor="c-meta-title">Meta Title</Label>
+                    <div className="flex items-center gap-2">
+                        <Label htmlFor="c-meta-title">Meta Title</Label>
+                        {!seo_title_edited && meta_title && (
+                            <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-medium">
+                                AUTO
+                            </span>
+                        )}
+                        {seo_title_edited && (
+                            <button
+                                type="button"
+                                onClick={handleTitleReset}
+                                className="text-xs text-primary hover:underline"
+                            >
+                                ↩ Reset to auto
+                            </button>
+                        )}
+                    </div>
                     <span className={`text-xs ${titleLen > 60 ? "text-destructive" : "text-muted-foreground"}`}>
                         {titleLen}/60
                     </span>
                 </div>
                 <Input
                     id="c-meta-title"
-                    placeholder="International Tour Packages | Dreams Yatri"
+                    placeholder="International Travel Packages | DreamsYatri"
                     value={meta_title}
-                    onChange={(e) =>
-                        setStepData("seo", { ...data, meta_title: e.target.value })
-                    }
+                    onChange={handleTitleChange}
                 />
+                {!seo_title_edited && (
+                    <p className="text-xs text-muted-foreground">
+                        Auto-generated from category name. Edit to override.
+                    </p>
+                )}
             </div>
 
             <div className="space-y-1.5">
@@ -412,7 +470,7 @@ function SEOStep() {
                 </div>
                 <Textarea
                     id="c-meta-desc"
-                    placeholder="Explore international destinations with Dreams Yatri..."
+                    placeholder="Explore the best travel packages with Dreams Yatri..."
                     value={meta_desc}
                     onChange={(e) =>
                         setStepData("seo", { ...data, meta_desc: e.target.value })
@@ -442,14 +500,16 @@ function SEOStep() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SHARED — build FormData from step data
+// SHARED — build FormData
 // ─────────────────────────────────────────────────────────────────────────────
 
 function buildFormData(
     data: Record<string, unknown>,
     fallback?: CategoryWithRelations,
 ): FormData {
-    const formData = new FormData();
+    const formData  = new FormData();
+    const type      = (data.type      as string) ?? (fallback?.parent_id ? "sub" : "parent");
+    const parent_id = (data.parent_id as string) ?? "";
 
     formData.append("name",        (data.name        as string) ?? fallback?.name        ?? "");
     formData.append("slug",        (data.slug        as string) ?? fallback?.slug        ?? "");
@@ -458,11 +518,7 @@ function buildFormData(
     formData.append("is_active",   String(data.is_active ?? fallback?.is_active ?? true));
     formData.append("meta_title",  (data.meta_title  as string) ?? fallback?.meta_title  ?? "");
     formData.append("meta_desc",   (data.meta_desc   as string) ?? fallback?.meta_desc   ?? "");
-
-    // parent_id: only set if type is "sub" and parent_id is selected
-    const type      = (data.type      as string) ?? (fallback?.parent_id ? "sub" : "parent");
-    const parent_id = (data.parent_id as string) ?? "";
-    formData.append("parent_id", type === "sub" && parent_id ? parent_id : "");
+    formData.append("parent_id",   type === "sub" && parent_id ? parent_id : "");
 
     return formData;
 }
@@ -476,9 +532,17 @@ export function CreateCategoryDialog({
 }: {
     parentCategories: CategoryForSelect[];
 }) {
-    const [open,      setOpen]         = useState(false);
+    const [open,      setOpen]     = useState(false);
     const [isPending, startTransition] = useTransition();
+    // Incrementing key forces full remount of modal + all step state on close
+    const [modalKey,  setModalKey] = useState(0);
+
     const STEPS = makeSteps();
+
+    function handleOpenChange(val: boolean) {
+        setOpen(val);
+        if (!val) setModalKey((k) => k + 1);
+    }
 
     async function handleComplete(data: Record<string, unknown>) {
         startTransition(async () => {
@@ -487,7 +551,7 @@ export function CreateCategoryDialog({
 
             if (result.success) {
                 toast.success(result.message);
-                setOpen(false);
+                handleOpenChange(false);
             } else {
                 toast.error(result.message);
             }
@@ -502,15 +566,16 @@ export function CreateCategoryDialog({
             </Button>
 
             <MultiStepModal
+                key={modalKey}
                 open={open}
-                onOpenChange={setOpen}
+                onOpenChange={handleOpenChange}
                 title="Create Category"
                 description="Add a new category or subcategory for packages"
                 steps={STEPS}
                 onComplete={handleComplete}
                 isSubmitting={isPending}
                 submitLabel="Create Category"
-                initialStepData={{}}
+                initialStepData={EMPTY_STEP_DATA}
             >
                 <BasicInfoStep parentCategories={parentCategories} />
                 <DetailsStep />
@@ -531,15 +596,20 @@ export function EditCategoryDialog({
     category:         CategoryWithRelations;
     parentCategories: CategoryForSelect[];
 }) {
-    const [open,      setOpen]         = useState(false);
+    const [open,      setOpen]     = useState(false);
     const [isPending, startTransition] = useTransition();
+    const [modalKey,  setModalKey] = useState(0);
 
     const STEPS       = makeSteps();
     const initialData = buildInitialData(category);
 
+    function handleOpenChange(val: boolean) {
+        setOpen(val);
+        if (!val) setModalKey((k) => k + 1);
+    }
+
     async function handleComplete(data: Record<string, unknown>) {
         startTransition(async () => {
-            // Slug is always locked on edit
             const formData = buildFormData(data, category);
             formData.set("slug", category.slug);
 
@@ -551,7 +621,7 @@ export function EditCategoryDialog({
 
             if (result.success) {
                 toast.success(result.message);
-                setOpen(false);
+                handleOpenChange(false);
             } else {
                 toast.error(result.message);
             }
@@ -570,8 +640,9 @@ export function EditCategoryDialog({
             </Button>
 
             <MultiStepModal
+                key={modalKey}
                 open={open}
-                onOpenChange={setOpen}
+                onOpenChange={handleOpenChange}
                 title="Edit Category"
                 description={`Editing: ${category.name}`}
                 steps={STEPS}
