@@ -626,69 +626,74 @@ console.log("🧹 Cleared all tables\n");
   // 8. TEST USER + BOOKINGS + PAYMENTS
   // ════════════════════════════════════════════════════════════════════════
 
-const testUser = await db.user.upsert({
-  where: {
-    email: "seed@dreams.com",
+// ── Vikrant test user with full profile data ─────────────────────────
+const vikrant = await db.user.upsert({
+  where:  { email: "thakurvikrant975@gmail.com" },
+  update: {
+    name:              "Vikrant Thakur",
+    phone:             "9816012345",
+    country_code:      "+91",
+    emailVerified:     new Date(),
+    gender:            "MALE",
+    dateOfBirth:       new Date("1990-03-22"),
+    nationality:       "Indian",
+    state:             "Himachal Pradesh",
+    city:              "Shimla",
+    isProfileComplete: true,
+    status:            "ACTIVE",
+    role:              "USER",
   },
+  create: {
+    email:             "thakurvikrant975@gmail.com",
+    name:              "Vikrant Thakur",
+    phone:             "9816012345",
+    country_code:      "+91",
+    emailVerified:     new Date(),
+    gender:            "MALE",
+    dateOfBirth:       new Date("1990-03-22"),
+    nationality:       "Indian",
+    state:             "Himachal Pradesh",
+    city:              "Shimla",
+    isProfileComplete: true,
+    status:            "ACTIVE",
+    role:              "USER",
+  },
+});
+console.log(`✅ Vikrant: ${vikrant.email} (${vikrant.id})`);
+
+// ── Travel preferences ───────────────────────────────────────────────
+await db.travelPreference.upsert({
+  where:  { userId: vikrant.id },
   update: {},
   create: {
-    email: "seed@dreams.com",
-    name: "Seed User",
-    phone: "9999999999",
-    country_code: "+91",
-    image: null,
-
-    role: "USER",
-    status: "ACTIVE",
-
-    gender: null,
-    dateOfBirth: null,
-    nationality: "Indian",
-    maritalStatus: null,
-    anniversary: null,
-
-    state: "Haryana",
-    city: "Charkhi Dadri",
-
-    passportNumber: null,
-    passportExpiryDate: null,
-    passportIssuingCountry: null,
-
-    panNumber: null,
-
-    isProfileComplete: false,
+    userId:    vikrant.id,
+    tripTypes: ["Adventure", "Honeymoon"],
+    groupType: "Couple",
+    budget:    "Luxury",
+    duration:  "Week",
+    months:    ["May", "Jun", "Oct"],
   },
-})
-  console.log(`✅ Test user: ${testUser.email} (${testUser.id})`);
+});
+console.log("✅ Vikrant travel preferences");
 
-  await db.travelPreference.upsert({
-    where:  { userId: testUser.id },
-    update: {},
-    create: {
-      userId:    testUser.id,
-      tripTypes: ["Adventure", "Pilgrimage"],
-      groupType: "Family",
-      budget:    "MidRange",
-      duration:  "Week",
-      months:    ["Apr", "May", "Oct"],
-    },
-  });
-  console.log("✅ Travel preferences");
+// ── Bookings ─────────────────────────────────────────────────────────
+const vb1 = await db.booking.create({ data: { userId: vikrant.id, bookingNumber: "DY-V-2024-001", destinationId: kashmir.id,  tripType: "Honeymoon",  startDate: new Date("2024-04-10"), endDate: new Date("2024-04-17"), duration: 7, travellers: 2, status: "COMPLETED", totalAmount: 85000,  paidAmount: 85000  } });
+const vb2 = await db.booking.create({ data: { userId: vikrant.id, bookingNumber: "DY-V-2024-002", destinationId: himachal.id, tripType: "Adventure",  startDate: new Date("2024-10-05"), endDate: new Date("2024-10-12"), duration: 7, travellers: 3, status: "COMPLETED", totalAmount: 55000,  paidAmount: 55000  } });
+const vb3 = await db.booking.create({ data: { userId: vikrant.id, bookingNumber: "DY-V-2025-001", destinationId: goa.id,      tripType: "Leisure",    startDate: new Date("2025-01-15"), endDate: new Date("2025-01-20"), duration: 5, travellers: 4, status: "COMPLETED", totalAmount: 42000,  paidAmount: 42000  } });
+const vb4 = await db.booking.create({ data: { userId: vikrant.id, bookingNumber: "DY-V-2025-002", destinationId: himachal.id, tripType: "Family",     startDate: new Date("2025-06-01"), endDate: new Date("2025-06-06"), duration: 5, travellers: 5, status: "CANCELLED", totalAmount: 65000,  paidAmount: 32500,  cancelledAt: new Date("2025-05-01"), cancelReason: "Weather concerns" } });
+const vb5 = await db.booking.create({ data: { userId: vikrant.id, bookingNumber: "DY-V-2026-001", destinationId: kashmir.id,  tripType: "Adventure",  startDate: new Date("2026-05-20"), endDate: new Date("2026-05-27"), duration: 7, travellers: 2, status: "UPCOMING",  totalAmount: 95000,  paidAmount: 47500  } });
+const vb6 = await db.booking.create({ data: { userId: vikrant.id, bookingNumber: "DY-V-2026-002", destinationId: himachal.id, tripType: "Honeymoon",  startDate: new Date("2026-08-10"), endDate: new Date("2026-08-17"), duration: 7, travellers: 2, status: "UPCOMING",  totalAmount: 120000, paidAmount: 60000  } });
+console.log("✅ Vikrant bookings: 6");
 
-  const b1 = await db.booking.create({ data: { userId: testUser.id, bookingNumber: "DY-2024-0001", destinationId: kashmir.id,  tripType: "Pilgrimage", startDate: new Date("2024-06-01"), endDate: new Date("2024-06-08"), duration: 7, travellers: 4, status: "COMPLETED", totalAmount: 45000, paidAmount: 45000 } });
-  const b2 = await db.booking.create({ data: { userId: testUser.id, bookingNumber: "DY-2024-0002", destinationId: himachal.id, tripType: "Family",     startDate: new Date("2024-12-20"), endDate: new Date("2024-12-25"), duration: 5, travellers: 3, status: "COMPLETED", totalAmount: 28000, paidAmount: 28000 } });
-  const b3 = await db.booking.create({ data: { userId: testUser.id, bookingNumber: "DY-2025-0001", destinationId: goa.id,      tripType: "Leisure",    startDate: new Date("2025-05-10"), endDate: new Date("2025-05-16"), duration: 6, travellers: 2, status: "CANCELLED", totalAmount: 32000, paidAmount: 16000, cancelledAt: new Date("2025-04-01"), cancelReason: "Change of plans" } });
-  const b4 = await db.booking.create({ data: { userId: testUser.id, bookingNumber: "DY-2026-0001", destinationId: kashmir.id,  tripType: "Adventure",  startDate: new Date("2026-05-15"), endDate: new Date("2026-05-22"), duration: 7, travellers: 2, status: "UPCOMING",  totalAmount: 95000, paidAmount: 47500 } });
-  const b5 = await db.booking.create({ data: { userId: testUser.id, bookingNumber: "DY-2026-0002", destinationId: himachal.id, tripType: "Honeymoon",  startDate: new Date("2026-07-01"), endDate: new Date("2026-07-08"), duration: 7, travellers: 2, status: "UPCOMING",  totalAmount: 120000, paidAmount: 60000 } });
-  console.log("✅ Bookings: 5");
-
-  await db.payment.create({ data: { userId: testUser.id, bookingId: b1.id, amount: 45000, gateway: "RAZORPAY", method: "UPI",         status: "SUCCESS",  gatewayOrderId: "order_001", gatewayPaymentId: "pay_001", paidAt: new Date("2024-05-01") } });
-  await db.payment.create({ data: { userId: testUser.id, bookingId: b2.id, amount: 28000, gateway: "RAZORPAY", method: "CARD",        status: "SUCCESS",  gatewayOrderId: "order_002", gatewayPaymentId: "pay_002", paidAt: new Date("2024-11-20") } });
-  await db.payment.create({ data: { userId: testUser.id, bookingId: b3.id, amount: 16000, gateway: "RAZORPAY", method: "NET_BANKING", status: "REFUNDED", gatewayOrderId: "order_003", gatewayPaymentId: "pay_003", paidAt: new Date("2025-03-01"), refundAmount: 16000, refundedAt: new Date("2025-04-05") } });
-  await db.payment.create({ data: { userId: testUser.id, bookingId: b4.id, amount: 47500, gateway: "RAZORPAY", method: "UPI",         status: "SUCCESS",  gatewayOrderId: "order_004", gatewayPaymentId: "pay_004", paidAt: new Date("2026-03-01") } });
-  await db.payment.create({ data: { userId: testUser.id, bookingId: b5.id, amount: 60000, gateway: "RAZORPAY", method: "EMI",         status: "SUCCESS",  gatewayOrderId: "order_005", gatewayPaymentId: "pay_005", paidAt: new Date("2026-04-01") } });
-  await db.payment.create({ data: { userId: testUser.id, bookingId: b5.id, amount: 60000, gateway: "RAZORPAY", method: "CARD",        status: "FAILED",   gatewayOrderId: "order_006", failureReason: "Insufficient funds" } });
-  console.log("✅ Payments: 6");
+// ── Payments ─────────────────────────────────────────────────────────
+await db.payment.create({ data: { userId: vikrant.id, bookingId: vb1.id, amount: 85000,  gateway: "RAZORPAY", method: "CARD",        status: "SUCCESS",  gatewayOrderId: "vorder_001", gatewayPaymentId: "vpay_001", paidAt: new Date("2024-03-01") } });
+await db.payment.create({ data: { userId: vikrant.id, bookingId: vb2.id, amount: 55000,  gateway: "RAZORPAY", method: "UPI",         status: "SUCCESS",  gatewayOrderId: "vorder_002", gatewayPaymentId: "vpay_002", paidAt: new Date("2024-09-01") } });
+await db.payment.create({ data: { userId: vikrant.id, bookingId: vb3.id, amount: 42000,  gateway: "RAZORPAY", method: "NET_BANKING", status: "SUCCESS",  gatewayOrderId: "vorder_003", gatewayPaymentId: "vpay_003", paidAt: new Date("2025-01-01") } });
+await db.payment.create({ data: { userId: vikrant.id, bookingId: vb4.id, amount: 32500,  gateway: "RAZORPAY", method: "UPI",         status: "REFUNDED", gatewayOrderId: "vorder_004", gatewayPaymentId: "vpay_004", paidAt: new Date("2025-04-15"), refundAmount: 32500, refundedAt: new Date("2025-05-05") } });
+await db.payment.create({ data: { userId: vikrant.id, bookingId: vb5.id, amount: 47500,  gateway: "RAZORPAY", method: "EMI",         status: "SUCCESS",  gatewayOrderId: "vorder_005", gatewayPaymentId: "vpay_005", paidAt: new Date("2026-03-15") } });
+await db.payment.create({ data: { userId: vikrant.id, bookingId: vb6.id, amount: 60000,  gateway: "RAZORPAY", method: "CARD",        status: "SUCCESS",  gatewayOrderId: "vorder_006", gatewayPaymentId: "vpay_006", paidAt: new Date("2026-04-10") } });
+await db.payment.create({ data: { userId: vikrant.id, bookingId: vb6.id, amount: 60000,  gateway: "RAZORPAY", method: "UPI",         status: "FAILED",   gatewayOrderId: "vorder_007", failureReason: "Bank server timeout" } });
+console.log("✅ Vikrant payments: 7");
 
   // ════════════════════════════════════════════════════════════════════════
   // SUMMARY
