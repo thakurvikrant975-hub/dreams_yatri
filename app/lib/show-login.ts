@@ -15,7 +15,7 @@ export default function ShowLogin() {
             openModal('login-modal');
         }
 
-        if (status === "authenticated" && session) {
+        if (status === "authenticated" && (session.user.name === null || session.user.name === undefined || session.user.name.trim() === "")) {
             openModal('onboarding-modal');
         }
 
