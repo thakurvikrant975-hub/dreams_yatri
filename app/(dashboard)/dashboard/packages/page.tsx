@@ -1,14 +1,14 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { Hotel, Plus } from "lucide-react";
+import { Hotel, Plus, Package2 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Skeleton } from "../components/ui/skeleton";
 import {
     Breadcrumb, BreadcrumbItem, BreadcrumbLink,
     BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "../components/ui/breadcrumb";
-import { getHotels } from "./actions";
-import { HotelsTableClient } from "./HotelsTableClient";
+import { getHotels } from "../hotels/actions";
+import { HotelsTableClient } from "../hotels/HotelsTableClient";
 import { Field } from "../components/ui/field";
 import { Input } from "../components/ui/input";
 
@@ -85,32 +85,34 @@ export default function HotelsPage() {
                 <BreadcrumbList>
                     <BreadcrumbItem><BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink></BreadcrumbItem>
                     <BreadcrumbSeparator />
-                    <BreadcrumbItem><BreadcrumbPage>Hotels</BreadcrumbPage></BreadcrumbItem>
+                    <BreadcrumbItem><BreadcrumbPage>Packages</BreadcrumbPage></BreadcrumbItem>
                 </BreadcrumbList>
             </Breadcrumb>
+
+            
 
             <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                        <Hotel className="h-5 w-5 text-primary" />
+                        <Package2 className="h-5 w-5 text-primary" />
                     </div>
                     <div>
-                        <h1 className="text-xl font-semibold">Hotels</h1>
-                        <p className="text-sm text-muted-foreground">Manage hotel properties across all destinations</p>
+                        <h1 className="text-xl font-semibold">Packages</h1>
+                        <p className="text-sm text-muted-foreground">Manage packages</p>
                     </div>
                 </div>
 
 
                 <div className="flex items-center gap-8">
                     <Field orientation="horizontal">
-                        <Input type="search" placeholder="Search..." className="w-[220px] h-10 w-64" />
+                        <Input type="search" placeholder="Search packages..." className="w-[220px] h-10 w-64" />
                         <Button className="cursor-pointer h-10 w-24">Search</Button>
                     </Field>
 
                     <Button asChild className="h-10">
                         <Link href="/dashboard/hotels/new">
-                            <Plus className="mr-2 h-5 w-4" />
-                            Add Hotel
+                            <Plus className="mr-2 h-4 w-4" />
+                            Add Packages
                         </Link>
                     </Button>
                 </div>

@@ -32,7 +32,7 @@ export type HotelFormState = {
   message: string;
   errors?: Record<string, string[]>;
 };
-
+ 
 // ── Read ──────────────────────────────────────────────────────────────────
 
 export async function getHotels() {

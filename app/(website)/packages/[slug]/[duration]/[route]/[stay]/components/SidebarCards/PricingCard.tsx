@@ -38,7 +38,10 @@ const PricingCard: React.FC<PricingCardProps> = ({
       </div>
       <Text size='xs' intent='secondary' className='mt-2'>Excluding applicable taxes</Text>
       <Button variant="premium" className="w-full mt-4">
-        Proceed To Payment
+        Book this package
+      </Button>
+      <Button variant="outline" className="w-full mt-4">
+        Book a call
       </Button>
     </Card>
   );
