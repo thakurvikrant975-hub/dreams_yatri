@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Badge }  from "../components/ui/badge";
+import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Switch } from "../components/ui/switch";
 import {
@@ -16,43 +16,43 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { toggleActivityActive, deleteActivity } from "./actions";
-import { EditActivityDialog }  from "./ActivityDialog";
+import { EditActivityDialog } from "./ActivityDialog";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
-import { TableFilters }        from "../components/dashboard/Tablefilters";
-import { Stats }               from "../components/dashboard/Stats";
+import { TableFilters } from "../components/dashboard/Tablefilters";
+import { Stats } from "../components/dashboard/Stats";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type ActivityItem = {
-    id:                number;
-    name:              string;
-    slug:              string;
-    description:       string | null;
-    meta_title:        string | null;
-    meta_desc:         string | null;
-    category:          string | null;
-    difficulty:        string | null;
-    duration_hours:    number | null;
-    price:             number | null;
-    original_price:    number | null;
+    id: number;
+    name: string;
+    slug: string;
+    description: string | null;
+    meta_title: string | null;
+    meta_desc: string | null;
+    category: string | null;
+    difficulty: string | null;
+    duration_hours: number | null;
+    price: number | null;
+    original_price: number | null;
     margin_percentage: number;
-    pricing_type:      string | null;
-    min_persons:       number | null;
-    max_persons:       number | null;
-    is_active:         boolean;
-    created_at:        Date;
-    destination:       { id: number; name: string };
-    _count:            { images: number; packages: number };
+    pricing_type: string | null;
+    min_persons: number | null;
+    max_persons: number | null;
+    is_active: boolean;
+    created_at: Date;
+    destination: { id: number; name: string };
+    _count: { images: number; packages: number };
 };
 
 type Destination = { id: number; name: string; region: { name: string } };
 
 const DIFFICULTY_COLORS: Record<string, string> = {
-    Easy:        "bg-green-50 text-green-700 border-green-200",
-    Moderate:    "bg-blue-50 text-blue-700 border-blue-200",
+    Easy: "bg-green-50 text-green-700 border-green-200",
+    Moderate: "bg-blue-50 text-blue-700 border-blue-200",
     Challenging: "bg-yellow-50 text-yellow-700 border-yellow-200",
-    Difficult:   "bg-orange-50 text-orange-700 border-orange-200",
-    Expert:      "bg-red-50 text-red-700 border-red-200",
+    Difficult: "bg-orange-50 text-orange-700 border-orange-200",
+    Expert: "bg-red-50 text-red-700 border-red-200",
 };
 
 // ── Delete Dialog (extracted — fixes Radix hydration mismatch) ────────────────
@@ -62,8 +62,8 @@ function DeleteActivityDialog({
     onDelete,
     isPending,
 }: {
-    activity:  ActivityItem;
-    onDelete:  (id: number) => void;
+    activity: ActivityItem;
+    onDelete: (id: number) => void;
     isPending: boolean;
 }) {
     const isBlocked = activity._count.packages > 0;
@@ -114,16 +114,16 @@ export function ActivitiesTableClient({
     activities: initialActivities,
     destinations,
 }: {
-    activities:   ActivityItem[];
+    activities: ActivityItem[];
     destinations: Destination[];
 }) {
-    const [activities,        setActivities]        = useState(initialActivities);
-    const [search,            setSearch]            = useState("");
+    const [activities, setActivities] = useState(initialActivities);
+    const [search, setSearch] = useState("");
     const [filterDestination, setFilterDestination] = useState("all");
-    const [filterCategory,    setFilterCategory]    = useState("all");
-    const [editTarget,        setEditTarget]        = useState<ActivityItem | null>(null);
-    const [page,              setPage]              = useState(1);
-    const [isPending,         startTransition]      = useTransition();
+    const [filterCategory, setFilterCategory] = useState("all");
+    const [editTarget, setEditTarget] = useState<ActivityItem | null>(null);
+    const [page, setPage] = useState(1);
+    const [isPending, startTransition] = useTransition();
 
     // ── Derived ───────────────────────────────────────────────────────────────
     const categories = [...new Set(activities.map(a => a.category).filter(Boolean))] as string[];
@@ -131,14 +131,14 @@ export function ActivitiesTableClient({
 
     const filtered = activities.filter(a => {
         const matchSearch = !search || a.name.toLowerCase().includes(search.toLowerCase());
-        const matchDest   = filterDestination === "all" || String(a.destination.id) === filterDestination;
-        const matchCat    = filterCategory    === "all" || a.category === filterCategory;
+        const matchDest = filterDestination === "all" || String(a.destination.id) === filterDestination;
+        const matchCat = filterCategory === "all" || a.category === filterCategory;
         return matchSearch && matchDest && matchCat;
     });
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-    const safePage   = Math.min(page, totalPages);
-    const paginated  = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+    const safePage = Math.min(page, totalPages);
+    const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
     const isFiltering = search !== "" || filterDestination !== "all" || filterCategory !== "all";
 
@@ -169,7 +169,7 @@ export function ActivitiesTableClient({
     const columns: ColumnDef<ActivityItem>[] = [
         {
             header: "Activity",
-            width:  "w-[280px]",
+            width: "w-[280px]",
             cell: (activity) => (
                 <div>
                     <p className="font-medium text-sm text-foreground">{activity.name}</p>
@@ -242,7 +242,7 @@ export function ActivitiesTableClient({
         },
         {
             header: "Packages",
-            align:  "center",
+            align: "center",
             cell: (activity) =>
                 activity._count.packages > 0 ? (
                     <span className="flex items-center justify-center gap-1 text-xs">
@@ -255,7 +255,7 @@ export function ActivitiesTableClient({
         },
         {
             header: "Status",
-            align:  "center",
+            align: "center",
             cell: (activity) => (
                 <Switch
                     checked={activity.is_active}
@@ -266,8 +266,8 @@ export function ActivitiesTableClient({
         },
         {
             header: "Actions",
-            align:  "right",
-            width:  "w-[90px]",
+            align: "right",
+            width: "w-[90px]",
             cell: (activity) => (
                 <div className="flex items-center justify-end gap-1">
                     <Button
@@ -295,36 +295,36 @@ export function ActivitiesTableClient({
             <Stats
                 rows={[
                     { label: "Total Activities", value: activities.length },
-                    { label: "Active",            value: activeCount },
-                    { label: "Inactive",          value: activities.length - activeCount, muted: true },
-                    { label: "In Packages",       value: activities.reduce((acc, a) => acc + a._count.packages, 0) },
+                    { label: "Active", value: activeCount },
+                    { label: "Inactive", value: activities.length - activeCount, muted: true },
+                    { label: "In Packages", value: activities.reduce((acc, a) => acc + a._count.packages, 0) },
                 ]}
             />
 
             {/* Filters */}
             <TableFilters
                 search={search}
-                onSearchChange={(v) => { setSearch(v);            setPage(1); }}
+                onSearchChange={(v) => { setSearch(v); setPage(1); }}
                 searchPlaceholder="Search activities..."
                 filteredCount={isFiltering ? filtered.length : undefined}
                 totalCount={isFiltering ? activities.length : undefined}
                 filters={[
                     {
-                        value:       filterDestination,
-                        onChange:    (v) => { setFilterDestination(v); setPage(1); },
+                        value: filterDestination,
+                        onChange: (v) => { setFilterDestination(v); setPage(1); },
                         placeholder: "All Destinations",
-                        width:       "w-44",
-                        options:     destinations.map(d => ({
+                        width: "w-44",
+                        options: destinations.map(d => ({
                             label: d.name,
                             value: String(d.id),
                         })),
                     },
                     {
-                        value:       filterCategory,
-                        onChange:    (v) => { setFilterCategory(v);    setPage(1); },
+                        value: filterCategory,
+                        onChange: (v) => { setFilterCategory(v); setPage(1); },
                         placeholder: "All Categories",
-                        width:       "w-36",
-                        options:     categories.map(c => ({ label: c, value: c })),
+                        width: "w-36",
+                        options: categories.map(c => ({ label: c, value: c })),
                     },
                 ]}
             />
@@ -342,7 +342,7 @@ export function ActivitiesTableClient({
                     </div>
                 }
                 pagination={{
-                    currentPage:  safePage,
+                    currentPage: safePage,
                     totalPages,
                     onPageChange: setPage,
                 }}
