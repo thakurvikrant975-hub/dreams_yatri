@@ -13,16 +13,9 @@ import {
 
 // ── Column Definition ─────────────────────────────────────────────────────────
 export interface ColumnDef<T> {
-    /** Column header label */
     header: string;
-    /** Tailwind width class e.g. "w-[200px]" — optional */
     width?: string;
-    /** Alignment for both header and cell */
     align?: "left" | "center" | "right";
-    /**
-     * Render the cell content for a given row.
-     * Return any valid React node — JSX, text, buttons, switches, images, etc.
-     */
     cell: (row: T) => React.ReactNode;
 }
 
@@ -31,12 +24,26 @@ function TablePagination({
     currentPage,
     totalPages,
     buildHref,
+    onPageChange,
 }: {
-    currentPage: number;
-    totalPages:  number;
-    buildHref:   (page: number) => string;
+    currentPage:   number;
+    totalPages:    number;
+    buildHref?:    (page: number) => string;
+    onPageChange?: (page: number) => void;
 }) {
     if (totalPages <= 1) return null;
+
+    const isClientSide = typeof onPageChange === "function";
+
+    // For client-side, href is a dummy — navigation is prevented in onClick
+    const href = buildHref ?? ((p: number) => `?page=${p}`);
+
+    function handleClick(e: React.MouseEvent, p: number) {
+        if (isClientSide) {
+            e.preventDefault();
+            onPageChange!(p);
+        }
+    }
 
     function getPageNumbers(): (number | "ellipsis")[] {
         if (totalPages <= 5)
@@ -63,7 +70,8 @@ function TablePagination({
                 <PaginationContent>
                     <PaginationItem>
                         <PaginationPrevious
-                            href={buildHref(currentPage - 1)}
+                            href={href(currentPage - 1)}
+                            onClick={(e) => handleClick(e, currentPage - 1)}
                             aria-disabled={currentPage === 1}
                             className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
                         />
@@ -77,7 +85,8 @@ function TablePagination({
                         ) : (
                             <PaginationItem key={p}>
                                 <PaginationLink
-                                    href={buildHref(p)}
+                                    href={href(p)}
+                                    onClick={(e) => handleClick(e, p)}
                                     isActive={p === currentPage}
                                 >
                                     {p}
@@ -88,7 +97,8 @@ function TablePagination({
 
                     <PaginationItem>
                         <PaginationNext
-                            href={buildHref(currentPage + 1)}
+                            href={href(currentPage + 1)}
+                            onClick={(e) => handleClick(e, currentPage + 1)}
                             aria-disabled={currentPage === totalPages}
                             className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
                         />
@@ -101,25 +111,18 @@ function TablePagination({
 
 // ── DataTable ─────────────────────────────────────────────────────────────────
 interface DataTableProps<T> {
-    /** Row data */
-    data: T[];
-    /** Column definitions — each has a render function for full JSX control */
-    columns: ColumnDef<T>[];
-    /** Unique key per row */
-    rowKey: (row: T) => string | number;
-    /**
-     * Optional: render extra rows immediately after a given row.
-     * Useful for expandable subcategory rows, inline edit rows, etc.
-     */
+    data:           T[];
+    columns:        ColumnDef<T>[];
+    rowKey:         (row: T) => string | number;
     renderSubRows?: (row: T) => React.ReactNode;
-    /** Empty state — shown when data.length === 0 */
-    emptyState?: React.ReactNode;
-    /** Pagination — omit to disable */
+    emptyState?:    React.ReactNode;
     pagination?: {
-        currentPage: number;
-        totalPages:  number;
-        /** Defaults to `?page=N` */
-        buildHref?:  (page: number) => string;
+        currentPage:   number;
+        totalPages:    number;
+        /** Server-side: builds URL for each page link */
+        buildHref?:    (page: number) => string;
+        /** Client-side: called with new page number, no navigation */
+        onPageChange?: (page: number) => void;
     };
 }
 
@@ -145,10 +148,7 @@ export function DataTable<T>({
                         {columns.map((col, i) => (
                             <TableHead
                                 key={i}
-                                className={[
-                                    col.width ?? "",
-                                    col.align ? alignClass[col.align] : "",
-                                ].join(" ")}
+                                className={[col.width ?? "", col.align ? alignClass[col.align] : ""].join(" ")}
                             >
                                 {col.header}
                             </TableHead>
@@ -159,14 +159,9 @@ export function DataTable<T>({
                 <TableBody>
                     {data.length === 0 ? (
                         <TableRow>
-                            <TableCell
-                                colSpan={columns.length}
-                                className="py-16 text-center"
-                            >
+                            <TableCell colSpan={columns.length} className="py-16 text-center">
                                 {emptyState ?? (
-                                    <p className="text-sm text-muted-foreground">
-                                        No records found
-                                    </p>
+                                    <p className="text-sm text-muted-foreground">No records found</p>
                                 )}
                             </TableCell>
                         </TableRow>
@@ -194,7 +189,8 @@ export function DataTable<T>({
                 <TablePagination
                     currentPage={pagination.currentPage}
                     totalPages={pagination.totalPages}
-                    buildHref={pagination.buildHref ?? ((p) => `?page=${p}`)}
+                    buildHref={pagination.buildHref}
+                    onPageChange={pagination.onPageChange}
                 />
             )}
         </div>

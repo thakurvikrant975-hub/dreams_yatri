@@ -311,11 +311,7 @@ export function DestinationsTable({
                 pagination={{
                     currentPage: safePage,
                     totalPages,
-                    // Client-side pagination — use onClick, not href
-                    buildHref: (p) => {
-                        setPage(p);
-                        return "#";
-                    },
+                    onPageChange: setPage,
                 }}
             />
         </div>
