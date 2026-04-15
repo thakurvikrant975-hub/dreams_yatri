@@ -63,7 +63,7 @@ export async function getRegions(page: number) {
             destinations: destinationCount,
         },
     };
-}
+} 
 
 // ── Create ────────────────────────────────────────────────────────────────────
 export async function createRegion(
