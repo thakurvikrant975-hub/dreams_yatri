@@ -89,7 +89,7 @@ export default function HotelsPage() {
                 </BreadcrumbList>
             </Breadcrumb>
 
-            
+
 
             <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -105,7 +105,7 @@ export default function HotelsPage() {
 
                 <div className="flex items-center gap-8">
                     <Field orientation="horizontal">
-                        <Input type="search" placeholder="Search packages..." className="w-[220px] h-10 w-64" />
+                        <Input type="search" placeholder="Search packages..." className=" h-10 w-64" />
                         <Button className="cursor-pointer h-10 w-24">Search</Button>
                     </Field>
 

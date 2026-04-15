@@ -98,6 +98,8 @@ model packages {
   meta_title     String?
   meta_desc      String?
   destination_id Int
+  inclusions  String[]  // ← add
+  exclusions  String[]  // ← add
   is_active      Boolean  @default(true)
   created_at     DateTime @default(now())
   updated_at     DateTime @updatedAt
@@ -115,6 +117,31 @@ model packages {
 
   @@index([destination_id, is_active])
   @@index([slug])
+  policies        package_policies[] 
+}
+
+enum PolicyType {
+  CANCELLATION
+  DATE_CHANGE
+  REFUND
+  TERMS_AND_CONDITIONS
+}
+
+model package_policies {
+  id         Int        @id @default(autoincrement())
+  package_id Int
+  type       PolicyType
+  title      String?                  // optional display title override
+  content    String     @db.Text      // markdown or plain text
+  is_active  Boolean    @default(true)
+  sort_order Int        @default(0)
+  created_at DateTime   @default(now())
+  updated_at DateTime   @updatedAt
+
+  package packages @relation(fields: [package_id], references: [id])
+
+  @@unique([package_id, type])        // one policy of each type per package
+  @@index([package_id])
 }
 
 // ── Package Images ────────────────────────────────────────────────────────────
