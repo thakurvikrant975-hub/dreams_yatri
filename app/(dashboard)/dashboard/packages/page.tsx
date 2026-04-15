@@ -11,6 +11,7 @@ import { getHotels } from "../hotels/actions";
 import { HotelsTableClient } from "../hotels/HotelsTableClient";
 import { Field } from "../components/ui/field";
 import { Input } from "../components/ui/input";
+import { Stats } from "../components/dashboard/Stats";
 
 // ── Skeleton ──────────────────────────────────────────────────────────────
 
@@ -55,22 +56,14 @@ async function HotelsData() {
     return (
         <>
             {/* Stats */}
-            <div className="grid grid-cols-4 gap-4">
-                {[
+            <Stats
+                rows={[
                     { label: "Total Hotels", value: hotels.length },
-                    { label: "Active", value: activeCount, highlight: true },
+                    { label: "Active", value: activeCount },
                     { label: "Total Rooms", value: totalRooms },
                     { label: "In Packages", value: hotels.reduce((a, h) => a + h._count.packages, 0) },
-                ].map(stat => (
-                    <div key={stat.label} className="rounded-xl border bg-card p-4">
-                        <p className="text-xs text-muted-foreground uppercase tracking-wider">{stat.label}</p>
-                        <p className={`text-2xl font-bold mt-1 ${stat.highlight ? "text-primary" : ""}`}>
-                            {stat.value}
-                        </p>
-                    </div>
-                ))}
-            </div>
-
+                ]}
+            />
             <HotelsTableClient hotels={hotels} />
         </>
     );

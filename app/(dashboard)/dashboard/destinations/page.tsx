@@ -42,38 +42,14 @@ function TableSkeleton() {
 }
 
 // ── Async data component ──────────────────────────────────────────────────
-
 async function DestinationsData() {
     const [destinations, regions] = await Promise.all([
         getDestinations(),
         getRegionsForSelect(),
     ]);
-
-    const activeCount = destinations.filter(d => d.is_active).length;
-    const totalPkgs = destinations.reduce((acc, d) => acc + d._count.packages, 0);
-
-    return (
-        <>
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-4">
-                <div className="rounded-xl border bg-card p-4">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider">Total</p>
-                    <p className="text-2xl font-bold mt-1">{destinations.length}</p>
-                </div>
-                <div className="rounded-xl border bg-card p-4">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider">Active</p>
-                    <p className="text-2xl font-bold mt-1 text-primary">{activeCount}</p>
-                </div>
-                <div className="rounded-xl border bg-card p-4">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider">Total Packages</p>
-                    <p className="text-2xl font-bold mt-1">{totalPkgs}</p>
-                </div>
-            </div>
-
-            {/* Table — passes regions for create/edit dropdowns */}
-            <DestinationsTable destinations={destinations} regions={regions} />
-        </>
-    );
+ 
+    // Stats and filters are now handled inside DestinationsTable
+    return <DestinationsTable destinations={destinations} regions={regions} />;
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────
@@ -82,11 +58,10 @@ async function CreateButtonData() {
     const regions = await getRegionsForSelect();
     return <CreateDestinationDialog regions={regions} />;
 }
-
 export default function DestinationsPage() {
     return (
         <div className="space-y-6">
-
+ 
             {/* Breadcrumb */}
             <Breadcrumb>
                 <BreadcrumbList>
@@ -99,7 +74,7 @@ export default function DestinationsPage() {
                     </BreadcrumbItem>
                 </BreadcrumbList>
             </Breadcrumb>
-
+ 
             {/* Header */}
             <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -113,17 +88,17 @@ export default function DestinationsPage() {
                         </p>
                     </div>
                 </div>
-
+ 
                 <Suspense fallback={<Skeleton className="h-9 w-36" />}>
                     <CreateButtonData />
                 </Suspense>
             </div>
-
+ 
             {/* Data */}
             <Suspense fallback={
                 <div className="space-y-4">
-                    <div className="grid grid-cols-3 gap-4">
-                        {Array.from({ length: 3 }).map((_, i) => (
+                    <div className="grid grid-cols-4 gap-4">
+                        {Array.from({ length: 4 }).map((_, i) => (
                             <div key={i} className="rounded-xl border bg-card p-4 space-y-2">
                                 <Skeleton className="h-3 w-16" />
                                 <Skeleton className="h-7 w-10" />
@@ -135,7 +110,7 @@ export default function DestinationsPage() {
             }>
                 <DestinationsData />
             </Suspense>
-
+ 
         </div>
     );
 }

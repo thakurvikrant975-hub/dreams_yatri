@@ -8,8 +8,7 @@ import {
 import { getCategories, getParentCategoriesForSelect } from "./actions";
 import { CategoriesTable } from "./Categoriestable";
 import { CreateCategoryDialog } from "./Categorydialog";
-import { LayoutGrid, CheckCircle, GitBranch, Package } from "lucide-react";
-import { StatsGrid, type Stat } from "../components/dashboard/StatsGrid";
+import { Stats } from "../components/dashboard/Stats";
 
 const PAGE_SIZE = 10;
 
@@ -50,34 +49,17 @@ async function CategoriesData({ page }: { page: number }) {
     const subCategories = categories.filter((c) => c.parent_id !== null).length;
     const inPackages = categories.reduce((acc, c) => acc + c._count.packages, 0);
 
-    const statsData: Stat[] = [
-        {
-            label: "Total Categories",
-            value: String(categories.length),
-            icon: <LayoutGrid className="h-4 w-4" />,
-        },
-        {
-            label: "Active",
-            value: String(activeCount),
-            highlight: true,
-            icon: <CheckCircle className="h-4 w-4" />,
-            trend: { value: 0, direction: "up" },
-        },
-        {
-            label: "Subcategories",
-            value: String(subCategories),
-            icon: <GitBranch className="h-4 w-4" />,
-        },
-        {
-            label: "In Packages",
-            value: String(inPackages),
-            icon: <Package className="h-4 w-4" />,
-        },
-    ];
-
     return (
         <>
-            <StatsGrid stats={statsData} />
+            {/* Stats */}
+            <Stats
+                rows={[
+                    { label: "Total Categories", value: categories.length },
+                    { label: "Active", value: activeCount },
+                    { label: "Subcategories", value: subCategories },
+                    { label: "In Packages", value: inPackages },
+                ]}
+            />
             <CategoriesTable
                 categories={categories}
                 paginatedTopLevel={paginated}

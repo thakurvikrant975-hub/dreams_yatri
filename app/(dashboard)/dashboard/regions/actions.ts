@@ -1,41 +1,22 @@
 "use server";
 
 import { db }             from "@/app/lib/db";
-import { deleteFromR2 } from "@/app/lib/r2/r2delete";
+import { deleteFromR2 }   from "@/app/lib/r2/r2delete";
 import { revalidatePath } from "next/cache";
-import { z }              from "zod";
+import { Ok, Err, Result } from "@/app/lib/result";
+import { RegionSchema }   from "@/app/lib/validators/regions";
+import { RegionInput } from "@/app/lib/validators/regions";
 
-// ── Schema ────────────────────────────────────────────────────────────────
-const RegionSchema = z.object({
-  name:        z.string().min(1, "Name is required"),
-  slug:        z.string().min(1, "Slug is required").regex(/^[a-z0-9-]+$/, "Lowercase, numbers and hyphens only"),
-  country:     z.string().min(1, "Country is required"),
-  description: z.string().optional(),
-  meta_title:  z.string().optional(),
-  meta_desc:   z.string().optional(),
-  is_active:   z.boolean().default(true),
-});
-
+// ── Shared FormState type ─────────────────────────────────────────────────────
 export type RegionFormState = {
   success: boolean;
   message: string;
   errors?: Record<string, string[]>;
 };
 
-// ── Read ──────────────────────────────────────────────────────────────────
-export async function getRegions() {
-  return db.regions.findMany({
-    orderBy: { created_at: "desc" },
-    include: { _count: { select: { destinations: true } } },
-  });
-}
-
-// ── Create ────────────────────────────────────────────────────────────────
-export async function createRegion(
-  _prev: RegionFormState,
-  formData: FormData,
-): Promise<RegionFormState> {
-  const raw = {
+// ── Internal helper: FormData → raw object ────────────────────────────────────
+function extractRegionFields(formData: FormData) {
+  return {
     name:        formData.get("name")        as string,
     slug:        formData.get("slug")        as string,
     country:     formData.get("country")     as string,
@@ -44,75 +25,124 @@ export async function createRegion(
     meta_desc:   (formData.get("meta_desc")   as string) || undefined,
     is_active:   formData.get("is_active") === "true",
   };
+}
 
-  // Image keys — stored as R2 keys in DB
+// ── Internal helper: Result<T> → RegionFormState ──────────────────────────────
+function toFormState(result: Result<string>): RegionFormState {
+  if (result.success) return { success: true, message: result.data };
+  return { success: false, message: result.error.message };
+}
+
+// ── Read ──────────────────────────────────────────────────────────────────────
+const PAGE_SIZE = 10;
+
+// actions.ts
+export async function getRegions(page: number) {
+    const skip = (page - 1) * PAGE_SIZE;
+ 
+    const [regions, totalCount, activeCount, destinationCount] = await Promise.all([
+        db.regions.findMany({
+            skip,
+            take: PAGE_SIZE,
+            include: { _count: { select: { destinations: true } } },
+            orderBy: { created_at: "desc" },
+        }),
+        db.regions.count(),
+        db.regions.count({ where: { is_active: true } }),
+        db.destinations.count(),
+    ]);
+ 
+    return {
+        regions,
+        totalPages: Math.ceil(totalCount / PAGE_SIZE),
+        currentPage: page,
+        stats: {
+            total: totalCount,
+            active: activeCount,
+            inactive: totalCount - activeCount,
+            destinations: destinationCount,
+        },
+    };
+} 
+
+// ── Create ────────────────────────────────────────────────────────────────────
+export async function createRegion(
+  _prev: RegionFormState,
+  formData: FormData,
+): Promise<RegionFormState> {
+  const parsed = RegionSchema.safeParse(extractRegionFields(formData));
+
+  if (!parsed.success) {
+    return {
+      success: false,
+      message: "Validation failed",
+      errors:  parsed.error.flatten().fieldErrors,
+    };
+  }
+
   const thumbnail   = (formData.get("thumbnail")   as string) || null;
   const cover_image = (formData.get("cover_image") as string) || null;
 
-  const parsed = RegionSchema.safeParse(raw);
-  if (!parsed.success) {
-    return { success: false, message: "Validation failed", errors: parsed.error.flatten().fieldErrors };
-  }
+  const result = await createRegionRecord(parsed.data, thumbnail, cover_image);
+  return toFormState(result);
+}
 
+async function createRegionRecord(
+  data: RegionInput,
+  thumbnail: string | null,
+  cover_image: string | null,
+): Promise<Result<string>> {
   try {
-    const existing = await db.regions.findUnique({ where: { slug: parsed.data.slug } });
-    if (existing) {
-      return { success: false, message: "Slug already exists", errors: { slug: ["This slug is already taken"] } };
-    }
+    const existing = await db.regions.findUnique({ where: { slug: data.slug } });
+    if (existing) return Result.conflict("This slug is already taken");
 
-    await db.regions.create({
-      data: {
-        ...parsed.data,
-        thumbnail,     // R2 key e.g. "regions/north-india-thumb-1748234921.jpg"
-        cover_image,   // R2 key e.g. "regions/north-india-cover-1748234921.jpg"
-      },
-    });
-
+    await db.regions.create({ data: { ...data, thumbnail, cover_image } });
     revalidatePath("/dashboard/regions");
-    return { success: true, message: "Region created successfully" };
-  } catch {
-    return { success: false, message: "Database error. Please try again." };
+    return Ok("Region created successfully");
+  } catch (e) {
+    return Result.dbError(e);
   }
 }
 
-// ── Update ────────────────────────────────────────────────────────────────
+// ── Update ────────────────────────────────────────────────────────────────────
 export async function updateRegion(
   id: number,
   _prev: RegionFormState,
   formData: FormData,
 ): Promise<RegionFormState> {
-  const raw = {
-    name:        formData.get("name")        as string,
-    slug:        formData.get("slug")        as string,
-    country:     formData.get("country")     as string,
-    description: (formData.get("description") as string) || undefined,
-    meta_title:  (formData.get("meta_title")  as string) || undefined,
-    meta_desc:   (formData.get("meta_desc")   as string) || undefined,
-    is_active:   formData.get("is_active") === "true",
-  };
+  const parsed = RegionSchema.safeParse(extractRegionFields(formData));
 
-  // New image keys from form (empty string means no change / no image)
+  if (!parsed.success) {
+    return {
+      success: false,
+      message: "Validation failed",
+      errors:  parsed.error.flatten().fieldErrors,
+    };
+  }
+
   const newThumbnail  = (formData.get("thumbnail")   as string) || null;
   const newCoverImage = (formData.get("cover_image") as string) || null;
 
-  const parsed = RegionSchema.safeParse(raw);
-  if (!parsed.success) {
-    return { success: false, message: "Validation failed", errors: parsed.error.flatten().fieldErrors };
-  }
+  const result = await updateRegionRecord(id, parsed.data, newThumbnail, newCoverImage);
+  return toFormState(result);
+}
 
+async function updateRegionRecord(
+  id: number,
+  data: RegionInput,
+  newThumbnail: string | null,
+  newCoverImage: string | null,
+): Promise<Result<string>> {
   try {
-    const existing = await db.regions.findFirst({
-      where: { slug: parsed.data.slug, NOT: { id } },
+    const slugConflict = await db.regions.findFirst({
+      where: { slug: data.slug, NOT: { id } },
     });
-    if (existing) {
-      return { success: false, message: "Slug already taken", errors: { slug: ["This slug is already taken"] } };
-    }
+    if (slugConflict) return Result.conflict("This slug is already taken");
 
-    // Get current region to check old image keys
     const current = await db.regions.findUnique({ where: { id } });
-    if (!current) return { success: false, message: "Region not found" };
+    if (!current) return Result.notFound("Region");
 
-    // If new image uploaded — delete old one from R2
+    // Prune old R2 assets on replacement
     if (newThumbnail && current.thumbnail && newThumbnail !== current.thumbnail) {
       await deleteFromR2(current.thumbnail).catch(console.error);
     }
@@ -123,51 +153,58 @@ export async function updateRegion(
     await db.regions.update({
       where: { id },
       data: {
-        ...parsed.data,
-        // Only update image if a new one was uploaded, otherwise keep existing
+        ...data,
         ...(newThumbnail  !== null && { thumbnail:   newThumbnail }),
         ...(newCoverImage !== null && { cover_image: newCoverImage }),
       },
     });
 
     revalidatePath("/dashboard/regions");
-    return { success: true, message: "Region updated successfully" };
-  } catch {
-    return { success: false, message: "Database error. Please try again." };
+    return Ok("Region updated successfully");
+  } catch (e) {
+    return Result.dbError(e);
   }
 }
 
-// ── Delete ────────────────────────────────────────────────────────────────
+// ── Delete ────────────────────────────────────────────────────────────────────
 export async function deleteRegion(id: number): Promise<RegionFormState> {
+  const result = await deleteRegionRecord(id);
+  return toFormState(result);
+}
+
+async function deleteRegionRecord(id: number): Promise<Result<string>> {
   try {
     const region = await db.regions.findUnique({
-      where: { id },
+      where:   { id },
       include: { _count: { select: { destinations: true } } },
     });
 
-    if (!region) return { success: false, message: "Region not found" };
+    if (!region) return Result.notFound("Region");
 
     if (region._count.destinations > 0) {
-      return {
-        success: false,
-        message: `Cannot delete — ${region._count.destinations} destination(s) linked. Remove them first.`,
-      };
+      return Result.conflict(
+        `Cannot delete — ${region._count.destinations} destination(s) linked. Remove them first.`
+      );
     }
 
-    // Delete images from R2 first
     if (region.thumbnail)   await deleteFromR2(region.thumbnail).catch(console.error);
     if (region.cover_image) await deleteFromR2(region.cover_image).catch(console.error);
 
     await db.regions.delete({ where: { id } });
     revalidatePath("/dashboard/regions");
-    return { success: true, message: "Region deleted successfully" };
-  } catch {
-    return { success: false, message: "Database error. Please try again." };
+    return Ok("Region deleted successfully");
+  } catch (e) {
+    return Result.dbError(e);
   }
 }
 
-// ── Toggle Active ──────────────────────────────────────────────────────────
-export async function toggleRegionActive(id: number, is_active: boolean) {
-  await db.regions.update({ where: { id }, data: { is_active } });
-  revalidatePath("/dashboard/regions");
+// ── Toggle Active ─────────────────────────────────────────────────────────────
+export async function toggleRegionActive(id: number, is_active: boolean): Promise<void> {
+  try {
+    await db.regions.update({ where: { id }, data: { is_active } });
+    revalidatePath("/dashboard/regions");
+  } catch (e) {
+    console.error("[toggleRegionActive]", e);
+    // Surface to caller if needed — extend to return Result<void> when toggle has UI feedback
+  }
 }
