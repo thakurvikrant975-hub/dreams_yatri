@@ -125,6 +125,8 @@ async function RegionsData({ page }: { page: number }) {
                 regions={regions}
                 currentPage={currentPage}
                 totalPages={totalPages}
+                totalCount={stats.total}
+
             />
             {/* TablePagination removed — DataTable renders it internally */}
         </>
