@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
-import { Badge }   from "../components/ui/badge";
-import { Switch }  from "../components/ui/switch";
-import { Button }  from "../components/ui/button";
-import { Input }   from "../components/ui/input";
+import { Badge } from "../components/ui/badge";
+import { Switch } from "../components/ui/switch";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
 import { TableCell, TableRow } from "../components/ui/table";
 import {
     Trash2, Tag, Package, GitBranch,
@@ -25,6 +25,7 @@ import {
     type CategoryForSelect,
 } from "./actions";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
+import { TableFilters } from "../components/dashboard/Tablefilters";
 
 // ── Delete Dialog ─────────────────────────────────────────────────────────────
 
@@ -94,7 +95,7 @@ function SubcategoryRow({
 }: {
     child: { id: number; name: string; slug: string; is_active: boolean };
     parentCategories: CategoryForSelect[];
-    allCategories:    CategoryWithRelations[];
+    allCategories: CategoryWithRelations[];
 }) {
     const [isPending, startTransition] = useTransition();
     const full = allCategories.find((c) => c.id === child.id);
@@ -182,16 +183,18 @@ export function CategoriesTable({
     currentPage,
     totalPages,
 }: {
-    categories:        CategoryWithRelations[];
+    categories: CategoryWithRelations[];
     paginatedTopLevel: CategoryWithRelations[];
-    parentCategories:  CategoryForSelect[];
-    currentPage:       number;
-    totalPages:        number;
-    pageSize:          number;
+    parentCategories: CategoryForSelect[];
+    currentPage: number;
+    totalPages: number;
+    pageSize: number;
 }) {
     const [isPending, startTransition] = useTransition();
-    const [expanded,  setExpanded]     = useState<Set<number>>(new Set());
-    const [search,    setSearch]       = useState("");
+    const [expanded, setExpanded] = useState<Set<number>>(new Set());
+    const [search, setSearch] = useState("");
+    const [statusFilter, setStatusFilter] = useState<string>("all");
+    const [parentFilter, setParentFilter] = useState<string>("all");
 
     function toggleExpanded(id: number) {
         setExpanded((prev) => {
@@ -212,24 +215,42 @@ export function CategoriesTable({
     const query = search.trim().toLowerCase();
     const isSearching = query.length > 0;
 
-    const displayRows: CategoryWithRelations[] = isSearching
-        ? categories.filter(
-              (c) =>
-                  c.name.toLowerCase().includes(query) ||
-                  c.slug.toLowerCase().includes(query) ||
-                  (c.parent?.name?.toLowerCase().includes(query) ?? false),
-          )
-        : paginatedTopLevel;
+    const parentOptions = parentCategories.map((p) => ({
+    label: p.name,
+    value: String(p.id),
+}));
+
+const baseData = isSearching || statusFilter !== "all" || parentFilter !== "all"
+    ? categories
+    : paginatedTopLevel;
+
+const displayRows = baseData.filter((c) => {
+    const matchesSearch =
+        c.name.toLowerCase().includes(query) ||
+        c.slug.toLowerCase().includes(query) ||
+        (c.parent?.name?.toLowerCase().includes(query) ?? false);
+
+    const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "active" && c.is_active) ||
+        (statusFilter === "inactive" && !c.is_active);
+
+    const matchesParent =
+        parentFilter === "all" ||
+        String(c.parent_id ?? "top") === parentFilter;
+
+    return matchesSearch && matchesStatus && matchesParent;
+});
 
     // ── Column definitions ────────────────────────────────────────────────────
     const columns: ColumnDef<CategoryWithRelations>[] = [
         {
             header: "Category",
-            width:  "w-[240px]",
+            width: "w-[240px]",
             cell: (cat) => {
                 const hasChildren = cat.children.length > 0;
-                const isTopLevel  = cat.parent_id === null;
-                const isExpanded  = expanded.has(cat.id);
+                const isTopLevel = cat.parent_id === null;
+                const isExpanded = expanded.has(cat.id);
 
                 return (
                     <div className="flex items-center gap-2">
@@ -239,7 +260,7 @@ export function CategoriesTable({
                                 className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted transition-colors shrink-0"
                             >
                                 {isExpanded
-                                    ? <ChevronDown  className="h-3.5 w-3.5 text-muted-foreground" />
+                                    ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                                     : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                                 }
                             </button>
@@ -273,10 +294,10 @@ export function CategoriesTable({
         },
         {
             header: "Subcategories",
-            align:  "center",
+            align: "center",
             cell: (cat) => {
                 const hasChildren = cat.children.length > 0;
-                const isTopLevel  = cat.parent_id === null;
+                const isTopLevel = cat.parent_id === null;
                 return hasChildren && isTopLevel ? (
                     <button
                         onClick={() => toggleExpanded(cat.id)}
@@ -292,7 +313,7 @@ export function CategoriesTable({
         },
         {
             header: "Packages",
-            align:  "center",
+            align: "center",
             cell: (cat) => (
                 <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
                     <Package className="h-3 w-3" /> {cat._count.packages}
@@ -301,7 +322,7 @@ export function CategoriesTable({
         },
         {
             header: "Status",
-            align:  "center",
+            align: "center",
             cell: (cat) => (
                 <Switch
                     checked={cat.is_active}
@@ -318,8 +339,8 @@ export function CategoriesTable({
         },
         {
             header: "Actions",
-            align:  "right",
-            width:  "w-[100px]",
+            align: "right",
+            width: "w-[100px]",
             cell: (cat) => (
                 <div className="flex items-center justify-end gap-1">
                     <EditCategoryDialog category={cat} parentCategories={parentCategories} />
@@ -350,24 +371,36 @@ export function CategoriesTable({
     return (
         <div className="space-y-3">
 
-            {/* Search bar */}
-            <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                <Input
-                    placeholder="Search by name, slug or parent..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="pl-9 pr-9"
-                />
-                {search && (
-                    <button
-                        onClick={() => setSearch("")}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                        <X className="h-4 w-4" />
-                    </button>
-                )}
-            </div>
+
+            {/* Filters */}
+<TableFilters
+    search={search}
+    onSearchChange={setSearch}
+    searchPlaceholder="Search categories..."
+    filters={[
+        {
+            value: statusFilter,
+            onChange: setStatusFilter,
+            placeholder: "All Status",
+            width: "w-40",
+            options: [
+                { label: "All", value: "all" },
+                { label: "Active", value: "active" },
+                { label: "Inactive", value: "inactive" },
+            ],
+        },
+        {
+            value: parentFilter,
+            onChange: setParentFilter,
+            placeholder: "All Parents",
+            width: "w-48",
+            options: [
+                { label: "Top Level", value: "top" },
+                ...parentOptions,
+            ],
+        },
+    ]}
+/>
 
             {/* Search result count */}
             {isSearching && (

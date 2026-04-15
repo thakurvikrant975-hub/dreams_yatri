@@ -5,6 +5,10 @@ import { Activity }              from "lucide-react";
 import { getActivities, getDestinationsForSelect } from "./actions";
 import { ActivitiesTableClient } from "./ActivitiesTableClient";
 import { CreateActivityDialog }  from "./ActivityDialog";
+import {
+    Breadcrumb, BreadcrumbItem, BreadcrumbLink,
+    BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
+} from "../components/ui/breadcrumb";
 
 // ── Loading skeleton ──────────────────────────────────────────────────────
 
@@ -54,9 +58,22 @@ async function ActivitiesData() {
 
 export default async function ActivitiesPage() {
   const destinations = await getDestinationsForSelect();
-
+ 
   return (
     <div className="space-y-6 ">
+      {/* Breadcrumb */}
+            <Breadcrumb>
+                <BreadcrumbList>
+                    <BreadcrumbItem>
+                        <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
+                    </BreadcrumbItem>
+                    <BreadcrumbSeparator />
+                    <BreadcrumbItem>
+                        <BreadcrumbPage>Activities</BreadcrumbPage>
+                    </BreadcrumbItem>
+                </BreadcrumbList>
+            </Breadcrumb>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
