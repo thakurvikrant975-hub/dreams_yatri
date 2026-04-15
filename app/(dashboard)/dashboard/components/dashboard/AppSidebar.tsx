@@ -15,7 +15,10 @@ import {
     GlobeHemisphereEastIcon,
     MapPinIcon,
     BuildingIcon,
-    PlusIcon
+    PlusIcon,
+    TagIcon,
+    ParachuteIcon,
+    FileTextIcon
 } from "@phosphor-icons/react";
 
 
@@ -38,9 +41,9 @@ const navGroups = [
         items: [
             { title: "Regions", href: "/dashboard/regions", icon: <GlobeHemisphereEastIcon weight="duotone" className="size-6 scale-110 text-muted-foreground" /> },
             { title: "Destinations", href: "/dashboard/destinations", icon: <MapPinIcon weight="duotone" className="size-6 scale-110 text-muted-foreground" /> },
-            { title: "Categories", href: "/dashboard/categories", icon: <Tag className="size-6 text-muted-foreground" /> },
-            { title: "Activities", href: "/dashboard/activities", icon: <BookOpen className="size-6 text-muted-foreground" /> },
-            { title: "Policies", href: "/dashboard/policies", icon: <Package className="size-6 text-muted-foreground" /> },
+            { title: "Categories", href: "/dashboard/categories", icon: <TagIcon weight="duotone" className="size-6  text-muted-foreground" /> },
+            { title: "Activities", href: "/dashboard/activities", icon: < ParachuteIcon weight="duotone" className="size-6 scale-110 text-muted-foreground" /> },
+            { title: "Policies", href: "/dashboard/policies", icon: <FileTextIcon weight="duotone" className="size-6 scale-110 text-muted-foreground" /> },
         ],
     },
     {

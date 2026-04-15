@@ -251,8 +251,8 @@ export function MultiStepModal({
 
   return (
     <MultiStepContext.Provider value={contextValue}>
-      <Dialog open={open} onOpenChange={handleClose}>
-        <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col p-0 gap-0">
+      <Dialog open={open} onOpenChange={handleClose} >
+        <DialogContent className="max-w-7xl w-full max-h-[90vh] flex flex-col p-0 gap-0 ">
 
           {/* Header */}
           <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
@@ -281,7 +281,7 @@ export function MultiStepModal({
           </DialogHeader>
 
           {/* Step content — only current child */}
-          <div className="flex-1 overflow-y-auto px-6 py-5">
+          <div className="flex-1 overflow-y-auto px-6 py-5 max-h-70 ">
             <div className="mb-5">
               <div className="flex items-center gap-2">
                 {steps[currentStep].icon && (

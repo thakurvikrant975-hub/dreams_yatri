@@ -270,7 +270,7 @@ export default function PackageCard({
                             className="flex-1 rounded-xl font-bold text-sm py-3"
                             onClick={(e) => { e.stopPropagation(); onRequestCallback?.() }}
                         >
-                            Request Callback
+                            Get a free quote
                         </Button>
                     </div>
                 </CardFooter>
