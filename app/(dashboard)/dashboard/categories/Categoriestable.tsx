@@ -4,11 +4,10 @@ import React, { useState, useTransition } from "react";
 import { Badge } from "../components/ui/badge";
 import { Switch } from "../components/ui/switch";
 import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
 import { TableCell, TableRow } from "../components/ui/table";
 import {
     Trash2, Tag, Package, GitBranch,
-    ChevronDown, ChevronRight, Search, X,
+    ChevronDown, ChevronRight
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -216,31 +215,31 @@ export function CategoriesTable({
     const isSearching = query.length > 0;
 
     const parentOptions = parentCategories.map((p) => ({
-    label: p.name,
-    value: String(p.id),
-}));
+        label: p.name,
+        value: String(p.id),
+    }));
 
-const baseData = isSearching || statusFilter !== "all" || parentFilter !== "all"
-    ? categories
-    : paginatedTopLevel;
+    const baseData = isSearching || statusFilter !== "all" || parentFilter !== "all"
+        ? categories
+        : paginatedTopLevel;
 
-const displayRows = baseData.filter((c) => {
-    const matchesSearch =
-        c.name.toLowerCase().includes(query) ||
-        c.slug.toLowerCase().includes(query) ||
-        (c.parent?.name?.toLowerCase().includes(query) ?? false);
+    const displayRows = baseData.filter((c) => {
+        const matchesSearch =
+            c.name.toLowerCase().includes(query) ||
+            c.slug.toLowerCase().includes(query) ||
+            (c.parent?.name?.toLowerCase().includes(query) ?? false);
 
-    const matchesStatus =
-        statusFilter === "all" ||
-        (statusFilter === "active" && c.is_active) ||
-        (statusFilter === "inactive" && !c.is_active);
+        const matchesStatus =
+            statusFilter === "all" ||
+            (statusFilter === "active" && c.is_active) ||
+            (statusFilter === "inactive" && !c.is_active);
 
-    const matchesParent =
-        parentFilter === "all" ||
-        String(c.parent_id ?? "top") === parentFilter;
+        const matchesParent =
+            parentFilter === "all" ||
+            String(c.parent_id ?? "top") === parentFilter;
 
-    return matchesSearch && matchesStatus && matchesParent;
-});
+        return matchesSearch && matchesStatus && matchesParent;
+    });
 
     // ── Column definitions ────────────────────────────────────────────────────
     const columns: ColumnDef<CategoryWithRelations>[] = [
@@ -373,34 +372,34 @@ const displayRows = baseData.filter((c) => {
 
 
             {/* Filters */}
-<TableFilters
-    search={search}
-    onSearchChange={setSearch}
-    searchPlaceholder="Search categories..."
-    filters={[
-        {
-            value: statusFilter,
-            onChange: setStatusFilter,
-            placeholder: "All Status",
-            width: "w-40",
-            options: [
-                { label: "All", value: "all" },
-                { label: "Active", value: "active" },
-                { label: "Inactive", value: "inactive" },
-            ],
-        },
-        {
-            value: parentFilter,
-            onChange: setParentFilter,
-            placeholder: "All Parents",
-            width: "w-48",
-            options: [
-                { label: "Top Level", value: "top" },
-                ...parentOptions,
-            ],
-        },
-    ]}
-/>
+            <TableFilters
+                search={search}
+                onSearchChange={setSearch}
+                searchPlaceholder="Search categories..."
+                filters={[
+                    {
+                        value: statusFilter,
+                        onChange: setStatusFilter,
+                        placeholder: "All Status",
+                        width: "w-40",
+                        options: [
+                            { label: "All", value: "all" },
+                            { label: "Active", value: "active" },
+                            { label: "Inactive", value: "inactive" },
+                        ],
+                    },
+                    {
+                        value: parentFilter,
+                        onChange: setParentFilter,
+                        placeholder: "All Parents",
+                        width: "w-48",
+                        options: [
+                            { label: "Top Level", value: "top" },
+                            ...parentOptions,
+                        ],
+                    },
+                ]}
+            />
 
             {/* Search result count */}
             {isSearching && (

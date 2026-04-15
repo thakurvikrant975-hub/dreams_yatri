@@ -59,9 +59,9 @@ async function HotelsData() {
             <Stats
                 rows={[
                     { label: "Total Hotels", value: hotels.length },
-                    { label: "Active",            value: activeCount},
-                    { label: "Total Rooms",          value: totalRooms },
-                    { label: "In Packages",       value: hotels.reduce((a, h) => a + h._count.packages, 0) },
+                    { label: "Active", value: activeCount },
+                    { label: "Total Rooms", value: totalRooms },
+                    { label: "In Packages", value: hotels.reduce((a, h) => a + h._count.packages, 0) },
                 ]}
             />
             <HotelsTableClient hotels={hotels} />
@@ -82,7 +82,7 @@ export default function HotelsPage() {
                 </BreadcrumbList>
             </Breadcrumb>
 
-            
+
 
             <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">

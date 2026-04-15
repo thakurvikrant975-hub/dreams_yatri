@@ -55,9 +55,9 @@ async function CategoriesData({ page }: { page: number }) {
             <Stats
                 rows={[
                     { label: "Total Categories", value: categories.length },
-                    { label: "Active",            value: activeCount},
-                    { label: "Subcategories",          value: subCategories },
-                    { label: "In Packages",       value: inPackages },
+                    { label: "Active", value: activeCount },
+                    { label: "Subcategories", value: subCategories },
+                    { label: "In Packages", value: inPackages },
                 ]}
             />
             <CategoriesTable
