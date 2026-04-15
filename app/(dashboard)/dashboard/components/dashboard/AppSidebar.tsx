@@ -11,8 +11,8 @@ import {
     Tag, Settings, Users, BookOpen, BarChart3,
 } from "lucide-react";
 
-import { 
-    GlobeHemisphereEastIcon,  
+import {
+    GlobeHemisphereEastIcon,
     MapPinIcon,
     BuildingIcon,
     PlusIcon
@@ -38,9 +38,9 @@ const navGroups = [
         items: [
             { title: "Regions", href: "/dashboard/regions", icon: <GlobeHemisphereEastIcon weight="duotone" className="size-6 scale-110 text-muted-foreground" /> },
             { title: "Destinations", href: "/dashboard/destinations", icon: <MapPinIcon weight="duotone" className="size-6 scale-110 text-muted-foreground" /> },
-            { title: "Packages", href: "/dashboard/packages", icon: <Package className="size-6 text-muted-foreground" /> },
             { title: "Categories", href: "/dashboard/categories", icon: <Tag className="size-6 text-muted-foreground" /> },
             { title: "Activities", href: "/dashboard/activities", icon: <BookOpen className="size-6 text-muted-foreground" /> },
+            { title: "Policies", href: "/dashboard/policies", icon: <Package className="size-6 text-muted-foreground" /> },
         ],
     },
     {
@@ -48,7 +48,7 @@ const navGroups = [
         label: "Hotels",
         items: [
             { title: "All Hotels", href: "/dashboard/hotels", icon: <BuildingIcon weight="duotone" className="size-6 scale-110 text-muted-foreground" /> },
-            { title: "Add New", href: "/dashboard/hotels/new", icon: <PlusIcon  weight="duotone" className="size-6 scale-110 text-muted-foreground" /> },
+            { title: "Add New", href: "/dashboard/hotels/new", icon: <PlusIcon weight="duotone" className="size-6 scale-110 text-muted-foreground" /> },
         ],
     },
     {

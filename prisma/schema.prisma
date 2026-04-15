@@ -117,7 +117,7 @@ model packages {
 
   @@index([destination_id, is_active])
   @@index([slug])
-  policies        package_policies[] 
+  policies package_policy_map[]  
 }
 
 enum PolicyType {
@@ -127,22 +127,35 @@ enum PolicyType {
   TERMS_AND_CONDITIONS
 }
 
-model package_policies {
+
+// Standalone reusable policies
+model policies {
   id         Int        @id @default(autoincrement())
-  package_id Int
   type       PolicyType
-  title      String?                  // optional display title override
-  content    String     @db.Text      // markdown or plain text
+  title      String
+  points     String[] 
   is_active  Boolean    @default(true)
   sort_order Int        @default(0)
   created_at DateTime   @default(now())
   updated_at DateTime   @updatedAt
 
-  package packages @relation(fields: [package_id], references: [id])
+  packages   package_policy_map[]
 
-  @@unique([package_id, type])        // one policy of each type per package
-  @@index([package_id])
+  @@index([type, is_active])
 }
+
+// Junction — many packages can use the same policy
+model package_policy_map {
+  package_id Int
+  policy_id  Int
+
+  package packages @relation(fields: [package_id], references: [id])
+  policy  policies @relation(fields: [policy_id], references: [id])
+
+  @@id([package_id, policy_id])
+  @@index([policy_id])
+}
+
 
 // ── Package Images ────────────────────────────────────────────────────────────
 model package_images {

@@ -55,9 +55,6 @@ const NAV_ITEMS: NavItem[] = [
   // { key: 'notifications', label: 'Notifications', icon: <BellIcon className="size-5" />, badge: '3' },
 ]
 
-
-
-
 // ─── Profile Page ─────────────────────────────────────────────────────────────
 
 export default function Profile({ user }: { user: any }) {
