@@ -1,8 +1,8 @@
 "use server";
 
-import { db }             from "@/app/lib/db";
+import { db } from "@/app/lib/db";
 import { revalidatePath } from "next/cache";
-import { z }              from "zod";
+import { z } from "zod";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -13,24 +13,23 @@ export type ActivityFormState = {
 };
 
 // ── Schema ────────────────────────────────────────────────────────────────
-
 const ActivitySchema = z.object({
-  name:              z.string().min(1, "Name is required"),
-  slug:              z.string().min(1).regex(/^[a-z0-9-]+$/, "Only lowercase letters, numbers and hyphens"),
-  destination_id:    z.coerce.number().int().positive("Destination is required"),
-  description:       z.string().optional(),
-  meta_title:        z.string().optional(),
-  meta_desc:         z.string().optional(),
-  category:          z.string().optional(),
-  difficulty:        z.string().optional(),
-  duration_hours:    z.coerce.number().min(0).optional(),
-  price:             z.coerce.number().min(0).optional(),
-  original_price:    z.coerce.number().min(0).optional(),
+  name: z.string().min(1, "Name is required"),
+  slug: z.string().min(1).regex(/^[a-z0-9-]+$/, "Only lowercase letters, numbers and hyphens"),
+  destination_id: z.coerce.number().int().positive("Destination is required"),
+  description: z.string().optional(),
+  meta_title: z.string().optional(),
+  meta_desc: z.string().optional(),
+  category: z.string().optional(),
+  difficulty: z.string().optional(),
+  duration_hours: z.coerce.number().min(0).optional(),
+  price: z.coerce.number().min(0).optional(),
+  original_price: z.coerce.number().min(0).optional(),
   margin_percentage: z.coerce.number().min(0).max(100).default(0),
-  pricing_type:      z.string().optional(),
-  min_persons:       z.coerce.number().int().min(1).optional(),
-  max_persons:       z.coerce.number().int().min(1).optional(),
-  is_active:         z.boolean().default(true),
+  pricing_type: z.string().optional(),
+  min_persons: z.coerce.number().int().min(1).optional(),
+  max_persons: z.coerce.number().int().min(1).optional(),
+  is_active: z.boolean().default(true),
 });
 
 // ── Read ──────────────────────────────────────────────────────────────────
@@ -49,9 +48,9 @@ export async function getActivities() {
 
 export async function getDestinationsForSelect() {
   return db.destinations.findMany({
-    where:   { is_active: true },
+    where: { is_active: true },
     orderBy: { name: "asc" },
-    select:  { id: true, name: true, region: { select: { name: true } } },
+    select: { id: true, name: true, region: { select: { name: true } } },
   });
 }
 
@@ -62,22 +61,22 @@ export async function createActivity(
   formData: FormData,
 ): Promise<ActivityFormState> {
   const raw = {
-    name:              formData.get("name"),
-    slug:              formData.get("slug"),
-    destination_id:    formData.get("destination_id"),
-    description:       formData.get("description")    || undefined,
-    meta_title:        formData.get("meta_title")      || undefined,
-    meta_desc:         formData.get("meta_desc")       || undefined,
-    category:          formData.get("category")        || undefined,
-    difficulty:        formData.get("difficulty")      || undefined,
-    duration_hours:    formData.get("duration_hours")  || undefined,
-    price:             formData.get("price")           || undefined,
-    original_price:    formData.get("original_price")  || undefined,
+    name: formData.get("name"),
+    slug: formData.get("slug"),
+    destination_id: formData.get("destination_id"),
+    description: formData.get("description") || undefined,
+    meta_title: formData.get("meta_title") || undefined,
+    meta_desc: formData.get("meta_desc") || undefined,
+    category: formData.get("category") || undefined,
+    difficulty: formData.get("difficulty") || undefined,
+    duration_hours: formData.get("duration_hours") || undefined,
+    price: formData.get("price") || undefined,
+    original_price: formData.get("original_price") || undefined,
     margin_percentage: formData.get("margin_percentage") || 0,
-    pricing_type:      formData.get("pricing_type")    || undefined,
-    min_persons:       formData.get("min_persons")     || undefined,
-    max_persons:       formData.get("max_persons")     || undefined,
-    is_active:         formData.get("is_active") === "true",
+    pricing_type: formData.get("pricing_type") || undefined,
+    min_persons: formData.get("min_persons") || undefined,
+    max_persons: formData.get("max_persons") || undefined,
+    is_active: formData.get("is_active") === "true",
   };
 
   const parsed = ActivitySchema.safeParse(raw);
@@ -85,7 +84,7 @@ export async function createActivity(
     return {
       success: false,
       message: "Validation failed",
-      errors:  parsed.error.flatten().fieldErrors,
+      errors: parsed.error.flatten().fieldErrors,
     };
   }
 
@@ -111,22 +110,22 @@ export async function updateActivity(
   formData: FormData,
 ): Promise<ActivityFormState> {
   const raw = {
-    name:              formData.get("name"),
-    slug:              formData.get("slug"),
-    destination_id:    formData.get("destination_id"),
-    description:       formData.get("description")    || undefined,
-    meta_title:        formData.get("meta_title")      || undefined,
-    meta_desc:         formData.get("meta_desc")       || undefined,
-    category:          formData.get("category")        || undefined,
-    difficulty:        formData.get("difficulty")      || undefined,
-    duration_hours:    formData.get("duration_hours")  || undefined,
-    price:             formData.get("price")           || undefined,
-    original_price:    formData.get("original_price")  || undefined,
+    name: formData.get("name"),
+    slug: formData.get("slug"),
+    destination_id: formData.get("destination_id"),
+    description: formData.get("description") || undefined,
+    meta_title: formData.get("meta_title") || undefined,
+    meta_desc: formData.get("meta_desc") || undefined,
+    category: formData.get("category") || undefined,
+    difficulty: formData.get("difficulty") || undefined,
+    duration_hours: formData.get("duration_hours") || undefined,
+    price: formData.get("price") || undefined,
+    original_price: formData.get("original_price") || undefined,
     margin_percentage: formData.get("margin_percentage") || 0,
-    pricing_type:      formData.get("pricing_type")    || undefined,
-    min_persons:       formData.get("min_persons")     || undefined,
-    max_persons:       formData.get("max_persons")     || undefined,
-    is_active:         formData.get("is_active") === "true",
+    pricing_type: formData.get("pricing_type") || undefined,
+    min_persons: formData.get("min_persons") || undefined,
+    max_persons: formData.get("max_persons") || undefined,
+    is_active: formData.get("is_active") === "true",
   };
 
   const parsed = ActivitySchema.safeParse(raw);
@@ -134,7 +133,7 @@ export async function updateActivity(
     return {
       success: false,
       message: "Validation failed",
-      errors:  parsed.error.flatten().fieldErrors,
+      errors: parsed.error.flatten().fieldErrors,
     };
   }
 
@@ -162,7 +161,7 @@ export async function toggleActivityActive(
 export async function deleteActivity(id: number): Promise<ActivityFormState> {
   try {
     const activity = await db.activities.findUnique({
-      where:   { id },
+      where: { id },
       include: { _count: { select: { packages: true } } },
     });
 

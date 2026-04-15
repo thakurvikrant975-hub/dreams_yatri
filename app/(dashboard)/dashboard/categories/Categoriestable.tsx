@@ -5,10 +5,7 @@ import { Badge } from "../components/ui/badge";
 import { Switch } from "../components/ui/switch";
 import { Button } from "../components/ui/button";
 import { TableCell, TableRow } from "../components/ui/table";
-import {
-    Trash2, Tag, Package, GitBranch,
-    ChevronDown, ChevronRight
-} from "lucide-react";
+import { Trash2, Tag, Package, GitBranch, ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import {
     AlertDialog, AlertDialogAction, AlertDialogCancel,

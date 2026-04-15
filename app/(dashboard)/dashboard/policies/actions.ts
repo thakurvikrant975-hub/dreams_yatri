@@ -1,8 +1,8 @@
 "use server";
 
-import { db }             from "@/app/lib/db";
+import { db } from "@/app/lib/db";
 import { revalidatePath } from "next/cache";
-import { z }              from "zod";
+import { z } from "zod";
 import type { PolicyType } from "./constants";
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -14,24 +14,24 @@ export type PolicyFormState = {
 };
 
 export type Policy = {
-  id:         number;
-  type:       PolicyType;
-  title:      string;
-  points:     string[];
-  is_active:  boolean;
+  id: number;
+  type: PolicyType;
+  title: string;
+  points: string[];
+  is_active: boolean;
   sort_order: number;
   created_at: Date;
   updated_at: Date;
-  _count:     { packages: number };
+  _count: { packages: number };
 };
 
 // ── Schema ────────────────────────────────────────────────────────────────
 
 const PolicySchema = z.object({
-  type:       z.enum(["CANCELLATION", "DATE_CHANGE", "REFUND", "TERMS_AND_CONDITIONS"]),
-  title:      z.string().min(1, "Title is required"),
-  points:     z.array(z.string().min(1)).min(1, "At least one point is required"),
-  is_active:  z.boolean().default(true),
+  type: z.enum(["CANCELLATION", "DATE_CHANGE", "REFUND", "TERMS_AND_CONDITIONS"]),
+  title: z.string().min(1, "Title is required"),
+  points: z.array(z.string().min(1)).min(1, "At least one point is required"),
+  is_active: z.boolean().default(true),
   sort_order: z.coerce.number().int().default(0),
 });
 
@@ -61,10 +61,10 @@ export async function createPolicy(
   }
 
   const raw = {
-    type:       formData.get("type"),
-    title:      formData.get("title"),
+    type: formData.get("type"),
+    title: formData.get("title"),
     points,
-    is_active:  formData.get("is_active") === "true",
+    is_active: formData.get("is_active") === "true",
     sort_order: formData.get("sort_order") || 0,
   };
 
@@ -73,7 +73,7 @@ export async function createPolicy(
     return {
       success: false,
       message: "Validation failed",
-      errors:  parsed.error.flatten().fieldErrors,
+      errors: parsed.error.flatten().fieldErrors,
     };
   }
 
@@ -101,10 +101,10 @@ export async function updatePolicy(
   }
 
   const raw = {
-    type:       formData.get("type"),
-    title:      formData.get("title"),
+    type: formData.get("type"),
+    title: formData.get("title"),
     points,
-    is_active:  formData.get("is_active") === "true",
+    is_active: formData.get("is_active") === "true",
     sort_order: formData.get("sort_order") || 0,
   };
 
@@ -113,7 +113,7 @@ export async function updatePolicy(
     return {
       success: false,
       message: "Validation failed",
-      errors:  parsed.error.flatten().fieldErrors,
+      errors: parsed.error.flatten().fieldErrors,
     };
   }
 
@@ -138,7 +138,7 @@ export async function togglePolicyActive(id: number, is_active: boolean): Promis
 export async function deletePolicy(id: number): Promise<PolicyFormState> {
   try {
     const policy = await db.policies.findUnique({
-      where:   { id },
+      where: { id },
       include: { _count: { select: { packages: true } } },
     });
 
