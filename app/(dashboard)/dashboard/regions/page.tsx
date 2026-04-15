@@ -121,8 +121,12 @@ async function RegionsData({ page }: { page: number }) {
                     { label: "Destinations", value: stats.destinations },
                 ]}
             />
-            <RegionsTable regions={regions} />
-            <TablePagination currentPage={currentPage} totalPages={totalPages} />
+            <RegionsTable
+                regions={regions}
+                currentPage={currentPage}
+                totalPages={totalPages}
+            />
+            {/* TablePagination removed — DataTable renders it internally */}
         </>
     );
 }
