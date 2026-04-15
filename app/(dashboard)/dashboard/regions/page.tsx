@@ -3,6 +3,11 @@ import { Globe } from "lucide-react";
 import { getRegions } from "./actions";
 import { RegionsTable } from "./Regionstable";
 import { CreateRegionDialog } from "./RegionDialog";
+import {
+  Pagination, PaginationContent, PaginationEllipsis,
+  PaginationItem, PaginationLink,
+  PaginationNext, PaginationPrevious,
+} from "../components/ui/pagination";
 
 import {
   Breadcrumb, BreadcrumbItem,
@@ -11,14 +16,12 @@ import {
 } from "../components/ui/breadcrumb";
 import { Skeleton } from "../components/ui/skeleton";
 
-// ── Skeleton fallback ──────────────────────────────────────────────────────
+// ── Skeleton fallback ─────────────────────────────────────────────────────
 function TableSkeleton() {
   return (
     <div className="rounded-xl border bg-card overflow-hidden">
       <div className="bg-muted/50 px-4 py-3 grid grid-cols-7 gap-4">
-        {Array.from({ length: 7 }).map((_, i) => (
-          <Skeleton key={i} className="h-4" />
-        ))}
+        {Array.from({ length: 7 }).map((_, i) => <Skeleton key={i} className="h-4" />)}
       </div>
       {Array.from({ length: 5 }).map((_, i) => (
         <div key={i} className="px-4 py-3 grid grid-cols-7 gap-4 border-t items-center">
@@ -40,13 +43,76 @@ function TableSkeleton() {
     </div>
   );
 }
+function TablePagination({
+  currentPage, totalPages,
+}: {
+  currentPage: number; totalPages: number;
+}) {
+  if (totalPages <= 1) return null;
 
-// ── Async data component ───────────────────────────────────────────────────
-async function RegionsData() {
-  const regions = await getRegions();
+  function getPageNumbers(): (number | "ellipsis")[] {
+    if (totalPages <= 5)
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+
+    const pages: (number | "ellipsis")[] = [1];
+    if (currentPage > 3) pages.push("ellipsis");
+
+    const start = Math.max(2, currentPage - 1);
+    const end   = Math.min(totalPages - 1, currentPage + 1);
+    for (let i = start; i <= end; i++) pages.push(i);
+
+    if (currentPage < totalPages - 2) pages.push("ellipsis");
+    pages.push(totalPages);
+    return pages;
+  }
+
+  return (
+    <div className="border-t px-4 py-3 flex items-center justify-between">
+      <p className="text-xs text-muted-foreground">
+        Page {currentPage} of {totalPages}
+      </p>
+      <Pagination>
+        <PaginationContent>
+          <PaginationItem>
+            <PaginationPrevious
+              href={`?page=${currentPage - 1}`}
+              aria-disabled={currentPage === 1}
+              className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+            />
+          </PaginationItem>
+          {getPageNumbers().map((p, i) =>
+            p === "ellipsis" ? (
+              <PaginationItem key={`e-${i}`}>
+                <PaginationEllipsis />
+              </PaginationItem>
+            ) : (
+              <PaginationItem key={p}>
+                <PaginationLink href={`?page=${p}`} isActive={p === currentPage}>
+                  {p}
+                </PaginationLink>
+              </PaginationItem>
+            ),
+          )}
+          <PaginationItem>
+            <PaginationNext
+              href={`?page=${currentPage + 1}`}
+              aria-disabled={currentPage === totalPages}
+              className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+            />
+          </PaginationItem>
+        </PaginationContent>
+      </Pagination>
+    </div>
+  );
+}
+
+// ── Async data component ──────────────────────────────────────────────────
+// page is passed as a prop so RegionsData can fetch the correct slice
+async function RegionsData({ page }: { page: number }) {
+  const { regions, totalPages, currentPage } = await getRegions(page);
 
   const activeCount = regions.filter(r => r.is_active).length;
-  const totalDest = regions.reduce((acc, r) => acc + r._count.destinations, 0);
+  const totalDest   = regions.reduce((acc, r) => acc + r._count.destinations, 0);
 
   return (
     <>
@@ -68,12 +134,22 @@ async function RegionsData() {
 
       {/* Table */}
       <RegionsTable regions={regions} />
+
+      {/* Pagination */}
+      <TablePagination currentPage={currentPage} totalPages={totalPages} />
     </>
   );
 }
 
-// ── Page ───────────────────────────────────────────────────────────────────
-export default function RegionsPage() {
+// ── Page ──────────────────────────────────────────────────────────────────
+export default async function RegionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const { page: pageParam } = await searchParams;
+  const page = Math.max(1, Number(pageParam) || 1);
+
   return (
     <div className="space-y-6">
 
@@ -120,7 +196,7 @@ export default function RegionsPage() {
           <TableSkeleton />
         </div>
       }>
-        <RegionsData />
+        <RegionsData page={page} />
       </Suspense>
 
     </div>

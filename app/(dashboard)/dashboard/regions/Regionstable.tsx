@@ -15,6 +15,7 @@ import { Globe, MapPin } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ImageIcon } from "@phosphor-icons/react";
 
+
 type Region = {
   id: number;
   name: string;
