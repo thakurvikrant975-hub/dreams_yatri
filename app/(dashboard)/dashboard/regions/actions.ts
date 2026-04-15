@@ -36,25 +36,33 @@ function toFormState(result: Result<string>): RegionFormState {
 // ── Read ──────────────────────────────────────────────────────────────────────
 const PAGE_SIZE = 10;
 
-export async function getRegions(page = 1) {
-  const skip = (page - 1) * PAGE_SIZE;
-
-  const [regions, total] = await db.$transaction([
-    db.regions.findMany({
-      orderBy: { created_at: "desc" },
-      include: { _count: { select: { destinations: true } } },
-      skip,
-      take: PAGE_SIZE,
-    }),
-    db.regions.count(),
-  ]);
-
-  return {
-    regions,
-    total,
-    totalPages: Math.ceil(total / PAGE_SIZE),
-    currentPage: page,
-  };
+// actions.ts
+export async function getRegions(page: number) {
+    const skip = (page - 1) * PAGE_SIZE;
+ 
+    const [regions, totalCount, activeCount, destinationCount] = await Promise.all([
+        db.regions.findMany({
+            skip,
+            take: PAGE_SIZE,
+            include: { _count: { select: { destinations: true } } },
+            orderBy: { created_at: "desc" },
+        }),
+        db.regions.count(),
+        db.regions.count({ where: { is_active: true } }),
+        db.destinations.count(),
+    ]);
+ 
+    return {
+        regions,
+        totalPages: Math.ceil(totalCount / PAGE_SIZE),
+        currentPage: page,
+        stats: {
+            total: totalCount,
+            active: activeCount,
+            inactive: totalCount - activeCount,
+            destinations: destinationCount,
+        },
+    };
 }
 
 // ── Create ────────────────────────────────────────────────────────────────────

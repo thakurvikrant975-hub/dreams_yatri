@@ -15,6 +15,7 @@ import {
   BreadcrumbPage, BreadcrumbSeparator,
 } from "../components/ui/breadcrumb";
 import { Skeleton } from "../components/ui/skeleton";
+import { Stats } from "../components/dashboard/Stats";
 
 // ── Skeleton fallback ─────────────────────────────────────────────────────
 function TableSkeleton() {
@@ -106,39 +107,24 @@ function TablePagination({
   );
 }
 
-// ── Async data component ──────────────────────────────────────────────────
 // page is passed as a prop so RegionsData can fetch the correct slice
 async function RegionsData({ page }: { page: number }) {
-  const { regions, totalPages, currentPage } = await getRegions(page);
+    const { regions, totalPages, currentPage, stats } = await getRegions(page);
 
-  const activeCount = regions.filter(r => r.is_active).length;
-  const totalDest   = regions.reduce((acc, r) => acc + r._count.destinations, 0);
-
-  return (
-    <>
-      {/* Stats row */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="rounded-xl border bg-card p-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider">Total</p>
-          <p className="text-2xl font-bold mt-1">{regions.length}</p>
-        </div>
-        <div className="rounded-xl border bg-card p-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider">Active</p>
-          <p className="text-2xl font-bold mt-1 text-primary">{activeCount}</p>
-        </div>
-        <div className="rounded-xl border bg-card p-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider">Destinations</p>
-          <p className="text-2xl font-bold mt-1">{totalDest}</p>
-        </div>
-      </div>
-
-      {/* Table */}
-      <RegionsTable regions={regions} />
-
-      {/* Pagination */}
-      <TablePagination currentPage={currentPage} totalPages={totalPages} />
-    </>
-  );
+    return (
+        <>
+            <Stats
+                rows={[
+                    { label: "Total Regions", value: stats.total },
+                    { label: "Active", value: stats.active },
+                    { label: "Inactive", value: stats.inactive, muted: true },
+                    { label: "Destinations", value: stats.destinations },
+                ]}
+            />
+            <RegionsTable regions={regions} />
+            <TablePagination currentPage={currentPage} totalPages={totalPages} />
+        </>
+    );
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────
