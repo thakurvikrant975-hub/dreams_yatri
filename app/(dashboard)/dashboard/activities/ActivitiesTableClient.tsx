@@ -18,7 +18,7 @@ import { toast } from "sonner";
 import { toggleActivityActive, deleteActivity } from "./actions";
 import { EditActivityDialog }  from "./ActivityDialog";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
-import { TableFilters } from "../components/dashboard/Tablefilters";
+import { TableFilters }        from "../components/dashboard/Tablefilters";
 import { Stats }               from "../components/dashboard/Stats";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -55,7 +55,60 @@ const DIFFICULTY_COLORS: Record<string, string> = {
     Expert:      "bg-red-50 text-red-700 border-red-200",
 };
 
+// ── Delete Dialog (extracted — fixes Radix hydration mismatch) ────────────────
+
+function DeleteActivityDialog({
+    activity,
+    onDelete,
+    isPending,
+}: {
+    activity:  ActivityItem;
+    onDelete:  (id: number) => void;
+    isPending: boolean;
+}) {
+    const isBlocked = activity._count.packages > 0;
+
+    return (
+        <AlertDialog>
+            <AlertDialogTrigger asChild>
+                <Button
+                    variant="ghost" size="icon"
+                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                >
+                    <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Activity</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Delete <span className="font-semibold">{activity.name}</span>?
+                        This also removes all its images.
+                        {isBlocked && (
+                            <span className="block mt-2 font-medium text-destructive">
+                                ⚠ Used in {activity._count.packages} package(s). Remove from packages first.
+                            </span>
+                        )}
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                        onClick={() => onDelete(activity.id)}
+                        disabled={isBlocked || isPending}
+                        className="bg-destructive text-white hover:bg-destructive/90"
+                    >
+                        Delete
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
+
+const PAGE_SIZE = 10;
 
 export function ActivitiesTableClient({
     activities: initialActivities,
@@ -64,15 +117,17 @@ export function ActivitiesTableClient({
     activities:   ActivityItem[];
     destinations: Destination[];
 }) {
-    const [activities,         setActivities]         = useState(initialActivities);
-    const [search,             setSearch]             = useState("");
-    const [filterDestination,  setFilterDestination]  = useState("all");
-    const [filterCategory,     setFilterCategory]     = useState("all");
-    const [editTarget,         setEditTarget]         = useState<ActivityItem | null>(null);
-    const [isPending,          startTransition]       = useTransition();
+    const [activities,        setActivities]        = useState(initialActivities);
+    const [search,            setSearch]            = useState("");
+    const [filterDestination, setFilterDestination] = useState("all");
+    const [filterCategory,    setFilterCategory]    = useState("all");
+    const [editTarget,        setEditTarget]        = useState<ActivityItem | null>(null);
+    const [page,              setPage]              = useState(1);
+    const [isPending,         startTransition]      = useTransition();
 
     // ── Derived ───────────────────────────────────────────────────────────────
     const categories = [...new Set(activities.map(a => a.category).filter(Boolean))] as string[];
+    const activeCount = activities.filter(a => a.is_active).length;
 
     const filtered = activities.filter(a => {
         const matchSearch = !search || a.name.toLowerCase().includes(search.toLowerCase());
@@ -81,7 +136,11 @@ export function ActivitiesTableClient({
         return matchSearch && matchDest && matchCat;
     });
 
-    const activeCount = activities.filter(a => a.is_active).length;
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    const safePage   = Math.min(page, totalPages);
+    const paginated  = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+    const isFiltering = search !== "" || filterDestination !== "all" || filterCategory !== "all";
 
     // ── Actions ───────────────────────────────────────────────────────────────
     function handleToggle(id: number, current: boolean) {
@@ -218,41 +277,11 @@ export function ActivitiesTableClient({
                     >
                         <Pencil className="h-3.5 w-3.5" />
                     </Button>
-
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button
-                                variant="ghost" size="icon"
-                                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            >
-                                <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Delete Activity</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    Delete <span className="font-semibold">{activity.name}</span>?
-                                    This also removes all its images.
-                                    {activity._count.packages > 0 && (
-                                        <span className="block mt-2 font-medium text-destructive">
-                                            ⚠ Used in {activity._count.packages} package(s). Remove from packages first.
-                                        </span>
-                                    )}
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                    onClick={() => handleDelete(activity.id)}
-                                    disabled={activity._count.packages > 0 || isPending}
-                                    className="bg-destructive text-white hover:bg-destructive/90"
-                                >
-                                    Delete
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
+                    <DeleteActivityDialog
+                        activity={activity}
+                        onDelete={handleDelete}
+                        isPending={isPending}
+                    />
                 </div>
             ),
         },
@@ -262,7 +291,7 @@ export function ActivitiesTableClient({
     return (
         <div className="space-y-6">
 
-            {/* Stats */}
+            {/* Stats — always from full dataset */}
             <Stats
                 rows={[
                     { label: "Total Activities", value: activities.length },
@@ -275,14 +304,14 @@ export function ActivitiesTableClient({
             {/* Filters */}
             <TableFilters
                 search={search}
-                onSearchChange={setSearch}
+                onSearchChange={(v) => { setSearch(v);            setPage(1); }}
                 searchPlaceholder="Search activities..."
-                filteredCount={filtered.length}
-                totalCount={activities.length}
+                filteredCount={isFiltering ? filtered.length : undefined}
+                totalCount={isFiltering ? activities.length : undefined}
                 filters={[
                     {
                         value:       filterDestination,
-                        onChange:    setFilterDestination,
+                        onChange:    (v) => { setFilterDestination(v); setPage(1); },
                         placeholder: "All Destinations",
                         width:       "w-44",
                         options:     destinations.map(d => ({
@@ -292,7 +321,7 @@ export function ActivitiesTableClient({
                     },
                     {
                         value:       filterCategory,
-                        onChange:    setFilterCategory,
+                        onChange:    (v) => { setFilterCategory(v);    setPage(1); },
                         placeholder: "All Categories",
                         width:       "w-36",
                         options:     categories.map(c => ({ label: c, value: c })),
@@ -300,9 +329,9 @@ export function ActivitiesTableClient({
                 ]}
             />
 
-            {/* Table */}
+            {/* Table with client-side pagination */}
             <DataTable
-                data={filtered}
+                data={paginated}
                 columns={columns}
                 rowKey={(a) => a.id}
                 emptyState={
@@ -312,6 +341,11 @@ export function ActivitiesTableClient({
                         <p className="text-xs text-muted-foreground">Try adjusting your filters</p>
                     </div>
                 }
+                pagination={{
+                    currentPage:  safePage,
+                    totalPages,
+                    onPageChange: setPage,
+                }}
             />
 
             {/* Edit Dialog */}
