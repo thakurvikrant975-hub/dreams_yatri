@@ -148,6 +148,34 @@ async function seed() {
     };
   }
 
+
+async function main() {
+  const depts = ["Marketing", "Operations", "Sales", "Tech", "Finance"];
+  for (const name of depts) {
+    await db.department.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+    });
+  }
+
+const teamRoles = [
+  { name: "Marketing Manager", permissions: ["leads.*", "campaigns.*"] },
+  { name: "Operations Manager", permissions: ["leads.*", "packages.*", "hotels.*"] },
+  { name: "Sales Executive", permissions: ["leads.view", "leads.edit"] },
+  { name: "Tech Lead", permissions: ["*"] },
+  { name: "Content Writer", permissions: ["packages.view", "blogs.*"] },
+];
+for (const r of teamRoles) {
+  await db.teamRole.upsert({
+    where: { name: r.name },
+    update: { permissions: r.permissions },
+    create: r,
+  });
+}
+
+}
+
   const nehruCats = await seedHotelCategories(hotelNehru.id);
   const grandCats = await seedHotelCategories(hotelGrand.id);
   const dalCats = await seedHotelCategories(hotelDal.id);

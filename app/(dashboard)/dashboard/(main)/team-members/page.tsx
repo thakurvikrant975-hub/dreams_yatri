@@ -1,116 +1,109 @@
+// page.tsx
 import { Suspense } from "react";
-import { MapPin } from "lucide-react";
+import { Users } from "lucide-react";
 import { Skeleton } from "../components/ui/skeleton";
 import {
-    Breadcrumb, BreadcrumbItem, BreadcrumbLink,
-    BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
+  Breadcrumb, BreadcrumbItem, BreadcrumbLink,
+  BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "../components/ui/breadcrumb";
-import { getDestinations, getRegionsForSelect } from "./actions";
-import { DestinationsTable } from "./Destinationstable";
-import { CreateDestinationDialog } from "./Destinationdialog";
-
-// ── Skeleton ──────────────────────────────────────────────────────────────
+import {
+  getTeamMembersPaginated,
+  getDepartmentsForSelect,
+  getRolesForSelect,
+} from "./actions";
+import { TeamMembersTable } from "./TeamMembersTable";
+import { CreateTeamMemberDialog } from "./TeamMemberDialog";
 
 function TableSkeleton() {
-    return (
-        <div className="rounded-xl border bg-card overflow-hidden">
-            <div className="bg-muted/50 px-4 py-3 grid grid-cols-7 gap-4">
-                {Array.from({ length: 7 }).map((_, i) => <Skeleton key={i} className="h-4" />)}
+  return (
+    <div className="rounded-xl border bg-card overflow-hidden">
+      <div className="bg-muted/50 px-4 py-3 grid grid-cols-7 gap-4">
+        {Array.from({ length: 7 }).map((_, i) => (
+          <Skeleton key={i} className="h-4" />
+        ))}
+      </div>
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div key={i} className="px-4 py-3 grid grid-cols-7 gap-4 border-t items-center">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-8 w-8 rounded-full shrink-0" />
+            <div className="space-y-1">
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-3 w-20" />
             </div>
-            {Array.from({ length: 10 }).map((_, i) => (
-                <div key={i} className="px-4 py-3 grid grid-cols-7 gap-4 border-t items-center">
-                    <div className="flex items-center gap-2">
-                        <Skeleton className="h-8 w-8 rounded-lg shrink-0" />
-                        <div className="space-y-1">
-                            <Skeleton className="h-4 w-24" />
-                            <Skeleton className="h-3 w-16" />
-                        </div>
-                    </div>
-                    <Skeleton className="h-5 w-20" />
-                    <Skeleton className="h-5 w-20" />
-                    <Skeleton className="h-4 w-16 mx-auto" />
-                    <Skeleton className="h-5 w-10 mx-auto" />
-                    <Skeleton className="h-4 w-20" />
-                    <div className="flex justify-end gap-1">
-                        <Skeleton className="h-8 w-8 rounded-md" />
-                        <Skeleton className="h-8 w-8 rounded-md" />
-                    </div>
-                </div>
-            ))}
+          </div>
+          <Skeleton className="h-5 w-20" />
+          <Skeleton className="h-5 w-20" />
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-5 w-12" />
+          <Skeleton className="h-4 w-20" />
+          <div className="flex justify-end">
+            <Skeleton className="h-8 w-8 rounded-md" />
+          </div>
         </div>
-    );
+      ))}
+    </div>
+  );
 }
 
-// ── Async data component ──────────────────────────────────────────────────
-async function DestinationsData() {
-    const [destinations, regions] = await Promise.all([
-        getDestinations(),
-        getRegionsForSelect(),
-    ]);
- 
-    // Stats and filters are now handled inside DestinationsTable
-    return <DestinationsTable destinations={destinations} regions={regions} />;
+interface PageProps {
+  searchParams: Promise<{ page?: string }>;
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────
+async function PageContent({ searchParams }: PageProps) {
+  const params = await searchParams;
+  const page = Math.max(1, parseInt(params.page ?? "1", 10));
 
-async function CreateButtonData() {
-    const regions = await getRegionsForSelect();
-    return <CreateDestinationDialog regions={regions} />;
-}
-export default function DestinationsPage() {
-    return (
-        <div className="space-y-6">
- 
-            {/* Breadcrumb */}
-            <Breadcrumb>
-                <BreadcrumbList>
-                    <BreadcrumbItem>
-                        <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
-                    </BreadcrumbItem>
-                    <BreadcrumbSeparator />
-                    <BreadcrumbItem>
-                        <BreadcrumbPage>Team members</BreadcrumbPage>
-                    </BreadcrumbItem>
-                </BreadcrumbList>
-            </Breadcrumb>
- 
-            {/* Header */}
-            <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                        <MapPin className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                        <h1 className="text-xl font-semibold">Team members</h1>
-                        <p className="text-sm text-muted-foreground">
-                            Manage your team and roles
-                        </p>
-                    </div>
-                </div>
- 
-                <Suspense fallback={<Skeleton className="h-9 w-36" />}>
-                    <CreateButtonData />
-                </Suspense>
-            </div>
- 
-            {/* Data */}
-            <Suspense fallback={
-                <div className="space-y-4">
-                    <div className="grid grid-cols-4 gap-4">
-                        {Array.from({ length: 4 }).map((_, i) => (
-                            <div key={i} className="rounded-xl border bg-card p-4 space-y-2">
-                                <Skeleton className="h-3 w-16" />
-                                <Skeleton className="h-7 w-10" />
-                            </div>
-                        ))}
-                    </div>
-                    <TableSkeleton />
-                </div>
-            }>
-                <DestinationsData />
-            </Suspense>
- 
+  const [paginated, departments, roles] = await Promise.all([
+    getTeamMembersPaginated(page),
+    getDepartmentsForSelect(),
+    getRolesForSelect(),
+  ]);
+
+  return (
+    <>
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+            <Users className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-xl font-semibold">Team members</h1>
+            <p className="text-sm text-muted-foreground">
+              Manage your team, roles, and access
+            </p>
+          </div>
         </div>
-    );
+        <CreateTeamMemberDialog departments={departments} roles={roles} />
+      </div>
+
+      <TeamMembersTable
+        paginated={paginated}
+        departments={departments}
+        roles={roles}
+        currentPage={page}
+      />
+    </>
+  );
+}
+
+export default function TeamMembersPage({ searchParams }: PageProps) {
+  return (
+    <div className="space-y-6">
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>Team members</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
+      <Suspense fallback={<TableSkeleton />}>
+        <PageContent searchParams={searchParams} />
+      </Suspense>
+    </div>
+  );
 }

@@ -837,3 +837,49 @@ model TeamMember {
   @@index([teamRoleId])
   @@map("team_members")
 }
+
+
+model Department {
+  id          String       @id @default(cuid())
+  name        String       @unique @db.VarChar(100)
+  description String?      @db.VarChar(500)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  members     TeamMember[]
+
+  @@map("departments")
+}
+
+model TeamRole {
+  id          String       @id @default(cuid())
+  name        String       @unique @db.VarChar(100)
+  description String?      @db.VarChar(500)
+  permissions String[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  members     TeamMember[]
+
+  @@map("team_roles")
+}
+
+model TeamMember {
+  id           String      @id @default(cuid())
+  name         String      @db.VarChar(255)
+  email        String      @unique
+  password     String?
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  teamRoleId   String?
+  teamRole     TeamRole?   @relation(fields: [teamRoleId], references: [id], onDelete: SetNull)
+  isActive     Boolean     @default(true)
+  joiningDate  DateTime?
+  lastLoginAt  DateTime?
+  createdById  String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([email])
+  @@index([departmentId])
+  @@index([teamRoleId])
+  @@map("team_members")
+}
