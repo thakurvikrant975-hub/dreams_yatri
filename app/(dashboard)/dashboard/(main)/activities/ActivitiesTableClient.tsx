@@ -40,6 +40,57 @@ const DIFFICULTY_COLORS: Record<string, string> = {
   Expert:      "bg-red-50 text-red-700 border-red-200",
 };
 
+// ── Delete Dialog (extracted — fixes Radix hydration mismatch) ────────────────
+
+function DeleteActivityDialog({
+    activity,
+    onDelete,
+    isPending,
+}: {
+    activity: ActivityItem;
+    onDelete: (id: number) => void;
+    isPending: boolean;
+}) {
+    const isBlocked = activity._count.packages > 0;
+
+    return (
+        <AlertDialog>
+            <AlertDialogTrigger asChild>
+                <Button
+                    variant="ghost" size="icon"
+                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                >
+                    <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Activity</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Delete <span className="font-semibold">{activity.name}</span>?
+                        This also removes all its images.
+                        {isBlocked && (
+                            <span className="block mt-2 font-medium text-destructive">
+                                ⚠ Used in {activity._count.packages} package(s). Remove from packages first.
+                            </span>
+                        )}
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                        onClick={() => onDelete(activity.id)}
+                        disabled={isBlocked || isPending}
+                        className="bg-destructive text-white hover:bg-destructive/90"
+                    >
+                        Delete
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
+}
+
 const BASE = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
 
 // ── Stat card ─────────────────────────────────────────────────────────────

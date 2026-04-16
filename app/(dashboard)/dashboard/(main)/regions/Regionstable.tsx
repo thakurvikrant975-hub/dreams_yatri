@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Badge }   from "../components/ui/badge";
-import { Switch }  from "@/app/(dashboard)/dashboard/components/ui/switch";
+import { Switch }  from "@/app/(dashboard)/dashboard/(main)/components/ui/switch";
 import { EditRegionDialog }   from "./RegionDialog";
 import { DeleteRegionDialog } from "./Deleteregiondialog";
 import { toggleRegionActive } from "./actions";

@@ -3,7 +3,7 @@
 import { db }             from "@/app/lib/db";
 import { deleteFromR2 } from "@/app/lib/r2/r2delete";
 import { revalidatePath } from "next/cache";
-import { z }              from "zod";
+import { z } from "zod";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -46,7 +46,6 @@ export type ActivityItem = {
 };
 
 // ── Schema ────────────────────────────────────────────────────────────────
-
 const ActivitySchema = z.object({
   name:              z.string().min(1, "Name is required"),
   slug:              z.string().min(1).regex(/^[a-z0-9-]+$/, "Only lowercase, numbers and hyphens"),
@@ -60,10 +59,10 @@ const ActivitySchema = z.object({
   price:             z.coerce.number().min(0).optional(),
   original_price:    z.coerce.number().min(0).optional(),
   margin_percentage: z.coerce.number().min(0).max(100).default(0),
-  pricing_type:      z.string().optional(),
-  min_persons:       z.coerce.number().int().min(1).optional(),
-  max_persons:       z.coerce.number().int().min(1).optional(),
-  is_active:         z.boolean().default(true),
+  pricing_type: z.string().optional(),
+  min_persons: z.coerce.number().int().min(1).optional(),
+  max_persons: z.coerce.number().int().min(1).optional(),
+  is_active: z.boolean().default(true),
 });
 
 // ── Read ──────────────────────────────────────────────────────────────────
@@ -113,9 +112,9 @@ export async function getActivityById(id: number) {
 
 export async function getDestinationsForSelect() {
   return db.destinations.findMany({
-    where:   { is_active: true },
+    where: { is_active: true },
     orderBy: { name: "asc" },
-    select:  { id: true, name: true, region: { select: { name: true } } },
+    select: { id: true, name: true, region: { select: { name: true } } },
   });
 }
 

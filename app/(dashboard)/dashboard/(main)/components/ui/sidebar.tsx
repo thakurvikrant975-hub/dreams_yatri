@@ -6,22 +6,22 @@ import { Slot } from "radix-ui"
 
 import { useIsMobile } from "@/app/hooks/use-mobile"
 import { cn } from "@/app/lib/utils"
-import { Button } from "@/app/(dashboard)/dashboard/components/ui/button"
-import { Input } from "@/app/(dashboard)/dashboard/components/ui/input"
-import { Separator } from "@/app/(dashboard)/dashboard/components/ui/separator"
+import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button"
+import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input"
+import { Separator } from "@/app/(dashboard)/dashboard/(main)/components/ui/separator"
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@/app/(dashboard)/dashboard/components/ui/sheet"
-import { Skeleton } from "@/app/(dashboard)/dashboard/components/ui/skeleton"
+} from "@/app/(dashboard)/dashboard/(main)/components/ui/sheet"
+import { Skeleton } from "@/app/(dashboard)/dashboard/(main)/components/ui/skeleton"
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@/app/(dashboard)/dashboard/components/ui/tooltip"
+} from "@/app/(dashboard)/dashboard/(main)/components/ui/tooltip"
 import { SidebarIcon } from "@phosphor-icons/react"
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"

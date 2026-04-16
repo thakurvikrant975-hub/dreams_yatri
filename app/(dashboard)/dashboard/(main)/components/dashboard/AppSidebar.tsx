@@ -2,12 +2,12 @@
 import {
     Sidebar, SidebarContent, SidebarGroup,
     SidebarMenu, SidebarMenuItem, SidebarMenuButton,
-} from "../../(main)/components/ui/sidebar";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, } from "../../(main)/components/ui/accordion";
+} from "../ui/sidebar";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, } from "../ui/accordion";
 
 import {
-    LayoutDashboard,
-    Settings, Users, BookOpen, BarChart3,
+    Monitor, Hotel, Package, UserCircleIcon, LayoutDashboard,
+    Tag, Settings, Users, BookOpen, BarChart3,
 } from "lucide-react";
 
 import {
