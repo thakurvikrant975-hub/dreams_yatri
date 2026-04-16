@@ -393,7 +393,7 @@ function StayContent({ section }: { section: StaySection }) {
             {section.images.slice(0, 5).map((src, i) => (
               <img
                 key={i}
-                src={src}
+                src={`${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${src}`}
                 alt=""
                 className={cn('w-full h-full object-cover', i === 0 && 'row-span-2')}
               />
@@ -416,7 +416,7 @@ function ActivityContent({ section }: { section: ActivitySection }) {
         <div className="grid grid-cols-2 gap-1.5">
           {section.images.map(({ src, label }, i) => (
             <div key={i} className="relative rounded-xl overflow-hidden">
-              <img src={src} alt={label} className="w-full aspect-5/3 object-cover" />
+              <img src={`${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${src}`} alt={label} className="w-full aspect-5/3 object-cover" />
               <div className="absolute inset-x-0 bottom-0 bg-linear-to-r from-black/60 to-transparent px-2 py-1.5">
                 <p className="text-[10px] text-white font-medium">{label}</p>
               </div>

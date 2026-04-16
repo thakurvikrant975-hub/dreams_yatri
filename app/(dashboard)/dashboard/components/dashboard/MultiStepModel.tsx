@@ -2,7 +2,7 @@
 
 import {
   createContext, useContext, useState,
-  useCallback, type ReactNode,
+  useCallback, type ReactNode, Fragment
 } from "react";
 import {
   Dialog, DialogContent, DialogHeader,
@@ -16,6 +16,7 @@ import {
   Check, Loader2, AlertCircle,
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
+import { div } from "motion/react-client";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -69,7 +70,7 @@ function StepIndicator({
   errorStep: number | null;
 }) {
   return (
-    <div className="flex flex-row items-center h-full gap-4">
+    <div className="flex flex-row  h-full gap-4  w-full">
       {steps.map((step, index) => {
         const isCompleted = completedSteps.has(index);
         const isCurrent = index === currentStep;
@@ -77,27 +78,24 @@ function StepIndicator({
         const isPending = !isCompleted && !isCurrent;
 
         return (
-          <>
-            <div key={step.id} className="flex items-center">
-              <div className="flex flex-col items-center gap-1 ">
-                <div
-                  className={cn(
-                    "size-6 rounded-full flex items-center justify-center text-xs font-semibold border-2 transition-all duration-200",
-                    isCompleted && "bg-primary border-primary text-primary-foreground",
-                    isCurrent && !isError && "bg-background border-primary text-primary",
-                    isError && "bg-destructive/10 border-destructive text-destructive",
-                    isPending && "bg-muted border-muted-foreground/30 text-muted-foreground",
-                  )}
-                >
-                  {isCompleted ? (
-                    <Check className="h-3.5 w-3.5" />
-                  ) : isError ? (
-                    <AlertCircle className="h-3.5 w-3.5" />
-                  ) : (
-                    <span>{index + 1}</span>
-                  )}
-                </div>
-                <span
+          <Fragment key={step.id}>
+
+            <div className=" flex flex-col gap-3 items-center">
+              <div className={cn("size-6 rounded-full flex items-center justify-center text-xs font-semibold border-2 transition-all duration-200",
+                isCompleted && "bg-primary border-primary text-primary-foreground",
+                isCurrent && !isError && "bg-background border-primary text-primary",
+                isError && "bg-destructive/10 border-destructive text-destructive",
+                isPending && "bg-muted border-muted-foreground/30 text-muted-foreground",
+              )}>
+                {isCompleted ? (
+                  <Check className="h-3.5 w-3.5" />
+                ) : isError ? (
+                  <AlertCircle className="h-3.5 w-3.5" />
+                ) : (
+                  <span>{index + 1}</span>
+                )}
+              </div>
+               <span
                   className={cn(
                     "text-[10px] font-medium whitespace-nowrap max-w-16 text-center leading-tight",
                     isCurrent && "text-primary",
@@ -111,18 +109,19 @@ function StepIndicator({
                     <span className="block text-[9px] text-muted-foreground/50">Optional</span>
                   )}
                 </span>
-              </div>
 
-              {index < steps.length - 1 && (
-                <div
-                  className={cn(
-                    "h-[2px] w-8 mx-1 mb-5 rounded-full transition-all duration-300",
-                    completedSteps.has(index) ? "bg-primary" : "bg-muted"
-                  )}
-                />
-              )}
             </div>
-          </>
+
+            {
+              index < steps.length - 1 && (
+                <div className="h-6 flex-1 flex items-center">
+                  <div className={cn("w-full h-[0.12em] rounded-full transition-all duration-300", completedSteps.has(index) ? "bg-primary" : "bg-muted")}></div>
+                </div>
+              )
+            }
+
+           
+          </Fragment>
 
         );
       })}
@@ -271,7 +270,7 @@ export function MultiStepModal({
               </Badge>
             </div>
 
-            <Progress value={progress} className="h-1.5 mt-3" />
+            <Progress value={progress} className="h-[0.2em] mt-2.5" />
 
             <div className="flex justify-center mt-4 overflow-x-auto pb-1">
               <StepIndicator
@@ -284,7 +283,7 @@ export function MultiStepModal({
           </DialogHeader>
 
           {/* Step content — only current child */}
-          <div className="flex-1 overflow-y-auto px-6 py-5 max-h-90 ">
+          <div className=" overflow-y-auto px-6 py-5 h-95 ">
             <div className="mb-5">
               <div className="flex items-center gap-2">
                 {steps[currentStep].icon && (

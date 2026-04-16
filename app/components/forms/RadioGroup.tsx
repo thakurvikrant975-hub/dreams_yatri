@@ -137,7 +137,7 @@ export function RadioImageCard({
       {/* Image */}
       <div className="relative w-full">
         <Image
-          src={image}
+          src={`${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${image}`}
           alt={label}
           width={500}
           height={500}

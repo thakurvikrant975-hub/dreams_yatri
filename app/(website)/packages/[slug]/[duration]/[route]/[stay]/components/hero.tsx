@@ -145,7 +145,7 @@ export default function PackageHero({
         {/* Hero image — spans 2 rows on left */}
         <div className="col-span-2 row-span-2 relative group cursor-pointer">
           <Image
-            src={heroImage}
+            src={`${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${heroImage}`}
             alt={title}
             fill
             className={[
@@ -176,7 +176,7 @@ export default function PackageHero({
             <div key={i} className="relative group cursor-pointer overflow-hidden">
               {src ? (
                 <Image
-                  src={src}
+                  src={`${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${src}`}
                   alt={`${title} photo ${i + 2}`}
                   fill
                   className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
