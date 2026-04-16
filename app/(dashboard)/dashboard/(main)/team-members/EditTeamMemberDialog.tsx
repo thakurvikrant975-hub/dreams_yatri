@@ -29,6 +29,27 @@ interface Props {
   onClose: () => void;
 }
 
+// ── Utilities ─────────────────────────────────────────────────────────────────
+
+/** Capitalizes first letter of each word */
+function toTitleCase(str: string): string {
+  return str.replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+/** Returns true if date string is in the future (after today) */
+function isFutureDate(dateStr: string): boolean {
+  if (!dateStr) return false;
+  const selected = new Date(dateStr);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return selected > today;
+}
+
+/** Today's date in yyyy-MM-dd for max attribute */
+function todayISO(): string {
+  return new Date().toISOString().split("T")[0];
+}
+
 export function EditTeamMemberDialog({ member, departments, roles, open, onClose }: Props) {
   const [showPassword, setShowPassword] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -45,15 +66,21 @@ export function EditTeamMemberDialog({ member, departments, roles, open, onClose
     isActive: member.isActive,
   });
 
-  const handleSubmit = () => {
-    if (!form.name || !form.email) {
-      toast.error("Name and email are required");
-      return;
-    }
-    if (form.password && form.password.length < 8) {
-      toast.error("Password must be at least 8 characters");
-      return;
-    }
+ const handleSubmit = () => {
+  if (!form.name || !form.email || !form.password) {
+    toast.error("Name, email, and password are required");
+    return;
+  }
+  if (form.password.length < 8) {
+    toast.error("Password must be at least 8 characters");
+    return;
+  }
+  // ── Date guard ────────────────────────────────────────────────────────
+  if (isFutureDate(form.joiningDate)) {
+    toast.error("Joining date cannot be a future date");
+    return;
+  }
+
 
     startTransition(async () => {
       const result = await updateTeamMember({

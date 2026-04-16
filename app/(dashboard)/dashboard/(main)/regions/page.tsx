@@ -59,7 +59,7 @@ function TablePagination({
     if (currentPage > 3) pages.push("ellipsis");
 
     const start = Math.max(2, currentPage - 1);
-    const end   = Math.min(totalPages - 1, currentPage + 1);
+    const end = Math.min(totalPages - 1, currentPage + 1);
     for (let i = start; i <= end; i++) pages.push(i);
 
     if (currentPage < totalPages - 2) pages.push("ellipsis");
@@ -109,28 +109,28 @@ function TablePagination({
 
 // page is passed as a prop so RegionsData can fetch the correct slice
 async function RegionsData({ page }: { page: number }) {
-    const { regions, totalPages, currentPage, stats } = await getRegions(page);
+  const { regions, totalPages, currentPage, stats } = await getRegions(page);
 
-    return (
-        <>
-            <Stats
-                rows={[
-                    { label: "Total Regions", value: stats.total },
-                    { label: "Active", value: stats.active },
-                    { label: "Inactive", value: stats.inactive, muted: true },
-                    { label: "Destinations", value: stats.destinations },
-                ]}
-            />
-            <RegionsTable
-                regions={regions}
-                currentPage={currentPage}
-                totalPages={totalPages}
-                totalCount={stats.total}
+  return (
+    <>
+      <Stats
+        rows={[
+          { label: "Total Regions", value: stats.total },
+          { label: "Active", value: stats.active },
+          { label: "Inactive", value: stats.inactive, muted: true },
+          { label: "Destinations", value: stats.destinations },
+        ]}
+      />
+      <RegionsTable
+        regions={regions}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalCount={stats.total}
 
-            />
-            {/* TablePagination removed — DataTable renders it internally */}
-        </>
-    );
+      />
+      {/* TablePagination removed — DataTable renders it internally */}
+    </>
+  );
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────

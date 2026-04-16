@@ -13,6 +13,7 @@ import {
 } from "./actions";
 import { TeamMembersTable } from "./TeamMembersTable";
 import { CreateTeamMemberDialog } from "./TeamMemberDialog";
+import { db } from "@/app/lib/db";
 
 function TableSkeleton() {
   return (
@@ -49,15 +50,27 @@ interface PageProps {
   searchParams: Promise<{ page?: string }>;
 }
 
+// Replace PageContent's data fetching and props
 async function PageContent({ searchParams }: PageProps) {
   const params = await searchParams;
   const page = Math.max(1, parseInt(params.page ?? "1", 10));
 
-  const [paginated, departments, roles] = await Promise.all([
+  const [paginated, departments, roles, allMembers] = await Promise.all([
     getTeamMembersPaginated(page),
     getDepartmentsForSelect(),
     getRolesForSelect(),
+    // Lightweight aggregate query — only pulls id, isActive, departmentId
+    db.teamMember.findMany({
+      select: { isActive: true, department: { select: { id: true } } },
+    }),
   ]);
+
+  const totalStats = {
+    total: allMembers.length,
+    active: allMembers.filter((m) => m.isActive).length,
+    inactive: allMembers.filter((m) => !m.isActive).length,
+    departments: new Set(allMembers.map((m) => m.department?.id).filter(Boolean)).size,
+  };
 
   return (
     <>
@@ -78,6 +91,7 @@ async function PageContent({ searchParams }: PageProps) {
 
       <TeamMembersTable
         paginated={paginated}
+        totalStats={totalStats}
         departments={departments}
         roles={roles}
         currentPage={page}

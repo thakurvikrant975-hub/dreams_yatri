@@ -23,6 +23,27 @@ interface Props {
   roles: SelectOption[];
 }
 
+    // ── Utilities ─────────────────────────────────────────────────────────────────
+
+/** Capitalizes first letter of each word */
+function toTitleCase(str: string): string {
+  return str.replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+/** Returns true if date string is in the future (after today) */
+function isFutureDate(dateStr: string): boolean {
+  if (!dateStr) return false;
+  const selected = new Date(dateStr);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return selected > today;
+}
+
+/** Today's date in yyyy-MM-dd for max attribute */
+function todayISO(): string {
+  return new Date().toISOString().split("T")[0];
+}
+
 export function CreateTeamMemberDialog({ departments, roles }: Props) {
   const [open, setOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -56,15 +77,20 @@ export function CreateTeamMemberDialog({ departments, roles }: Props) {
     setShowPassword(true);
   };
 
-  const handleSubmit = () => {
-    if (!form.name || !form.email || !form.password) {
-      toast.error("Name, email, and password are required");
-      return;
-    }
-    if (form.password.length < 8) {
-      toast.error("Password must be at least 8 characters");
-      return;
-    }
+const handleSubmit = () => {
+  if (!form.name || !form.email || !form.password) {
+    toast.error("Name, email, and password are required");
+    return;
+  }
+  if (form.password.length < 8) {
+    toast.error("Password must be at least 8 characters");
+    return;
+  }
+  // ── Date guard ────────────────────────────────────────────────────────
+  if (isFutureDate(form.joiningDate)) {
+    toast.error("Joining date cannot be a future date");
+    return;
+  }
 
 // Replace the startTransition block in handleSubmit
 startTransition(async () => {
@@ -119,12 +145,13 @@ startTransition(async () => {
         <div className="grid gap-4 py-2">
           <div className="grid gap-2">
             <Label htmlFor="name">Full name *</Label>
-            <Input
-              id="name"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="Name"
-            />
+<Input
+  id="name"
+  value={form.name}
+  onChange={(e) => setForm({ ...form, name: e.target.value })}
+  onBlur={(e) => setForm({ ...form, name: toTitleCase(e.target.value.trim()) })}
+  placeholder="Karan Sharma"
+/>
           </div>
 
           <div className="grid gap-2">
@@ -202,12 +229,19 @@ startTransition(async () => {
 
           <div className="grid gap-2">
             <Label htmlFor="joiningDate">Joining date</Label>
-            <Input
-              id="joiningDate"
-              type="date"
-              value={form.joiningDate}
-              onChange={(e) => setForm({ ...form, joiningDate: e.target.value })}
-            />
+<Input
+  id="joiningDate"
+  type="date"
+  value={form.joiningDate}
+  max={todayISO()}                          // browser blocks future dates natively
+  onChange={(e) => {
+    if (isFutureDate(e.target.value)) {
+      toast.error("Joining date cannot be a future date");
+      return;                               // reject the value, don't update state
+    }
+    setForm({ ...form, joiningDate: e.target.value });
+  }}
+/>
           </div>
 
           <div className="flex items-center justify-between rounded-lg border p-3">

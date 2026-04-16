@@ -58,7 +58,7 @@ export function TableFilters({
     return (
         <div className="flex items-center gap-3">
             {/* Search */}
-            <div className="relative flex-1 max-w-xs">
+            <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                     placeholder={searchPlaceholder}
@@ -94,12 +94,7 @@ export function TableFilters({
                 );
             })}
 
-            {/* Count */}
-            {showCount && (
-                <p className="text-sm text-muted-foreground ml-auto">
-                    {filteredCount} of {totalCount}
-                </p>
-            )}
+
         </div>
     );
 }
