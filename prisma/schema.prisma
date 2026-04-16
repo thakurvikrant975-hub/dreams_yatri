@@ -901,3 +901,25 @@ model CityAll {
   @@index([countryId])
   @@map("cities_all")
 }
+
+// team members schema
+model team_members {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(255)
+
+  email       String   @unique
+  password    String
+
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+
+  roleId      String?
+  role        Role?     @relation(fields: [roleId], references: [id])
+
+  isActive    Boolean   @default(true)
+
+  joiningDate DateTime?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
