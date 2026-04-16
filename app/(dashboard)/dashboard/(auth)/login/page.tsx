@@ -317,7 +317,7 @@ export default function LoginPage() {
               Welcome back 😉
             </h1>
             <p className="text-sm text-gray-500">
-              Let&apos;s help them explore the world together 🤜🤛
+              Let&apos;s help the world travel the world together 🤜🤛
             </p>
           </div>
 

@@ -7,7 +7,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, } from ".
 
 
 import {
-    MapPin, Hotel, Package, Globe, LayoutDashboard,
+    Monitor, Hotel, Package, UserCircleIcon, LayoutDashboard,
     Tag, Settings, Users, BookOpen, BarChart3,
 } from "lucide-react";
 
@@ -52,6 +52,14 @@ const navGroups = [
         items: [
             { title: "All Hotels", href: "/dashboard/hotels", icon: <BuildingIcon weight="duotone" className="size-6 scale-110 text-muted-foreground" /> },
             { title: "Add New", href: "/dashboard/hotels/new", icon: <PlusIcon weight="duotone" className="size-6 scale-110 text-muted-foreground" /> },
+        ],
+    },
+    {
+        id: "team",
+        label: "Internal Team",
+        items: [
+            { title: "Team members", href: "/dashboard/team-members", icon: <UserCircleIcon className="size-6 text-muted-foreground" /> },
+            { title: "Logs", href: "/dashboard/logs", icon: <Monitor className="size-6 text-muted-foreground" /> },
         ],
     },
     {
