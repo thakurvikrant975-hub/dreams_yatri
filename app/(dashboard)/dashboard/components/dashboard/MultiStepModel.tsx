@@ -8,9 +8,9 @@ import {
   Dialog, DialogContent, DialogHeader,
   DialogTitle, DialogDescription,
 } from "../ui/dialog";
-import { Button }   from "../ui/button";
+import { Button } from "../ui/button";
 import { Progress } from "../ui/progress";
-import { Badge }    from "../ui/badge";
+import { Badge } from "../ui/badge";
 import {
   ChevronLeft, ChevronRight,
   Check, Loader2, AlertCircle,
@@ -22,27 +22,27 @@ import { cn } from "@/app/lib/utils";
 export type StepStatus = "pending" | "current" | "completed" | "error";
 
 export type Step = {
-  id:           string;
-  title:        string;
+  id: string;
+  title: string;
   description?: string;
-  icon?:        ReactNode;
-  optional?:    boolean;
-  validate?:    (data: Record<string, unknown>) => string | null;
+  icon?: ReactNode;
+  optional?: boolean;
+  validate?: (data: Record<string, unknown>) => string | null;
 };
 
 type MultiStepContextValue = {
-  currentStep:  number;
-  totalSteps:   number;
-  stepData:     Record<string, Record<string, unknown>>;
-  setStepData:  (stepId: string, data: Record<string, unknown>) => void;
-  goNext:       () => void;
-  goPrev:       () => void;
-  goToStep:     (index: number) => void;
-  isFirst:      boolean;
-  isLast:       boolean;
-  stepError:    string | null;
-  clearError:   () => void;
-  allData:      Record<string, unknown>;
+  currentStep: number;
+  totalSteps: number;
+  stepData: Record<string, Record<string, unknown>>;
+  setStepData: (stepId: string, data: Record<string, unknown>) => void;
+  goNext: () => void;
+  goPrev: () => void;
+  goToStep: (index: number) => void;
+  isFirst: boolean;
+  isLast: boolean;
+  stepError: string | null;
+  clearError: () => void;
+  allData: Record<string, unknown>;
 };
 
 // ── Context ───────────────────────────────────────────────────────────────
@@ -63,64 +63,67 @@ function StepIndicator({
   completedSteps,
   errorStep,
 }: {
-  steps:          Step[];
-  currentStep:    number;
+  steps: Step[];
+  currentStep: number;
   completedSteps: Set<number>;
-  errorStep:      number | null;
+  errorStep: number | null;
 }) {
   return (
-    <div className="flex items-center gap-0">
+    <div className="flex flex-row items-center h-full gap-4">
       {steps.map((step, index) => {
         const isCompleted = completedSteps.has(index);
-        const isCurrent   = index === currentStep;
-        const isError     = errorStep === index;
-        const isPending   = !isCompleted && !isCurrent;
+        const isCurrent = index === currentStep;
+        const isError = errorStep === index;
+        const isPending = !isCompleted && !isCurrent;
 
         return (
-          <div key={step.id} className="flex items-center">
-            <div className="flex flex-col items-center gap-1">
-              <div
-                className={cn(
-                  "h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold border-2 transition-all duration-200",
-                  isCompleted && "bg-primary border-primary text-primary-foreground",
-                  isCurrent && !isError && "bg-background border-primary text-primary",
-                  isError && "bg-destructive/10 border-destructive text-destructive",
-                  isPending && "bg-muted border-muted-foreground/30 text-muted-foreground",
-                )}
-              >
-                {isCompleted ? (
-                  <Check className="h-3.5 w-3.5" />
-                ) : isError ? (
-                  <AlertCircle className="h-3.5 w-3.5" />
-                ) : (
-                  <span>{index + 1}</span>
-                )}
+          <>
+            <div key={step.id} className="flex items-center">
+              <div className="flex flex-col items-center gap-1 ">
+                <div
+                  className={cn(
+                    "size-6 rounded-full flex items-center justify-center text-xs font-semibold border-2 transition-all duration-200",
+                    isCompleted && "bg-primary border-primary text-primary-foreground",
+                    isCurrent && !isError && "bg-background border-primary text-primary",
+                    isError && "bg-destructive/10 border-destructive text-destructive",
+                    isPending && "bg-muted border-muted-foreground/30 text-muted-foreground",
+                  )}
+                >
+                  {isCompleted ? (
+                    <Check className="h-3.5 w-3.5" />
+                  ) : isError ? (
+                    <AlertCircle className="h-3.5 w-3.5" />
+                  ) : (
+                    <span>{index + 1}</span>
+                  )}
+                </div>
+                <span
+                  className={cn(
+                    "text-[10px] font-medium whitespace-nowrap max-w-16 text-center leading-tight",
+                    isCurrent && "text-primary",
+                    isCompleted && "text-muted-foreground",
+                    isPending && "text-muted-foreground/60",
+                    isError && "text-destructive",
+                  )}
+                >
+                  {step.title}
+                  {step.optional && (
+                    <span className="block text-[9px] text-muted-foreground/50">Optional</span>
+                  )}
+                </span>
               </div>
-              <span
-                className={cn(
-                  "text-[10px] font-medium whitespace-nowrap max-w-16 text-center leading-tight",
-                  isCurrent   && "text-primary",
-                  isCompleted && "text-muted-foreground",
-                  isPending   && "text-muted-foreground/60",
-                  isError     && "text-destructive",
-                )}
-              >
-                {step.title}
-                {step.optional && (
-                  <span className="block text-[9px] text-muted-foreground/50">Optional</span>
-                )}
-              </span>
-            </div>
 
-            {index < steps.length - 1 && (
-              <div
-                className={cn(
-                  "h-[2px] w-8 mx-1 mb-5 rounded-full transition-all duration-300",
-                  completedSteps.has(index) ? "bg-primary" : "bg-muted"
-                )}
-              />
-            )}
-          </div>
+              {index < steps.length - 1 && (
+                <div
+                  className={cn(
+                    "h-[2px] w-8 mx-1 mb-5 rounded-full transition-all duration-300",
+                    completedSteps.has(index) ? "bg-primary" : "bg-muted"
+                  )}
+                />
+              )}
+            </div>
+          </>
+
         );
       })}
     </div>
@@ -130,16 +133,16 @@ function StepIndicator({
 // ── Main Component ────────────────────────────────────────────────────────
 
 type MultiStepModalProps = {
-  open:             boolean;
-  onOpenChange:     (open: boolean) => void;
-  title:            string;
-  description?:     string;
-  steps:            Step[];
-  onComplete:       (data: Record<string, unknown>) => Promise<void> | void;
-  isSubmitting?:    boolean;
-  submitLabel?:     string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  description?: string;
+  steps: Step[];
+  onComplete: (data: Record<string, unknown>) => Promise<void> | void;
+  isSubmitting?: boolean;
+  submitLabel?: string;
   initialStepData?: Record<string, Record<string, unknown>>;  // ← pre-seed for edit
-  children:         ReactNode;
+  children: ReactNode;
 };
 
 export function MultiStepModal({
@@ -149,21 +152,21 @@ export function MultiStepModal({
   description,
   steps,
   onComplete,
-  isSubmitting    = false,
-  submitLabel     = "Submit",
+  isSubmitting = false,
+  submitLabel = "Submit",
   initialStepData = {},
   children,
 }: MultiStepModalProps) {
-  const [currentStep,    setCurrentStep]    = useState(0);
+  const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
-  const [stepData,       setStepDataState]  = useState<Record<string, Record<string, unknown>>>(
+  const [stepData, setStepDataState] = useState<Record<string, Record<string, unknown>>>(
     initialStepData   // ← seeded from prop
   );
   const [stepError, setStepError] = useState<string | null>(null);
   const [errorStep, setErrorStep] = useState<number | null>(null);
 
   const isFirst = currentStep === 0;
-  const isLast  = currentStep === steps.length - 1;
+  const isLast = currentStep === steps.length - 1;
 
   // Flatten all step data
   const allData = Object.values(stepData).reduce((acc, d) => ({ ...acc, ...d }), {});
@@ -178,7 +181,7 @@ export function MultiStepModal({
   }, []);
 
   function validate() {
-    const step      = steps[currentStep];
+    const step = steps[currentStep];
     const validator = step.validate;
     if (!validator) return true;
 
@@ -232,15 +235,15 @@ export function MultiStepModal({
 
   // Get only the current step's child
   const childrenArray = Array.isArray(children) ? children : [children];
-  const currentChild  = childrenArray[currentStep];
+  const currentChild = childrenArray[currentStep];
 
   const contextValue: MultiStepContextValue = {
     currentStep,
     totalSteps: steps.length,
     stepData,
     setStepData,
-    goNext:     handleNext,
-    goPrev:     handlePrev,
+    goNext: handleNext,
+    goPrev: handlePrev,
     goToStep,
     isFirst,
     isLast,
@@ -252,7 +255,7 @@ export function MultiStepModal({
   return (
     <MultiStepContext.Provider value={contextValue}>
       <Dialog open={open} onOpenChange={handleClose} >
-        <DialogContent className="max-w-7xl w-full max-h-[90vh] flex flex-col p-0 gap-0 ">
+        <DialogContent className="sm:max-w-2xl w-full max-h-[90vh] flex flex-col p-0 gap-0 ">
 
           {/* Header */}
           <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
@@ -281,7 +284,7 @@ export function MultiStepModal({
           </DialogHeader>
 
           {/* Step content — only current child */}
-          <div className="flex-1 overflow-y-auto px-6 py-5 max-h-70 ">
+          <div className="flex-1 overflow-y-auto px-6 py-5 max-h-90 ">
             <div className="mb-5">
               <div className="flex items-center gap-2">
                 {steps[currentStep].icon && (

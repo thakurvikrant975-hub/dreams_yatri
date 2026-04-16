@@ -1,18 +1,27 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition } from "react";
 import {
   MapPin, Tag, DollarSign, Search, Plus, Pencil,
+  ImageIcon, Star, Trash2, Loader2,
 } from "lucide-react";
 import { Button }   from "../components/ui/button";
 import { Input }    from "../components/ui/input";
 import { Label }    from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
 import { Switch }   from "../components/ui/switch";
+import { Badge }    from "../components/ui/badge";
 import {
   Select, SelectContent, SelectItem,
   SelectTrigger, SelectValue,
 } from "../components/ui/select";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from "../components/ui/alert-dialog";
+import { ImagePicker, type PickedImage } from "../components/dashboard/ImagePicker";
 import { toast } from "sonner";
 import { cn } from "@/app/lib/utils";
 import {
@@ -23,8 +32,11 @@ import {
 import {
   createActivity,
   updateActivity,
+  addActivityImages,
+  deleteActivityImage,
+  setPrimaryActivityImage,
   type ActivityItem,
-  type ActivityFormState,
+  type ActivityImage,
 } from "./actions";
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -45,9 +57,11 @@ export const PRICING_TYPES = [
   { value: "per_vehicle", label: "Per Vehicle" },
 ];
 
+const BASE = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
+
 // ── Steps ─────────────────────────────────────────────────────────────────
 
-function makeSteps(): Step[] {
+function makeSteps(isEdit: boolean): Step[] {
   return [
     {
       id:          "basic",
@@ -82,10 +96,17 @@ function makeSteps(): Step[] {
       icon:        <Search className="h-4 w-4" />,
       optional:    true,
     },
+    {
+      id:          "images",
+      title:       "Images",
+      description: isEdit ? "Manage activity photos" : "Upload activity photos",
+      icon:        <ImageIcon className="h-4 w-4" />,
+      optional:    true,
+    },
   ];
 }
 
-// ── Build initial data for edit ───────────────────────────────────────────
+// ── Build initial data ────────────────────────────────────────────────────
 
 function buildInitialData(
   activity: ActivityItem,
@@ -97,7 +118,7 @@ function buildInitialData(
       destination_id: String(activity.destination.id),
       category:       activity.category       ?? "",
       difficulty:     activity.difficulty     ?? "",
-      duration_hours: activity.duration_hours ? String(activity.duration_hours) : "",
+      duration_hours: activity.duration_hours != null ? String(activity.duration_hours) : "",
       is_active:      activity.is_active,
     },
     pricing: {
@@ -110,6 +131,7 @@ function buildInitialData(
     },
     details: { description: activity.description ?? "" },
     seo:     { meta_title: activity.meta_title ?? "", meta_desc: activity.meta_desc ?? "" },
+    images:  {},  // managed via state inside the step component
   };
 }
 
@@ -118,6 +140,7 @@ const EMPTY_DATA: Record<string, Record<string, unknown>> = {
   pricing: { pricing_type: "", price: "", original_price: "", margin_percentage: "0", min_persons: "", max_persons: "" },
   details: { description: "" },
   seo:     { meta_title: "", meta_desc: "" },
+  images:  {},
 };
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -150,14 +173,9 @@ function BasicStep({
       .replace(/-+/g, "-")
       .trim();
     setStepData("basic", { ...data, name: val, slug: newSlug });
-
-    // Auto-fill SEO title if untouched
     const seo = stepData["seo"] ?? {};
     if (!seo.meta_title) {
-      setStepData("seo", {
-        ...seo,
-        meta_title: `${val} | Dreams Yatri`,
-      });
+      setStepData("seo", { ...seo, meta_title: `${val} | Dreams Yatri` });
     }
   }
 
@@ -189,10 +207,7 @@ function BasicStep({
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label>Destination <span className="text-destructive">*</span></Label>
-          <Select
-            value={destination_id}
-            onValueChange={v => setStepData("basic", { ...data, destination_id: v })}
-          >
+          <Select value={destination_id} onValueChange={v => setStepData("basic", { ...data, destination_id: v })}>
             <SelectTrigger><SelectValue placeholder="Select destination" /></SelectTrigger>
             <SelectContent>
               {destinations.map(d => (
@@ -204,13 +219,9 @@ function BasicStep({
             </SelectContent>
           </Select>
         </div>
-
         <div className="space-y-1.5">
           <Label>Category</Label>
-          <Select
-            value={category}
-            onValueChange={v => setStepData("basic", { ...data, category: v })}
-          >
+          <Select value={category} onValueChange={v => setStepData("basic", { ...data, category: v })}>
             <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
             <SelectContent>
               {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -222,17 +233,13 @@ function BasicStep({
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label>Difficulty</Label>
-          <Select
-            value={difficulty}
-            onValueChange={v => setStepData("basic", { ...data, difficulty: v })}
-          >
+          <Select value={difficulty} onValueChange={v => setStepData("basic", { ...data, difficulty: v })}>
             <SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger>
             <SelectContent>
               {DIFFICULTIES.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
-
         <div className="space-y-1.5">
           <Label>Duration (hours)</Label>
           <Input
@@ -249,7 +256,7 @@ function BasicStep({
       <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/30">
         <div>
           <p className="text-sm font-medium">Active</p>
-          <p className="text-xs text-muted-foreground">Show on Dreams Yatri website</p>
+          <p className="text-xs text-muted-foreground">Show on Dreams Yatri</p>
         </div>
         <Switch
           checked={is_active}
@@ -266,13 +273,13 @@ function BasicStep({
 
 function PricingStep() {
   const { stepData, setStepData } = useMultiStep();
-  const data             = stepData["pricing"] ?? {};
-  const pricing_type     = (data.pricing_type     as string) ?? "";
-  const price            = (data.price            as string) ?? "";
-  const original_price   = (data.original_price   as string) ?? "";
+  const data              = stepData["pricing"] ?? {};
+  const pricing_type      = (data.pricing_type      as string) ?? "";
+  const price             = (data.price             as string) ?? "";
+  const original_price    = (data.original_price    as string) ?? "";
   const margin_percentage = (data.margin_percentage as string) ?? "0";
-  const min_persons      = (data.min_persons      as string) ?? "";
-  const max_persons      = (data.max_persons      as string) ?? "";
+  const min_persons       = (data.min_persons       as string) ?? "";
+  const max_persons       = (data.max_persons       as string) ?? "";
 
   const discount = price && original_price && Number(original_price) > Number(price)
     ? Math.round((1 - Number(price) / Number(original_price)) * 100)
@@ -304,63 +311,32 @@ function PricingStep() {
       <div className="grid grid-cols-3 gap-4">
         <div className="space-y-1.5">
           <Label>Price (₹)</Label>
-          <Input
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="2500"
-            value={price}
-            onChange={e => setStepData("pricing", { ...data, price: e.target.value })}
-          />
+          <Input type="number" min="0" step="0.01" placeholder="2500"
+            value={price} onChange={e => setStepData("pricing", { ...data, price: e.target.value })} />
         </div>
         <div className="space-y-1.5">
           <Label>Original Price (₹)</Label>
-          <Input
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="3000"
-            value={original_price}
-            onChange={e => setStepData("pricing", { ...data, original_price: e.target.value })}
-          />
-          {discount && (
-            <p className="text-xs text-green-600 font-medium">{discount}% off</p>
-          )}
+          <Input type="number" min="0" step="0.01" placeholder="3000"
+            value={original_price} onChange={e => setStepData("pricing", { ...data, original_price: e.target.value })} />
+          {discount && <p className="text-xs text-green-600 font-medium">{discount}% off</p>}
         </div>
         <div className="space-y-1.5">
           <Label>Margin %</Label>
-          <Input
-            type="number"
-            min="0"
-            max="100"
-            step="0.01"
-            placeholder="0"
-            value={margin_percentage}
-            onChange={e => setStepData("pricing", { ...data, margin_percentage: e.target.value })}
-          />
+          <Input type="number" min="0" max="100" step="0.01" placeholder="0"
+            value={margin_percentage} onChange={e => setStepData("pricing", { ...data, margin_percentage: e.target.value })} />
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label>Min Persons</Label>
-          <Input
-            type="number"
-            min="1"
-            placeholder="1"
-            value={min_persons}
-            onChange={e => setStepData("pricing", { ...data, min_persons: e.target.value })}
-          />
+          <Input type="number" min="1" placeholder="1"
+            value={min_persons} onChange={e => setStepData("pricing", { ...data, min_persons: e.target.value })} />
         </div>
         <div className="space-y-1.5">
           <Label>Max Persons</Label>
-          <Input
-            type="number"
-            min="1"
-            placeholder="20"
-            value={max_persons}
-            onChange={e => setStepData("pricing", { ...data, max_persons: e.target.value })}
-          />
+          <Input type="number" min="1" placeholder="20"
+            value={max_persons} onChange={e => setStepData("pricing", { ...data, max_persons: e.target.value })} />
         </div>
       </div>
     </div>
@@ -397,9 +373,9 @@ function DetailsStep() {
 
 function SeoStep() {
   const { stepData, setStepData } = useMultiStep();
-  const data       = stepData["seo"]   ?? {};
-  const meta_title = (data.meta_title  as string) ?? "";
-  const meta_desc  = (data.meta_desc   as string) ?? "";
+  const data       = stepData["seo"]  ?? {};
+  const meta_title = (data.meta_title as string) ?? "";
+  const meta_desc  = (data.meta_desc  as string) ?? "";
 
   return (
     <div className="space-y-4">
@@ -424,13 +400,12 @@ function SeoStep() {
           </span>
         </div>
         <Textarea
-          placeholder="A breathtaking high-altitude trek through Uttarakhand..."
+          placeholder="A breathtaking high-altitude trek..."
           value={meta_desc}
           onChange={e => setStepData("seo", { ...data, meta_desc: e.target.value })}
           rows={3}
         />
       </div>
-
       {(meta_title || meta_desc) && (
         <div className="rounded-lg border p-3 bg-muted/20 space-y-1">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium mb-2">
@@ -441,6 +416,213 @@ function SeoStep() {
           <p className="text-xs text-muted-foreground line-clamp-2">{meta_desc || "Page description..."}</p>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// STEP 5 — Images (create mode: queue picks; edit mode: full management)
+// ─────────────────────────────────────────────────────────────────────────
+
+// Create mode — just pick images, keys stored for submission after activity is created
+function ImagesCreateStep({
+  picks,
+  onChange,
+}: {
+  picks:    PickedImage[];
+  onChange: (picks: PickedImage[]) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="text-sm font-medium">Activity Photos</p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Images are uploaded to R2 now and linked after activity is created
+        </p>
+      </div>
+      <ImagePicker
+        folder="activities"
+        value={picks}
+        onChange={onChange}
+        maxFiles={10}
+        label="Upload Activity Photos"
+        hint="JPG, PNG, WebP · Upload multiple at once"
+      />
+      {picks.length > 0 && (
+        <div className="rounded-lg bg-muted/30 border px-3 py-2 text-xs text-muted-foreground">
+          {picks.filter(p => p.status === "uploaded").length} of {picks.length} uploaded ·
+          {" "}First image will be set as primary
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Edit mode — manage existing + upload new
+function ImagesEditStep({ activity_id, initialImages }: { activity_id: number; initialImages: ActivityImage[] }) {
+  const [images,    setImages]    = useState<ActivityImage[]>(initialImages);
+  const [newPicks,  setNewPicks]  = useState<PickedImage[]>([]);
+  const [isPending, startTransition] = useTransition();
+
+  function handleDelete(img: ActivityImage) {
+    startTransition(async () => {
+      const r = await deleteActivityImage(img.id, activity_id, img.url, img.thumbnail ?? undefined);
+      if (r.success) {
+        toast.success(r.message);
+        setImages(prev => prev.filter(i => i.id !== img.id));
+      } else {
+        toast.error(r.message);
+      }
+    });
+  }
+
+  function handleSetPrimary(img: ActivityImage) {
+    startTransition(async () => {
+      const r = await setPrimaryActivityImage(img.id, activity_id);
+      if (r.success) {
+        toast.success(r.message);
+        setImages(prev => prev.map(i => ({ ...i, is_primary: i.id === img.id })));
+      } else {
+        toast.error(r.message);
+      }
+    });
+  }
+
+  function handleSaveNew() {
+    const uploaded = newPicks.filter(p => p.status === "uploaded" && p.key);
+    if (uploaded.length === 0) { toast.error("Wait for uploads to finish"); return; }
+
+    startTransition(async () => {
+      const r = await addActivityImages(
+        activity_id,
+        uploaded.map(p => ({ url: p.key!, thumbnail: p.key })),
+      );
+      if (r.success) {
+        toast.success(r.message);
+        setNewPicks([]);
+        const added: ActivityImage[] = uploaded.map((p, i) => ({
+          id:         Date.now() + i,
+          url:        p.key!,
+          thumbnail:  p.key ?? null,
+          is_primary: images.length === 0 && i === 0,
+          sort_order: images.length + i,
+        }));
+        setImages(prev => [...prev, ...added]);
+      } else {
+        toast.error(r.message);
+      }
+    });
+  }
+
+  return (
+    <div className="space-y-5">
+
+      {/* Existing images */}
+      {images.length > 0 ? (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">Current Photos</p>
+            <span className="text-xs text-muted-foreground">
+              {images.length} photo{images.length !== 1 ? "s" : ""} · Hover to manage
+            </span>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {images
+              .sort((a, b) => a.sort_order - b.sort_order)
+              .map(img => (
+                <div
+                  key={img.id}
+                  className={cn(
+                    "group relative aspect-square rounded-xl overflow-hidden border-2 bg-muted",
+                    img.is_primary ? "border-primary" : "border-border",
+                  )}
+                >
+                  <img
+                    src={`${BASE}/${img.thumbnail ?? img.url}`}
+                    alt="Activity image"
+                    className="w-full h-full object-cover"
+                  />
+                  {img.is_primary && (
+                    <Badge className="absolute bottom-1 left-1 text-[9px] px-1 py-0 pointer-events-none bg-primary">
+                      <Star className="h-2 w-2 mr-0.5" />Primary
+                    </Badge>
+                  )}
+                  {/* Hover actions */}
+                  <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5">
+                    {!img.is_primary && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        className="text-[10px] h-6 px-2"
+                        disabled={isPending}
+                        onClick={() => handleSetPrimary(img)}
+                      >
+                        <Star className="h-2.5 w-2.5 mr-1" />Primary
+                      </Button>
+                    )}
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button type="button" size="sm" variant="destructive" className="text-[10px] h-6 px-2">
+                          <Trash2 className="h-2.5 w-2.5 mr-1" />Delete
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Image</AlertDialogTitle>
+                          <AlertDialogDescription>Permanently deletes from R2 storage too.</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => handleDelete(img)}
+                            className="bg-destructive text-white hover:bg-destructive/90"
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      ) : (
+        <div className="text-center py-6 border-2 border-dashed rounded-xl">
+          <ImageIcon className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+          <p className="text-sm text-muted-foreground">No photos yet</p>
+        </div>
+      )}
+
+      {/* Upload new */}
+      <div className="space-y-3">
+        <p className="text-sm font-medium">Add More Photos</p>
+        <ImagePicker
+          folder="activities"
+          value={newPicks}
+          onChange={setNewPicks}
+          maxFiles={10}
+          label="Upload Activity Photos"
+          hint="JPG, PNG, WebP"
+        />
+        {newPicks.length > 0 && (
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleSaveNew}
+              disabled={isPending || newPicks.some(p => p.status === "uploading")}
+              className="gap-1.5"
+            >
+              {isPending
+                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Saving...</>
+                : <>Save {newPicks.filter(p => p.status === "uploaded").length} Photo{newPicks.length !== 1 ? "s" : ""}</>
+              }
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -476,32 +658,48 @@ function buildFormData(data: Record<string, unknown>): FormData {
 
 export function CreateActivityDialog({
   destinations,
-  onCreated,
 }: {
   destinations: Destination[];
-  onCreated?:   (id: number) => void;
 }) {
-  const [open,     setOpen]     = useState(false);
-  const [modalKey, setModalKey] = useState(0);
+  const [open,      setOpen]      = useState(false);
+  const [modalKey,  setModalKey]  = useState(0);
   const [isPending, startTransition] = useTransition();
-  const STEPS = makeSteps();
+
+  // Image picks managed outside MultiStepModal so they persist across step navigation
+  const [imagePicks, setImagePicks] = useState<PickedImage[]>([]);
+
+  const STEPS = makeSteps(false);
 
   function handleOpenChange(val: boolean) {
     setOpen(val);
-    if (!val) setModalKey(k => k + 1);
+    if (!val) {
+      setModalKey(k => k + 1);
+      setImagePicks([]);
+    }
   }
 
   async function handleComplete(data: Record<string, unknown>) {
     startTransition(async () => {
+      // 1. Create the activity
       const fd     = buildFormData(data);
       const result = await createActivity({ success: false, message: "" }, fd);
-      if (result.success) {
-        toast.success(`${result.message} — add images in the edit panel`);
-        handleOpenChange(false);
-        if (result.id) onCreated?.(result.id);
-      } else {
+
+      if (!result.success) {
         toast.error(result.message);
+        return;
       }
+
+      // 2. If images picked, link them to the new activity
+      const uploaded = imagePicks.filter(p => p.status === "uploaded" && p.key);
+      if (uploaded.length > 0 && result.id) {
+        await addActivityImages(
+          result.id,
+          uploaded.map(p => ({ url: p.key!, thumbnail: p.key })),
+        );
+      }
+
+      toast.success(result.message);
+      handleOpenChange(false);
     });
   }
 
@@ -524,10 +722,12 @@ export function CreateActivityDialog({
         submitLabel="Create Activity"
         initialStepData={EMPTY_DATA}
       >
-        <BasicStep destinations={destinations} isEdit={false} />
+        <BasicStep   destinations={destinations} isEdit={false} />
         <PricingStep />
         <DetailsStep />
         <SeoStep />
+        {/* Pass imagePicks via closure so they survive step navigation */}
+        <ImagesCreateStep picks={imagePicks} onChange={setImagePicks} />
       </MultiStepModal>
     </>
   );
@@ -550,7 +750,7 @@ export function EditActivityDialog({
 }) {
   const [isPending, startTransition] = useTransition();
   const [modalKey,  setModalKey]     = useState(0);
-  const STEPS       = makeSteps();
+  const STEPS       = makeSteps(true);
   const initialData = buildInitialData(activity);
 
   function handleOpenChange(val: boolean) {
@@ -584,10 +784,15 @@ export function EditActivityDialog({
       submitLabel="Save Changes"
       initialStepData={initialData}
     >
-      <BasicStep destinations={destinations} isEdit={true} />
+      <BasicStep   destinations={destinations} isEdit={true} />
       <PricingStep />
       <DetailsStep />
       <SeoStep />
+      {/* Edit mode: full image management inline */}
+      <ImagesEditStep
+        activity_id={activity.id}
+        initialImages={activity.images}
+      />
     </MultiStepModal>
   );
 }
