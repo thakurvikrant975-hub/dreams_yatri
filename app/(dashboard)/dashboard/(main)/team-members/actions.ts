@@ -240,7 +240,7 @@ export async function deleteTeamMember(id: string): Promise<Result<null>> {
 //     return { success: false, error: "Unauthorized" };
 //   }
 
-  if (user.id === id) {
+  if (user && user.id === id) {
     return { success: false, error: "Cannot delete yourself" };
   }
 
