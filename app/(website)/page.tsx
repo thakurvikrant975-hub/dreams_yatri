@@ -16,7 +16,6 @@ import ModalRoot from "../components/modals/ModalRoot";
 
 export default function Home() {
 
-
   return (
     <>
       <ModalRoot />

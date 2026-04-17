@@ -1,9 +1,9 @@
 // app/(dashboard)/dashboard/packages/[id]/page.tsx
-import { notFound }    from "next/navigation";
-import Link            from "next/link";
+import { notFound } from "next/navigation";
+import Link from "next/link";
 import { ChevronLeft, Package as PkgIcon } from "lucide-react";
-import { Badge }       from "../../components/ui/badge";
-import { Button }      from "../../components/ui/button";
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
 import {
   Breadcrumb, BreadcrumbItem, BreadcrumbLink,
   BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
@@ -18,24 +18,24 @@ import {
   getTagsForSelect,
   getPoliciesForSelect,
 } from "../actions";
-import { BasicTab }          from "./tabs/BasicTab";
-import { DurationsTab }      from "./tabs/DurationsTab";
+import { BasicTab } from "./tabs/BasicTab";
+import { DurationsTab } from "./tabs/DurationsTab";
 import { StayCategoriesTab } from "./tabs/StayCategoriesTab";
-import { PricingTab }        from "./tabs/PricingTab";
-import { ItineraryTab }      from "./tabs/ItineraryTab";
-import { PoliciesTab }       from "./tabs/PoliciesTab";
-import { ImagesTab }         from "./tabs/ImagesTab";
+import { PricingTab } from "./tabs/PricingTab";
+import { ItineraryTab } from "./tabs/ItineraryTab";
+import { PoliciesTab } from "./tabs/PoliciesTab";
+import { ImagesTab } from "./tabs/ImagesTab";
 
 export default async function PackageEditPage({
   params,
   searchParams,
 }: {
-  params:       Promise<{ id: string }>;
+  params: Promise<{ id: string }>;
   searchParams: Promise<{ tab?: string }>;
 }) {
-  const { id: idStr }  = await params;
+  const { id: idStr } = await params;
   const { tab = "basic" } = await searchParams;
-  const id             = Number(idStr);
+  const id = Number(idStr);
 
   const [pkg, destinations, hotels, activities, categories, tags, policies] = await Promise.all([
     getPackageById(id),
@@ -56,19 +56,26 @@ export default async function PackageEditPage({
     ...d,
     pricing: d.pricing.map(p => ({
       ...p,
-      price:          Number(p.price),
+      price: Number(p.price),
       original_price: p.original_price ? Number(p.original_price) : null,
     })),
   }));
 
+  // In [id]/page.tsx — after the Promise.all, add:
+
+  const serializedActivities = activities.map(a => ({
+    ...a,
+    duration_hours: a.duration_hours ? Number(a.duration_hours) : null,
+  }));
+
   const TABS = [
-    { value: "basic",          label: "Basic Info" },
-    { value: "durations",      label: `Durations (${durations.length})` },
-    { value: "stay",           label: `Stay Types (${pkg.stay_categories.length})` },
-    { value: "pricing",        label: "Pricing" },
-    { value: "itinerary",      label: "Itinerary" },
-    { value: "policies",       label: "Policies" },
-    { value: "images",         label: `Images (${pkg.images.length})` },
+    { value: "basic", label: "Basic Info" },
+    { value: "durations", label: `Durations (${durations.length})` },
+    { value: "stay", label: `Stay Types (${pkg.stay_categories.length})` },
+    { value: "pricing", label: "Pricing" },
+    { value: "itinerary", label: "Itinerary" },
+    { value: "policies", label: "Policies" },
+    { value: "images", label: `Images (${pkg.images.length})` },
   ];
 
   return (
@@ -145,7 +152,7 @@ export default async function PackageEditPage({
             package_id={id}
             durations={durations}
             hotels={hotels}
-            activities={activities}
+            activities={serializedActivities}
           />
         </TabsContent>
 
