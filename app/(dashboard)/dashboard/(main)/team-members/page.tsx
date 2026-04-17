@@ -1,4 +1,3 @@
-// page.tsx
 import { Suspense } from "react";
 import { Users } from "lucide-react";
 import { Skeleton } from "../components/ui/skeleton";
@@ -12,16 +11,13 @@ import {
   getRolesForSelect,
 } from "./actions";
 import { TeamMembersTable } from "./TeamMembersTable";
-import { CreateTeamMemberDialog } from "./TeamMemberDialog";
 import { db } from "@/app/lib/db";
 
 function TableSkeleton() {
   return (
     <div className="rounded-xl border bg-card overflow-hidden">
       <div className="bg-muted/50 px-4 py-3 grid grid-cols-7 gap-4">
-        {Array.from({ length: 7 }).map((_, i) => (
-          <Skeleton key={i} className="h-4" />
-        ))}
+        {Array.from({ length: 7 }).map((_, i) => <Skeleton key={i} className="h-4" />)}
       </div>
       {Array.from({ length: 8 }).map((_, i) => (
         <div key={i} className="px-4 py-3 grid grid-cols-7 gap-4 border-t items-center">
@@ -50,7 +46,6 @@ interface PageProps {
   searchParams: Promise<{ page?: string }>;
 }
 
-// Replace PageContent's data fetching and props
 async function PageContent({ searchParams }: PageProps) {
   const params = await searchParams;
   const page = Math.max(1, parseInt(params.page ?? "1", 10));
@@ -59,7 +54,6 @@ async function PageContent({ searchParams }: PageProps) {
     getTeamMembersPaginated(page),
     getDepartmentsForSelect(),
     getRolesForSelect(),
-    // Lightweight aggregate query — only pulls id, isActive, departmentId
     db.teamMember.findMany({
       select: { isActive: true, department: { select: { id: true } } },
     }),
@@ -74,19 +68,15 @@ async function PageContent({ searchParams }: PageProps) {
 
   return (
     <>
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <Users className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold">Team members</h1>
-            <p className="text-sm text-muted-foreground">
-              Manage your team, roles, and access
-            </p>
-          </div>
+      {/* Page header — title only, create button lives inside TeamMembersTable */}
+      <div className="flex items-center gap-3">
+        <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+          <Users className="h-5 w-5 text-primary" />
         </div>
-        <CreateTeamMemberDialog departments={departments} roles={roles} />
+        <div>
+          <h1 className="text-xl font-semibold">Team members</h1>
+          <p className="text-sm text-muted-foreground">Manage your team, roles, and access</p>
+        </div>
       </div>
 
       <TeamMembersTable

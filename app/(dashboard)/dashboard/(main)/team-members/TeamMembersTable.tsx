@@ -2,34 +2,236 @@
 
 import { useState, useMemo, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Users, MoreHorizontal, Trash2, Power, Pencil, Mail } from "lucide-react";
+import {
+  Users, MoreHorizontal, Trash2, Power, Pencil, Mail,
+  Clipboard, Copy, Check, RefreshCw, Eye, EyeOff,
+} from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "../components/ui/dropdown-menu";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+  DialogDescription, DialogFooter,
+} from "../components/ui/dialog";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
 import { toast } from "sonner";
-import { deleteTeamMember, toggleActive } from "./actions";
+import {
+  deleteTeamMember, toggleActive,
+  resetMemberPassword, updateMemberPassword,
+} from "./actions";
 import type { PaginatedMembers, TeamMember } from "./actions";
 import { format } from "date-fns";
 import { EditTeamMemberDialog } from "./EditTeamMemberDialog";
-
-// ── Shared components ─────────────────────────────────────────────────────────
+import { CreateTeamMemberDialog } from "./TeamMemberDialog";
 import { Stats } from "../components/dashboard/Stats";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { TableFilters } from "../components/dashboard/Tablefilters";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
 
 type SelectOption = { id: string; name: string };
 
 interface Props {
   paginated: PaginatedMembers;
-  // total counts across ALL pages for stats (pass from page.tsx)
   totalStats: { total: number; active: number; inactive: number; departments: number };
   departments: SelectOption[];
   roles: SelectOption[];
   currentPage: number;
 }
+
+type PasswordDialogState = {
+  open: boolean;
+  memberId: string;
+  memberName: string;
+  initialPassword?: string;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PasswordDialog — receives password as prop, no async logic inside
+// ─────────────────────────────────────────────────────────────────────────────
+
+function PasswordDialog({
+  open,
+  onClose,
+  memberId,
+  memberName,
+  initialPassword,
+}: {
+  open: boolean;
+  onClose: () => void;
+  memberId: string;
+  memberName: string;
+  initialPassword: string; // always provided — reset happens BEFORE dialog opens
+}) {
+  const [password, setPassword] = useState(initialPassword);
+  const [newPassword, setNewPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(true);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [isResetting, startReset] = useTransition();
+  const [isUpdating, startUpdate] = useTransition();
+const [passwordDialog, setPasswordDialog] = useState<PasswordDialogState | null>(null);
+const [passwordLoadingId, setPasswordLoadingId] = useState<string | null>(null); // ← add this line
+  // Manual reset inside dialog — confirms first
+  const handleReset = () => {
+    if (!confirm(`Reset password for ${memberName}? Their current password will stop working.`)) return;
+    startReset(async () => {
+      const r = await resetMemberPassword(memberId);
+      if (r.success) {
+        setPassword(r.data.plainPassword);
+        setNewPassword("");
+        toast.success("Password reset successfully");
+      } else {
+        toast.error(r.error, { duration: 6000 });
+      }
+    });
+  };
+
+  const handleCopy = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Clipboard unavailable — copy it manually");
+    }
+  };
+
+  const handleUpdate = () => {
+    if (newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
+    startUpdate(async () => {
+      const r = await updateMemberPassword(memberId, newPassword);
+      if (r.success) {
+        setPassword(newPassword);
+        setNewPassword("");
+        toast.success("Password updated successfully");
+      } else {
+        toast.error(r.error, { duration: 6000 });
+      }
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-[440px]">
+        <DialogHeader>
+          <DialogTitle>Password — {memberName}</DialogTitle>
+          <DialogDescription>
+            Copy this password and share it securely with the employee.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-5 py-2">
+          {/* Current password */}
+          <div className="grid gap-2">
+            <Label>Current Password</Label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  value={isResetting ? "" : password}
+                  readOnly
+                  placeholder={isResetting ? "Generating..." : ""}
+                  className="pr-10 font-mono bg-muted"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => handleCopy(password)}
+                disabled={isResetting || !password}
+                className="shrink-0"
+              >
+                {copied
+                  ? <Check className="h-4 w-4 text-green-500" />
+                  : <Copy className="h-4 w-4" />}
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleReset}
+                disabled={isResetting}
+                className="shrink-0"
+                title="Generate new password"
+              >
+                <RefreshCw className={`h-4 w-4 ${isResetting ? "animate-spin" : ""}`} />
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Click <RefreshCw className="h-3 w-3 inline" /> to generate a new random password.
+            </p>
+          </div>
+
+          {/* Divider */}
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center">
+              <span className="bg-background px-2 text-xs text-muted-foreground">
+                or set a custom password
+              </span>
+            </div>
+          </div>
+
+          {/* Custom password */}
+          <div className="grid gap-2">
+            <Label>New Custom Password</Label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Input
+                  type={showNewPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Min 8 characters"
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <Button
+                onClick={handleUpdate}
+                disabled={isUpdating || newPassword.length < 8}
+                className="shrink-0"
+              >
+                {isUpdating ? <RefreshCw className="h-4 w-4 animate-spin" /> : "Update"}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TeamMembersTable
+// ─────────────────────────────────────────────────────────────────────────────
 
 export function TeamMembersTable({
   paginated,
@@ -47,8 +249,9 @@ export function TeamMembersTable({
   const [roleFilter, setRoleFilter] = useState("all");
   const [isPending, startTransition] = useTransition();
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
+  const [passwordDialog, setPasswordDialog] = useState<PasswordDialogState | null>(null);
+  const [passwordLoadingId, setPasswordLoadingId] = useState<string | null>(null);
 
-  // ── Client-side filter (within current page) ──────────────────────────────
   const filtered = useMemo(() => {
     return members.filter((m) => {
       const matchSearch =
@@ -66,6 +269,26 @@ export function TeamMembersTable({
     params.set("page", String(p));
     router.push(`?${params.toString()}`);
   };
+
+  // Resets password FIRST, then opens dialog with plain password ready
+const handlePasswordDialog = async (id: string, name: string) => {
+  setPasswordLoadingId(id);
+  try {
+    const r = await resetMemberPassword(id);
+    if (r.success) {
+      setPasswordDialog({
+        open: true,
+        memberId: id,
+        memberName: name,
+        initialPassword: r.data.plainPassword,
+      });
+    } else {
+      toast.error(r.error, { duration: 6000 });
+    }
+  } finally {
+    setPasswordLoadingId(null);
+  }
+};
 
   const handleDelete = (id: string, name: string) => {
     if (!confirm(`Delete ${name}? This cannot be undone.`)) return;
@@ -90,7 +313,7 @@ export function TeamMembersTable({
     });
   };
 
-  // ── Column definitions ────────────────────────────────────────────────────
+  // ── Columns ───────────────────────────────────────────────────────────────
   const columns: ColumnDef<TeamMember>[] = [
     {
       header: "Member",
@@ -161,6 +384,16 @@ export function TeamMembersTable({
               <Pencil className="h-4 w-4 mr-2" />
               Edit
             </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => handlePasswordDialog(m.id, m.name)}
+              disabled={passwordLoadingId === m.id}
+            >
+              {passwordLoadingId === m.id
+                ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                : <Clipboard className="h-4 w-4 mr-2" />
+              }
+              {passwordLoadingId === m.id ? "Loading..." : "Reset & View Password"}
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => handleToggle(m.id, m.isActive)}>
               <Power className="h-4 w-4 mr-2" />
               {m.isActive ? "Deactivate" : "Activate"}
@@ -179,9 +412,22 @@ export function TeamMembersTable({
     },
   ];
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-4">
-      {/* Stats — whole dataset counts, not current page */}
+
+      {/* Create button */}
+      <div className="flex justify-end">
+        <CreateTeamMemberDialog
+          departments={departments}
+          roles={roles}
+          onCreated={(id, name, pwd) =>
+            setPasswordDialog({ open: true, memberId: id, memberName: name, initialPassword: pwd })
+          }
+        />
+      </div>
+
+      {/* Stats */}
       <Stats
         rows={[
           { label: "Total Members", value: totalStats.total },
@@ -226,11 +472,7 @@ export function TeamMembersTable({
             <p className="text-xs text-muted-foreground">Try adjusting your filters</p>
           </div>
         }
-        pagination={{
-          currentPage,
-          totalPages,
-          onPageChange: goToPage,
-        }}
+        pagination={{ currentPage, totalPages, onPageChange: goToPage }}
       />
 
       {/* Edit dialog */}
@@ -243,6 +485,18 @@ export function TeamMembersTable({
           onClose={() => setEditingMember(null)}
         />
       )}
+
+      {/* Password dialog — only mounts when initialPassword is ready */}
+{passwordDialog && passwordDialog.initialPassword && (
+        <PasswordDialog
+          open={passwordDialog.open}
+          onClose={() => setPasswordDialog(null)}
+          memberId={passwordDialog.memberId}
+          memberName={passwordDialog.memberName}
+          initialPassword={passwordDialog.initialPassword}
+        />
+      )}
+
     </div>
   );
 }

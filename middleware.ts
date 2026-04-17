@@ -45,9 +45,9 @@ export default auth(async (req) => {
         ([route]) => pathname.startsWith(route)
       )?.[1];
 
-      if (requiredPermission && !permissions.includes(requiredPermission)) {
-        return NextResponse.redirect(new URL("/dashboard/unauthorized", req.url));
-      }
+      // if (requiredPermission && !permissions.includes(requiredPermission)) {
+      //   return NextResponse.redirect(new URL("/dashboard/unauthorized", req.url));
+      // }
     }
 
     return NextResponse.next();

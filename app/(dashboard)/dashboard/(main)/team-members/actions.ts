@@ -187,6 +187,36 @@ const created = await db.teamMember.create({
   }
 }
 
+export async function updateMemberPassword(
+  id: string,
+  plainPassword: string
+): Promise<Result<null>> {
+  const user = await getAuthenticatedUser();
+  if (!user || user.role !== "ADMIN") {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  if (plainPassword.length < 8) {
+    return { success: false, error: "Password must be at least 8 characters" };
+  }
+
+  let hashed: string;
+  try {
+    hashed = await hash(plainPassword, 12);
+  } catch (err) {
+    return { success: false, error: "Hashing failed: " + String(err) };
+  }
+
+  try {
+    await db.teamMember.update({ where: { id }, data: { password: hashed } });
+    revalidatePath("/dashboard/team-members");
+    return { success: true, data: null };
+  } catch (err) {
+    console.error("updateMemberPassword failed:", err);
+    return { success: false, error: "Failed to update password" };
+  }
+}
+
 export async function updateTeamMember(
   input: z.infer<typeof UpdateTeamMemberSchema>
 ): Promise<Result<null>> {
@@ -231,6 +261,39 @@ if (password) {
   } catch (err) {
     console.error("updateTeamMember failed:", err);
     return { success: false, error: "Failed to update team member" };
+  }
+}
+
+export async function resetMemberPassword(id: string): Promise<Result<{ plainPassword: string }>> {
+  const user = await getAuthenticatedUser();
+  if (!user || user.role !== "ADMIN") {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  // Generate a secure random password
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%";
+  let plainPassword = "";
+  for (let i = 0; i < 14; i++) {
+    plainPassword += chars[Math.floor(Math.random() * chars.length)];
+  }
+
+  let hashed: string;
+  try {
+    hashed = await hash(plainPassword, 12);
+  } catch (err) {
+    return { success: false, error: "Hashing failed: " + String(err) };
+  }
+
+  try {
+    await db.teamMember.update({
+      where: { id },
+      data: { password: hashed },
+    });
+    revalidatePath("/dashboard/team-members");
+    return { success: true, data: { plainPassword } };
+  } catch (err) {
+    console.error("resetMemberPassword failed:", err);
+    return { success: false, error: "Failed to reset password" };
   }
 }
 
