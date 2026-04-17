@@ -5,9 +5,7 @@ import {
 } from "../ui/sidebar";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, } from "../ui/accordion";
 
-import {
-    Monitor, Hotel, Package, UserCircleIcon, LayoutDashboard,
-    Tag, Settings, Users, BookOpen, BarChart3,
+import { LayoutDashboard, Settings, Users, BookOpen, BarChart3,
 } from "lucide-react";
 
 import {
@@ -19,7 +17,6 @@ import {
     ParachuteIcon,
     FileTextIcon,
     PackageIcon,
-    ListIcon,
 } from "@phosphor-icons/react";
 
 import Link from "next/link";
@@ -60,6 +57,13 @@ const navGroups = [
         items: [
             { title: "All Packages", href: "/dashboard/packages", icon: <PackageIcon weight="duotone" className="size-6 scale-110 text-muted-foreground" /> },
             { title: "New Package", href: "/dashboard/packages/new", icon: <PlusIcon weight="duotone" className="size-6 scale-110 text-muted-foreground" /> },
+        ],
+    },
+    {
+        id: "team",
+        label: "Out team",
+        items: [
+            { title: "Team members", href: "/dashboard/team-members", icon: <Users className="size-6 text-muted-foreground" /> },
         ],
     },
     {
@@ -138,4 +142,4 @@ export function AppSidebar() {
             </SidebarContent>
         </Sidebar>
     );
-}
+} 

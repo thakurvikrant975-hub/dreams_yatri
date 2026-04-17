@@ -11,16 +11,89 @@ import {
   ArrowRight,
   AirplaneTilt,
 } from "@phosphor-icons/react";
-
+import Button from "@/app/components/ui/Button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../../(main)/components/ui/dialog";
 const initialState: LoginState = {};
+
+
+export function ForgotPasswordDialog({ open, setOpen }) {
+  return (
+    <>
+
+      {/* Dialog */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-sm text-center">
+          {/* Playful Icon */}
+          <div className="flex justify-center mb-2">
+            <div className="relative">
+              <div className="w-20 h-20 rounded-full bg-red-50 flex items-center justify-center text-4xl shadow-inner">
+                🔐
+              </div>
+            </div>
+          </div>
+
+          <DialogHeader className="text-center space-y-1">
+            <DialogTitle className="text-center text-lg font-bold text-gray-800">
+              Uh-oh!
+            </DialogTitle>
+            <DialogDescription className="text-center text-sm text-gray-500 leading-relaxed">
+              No worries — it happens to the best of us.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Message Box */}
+          <div className="mt-2 rounded-xl border border-dashed border-red-200 bg-red-50 px-4 py-4 text-center space-y-1">
+            <p className="text-sm font-semibold text-red-600">
+              This is an internal dashboard.
+            </p>
+            <p className="text-xs text-gray-500 leading-relaxed">
+              Password resets are handled manually. Please ping your{" "}
+              <span className="font-semibold text-gray-700">Admin</span> or{" "}
+              <span className="font-semibold text-gray-700">Developer Team</span> — they&apos;ll
+              sort this.</p>
+          </div>
+
+          {/* Contact Hint */}
+          <div className="mt-3 flex items-center justify-center gap-2 text-xs text-gray-400">
+            <span>💬</span>
+            <span>
+              Just walk over — they don&apos;t bite.
+            </span>
+          </div>
+
+          <DialogFooter className="mt-4 flex justify-center">
+            <DialogClose asChild>
+              <Button
+                variant="premium"
+                className="w-full border-red-200 text-red-500"
+              >
+                Got it, I&apos;ll ask them 👍
+              </Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
 
 export default function LoginForm() {
   const [state, formAction, isPending] = useActionState(loginAction, initialState);
   const [showPassword, setShowPassword] = useState(false);
+  const [open, setOpen] = useState(false);
 
   return (
     <div className="relative z-10 w-full max-w-md mx-4">
       {/* Glass card */}
+      <ForgotPasswordDialog open={open} setOpen={setOpen} />
       <div
         className="rounded-3xl p-8"
         style={{
@@ -179,14 +252,16 @@ export default function LoginForm() {
           </div>
 
           {/* Forgot password */}
-          <div className="flex justify-end">
-            <button
-              type="button"
-              className="text-xs font-medium text-red-500 hover:text-red-600 transition-colors duration-200"
-            >
-              Forgot password?
-            </button>
-          </div>
+      {/* Forgot Password Trigger */}
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="text-xs font-medium text-red-500 hover:text-red-600 transition-colors duration-200"
+        >
+          Forgot password?
+        </button>
+      </div>
 
           {/* Submit */}
           <button
@@ -228,7 +303,7 @@ export default function LoginForm() {
                       d="M4 12a8 8 0 018-8v8H4z"
                     />
                   </svg>
-                  Signing In...
+                  Diving In...
                 </>
               ) : (
                 <>
