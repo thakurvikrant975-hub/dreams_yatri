@@ -227,10 +227,12 @@ export function CreateTeamMemberDialog({ departments, roles, onCreated }: Props)
         </div>
 
         <DialogFooter>
+          <div className="text-red-500">Error: user already existed.</div>
+
           <Button variant="outline" onClick={() => setOpen(false)} disabled={isPending}>Cancel</Button>
           <Button onClick={handleSubmit} disabled={isPending}>
             {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Create member
+            Create members
           </Button>
         </DialogFooter>
       </DialogContent>

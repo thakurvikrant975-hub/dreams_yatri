@@ -205,7 +205,6 @@ export function EditTeamMemberDialog({ member, departments, roles, open, onClose
         </div>
 
         <DialogFooter>
-          <div>Error: useralready existed</div>
           <Button variant="outline" onClick={onClose} disabled={isPending}>
             Cancel
           </Button>
