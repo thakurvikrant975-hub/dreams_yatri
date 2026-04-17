@@ -21,7 +21,6 @@ type SelectOption = { id: string; name: string };
 interface Props {
   departments: SelectOption[];
   roles: SelectOption[];
-  onCreated: (memberId: string, memberName: string, plainPassword: string) => void;
 }
 
     // ── Utilities ─────────────────────────────────────────────────────────────────
@@ -45,7 +44,8 @@ function todayISO(): string {
   return new Date().toISOString().split("T")[0];
 }
 
-export function CreateTeamMemberDialog({ departments, roles, onCreated }: Props) {  const [open, setOpen] = useState(false);
+export function CreateTeamMemberDialog({ departments, roles }: Props) {
+  const [open, setOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isPending, startTransition] = useTransition();
 

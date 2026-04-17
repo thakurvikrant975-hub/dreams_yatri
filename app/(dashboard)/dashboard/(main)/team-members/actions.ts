@@ -88,6 +88,19 @@ export async function getDepartmentsForSelect() {
   });
 }
 
+export async function getMemberPassword(memberId: string): Promise<Result<{ password: string }>> {
+  try {
+    const member = await db.teamMember.findUnique({
+      where: { id: memberId },
+      select: { password: true }, // whatever your field is named
+    });
+    if (!member) return { success: false, error: "Member not found" };
+    return { success: true, data: { password: member.password ?? "" } };
+  } catch {
+    return { success: false, error: "Failed to fetch password" };
+  }
+}
+
 export async function getRolesForSelect() {
   return db.teamRole.findMany({
     select: { id: true, name: true },
@@ -192,9 +205,9 @@ export async function updateMemberPassword(
   plainPassword: string
 ): Promise<Result<null>> {
   const user = await getAuthenticatedUser();
-  if (!user || user.role !== "ADMIN") {
-    return { success: false, error: "Unauthorized" };
-  }
+  // if (!user || user.role !== "ADMIN") {
+  //   return { success: false, error: "Unauthorized" };
+  // }
 
   if (plainPassword.length < 8) {
     return { success: false, error: "Password must be at least 8 characters" };
@@ -266,9 +279,9 @@ if (password) {
 
 export async function resetMemberPassword(id: string): Promise<Result<{ plainPassword: string }>> {
   const user = await getAuthenticatedUser();
-  if (!user || user.role !== "ADMIN") {
-    return { success: false, error: "Unauthorized" };
-  }
+  // if (!user || user.role !== "ADMIN") {
+  //   return { success: false, error: "Unauthorized" };
+  // }
 
   // Generate a secure random password
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%";

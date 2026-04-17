@@ -66,41 +66,42 @@ export function EditTeamMemberDialog({ member, departments, roles, open, onClose
     isActive: member.isActive,
   });
 
-const handleSubmit = () => {
-  if (!form.name || !form.email) {
-    toast.error("Name and email are required");
+ const handleSubmit = () => {
+  if (!form.name || !form.email || !form.password) {
+    toast.error("Name, email, and password are required");
     return;
   }
-  // Password is OPTIONAL on edit — only validate if provided
-  if (form.password && form.password.length < 8) {
+  if (form.password.length < 8) {
     toast.error("Password must be at least 8 characters");
     return;
   }
+  // ── Date guard ────────────────────────────────────────────────────────
   if (isFutureDate(form.joiningDate)) {
     toast.error("Joining date cannot be a future date");
     return;
   }
 
-  startTransition(async () => {
-    const result = await updateTeamMember({
-      id: member.id,
-      name: form.name,
-      email: form.email,
-      ...(form.password ? { password: form.password } : {}),
-      departmentId: form.departmentId || null,
-      roleId: form.roleId || null,
-      joiningDate: form.joiningDate || null,
-      isActive: form.isActive,
-    });
 
-    if (result.success) {
-      toast.success("Member updated successfully");
-      onClose();
-    } else {
-      toast.error(result.error, { duration: 6000 });
-    }
-  });
-};
+    startTransition(async () => {
+      const result = await updateTeamMember({
+        id: member.id,
+        name: form.name,
+        email: form.email,
+        ...(form.password ? { password: form.password } : {}),
+        departmentId: form.departmentId || null,
+        roleId: form.roleId || null,
+        joiningDate: form.joiningDate || null,
+        isActive: form.isActive,
+      });
+
+      if (result.success) {
+        toast.success("Member updated");
+        onClose();
+      } else {
+        toast.error(result.error);
+      }
+    });
+  };
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -204,6 +205,7 @@ const handleSubmit = () => {
         </div>
 
         <DialogFooter>
+          <div>Error: useralready existed</div>
           <Button variant="outline" onClick={onClose} disabled={isPending}>
             Cancel
           </Button>
