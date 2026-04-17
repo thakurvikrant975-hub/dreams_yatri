@@ -6,6 +6,7 @@ import AvatarName from "./components/dashboard/AvatarName";
 
 import { dashboardAuth } from "@/app/lib/auth-dashboard";
 import { redirect } from "next/navigation";
+import { Toaster } from "sonner";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
     const session = await dashboardAuth();
@@ -26,6 +27,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </div>
         <div className="p-6">{children}</div>
       </main>
+              <Toaster position="top-center" />
+
     </SidebarProvider>
   );
 }

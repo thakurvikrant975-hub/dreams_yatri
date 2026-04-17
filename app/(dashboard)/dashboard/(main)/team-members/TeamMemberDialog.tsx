@@ -260,13 +260,16 @@ startTransition(async () => {
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)} disabled={isPending}>
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={isPending}>
-            {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Create member
-          </Button>
+          <div>
+            <Button variant="outline" onClick={() => setOpen(false)} disabled={isPending}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmit} disabled={isPending}>
+              {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Create member
+            </Button>
+          </div>
+
         </DialogFooter>
       </DialogContent>
     </Dialog>

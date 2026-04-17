@@ -62,15 +62,15 @@ export function CreateTeamMemberDialog({ departments, roles, onCreated }: Props)
 
   const handleSubmit = () => {
     if (!form.name || !form.email || !form.password) {
-      toast.error("Name, email, and password are required");
+      toast.error("Name, email, and password are required", { position: "top-left" });
       return;
     }
     if (form.password.length < 8) {
-      toast.error("Password must be at least 8 characters");
+      toast.error("Password must be at least 8 characters", { position: "top-left" });
       return;
     }
     if (isFutureDate(form.joiningDate)) {
-      toast.error("Joining date cannot be a future date");
+      toast.error("Joining date cannot be a future date", { position: "top-left" });
       return;
     }
 
@@ -227,8 +227,6 @@ export function CreateTeamMemberDialog({ departments, roles, onCreated }: Props)
         </div>
 
         <DialogFooter>
-          <div className="text-red-500">Error: user already existed.</div>
-
           <Button variant="outline" onClick={() => setOpen(false)} disabled={isPending}>Cancel</Button>
           <Button onClick={handleSubmit} disabled={isPending}>
             {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
