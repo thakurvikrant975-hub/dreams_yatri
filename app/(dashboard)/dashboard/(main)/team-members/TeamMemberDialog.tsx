@@ -23,7 +23,7 @@ interface Props {
   roles: SelectOption[];
 }
 
-    // ── Utilities ─────────────────────────────────────────────────────────────────
+// ── Utilities ─────────────────────────────────────────────────────────────────
 
 /** Capitalizes first letter of each word */
 function toTitleCase(str: string): string {
@@ -77,52 +77,52 @@ export function CreateTeamMemberDialog({ departments, roles }: Props) {
     setShowPassword(true);
   };
 
-const handleSubmit = () => {
-  if (!form.name || !form.email || !form.password) {
-    toast.error("Name, email, and password are required");
-    return;
-  }
-  if (form.password.length < 8) {
-    toast.error("Password must be at least 8 characters");
-    return;
-  }
-  // ── Date guard ────────────────────────────────────────────────────────
-  if (isFutureDate(form.joiningDate)) {
-    toast.error("Joining date cannot be a future date");
-    return;
-  }
+  const handleSubmit = () => {
+    if (!form.name || !form.email || !form.password) {
+      toast.error("Name, email, and password are required");
+      return;
+    }
+    if (form.password.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
+    // ── Date guard ────────────────────────────────────────────────────────
+    if (isFutureDate(form.joiningDate)) {
+      toast.error("Joining date cannot be a future date");
+      return;
+    }
 
-// Replace the startTransition block in handleSubmit
-startTransition(async () => {
-  let result;
-  try {
-    result = await createTeamMember({
-      name: form.name,
-      email: form.email,
-      password: form.password,
-      departmentId: form.departmentId || null,
-      roleId: form.roleId || null,
-      joiningDate: form.joiningDate || null,
-      isActive: form.isActive,
-    });
-  } catch (err) {
-    // Network/serialization failure — action itself threw
-    toast.error("Action failed: " + String(err));
-    return;
-  }
+    // Replace the startTransition block in handleSubmit
+    startTransition(async () => {
+      let result;
+      try {
+        result = await createTeamMember({
+          name: form.name,
+          email: form.email,
+          password: form.password,
+          departmentId: form.departmentId || null,
+          roleId: form.roleId || null,
+          joiningDate: form.joiningDate || null,
+          isActive: form.isActive,
+        });
+      } catch (err) {
+        // Network/serialization failure — action itself threw
+        toast.error("Action failed: " + String(err));
+        return;
+      }
 
-  if (result.success) {
-    toast.success(`Team member created (ID: ${result.data.id})`);
-    setOpen(false);
-    reset();
-  } else {
-    // Shows the exact error from actions.ts in the popup
-    toast.error(result.error, {
-      duration: 6000,          // keep it visible long enough to read
-      description: "Check the form and try again",
+      if (result.success) {
+        toast.success(`Team member created (ID: ${result.data.id})`);
+        setOpen(false);
+        reset();
+      } else {
+        // Shows the exact error from actions.ts in the popup
+        toast.error(result.error, {
+          duration: 6000,          // keep it visible long enough to read
+          description: "Check the form and try again",
+        });
+      }
     });
-  }
-});
   };
 
   return (
@@ -145,13 +145,13 @@ startTransition(async () => {
         <div className="grid gap-4 py-2">
           <div className="grid gap-2">
             <Label htmlFor="name">Full name *</Label>
-<Input
-  id="name"
-  value={form.name}
-  onChange={(e) => setForm({ ...form, name: e.target.value })}
-  onBlur={(e) => setForm({ ...form, name: toTitleCase(e.target.value.trim()) })}
-  placeholder="Karan Sharma"
-/>
+            <Input
+              id="name"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              onBlur={(e) => setForm({ ...form, name: toTitleCase(e.target.value.trim()) })}
+              placeholder="Name here"
+            />
           </div>
 
           <div className="grid gap-2">
@@ -229,19 +229,19 @@ startTransition(async () => {
 
           <div className="grid gap-2">
             <Label htmlFor="joiningDate">Joining date</Label>
-<Input
-  id="joiningDate"
-  type="date"
-  value={form.joiningDate}
-  max={todayISO()}                          // browser blocks future dates natively
-  onChange={(e) => {
-    if (isFutureDate(e.target.value)) {
-      toast.error("Joining date cannot be a future date");
-      return;                               // reject the value, don't update state
-    }
-    setForm({ ...form, joiningDate: e.target.value });
-  }}
-/>
+            <Input
+              id="joiningDate"
+              type="date"
+              value={form.joiningDate}
+              max={todayISO()}                          // browser blocks future dates natively
+              onChange={(e) => {
+                if (isFutureDate(e.target.value)) {
+                  toast.error("Joining date cannot be a future date");
+                  return;                               // reject the value, don't update state
+                }
+                setForm({ ...form, joiningDate: e.target.value });
+              }}
+            />
           </div>
 
           <div className="flex items-center justify-between rounded-lg border p-3">

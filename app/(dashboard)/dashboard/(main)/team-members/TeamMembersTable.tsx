@@ -193,7 +193,7 @@ export function TeamMembersTable({
       width: "w-64",
       cell: (m) => (
         <div className="flex items-center gap-2 min-w-0">
-          <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold shrink-0">
+          <div className="h-8 w-8 rounded-full bg-blue-100 text-primary flex items-center justify-center text-xs font-semibold shrink-0">
             {m.name.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0">
@@ -229,7 +229,7 @@ export function TeamMembersTable({
     {
       header: "Status",
       cell: (m) => (
-        <Badge variant={m.isActive ? "default" : "secondary"}>
+        <Badge variant={m.isActive ? "default" : "secondary"} className={`text-white rounded-md ${m.isActive? "bg-green-700":"bg-red-700"}`}>
           {m.isActive ? "Active" : "Inactive"}
         </Badge>
       ),
