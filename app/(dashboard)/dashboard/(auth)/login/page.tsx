@@ -10,33 +10,6 @@ import {
   AirplaneTilt,
 } from "@phosphor-icons/react";
 
-const quotes = [
-  {
-    text: "The world is a book, and those who do not travel read only one page.",
-    author: "Saint Augustine",
-  },
-  {
-    text: "To travel is to live.",
-    author: "Hans Christian Andersen",
-  },
-  {
-    text: "A journey of a thousand miles begins with a single step.",
-    author: "Lao Tzu",
-  },
-  {
-    text: "Not all those who wander are lost.",
-    author: "J.R.R. Tolkien",
-  },
-  {
-    text: "Travel is the only thing you buy that makes you richer.",
-    author: "Anonymous",
-  },
-  {
-    text: "We travel not to escape life, but for life not to escape us.",
-    author: "Anonymous",
-  },
-];
-
 // Hot Air Balloon SVG Component
 function HotAirBalloon({
   color1,
@@ -140,13 +113,6 @@ export default function LoginPage() {
   const [currentQuote, setCurrentQuote] = useState(0);
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-    const interval = setInterval(() => {
-      setCurrentQuote((prev) => (prev + 1) % quotes.length);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -487,38 +453,6 @@ export default function LoginPage() {
             </span>
             <div className="flex-1 h-px bg-gray-200" />
           </div>
-
-          {/* Quote carousel */}
-          {/* <div className="rounded-2xl px-5 py-4 text-center bg-gray-50 border border-gray-200">
-            <p
-              className="text-sm italic leading-relaxed text-gray-600 transition-all duration-700"
-              style={{
-                fontFamily: "'Georgia', serif",
-                minHeight: "3.5rem",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              &ldquo;{quotes[currentQuote].text}&rdquo;
-            </p>
-
-            <div className="flex justify-center gap-1.5 mt-3">
-              {quotes.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setCurrentQuote(i)}
-                  className="rounded-full transition-all duration-300"
-                  style={{
-                    width: i === currentQuote ? "16px" : "6px",
-                    height: "6px",
-                    background:
-                      i === currentQuote ? "#ef4444" : "#d1d5db",
-                  }}
-                />
-              ))}
-            </div>
-          </div> */}
         </div>
       </div>
 
