@@ -261,7 +261,7 @@ export function TeamMembersTable({
       const matchRole = roleFilter === "all" || m.role?.id === roleFilter;
       return matchSearch && matchDept && matchRole;
     });
-  }, [members, search, deptFilter, roleFilter]);
+  }, [members, search, deptFilter, roleFilter]); 
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const goToPage = (p: number) => {
