@@ -191,8 +191,6 @@ model package_stay_categories {
   is_active         Boolean           @default(true)
   slug              String
   hotels            package_hotels[]
-  pricing           package_pricing[]
-  package           packages          @relation(fields: [package_id], references: [id])
 
   @@unique([package_id, slug])
   @@index([package_id, is_active])
@@ -285,7 +283,7 @@ model hotels {
   room_pricing     hotel_room_pricing[]
   destination      destinations             @relation(fields: [destination_id], references: [id])
   packages         package_hotels[]
-  itineraries      package_itineraries[]
+  itinerary_hotels package_itinerary_hotels[]
 
   @@index([destination_id, is_active])
   @@index([slug])
