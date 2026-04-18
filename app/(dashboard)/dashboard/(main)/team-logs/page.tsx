@@ -1,10 +1,10 @@
 // page.tsx
 import { Suspense } from "react";
-import { IdCardLanyard } from "lucide-react";
+import { Logs } from "lucide-react";
 import { Skeleton } from "../components/ui/skeleton";
 import {
   Breadcrumb, BreadcrumbItem, BreadcrumbLink,
-  BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
+  BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator
 } from "../components/ui/breadcrumb";
 import {
   getTeamMembersPaginated,
@@ -12,7 +12,6 @@ import {
   getRolesForSelect,
 } from "./actions";
 import { TeamMembersTable } from "./TeamMembersTable";
-import { CreateTeamMemberDialog } from "./TeamMemberDialog";
 import { db } from "@/app/lib/db";
 
 function TableSkeleton() {
@@ -77,25 +76,24 @@ async function PageContent({ searchParams }: PageProps) {
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <IdCardLanyard className="h-5 w-5 text-primary" />
+            <Logs className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold">Team members</h1>
-            <p className="text-xs text-muted-foreground">
-              Manage your team, roles, and access
+            <h1 className="text-xl font-semibold">Team Logs</h1>
+            <p className="text-sm text-muted-foreground">
+              See our team Logs
             </p>
           </div>
         </div>
-        <CreateTeamMemberDialog departments={departments} roles={roles} />
       </div>
 
-   <TeamMembersTable
-      paginated={paginated}
-      totalStats={totalStats}
-      departments={departments}
-      roles={roles}
-      currentPage={page}
-    />
+      <TeamMembersTable
+        paginated={paginated}
+        totalStats={totalStats}
+        departments={departments}
+        roles={roles}
+        currentPage={page}
+      />
     </>
   );
 }
@@ -110,7 +108,7 @@ export default function TeamMembersPage({ searchParams }: PageProps) {
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbPage>Team members</BreadcrumbPage>
+            <BreadcrumbPage>Team logs</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
