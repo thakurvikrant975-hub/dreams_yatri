@@ -103,7 +103,6 @@ model packages {
   itineraries     package_itineraries[]
   tags            package_tags[]
   categories      package_categories[]
-  hotels          package_hotels[]
   activities      package_activities[]
   policies        package_policy_map[]
 
@@ -179,22 +178,6 @@ model package_durations {
   @@index([package_id, is_active])
 }
 
-
-model package_stay_categories {
-  id                Int               @id @default(autoincrement())
-  package_id        Int
-  label             String
-  description       String?
-  min_duration_days Int?
-  is_default        Boolean           @default(false)
-  sort_order        Int               @default(0)
-  is_active         Boolean           @default(true)
-  slug              String
-  hotels            package_hotels[]
-
-  @@unique([package_id, slug])
-  @@index([package_id, is_active])
-}
 
 model package_pricing {
   id          Int     @id @default(autoincrement())
@@ -274,15 +257,15 @@ model hotels {
   amenities        Json?
   check_in_time    String?
   check_out_time   String?
-  is_active        Boolean                  @default(true)
+  is_active        Boolean                  @default(false)
   created_at       DateTime                 @default(now())
   updated_at       DateTime                 @updatedAt
   thumbnail        String?
+  meals_included   String[] 
   image_categories hotel_image_categories[]
   images           hotel_images[]
   room_pricing     hotel_room_pricing[]
   destination      destinations             @relation(fields: [destination_id], references: [id])
-  packages         package_hotels[]
   itinerary_hotels package_itinerary_hotels[]
 
   @@index([destination_id, is_active])
@@ -397,20 +380,7 @@ model hotel_room_pricing {
   @@index([hotel_id, season])
 }
 
-model package_hotels {
-  id               Int                     @id @default(autoincrement())
-  package_id       Int
-  hotel_id         Int
-  stay_category_id Int
-  night_number     Int?
-  is_recommended   Boolean                 @default(false)
-  hotel            hotels                  @relation(fields: [hotel_id], references: [id])
-  package          packages                @relation(fields: [package_id], references: [id])
-  stay_category    package_stay_categories @relation(fields: [stay_category_id], references: [id])
 
-  @@index([package_id, stay_category_id])
-  @@index([hotel_id])
-}
 
 model activities {
   id                Int                  @id @default(autoincrement())
