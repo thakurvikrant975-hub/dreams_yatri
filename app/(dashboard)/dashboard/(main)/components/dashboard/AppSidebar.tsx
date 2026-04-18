@@ -60,6 +60,15 @@ const navGroups = [
         ],
     },
     {
+        id: "marketing",
+        label: "Marketing",
+        items: [
+            { title: "", href: "/dashboard/team-members", icon: <IdCardLanyard className="size-6 text-muted-foreground" /> },
+            { title: "Activity Logs", href: "/dashboard/activity-logs", icon: <Activity className="size-6 text-muted-foreground" /> },
+            { title: "Roles and Permissions", href: "/dashboard/roles-and-permissions", icon: <KeyRound className="size-6 text-muted-foreground" /> },
+        ],
+    },
+    {
         id: "team",
         label: "Out team",
         items: [
