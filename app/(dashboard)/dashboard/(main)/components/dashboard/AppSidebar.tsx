@@ -65,7 +65,7 @@ const navGroups = [
         items: [
             { title: "Team Members", href: "/dashboard/team-members", icon: <IdCardLanyard className="size-6 text-muted-foreground" /> },
             { title: "Activity Logs", href: "/dashboard/activity-logs", icon: <Activity className="size-6 text-muted-foreground" /> },
-            { title: "Roles and Permissions", href: "/dashboard/user-and-permissions", icon: <KeyRound className="size-6 text-muted-foreground" /> },
+            { title: "Roles and Permissions", href: "/dashboard/roles-and-permissions", icon: <KeyRound className="size-6 text-muted-foreground" /> },
         ],
     },
     {
