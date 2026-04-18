@@ -1,19 +1,20 @@
+// app/lib/logger.ts
 import { db } from "@/app/lib/db";
 import { headers } from "next/headers";
+import { dashboardAuth } from "@/app/lib/auth-dashboard";
 import crypto from "crypto";
 import type { LogAction, LogStatus, LogSeverity } from "@/app/generated/prisma";
 
 export type LogPayload = {
-  // Actor — who did it
+  // All actor fields optional — auto-resolved from dashboardAuth()
   userId?:          string;
   userEmail?:       string;
   userName?:        string;
   userRole?:        string;
-  userDesignation?: string;
 
   // What happened
   action:      LogAction;
-  entity:      string;       // "Hotel" | "Package" | "TeamMember" | "Booking" etc.
+  entity:      string;
   entityId?:   string;
   entitySlug?: string;
 
@@ -23,18 +24,31 @@ export type LogPayload = {
   metadata?:     object;
 
   // Outcome
-  status?:       LogStatus;   // defaults to SUCCESS
+  status?:       LogStatus;
   errorMessage?: string;
   statusCode?:   number;
 
   // Risk
-  severity?:     LogSeverity; // defaults to LOW
+  severity?:     LogSeverity;
   isSuspicious?: boolean;
   flagReason?:   string;
 };
 
 export async function createLog(payload: LogPayload): Promise<void> {
   try {
+    // ── Auto-resolve actor from dashboard session ──────────────────────────
+    // Reads dy.dashboard.session-token cookie — always the logged-in employee,
+    // never the public website user. Zero manual passing required.
+    const session = await dashboardAuth();
+
+    const actor = {
+      userId:    payload.userId    ?? session?.user?.id    ?? undefined,
+      userEmail: payload.userEmail ?? session?.user?.email ?? undefined,
+      userName:  payload.userName  ?? session?.user?.name  ?? undefined,
+      userRole:  payload.userRole  ?? session?.user?.role  ?? undefined,
+    };
+
+    // ── Auto-capture request context from middleware headers ───────────────
     const headersList = await headers();
 
     const ip =
@@ -50,11 +64,10 @@ export async function createLog(payload: LogPayload): Promise<void> {
     await db.activityLog.create({
       data: {
         // Actor
-        userId:          payload.userId,
-        userEmail:       payload.userEmail,
-        userName:        payload.userName,
-        userRole:        payload.userRole,
-        userDesignation: payload.userDesignation,
+        userId:    actor.userId,
+        userEmail: actor.userEmail,
+        userName:  actor.userName,
+        userRole:  actor.userRole,
 
         // Action
         action:     payload.action,
@@ -73,22 +86,21 @@ export async function createLog(payload: LogPayload): Promise<void> {
         statusCode:   payload.statusCode,
 
         // Risk
-        severity:    payload.severity    ?? "LOW",
+        severity:     payload.severity    ?? "LOW",
         isSuspicious: payload.isSuspicious ?? false,
-        flagReason:  payload.flagReason,
+        flagReason:   payload.flagReason,
 
-        // Request context — auto-captured from middleware headers
+        // Request context — stamped by middleware
         ipAddress:     ip,
-        userAgent:     headersList.get("user-agent")     ?? undefined,
-        referer:       headersList.get("referer")        ?? undefined,
-        requestPath:   headersList.get("x-request-path") ?? undefined,
+        userAgent:     headersList.get("user-agent")       ?? undefined,
+        referer:       headersList.get("referer")          ?? undefined,
+        requestPath:   headersList.get("x-request-path")   ?? undefined,
         requestMethod: headersList.get("x-request-method") ?? undefined,
-        requestId:     headersList.get("x-request-id")  ?? crypto.randomUUID(),
+        requestId:     headersList.get("x-request-id")     ?? crypto.randomUUID(),
         sessionId,
       },
     });
   } catch (err) {
-    // Logging must NEVER crash the main flow
-    console.error("[createLog] Failed to write activity log:", err);
+    console.error("[createLog] Failed:", err);
   }
 }

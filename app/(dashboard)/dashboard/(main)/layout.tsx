@@ -9,9 +9,9 @@ import { redirect } from "next/navigation";
 import { Toaster } from "sonner";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-    const session = await dashboardAuth();
+  const session = await dashboardAuth();
   if (!session) redirect("/dashboard/login");
-  
+
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -27,7 +27,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </div>
         <div className="p-6">{children}</div>
       </main>
-              <Toaster position="top-center" />
+      <Toaster position="top-center" />
 
     </SidebarProvider>
   );
