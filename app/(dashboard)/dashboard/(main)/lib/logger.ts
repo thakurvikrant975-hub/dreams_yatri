@@ -64,7 +64,6 @@ export async function createLog(payload: LogPayload): Promise<void> {
     await db.activityLog.create({
       data: {
         // Actor
-        userId:    actor.userId,
         userEmail: actor.userEmail,
         userName:  actor.userName,
         userRole:  actor.userRole,

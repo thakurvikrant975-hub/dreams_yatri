@@ -535,8 +535,6 @@ model User {
   bookings               Booking[]
   payments               Payment[]
   travelPreference       TravelPreference?
-
-  activityLogs           ActivityLog[]
 }
 
 model Account {
@@ -987,8 +985,6 @@ model ActivityLog {
   actionAt        DateTime     @default(now())
   createdAt       DateTime     @default(now())
 
-  // Relations
-  user            User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([action])
