@@ -5,7 +5,7 @@ import {
 } from "../ui/sidebar";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, } from "../ui/accordion";
 
-import { LayoutDashboard, Settings, Users, BookOpen, BarChart3, Logs, IdCardLanyard
+import { LayoutDashboard, Settings, Users, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound
 } from "lucide-react";
 
 import {
@@ -64,7 +64,8 @@ const navGroups = [
         label: "Out team",
         items: [
             { title: "Team Members", href: "/dashboard/team-members", icon: <IdCardLanyard className="size-6 text-muted-foreground" /> },
-            { title: "Team Logs", href: "/dashboard/team-logs", icon: <Logs className="size-6 text-muted-foreground" /> },
+            { title: "Activity Logs", href: "/dashboard/activity-logs", icon: <Activity className="size-6 text-muted-foreground" /> },
+            { title: "Roles and Permissions", href: "/dashboard/user-and-permissions", icon: <KeyRound className="size-6 text-muted-foreground" /> },
         ],
     },
     {

@@ -247,7 +247,7 @@ export async function updateMemberPassword(
       action:    "PASSWORD_CHANGE",
       entity:    "TeamMember",
       entityId:  id,
-      metadata:  { changedBy: user.id, type: "manual_set" },
+      metadata:  { type: "manual_set" },
       severity:  "HIGH",             // password changes are always HIGH
     });
 
@@ -285,7 +285,7 @@ export async function resetMemberPassword(id: string): Promise<Result<{ plainPas
       action:    "PASSWORD_CHANGE",
       entity:    "TeamMember",
       entityId:  id,
-      metadata:  { changedBy: user.id, type: "system_reset" },
+      metadata:  {type: "system_reset" },
       severity:  "HIGH",
     });
 

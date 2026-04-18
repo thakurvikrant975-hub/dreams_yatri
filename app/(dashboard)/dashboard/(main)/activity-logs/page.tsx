@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { ShieldCheck } from "lucide-react";
+import { Activity } from "lucide-react";
 import { Skeleton } from "../components/ui/skeleton";
 import {
   Breadcrumb, BreadcrumbItem, BreadcrumbLink,
@@ -50,12 +50,12 @@ async function PageContent({ searchParams }: PageProps) {
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <ShieldCheck className="h-5 w-5 text-primary" />
+            <Activity className="h-5 w-5 text-primary" />
           </div>
           <div>
             <h1 className="text-xl font-semibold">Activity Logs</h1>
             <p className="text-sm text-muted-foreground">
-              Full audit trail — all actions, actors, and outcomes
+              Full audit trail all actions, actors, and outcomes
             </p>
           </div>
         </div>
