@@ -6,7 +6,8 @@ import { revalidatePath } from "next/cache";
 import { hash } from "bcryptjs";
 import { z } from "zod";
 import { getAuthenticatedUser } from "@/app/lib/functions/getAuthenticatedUser";
-
+import { createLog } from "../lib/logger";
+ 
 const PAGE_SIZE = 10;
 
 const CreateTeamMemberSchema = z.object({
