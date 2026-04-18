@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Badge }    from "../components/ui/badge";
-import { Button }   from "../components/ui/button";
-import { Trash2, ShieldCheck, Users, ShieldOff } from "lucide-react";
-import { toast }    from "sonner";
+import Link from "next/link";
+import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
+import { Trash2, ShieldCheck, Users, ShieldOff, Settings2, Pencil } from "lucide-react";
+import { toast }   from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import {
     AlertDialog, AlertDialogAction, AlertDialogCancel,
@@ -12,15 +13,26 @@ import {
     AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
     AlertDialogTrigger,
 } from "../components/ui/alert-dialog";
-import { EditRoleDialog } from "./Roledialog";
-import { PermissionBuilderDialog } from "./Permissionbuilder";
+import { EditRoleDialog } from "./RoleDialog";
 import { deleteRole }                 from "./actions";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
-import { TableFilters }               from "../components/dashboard/Tablefilters";
-import { Stats }                      from "../components/dashboard/Stats";
+import { TableFilters } from "../components/dashboard/Tablefilters";
+import { Stats } from "../components/dashboard/Stats";
 import type { PermissionSet, ResourcePermission } from "@/app/types/rbac";
 
-// ── Safe parser — Prisma returns Json as unknown ───────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type Role = {
+    id:          string;
+    name:        string;
+    description: string | null;
+    permissions: unknown;
+    createdAt:   Date;
+    updatedAt:   Date;
+    _count:      { members: number };
+};
+
+// ── Safe parser ───────────────────────────────────────────────────────────────
 
 function parsePermissions(raw: unknown): PermissionSet {
     if (!Array.isArray(raw)) return [];
@@ -31,18 +43,6 @@ function parsePermissions(raw: unknown): PermissionSet {
         Array.isArray((p as ResourcePermission).actions)
     );
 }
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-type Role = {
-    id:          string;
-    name:        string;
-    description: string | null;
-    permissions: unknown; // Prisma Json — parsed at render time
-    createdAt:   Date;
-    updatedAt:   Date;
-    _count:      { members: number };
-};
 
 // ── Delete Dialog ─────────────────────────────────────────────────────────────
 
@@ -60,10 +60,8 @@ function DeleteRoleDialog({ id, name, memberCount }: { id: string; name: string;
     return (
         <AlertDialog>
             <AlertDialogTrigger asChild>
-                <Button
-                    variant="ghost" size="icon"
-                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                >
+                <Button variant="ghost" size="icon"
+                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10">
                     <Trash2 className="h-3.5 w-3.5" />
                 </Button>
             </AlertDialogTrigger>
@@ -71,11 +69,10 @@ function DeleteRoleDialog({ id, name, memberCount }: { id: string; name: string;
                 <AlertDialogHeader>
                     <AlertDialogTitle>Delete Role</AlertDialogTitle>
                     <AlertDialogDescription>
-                        Are you sure you want to delete{" "}
-                        <span className="font-semibold">{name}</span>?
+                        Are you sure you want to delete <span className="font-semibold">{name}</span>?
                         {memberCount > 0 && (
                             <span className="block mt-2 text-destructive font-medium">
-                                ⚠ {memberCount} team member(s) are assigned this role. Reassign them first.
+                                ⚠ {memberCount} team member(s) assigned. Reassign them first.
                             </span>
                         )}
                     </AlertDialogDescription>
@@ -95,24 +92,22 @@ function DeleteRoleDialog({ id, name, memberCount }: { id: string; name: string;
     );
 }
 
-// ── Permission Summary Badges ─────────────────────────────────────────────────
+// ── Permission Summary ────────────────────────────────────────────────────────
 
 function PermissionSummary({ permissions: raw }: { permissions: unknown }) {
     const permissions = parsePermissions(raw);
-    const activeResources = permissions.filter(p => p.actions.includes("read"));
+    const active = permissions.filter(p => p.actions.includes("read"));
 
-    if (activeResources.length === 0) {
+    if (active.length === 0) {
         return (
             <span className="flex items-center gap-1 text-xs text-muted-foreground italic">
-                <ShieldOff className="h-3 w-3" />
-                No access configured
+                <ShieldOff className="h-3 w-3" /> No access configured
             </span>
         );
     }
 
-    // Show first 3, then +N
-    const shown = activeResources.slice(0, 3);
-    const rest  = activeResources.length - 3;
+    const shown = active.slice(0, 3);
+    const rest  = active.length - 3;
 
     return (
         <div className="flex items-center gap-1 flex-wrap">
@@ -130,30 +125,26 @@ function PermissionSummary({ permissions: raw }: { permissions: unknown }) {
     );
 }
 
-// ── CRUD Action Dots ──────────────────────────────────────────────────────────
+// ── CRUD Dots ─────────────────────────────────────────────────────────────────
 
 function ActionDots({ permissions: raw }: { permissions: unknown }) {
     const permissions = parsePermissions(raw);
-    const allActions = new Set(permissions.flatMap(p => p.actions));
+    const allActions  = new Set(permissions.flatMap(p => p.actions));
 
-    const ACTION_CONFIG = [
-        { key: "read",   label: "R", color: "bg-blue-500" },
-        { key: "create", label: "C", color: "bg-green-500" },
-        { key: "update", label: "U", color: "bg-amber-500" },
-        { key: "delete", label: "D", color: "bg-destructive" },
+    const DOT_CONFIG = [
+        { key: "read",   label: "R", color: "bg-blue-500",    inactive: "bg-muted" },
+        { key: "create", label: "C", color: "bg-green-500",   inactive: "bg-muted" },
+        { key: "update", label: "U", color: "bg-amber-500",   inactive: "bg-muted" },
+        { key: "delete", label: "D", color: "bg-destructive", inactive: "bg-muted" },
     ] as const;
 
     return (
         <div className="flex items-center gap-1">
-            {ACTION_CONFIG.map(({ key, label, color }) => (
-                <span
-                    key={key}
-                    title={key}
-                    className={[
-                        "h-5 w-5 rounded text-[10px] font-bold flex items-center justify-center text-white",
-                        allActions.has(key) ? color : "bg-gray-500 text-muted-foreground",
-                    ].join(" ")}
-                >
+            {DOT_CONFIG.map(({ key, label, color, inactive }) => (
+                <span key={key} title={key} className={[
+                    "h-5 w-5 rounded text-[10px] font-bold flex items-center justify-center text-white",
+                    allActions.has(key) ? color : inactive + " text-muted-foreground",
+                ].join(" ")}>
                     {label}
                 </span>
             ))}
@@ -166,38 +157,33 @@ function ActionDots({ permissions: raw }: { permissions: unknown }) {
 const PAGE_SIZE = 10;
 
 export function RolesTable({ roles }: { roles: Role[] }) {
-    const [search,      setSearch]      = useState("");
+    const [search,       setSearch]       = useState("");
     const [filterAccess, setFilterAccess] = useState("all");
-    const [page,        setPage]        = useState(1);
+    const [page,         setPage]         = useState(1);
 
-    // ── Filter logic ───────────────────────────────────────────────────────────
     const filtered = roles.filter(r => {
         const matchSearch = !search
             || r.name.toLowerCase().includes(search.toLowerCase())
             || (r.description ?? "").toLowerCase().includes(search.toLowerCase());
-
         const matchAccess =
             filterAccess === "all"
             || (filterAccess === "configured" && parsePermissions(r.permissions).length > 0)
             || (filterAccess === "empty"      && parsePermissions(r.permissions).length === 0);
-
         return matchSearch && matchAccess;
     });
 
-    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-    const safePage   = Math.min(page, totalPages);
-    const paginated  = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+    const totalPages  = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    const safePage    = Math.min(page, totalPages);
+    const paginated   = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
     const isFiltering = search !== "" || filterAccess !== "all";
 
-    // ── Stats ──────────────────────────────────────────────────────────────────
     const totalMembers    = roles.reduce((acc, r) => acc + r._count.members, 0);
     const configuredRoles = roles.filter(r => parsePermissions(r.permissions).length > 0).length;
 
-    // ── Columns ────────────────────────────────────────────────────────────────
     const columns: ColumnDef<Role>[] = [
         {
             header: "Role",
-            width:  "w-[220px]",
+            width:  "w-[240px]",
             cell: (role) => (
                 <div className="flex items-center gap-3">
                     <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
@@ -205,7 +191,7 @@ export function RolesTable({ roles }: { roles: Role[] }) {
                     </div>
                     <div>
                         <p className="font-medium text-sm">{role.name}</p>
-                        <p className="text-xs text-muted-foreground truncate max-w-[160px]">
+                        <p className="text-xs text-muted-foreground truncate max-w-[170px]">
                             {role.description ?? "No description"}
                         </p>
                     </div>
@@ -225,8 +211,7 @@ export function RolesTable({ roles }: { roles: Role[] }) {
             align:  "center",
             cell: (role) => (
                 <span className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
-                    <Users className="h-3.5 w-3.5" />
-                    {role._count.members}
+                    <Users className="h-3.5 w-3.5" /> {role._count.members}
                 </span>
             ),
         },
@@ -241,11 +226,23 @@ export function RolesTable({ roles }: { roles: Role[] }) {
         {
             header: "Actions",
             align:  "right",
-            width:  "w-[120px]",
+            width:  "w-[130px]",
             cell: (role) => (
                 <div className="flex items-center justify-end gap-1">
-                    <PermissionBuilderDialog role={{ ...role, permissions: parsePermissions(role.permissions) }} />
-                    <EditRoleDialog role={role} />
+                    {/* Opens full permissions page */}
+                    <Link href={`/dashboard/roles-and-permissions/${role.id}/permissions`}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" title="Configure permissions">
+                            <Settings2 className="h-3.5 w-3.5" />
+                        </Button>
+                    </Link>
+
+                    {/* Edit name/description dialog */}
+                    <EditRoleDialog role={role}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" title="Edit role">
+                            <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                    </EditRoleDialog>
+
                     <DeleteRoleDialog
                         id={role.id}
                         name={role.name}
@@ -258,18 +255,15 @@ export function RolesTable({ roles }: { roles: Role[] }) {
 
     return (
         <div className="space-y-4">
-
-            {/* Stats — always from full dataset */}
             <Stats
                 rows={[
-                    { label: "Total Roles",      value: roles.length },
-                    { label: "Configured",        value: configuredRoles },
-                    { label: "Unconfigured",      value: roles.length - configuredRoles, muted: true },
-                    { label: "Total Members",     value: totalMembers },
+                    { label: "Total Roles",   value: roles.length },
+                    { label: "Configured",    value: configuredRoles },
+                    { label: "Unconfigured",  value: roles.length - configuredRoles, muted: true },
+                    { label: "Total Members", value: totalMembers },
                 ]}
             />
 
-            {/* Filters */}
             <TableFilters
                 search={search}
                 onSearchChange={(v) => { setSearch(v); setPage(1); }}
@@ -290,7 +284,6 @@ export function RolesTable({ roles }: { roles: Role[] }) {
                 ]}
             />
 
-            {/* Table */}
             <DataTable
                 data={paginated}
                 columns={columns}
@@ -302,11 +295,7 @@ export function RolesTable({ roles }: { roles: Role[] }) {
                         <p className="text-xs text-muted-foreground">Try adjusting your filters or create a new role</p>
                     </div>
                 }
-                pagination={{
-                    currentPage:  safePage,
-                    totalPages,
-                    onPageChange: setPage,
-                }}
+                pagination={{ currentPage: safePage, totalPages, onPageChange: setPage }}
             />
         </div>
     );

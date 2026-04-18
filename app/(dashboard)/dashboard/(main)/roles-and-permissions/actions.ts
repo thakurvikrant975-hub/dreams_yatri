@@ -3,12 +3,10 @@
 import { db } from "@/app/lib/db";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { PermissionSet } from "@/types/rbac";
-
-// ── Schema ────────────────────────────────────────────────────────────────────
+import { PermissionSet } from "@/app/types/rbac";
 
 const RoleSchema = z.object({
-    name: z.string().min(1, "Name is required").max(100),
+    name:        z.string().min(1, "Name is required").max(100),
     description: z.string().max(500).optional(),
 });
 
@@ -18,14 +16,14 @@ export type RoleFormState = {
     errors?: Record<string, string[]>;
 };
 
+const REVALIDATE_PATH = "/dashboard/roles-and-permissions";
+
 // ── Read ──────────────────────────────────────────────────────────────────────
 
 export async function getRoles() {
     return db.teamRole.findMany({
         orderBy: { createdAt: "desc" },
-        include: {
-            _count: { select: { members: true } },
-        },
+        include: { _count: { select: { members: true } } },
     });
 }
 
@@ -59,24 +57,22 @@ export async function createRole(
         }
 
         await db.teamRole.create({
-            data: {
-                ...parsed.data,
-                permissions: [], // starts empty — configured via permission builder
-            },
+            data: { ...parsed.data, permissions: [] },
         });
 
-        revalidatePath("/dashboard/settings/roles");
+        revalidatePath(REVALIDATE_PATH);
         return { success: true, message: "Role created successfully" };
-    } catch {
-        return { success: false, message: "Database error. Please try again." };
+    } catch (e) {
+        console.error("[createRole]", e);
+        return { success: false, message: `DB error: ${(e as Error).message}` };
     }
 }
 
-// ── Update basic info ─────────────────────────────────────────────────────────
+// ── Update ────────────────────────────────────────────────────────────────────
+// Plain async fn — called via startTransition, NOT useActionState
 
 export async function updateRole(
     id: string,
-    _prev: RoleFormState,
     formData: FormData,
 ): Promise<RoleFormState> {
     const raw = {
@@ -97,29 +93,39 @@ export async function updateRole(
             return { success: false, message: "Role name taken", errors: { name: ["This role name is already taken"] } };
         }
 
-        await db.teamRole.update({ where: { id }, data: parsed.data });
-        revalidatePath("/dashboard/settings/roles");
+        await db.teamRole.update({
+            where: { id },
+            data:  { name: parsed.data.name, description: parsed.data.description ?? null },
+        });
+
+        revalidatePath(REVALIDATE_PATH);
         return { success: true, message: "Role updated successfully" };
-    } catch {
-        return { success: false, message: "Database error. Please try again." };
+    } catch (e) {
+        console.error("[updateRole]", e);
+        return { success: false, message: `DB error: ${(e as Error).message}` };
     }
 }
 
-// ── Update permissions (from permission builder) ───────────────────────────────
+// ── Update Permissions ────────────────────────────────────────────────────────
 
 export async function updateRolePermissions(
     id: string,
     permissions: PermissionSet,
 ): Promise<RoleFormState> {
     try {
+        const role = await db.teamRole.findUnique({ where: { id } });
+        if (!role) return { success: false, message: "Role not found" };
+
         await db.teamRole.update({
             where: { id },
-            data: { permissions: permissions as object[] },
+            data:  { permissions: permissions as unknown as never },
         });
-        revalidatePath("/dashboard/settings/roles");
+
+        revalidatePath(REVALIDATE_PATH);
         return { success: true, message: "Permissions saved successfully" };
-    } catch {
-        return { success: false, message: "Database error. Please try again." };
+    } catch (e) {
+        console.error("[updateRolePermissions]", e);
+        return { success: false, message: `DB error: ${(e as Error).message}` };
     }
 }
 
@@ -128,7 +134,7 @@ export async function updateRolePermissions(
 export async function deleteRole(id: string): Promise<RoleFormState> {
     try {
         const role = await db.teamRole.findUnique({
-            where: { id },
+            where:   { id },
             include: { _count: { select: { members: true } } },
         });
 
@@ -137,14 +143,15 @@ export async function deleteRole(id: string): Promise<RoleFormState> {
         if (role._count.members > 0) {
             return {
                 success: false,
-                message: `Cannot delete — ${role._count.members} team member(s) are assigned this role. Reassign them first.`,
+                message: `Cannot delete — ${role._count.members} member(s) assigned. Reassign first.`,
             };
         }
 
         await db.teamRole.delete({ where: { id } });
-        revalidatePath("/dashboard/settings/roles");
+        revalidatePath(REVALIDATE_PATH);
         return { success: true, message: "Role deleted successfully" };
-    } catch {
-        return { success: false, message: "Database error. Please try again." };
+    } catch (e) {
+        console.error("[deleteRole]", e);
+        return { success: false, message: `DB error: ${(e as Error).message}` };
     }
 }

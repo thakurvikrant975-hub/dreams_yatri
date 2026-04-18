@@ -6,8 +6,8 @@ import {
     BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "../components/ui/breadcrumb";
 import { getRoles } from "./actions";
-import { RolesTable } from "./Rolestable";
-import { CreateRoleDialog } from "./Roledialog";
+import { RolesTable } from "./RolesTable";
+import { CreateRoleDialog } from "./RoleDialog";
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 

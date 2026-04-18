@@ -1,6 +1,6 @@
 // app/lib/auth/session.ts
 import { db } from "@/app/lib/db";
-import { PermissionSet } from "@/types/rbac";
+import { PermissionSet } from "@/app/types/rbac";
 
 export async function getMemberWithPermissions(email: string) {
   const member = await db.teamMember.findUnique({
