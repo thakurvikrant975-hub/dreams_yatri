@@ -193,9 +193,11 @@ export function TeamMembersTable({
       width: "w-64",
       cell: (m) => (
         <div className="flex items-center gap-2 min-w-0">
-          <div className="h-8 w-8 rounded-full bg-blue-100 text-primary flex items-center justify-center text-xs font-semibold shrink-0">
-            {m.name.charAt(0).toUpperCase()}
-          </div>
+ <div className="h-[34px] w-[34px] rounded-full shrink-0 flex items-center justify-center text-[13px] font-semibold text-purple-100"
+  style={{ background: "linear-gradient(135deg, #7F77DD, #534AB7)" }}>
+  {m.name.charAt(0).toUpperCase()}
+</div>
+
           <div className="min-w-0">
             <p className="font-medium truncate">{m.name}</p>
             <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
@@ -229,9 +231,14 @@ export function TeamMembersTable({
     {
       header: "Status",
       cell: (m) => (
-        <Badge variant={m.isActive ? "default" : "secondary"} className={`text-white rounded-md ${m.isActive? "bg-green-700":"bg-red-700"}`}>
-          {m.isActive ? "Active" : "Inactive"}
-        </Badge>
+<Badge className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium border ${
+  m.isActive
+    ? "bg-green-50 text-green-800 border-green-200"
+    : "bg-red-50 text-red-800 border-red-200"
+}`}>
+  <span className={`w-2 h-2 rounded-full ${m.isActive ? "bg-green-600" : "bg-red-500"}`} />
+  {m.isActive ? "Active" : "Inactive"}
+</Badge>
       ),
     },
     {

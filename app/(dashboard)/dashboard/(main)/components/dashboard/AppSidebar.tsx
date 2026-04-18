@@ -64,6 +64,7 @@ const navGroups = [
         label: "Out team",
         items: [
             { title: "Team members", href: "/dashboard/team-members", icon: <Users className="size-6 text-muted-foreground" /> },
+            { title: "Logs", href: "/dashboard/team-members", icon: <Users className="size-6 text-muted-foreground" /> },
         ],
     },
     {
