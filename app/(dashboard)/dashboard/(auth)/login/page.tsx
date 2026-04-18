@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getSession } from "@/app/lib/auth-dashboard";
+import { dashboardAuth } from "@/app/lib/auth-dashboard";
 import LoginForm from "./LoginForm";
 
 // ── SVG Components ──────────────────────────────────────────────
@@ -92,8 +92,8 @@ function Birds({ style }: { style?: React.CSSProperties }) {
 // ── Page ────────────────────────────────────────────────────────
 
 export default async function LoginPage() {
-  const session = await getSession();
-  if (session) redirect("/dashboard");
+const session = await dashboardAuth();
+if (session) redirect("/dashboard");
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden flex items-center justify-center py-8">

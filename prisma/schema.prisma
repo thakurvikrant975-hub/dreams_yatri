@@ -535,6 +535,8 @@ model User {
   bookings               Booking[]
   payments               Payment[]
   travelPreference       TravelPreference?
+
+  activityLogs           ActivityLog[]
 }
 
 model Account {
@@ -903,4 +905,98 @@ model TeamMember {
   @@index([departmentId])
   @@index([teamRoleId])
   @@map("team_members")
+}
+
+
+
+// logs for dashboard
+enum LogAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  LOGIN_FAILED
+  PASSWORD_CHANGE
+  PERMISSION_CHANGE
+  EXPORT
+  BULK_ACTION
+  VIEW_SENSITIVE
+}
+
+enum LogStatus {
+  SUCCESS
+  FAILED
+  REJECTED
+  PENDING
+}
+
+enum LogSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model ActivityLog {
+  id              String       @id @default(cuid())
+
+  // Actor
+  userId          String?      // null for unauthenticated attempts
+  userEmail       String?
+  userName        String?
+  userRole        String?      // snapshot at time of action
+  userDesignation String?      // snapshot at time of action
+
+  // Action
+  action          LogAction
+  entity          String       // "Hotel", "Package", "Booking", "User", etc.
+  entityId        String?      // ID of the affected record
+  entitySlug      String?      // human-readable reference
+
+  // Diff / Payload
+  previousData    Json?        // state before change
+  newData         Json?        // state after change
+  metadata        Json?        // extra context (filters applied, bulk count, etc.)
+
+  // Outcome
+  status          LogStatus    @default(SUCCESS)
+  errorMessage    String?      // if FAILED or REJECTED
+  statusCode      Int?         // HTTP status if from route handler
+
+  // Severity & Risk
+  severity        LogSeverity  @default(LOW)
+  isSuspicious    Boolean      @default(false)
+  flagReason      String?
+
+  // Request Context
+  ipAddress       String?
+  userAgent       String?
+  referer         String?
+  requestMethod   String?      // GET, POST, PATCH, DELETE
+  requestPath     String?      // /dashboard/hotels/create
+  sessionId       String?      // NextAuth session token hash (not raw)
+  requestId       String?      // unique per-request trace ID
+
+  // Geo (optional, from IP lookup)
+  country         String?
+  region          String?
+  city            String?
+
+  // Timestamps
+  actionAt        DateTime     @default(now())
+  createdAt       DateTime     @default(now())
+
+  // Relations
+  user            User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([entity, entityId])
+  @@index([status])
+  @@index([severity])
+  @@index([isSuspicious])
+  @@index([actionAt])
+  @@index([ipAddress])
+  @@map("activity_logs")
 }

@@ -11,7 +11,7 @@ interface StatsProps {
 function StatCard({ label, value, muted }: StatRow) {
     return (
         <div className="rounded-xl bg-muted/50 px-4 py-3 space-y-0.5">
-            <p className="text-xs text-muted-foreground">{label}</p>
+            <p className="text-xs font-semibold text-muted-foreground">{label}</p>
             <p className={`text-2xl font-semibold ${muted ? "text-muted-foreground" : ""}`}>{value}</p>
         </div>
     );
