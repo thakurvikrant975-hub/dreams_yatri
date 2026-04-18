@@ -11,7 +11,7 @@ import {
 } from "../components/ui/dialog";
 import { updateRolePermissions } from "./actions";
 import { FIELD_REGISTRY } from "../lib/rbac/field-registry";
-import type { PermissionSet, Action, ResourcePermission } from "../lib/rbac/permissions";
+import { PermissionSet, Action, ResourcePermission } from "@/app/types/rbac";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

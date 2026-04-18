@@ -151,7 +151,7 @@ function ActionDots({ permissions: raw }: { permissions: unknown }) {
                     title={key}
                     className={[
                         "h-5 w-5 rounded text-[10px] font-bold flex items-center justify-center text-white",
-                        allActions.has(key) ? color : "bg-muted text-muted-foreground",
+                        allActions.has(key) ? color : "bg-gray-500 text-muted-foreground",
                     ].join(" ")}
                 >
                     {label}
