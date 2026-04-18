@@ -484,49 +484,46 @@ function DurationModal({
   }
 
   function slugify(val: string) {
+    if (!val) return "";
     return val.toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, "-").trim();
   }
 
-  async function handleComplete(data: Record<string, unknown>) {
-    startTransition(async () => {
-      const basic = (data.basic as Record<string, unknown>) ?? {};
-      const routes = (data.routes as Record<string, unknown>) ?? {};
-      const thumbnail = (data.thumbnail as Record<string, unknown>) ?? {};
-      const seo = (data.seo as Record<string, unknown>) ?? {};
-      const settings = (data.settings as Record<string, unknown>) ?? {};
+async function handleComplete(data: Record<string, unknown>) {
+  startTransition(async () => {
+    const label  = (data["label"]    as string) ?? "";
+    const days   = Number(data["days"]   ?? 1);
+    const nights = Number(data["nights"] ?? 0);
 
-      const label = basic.label as string;
-      const days = Number(basic.days);
-      const nights = Number(basic.nights);
+    if (!label.trim()) { toast.error("Label is required"); return; }
 
-      const payload = {
-        slug: existing?.slug ?? `${slugify(label)}-${days}d`,
-        label,
-        h1_title: (basic.h1_title as string) || null,
-        days,
-        nights,
-        routes: (routes.routes as RouteOption[]) ?? [],
-        thumbnail: (thumbnail.thumbnail as string) || null,
-        meta_title: (seo.meta_title as string) || null,
-        meta_desc: (seo.meta_desc as string) || null,
-        is_default: (settings.is_default as boolean) ?? false,
-        sort_order: nextSortOrder,
-        is_active: (settings.is_active as boolean) ?? true,
-      };
+    const payload = {
+      slug:       existing?.slug ?? `${slugify(label)}-${days}d`,
+      label,
+      h1_title:   (data["h1_title"]   as string)    || null,
+      days,
+      nights,
+      routes:     (data["routes"]     as RouteOption[]) ?? [],
+      thumbnail:  (data["thumbnail"]  as string)    || null,
+      meta_title: (data["meta_title"] as string)    || null,
+      meta_desc:  (data["meta_desc"]  as string)    || null,
+      is_default: (data["is_default"] as boolean)   ?? false,
+      sort_order: nextSortOrder,
+      is_active:  (data["is_active"]  as boolean)   ?? true,
+    };
 
-      const result = existing
-        ? await updateDuration(existing.id, package_id, payload)
-        : await createDuration(package_id, payload);
+    const result = existing
+      ? await updateDuration(existing.id, package_id, payload)
+      : await createDuration(package_id, payload);
 
-      if (result.success) {
-        toast.success(result.message);
-        handleOpenChange(false);
-        router.refresh();
-      } else {
-        toast.error(result.message);
-      }
-    });
-  }
+    if (result.success) {
+      toast.success(result.message);
+      handleOpenChange(false);
+      router.refresh();
+    } else {
+      toast.error(result.message);
+    }
+  });
+}
 
   return (
     <MultiStepModal
