@@ -79,33 +79,31 @@ model tags {
 }
 
 model packages {
-  id             Int      @id @default(autoincrement())
-  title          String
-  slug           String   @unique
-  thumbnail      String?
-  cover_image    String?
-  description    String?
-  meta_title     String?
-  meta_desc      String?
-  destination_id Int
-  inclusions     String[]
-  exclusions     String[]
-  is_active      Boolean  @default(false)    // ← changed from true
-  is_verified    Boolean  @default(false)    // NEW — manager approves before live
-  created_at     DateTime @default(now())
-  updated_at     DateTime @updatedAt
-
-  destination     destinations              @relation(fields: [destination_id], references: [id])
-  images          package_images[]
-  durations       package_durations[]
-  stay_type_map   package_stay_type_map[]   // ← replaces stay_categories
-  pricing         package_pricing[]
-  itineraries     package_itineraries[]
-  tags            package_tags[]
-  categories      package_categories[]
-  hotels          package_hotels[]
+  id              Int                       @id @default(autoincrement())
+  title           String
+  slug            String                    @unique
+  description     String?
+  is_active       Boolean                   @default(true)
+  created_at      DateTime                  @default(now())
+  updated_at      DateTime                  @updatedAt
+  destination_id  Int
+  meta_desc       String?
+  meta_title      String?
+  cover_image     String?
+  thumbnail       String?
+  exclusions      String[]
+  inclusions      String[]
   activities      package_activities[]
+  categories      package_categories[]
+  durations       package_durations[]
+  hotels          package_hotels[]
+  images          package_images[]
+  itineraries     package_itineraries[]
   policies        package_policy_map[]
+  pricing         package_pricing[]
+  stay_categories package_stay_categories[]
+  tags            package_tags[]
+  destination     destinations              @relation(fields: [destination_id], references: [id])
 
   @@index([destination_id, is_active])
   @@index([slug])
@@ -139,46 +137,39 @@ model package_images {
   id          Int      @id @default(autoincrement())
   package_id  Int
   url         String
-  thumbnail   String?
   blur_base64 String?
-  title       String?  // NEW
-  alt         String?  // existing
+  alt         String?
   sort_order  Int      @default(0)
   is_primary  Boolean  @default(false)
   created_at  DateTime @default(now())
-
-  package packages @relation(fields: [package_id], references: [id])
+  thumbnail   String?
+  package     packages @relation(fields: [package_id], references: [id])
 
   @@index([package_id])
 }
 
-
 model package_durations {
-  id          Int      @id @default(autoincrement())
+  id          Int                   @id @default(autoincrement())
   package_id  Int
   slug        String
   label       String
-  h1_title    String?             // NEW — page heading for this duration
   days        Int
   nights      Int
   routes      Json
   meta_title  String?
   meta_desc   String?
-  thumbnail   String?             // NEW — R2 key, selected from package gallery
-  is_default  Boolean  @default(false)
-  sort_order  Int      @default(0)
-  is_active   Boolean  @default(true)
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
-
-  package     packages          @relation(fields: [package_id], references: [id])
-  pricing     package_pricing[]
+  is_default  Boolean               @default(false)
+  sort_order  Int                   @default(0)
+  is_active   Boolean               @default(true)
+  created_at  DateTime              @default(now())
+  updated_at  DateTime              @updatedAt
+  package     packages              @relation(fields: [package_id], references: [id])
   itineraries package_itineraries[]
+  pricing     package_pricing[]
 
   @@unique([package_id, slug])
   @@index([package_id, is_active])
 }
-
 
 model package_stay_categories {
   id                Int               @id @default(autoincrement())
@@ -191,51 +182,49 @@ model package_stay_categories {
   is_active         Boolean           @default(true)
   slug              String
   hotels            package_hotels[]
+  pricing           package_pricing[]
+  package           packages          @relation(fields: [package_id], references: [id])
 
   @@unique([package_id, slug])
   @@index([package_id, is_active])
 }
 
 model package_pricing {
-  id          Int     @id @default(autoincrement())
-  package_id  Int
-  duration_id Int
-  route_index Int
-  stay_map_id Int     // ← was stay_category_id, now FK to package_stay_type_map
-  price          Decimal  @db.Decimal(10, 2)
-  original_price Decimal? @db.Decimal(10, 2)
-  is_active      Boolean  @default(true)
+  id               Int                     @id @default(autoincrement())
+  package_id       Int
+  duration_id      Int
+  route_index      Int
+  stay_category_id Int
+  price            Decimal                 @db.Decimal(10, 2)
+  original_price   Decimal?                @db.Decimal(10, 2)
+  is_active        Boolean                 @default(true)
+  duration         package_durations       @relation(fields: [duration_id], references: [id])
+  package          packages                @relation(fields: [package_id], references: [id])
+  stay_category    package_stay_categories @relation(fields: [stay_category_id], references: [id])
 
-  package   packages              @relation(fields: [package_id],  references: [id])
-  duration  package_durations     @relation(fields: [duration_id], references: [id])
-  stay_map  package_stay_type_map @relation(fields: [stay_map_id], references: [id])
-
-  @@unique([package_id, duration_id, route_index, stay_map_id])
+  @@unique([package_id, duration_id, route_index, stay_category_id])
   @@index([package_id, duration_id, is_active])
 }
 
 model package_itineraries {
-  id           Int    @id @default(autoincrement())
-  package_id   Int
-  duration_id  Int
+  id           Int               @id @default(autoincrement())
+  activities   Json
   day          Int
-  title        String
   description  String?
-  activities   Json              // legacy — keep
-  activity_ids Json?             // array of activity IDs
-  meals        Json?             // override: if null, pull from hotels in itin_hotels
+  duration_id  Int
+  meals        Json?
+  package_id   Int
   route_index  Int?
-  cabs         Json?             // NEW — array of Cab objects (see type below)
-
-  // hotel_id   Int?   ← REMOVE — now in package_itinerary_hotels
-  // hotel_days Int?   ← REMOVE — now in package_itinerary_hotels
-
-  package   packages          @relation(fields: [package_id],  references: [id])
-  duration  package_durations @relation(fields: [duration_id], references: [id])
-
-  itin_hotels  package_itinerary_hotels[]  // NEW relation
+  title        String
+  activity_ids Json?
+  hotel_id     Int?
+  hotel_days   Int?
+  duration     package_durations @relation(fields: [duration_id], references: [id])
+  hotel        hotels?           @relation(fields: [hotel_id], references: [id])
+  package      packages          @relation(fields: [package_id], references: [id])
 
   @@index([package_id, duration_id])
+  @@index([hotel_id])
 }
 
 model package_tags {
@@ -283,7 +272,7 @@ model hotels {
   room_pricing     hotel_room_pricing[]
   destination      destinations             @relation(fields: [destination_id], references: [id])
   packages         package_hotels[]
-  itinerary_hotels package_itinerary_hotels[]
+  itineraries      package_itineraries[]
 
   @@index([destination_id, is_active])
   @@index([slug])
@@ -306,75 +295,21 @@ model hotel_image_categories {
 }
 
 model hotel_images {
-  id          Int      @id @default(autoincrement())
+  id          Int                    @id @default(autoincrement())
   hotel_id    Int
-  category_id Int
   url         String
-  thumbnail   String?
   blur_base64 String?
-  title       String?  // NEW
-  alt         String?  // existing
-  sort_order  Int      @default(0)
-  is_primary  Boolean  @default(false)
-  created_at  DateTime @default(now())
-
-  hotel    hotels                 @relation(fields: [hotel_id],    references: [id])
-  category hotel_image_categories @relation(fields: [category_id], references: [id])
+  alt         String?
+  sort_order  Int                    @default(0)
+  is_primary  Boolean                @default(false)
+  created_at  DateTime               @default(now())
+  thumbnail   String?
+  category_id Int
+  category    hotel_image_categories @relation(fields: [category_id], references: [id])
+  hotel       hotels                 @relation(fields: [hotel_id], references: [id])
 
   @@index([hotel_id])
   @@index([category_id])
-}
-
-model stay_types {
-  id          Int     @id @default(autoincrement())
-  name        String  @unique  // "Standard", "Deluxe", "Super Deluxe"
-  slug        String  @unique
-  description String?
-  sort_order  Int     @default(0)
-  is_active   Boolean @default(true)
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
-
-  packages    package_stay_type_map[]
-
-  @@index([slug])
-  @@index([is_active])
-}
-
-model package_stay_type_map {
-  id           Int     @id @default(autoincrement())
-  package_id   Int
-  stay_type_id Int
-  sort_order   Int     @default(0)
-  is_default   Boolean @default(false)
-  is_active    Boolean @default(true)
-
-  package   packages   @relation(fields: [package_id],   references: [id])
-  stay_type stay_types @relation(fields: [stay_type_id], references: [id])
-
-  pricing      package_pricing[]
-  itin_hotels  package_itinerary_hotels[]
-
-  @@unique([package_id, stay_type_id])
-  @@index([package_id])
-  @@index([stay_type_id])
-}
-
-model package_itinerary_hotels {
-  id              Int @id @default(autoincrement())
-  itinerary_id    Int
-  stay_map_id     Int   // FK to package_stay_type_map
-  hotel_id        Int
-  nights          Int @default(1)
-
-  itinerary   package_itineraries   @relation(fields: [itinerary_id], references: [id])
-  stay_map    package_stay_type_map @relation(fields: [stay_map_id],   references: [id])
-  hotel       hotels                @relation(fields: [hotel_id],      references: [id])
-
-  @@unique([itinerary_id, stay_map_id])
-  @@index([itinerary_id])
-  @@index([stay_map_id])
-  @@index([hotel_id])
 }
 
 model hotel_room_pricing {
@@ -424,7 +359,7 @@ model activities {
   difficulty        String?
   category          String?
   price             Decimal?             @db.Decimal(10, 2)
-  is_active         Boolean              @default(false)
+  is_active         Boolean              @default(true)
   created_at        DateTime             @default(now())
   updated_at        DateTime             @updatedAt
   margin_percentage Decimal              @default(0) @db.Decimal(5, 2)
@@ -442,18 +377,16 @@ model activities {
 }
 
 model activity_images {
-  id          Int      @id @default(autoincrement())
+  id          Int        @id @default(autoincrement())
   activity_id Int
   url         String
-  thumbnail   String?
   blur_base64 String?
-  title       String?  // NEW — display caption on frontend
-  alt         String?  // existing — SEO/accessibility
-  sort_order  Int      @default(0)
-  is_primary  Boolean  @default(false)
-  created_at  DateTime @default(now())
-
-  activity activities @relation(fields: [activity_id], references: [id])
+  alt         String?
+  sort_order  Int        @default(0)
+  is_primary  Boolean    @default(false)
+  created_at  DateTime   @default(now())
+  thumbnail   String?
+  activity    activities @relation(fields: [activity_id], references: [id])
 
   @@index([activity_id])
 }
@@ -860,7 +793,7 @@ enum PaymentGateway {
 
 
 
-// user roles schema
+
 model Department {
   id          String       @id @default(cuid())
   name        String       @unique @db.VarChar(100)
@@ -876,7 +809,7 @@ model TeamRole {
   id          String       @id @default(cuid())
   name        String       @unique @db.VarChar(100)
   description String?      @db.VarChar(500)
-  permissions Json         @default("[]")
+  permissions String[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   members     TeamMember[]
@@ -905,8 +838,6 @@ model TeamMember {
   @@index([teamRoleId])
   @@map("team_members")
 }
-
-
 
 // logs for dashboard
 enum LogAction {
