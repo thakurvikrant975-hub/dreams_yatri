@@ -997,3 +997,116 @@ model ActivityLog {
   @@index([ipAddress])
   @@map("activity_logs")
 }
+
+
+enum QueryStatus {
+  SUBMITTED
+  IN_PROGRESS
+  VERIFIED
+  REJECTED
+}
+
+enum QuerySource {
+  WEBSITE_FORM
+  LANDING_PAGE
+  WHATSAPP
+  PHONE_CALL
+  REFERRAL
+  OTHER
+}
+
+model PackageQuery {
+  id          String      @id @default(cuid())
+
+  name        String
+  email       String?
+  phone       String
+  message     String?     @db.Text
+
+  packageName String?
+  destination String?
+  travelDate  DateTime?
+  groupSize   Int?
+
+  source      QuerySource @default(WEBSITE_FORM)
+  gclid       String?
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  pageUrl     String?
+
+  status      QueryStatus @default(SUBMITTED)
+  verified    Boolean     @default(false)
+  verifiedAt  DateTime?
+  verifiedBy  String?
+
+  rejectionReasonId String?
+  rejectionNote     String?   @db.Text
+
+  callAttempts      Int       @default(0)
+  lastAttemptAt     DateTime?
+  nextFollowUpAt    DateTime?
+
+  assignedTo        String?
+  assignedAt        DateTime?
+
+  rejectionReason   RejectionReason?  @relation(fields: [rejectionReasonId], references: [id])
+  notes             QueryNote[]
+  timeline          QueryTimeline[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status])
+  @@index([verified])
+  @@index([destination])
+  @@index([assignedTo])
+  @@index([createdAt])
+  @@map("package_queries")
+}
+
+model RejectionReason {
+  id          String    @id @default(cuid())
+  label       String
+  description String?
+  isSystem    Boolean   @default(false)
+  isActive    Boolean   @default(true)
+  sortOrder   Int       @default(0)
+
+  queries     PackageQuery[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("rejection_reasons")
+}
+
+model QueryNote {
+  id        String       @id @default(cuid())
+  queryId   String
+  authorId  String
+  content   String       @db.Text
+
+  query     PackageQuery @relation(fields: [queryId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime     @default(now())
+
+  @@index([queryId])
+  @@map("query_notes")
+}
+
+model QueryTimeline {
+  id        String       @id @default(cuid())
+  queryId   String
+  actorId   String?
+  actorName String?
+  event     String
+  meta      Json?
+
+  query     PackageQuery @relation(fields: [queryId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime     @default(now())
+
+  @@index([queryId])
+  @@map("query_timeline")
+}

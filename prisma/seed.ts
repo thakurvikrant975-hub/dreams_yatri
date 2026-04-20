@@ -514,6 +514,28 @@ console.log("✅ Vikrant payments: 7");
   console.log("\n🎉 Seed complete.");
 }
 
+// ════════════════════════════════════════════════════════════════════════
+  // REJECTION REASONS (Query Management)
+  // ════════════════════════════════════════════════════════════════════════
+
+  const defaultReasons = [
+    { label: "Not Interested",            isSystem: true, sortOrder: 1 },
+    { label: "Purchased from Competitor", isSystem: true, sortOrder: 2 },
+    { label: "Budget Constraints",        isSystem: true, sortOrder: 3 },
+    { label: "Travel Date Passed",        isSystem: true, sortOrder: 4 },
+    { label: "No Response (3 Attempts)",  isSystem: true, sortOrder: 5 },
+    { label: "Duplicate Enquiry",         isSystem: true, sortOrder: 6 },
+    { label: "Wrong Number",              isSystem: true, sortOrder: 7 },
+  ];
+
+  for (const r of defaultReasons) {
+    const exists = await db.rejectionReason.findFirst({ where: { label: r.label } });
+    if (!exists) await db.rejectionReason.create({ data: r });
+  }
+  console.log("✅ Rejection reasons: 7");
+
+  
+
 seed()
   .catch((e) => { console.error("❌ Failed:", e.message); process.exit(1); })
   .finally(async () => { await db.$disconnect(); await pool.end(); });
