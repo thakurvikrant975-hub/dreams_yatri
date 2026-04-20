@@ -1042,3 +1042,4 @@ model QueryTimeline {
   @@index([queryId])
   @@map("query_timeline")
 }
+
