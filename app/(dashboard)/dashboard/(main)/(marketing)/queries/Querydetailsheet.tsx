@@ -102,7 +102,7 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange, onRefresh
                                 </span>
                             </SheetDescription>
                         </div>
-                        <QueryStatusBadge status={query.status} />
+                        <QueryStatusBadge status={query.status} /> 
                     </div>
 
                     {!isTerminal && (
