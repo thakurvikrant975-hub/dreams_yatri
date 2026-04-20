@@ -34,7 +34,7 @@ type Props = {
     reasons: RejectionReason[];
 };
 
-const PAGE_SIZE = 15;
+const PAGE_SIZE = 10;
 
 const STATUS_FILTER_OPTIONS = [
     { label: "Submitted",   value: "SUBMITTED" },
@@ -140,20 +140,21 @@ function ActionCell({
 
                 {/* Reject */}
                 {!isTerminal && (
-                    <RejectQueryDialog queryId={query.id} leadName={query.name} reasons={reasons}>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <span onClick={(e) => e.stopPropagation()}>
+                            <RejectQueryDialog queryId={query.id} leadName={query.name} reasons={reasons}>
                                 <Button
                                     variant="ghost" size="icon"
                                     className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                    onClick={(e) => e.stopPropagation()}
                                 >
                                     <XCircle className="h-3.5 w-3.5" />
                                 </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Reject Query</TooltipContent>
-                        </Tooltip>
-                    </RejectQueryDialog>
+                            </RejectQueryDialog>
+                        </span>
+                    </TooltipTrigger>
+                    <TooltipContent>Reject Query</TooltipContent>
+                </Tooltip>
                 )}
             </div>
         </TooltipProvider>

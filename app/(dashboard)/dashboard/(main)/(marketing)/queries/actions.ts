@@ -206,11 +206,34 @@ export async function rejectQuery(
     }
 }
 
-// ── LOG CALL ATTEMPT ──────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// REPLACE your existing logCallAttempt function in actions.ts with this:
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type CallOutcome =
+    | "RECEIVED"
+    | "NOT_RECEIVED"
+    | "INVALID_NUMBER"
+    | "REJECTED"
+    | "BUSY"
+    | "VOICEMAIL"
+    | "CALL_BACK_LATER";
+
+const CALL_OUTCOME_LABELS: Record<CallOutcome, string> = {
+    RECEIVED:        "Call Received",
+    NOT_RECEIVED:    "Not Received",
+    INVALID_NUMBER:  "Invalid Number",
+    REJECTED:        "Call Rejected by Customer",
+    BUSY:            "Line Busy",
+    VOICEMAIL:       "Went to Voicemail",
+    CALL_BACK_LATER: "Customer Asked to Call Back Later",
+};
 
 export async function logCallAttempt(
     queryId: string,
     nextFollowUpAt?: Date,
+    outcome?: CallOutcome,
+    response?: string,
 ): Promise<ActionResult> {
     try {
         const session = await dashboardAuth();
@@ -226,12 +249,16 @@ export async function logCallAttempt(
             },
         });
 
+        const outcomeLabel = outcome ? CALL_OUTCOME_LABELS[outcome] : "Call attempted";
+        const eventParts   = [`📞 Call Attempt #${(await db.packageQuery.findUnique({ where: { id: queryId }, select: { callAttempts: true } }))?.callAttempts ?? "?"} — ${outcomeLabel}`];
+        if (response) eventParts.push(`Note: ${response}`);
+
         await logTimeline(
             queryId,
-            "Call attempt logged",
+            eventParts.join(" · "),
             actor?.id,
             actor?.name ?? undefined,
-            { nextFollowUp: nextFollowUpAt },
+            { outcome, response, nextFollowUp: nextFollowUpAt?.toISOString() },
         );
 
         revalidatePath("/dashboard/queries");
@@ -240,6 +267,42 @@ export async function logCallAttempt(
         return { success: false, message: "Failed to log call attempt" };
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ALSO UPDATE your rejectQuery to log a rich timeline event.
+// Replace the logTimeline call inside rejectQuery with:
+// ─────────────────────────────────────────────────────────────────────────────
+
+// await logTimeline(
+//     queryId,
+//     `❌ Query Rejected — ${reason?.label ?? "Unknown reason"}${parsed.data.rejectionNote ? ` · Note: ${parsed.data.rejectionNote}` : ""}`,
+//     actor?.id,
+//     actor?.name ?? undefined,
+//     { reason: reason?.label, note: parsed.data.rejectionNote },
+// );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AND UPDATE verifyQuery logTimeline call:
+// ─────────────────────────────────────────────────────────────────────────────
+
+// await logTimeline(
+//     queryId,
+//     `✅ Lead Verified — confirmed interest`,
+//     actor?.id,
+//     actor?.name ?? undefined,
+// );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AND UPDATE addNote logTimeline call:
+// ─────────────────────────────────────────────────────────────────────────────
+
+// await logTimeline(
+//     queryId,
+//     `📝 Note added`,
+//     actor?.id,
+//     actor?.name ?? undefined,
+//     { preview: parsed.data.content.slice(0, 80) },
+// );
 
 // ── NOTES ─────────────────────────────────────────────────────────────────────
 

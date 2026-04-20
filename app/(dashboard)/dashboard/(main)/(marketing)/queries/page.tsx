@@ -7,6 +7,8 @@ import {
 } from "../../components/ui/breadcrumb";
 import { getQueries, getRejectionReasons } from "./actions";
 import { QueriesTable } from "./Queriestable";
+import { AddQueryDialog } from "./Addquerydialog";
+
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 
 function TableSkeleton() {
@@ -81,6 +83,7 @@ export default function QueriesPage() {
                         </p>
                     </div>
                 </div>
+                <AddQueryDialog />
             </div>
 
             {/* Data */}

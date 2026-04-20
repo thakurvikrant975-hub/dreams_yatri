@@ -4,14 +4,12 @@ import { useState, useTransition, useRef } from "react";
 import { formatDistanceToNow, format } from "date-fns";
 import {
     Phone, Mail, MapPin, Users, Calendar, MessageSquare,
-    Clock, CheckCircle2, XCircle, PhoneCall, StickyNote,
-    ExternalLink, Globe, RefreshCw, ChevronRight,
+    CheckCircle2, XCircle, StickyNote,
+    ExternalLink, Globe, PhoneCall,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
-import { Badge } from "../../components/ui/badge";
 import { Textarea } from "../../components/ui/textarea";
-import { Label } from "../../components/ui/label";
 import { Separator } from "../../components/ui/separator";
 import {
     Sheet, SheetContent, SheetHeader,
@@ -19,20 +17,22 @@ import {
 } from "../../components/ui/sheet";
 import { ScrollArea } from "../../components/ui/scroll-area";
 import { QueryStatusBadge, QuerySourceBadge, CallAttemptsDots } from "./QueryBadges";
-import { verifyQuery, markInProgress, logCallAttempt, addNote } from "./actions";
+import { verifyQuery, addNote } from "./actions";
 import { RejectQueryDialog } from "./Rejectquerydialog";
+import { CallAttemptDialog } from "./Callattemptdialog";
 import type { PackageQuery, RejectionReason } from "./actions";
 
 type QueryWithDetails = PackageQuery & {
-    notes: Array<{ id: string; authorId: string; content: string; createdAt: Date }>;
+    notes:    Array<{ id: string; authorId: string; authorName?: string; content: string; createdAt: Date }>;
     timeline: Array<{ id: string; actorName: string | null; event: string; createdAt: Date }>;
 };
 
 type Props = {
-    query:           QueryWithDetails | null;
-    reasons:         RejectionReason[];
-    open:            boolean;
-    onOpenChange:    (v: boolean) => void;
+    query:        QueryWithDetails | null;
+    reasons:      RejectionReason[];
+    open:         boolean;
+    onOpenChange: (v: boolean) => void;
+    onRefresh?:   () => void;
 };
 
 function InfoRow({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: React.ReactNode }) {
@@ -50,30 +50,29 @@ function InfoRow({ icon: Icon, label, value }: { icon: React.ElementType; label:
     );
 }
 
-export function QueryDetailSheet({ query, reasons, open, onOpenChange }: Props) {
-    const [isPendingVerify, startVerify]     = useTransition();
-    const [isPendingProgress, startProgress] = useTransition();
-    const [isPendingNote, startNote]         = useTransition();
+function timelineDot(event: string) {
+    if (event.includes("✅") || event.includes("Verified"))    return "bg-green-500";
+    if (event.includes("❌") || event.includes("Rejected"))    return "bg-destructive";
+    if (event.includes("📞") || event.includes("Call"))        return "bg-amber-500";
+    if (event.includes("📝") || event.includes("Note"))        return "bg-blue-500";
+    if (event.includes("created") || event.includes("manual")) return "bg-primary";
+    return "bg-muted-foreground/40";
+}
+
+export function QueryDetailSheet({ query, reasons, open, onOpenChange, onRefresh }: Props) {
+    const [isPendingVerify, startVerify] = useTransition();
+    const [isPendingNote, startNote]     = useTransition();
     const formRef = useRef<HTMLFormElement>(null);
 
     if (!query) return null;
 
-    const isTerminal  = query.status === "VERIFIED" || query.status === "REJECTED";
-    const canVerify   = !query.verified && query.status !== "REJECTED";
-    const canProgress = query.status === "SUBMITTED" || query.status === "IN_PROGRESS";
+    const isTerminal = query.status === "VERIFIED" || query.status === "REJECTED";
+    const canVerify  = !query.verified && query.status !== "REJECTED";
 
     function handleVerify() {
         startVerify(async () => {
             const r = await verifyQuery(query!.id);
-            if (r.success) toast.success(r.message);
-            else toast.error(r.message);
-        });
-    }
-
-    function handleProgress() {
-        startProgress(async () => {
-            const r = await markInProgress(query!.id);
-            if (r.success) toast.success(r.message);
+            if (r.success) { toast.success(r.message); onRefresh?.(); }
             else toast.error(r.message);
         });
     }
@@ -83,15 +82,14 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange }: Props) 
         const fd = new FormData(e.currentTarget);
         startNote(async () => {
             const r = await addNote(query!.id, fd);
-            if (r.success) { toast.success(r.message); formRef.current?.reset(); }
+            if (r.success) { toast.success(r.message); formRef.current?.reset(); onRefresh?.(); }
             else toast.error(r.message);
         });
     }
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetContent className="w-full sm:max-w-xl p-0 flex flex-col">
-                {/* Header */}
+            <SheetContent className="w-full sm:max-w-xl p-0 flex flex-col overflow-auto">
                 <SheetHeader className="px-6 pt-6 pb-4 border-b">
                     <div className="flex items-start justify-between gap-4">
                         <div>
@@ -107,43 +105,39 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange }: Props) 
                         <QueryStatusBadge status={query.status} />
                     </div>
 
-                    {/* Action buttons */}
                     {!isTerminal && (
                         <div className="flex gap-2 pt-3 flex-wrap">
-                            {canProgress && (
-                                <Button
-                                    size="sm" variant="outline"
-                                    onClick={handleProgress}
-                                    disabled={isPendingProgress}
-                                    className="gap-1.5 text-amber-600 border-amber-200 hover:bg-amber-50 hover:border-amber-300 dark:hover:bg-amber-950/30"
-                                >
+                            <CallAttemptDialog
+                                queryId={query.id}
+                                leadName={query.name}
+                                phone={query.phone}
+                                callAttempts={query.callAttempts}
+                                onDone={onRefresh}
+                            >
+                                <Button size="sm" variant="outline"
+                                    className="gap-1.5 text-amber-600 border-amber-200 hover:bg-amber-50 hover:border-amber-300 dark:hover:bg-amber-950/30">
                                     <PhoneCall className="h-3.5 w-3.5" />
-                                    {isPendingProgress ? "Updating..." : "Mark In Progress"}
+                                    Log Call ({query.callAttempts})
                                 </Button>
-                            )}
+                            </CallAttemptDialog>
+
                             {canVerify && (
-                                <Button
-                                    size="sm"
-                                    onClick={handleVerify}
-                                    disabled={isPendingVerify}
-                                    className="gap-1.5 bg-green-600 hover:bg-green-700 text-white"
-                                >
+                                <Button size="sm" onClick={handleVerify} disabled={isPendingVerify}
+                                    className="gap-1.5 bg-green-600 hover:bg-green-700 text-white">
                                     <CheckCircle2 className="h-3.5 w-3.5" />
                                     {isPendingVerify ? "Verifying..." : "Verify Lead"}
                                 </Button>
                             )}
+
                             <RejectQueryDialog queryId={query.id} leadName={query.name} reasons={reasons}>
-                                <Button
-                                    size="sm" variant="outline"
-                                    className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
-                                >
+                                <Button size="sm" variant="outline"
+                                    className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10">
                                     <XCircle className="h-3.5 w-3.5" /> Reject
                                 </Button>
                             </RejectQueryDialog>
                         </div>
                     )}
 
-                    {/* Rejection reason pill */}
                     {query.status === "REJECTED" && query.rejectionReason && (
                         <div className="mt-3 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2">
                             <p className="text-xs font-semibold text-destructive uppercase tracking-wide mb-1">Rejected</p>
@@ -154,16 +148,11 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange }: Props) 
                         </div>
                     )}
 
-                    {/* Verified pill */}
                     {query.verified && (
                         <div className="mt-3 rounded-lg border border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-900 px-3 py-2">
-                            <p className="text-xs font-semibold text-green-700 dark:text-green-400 uppercase tracking-wide mb-1">
-                                ✓ Verified Lead
-                            </p>
+                            <p className="text-xs font-semibold text-green-700 dark:text-green-400 uppercase tracking-wide mb-1">✓ Verified Lead</p>
                             {query.verifiedAt && (
-                                <p className="text-xs text-muted-foreground">
-                                    {format(new Date(query.verifiedAt), "dd MMM yyyy, hh:mm a")}
-                                </p>
+                                <p className="text-xs text-muted-foreground">{format(new Date(query.verifiedAt), "dd MMM yyyy, hh:mm a")}</p>
                             )}
                         </div>
                     )}
@@ -172,11 +161,8 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange }: Props) 
                 <ScrollArea className="flex-1">
                     <div className="px-6 py-4 space-y-6">
 
-                        {/* Lead Info */}
                         <section>
-                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2">
-                                Lead Information
-                            </h3>
+                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2">Lead Information</h3>
                             <div className="divide-y divide-border/50">
                                 <InfoRow icon={Phone}    label="Phone"       value={query.phone} />
                                 <InfoRow icon={Mail}     label="Email"       value={query.email} />
@@ -195,11 +181,8 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange }: Props) 
 
                         <Separator />
 
-                        {/* Call Tracking */}
                         <section>
-                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">
-                                Call Tracking
-                            </h3>
+                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">Call Tracking</h3>
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm font-medium">{query.callAttempts} Attempt(s)</p>
@@ -209,11 +192,26 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange }: Props) 
                                         </p>
                                     )}
                                 </div>
-                                <CallAttemptsDots count={query.callAttempts} />
+                                <div className="flex items-center gap-3">
+                                    <CallAttemptsDots count={query.callAttempts} />
+                                    {!isTerminal && (
+                                        <CallAttemptDialog
+                                            queryId={query.id}
+                                            leadName={query.name}
+                                            phone={query.phone}
+                                            callAttempts={query.callAttempts}
+                                            onDone={onRefresh}
+                                        >
+                                            <Button size="sm" variant="outline" className="gap-1.5 h-7 text-xs text-amber-600 border-amber-200">
+                                                <PhoneCall className="h-3 w-3" /> Log Call
+                                            </Button>
+                                        </CallAttemptDialog>
+                                    )}
+                                </div>
                             </div>
                             {query.nextFollowUpAt && (
-                                <div className="mt-2 flex items-center gap-2 text-xs text-amber-600">
-                                    <Clock className="h-3 w-3" />
+                                <div className="mt-2 flex items-center gap-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/20 rounded-lg px-3 py-2 border border-amber-200 dark:border-amber-900">
+                                    <Calendar className="h-3 w-3" />
                                     Follow-up: {format(new Date(query.nextFollowUpAt), "dd MMM, hh:mm a")}
                                 </div>
                             )}
@@ -221,26 +219,22 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange }: Props) 
 
                         <Separator />
 
-                        {/* UTM Tracking */}
                         {(query.utmSource || query.utmCampaign || query.gclid) && (
                             <>
                                 <section>
-                                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2">
-                                        Source Tracking
-                                    </h3>
+                                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2">Source Tracking</h3>
                                     <div className="space-y-1.5 text-xs">
                                         {query.utmSource   && <div className="flex gap-2"><span className="text-muted-foreground w-24">UTM Source</span><span className="font-mono">{query.utmSource}</span></div>}
                                         {query.utmMedium   && <div className="flex gap-2"><span className="text-muted-foreground w-24">UTM Medium</span><span className="font-mono">{query.utmMedium}</span></div>}
                                         {query.utmCampaign && <div className="flex gap-2"><span className="text-muted-foreground w-24">Campaign</span><span className="font-mono">{query.utmCampaign}</span></div>}
                                         {query.gclid       && <div className="flex gap-2"><span className="text-muted-foreground w-24">GCLID</span><span className="font-mono truncate max-w-[200px]">{query.gclid}</span></div>}
-                                        {query.pageUrl     && <div className="flex gap-2"><span className="text-muted-foreground w-24">Page URL</span><a href={query.pageUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline flex items-center gap-0.5">{query.pageUrl.slice(0, 40)}… <ExternalLink className="h-2.5 w-2.5" /></a></div>}
+                                        {query.pageUrl     && <div className="flex gap-2"><span className="text-muted-foreground w-24">Page URL</span><a href={query.pageUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline flex items-center gap-0.5">{query.pageUrl.slice(0,40)}… <ExternalLink className="h-2.5 w-2.5" /></a></div>}
                                     </div>
                                 </section>
                                 <Separator />
                             </>
                         )}
 
-                        {/* Notes */}
                         <section>
                             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">
                                 Internal Notes ({query.notes?.length ?? 0})
@@ -249,8 +243,10 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange }: Props) 
                                 {(query.notes ?? []).map(note => (
                                     <div key={note.id} className="rounded-lg border bg-card p-3">
                                         <p className="text-sm leading-relaxed">{note.content}</p>
+                                        {/* Fix #3 — "X ago by Username" */}
                                         <p className="text-[10px] text-muted-foreground mt-1.5">
                                             {formatDistanceToNow(new Date(note.createdAt), { addSuffix: true })}
+                                            {note.authorName && <span className="ml-1 font-medium">by {note.authorName}</span>}
                                         </p>
                                     </div>
                                 ))}
@@ -259,12 +255,7 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange }: Props) 
                                 )}
                             </div>
                             <form ref={formRef} onSubmit={handleAddNote} className="space-y-2">
-                                <Textarea
-                                    name="content"
-                                    placeholder="Add an internal note..."
-                                    rows={2}
-                                    className="resize-none text-sm"
-                                />
+                                <Textarea name="content" placeholder="Add an internal note..." rows={2} className="resize-none text-sm" />
                                 <Button type="submit" size="sm" variant="outline" disabled={isPendingNote} className="gap-1.5">
                                     <StickyNote className="h-3.5 w-3.5" />
                                     {isPendingNote ? "Adding..." : "Add Note"}
@@ -274,21 +265,19 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange }: Props) 
 
                         <Separator />
 
-                        {/* Timeline */}
                         <section className="pb-6">
-                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">
-                                Activity Timeline
-                            </h3>
-                            <div className="relative pl-4 space-y-3">
+                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">Activity Timeline</h3>
+                            <div className="relative pl-4 space-y-4">
                                 <div className="absolute left-1.5 top-1 bottom-1 w-px bg-border" />
-                                {(query.timeline ?? []).map((t, i) => (
+                                {(query.timeline ?? []).map((t) => (
                                     <div key={t.id} className="relative flex gap-3 items-start">
-                                        <div className="absolute -left-3 top-1.5 h-2.5 w-2.5 rounded-full border-2 border-background bg-muted-foreground/40 shrink-0" />
-                                        <div className="min-w-0 pl-1">
-                                            <p className="text-sm">{t.event}</p>
-                                            <p className="text-[10px] text-muted-foreground mt-0.5">
-                                                {t.actorName && <span className="font-medium">{t.actorName} · </span>}
+                                        <div className={`absolute -left-3 top-1.5 h-2.5 w-2.5 rounded-full border-2 border-background shrink-0 ${timelineDot(t.event)}`} />
+                                        <div className="min-w-0 pl-1 space-y-0.5">
+                                            <p className="text-sm leading-snug">{t.event}</p>
+                                            {/* Fix #3 + #5 — actor name in timeline */}
+                                            <p className="text-[10px] text-muted-foreground">
                                                 {formatDistanceToNow(new Date(t.createdAt), { addSuffix: true })}
+                                                {t.actorName && <span className="ml-1 font-medium">by {t.actorName}</span>}
                                             </p>
                                         </div>
                                     </div>
