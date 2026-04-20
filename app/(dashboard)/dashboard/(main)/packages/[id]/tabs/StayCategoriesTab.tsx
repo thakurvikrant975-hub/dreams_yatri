@@ -3,154 +3,98 @@
 import { useState, useTransition } from "react";
 import { useRouter }  from "next/navigation";
 import { Button }   from "../../../components/ui/button";
-import { Input }    from "../../../components/ui/input";
-import { Label }    from "../../../components/ui/label";
-import { Textarea } from "../../../components/ui/textarea";
-import { Switch }   from "../../../components/ui/switch";
 import { Badge }    from "../../../components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
 import {
-  Dialog, DialogContent, DialogHeader,
-  DialogTitle, DialogFooter,
-} from "../../../components/ui/dialog";
+  Select, SelectContent, SelectItem,
+  SelectTrigger, SelectValue,
+} from "../../../components/ui/select";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
 } from "../../../components/ui/alert-dialog";
-import { Plus, Pencil, Trash2, Loader2, Hotel } from "lucide-react";
+import { Plus, Trash2, Loader2, Hotel, GripVertical } from "lucide-react";
 import { toast } from "sonner";
-import {
-  createStayCategory,
-  updateStayCategory,
-  deleteStayCategory,
-} from "../../actions";
+import { syncPackageStayTypes } from "../../actions";
 
-type StayCategory = {
-  id:                number;
-  slug:              string;
-  label:             string;
-  description:       string | null;
-  min_duration_days: number | null;
-  is_default:        boolean;
-  is_active:         boolean;
-  sort_order:        number;
+// ── Types ─────────────────────────────────────────────────────────────────
+
+type AssignedStayType = {
+  id:           number;   // package_stay_type_map.id
+  stay_type_id: number;
+  name:         string;
+  slug:         string;
+  is_default:   boolean;
+  sort_order:   number;
 };
 
-function StayCategoryDialog({
-  open, onOpenChange, package_id, existing, nextSortOrder,
-}: {
-  open: boolean; onOpenChange: (b: boolean) => void;
-  package_id: number; existing?: StayCategory; nextSortOrder: number;
-}) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const [label,       setLabel]      = useState(existing?.label             ?? "");
-  const [description, setDesc]       = useState(existing?.description       ?? "");
-  const [minDays,     setMinDays]    = useState<string>(
-    existing?.min_duration_days != null ? String(existing.min_duration_days) : ""
-  );
-  const [isDefault,   setIsDefault]  = useState(existing?.is_default ?? false);
-  const [isActive,    setIsActive]   = useState(existing?.is_active  ?? true);
-  const [sortOrder,   setSortOrder]  = useState(existing?.sort_order ?? nextSortOrder);
+type GlobalStayType = {
+  id:   number;
+  name: string;
+  slug: string;
+};
 
-  function slugify(val: string) {
-    return val.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-  }
-
-  async function handleSave() {
-    if (!label.trim()) { toast.error("Label is required"); return; }
-    startTransition(async () => {
-      const fd = new FormData();
-      fd.append("slug",              existing?.slug ?? slugify(label));
-      fd.append("label",             label);
-      fd.append("description",       description);
-      fd.append("min_duration_days", minDays);
-      fd.append("is_default",        String(isDefault));
-      fd.append("is_active",         String(isActive));
-      fd.append("sort_order",        String(sortOrder));
-      const r = existing
-        ? await updateStayCategory(existing.id, package_id, fd)
-        : await createStayCategory(package_id, fd);
-      if (r.success) {
-        toast.success(r.message);
-        onOpenChange(false);
-        router.refresh(); // ← refresh so new/updated stay category appears
-      } else {
-        toast.error(r.message);
-      }
-    });
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>{existing ? "Edit Stay Type" : "Add Stay Type"}</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label>Label <span className="text-destructive">*</span></Label>
-            <Input value={label} onChange={e => setLabel(e.target.value)} placeholder="Deluxe" />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Description</Label>
-            <Textarea value={description} onChange={e => setDesc(e.target.value)}
-              placeholder="4-star hotels with Dal Lake views" rows={2} />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>Min Duration Days</Label>
-              <Input type="number" min="0" value={minDays}
-                onChange={e => setMinDays(e.target.value)} placeholder="Optional" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Sort Order</Label>
-              <Input type="number" min="0" value={sortOrder}
-                onChange={e => setSortOrder(Number(e.target.value))} />
-            </div>
-          </div>
-          <div className="flex gap-3">
-            <div className="flex-1 flex items-center justify-between rounded-lg border p-3 bg-muted/30">
-              <p className="text-sm">Default</p>
-              <Switch checked={isDefault} onCheckedChange={setIsDefault} />
-            </div>
-            <div className="flex-1 flex items-center justify-between rounded-lg border p-3 bg-muted/30">
-              <p className="text-sm">Active</p>
-              <Switch checked={isActive} onCheckedChange={setIsActive} />
-            </div>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSave} disabled={isPending}>
-            {isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</> : "Save"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
+// ── Main ──────────────────────────────────────────────────────────────────
 
 export function StayCategoriesTab({
   package_id,
-  stayCategories: initial,
+  assignedStayTypes: initial,
+  allStayTypes,
 }: {
-  package_id:     number;
-  stayCategories: StayCategory[];
+  package_id:        number;
+  assignedStayTypes: AssignedStayType[];
+  allStayTypes:      GlobalStayType[];
 }) {
   const router = useRouter();
-  const [cats,       setCats]       = useState(initial);
-  const [showCreate, setShowCreate] = useState(false);
-  const [editTarget, setEditTarget] = useState<StayCategory | null>(null);
-  const [isPending,  startTransition] = useTransition();
+  const [assigned,  setAssigned]  = useState<AssignedStayType[]>(initial);
+  const [isPending, startTransition] = useTransition();
 
-  function handleDelete(id: number) {
+  const unassigned = allStayTypes.filter(
+    st => !assigned.some(a => a.stay_type_id === st.id)
+  );
+
+  function addStayType(stay_type_id: number) {
+    const st = allStayTypes.find(s => s.id === stay_type_id);
+    if (!st) return;
+    const newItem: AssignedStayType = {
+      id:           0, // temporary — server assigns real id
+      stay_type_id: st.id,
+      name:         st.name,
+      slug:         st.slug,
+      is_default:   assigned.length === 0,
+      sort_order:   assigned.length,
+    };
+    const updated = [...assigned, newItem];
+    setAssigned(updated);
+    save(updated);
+  }
+
+  function removeStayType(stay_type_id: number) {
+    const updated = assigned
+      .filter(a => a.stay_type_id !== stay_type_id)
+      .map((a, i) => ({ ...a, sort_order: i, is_default: i === 0 }));
+    setAssigned(updated);
+    save(updated);
+  }
+
+  function setDefault(stay_type_id: number) {
+    const updated = assigned.map(a => ({
+      ...a,
+      is_default: a.stay_type_id === stay_type_id,
+    }));
+    setAssigned(updated);
+    save(updated);
+  }
+
+  function save(items: AssignedStayType[]) {
     startTransition(async () => {
-      const r = await deleteStayCategory(id, package_id);
+      const r = await syncPackageStayTypes(
+        package_id,
+        items.map(a => a.stay_type_id),
+      );
       if (r.success) {
-        setCats(prev => prev.filter(c => c.id !== id));
         toast.success(r.message);
         router.refresh();
       } else {
@@ -160,89 +104,122 @@ export function StayCategoriesTab({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium">{cats.length} Stay Type{cats.length !== 1 ? "s" : ""}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            e.g. Standard · Deluxe · Super Deluxe — used in pricing matrix
-          </p>
-        </div>
-        <Button size="sm" onClick={() => setShowCreate(true)}>
-          <Plus className="h-4 w-4 mr-1.5" /> Add Stay Type
-        </Button>
+    <div className="space-y-5">
+      <div>
+        <p className="text-sm font-medium">Stay Types for this Package</p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Select which global stay types this package offers. First one becomes the default.
+          Pricing and itinerary hotels are set per stay type.
+        </p>
       </div>
 
-      {cats.length === 0 ? (
+      {/* Assigned list */}
+      {assigned.length === 0 ? (
         <div className="text-center py-12 border-2 border-dashed rounded-xl">
           <Hotel className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-          <p className="text-sm text-muted-foreground">No stay types yet</p>
+          <p className="text-sm font-medium text-muted-foreground">No stay types assigned</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Add from global stay types below
+          </p>
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-3">
-          {cats.map(cat => (
-            <Card key={cat.id}>
-              <CardHeader className="pb-2">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-sm">{cat.label}</CardTitle>
-                    {cat.is_default && <Badge className="text-[10px] mt-1">Default</Badge>}
-                    {!cat.is_active && <Badge variant="secondary" className="text-[10px] mt-1">Inactive</Badge>}
+        <div className="space-y-2">
+          {assigned
+            .sort((a, b) => a.sort_order - b.sort_order)
+            .map((st, i) => (
+              <div key={st.stay_type_id}
+                className="flex items-center gap-3 rounded-xl border p-3 bg-background">
+                <GripVertical className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium">{st.name}</p>
+                    {st.is_default && <Badge className="text-[10px] px-1.5 py-0">Default</Badge>}
                   </div>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" className="h-6 w-6"
-                      onClick={() => setEditTarget(cat)}>
-                      <Pencil className="h-3 w-3" />
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon"
-                          className="h-6 w-6 text-destructive hover:text-destructive">
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete Stay Type</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Delete <strong>{cat.label}</strong>? This removes all pricing rows for this stay type.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDelete(cat.id)}
-                            className="bg-destructive text-white hover:bg-destructive/90">
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
+                  <p className="text-xs text-muted-foreground">/{st.slug}</p>
                 </div>
-              </CardHeader>
-              <CardContent className="pt-0 text-xs text-muted-foreground space-y-1">
-                {cat.description && <p>{cat.description}</p>}
-                {cat.min_duration_days != null && <p>Min {cat.min_duration_days} days</p>}
-                <p>Sort #{cat.sort_order}</p>
-              </CardContent>
-            </Card>
-          ))}
+                {!st.is_default && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-7"
+                    disabled={isPending}
+                    onClick={() => setDefault(st.stay_type_id)}
+                  >
+                    Set Default
+                  </Button>
+                )}
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="icon"
+                      className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Remove Stay Type</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Remove <strong>{st.name}</strong> from this package?
+                        This will also remove its pricing rows and hotel assignments.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => removeStayType(st.stay_type_id)}
+                        disabled={isPending}
+                        className="bg-destructive text-white hover:bg-destructive/90">
+                        Remove
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            ))}
         </div>
       )}
 
-      <StayCategoryDialog open={showCreate}
-        onOpenChange={setShowCreate}
-        package_id={package_id}
-        nextSortOrder={cats.length}
-      />
-      {editTarget && (
-        <StayCategoryDialog
-          open={!!editTarget}
-          onOpenChange={o => !o && setEditTarget(null)}
-          package_id={package_id}
-          existing={editTarget}
-          nextSortOrder={cats.length}
-        />
+      {/* Add from global stay types */}
+      {unassigned.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            Available to Add
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {unassigned.map(st => (
+              <Button
+                key={st.id}
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-sm"
+                disabled={isPending}
+                onClick={() => addStayType(st.id)}
+              >
+                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                {st.name}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {allStayTypes.length === 0 && (
+        <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-4 text-sm text-yellow-800">
+          No global stay types exist yet. Go to{" "}
+          <a href="/dashboard/stay-types" className="underline font-medium">
+            Stay Types
+          </a>{" "}
+          to create Standard, Deluxe, Super Deluxe etc. first.
+        </div>
+      )}
+
+      {isPending && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Saving...
+        </div>
       )}
     </div>
   );

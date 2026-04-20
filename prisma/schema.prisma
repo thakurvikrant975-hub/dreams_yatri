@@ -263,10 +263,11 @@ model hotels {
   amenities        Json?
   check_in_time    String?
   check_out_time   String?
-  is_active        Boolean                  @default(true)
+  is_active        Boolean                  @default(false)
   created_at       DateTime                 @default(now())
   updated_at       DateTime                 @updatedAt
   thumbnail        String?
+  meals_included   String[] 
   image_categories hotel_image_categories[]
   images           hotel_images[]
   room_pricing     hotel_room_pricing[]
@@ -332,20 +333,7 @@ model hotel_room_pricing {
   @@index([hotel_id, season])
 }
 
-model package_hotels {
-  id               Int                     @id @default(autoincrement())
-  package_id       Int
-  hotel_id         Int
-  stay_category_id Int
-  night_number     Int?
-  is_recommended   Boolean                 @default(false)
-  hotel            hotels                  @relation(fields: [hotel_id], references: [id])
-  package          packages                @relation(fields: [package_id], references: [id])
-  stay_category    package_stay_categories @relation(fields: [stay_category_id], references: [id])
 
-  @@index([package_id, stay_category_id])
-  @@index([hotel_id])
-}
 
 model activities {
   id                Int                  @id @default(autoincrement())

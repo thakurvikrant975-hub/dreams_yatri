@@ -56,6 +56,21 @@ type ActivityOption = {
   destination:    { name: string };
 };
 
+type ItinHotel = {
+  hotel_id:    number;
+  stay_map_id: number;
+  nights:      number;
+  hotel: {
+    id:          number;
+    name:        string;
+    star_rating: number | null;
+    category:    string | null;
+  };
+  stay_map: {
+    stay_type: { id: number; name: string };
+  };
+};
+
 type ItineraryDay = {
   id:           number;
   day:          number;
@@ -64,14 +79,7 @@ type ItineraryDay = {
   activity_ids: unknown;
   meals:        unknown;
   route_index:  number | null;
-  hotel_id:     number | null;
-  hotel_days:   number | null;
-  hotel: {
-    id:          number;
-    name:        string;
-    star_rating: number | null;
-    category:    string | null;
-  } | null;
+  itin_hotels:  ItinHotel[];
 };
 
 type Duration = {
@@ -186,10 +194,6 @@ function DayDialog({
   const [activityIds, setActivityIds] = useState<number[]>(
     (existing?.activity_ids as number[] | null) ?? []
   );
-  const [hotelId,     setHotelId]    = useState(
-    existing?.hotel_id != null ? String(existing.hotel_id) : ""
-  );
-  const [hotelDays,   setHotelDays]  = useState<number | null>(existing?.hotel_days ?? null);
   const [routeIndex,  setRouteIndex] = useState<string>(
     existing?.route_index != null ? String(existing.route_index) : "all"
   );
@@ -207,8 +211,6 @@ function DayDialog({
         activity_ids: activityIds,
         meals,
         route_index:  routeIndex === "all" ? null : Number(routeIndex),
-        hotel_id:     hotelId ? Number(hotelId) : null,
-        hotel_days:   hotelDays,
       });
       if (r.success) {
         toast.success(r.message);
@@ -219,8 +221,6 @@ function DayDialog({
       }
     });
   }
-
-  const selectedHotel = hotels.find(h => h.id === Number(hotelId));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -287,55 +287,7 @@ function DayDialog({
             </div>
           </div>
 
-          {/* Hotel */}
-          <div className="space-y-1.5">
-            <Label>Hotel Stay</Label>
-            <Select value={hotelId || "none"} onValueChange={v => setHotelId(v === "none" ? "" : v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select hotel (optional)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">No hotel for this day</SelectItem>
-                {hotels.map(h => (
-                  <SelectItem key={h.id} value={String(h.id)}>
-                    {h.name}
-                    <span className="text-muted-foreground ml-1 text-xs">
-                      ({h.destination.name}{h.star_rating ? ` · ${h.star_rating}★` : ""})
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedHotel && (
-              <div className="flex items-center gap-3 rounded-lg border p-2.5 bg-muted/20">
-                {selectedHotel.images[0] && (
-                  <img
-                    src={`${BASE}/${selectedHotel.images[0].thumbnail ?? selectedHotel.images[0].url}`}
-                    alt={selectedHotel.name}
-                    className="h-10 w-14 rounded object-cover shrink-0"
-                  />
-                )}
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{selectedHotel.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {selectedHotel.star_rating ? `${selectedHotel.star_rating}★ ` : ""}
-                    {selectedHotel.category} · {selectedHotel.destination.name}
-                  </p>
-                </div>
-                <div className="space-y-1 shrink-0">
-                  <Label className="text-xs">Nights</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={hotelDays ?? ""}
-                    onChange={e => setHotelDays(e.target.value ? Number(e.target.value) : null)}
-                    className="w-20 h-7 text-sm"
-                    placeholder="1"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
+          {/* Hotel assignments are managed per stay-type via the hotel assignment panel */}
 
           {/* Activities */}
           <div className="space-y-1.5">
@@ -361,16 +313,25 @@ function DayDialog({
 
 // ── Main ItineraryTab ─────────────────────────────────────────────────────
 
+type AssignedStayType = {
+  id:           number;
+  stay_type_id: number;
+  name:         string;
+  is_default:   boolean;
+};
+
 export function ItineraryTab({
   package_id,
   durations,
   hotels,
   activities,
+  assignedStayTypes,
 }: {
-  package_id:  number;
-  durations:   Duration[];
-  hotels:      Hotel[];
-  activities:  ActivityOption[];
+  package_id:        number;
+  durations:         Duration[];
+  hotels:            Hotel[];
+  activities:        ActivityOption[];
+  assignedStayTypes: AssignedStayType[];
 }) {
   const router = useRouter();
   const defaultDuration = durations.find(d => d.is_default) ?? durations[0];
@@ -537,11 +498,10 @@ export function ItineraryTab({
                               <p className="text-xs text-muted-foreground">{entry.description}</p>
                             )}
                             <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                              {entry.hotel && (
+                              {entry.itin_hotels.length > 0 && (
                                 <span className="flex items-center gap-1">
                                   <Hotel className="h-3 w-3" />
-                                  {entry.hotel.name}
-                                  {entry.hotel_days != null && ` · ${entry.hotel_days}N`}
+                                  {entry.itin_hotels.length} hotel{entry.itin_hotels.length !== 1 ? "s" : ""} assigned
                                 </span>
                               )}
                               {actIds.length > 0 && (

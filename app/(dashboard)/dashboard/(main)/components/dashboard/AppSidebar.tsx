@@ -41,6 +41,7 @@ const navGroups = [
             { title: "Categories", href: "/dashboard/categories", icon: <TagIcon weight="duotone" className="size-6 text-muted-foreground" /> },
             { title: "Activities", href: "/dashboard/activities", icon: <ParachuteIcon weight="duotone" className="size-6 scale-110 text-muted-foreground" /> },
             { title: "Policies", href: "/dashboard/policies", icon: <FileTextIcon weight="duotone" className="size-6 scale-110 text-muted-foreground" /> },
+            { title: "Stay Types", href: "/dashboard/stay-types", icon: <FileTextIcon weight="duotone" className="size-6 scale-110 text-muted-foreground" /> },
         ],
     },
     {
