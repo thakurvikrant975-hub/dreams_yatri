@@ -5,7 +5,7 @@ import {
 } from "../ui/sidebar";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, } from "../ui/accordion";
 
-import { LayoutDashboard, Settings, Users, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound
+import { LayoutDashboard, Settings, Users, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound, MessageCircleQuestion, ClockCheck, Mails, Forward
 } from "lucide-react";
 
 import {
@@ -63,9 +63,10 @@ const navGroups = [
         id: "marketing",
         label: "Marketing",
         items: [
-            { title: "", href: "/dashboard/team-members", icon: <IdCardLanyard className="size-6 text-muted-foreground" /> },
-            { title: "Activity Logs", href: "/dashboard/activity-logs", icon: <Activity className="size-6 text-muted-foreground" /> },
-            { title: "Roles and Permissions", href: "/dashboard/roles-and-permissions", icon: <KeyRound className="size-6 text-muted-foreground" /> },
+            { title: "Queries", href: "/dashboard/queries", icon: <MessageCircleQuestion className="size-6 text-muted-foreground" /> },
+            { title: "Email Marketing", href: "/dashboard/email-marketing", icon: <Mails className="size-6 text-muted-foreground" /> },
+            { title: "Follow ups", href: "/dashboard/follow-ups", icon: <ClockCheck className="size-6 text-muted-foreground" /> },
+            { title: "References", href: "/dashboard/references", icon: <Forward className="size-6 text-muted-foreground" /> },
         ],
     },
     {
