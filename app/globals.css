@@ -91,7 +91,7 @@
 
 @layer base {
     [data-layout="website"] {
-        --max-width-container: 1280px;
+        --max-width-container: 1400px;
 
         --z-base: 1;
         --z-dropdown: 100;
