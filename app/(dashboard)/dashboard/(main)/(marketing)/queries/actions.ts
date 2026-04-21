@@ -65,7 +65,13 @@ async function logTimeline(
     meta?: Record<string, unknown>,
 ) {
     await db.queryTimeline.create({
-        data: { queryId, event, actorId, actorName, meta: meta ?? Prisma.JsonNull },
+        data: {
+            queryId,
+            event,
+            actorId,
+            actorName,
+            meta: meta ? (meta as Prisma.InputJsonValue) : Prisma.JsonNull,
+        },
     });
 }
 
@@ -410,7 +416,7 @@ export type ManualQueryFormState = {
 };
 
 const manualQuerySchema = z.object({
-    // name:        z.string().min(1, "Name is required").max(100),
+    name:        z.string(),
     phone:       z.string().min(6, "Valid phone number required").max(20),
     email:       z.string().email("Invalid email").optional().or(z.literal("")),
     destination: z.string().optional(),
