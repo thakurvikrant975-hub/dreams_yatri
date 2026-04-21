@@ -51,6 +51,7 @@ const DESTINATIONS = [
 const SOURCES = [
     { label: "Phone Call",    value: "PHONE_CALL" },
     { label: "WhatsApp",      value: "WHATSAPP" },
+    { label: "Meta",          value: "META" },
     { label: "Website Form",  value: "WEBSITE_FORM" },
     { label: "Landing Page",  value: "LANDING_PAGE" },
     { label: "Referral",      value: "REFERRAL" },
@@ -111,7 +112,7 @@ export function AddQueryDialog() {
                     <div className="grid grid-cols-2 gap-3">
                         <div className="col-span-2 space-y-1.5">
                             <Label htmlFor="name">
-                                Full Name <span className="text-destructive">*</span>
+                                Full Name
                             </Label>
                             <Input
                                 id="name" name="name"
@@ -149,19 +150,20 @@ export function AddQueryDialog() {
 
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                            <Label htmlFor="destination">Destination</Label>
+                            <Label htmlFor="destination">Destination<span className="text-destructive">*</span></Label>
                             {/* Hidden input carries the value for form action */}
                             <input type="hidden" name="destination" value={destination} />
-                            <Select value={destination} onValueChange={setDest}>
-                                <SelectTrigger id="destination">
-                                    <SelectValue placeholder="Select destination" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {DESTINATIONS.map(d => (
-                                        <SelectItem key={d} value={d}>{d}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+<Select value={destination} onValueChange={setDest}>
+    <SelectTrigger id="destination">
+        <SelectValue placeholder="Select destination" />
+    </SelectTrigger>
+    <SelectContent>
+        {DESTINATIONS.map(d => (
+            <SelectItem key={d} value={d}>{d}</SelectItem>
+        ))}
+    </SelectContent>
+</Select>
+<FieldError errors={state.errors} field="destination" />
                         </div>
 
                         <div className="space-y-1.5">
@@ -176,7 +178,7 @@ export function AddQueryDialog() {
                         <div className="space-y-1.5">
                             <Label htmlFor="groupSize">
                                 <span className="flex items-center gap-1">
-                                    <Users className="h-3 w-3" /> Group Size
+                                    <Users className="h-3 w-3" /> No of travellers
                                 </span>
                             </Label>
                             <Input

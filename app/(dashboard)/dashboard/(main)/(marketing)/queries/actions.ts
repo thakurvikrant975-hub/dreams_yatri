@@ -9,50 +9,50 @@ import { Prisma } from "@/app/generated/prisma";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type ActionResult<T = void> =
-    | { success: true;  data: T;    message: string }
+    | { success: true; data: T; message: string }
     | { success: false; data?: never; message: string; errors?: Record<string, string[]> };
 
 export type QueryStatus = "SUBMITTED" | "IN_PROGRESS" | "VERIFIED" | "REJECTED";
 export type QuerySource = "WEBSITE_FORM" | "LANDING_PAGE" | "WHATSAPP" | "PHONE_CALL" | "REFERRAL" | "OTHER";
 
 export type PackageQuery = {
-    id:               string;
-    name:             string;
-    email:            string | null;
-    phone:            string;
-    message:          string | null;
-    packageName:      string | null;
-    destination:      string | null;
-    travelDate:       Date | null;
-    groupSize:        number | null;
-    source:           QuerySource;
-    status:           QueryStatus;
-    verified:         boolean;
-    verifiedAt:       Date | null;
-    verifiedBy:       string | null;
+    id: string;
+    name: string;
+    email: string | null;
+    phone: string;
+    message: string | null;
+    packageName: string | null;
+    destination: string | null;
+    travelDate: Date | null;
+    groupSize: number | null;
+    source: QuerySource;
+    status: QueryStatus;
+    verified: boolean;
+    verifiedAt: Date | null;
+    verifiedBy: string | null;
     rejectionReasonId: string | null;
-    rejectionNote:    string | null;
-    callAttempts:     number;
-    lastAttemptAt:    Date | null;
-    nextFollowUpAt:   Date | null;
-    assignedTo:       string | null;
-    assignedAt:       Date | null;
-    createdAt:        Date;
-    updatedAt:        Date;
-    rejectionReason:  { id: string; label: string } | null;
-    _count:           { notes: number };
+    rejectionNote: string | null;
+    callAttempts: number;
+    lastAttemptAt: Date | null;
+    nextFollowUpAt: Date | null;
+    assignedTo: string | null;
+    assignedAt: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+    rejectionReason: { id: string; label: string } | null;
+    _count: { notes: number };
 };
 
 export type RejectionReason = {
-    id:          string;
-    label:       string;
+    id: string;
+    label: string;
     description: string | null;
-    isSystem:    boolean;
-    isActive:    boolean;
-    sortOrder:   number;
-    createdAt:   Date;
-    updatedAt:   Date;
-    _count:      { queries: number };
+    isSystem: boolean;
+    isActive: boolean;
+    sortOrder: number;
+    createdAt: Date;
+    updatedAt: Date;
+    _count: { queries: number };
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -115,11 +115,11 @@ const markInProgressSchema = z.object({
 export async function markInProgress(queryId: string): Promise<ActionResult> {
     try {
         const session = await dashboardAuth();
-        const actor   = session?.user;
+        const actor = session?.user;
 
         await db.packageQuery.update({
             where: { id: queryId },
-            data:  { status: "IN_PROGRESS", callAttempts: { increment: 1 }, lastAttemptAt: new Date() },
+            data: { status: "IN_PROGRESS", callAttempts: { increment: 1 }, lastAttemptAt: new Date() },
         });
 
         await logTimeline(queryId, "Marked as In Progress — call attempted", actor?.id, actor?.name ?? undefined);
@@ -135,13 +135,13 @@ export async function markInProgress(queryId: string): Promise<ActionResult> {
 export async function verifyQuery(queryId: string): Promise<ActionResult> {
     try {
         const session = await dashboardAuth();
-        const actor   = session?.user;
+        const actor = session?.user;
 
         await db.packageQuery.update({
             where: { id: queryId },
             data: {
-                status:     "VERIFIED",
-                verified:   true,
+                status: "VERIFIED",
+                verified: true,
                 verifiedAt: new Date(),
                 verifiedBy: actor?.id ?? null,
             },
@@ -159,7 +159,7 @@ export async function verifyQuery(queryId: string): Promise<ActionResult> {
 
 const rejectSchema = z.object({
     rejectionReasonId: z.string().min(1, "Select a rejection reason"),
-    rejectionNote:     z.string().max(500).optional(),
+    rejectionNote: z.string().max(500).optional(),
 });
 
 export async function rejectQuery(
@@ -168,20 +168,20 @@ export async function rejectQuery(
 ): Promise<ActionResult> {
     const parsed = rejectSchema.safeParse({
         rejectionReasonId: formData.get("rejectionReasonId"),
-        rejectionNote:     formData.get("rejectionNote") || undefined,
+        rejectionNote: formData.get("rejectionNote") || undefined,
     });
 
     if (!parsed.success) {
         return {
             success: false,
             message: "Validation failed",
-            errors:  parsed.error.flatten().fieldErrors as Record<string, string[]>,
+            errors: parsed.error.flatten().fieldErrors as Record<string, string[]>,
         };
     }
 
     try {
         const session = await dashboardAuth();
-        const actor   = session?.user;
+        const actor = session?.user;
 
         const reason = await db.rejectionReason.findUnique({
             where: { id: parsed.data.rejectionReasonId },
@@ -190,10 +190,10 @@ export async function rejectQuery(
         await db.packageQuery.update({
             where: { id: queryId },
             data: {
-                status:            "REJECTED",
-                verified:          false,
+                status: "REJECTED",
+                verified: false,
                 rejectionReasonId: parsed.data.rejectionReasonId,
-                rejectionNote:     parsed.data.rejectionNote ?? null,
+                rejectionNote: parsed.data.rejectionNote ?? null,
             },
         });
 
@@ -226,12 +226,12 @@ export type CallOutcome =
     | "CALL_BACK_LATER";
 
 const CALL_OUTCOME_LABELS: Record<CallOutcome, string> = {
-    RECEIVED:        "Call Received",
-    NOT_RECEIVED:    "Not Received",
-    INVALID_NUMBER:  "Invalid Number",
-    REJECTED:        "Call Rejected by Customer",
-    BUSY:            "Line Busy",
-    VOICEMAIL:       "Went to Voicemail",
+    RECEIVED: "Call Received",
+    NOT_RECEIVED: "Not Received",
+    INVALID_NUMBER: "Invalid Number",
+    REJECTED: "Call Rejected by Customer",
+    BUSY: "Line Busy",
+    VOICEMAIL: "Went to Voicemail",
     CALL_BACK_LATER: "Customer Asked to Call Back Later",
 };
 
@@ -243,20 +243,20 @@ export async function logCallAttempt(
 ): Promise<ActionResult> {
     try {
         const session = await dashboardAuth();
-        const actor   = session?.user;
+        const actor = session?.user;
 
         await db.packageQuery.update({
             where: { id: queryId },
             data: {
-                callAttempts:   { increment: 1 },
-                lastAttemptAt:  new Date(),
+                callAttempts: { increment: 1 },
+                lastAttemptAt: new Date(),
                 nextFollowUpAt: nextFollowUpAt ?? null,
-                status:         "IN_PROGRESS",
+                status: "IN_PROGRESS",
             },
         });
 
         const outcomeLabel = outcome ? CALL_OUTCOME_LABELS[outcome] : "Call attempted";
-        const eventParts   = [`📞 Call Attempt #${(await db.packageQuery.findUnique({ where: { id: queryId }, select: { callAttempts: true } }))?.callAttempts ?? "?"} — ${outcomeLabel}`];
+        const eventParts = [`📞 Call Attempt #${(await db.packageQuery.findUnique({ where: { id: queryId }, select: { callAttempts: true } }))?.callAttempts ?? "?"} — ${outcomeLabel}`];
         if (response) eventParts.push(`Note: ${response}`);
 
         await logTimeline(
@@ -327,13 +327,13 @@ export async function addNote(
 
     try {
         const session = await dashboardAuth();
-        const actor   = session?.user;
+        const actor = session?.user;
 
         await db.queryNote.create({
             data: {
                 queryId,
                 authorId: actor?.id ?? "system",
-                content:  parsed.data.content,
+                content: parsed.data.content,
             },
         });
 
@@ -348,13 +348,13 @@ export async function addNote(
 // ── REJECTION REASONS CRUD ───────────────────────────────────────────────────
 
 export type RejectionReasonFormState = {
-    success:  boolean;
-    message:  string;
-    errors?:  Record<string, string[]>;
+    success: boolean;
+    message: string;
+    errors?: Record<string, string[]>;
 };
 
 const reasonSchema = z.object({
-    label:       z.string().min(1, "Label is required").max(100),
+    label: z.string().min(1, "Label is required").max(100),
     description: z.string().max(300).optional(),
 });
 
@@ -363,7 +363,7 @@ export async function createRejectionReason(
     formData: FormData,
 ): Promise<RejectionReasonFormState> {
     const parsed = reasonSchema.safeParse({
-        label:       formData.get("label"),
+        label: formData.get("label"),
         description: formData.get("description") || undefined,
     });
     if (!parsed.success) {
@@ -410,21 +410,21 @@ export async function toggleRejectionReason(id: string, isActive: boolean): Prom
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type ManualQueryFormState = {
-    success:  boolean;
-    message:  string;
-    errors?:  Record<string, string[]>;
+    success: boolean;
+    message: string;
+    errors?: Record<string, string[]>;
 };
 
 const manualQuerySchema = z.object({
-    name:        z.string(),
-    phone:       z.string().min(6, "Valid phone number required").max(20),
-    email:       z.string().email("Invalid email").optional().or(z.literal("")),
-    destination: z.string().optional(),
+    name: z.string(),
+    phone: z.string().min(6, "Valid phone number required").max(20),
+    email: z.string().email("Invalid email").optional().or(z.literal("")),
+    destination: z.string().min(1, "Destination is required."),
     packageName: z.string().optional(),
-    groupSize:   z.coerce.number().int().min(1).max(500).optional(),
-    travelDate:  z.string().optional(),
-    message:     z.string().max(2000).optional(),
-    source:      z.enum(["WEBSITE_FORM","LANDING_PAGE","WHATSAPP","PHONE_CALL","REFERRAL","OTHER"]).default("PHONE_CALL"),
+    groupSize: z.coerce.number().int().min(1).max(500).optional(),
+    travelDate: z.string().optional(),
+    message: z.string().max(2000).optional(),
+    source: z.enum(["WEBSITE_FORM", "LANDING_PAGE", "WHATSAPP", "PHONE_CALL", "REFERRAL", "OTHER"]).default("PHONE_CALL"),
 });
 
 export async function createManualQuery(
@@ -432,15 +432,15 @@ export async function createManualQuery(
     formData: FormData,
 ): Promise<ManualQueryFormState> {
     const raw = {
-        name:        formData.get("name"),
-        phone:       formData.get("phone"),
-        email:       formData.get("email") || undefined,
-        destination: formData.get("destination") || undefined,
+        name: formData.get("name"),
+        phone: formData.get("phone"),
+        email: formData.get("email") || undefined,
+        destination: formData.get("destination") as string,
         packageName: formData.get("packageName") || undefined,
-        groupSize:   formData.get("groupSize") || undefined,
-        travelDate:  formData.get("travelDate") || undefined,
-        message:     formData.get("message") || undefined,
-        source:      formData.get("source") || "PHONE_CALL",
+        groupSize: formData.get("groupSize") || undefined,
+        travelDate: formData.get("travelDate") || undefined,
+        message: formData.get("message") || undefined,
+        source: formData.get("source") || "PHONE_CALL",
     };
 
     const parsed = manualQuerySchema.safeParse(raw);
@@ -448,29 +448,29 @@ export async function createManualQuery(
         return {
             success: false,
             message: "Validation failed",
-            errors:  parsed.error.flatten().fieldErrors as Record<string, string[]>,
+            errors: parsed.error.flatten().fieldErrors as Record<string, string[]>,
         };
     }
 
     try {
         const session = await dashboardAuth();
-        const actor   = session?.user;
+        const actor = session?.user;
 
-const query = await db.packageQuery.create({
-    data: {
-        name:        parsed.data.name,
-        phone:       parsed.data.phone,
-        email:       parsed.data.email || null,
-        destination: parsed.data.destination || null,
-        packageName: parsed.data.packageName || null,
-        groupSize:   parsed.data.groupSize ?? null,
-        travelDate:  parsed.data.travelDate ? new Date(parsed.data.travelDate) : null,
-        message:     parsed.data.message || null,
-        source:      parsed.data.source,
-        status:      "SUBMITTED",
-        verified:    false,
-    },
-});
+        const query = await db.packageQuery.create({
+            data: {
+                name: parsed.data.name,
+                phone: parsed.data.phone,
+                email: parsed.data.email || null,
+                destination: parsed.data.destination || null,
+                packageName: parsed.data.packageName || null,
+                groupSize: parsed.data.groupSize ?? null,
+                travelDate: parsed.data.travelDate ? new Date(parsed.data.travelDate) : null,
+                message: parsed.data.message || null,
+                source: parsed.data.source,
+                status: "VERIFIED",
+                verified: false,
+            },
+        });
 
         await logTimeline(
             query.id,
@@ -520,15 +520,16 @@ import { AddQueryDialog } from "./AddQueryDialog";   // add this import
 // ─────────────────────────────────────────────────────────────────────────────
 
 const updateQuerySchema = z.object({
-    name:        z.string().min(1, "Name is required").max(100),
-    phone:       z.string().min(6, "Valid phone required").max(20),
-    email:       z.string().email("Invalid email").optional().or(z.literal("")),
+    name: z.string().min(1, "Name is required").max(100),
+    phone: z.string().min(6, "Valid phone required").max(20),
+    email: z.string().email("Invalid email").optional().or(z.literal("")),
     destination: z.string().optional(),
     packageName: z.string().optional(),
-    groupSize:   z.coerce.number().int().min(1).max(500).optional(),
-    travelDate:  z.string().optional(),
-    message:     z.string().max(2000).optional(),
-    source:      z.enum(["WEBSITE_FORM","LANDING_PAGE","WHATSAPP","PHONE_CALL","REFERRAL","OTHER"]),
+    groupSize: z.coerce.number().int().min(1).max(500).optional(),
+    travelDate: z.string().optional(),
+    message: z.string().max(2000).optional(),
+    source: z.enum(["WEBSITE_FORM", "LANDING_PAGE", "WHATSAPP", "PHONE_CALL", "REFERRAL", "OTHER"]),
+
 });
 
 export async function updateQuery(
@@ -536,15 +537,15 @@ export async function updateQuery(
     formData: FormData,
 ): Promise<ActionResult> {
     const raw = {
-        name:        formData.get("name"),
-        phone:       formData.get("phone"),
-        email:       formData.get("email") || undefined,
-        destination: formData.get("destination") || undefined,
+        name: formData.get("name"),
+        phone: formData.get("phone"),
+        email: formData.get("email") || undefined,
+        destination: formData.get("destination") as string,
         packageName: formData.get("packageName") || undefined,
-        groupSize:   formData.get("groupSize") || undefined,
-        travelDate:  formData.get("travelDate") || undefined,
-        message:     formData.get("message") || undefined,
-        source:      formData.get("source"),
+        groupSize: formData.get("groupSize") || undefined,
+        travelDate: formData.get("travelDate") || undefined,
+        message: formData.get("message") || undefined,
+        source: formData.get("source"),
     };
 
     const parsed = updateQuerySchema.safeParse(raw);
@@ -552,26 +553,26 @@ export async function updateQuery(
         return {
             success: false,
             message: "Validation failed",
-            errors:  parsed.error.flatten().fieldErrors as Record<string, string[]>,
+            errors: parsed.error.flatten().fieldErrors as Record<string, string[]>,
         };
     }
 
     try {
         const session = await dashboardAuth();
-        const actor   = session?.user;
+        const actor = session?.user;
 
         await db.packageQuery.update({
             where: { id: queryId },
             data: {
-                name:        parsed.data.name,
-                phone:       parsed.data.phone,
-                email:       parsed.data.email || null,
+                name: parsed.data.name,
+                phone: parsed.data.phone,
+                email: parsed.data.email || null,
                 destination: parsed.data.destination || null,
                 packageName: parsed.data.packageName || null,
-                groupSize:   parsed.data.groupSize ?? null,
-                travelDate:  parsed.data.travelDate ? new Date(parsed.data.travelDate) : null,
-                message:     parsed.data.message || null,
-                source:      parsed.data.source,
+                groupSize: parsed.data.groupSize ?? null,
+                travelDate: parsed.data.travelDate ? new Date(parsed.data.travelDate) : null,
+                message: parsed.data.message || null,
+                source: parsed.data.source,
             },
         });
 
