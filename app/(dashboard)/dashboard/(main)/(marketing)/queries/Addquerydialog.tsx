@@ -21,6 +21,7 @@ import {
     type DestinationOption,
     type PackageOption,
 } from "./actions";
+import { PhoneInput } from "./PhoneInput";
 // ── Field Error ───────────────────────────────────────────────────────────────
 
 function FieldError({ errors, field }: { errors?: Record<string, string[]>; field: string }) {
@@ -70,6 +71,8 @@ export function AddQueryDialog() {
     const [loadingPkgs, setLoadingPkgs]           = useState(false);
     const formRef                                 = useRef<HTMLFormElement>(null);
     const [state, action, isPending]              = useActionState(createManualQuery, initial);
+
+    
 
     useEffect(() => {
         if (!open) return;
@@ -139,16 +142,16 @@ export function AddQueryDialog() {
 
                     <div className="grid grid-cols-2 gap-3">
                         <div className="col-span-2 space-y-1.5">
-                            <Label htmlFor="name">Full Name <span className="text-destructive">*</span></Label>
-                            <Input id="name" name="name" placeholder="e.g. Rahul Sharma" autoComplete="off" />
+                            <Label htmlFor="name">Full Name</Label>
+                            <Input id="name" name="name" placeholder="Rahul Sharma" autoComplete="off" />
                             <FieldError errors={state.errors} field="name" />
                         </div>
-                        <div className="space-y-1.5">
-                            <Label htmlFor="phone">Phone <span className="text-destructive">*</span></Label>
-                            <Input id="phone" name="phone" placeholder="+91 98765 43210" autoComplete="off" />
-                            <FieldError errors={state.errors} field="phone" />
+                        <div className="col-span-2 space-y-1.5">
+                            <Label>Phone <span className="text-destructive">*</span></Label>
+                            <PhoneInput name="phone"/>
+                            <FieldError errors={state.errors} field="phone" />  {/* or errors.phone for EditDialog */}
                         </div>
-                        <div className="space-y-1.5">
+                        <div className="col-span-2 space-y-1.5">
                             <Label htmlFor="email">Email</Label>
                             <Input id="email" name="email" type="email" placeholder="rahul@gmail.com" />
                         </div>
@@ -158,7 +161,7 @@ export function AddQueryDialog() {
 
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                            <Label>Destination</Label>
+                            <Label>Destination<span className="text-destructive">*</span></Label>
                             <Select
                                 value={selectedDestId ? `${selectedDestId}::${selectedDestName}` : ""}
                                 onValueChange={handleDestChange}
@@ -179,6 +182,7 @@ export function AddQueryDialog() {
                                     )}
                                 </SelectContent>
                             </Select>
+                            <FieldError errors={state.errors} field="destination" />
                         </div>
 
                         <div className="space-y-1.5">
@@ -209,7 +213,7 @@ export function AddQueryDialog() {
                             <Label htmlFor="groupSize">
                                 <span className="flex items-center gap-1"><Users className="h-3 w-3" /> No of travellers</span>
                             </Label>
-                            <Input id="groupSize" name="groupSize" type="number" min="1" max="100" placeholder="e.g. 4" />
+                            <Input id="groupSize" name="groupSize" type="number" min="1" max="100" placeholder="4" />
                         </div>
 
                         <div className="space-y-1.5">

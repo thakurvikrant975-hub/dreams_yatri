@@ -520,10 +520,10 @@ import { AddQueryDialog } from "./AddQueryDialog";   // add this import
 // ─────────────────────────────────────────────────────────────────────────────
 
 const updateQuerySchema = z.object({
-    name: z.string().min(1, "Name is required").max(100),
+    name: z.string(),
     phone: z.string().min(6, "Valid phone required").max(20),
     email: z.string().email("Invalid email").optional().or(z.literal("")),
-    destination: z.string().optional(),
+    destination: z.string().min(1, "Destination is required"),
     packageName: z.string().optional(),
     groupSize: z.coerce.number().int().min(1).max(500).optional(),
     travelDate: z.string().optional(),

@@ -154,7 +154,7 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
 
                     <div className="grid grid-cols-2 gap-3">
                         <div className="col-span-2 space-y-1.5">
-                            <Label htmlFor="edit-name">Full Name <span className="text-destructive">*</span></Label>
+                            <Label htmlFor="edit-name">Full Name</Label>
                             <Input id="edit-name" name="name" defaultValue={query.name} autoComplete="off" />
                             <FieldError errors={errors} field="name" />
                         </div>
@@ -174,7 +174,7 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
 
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                            <Label>Destination</Label>
+                            <Label>Destination<span className="text-destructive">*</span></Label>
                             <Select
                                 value={selectedDestId ? `${selectedDestId}::${selectedDestName}` : ""}
                                 onValueChange={handleDestChange}
@@ -192,6 +192,7 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
                                     ))}
                                 </SelectContent>
                             </Select>
+                            <FieldError errors={errors} field="destination" />
                             {!selectedDestId && selectedDestName && (
                                 <p className="text-xs text-muted-foreground">Current: {selectedDestName}</p>
                             )}
