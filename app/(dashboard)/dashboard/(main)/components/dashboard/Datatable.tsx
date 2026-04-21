@@ -34,8 +34,6 @@ function TablePagination({
     if (totalPages <= 1) return null;
 
     const isClientSide = typeof onPageChange === "function";
-
-    // For client-side, href is a dummy — navigation is prevented in onClick
     const href = buildHref ?? ((p: number) => `?page=${p}`);
 
     function handleClick(e: React.MouseEvent, p: number) {
@@ -114,14 +112,13 @@ interface DataTableProps<T> {
     data:           T[];
     columns:        ColumnDef<T>[];
     rowKey:         (row: T) => string | number;
+    onRowClick?:    (row: T) => void;
     renderSubRows?: (row: T) => React.ReactNode;
     emptyState?:    React.ReactNode;
     pagination?: {
         currentPage:   number;
         totalPages:    number;
-        /** Server-side: builds URL for each page link */
         buildHref?:    (page: number) => string;
-        /** Client-side: called with new page number, no navigation */
         onPageChange?: (page: number) => void;
     };
 }
@@ -130,6 +127,7 @@ export function DataTable<T>({
     data,
     columns,
     rowKey,
+    onRowClick,
     renderSubRows,
     emptyState,
     pagination,
@@ -168,7 +166,13 @@ export function DataTable<T>({
                     ) : (
                         data.map((row) => (
                             <React.Fragment key={rowKey(row)}>
-                                <TableRow className="hover:bg-muted/30">
+                                <TableRow
+                                    className={[
+                                        "hover:bg-muted/30",
+                                        onRowClick ? "cursor-pointer" : "",
+                                    ].join(" ")}
+                                    onClick={onRowClick ? () => onRowClick(row) : undefined}
+                                >
                                     {columns.map((col, i) => (
                                         <TableCell
                                             key={i}

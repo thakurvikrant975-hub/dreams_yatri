@@ -61,6 +61,13 @@ export default async function PackageEditPage({
     })),
   }));
 
+  // In [id]/page.tsx — after the Promise.all, add:
+
+  const serializedActivities = activities.map(a => ({
+    ...a,
+    duration_hours: a.duration_hours ? Number(a.duration_hours) : null,
+  }));
+
   const TABS = [
     { value: "basic", label: "Basic Info" },
     { value: "durations", label: `Durations (${durations.length})` },
@@ -71,10 +78,7 @@ export default async function PackageEditPage({
     { value: "images", label: `Images (${pkg.images.length})` },
   ];
 
-  const serializedActivities = activities.map(a => ({
-  ...a,
-  duration_hours: a.duration_hours ? Number(a.duration_hours) : null,
-}));
+
 
   return (
     <div className="space-y-6 ">

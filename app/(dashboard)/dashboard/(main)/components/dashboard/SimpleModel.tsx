@@ -5,8 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, useForm } from "react-hook-form"
 import { toast } from "sonner"
 import * as z from "zod"
-
-import { Button } from "@/components/ui/button"
+import Button from "@/app/components/ui/Button"
 import {
   Card,
   CardContent,

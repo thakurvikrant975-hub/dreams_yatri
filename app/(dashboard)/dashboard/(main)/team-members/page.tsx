@@ -1,6 +1,6 @@
 // page.tsx
 import { Suspense } from "react";
-import { Users } from "lucide-react";
+import { IdCardLanyard } from "lucide-react";
 import { Skeleton } from "../components/ui/skeleton";
 import {
   Breadcrumb, BreadcrumbItem, BreadcrumbLink,
@@ -77,11 +77,11 @@ async function PageContent({ searchParams }: PageProps) {
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <Users className="h-5 w-5 text-primary" />
+            <IdCardLanyard className="h-5 w-5 text-primary" />
           </div>
           <div>
             <h1 className="text-xl font-semibold">Team members</h1>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Manage your team, roles, and access
             </p>
           </div>
@@ -89,13 +89,13 @@ async function PageContent({ searchParams }: PageProps) {
         <CreateTeamMemberDialog departments={departments} roles={roles} />
       </div>
 
-      <TeamMembersTable
-        paginated={paginated}
-        totalStats={totalStats}
-        departments={departments}
-        roles={roles}
-        currentPage={page}
-      />
+   <TeamMembersTable
+      paginated={paginated}
+      totalStats={totalStats}
+      departments={departments}
+      roles={roles}
+      currentPage={page}
+    />
     </>
   );
 }
