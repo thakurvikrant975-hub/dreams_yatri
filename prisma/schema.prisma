@@ -838,3 +838,207 @@ model TeamMember {
   @@index([teamRoleId])
   @@map("team_members")
 }
+
+// logs for dashboard
+enum LogAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  LOGIN_FAILED
+  PASSWORD_CHANGE
+  PERMISSION_CHANGE
+  EXPORT
+  BULK_ACTION
+  VIEW_SENSITIVE
+}
+
+enum LogStatus {
+  SUCCESS
+  FAILED
+  REJECTED
+  PENDING
+}
+
+enum LogSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model ActivityLog {
+  id              String       @id @default(cuid())
+
+  // Actor
+  userId          String?      // null for unauthenticated attempts
+  userEmail       String?
+  userName        String?
+  userRole        String?      // snapshot at time of action
+  userDesignation String?      // snapshot at time of action
+
+  // Action
+  action          LogAction
+  entity          String       // "Hotel", "Package", "Booking", "User", etc.
+  entityId        String?      // ID of the affected record
+  entitySlug      String?      // human-readable reference
+
+  // Diff / Payload
+  previousData    Json?        // state before change
+  newData         Json?        // state after change
+  metadata        Json?        // extra context (filters applied, bulk count, etc.)
+
+  // Outcome
+  status          LogStatus    @default(SUCCESS)
+  errorMessage    String?      // if FAILED or REJECTED
+  statusCode      Int?         // HTTP status if from route handler
+
+  // Severity & Risk
+  severity        LogSeverity  @default(LOW)
+  isSuspicious    Boolean      @default(false)
+  flagReason      String?
+
+  // Request Context
+  ipAddress       String?
+  userAgent       String?
+  referer         String?
+  requestMethod   String?      // GET, POST, PATCH, DELETE
+  requestPath     String?      // /dashboard/hotels/create
+  sessionId       String?      // NextAuth session token hash (not raw)
+  requestId       String?      // unique per-request trace ID
+
+  // Geo (optional, from IP lookup)
+  country         String?
+  region          String?
+  city            String?
+
+  // Timestamps
+  actionAt        DateTime     @default(now())
+  createdAt       DateTime     @default(now())
+
+  description  String?   // human-readable summary of the action
+
+  @@index([userId])
+  @@index([action])
+  @@index([entity, entityId])
+  @@index([status])
+  @@index([severity])
+  @@index([isSuspicious])
+  @@index([actionAt])
+  @@index([ipAddress])
+  @@map("activity_logs")
+}
+
+
+enum QueryStatus {
+  SUBMITTED
+  IN_PROGRESS
+  VERIFIED
+  REJECTED
+}
+
+enum QuerySource {
+  WEBSITE_FORM
+  LANDING_PAGE
+  WHATSAPP
+  PHONE_CALL
+  REFERRAL
+  OTHER
+}
+
+model PackageQuery {
+  id          String      @id @default(cuid())
+
+  name        String
+  email       String?
+  phone       String
+  message     String?     @db.Text
+
+  packageName String?
+  destination String?
+  travelDate  DateTime?
+  groupSize   Int?
+
+  source      QuerySource @default(WEBSITE_FORM)
+  gclid       String?
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  pageUrl     String?
+
+  status      QueryStatus @default(SUBMITTED)
+  verified    Boolean     @default(false)
+  verifiedAt  DateTime?
+  verifiedBy  String?
+
+  rejectionReasonId String?
+  rejectionNote     String?   @db.Text
+
+  callAttempts      Int       @default(0)
+  lastAttemptAt     DateTime?
+  nextFollowUpAt    DateTime?
+
+  assignedTo        String?
+  assignedAt        DateTime?
+
+  rejectionReason   RejectionReason?  @relation(fields: [rejectionReasonId], references: [id])
+  notes             QueryNote[]
+  timeline          QueryTimeline[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status])
+  @@index([verified])
+  @@index([destination])
+  @@index([assignedTo])
+  @@index([createdAt])
+  @@map("package_queries")
+}
+
+model RejectionReason {
+  id          String    @id @default(cuid())
+  label       String
+  description String?
+  isSystem    Boolean   @default(false)
+  isActive    Boolean   @default(true)
+  sortOrder   Int       @default(0)
+
+  queries     PackageQuery[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("rejection_reasons")
+}
+
+model QueryNote {
+  id        String       @id @default(cuid())
+  queryId   String
+  authorId  String
+  content   String       @db.Text
+
+  query     PackageQuery @relation(fields: [queryId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime     @default(now())
+
+  @@index([queryId])
+  @@map("query_notes")
+}
+
+model QueryTimeline {
+  id        String       @id @default(cuid())
+  queryId   String
+  actorId   String?
+  actorName String?
+  event     String
+  meta      Json?
+
+  query     PackageQuery @relation(fields: [queryId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime     @default(now())
+
+  @@index([queryId])
+  @@map("query_timeline")
+}
