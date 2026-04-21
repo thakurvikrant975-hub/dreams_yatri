@@ -20,6 +20,7 @@ export type PackageQuery = {
     name: string;
     email: string | null;
     phone: string;
+    countryCode: string;
     message: string | null;
     packageName: string | null;
     destination: string | null;
@@ -418,6 +419,7 @@ export type ManualQueryFormState = {
 const manualQuerySchema = z.object({
     name: z.string(),
     phone: z.string().min(6, "Valid phone number required").max(20),
+    countryCode: z.string().default("IN"),
     email: z.string().email("Invalid email").optional().or(z.literal("")),
     destination: z.string().min(1, "Destination is required."),
     packageName: z.string().optional(),
@@ -434,6 +436,8 @@ export async function createManualQuery(
     const raw = {
         name: formData.get("name"),
         phone: formData.get("phone"),
+        // countryCode: parsed.data.countryCode,
+        countryCode: formData.get("countryCode") as string || "IN",
         email: formData.get("email") || undefined,
         destination: formData.get("destination") as string,
         packageName: formData.get("packageName") || undefined,
@@ -522,6 +526,7 @@ import { AddQueryDialog } from "./AddQueryDialog";   // add this import
 const updateQuerySchema = z.object({
     name: z.string(),
     phone: z.string().min(6, "Valid phone required").max(20),
+    countryCode: z.string().default("IN"),
     email: z.string().email("Invalid email").optional().or(z.literal("")),
     destination: z.string().min(1, "Destination is required"),
     packageName: z.string().optional(),
@@ -539,6 +544,8 @@ export async function updateQuery(
     const raw = {
         name: formData.get("name"),
         phone: formData.get("phone"),
+        // countryCode: parsed.data.countryCode,
+        countryCode: formData.get("countryCode") as string || "IN",
         email: formData.get("email") || undefined,
         destination: formData.get("destination") as string,
         packageName: formData.get("packageName") || undefined,
@@ -566,6 +573,7 @@ export async function updateQuery(
             data: {
                 name: parsed.data.name,
                 phone: parsed.data.phone,
+                countryCode: parsed.data.countryCode,   // ← add here
                 email: parsed.data.email || null,
                 destination: parsed.data.destination || null,
                 packageName: parsed.data.packageName || null,

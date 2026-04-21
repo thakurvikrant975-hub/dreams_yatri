@@ -167,7 +167,7 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
                             />
                             <FieldError errors={errors} field="phone" />
                         </div>
-                        <div className="space-y-1.5">
+                        <div className="col-span-2 space-y-1.5">
                             <Label htmlFor="edit-email">Email</Label>
                             <Input id="edit-email" name="email" type="email" defaultValue={query.email ?? ""} />
                             <FieldError errors={errors} field="email" />

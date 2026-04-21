@@ -775,6 +775,7 @@ model PackageQuery {
   name              String
   email             String?
   phone             String
+  countryCode       String  @default("IN")
   message           String?
   packageName       String?
   destination       String?
