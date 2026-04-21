@@ -591,22 +591,21 @@ export async function updateQuery(
 }
 
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ALSO FIX createManualQuery — replace the db.packageQuery.create data block:
-// ─────────────────────────────────────────────────────────────────────────────
+export type DestinationOption = { id: number; name: string; slug: string };
+export type PackageOption = { id: number; title: string; slug: string };
 
-// const query = await db.packageQuery.create({
-//     data: {
-//         name:        parsed.data.name,
-//         phone:       parsed.data.phone,
-//         email:       parsed.data.email || null,
-//         destination: parsed.data.destination || null,
-//         packageName: parsed.data.packageName || null,
-//         groupSize:   parsed.data.groupSize ?? null,
-//         travelDate:  parsed.data.travelDate ? new Date(parsed.data.travelDate) : null,
-//         message:     parsed.data.message || null,
-//         source:      parsed.data.source,
-//         status:      "SUBMITTED",
-//         verified:    false,
-//     },
-// });
+export async function getDestinationsForQuery(): Promise<DestinationOption[]> {
+    return db.destinations.findMany({
+        where: { is_active: true },
+        select: { id: true, name: true, slug: true },
+        orderBy: { name: "asc" },
+    });
+}
+
+export async function getPackagesByDestination(destinationId: number): Promise<PackageOption[]> {
+    return db.packages.findMany({
+        where: { destination_id: destinationId, is_active: true },
+        select: { id: true, title: true, slug: true },
+        orderBy: { title: "asc" },
+    });
+}

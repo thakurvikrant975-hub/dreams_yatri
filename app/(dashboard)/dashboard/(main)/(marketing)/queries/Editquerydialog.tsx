@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Pencil, MapPin, Users, Calendar, Globe, MessageSquare, User, Phone, Mail } from "lucide-react";
+import { useState, useTransition, useEffect } from "react";
+import { Pencil, MapPin, Users, Calendar, Globe, MessageSquare, User, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -15,8 +15,14 @@ import {
     Select, SelectContent, SelectItem,
     SelectTrigger, SelectValue,
 } from "../../components/ui/select";
-import { updateQuery } from "./actions";
-import type { PackageQuery } from "./actions";
+import {
+    updateQuery,
+    getDestinationsForQuery,
+    getPackagesByDestination,
+    type PackageQuery,
+    type DestinationOption,
+    type PackageOption,
+} from "./actions";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -38,13 +44,6 @@ function SectionLabel({ icon: Icon, label }: { icon: React.ElementType; label: s
     );
 }
 
-const DESTINATIONS = [
-    "Kashmir", "Himachal Pradesh", "Uttarakhand", "Rajasthan",
-    "Goa", "Kerala", "Northeast India", "Sikkim",
-    "Ladakh", "Spiti Valley", "Andaman", "Karnataka",
-    "Dubai", "Thailand", "Other",
-];
-
 const SOURCES = [
     { label: "Phone Call",   value: "PHONE_CALL" },
     { label: "WhatsApp",     value: "WHATSAPP" },
@@ -63,19 +62,54 @@ type Props = {
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
-
 export function EditQueryDialog({ query, children, onDone }: Props) {
-    const [open, setOpen]           = useState(false);
-    const [isPending, startTransition] = useTransition();
-    const [errors, setErrors]       = useState<Record<string, string[]>>({});
-    const [source, setSource]       = useState(query.source);
-    const [destination, setDest]    = useState(query.destination ?? "");
+    const [open, setOpen]                         = useState(false);
+    const [isPending, startTransition]            = useTransition();
+    const [errors, setErrors]                     = useState<Record<string, string[]>>({});
+    const [source, setSource]                     = useState(query.source);
+    const [destinations, setDestinations]         = useState<DestinationOption[]>([]);
+    const [packages, setPackages]                 = useState<PackageOption[]>([]);
+    const [loadingDests, setLoadingDests]         = useState(false);
+    const [loadingPkgs, setLoadingPkgs]           = useState(false);
+    const [selectedDestId, setSelectedDestId]     = useState<number | null>(null);
+    const [selectedDestName, setSelectedDestName] = useState(query.destination ?? "");
+    const [selectedPkgTitle, setSelectedPkgTitle] = useState(query.packageName ?? "");
+
+    useEffect(() => {
+        if (!open) return;
+        setLoadingDests(true);
+        getDestinationsForQuery().then(dests => {
+            setDestinations(dests);
+            if (query.destination) {
+                const match = dests.find(d => d.name === query.destination);
+                if (match) setSelectedDestId(match.id);
+            }
+            setLoadingDests(false);
+        });
+    }, [open]);
+
+    useEffect(() => {
+        if (!selectedDestId) { setPackages([]); return; }
+        setLoadingPkgs(true);
+        getPackagesByDestination(selectedDestId).then(pkgs => {
+            setPackages(pkgs);
+            setLoadingPkgs(false);
+        });
+    }, [selectedDestId]);
+
+    function handleDestChange(value: string) {
+        const [idStr, ...rest] = value.split("::");
+        setSelectedDestId(parseInt(idStr));
+        setSelectedDestName(rest.join("::"));
+        setSelectedPkgTitle("");
+    }
 
     function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
-        formData.set("source", source);
-        formData.set("destination", destination);
+        formData.set("source",      source);
+        formData.set("destination", selectedDestName);
+        formData.set("packageName", selectedPkgTitle);
 
         startTransition(async () => {
             const result = await updateQuery(query.id, formData);
@@ -93,7 +127,6 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
         });
     }
 
-    // Format date for input[type=date]
     const travelDateValue = query.travelDate
         ? new Date(query.travelDate).toISOString().split("T")[0]
         : "";
@@ -117,120 +150,103 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
 
                 <form onSubmit={handleSubmit} className="space-y-4 pt-1">
 
-                    {/* ── Lead Info ── */}
                     <SectionLabel icon={User} label="Lead Information" />
 
                     <div className="grid grid-cols-2 gap-3">
                         <div className="col-span-2 space-y-1.5">
-                            <Label htmlFor="edit-name">
-                                Full Name <span className="text-destructive">*</span>
-                            </Label>
-                            <Input
-                                id="edit-name"
-                                name="name"
-                                defaultValue={query.name}
-                                autoComplete="off"
-                            />
+                            <Label htmlFor="edit-name">Full Name <span className="text-destructive">*</span></Label>
+                            <Input id="edit-name" name="name" defaultValue={query.name} autoComplete="off" />
                             <FieldError errors={errors} field="name" />
                         </div>
-
                         <div className="space-y-1.5">
-                            <Label htmlFor="edit-phone">
-                                Phone <span className="text-destructive">*</span>
-                            </Label>
-                            <Input
-                                id="edit-phone"
-                                name="phone"
-                                defaultValue={query.phone}
-                                autoComplete="off"
-                            />
+                            <Label htmlFor="edit-phone">Phone <span className="text-destructive">*</span></Label>
+                            <Input id="edit-phone" name="phone" defaultValue={query.phone} autoComplete="off" />
                             <FieldError errors={errors} field="phone" />
                         </div>
-
                         <div className="space-y-1.5">
                             <Label htmlFor="edit-email">Email</Label>
-                            <Input
-                                id="edit-email"
-                                name="email"
-                                type="email"
-                                defaultValue={query.email ?? ""}
-                            />
+                            <Input id="edit-email" name="email" type="email" defaultValue={query.email ?? ""} />
                             <FieldError errors={errors} field="email" />
                         </div>
                     </div>
 
-                    {/* ── Package Info ── */}
                     <SectionLabel icon={MapPin} label="Package Details" />
 
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                             <Label>Destination</Label>
-                            <input type="hidden" name="destination" value={destination} />
-                            <Select value={destination} onValueChange={setDest}>
+                            <Select
+                                value={selectedDestId ? `${selectedDestId}::${selectedDestName}` : ""}
+                                onValueChange={handleDestChange}
+                                disabled={loadingDests}
+                            >
                                 <SelectTrigger>
-                                    <SelectValue placeholder="Select destination" />
+                                    {loadingDests
+                                        ? <span className="flex items-center gap-1.5 text-muted-foreground text-sm"><Loader2 className="h-3 w-3 animate-spin" /> Loading...</span>
+                                        : <SelectValue placeholder="Select destination" />
+                                    }
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {DESTINATIONS.map(d => (
-                                        <SelectItem key={d} value={d}>{d}</SelectItem>
+                                    {destinations.map(d => (
+                                        <SelectItem key={d.id} value={`${d.id}::${d.name}`}>{d.name}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
+                            {!selectedDestId && selectedDestName && (
+                                <p className="text-xs text-muted-foreground">Current: {selectedDestName}</p>
+                            )}
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="edit-packageName">Package Name</Label>
-                            <Input
-                                id="edit-packageName"
-                                name="packageName"
-                                defaultValue={query.packageName ?? ""}
-                                placeholder="e.g. Kashmir Honeymoon 7N"
-                            />
+                            <Label>Package</Label>
+                            <Select
+                                value={selectedPkgTitle}
+                                onValueChange={setSelectedPkgTitle}
+                                disabled={!selectedDestId || loadingPkgs}
+                            >
+                                <SelectTrigger>
+                                    {loadingPkgs
+                                        ? <span className="flex items-center gap-1.5 text-muted-foreground text-sm"><Loader2 className="h-3 w-3 animate-spin" /> Loading...</span>
+                                        : <SelectValue placeholder={!selectedDestId ? "Select destination first" : "Select package"} />
+                                    }
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {packages.map(p => (
+                                        <SelectItem key={p.id} value={p.title}>{p.title}</SelectItem>
+                                    ))}
+                                    {!loadingPkgs && selectedDestId && packages.length === 0 && (
+                                        <SelectItem value="__none__" disabled>No packages for this destination</SelectItem>
+                                    )}
+                                </SelectContent>
+                            </Select>
+                            {!selectedPkgTitle && query.packageName && (
+                                <p className="text-xs text-muted-foreground">Current: {query.packageName}</p>
+                            )}
                         </div>
 
                         <div className="space-y-1.5">
                             <Label htmlFor="edit-groupSize">
-                                <span className="flex items-center gap-1">
-                                    <Users className="h-3 w-3" /> Group Size
-                                </span>
+                                <span className="flex items-center gap-1"><Users className="h-3 w-3" /> No of travellers</span>
                             </Label>
-                            <Input
-                                id="edit-groupSize"
-                                name="groupSize"
-                                type="number"
-                                min="1"
-                                max="100"
-                                defaultValue={query.groupSize ?? ""}
-                                placeholder="e.g. 4"
-                            />
+                            <Input id="edit-groupSize" name="groupSize" type="number" min="1" max="100"
+                                defaultValue={query.groupSize ?? ""} placeholder="e.g. 4" />
                         </div>
 
                         <div className="space-y-1.5">
                             <Label htmlFor="edit-travelDate">
-                                <span className="flex items-center gap-1">
-                                    <Calendar className="h-3 w-3" /> Travel Date
-                                </span>
+                                <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Travel Date</span>
                             </Label>
-                            <Input
-                                id="edit-travelDate"
-                                name="travelDate"
-                                type="date"
-                                defaultValue={travelDateValue}
-                            />
+                            <Input id="edit-travelDate" name="travelDate" type="date" defaultValue={travelDateValue} />
                         </div>
                     </div>
 
-                    {/* ── Source ── */}
                     <SectionLabel icon={Globe} label="Source" />
 
                     <div className="space-y-1.5">
                         <Label>How did they reach us?</Label>
-                        <input type="hidden" name="source" value={source} />
                         <div className="flex flex-wrap gap-2">
                             {SOURCES.map(s => (
-                                <button
-                                    key={s.value}
-                                    type="button"
+                                <button key={s.value} type="button"
                                     onClick={() => setSource(s.value as PackageQuery["source"])}
                                     className={[
                                         "px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors",
@@ -238,33 +254,21 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
                                             ? "bg-primary text-primary-foreground border-primary"
                                             : "bg-background hover:bg-muted border-border text-muted-foreground",
                                     ].join(" ")}
-                                >
-                                    {s.label}
-                                </button>
+                                >{s.label}</button>
                             ))}
                         </div>
                     </div>
 
-                    {/* ── Message ── */}
                     <SectionLabel icon={MessageSquare} label="Notes / Message" />
 
                     <div className="space-y-1.5">
                         <Label htmlFor="edit-message">Enquiry Details</Label>
-                        <Textarea
-                            id="edit-message"
-                            name="message"
-                            defaultValue={query.message ?? ""}
-                            placeholder="What did they enquire about?"
-                            rows={3}
-                            className="resize-none text-sm"
-                        />
+                        <Textarea id="edit-message" name="message" defaultValue={query.message ?? ""}
+                            placeholder="What did they enquire about?" rows={3} className="resize-none text-sm" />
                     </div>
 
-                    {/* ── Actions ── */}
                     <div className="flex justify-end gap-2 pt-3 border-t">
-                        <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                            Cancel
-                        </Button>
+                        <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
                         <Button type="submit" disabled={isPending} className="gap-2">
                             <Pencil className="h-3.5 w-3.5" />
                             {isPending ? "Saving..." : "Save Changes"}
