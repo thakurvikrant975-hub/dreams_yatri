@@ -141,7 +141,7 @@ async function main() {
       },
     ],
     skipDuplicates: true,
-  });
+  }); 
 
   console.log("✅ PackageQuery seeded");
 }

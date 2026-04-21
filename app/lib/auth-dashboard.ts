@@ -46,50 +46,85 @@ export const {
         password: { label: "Password", type: "password" },
       },
 
-      async authorize(credentials) {
-        const parsed = LoginSchema.safeParse(credentials);
-        if (!parsed.success) return null;
+      // async authorize(credentials) {
+      //   const parsed = LoginSchema.safeParse(credentials);
+      //   if (!parsed.success) return null;
 
-        const { email, password } = parsed.data;
+      //   const { email, password } = parsed.data;
 
-        const member = await db.teamMember.findUnique({
-          where: { email },
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            password: true,
-            isActive: true,
-            departmentId: true,
-            teamRole: {
-              select: {
-                name: true,
-                permissions: true,
-              },
-            },
-          },
-        });
+      //   const member = await db.teamMember.findUnique({
+      //     where: { email },
+      //     select: {
+      //       id: true,
+      //       name: true,
+      //       email: true,
+      //       password: true,
+      //       isActive: true,
+      //       departmentId: true,
+      //       teamRole: {
+      //         select: {
+      //           name: true,
+      //           permissions: true,
+      //         },
+      //       },
+      //     },
+      //   });
 
-        if (!member || !member.password) return null;
-        if (!member.isActive) return null;
+      //   if (!member || !member.password) return null;
+      //   if (!member.isActive) return null;
 
-        const valid = await compare(password, member.password);
-        if (!valid) return null;
+      //   const valid = await compare(password, member.password);
+      //   if (!valid) return null;
 
-        db.teamMember.update({
-          where: { id: member.id },
-          data: { lastLoginAt: new Date() },
-        }).catch(console.error);
+      //   db.teamMember.update({
+      //     where: { id: member.id },
+      //     data: { lastLoginAt: new Date() },
+      //   }).catch(console.error);
 
-        return {
-          id: member.id,
-          name: member.name,
-          email: member.email,
-          role: member.teamRole?.name ?? null,
-          permissions: member.teamRole?.permissions ?? [],
-          departmentId: member.departmentId ?? null,
-        };
-      },
+      //   return {
+      //     id: member.id,
+      //     name: member.name,
+      //     email: member.email,
+      //     role: member.teamRole?.name ?? null,
+      //     permissions: member.teamRole?.permissions ?? [],
+      //     departmentId: member.departmentId ?? null,
+      //   };
+      // },
+
+      async authorize(credentials, _request) {
+  const parsed = LoginSchema.safeParse(credentials);
+  if (!parsed.success) {
+    console.log("❌ Zod parse failed", parsed.error);
+    return null;
+  }
+
+  const { email, password } = parsed.data;
+
+  const member = await db.teamMember.findUnique({
+    where: { email },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      password: true,
+      isActive: true,
+      departmentId: true,
+      teamRole: { select: { name: true, permissions: true } },
+    },
+  });
+
+  console.log("Member found:", !!member);
+  console.log("Has password:", !!member?.password);
+  console.log("isActive:", member?.isActive);
+
+  if (!member || !member.password) return null;
+  if (!member.isActive) return null;
+
+  const valid = await compare(password, member.password);
+  console.log("Password valid:", valid);
+
+  if (!valid) return null;
+}
     }),
   ],
 
