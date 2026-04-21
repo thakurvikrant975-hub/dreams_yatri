@@ -611,9 +611,12 @@ export async function getDestinationsForQuery(): Promise<DestinationOption[]> {
 }
 
 export async function getPackagesByDestination(destinationId: number): Promise<PackageOption[]> {
+    const id = Number(destinationId); // force number conversion
+    if (!id || isNaN(id)) return [];
+
     return db.packages.findMany({
-        where: { destination_id: destinationId, is_active: true },
-        select: { id: true, title: true, slug: true },
+        where:   { destination_id: id, is_active: true },
+        select:  { id: true, title: true, slug: true },
         orderBy: { title: "asc" },
     });
 }

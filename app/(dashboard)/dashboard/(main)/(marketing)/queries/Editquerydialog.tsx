@@ -46,69 +46,106 @@ function SectionLabel({ icon: Icon, label }: { icon: React.ElementType; label: s
 }
 
 const SOURCES = [
-    { label: "Phone Call",   value: "PHONE_CALL" },
-    { label: "WhatsApp",     value: "WHATSAPP" },
+    { label: "Phone Call", value: "PHONE_CALL" },
+    { label: "WhatsApp", value: "WHATSAPP" },
     { label: "Website Form", value: "WEBSITE_FORM" },
     { label: "Landing Page", value: "LANDING_PAGE" },
-    { label: "Referral",     value: "REFERRAL" },
-    { label: "Other",        value: "OTHER" },
+    { label: "Referral", value: "REFERRAL" },
+    { label: "Other", value: "OTHER" },
 ];
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 type Props = {
-    query:    PackageQuery;
+    query: PackageQuery;
     children: React.ReactNode;
-    onDone?:  () => void;
+    onDone?: () => void;
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export function EditQueryDialog({ query, children, onDone }: Props) {
-    const [open, setOpen]                         = useState(false);
-    const [isPending, startTransition]            = useTransition();
-    const [errors, setErrors]                     = useState<Record<string, string[]>>({});
-    const [source, setSource]                     = useState(query.source);
-    const [destinations, setDestinations]         = useState<DestinationOption[]>([]);
-    const [packages, setPackages]                 = useState<PackageOption[]>([]);
-    const [loadingDests, setLoadingDests]         = useState(false);
-    const [loadingPkgs, setLoadingPkgs]           = useState(false);
-    const [selectedDestId, setSelectedDestId]     = useState<number | null>(null);
+    const [open, setOpen] = useState(false);
+    const [isPending, startTransition] = useTransition();
+    const [errors, setErrors] = useState<Record<string, string[]>>({});
+    const [source, setSource] = useState(query.source);
+    const [destinations, setDestinations] = useState<DestinationOption[]>([]);
+    const [packages, setPackages] = useState<PackageOption[]>([]);
+    const [loadingDests, setLoadingDests] = useState(false);
+    const [loadingPkgs, setLoadingPkgs] = useState(false);
+    const [selectedDestId, setSelectedDestId] = useState<number | null>(null);
     const [selectedDestName, setSelectedDestName] = useState(query.destination ?? "");
     const [selectedPkgTitle, setSelectedPkgTitle] = useState(query.packageName ?? "");
 
-    useEffect(() => {
-        if (!open) return;
-        setLoadingDests(true);
-        getDestinationsForQuery().then(dests => {
-            setDestinations(dests);
-            if (query.destination) {
-                const match = dests.find(d => d.name === query.destination);
-                if (match) setSelectedDestId(match.id);
-            }
-            setLoadingDests(false);
-        });
-    }, [open]);
+    // Load destinations and auto-match on open
+useEffect(() => {
+    if (!open) return;
 
-    useEffect(() => {
-        if (!selectedDestId) { setPackages([]); return; }
+    // Reset state fresh every time dialog opens
+    setSelectedDestId(null);
+    setSelectedDestName(query.destination ?? "");
+    setSelectedPkgTitle(query.packageName ?? "");
+    setPackages([]);
+    setDestinations([]);
+
+    setLoadingDests(true);
+    getDestinationsForQuery().then(dests => {
+        setDestinations(dests);
+        setLoadingDests(false);
+
+        if (!query.destination) return;
+
+        const match = dests.find(d => d.name === query.destination);
+        if (!match) return;
+
+        setSelectedDestId(match.id);
+        setSelectedDestName(match.name);
+
+        // Only load packages if there's a saved package to auto-select
         setLoadingPkgs(true);
-        getPackagesByDestination(selectedDestId).then(pkgs => {
+        getPackagesByDestination(match.id).then(pkgs => {
             setPackages(pkgs);
             setLoadingPkgs(false);
+
+            if (!query.packageName) return;
+
+            // Trim both sides to avoid whitespace mismatch
+            const pkgMatch = pkgs.find(
+                p => p.title.trim() === query.packageName!.trim()
+            );
+            if (pkgMatch) {
+                setSelectedPkgTitle(pkgMatch.title);
+            }
         });
+    });
+}, [open, query.id]);
+
+    // Load packages when destination changes manually
+    useEffect(() => {
+        if (!selectedDestId || !open) return;
+        // Skip on initial load — handled above
     }, [selectedDestId]);
 
-    function handleDestChange(value: string) {
-        const [idStr, ...rest] = value.split("::");
-        setSelectedDestId(parseInt(idStr));
-        setSelectedDestName(rest.join("::"));
-        setSelectedPkgTitle("");
-    }
+
+
+function handleDestChange(value: string) {
+    const [idStr, ...rest] = value.split("::");
+    const id = parseInt(idStr, 10);  // add radix 10
+    const name = rest.join("::");
+    setSelectedDestId(id);
+    setSelectedDestName(name);
+    setSelectedPkgTitle("");
+
+    setLoadingPkgs(true);
+    getPackagesByDestination(id).then(pkgs => {
+        setPackages(pkgs);
+        setLoadingPkgs(false);
+    });
+}
 
     function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
-        formData.set("source",      source);
+        formData.set("source", source);
         formData.set("destination", selectedDestName);
         formData.set("packageName", selectedPkgTitle);
 
@@ -180,7 +217,13 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
                         <div className="space-y-1.5">
                             <Label>Destination<span className="text-destructive">*</span></Label>
                             <Select
-                                value={selectedDestId ? `${selectedDestId}::${selectedDestName}` : ""}
+                                value={
+    selectedDestId
+        ? `${selectedDestId}::${selectedDestName}`
+        : destinations.find(d => d.name === selectedDestName)
+            ? `${destinations.find(d => d.name === selectedDestName)!.id}::${selectedDestName}`
+            : ""
+}
                                 onValueChange={handleDestChange}
                                 disabled={loadingDests}
                             >
@@ -205,10 +248,10 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
                         <div className="space-y-1.5">
                             <Label>Package</Label>
                             <Select
-                                value={selectedPkgTitle}
-                                onValueChange={setSelectedPkgTitle}
-                                disabled={!selectedDestId || loadingPkgs}
-                            >
+    value={selectedPkgTitle}
+    onValueChange={setSelectedPkgTitle}
+    disabled={!selectedDestId || loadingPkgs}
+>
                                 <SelectTrigger>
                                     {loadingPkgs
                                         ? <span className="flex items-center gap-1.5 text-muted-foreground text-sm"><Loader2 className="h-3 w-3 animate-spin" /> Loading...</span>
