@@ -410,7 +410,7 @@ export type ManualQueryFormState = {
 };
 
 const manualQuerySchema = z.object({
-    name:        z.string().min(1, "Name is required").max(100),
+    // name:        z.string().min(1, "Name is required").max(100),
     phone:       z.string().min(6, "Valid phone number required").max(20),
     email:       z.string().email("Invalid email").optional().or(z.literal("")),
     destination: z.string().optional(),
@@ -450,17 +450,21 @@ export async function createManualQuery(
         const session = await dashboardAuth();
         const actor   = session?.user;
 
-        const { travelDate, email, ...rest } = parsed.data;
-
-        const query = await db.packageQuery.create({
-            data: {
-                ...rest,
-                email:      email || null,
-                travelDate: travelDate ? new Date(travelDate) : null,
-                status:     "SUBMITTED",
-                verified:   false,
-            },
-        });
+const query = await db.packageQuery.create({
+    data: {
+        name:        parsed.data.name,
+        phone:       parsed.data.phone,
+        email:       parsed.data.email || null,
+        destination: parsed.data.destination || null,
+        packageName: parsed.data.packageName || null,
+        groupSize:   parsed.data.groupSize ?? null,
+        travelDate:  parsed.data.travelDate ? new Date(parsed.data.travelDate) : null,
+        message:     parsed.data.message || null,
+        source:      parsed.data.source,
+        status:      "SUBMITTED",
+        verified:    false,
+    },
+});
 
         await logTimeline(
             query.id,
@@ -502,3 +506,100 @@ import { AddQueryDialog } from "./AddQueryDialog";   // add this import
     <AddQueryDialog />   // ← ADD THIS
 </div>
 */
+
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADD TO actions.ts — updateQuery server action
+// ─────────────────────────────────────────────────────────────────────────────
+
+const updateQuerySchema = z.object({
+    name:        z.string().min(1, "Name is required").max(100),
+    phone:       z.string().min(6, "Valid phone required").max(20),
+    email:       z.string().email("Invalid email").optional().or(z.literal("")),
+    destination: z.string().optional(),
+    packageName: z.string().optional(),
+    groupSize:   z.coerce.number().int().min(1).max(500).optional(),
+    travelDate:  z.string().optional(),
+    message:     z.string().max(2000).optional(),
+    source:      z.enum(["WEBSITE_FORM","LANDING_PAGE","WHATSAPP","PHONE_CALL","REFERRAL","OTHER"]),
+});
+
+export async function updateQuery(
+    queryId: string,
+    formData: FormData,
+): Promise<ActionResult> {
+    const raw = {
+        name:        formData.get("name"),
+        phone:       formData.get("phone"),
+        email:       formData.get("email") || undefined,
+        destination: formData.get("destination") || undefined,
+        packageName: formData.get("packageName") || undefined,
+        groupSize:   formData.get("groupSize") || undefined,
+        travelDate:  formData.get("travelDate") || undefined,
+        message:     formData.get("message") || undefined,
+        source:      formData.get("source"),
+    };
+
+    const parsed = updateQuerySchema.safeParse(raw);
+    if (!parsed.success) {
+        return {
+            success: false,
+            message: "Validation failed",
+            errors:  parsed.error.flatten().fieldErrors as Record<string, string[]>,
+        };
+    }
+
+    try {
+        const session = await dashboardAuth();
+        const actor   = session?.user;
+
+        await db.packageQuery.update({
+            where: { id: queryId },
+            data: {
+                name:        parsed.data.name,
+                phone:       parsed.data.phone,
+                email:       parsed.data.email || null,
+                destination: parsed.data.destination || null,
+                packageName: parsed.data.packageName || null,
+                groupSize:   parsed.data.groupSize ?? null,
+                travelDate:  parsed.data.travelDate ? new Date(parsed.data.travelDate) : null,
+                message:     parsed.data.message || null,
+                source:      parsed.data.source,
+            },
+        });
+
+        await logTimeline(
+            queryId,
+            `✏️ Query details updated`,
+            actor?.id,
+            actor?.name ?? undefined,
+        );
+
+        revalidatePath("/dashboard/queries");
+        return { success: true, data: undefined, message: "Query updated successfully" };
+    } catch {
+        return { success: false, message: "Failed to update query" };
+    }
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ALSO FIX createManualQuery — replace the db.packageQuery.create data block:
+// ─────────────────────────────────────────────────────────────────────────────
+
+// const query = await db.packageQuery.create({
+//     data: {
+//         name:        parsed.data.name,
+//         phone:       parsed.data.phone,
+//         email:       parsed.data.email || null,
+//         destination: parsed.data.destination || null,
+//         packageName: parsed.data.packageName || null,
+//         groupSize:   parsed.data.groupSize ?? null,
+//         travelDate:  parsed.data.travelDate ? new Date(parsed.data.travelDate) : null,
+//         message:     parsed.data.message || null,
+//         source:      parsed.data.source,
+//         status:      "SUBMITTED",
+//         verified:    false,
+//     },
+// });

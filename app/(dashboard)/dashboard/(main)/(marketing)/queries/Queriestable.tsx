@@ -21,6 +21,9 @@ import { RejectQueryDialog } from "./Rejectquerydialog";
 import { QueryDetailSheet } from "./Querydetailsheet";
 import { verifyQuery, markInProgress, getQueryById } from "./actions";
 import type { PackageQuery, RejectionReason } from "./actions";
+import { Pencil } from "lucide-react";
+import { EditQueryDialog } from "./Editquerydialog";
+
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -137,6 +140,20 @@ function ActionCell({
                         <TooltipContent>Verify Lead</TooltipContent>
                     </Tooltip>
                 )}
+
+                {/* Edit Query */}
+<Tooltip>
+    <TooltipTrigger asChild>
+        <span onClick={(e) => e.stopPropagation()}>
+            <EditQueryDialog query={query} onDone={() => {}}>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <Pencil className="h-3.5 w-3.5" />
+                </Button>
+            </EditQueryDialog>
+        </span>
+    </TooltipTrigger>
+    <TooltipContent>Edit Query</TooltipContent>
+</Tooltip>
 
                 {/* Reject */}
                 {!isTerminal && (
