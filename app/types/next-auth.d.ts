@@ -1,37 +1,56 @@
-// types/next-auth.d.ts
-
 import "next-auth";
 import "next-auth/jwt";
-import { Role, UserStatus } from "@/app/generated/prisma"; // ← import from generated, not @prisma/client
+import { Role, UserStatus } from "@/app/generated/prisma";
+import { Prisma } from "@/app/generated/prisma";
 
 declare module "next-auth" {
   interface Session {
     user: {
-      id:                string;
-      phone:             string | null;
-      role:              Role;
-      status:            UserStatus;
-      isProfileComplete: boolean;
-      name?:             string | null;
-      image?:            string | null;
+      id:                 string;
+      name?:              string | null;
+      email?:             string | null;
+      image?:             string | null;
+
+      // ── Public user auth (main website) ──
+      phone?:             string | null;
+      role?:              Role | null;
+      status?:            UserStatus | null;
+      isProfileComplete?: boolean;
+
+      // ── Dashboard employee auth ──
+      dashboardRole?:     string | null;      // team role name (string)
+      permissions?:       Prisma.JsonValue;
+      departmentId?:      string | null;
     };
   }
 
   interface User {
-    phone:             string | null;
-    role:              Role;
-    status:            UserStatus;
-    isProfileComplete: boolean;
+    // ── Public user auth ──
+    phone?:             string | null;
+    role?:              Role | null;
+    status?:            UserStatus | null;
+    isProfileComplete?: boolean;
+
+    // ── Dashboard employee auth ──
+    dashboardRole?:     string | null;
+    permissions?:       Prisma.JsonValue;
+    departmentId?:      string | null;
   }
 }
 
 declare module "next-auth/jwt" {
   interface JWT {
-    userId:            string;
-    phone:             string | null;
-    role:              Role;
-    status:            UserStatus;
-    isProfileComplete: boolean;
-    picture?:          string | null;
+    // ── Public user auth ──
+    userId?:            string;
+    phone?:             string | null;
+    role?:              Role | null;
+    status?:            UserStatus | null;
+    isProfileComplete?: boolean;
+    picture?:           string | null;
+
+    // ── Dashboard employee auth ──
+    dashboardRole?:     string | null;
+    permissions?:       Prisma.JsonValue;
+    departmentId?:      string | null;
   }
 }
