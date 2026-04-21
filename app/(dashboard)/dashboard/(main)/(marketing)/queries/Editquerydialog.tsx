@@ -23,6 +23,7 @@ import {
     type DestinationOption,
     type PackageOption,
 } from "./actions";
+import { PhoneInput } from "./PhoneInput";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -158,9 +159,12 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
                             <Input id="edit-name" name="name" defaultValue={query.name} autoComplete="off" />
                             <FieldError errors={errors} field="name" />
                         </div>
-                        <div className="space-y-1.5">
-                            <Label htmlFor="edit-phone">Phone <span className="text-destructive">*</span></Label>
-                            <Input id="edit-phone" name="phone" defaultValue={query.phone} autoComplete="off" />
+                        <div className="col-span-2 space-y-1.5">
+                            <Label>Phone <span className="text-destructive">*</span></Label>
+                            <PhoneInput
+                                name="phone"
+                                defaultValue={query.phone}
+                            />
                             <FieldError errors={errors} field="phone" />
                         </div>
                         <div className="space-y-1.5">
