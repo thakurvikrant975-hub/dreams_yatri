@@ -99,7 +99,7 @@ model packages {
   hotels          package_hotels[]
   images          package_images[]
   itineraries     package_itineraries[]
-  policies        package_policy_map[]
+  policies        package_policy_map[]. 
   pricing         package_pricing[]
   stay_categories package_stay_categories[]
   tags            package_tags[]
