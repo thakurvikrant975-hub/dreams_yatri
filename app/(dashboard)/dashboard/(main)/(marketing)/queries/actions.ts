@@ -21,6 +21,7 @@ export type PackageQuery = {
     email: string | null;
     phone: string;
     countryCode: string;
+    leadProfileId: string | null;
     message: string | null;
     packageName: string | null;
     destination: string | null;
@@ -42,6 +43,7 @@ export type PackageQuery = {
     updatedAt: Date;
     rejectionReason: { id: string; label: string } | null;
     _count: { notes: number };
+    totalLeadQueries: number;  
 };
 
 export type RejectionReason = {
@@ -79,13 +81,24 @@ async function logTimeline(
 // ── READ ──────────────────────────────────────────────────────────────────────
 
 export async function getQueries(): Promise<PackageQuery[]> {
-    return db.packageQuery.findMany({
+    const queries = await db.packageQuery.findMany({
         include: {
             rejectionReason: { select: { id: true, label: true } },
             _count: { select: { notes: true } },
+            leadProfile: {
+                select: {
+                    _count: { select: { queries: true } },
+                },
+            },
         },
         orderBy: { createdAt: "desc" },
-    }) as Promise<PackageQuery[]>;
+    }) as any[];
+
+    // Flatten totalLeadQueries onto each query
+    return queries.map(q => ({
+        ...q,
+        totalLeadQueries: q.leadProfile?._count?.queries ?? 1,
+    })) as PackageQuery[];
 }
 
 export async function getQueryById(id: string) {
@@ -456,23 +469,53 @@ export async function createManualQuery(
         };
     }
 
-    try {
+try {
         const session = await dashboardAuth();
         const actor = session?.user;
 
+        // ── Normalize phone & duplicate check ──────────────────────────────
+        const normalizedPhone = parsed.data.phone.replace(/[\s\-().+]/g, "");
+
+        const recentDuplicate = await db.packageQuery.findFirst({
+            where: {
+                phone:     parsed.data.phone,
+                createdAt: { gte: new Date(Date.now() - 1000 * 60 * 5) },
+            },
+        });
+        if (recentDuplicate) {
+            return { success: false, message: "A query from this number was submitted in the last 5 minutes. Please wait before submitting again." };
+        }
+
+        const profile = await db.leadProfile.upsert({
+            where:  { phone: normalizedPhone },
+            update: {
+                name:         parsed.data.name,
+                email:        parsed.data.email || undefined,
+                lastSeenAt:   new Date(),
+                totalQueries: { increment: 1 },
+            },
+            create: {
+                phone: normalizedPhone,
+                name:  parsed.data.name,
+                email: parsed.data.email || null,
+            },
+        });
+        // ───────────────────────────────────────────────────────────────────
+
         const query = await db.packageQuery.create({
             data: {
-                name: parsed.data.name,
-                phone: parsed.data.phone,
-                email: parsed.data.email || null,
-                destination: parsed.data.destination || null,
-                packageName: parsed.data.packageName || null,
-                groupSize: parsed.data.groupSize ?? null,
-                travelDate: parsed.data.travelDate ? new Date(parsed.data.travelDate) : null,
-                message: parsed.data.message || null,
-                source: parsed.data.source,
-                status: "VERIFIED",
-                verified: false,
+                name:          parsed.data.name,
+                phone:         parsed.data.phone,
+                email:         parsed.data.email || null,
+                destination:   parsed.data.destination || null,
+                packageName:   parsed.data.packageName || null,
+                groupSize:     parsed.data.groupSize ?? null,
+                travelDate:    parsed.data.travelDate ? new Date(parsed.data.travelDate) : null,
+                message:       parsed.data.message || null,
+                source:        parsed.data.source,
+                status:        "VERIFIED",
+                verified:      false,
+                leadProfileId: profile.id,   // ← link to profile
             },
         });
 
@@ -491,50 +534,17 @@ export async function createManualQuery(
     }
 }
 
-
-// ─────────────────────────────────────────────────────────────────────────────
-// UPDATE YOUR page.tsx header section — replace the existing header div with:
-// ─────────────────────────────────────────────────────────────────────────────
-
-/*
-import { AddQueryDialog } from "./AddQueryDialog";   // add this import
-
-// Replace the header div:
-<div className="flex items-start justify-between">
-    <div className="flex items-center gap-3">
-        <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <Inbox className="h-5 w-5 text-primary" />
-        </div>
-        <div>
-            <h1 className="text-xl font-semibold">Lead Queries</h1>
-            <p className="text-sm text-muted-foreground">
-                Manage, verify, and action all incoming enquiries
-            </p>
-        </div>
-    </div>
-
-    <AddQueryDialog />   // ← ADD THIS
-</div>
-*/
-
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ADD TO actions.ts — updateQuery server action
-// ─────────────────────────────────────────────────────────────────────────────
-
 const updateQuerySchema = z.object({
-    name: z.string(),
-    phone: z.string().min(6, "Valid phone required").max(20),
+    name:        z.string().min(1, "Name is required").max(100),
+    phone:       z.string().min(6, "Valid phone required").max(20),
     countryCode: z.string().default("IN"),
-    email: z.string().email("Invalid email").optional().or(z.literal("")),
+    email:       z.string().email("Invalid email").optional().or(z.literal("")),
     destination: z.string().min(1, "Destination is required"),
     packageName: z.string().optional(),
-    groupSize: z.coerce.number().int().min(1).max(500).optional(),
-    travelDate: z.string().optional(),
-    message: z.string().max(2000).optional(),
-    source: z.enum(["WEBSITE_FORM", "LANDING_PAGE", "WHATSAPP", "PHONE_CALL", "REFERRAL", "OTHER"]),
-
+    groupSize:   z.coerce.number().int().min(1).max(500).optional(),
+    travelDate:  z.string().optional(),
+    message:     z.string().max(2000).optional(),
+    source:      z.enum(["WEBSITE_FORM", "LANDING_PAGE", "WHATSAPP", "PHONE_CALL", "REFERRAL", "OTHER"]),
 });
 
 export async function updateQuery(
@@ -542,17 +552,16 @@ export async function updateQuery(
     formData: FormData,
 ): Promise<ActionResult> {
     const raw = {
-        name: formData.get("name"),
-        phone: formData.get("phone"),
-        // countryCode: parsed.data.countryCode,
+        name:        formData.get("name"),
+        phone:       formData.get("phone"),
         countryCode: formData.get("countryCode") as string || "IN",
-        email: formData.get("email") || undefined,
+        email:       formData.get("email") || undefined,
         destination: formData.get("destination") as string,
         packageName: formData.get("packageName") || undefined,
-        groupSize: formData.get("groupSize") || undefined,
-        travelDate: formData.get("travelDate") || undefined,
-        message: formData.get("message") || undefined,
-        source: formData.get("source"),
+        groupSize:   formData.get("groupSize") || undefined,
+        travelDate:  formData.get("travelDate") || undefined,
+        message:     formData.get("message") || undefined,
+        source:      formData.get("source"),
     };
 
     const parsed = updateQuerySchema.safeParse(raw);
@@ -560,27 +569,45 @@ export async function updateQuery(
         return {
             success: false,
             message: "Validation failed",
-            errors: parsed.error.flatten().fieldErrors as Record<string, string[]>,
+            errors:  parsed.error.flatten().fieldErrors as Record<string, string[]>,
         };
     }
 
     try {
         const session = await dashboardAuth();
-        const actor = session?.user;
+        const actor   = session?.user;
+
+        // ── Sync lead profile ──────────────────────────────────────────────
+        const normalizedPhone = parsed.data.phone.replace(/[\s\-().+]/g, "");
+
+        await db.leadProfile.upsert({
+            where:  { phone: normalizedPhone },
+            update: {
+                name:       parsed.data.name,
+                email:      parsed.data.email || undefined,
+                lastSeenAt: new Date(),
+            },
+            create: {
+                phone: normalizedPhone,
+                name:  parsed.data.name,
+                email: parsed.data.email || null,
+            },
+        });
+        // ───────────────────────────────────────────────────────────────────
 
         await db.packageQuery.update({
             where: { id: queryId },
             data: {
-                name: parsed.data.name,
-                phone: parsed.data.phone,
-                countryCode: parsed.data.countryCode,   // ← add here
-                email: parsed.data.email || null,
+                name:        parsed.data.name,
+                phone:       parsed.data.phone,
+                countryCode: parsed.data.countryCode,
+                email:       parsed.data.email || null,
                 destination: parsed.data.destination || null,
                 packageName: parsed.data.packageName || null,
-                groupSize: parsed.data.groupSize ?? null,
-                travelDate: parsed.data.travelDate ? new Date(parsed.data.travelDate) : null,
-                message: parsed.data.message || null,
-                source: parsed.data.source,
+                groupSize:   parsed.data.groupSize ?? null,
+                travelDate:  parsed.data.travelDate ? new Date(parsed.data.travelDate) : null,
+                message:     parsed.data.message || null,
+                source:      parsed.data.source,
             },
         });
 
@@ -598,20 +625,19 @@ export async function updateQuery(
     }
 }
 
-
 export type DestinationOption = { id: number; name: string; slug: string };
-export type PackageOption = { id: number; title: string; slug: string };
+export type PackageOption     = { id: number; title: string; slug: string };
 
 export async function getDestinationsForQuery(): Promise<DestinationOption[]> {
     return db.destinations.findMany({
-        where: { is_active: true },
-        select: { id: true, name: true, slug: true },
+        where:   { is_active: true },
+        select:  { id: true, name: true, slug: true },
         orderBy: { name: "asc" },
     });
 }
 
 export async function getPackagesByDestination(destinationId: number): Promise<PackageOption[]> {
-    const id = Number(destinationId); // force number conversion
+    const id = Number(destinationId);
     if (!id || isNaN(id)) return [];
 
     return db.packages.findMany({

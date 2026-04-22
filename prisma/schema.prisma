@@ -804,6 +804,9 @@ model PackageQuery {
   notes             QueryNote[]
   timeline          QueryTimeline[]
 
+  leadProfileId String?
+  leadProfile   LeadProfile? @relation(fields: [leadProfileId], references: [id])
+
   @@index([status])
   @@index([verified])
   @@index([destination])
@@ -850,6 +853,21 @@ model QueryTimeline {
 
   @@index([queryId])
   @@map("query_timeline")
+}
+
+model LeadProfile {
+  id          String         @id @default(cuid())
+  phone       String         @unique  // normalized e.g. "+919876543210"
+  name        String                  // from latest query
+  email       String?
+  totalQueries Int           @default(0)
+  lastSeenAt  DateTime       @default(now())
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  queries     PackageQuery[]
+
+  @@map("lead_profiles")
 }
 
 enum PolicyType {

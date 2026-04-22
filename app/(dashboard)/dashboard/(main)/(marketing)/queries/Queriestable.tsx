@@ -238,22 +238,29 @@ export function QueriesTable({ queries, reasons }: Props) {
 
     // ── Columns ───────────────────────────────────────────────────────────────
     const columns: ColumnDef<PackageQuery>[] = [
-        {
-            header: "Lead",
-            width: "w-[220px]",
-            cell: (q) => (
-                <div className="space-y-0.5">
-                    <p className="font-medium text-sm leading-tight">{q.name}</p>
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Phone className="h-3 w-3" />
-                        <span>{q.phone}</span>
-                    </div>
-                    {q.email && (
-                        <p className="text-[11px] text-muted-foreground truncate max-w-[180px]">{q.email}</p>
-                    )}
-                </div>
-            ),
-        },
+{
+    header: "Lead",
+    width: "w-[220px]",
+    cell: (q) => (
+        <div className="space-y-0.5">
+            <div className="flex items-center gap-1.5">
+                <p className="font-medium text-sm leading-tight">{q.name}</p>
+                {q.totalLeadQueries > 1 && (
+                    <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300 py-0">
+                        {q.totalLeadQueries} queries
+                    </Badge>
+                )}
+            </div>
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Phone className="h-3 w-3" />
+                <span>{q.phone}</span>
+            </div>
+            {q.email && (
+                <p className="text-[11px] text-muted-foreground truncate max-w-[180px]">{q.email}</p>
+            )}
+        </div>
+    ),
+},
         {
             header: "Package / Destination",
             cell: (q) => (
