@@ -398,6 +398,11 @@ export function QueriesTable({ queries, reasons }: Props) {
                     columns={columns}
                     rowKey={(q) => q.id}
                     onRowClick={(q) => openDetail(q)}
+                        rowClassName={(q) =>
+        q.status === "IN_PROGRESS"
+            ? "bg-amber-50 dark:bg-amber-950/20 hover:bg-amber-100 dark:hover:bg-amber-950/30"
+            : ""
+    }
                     emptyState={
                         <div className="flex flex-col items-center gap-2">
                             <Inbox className="h-10 w-10 text-muted-foreground" />
