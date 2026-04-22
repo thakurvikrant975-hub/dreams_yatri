@@ -67,7 +67,7 @@ const navGroups = [
             { title: "Email Marketing", href: "/dashboard/email-marketing", icon: <Mails className="size-6 text-muted-foreground" /> },
             { title: "Follow ups", href: "/dashboard/follow-ups", icon: <ClockCheck className="size-6 text-muted-foreground" /> },
             { title: "References", href: "/dashboard/references", icon: <Forward className="size-6 text-muted-foreground" /> },
-            { title: "Coupen and offers", href: "/dashboard/references", icon: <BadgePercent className="size-6 text-muted-foreground" /> },
+            { title: "Coupons and offers", href: "/dashboard/coupons", icon: <BadgePercent className="size-6 text-muted-foreground" /> },
         ],
     },
     {
