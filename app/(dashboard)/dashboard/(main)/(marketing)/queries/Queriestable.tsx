@@ -367,11 +367,11 @@ export function QueriesTable({ queries, reasons }: Props) {
 
                 {/* Filters */}
                 <TableFilters
-    search={search}
-    onSearchChange={(v) => { setSearch(v); setPage(1); }}
-    searchPlaceholder="Search by name, phone, email, destination..."
-    filteredCount={isFiltering ? filtered.length : undefined}
-    totalCount={isFiltering ? queries.length : undefined}
+                    search={search}
+                    onSearchChange={(v) => { setSearch(v); setPage(1); }}
+                    searchPlaceholder="Search by name, phone, email, destination..."
+                    filteredCount={isFiltering ? filtered.length : undefined}
+                    totalCount={isFiltering ? queries.length : undefined}
                     filters={[
                         {
                             value: filterStatus,
@@ -400,19 +400,19 @@ export function QueriesTable({ queries, reasons }: Props) {
                     ]}
                 />
                 {search && (
-    <div className="flex items-center gap-2 px-1">
-        <p className="text-xs text-muted-foreground">
-            Showing queries for <span className="font-medium text-foreground">{search}</span>
-        </p>
-        <button
-            type="button"
-            onClick={() => { setSearch(""); setPage(1); }}
-            className="text-xs text-primary hover:underline"
-        >
-            Clear filter
-        </button>
-    </div>
-)}
+                    <div className="flex items-center gap-2 px-1">
+                        <p className="text-xs text-muted-foreground">
+                            Showing queries for <span className="font-medium text-foreground">{search}</span>
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => { setSearch(""); setPage(1); }}
+                            className="text-xs text-primary hover:underline"
+                        >
+                            Clear filter
+                        </button>
+                    </div>
+                )}
 
                 {/* Table */}
                 <DataTable
