@@ -238,29 +238,37 @@ export function QueriesTable({ queries, reasons }: Props) {
 
     // ── Columns ───────────────────────────────────────────────────────────────
     const columns: ColumnDef<PackageQuery>[] = [
-{
-    header: "Lead",
-    width: "w-[220px]",
-    cell: (q) => (
-        <div className="space-y-0.5">
-            <div className="flex items-center gap-1.5">
-                <p className="font-medium text-sm leading-tight">{q.name}</p>
-                {q.totalLeadQueries > 1 && (
-                    <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300 py-0">
-                        {q.totalLeadQueries} queries
-                    </Badge>
-                )}
-            </div>
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Phone className="h-3 w-3" />
-                <span>{q.phone}</span>
-            </div>
-            {q.email && (
-                <p className="text-[11px] text-muted-foreground truncate max-w-[180px]">{q.email}</p>
-            )}
-        </div>
-    ),
-},
+        {
+            header: "Lead",
+            width: "w-[220px]",
+            cell: (q) => (
+                <div className="space-y-0.5">
+                    <div className="flex items-center gap-1.5">
+                        <p className="font-medium text-sm leading-tight">{q.name}</p>
+                        {q.totalLeadQueries > 1 && (
+                            <Badge
+                                variant="outline"
+                                className="text-[10px] text-amber-600 border-amber-300 py-0 cursor-pointer hover:bg-amber-50"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSearch(q.phone);
+                                    setPage(1);
+                                }}
+                            >
+                                {q.totalLeadQueries} queries
+                            </Badge>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Phone className="h-3 w-3" />
+                        <span>{q.phone}</span>
+                    </div>
+                    {q.email && (
+                        <p className="text-[11px] text-muted-foreground truncate max-w-[180px]">{q.email}</p>
+                    )}
+                </div>
+            ),
+        },
         {
             header: "Package / Destination",
             cell: (q) => (
@@ -359,11 +367,11 @@ export function QueriesTable({ queries, reasons }: Props) {
 
                 {/* Filters */}
                 <TableFilters
-                    search={search}
-                    onSearchChange={(v) => { setSearch(v); setPage(1); }}
-                    searchPlaceholder="Search by name, phone, email, destination..."
-                    filteredCount={isFiltering ? filtered.length : undefined}
-                    totalCount={isFiltering ? queries.length : undefined}
+    search={search}
+    onSearchChange={(v) => { setSearch(v); setPage(1); }}
+    searchPlaceholder="Search by name, phone, email, destination..."
+    filteredCount={isFiltering ? filtered.length : undefined}
+    totalCount={isFiltering ? queries.length : undefined}
                     filters={[
                         {
                             value: filterStatus,
@@ -391,6 +399,20 @@ export function QueriesTable({ queries, reasons }: Props) {
                         },
                     ]}
                 />
+                {search && (
+    <div className="flex items-center gap-2 px-1">
+        <p className="text-xs text-muted-foreground">
+            Showing queries for <span className="font-medium text-foreground">{search}</span>
+        </p>
+        <button
+            type="button"
+            onClick={() => { setSearch(""); setPage(1); }}
+            className="text-xs text-primary hover:underline"
+        >
+            Clear filter
+        </button>
+    </div>
+)}
 
                 {/* Table */}
                 <DataTable
@@ -398,11 +420,11 @@ export function QueriesTable({ queries, reasons }: Props) {
                     columns={columns}
                     rowKey={(q) => q.id}
                     onRowClick={(q) => openDetail(q)}
-                        rowClassName={(q) =>
-        q.status === "IN_PROGRESS"
-            ? "bg-amber-50 dark:bg-amber-950/20 hover:bg-amber-100 dark:hover:bg-amber-950/30"
-            : ""
-    }
+                    rowClassName={(q) =>
+                        q.status === "IN_PROGRESS"
+                            ? "bg-amber-50 dark:bg-amber-950/20 hover:bg-amber-100 dark:hover:bg-amber-950/30"
+                            : ""
+                    }
                     emptyState={
                         <div className="flex flex-col items-center gap-2">
                             <Inbox className="h-10 w-10 text-muted-foreground" />
