@@ -21,11 +21,14 @@ import { RejectQueryDialog } from "./Rejectquerydialog";
 import { QueryDetailSheet } from "./Querydetailsheet";
 import { verifyQuery, markInProgress, getQueryById } from "./actions";
 import type { PackageQuery, RejectionReason } from "./actions";
+import { Pencil } from "lucide-react";
+import { EditQueryDialog } from "./Editquerydialog";
+
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type QueryWithDetails = PackageQuery & {
-    notes:    Array<{ id: string; authorId: string; content: string; createdAt: Date }>;
+    notes: Array<{ id: string; authorId: string; content: string; createdAt: Date }>;
     timeline: Array<{ id: string; actorName: string | null; event: string; createdAt: Date }>;
 };
 
@@ -37,19 +40,19 @@ type Props = {
 const PAGE_SIZE = 10;
 
 const STATUS_FILTER_OPTIONS = [
-    { label: "Submitted",   value: "SUBMITTED" },
+    { label: "Submitted", value: "SUBMITTED" },
     { label: "In Progress", value: "IN_PROGRESS" },
-    { label: "Verified",    value: "VERIFIED" },
-    { label: "Rejected",    value: "REJECTED" },
+    { label: "Verified", value: "VERIFIED" },
+    { label: "Rejected", value: "REJECTED" },
 ];
 
 const SOURCE_FILTER_OPTIONS = [
-    { label: "Website Form",  value: "WEBSITE_FORM" },
-    { label: "Landing Page",  value: "LANDING_PAGE" },
-    { label: "WhatsApp",      value: "WHATSAPP" },
-    { label: "Phone Call",    value: "PHONE_CALL" },
-    { label: "Referral",      value: "REFERRAL" },
-    { label: "Other",         value: "OTHER" },
+    { label: "Website Form", value: "WEBSITE_FORM" },
+    { label: "Landing Page", value: "LANDING_PAGE" },
+    { label: "WhatsApp", value: "WHATSAPP" },
+    { label: "Phone Call", value: "PHONE_CALL" },
+    { label: "Referral", value: "REFERRAL" },
+    { label: "Other", value: "OTHER" },
 ];
 
 // ── Inline action cells ───────────────────────────────────────────────────────
@@ -59,15 +62,15 @@ function ActionCell({
     reasons,
     onView,
 }: {
-    query:   PackageQuery;
+    query: PackageQuery;
     reasons: RejectionReason[];
-    onView:  () => void;
+    onView: () => void;
 }) {
-    const [isPendingV, startVerify]   = useTransition();
+    const [isPendingV, startVerify] = useTransition();
     const [isPendingP, startProgress] = useTransition();
 
     const isTerminal = query.status === "VERIFIED" || query.status === "REJECTED";
-    const canVerify  = !query.verified && query.status !== "REJECTED";
+    const canVerify = !query.verified && query.status !== "REJECTED";
 
     function handleVerify(e: React.MouseEvent) {
         e.stopPropagation();
@@ -138,23 +141,37 @@ function ActionCell({
                     </Tooltip>
                 )}
 
-                {/* Reject */}
-                {!isTerminal && (
+                {/* Edit Query */}
                 <Tooltip>
                     <TooltipTrigger asChild>
                         <span onClick={(e) => e.stopPropagation()}>
-                            <RejectQueryDialog queryId={query.id} leadName={query.name} reasons={reasons}>
-                                <Button
-                                    variant="ghost" size="icon"
-                                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                >
-                                    <XCircle className="h-3.5 w-3.5" />
+                            <EditQueryDialog query={query} onDone={() => { }}>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <Pencil className="h-3.5 w-3.5" />
                                 </Button>
-                            </RejectQueryDialog>
+                            </EditQueryDialog>
                         </span>
                     </TooltipTrigger>
-                    <TooltipContent>Reject Query</TooltipContent>
+                    <TooltipContent>Edit Query</TooltipContent>
                 </Tooltip>
+
+                {/* Reject */}
+                {!isTerminal && (
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <span onClick={(e) => e.stopPropagation()}>
+                                <RejectQueryDialog queryId={query.id} leadName={query.name} reasons={reasons}>
+                                    <Button
+                                        variant="ghost" size="icon"
+                                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    >
+                                        <XCircle className="h-3.5 w-3.5" />
+                                    </Button>
+                                </RejectQueryDialog>
+                            </span>
+                        </TooltipTrigger>
+                        <TooltipContent>Reject Query</TooltipContent>
+                    </Tooltip>
                 )}
             </div>
         </TooltipProvider>
@@ -164,15 +181,15 @@ function ActionCell({
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export function QueriesTable({ queries, reasons }: Props) {
-    const [search,         setSearch]         = useState("");
-    const [filterStatus,   setFilterStatus]   = useState("all");
-    const [filterSource,   setFilterSource]   = useState("all");
+    const [search, setSearch] = useState("");
+    const [filterStatus, setFilterStatus] = useState("all");
+    const [filterSource, setFilterSource] = useState("all");
     const [filterVerified, setFilterVerified] = useState("all");
-    const [page,           setPage]           = useState(1);
+    const [page, setPage] = useState(1);
 
     // Detail sheet state
-    const [sheetOpen,    setSheetOpen]    = useState(false);
-    const [detailQuery,  setDetailQuery]  = useState<QueryWithDetails | null>(null);
+    const [sheetOpen, setSheetOpen] = useState(false);
+    const [detailQuery, setDetailQuery] = useState<QueryWithDetails | null>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
 
     async function openDetail(query: PackageQuery) {
@@ -197,36 +214,51 @@ export function QueriesTable({ queries, reasons }: Props) {
             || (q.destination ?? "").toLowerCase().includes(s)
             || (q.packageName ?? "").toLowerCase().includes(s);
 
-        const matchStatus   = filterStatus   === "all" || q.status  === filterStatus;
-        const matchSource   = filterSource   === "all" || q.source  === filterSource;
+        const matchStatus = filterStatus === "all" || q.status === filterStatus;
+        const matchSource = filterSource === "all" || q.source === filterSource;
         const matchVerified =
             filterVerified === "all"
-            || (filterVerified === "verified"   && q.verified)
+            || (filterVerified === "verified" && q.verified)
             || (filterVerified === "unverified" && !q.verified);
 
         return matchSearch && matchStatus && matchSource && matchVerified;
     });
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-    const safePage   = Math.min(page, totalPages);
-    const paginated  = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+    const safePage = Math.min(page, totalPages);
+    const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
     const isFiltering = search !== "" || filterStatus !== "all" || filterSource !== "all" || filterVerified !== "all";
 
     // ── Stats ─────────────────────────────────────────────────────────────────
-    const submitted   = queries.filter(q => q.status === "SUBMITTED").length;
-    const inProgress  = queries.filter(q => q.status === "IN_PROGRESS").length;
-    const verified    = queries.filter(q => q.verified).length;
-    const rejected    = queries.filter(q => q.status === "REJECTED").length;
-    const convRate    = queries.length > 0 ? Math.round((verified / queries.length) * 100) : 0;
+    const submitted = queries.filter(q => q.status === "SUBMITTED").length;
+    const inProgress = queries.filter(q => q.status === "IN_PROGRESS").length;
+    const verified = queries.filter(q => q.verified).length;
+    const rejected = queries.filter(q => q.status === "REJECTED").length;
+    const convRate = queries.length > 0 ? Math.round((verified / queries.length) * 100) : 0;
 
     // ── Columns ───────────────────────────────────────────────────────────────
     const columns: ColumnDef<PackageQuery>[] = [
         {
             header: "Lead",
-            width:  "w-[220px]",
+            width: "w-[220px]",
             cell: (q) => (
                 <div className="space-y-0.5">
-                    <p className="font-medium text-sm leading-tight">{q.name}</p>
+                    <div className="flex items-center gap-1.5">
+                        <p className="font-medium text-sm leading-tight">{q.name}</p>
+                        {q.totalLeadQueries > 1 && (
+                            <Badge
+                                variant="outline"
+                                className="text-[10px] text-amber-600 border-amber-300 py-0 cursor-pointer hover:bg-amber-50"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSearch(q.phone);
+                                    setPage(1);
+                                }}
+                            >
+                                {q.totalLeadQueries} queries
+                            </Badge>
+                        )}
+                    </div>
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Phone className="h-3 w-3" />
                         <span>{q.phone}</span>
@@ -288,7 +320,7 @@ export function QueriesTable({ queries, reasons }: Props) {
         },
         {
             header: "Notes",
-            align:  "center",
+            align: "center",
             cell: (q) => (
                 <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
                     <StickyNote className="h-3 w-3" />
@@ -306,8 +338,8 @@ export function QueriesTable({ queries, reasons }: Props) {
         },
         {
             header: "Actions",
-            align:  "right",
-            width:  "w-[140px]",
+            align: "right",
+            width: "w-[140px]",
             cell: (q) => (
                 <ActionCell
                     query={q}
@@ -324,12 +356,12 @@ export function QueriesTable({ queries, reasons }: Props) {
                 {/* Stats */}
                 <Stats
                     rows={[
-                        { label: "Total Queries",  value: queries.length },
-                        { label: "Submitted",      value: submitted,  muted: submitted === 0 },
-                        { label: "In Progress",    value: inProgress },
-                        { label: "Verified",       value: verified },
-                        { label: "Rejected",       value: rejected,   muted: true },
-                        { label: "Conv. Rate",     value: `${convRate}%` },
+                        { label: "Total Queries", value: queries.length },
+                        { label: "Submitted", value: submitted, muted: submitted === 0 },
+                        { label: "In Progress", value: inProgress },
+                        { label: "Verified", value: verified },
+                        { label: "Rejected", value: rejected, muted: true },
+                        { label: "Conv. Rate", value: `${convRate}%` },
                     ]}
                 />
 
@@ -342,31 +374,45 @@ export function QueriesTable({ queries, reasons }: Props) {
                     totalCount={isFiltering ? queries.length : undefined}
                     filters={[
                         {
-                            value:       filterStatus,
-                            onChange:    (v) => { setFilterStatus(v); setPage(1); },
+                            value: filterStatus,
+                            onChange: (v) => { setFilterStatus(v); setPage(1); },
                             placeholder: "All Statuses",
-                            width:       "w-44",
-                            options:     STATUS_FILTER_OPTIONS,
+                            width: "w-44",
+                            options: STATUS_FILTER_OPTIONS,
                         },
                         {
-                            value:       filterSource,
-                            onChange:    (v) => { setFilterSource(v); setPage(1); },
+                            value: filterSource,
+                            onChange: (v) => { setFilterSource(v); setPage(1); },
                             placeholder: "All Sources",
-                            width:       "w-44",
-                            options:     SOURCE_FILTER_OPTIONS,
+                            width: "w-44",
+                            options: SOURCE_FILTER_OPTIONS,
                         },
                         {
-                            value:       filterVerified,
-                            onChange:    (v) => { setFilterVerified(v); setPage(1); },
+                            value: filterVerified,
+                            onChange: (v) => { setFilterVerified(v); setPage(1); },
                             placeholder: "Verification",
-                            width:       "w-40",
+                            width: "w-40",
                             options: [
-                                { label: "Verified Only",   value: "verified" },
+                                { label: "Verified Only", value: "verified" },
                                 { label: "Unverified Only", value: "unverified" },
                             ],
                         },
                     ]}
                 />
+                {search && (
+                    <div className="flex items-center gap-2 px-1">
+                        <p className="text-xs text-muted-foreground">
+                            Showing queries for <span className="font-medium text-foreground">{search}</span>
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => { setSearch(""); setPage(1); }}
+                            className="text-xs text-primary hover:underline"
+                        >
+                            Clear filter
+                        </button>
+                    </div>
+                )}
 
                 {/* Table */}
                 <DataTable
@@ -374,6 +420,11 @@ export function QueriesTable({ queries, reasons }: Props) {
                     columns={columns}
                     rowKey={(q) => q.id}
                     onRowClick={(q) => openDetail(q)}
+                    rowClassName={(q) =>
+                        q.status === "IN_PROGRESS"
+                            ? "bg-amber-50 dark:bg-amber-950/20 hover:bg-amber-100 dark:hover:bg-amber-950/30"
+                            : ""
+                    }
                     emptyState={
                         <div className="flex flex-col items-center gap-2">
                             <Inbox className="h-10 w-10 text-muted-foreground" />

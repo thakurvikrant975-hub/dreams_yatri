@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useRef } from "react";
+import {useTransition, useRef } from "react";
 import { formatDistanceToNow, format } from "date-fns";
 import {
     Phone, Mail, MapPin, Users, Calendar, MessageSquare,
@@ -21,6 +21,8 @@ import { verifyQuery, addNote } from "./actions";
 import { RejectQueryDialog } from "./Rejectquerydialog";
 import { CallAttemptDialog } from "./Callattemptdialog";
 import type { PackageQuery, RejectionReason } from "./actions";
+import { Pencil } from "lucide-react";
+import { EditQueryDialog } from "./Editquerydialog";
 
 type QueryWithDetails = PackageQuery & {
     notes:    Array<{ id: string; authorId: string; authorName?: string; content: string; createdAt: Date }>;
@@ -106,8 +108,16 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange, onRefresh
                     </div>
 
                     {!isTerminal && (
-                        <div className="flex gap-2 pt-3 flex-wrap">
-                            <CallAttemptDialog
+    <div className="flex gap-2 pt-3 flex-wrap">
+
+        {/* Edit Details — always first */}
+        <EditQueryDialog query={query} onDone={onRefresh}>
+            <Button size="sm" variant="outline" className="gap-1.5">
+                <Pencil className="h-3.5 w-3.5" /> Edit Details
+            </Button>
+        </EditQueryDialog>
+
+        <CallAttemptDialog
                                 queryId={query.id}
                                 leadName={query.name}
                                 phone={query.phone}
@@ -153,6 +163,14 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange, onRefresh
                             <p className="text-xs font-semibold text-green-700 dark:text-green-400 uppercase tracking-wide mb-1">✓ Verified Lead</p>
                             {query.verifiedAt && (
                                 <p className="text-xs text-muted-foreground">{format(new Date(query.verifiedAt), "dd MMM yyyy, hh:mm a")}</p>
+                            )}
+                        </div>
+                    )}
+                    {query.verified && (
+                        <div className="mt-3 rounded-lg border border-green-200 bg-green-50 ...">
+                            <p className="text-xs font-semibold ...">✓ Verified Lead</p>
+                            {query.verifiedAt && (
+                                <p className="text-xs text-muted-foreground">...</p>
                             )}
                         </div>
                     )}

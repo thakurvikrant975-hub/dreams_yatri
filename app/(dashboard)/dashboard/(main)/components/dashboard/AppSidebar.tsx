@@ -5,7 +5,7 @@ import {
 } from "../ui/sidebar";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, } from "../ui/accordion";
 
-import { LayoutDashboard, Settings, Users, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound, MessageCircleQuestion, ClockCheck, Mails, Forward
+import { LayoutDashboard, Settings, Users, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound, MessageCircleQuestion, ClockCheck, Mails, Forward, BadgePercent, HandCoins, Banknote, ChartSpline, BanknoteArrowDown, BanknoteX
 } from "lucide-react";
 
 import {
@@ -67,6 +67,18 @@ const navGroups = [
             { title: "Email Marketing", href: "/dashboard/email-marketing", icon: <Mails className="size-6 text-muted-foreground" /> },
             { title: "Follow ups", href: "/dashboard/follow-ups", icon: <ClockCheck className="size-6 text-muted-foreground" /> },
             { title: "References", href: "/dashboard/references", icon: <Forward className="size-6 text-muted-foreground" /> },
+            { title: "Coupons and offers", href: "/dashboard/coupons", icon: <BadgePercent className="size-6 text-muted-foreground" /> },
+        ],
+    },
+    {
+        id: "Transactions",
+        label: "Transactions",
+        items: [
+            { title: "Transactions", href: "/dashboard/transactions", icon: <Banknote className="size-6 text-muted-foreground" /> },
+            { title: "Failed Transactions", href: "/dashboard/failed-transactions", icon: <BanknoteX className="size-6 text-muted-foreground" /> },
+            { title: "Refunds", href: "/dashboard/refunds", icon: <BanknoteArrowDown className="size-6 text-muted-foreground" /> },
+            { title: "Analytics", href: "/dashboard/analytics", icon: <ChartSpline className="size-6 text-muted-foreground" /> },
+
         ],
     },
     {

@@ -113,6 +113,7 @@ interface DataTableProps<T> {
     columns:        ColumnDef<T>[];
     rowKey:         (row: T) => string | number;
     onRowClick?:    (row: T) => void;
+    rowClassName?:  (row: T) => string;
     renderSubRows?: (row: T) => React.ReactNode;
     emptyState?:    React.ReactNode;
     pagination?: {
@@ -128,6 +129,7 @@ export function DataTable<T>({
     columns,
     rowKey,
     onRowClick,
+    rowClassName,
     renderSubRows,
     emptyState,
     pagination,
@@ -168,8 +170,10 @@ export function DataTable<T>({
                             <React.Fragment key={rowKey(row)}>
                                 <TableRow
                                     className={[
-                                        "hover:bg-muted/30",
                                         onRowClick ? "cursor-pointer" : "",
+                                        rowClassName
+                                            ? rowClassName(row)
+                                            : "hover:bg-muted/30",
                                     ].join(" ")}
                                     onClick={onRowClick ? () => onRowClick(row) : undefined}
                                 >
@@ -200,3 +204,4 @@ export function DataTable<T>({
         </div>
     );
 }
+
