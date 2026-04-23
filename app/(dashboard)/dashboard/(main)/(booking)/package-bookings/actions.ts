@@ -14,7 +14,7 @@ export type BookingWithRelations = Prisma.BookingGetPayload<{
     user: { select: { id: true; name: true; email: true; image: true } };
     destination: { select: { id: true; name: true } };
     payments: { select: { id: true; amount: true; status: true; createdAt: true } };
-    timeline: { 
+    timeline: {
       include: {
         performedBy: { select: { id: true; name: true } };
         department: { select: { id: true; name: true } };
@@ -44,6 +44,25 @@ export type BookingStats = {
   cancelled: number;
 };
 
+// ── Actor helper ──────────────────────────────────────────────────────────────
+// dashboardAuth() returns Session | null. Extract user fields safely.
+
+type Actor = {
+  id: string;
+  name: string;
+  departmentId: string | null;
+};
+
+async function getActor(): Promise<Actor> {
+  const session = await dashboardAuth();
+  if (!session?.user?.id) throw new Error("Unauthorized");
+  return {
+    id: session.user.id,
+    name: session.user.name ?? "Unknown",
+    departmentId: (session.user as any).departmentId ?? null,
+  };
+}
+
 // ── Include helper ────────────────────────────────────────────────────────────
 
 const bookingInclude = {
@@ -63,6 +82,26 @@ const bookingInclude = {
   cabAssignee: { select: { id: true, name: true } },
   opsAssignee: { select: { id: true, name: true } },
 } satisfies Prisma.BookingInclude;
+
+// ── Raw FK update helper ──────────────────────────────────────────────────────
+// @prisma/adapter-pg intercepts $executeRaw through its relation resolver.
+// $queryRawUnsafe bypasses it completely and writes directly to Postgres.
+
+async function updateBookingFKs(
+  bookingId: string,
+  fields: Record<string, string | null>
+) {
+  const setClauses = Object.entries(fields)
+    .map(([col]) => `"${col}" = ?`)
+    .join(", ");
+  const values = [...Object.values(fields), bookingId];
+
+  // Convert ? placeholders to $1, $2... for pg
+  let i = 1;
+  const pgQuery = `UPDATE bookings SET ${setClauses.replace(/\?/g, () => `$${i++}`)} WHERE id = $${i}`;
+
+  await db.$queryRawUnsafe(pgQuery, ...values);
+}
 
 // ── Queries ───────────────────────────────────────────────────────────────────
 
@@ -101,8 +140,11 @@ export async function getBookingsPaginated(
     db.booking.count({ where }),
   ]);
 
+  // Serialize Decimal → number so Next.js can pass to Client Components
+  const serialized = bookings.map(serializeBooking);
+
   return {
-    bookings,
+    bookings: serialized as unknown as BookingWithRelations[],
     totalPages: Math.ceil(totalCount / BOOKINGS_PER_PAGE),
     totalCount,
   };
@@ -118,22 +160,23 @@ export async function getBookingStats(): Promise<BookingStats> {
 
   return {
     total: Object.values(map).reduce((a, b) => a + b, 0),
-    pendingReview: map["PENDING_REVIEW"] ?? 0,
+    pendingReview:    map["PENDING_REVIEW"] ?? 0,
     hotelVerification: map["HOTEL_VERIFICATION"] ?? 0,
-    cabVerification: map["CAB_VERIFICATION"] ?? 0,
-    confirmed: map["CONFIRMED"] ?? 0,
-    cancelled: map["CANCELLED"] ?? 0,
+    cabVerification:  map["CAB_VERIFICATION"] ?? 0,
+    confirmed:        map["CONFIRMED"] ?? 0,
+    cancelled:        map["CANCELLED"] ?? 0,
   };
 }
 
 export async function getBookingById(id: string): Promise<BookingWithRelations | null> {
-  return db.booking.findUnique({
+  const booking = await db.booking.findUnique({
     where: { id },
     include: bookingInclude,
   });
+  if (!booking) return null;
+  return serializeBooking(booking) as unknown as BookingWithRelations;
 }
 
-// Verify-hotel queue: bookings needing hotel verification
 export async function getHotelVerificationQueue(page: number = 1): Promise<PaginatedBookings> {
   const skip = (page - 1) * BOOKINGS_PER_PAGE;
   const where: Prisma.BookingWhereInput = {
@@ -142,20 +185,17 @@ export async function getHotelVerificationQueue(page: number = 1): Promise<Pagin
   };
 
   const [bookings, totalCount] = await Promise.all([
-    db.booking.findMany({
-      where,
-      include: bookingInclude,
-      orderBy: { startDate: "asc" },
-      skip,
-      take: BOOKINGS_PER_PAGE,
-    }),
+    db.booking.findMany({ where, include: bookingInclude, orderBy: { startDate: "asc" }, skip, take: BOOKINGS_PER_PAGE }),
     db.booking.count({ where }),
   ]);
 
-  return { bookings, totalPages: Math.ceil(totalCount / BOOKINGS_PER_PAGE), totalCount };
+  return {
+    bookings: bookings.map(serializeBooking) as unknown as BookingWithRelations[],
+    totalPages: Math.ceil(totalCount / BOOKINGS_PER_PAGE),
+    totalCount,
+  };
 }
 
-// Verify-cab queue: bookings needing cab verification
 export async function getCabVerificationQueue(page: number = 1): Promise<PaginatedBookings> {
   const skip = (page - 1) * BOOKINGS_PER_PAGE;
   const where: Prisma.BookingWhereInput = {
@@ -164,27 +204,21 @@ export async function getCabVerificationQueue(page: number = 1): Promise<Paginat
   };
 
   const [bookings, totalCount] = await Promise.all([
-    db.booking.findMany({
-      where,
-      include: bookingInclude,
-      orderBy: { startDate: "asc" },
-      skip,
-      take: BOOKINGS_PER_PAGE,
-    }),
+    db.booking.findMany({ where, include: bookingInclude, orderBy: { startDate: "asc" }, skip, take: BOOKINGS_PER_PAGE }),
     db.booking.count({ where }),
   ]);
 
-  return { bookings, totalPages: Math.ceil(totalCount / BOOKINGS_PER_PAGE), totalCount };
+  return {
+    bookings: bookings.map(serializeBooking) as unknown as BookingWithRelations[],
+    totalPages: Math.ceil(totalCount / BOOKINGS_PER_PAGE),
+    totalCount,
+  };
 }
 
 export async function getTeamMembersForAssign() {
   return db.teamMember.findMany({
     where: { isActive: true },
-    select: {
-      id: true,
-      name: true,
-      department: { select: { id: true, name: true } },
-    },
+    select: { id: true, name: true, department: { select: { id: true, name: true } } },
     orderBy: { name: "asc" },
   });
 }
@@ -196,45 +230,88 @@ export async function getDestinationsForFilter() {
   });
 }
 
+// ── Decimal serializer ────────────────────────────────────────────────────────
+// Prisma Decimal objects cannot be passed from Server → Client Components.
+// Convert to plain numbers at the boundary.
+
+function serializeBooking(booking: any): any {
+  return {
+    ...booking,
+    totalAmount: Number(booking.totalAmount),
+    paidAmount:  Number(booking.paidAmount),
+    payments: booking.payments?.map((p: any) => ({
+      ...p,
+      amount: Number(p.amount),
+    })),
+  };
+}
+
+// ── Timeline create helper ────────────────────────────────────────────────────
+
+function createTimelineEntry({
+  bookingId,
+  action,
+  fromStatus,
+  toStatus,
+  note,
+  performedById,
+  performedByName,
+  departmentId,
+}: {
+  bookingId: string;
+  action: TimelineAction;
+  fromStatus?: BookingStatus | null;
+  toStatus?: BookingStatus | null;
+  note: string;
+  performedById: string;
+  performedByName: string;
+  departmentId?: string | null;
+}) {
+  return db.bookingTimeline.create({
+    data: {
+      booking:     { connect: { id: bookingId } },
+      performedBy: { connect: { id: performedById } },
+      action,
+      fromStatus:     fromStatus ?? null,
+      toStatus:       toStatus ?? null,
+      note,
+      performedByName,
+      // departmentId is a relation — use connect when present, omit when null
+      ...(departmentId
+        ? { department: { connect: { id: departmentId } } }
+        : {}),
+    },
+  });
+}
+
 // ── Mutations ─────────────────────────────────────────────────────────────────
 
 type ActionResult = { success: true } | { success: false; error: string };
 
-export async function confirmHotel(
-  bookingId: string,
-  notes?: string
-): Promise<ActionResult> {
+export async function confirmHotel(bookingId: string, notes?: string): Promise<ActionResult> {
   try {
-    const actor = await dashboardAuth();
+    const actor = await getActor();
     const booking = await db.booking.findUniqueOrThrow({ where: { id: bookingId } });
-
-    // Get cab department to auto-transition
     const cabDept = await db.department.findFirst({ where: { name: "Cab" } });
 
-    await db.$transaction([
-      db.booking.update({
-        where: { id: bookingId },
-        data: {
-          hotelConfirmedAt: new Date(),
-          hotelNotes: notes,
-          status: "CAB_VERIFICATION",
-          currentDepartmentId: cabDept?.id ?? null,
-          currentAssigneeId: null,
-        },
-      }),
-      db.bookingTimeline.create({
-        data: {
-          bookingId,
-          action: "DEPARTMENT_CONFIRMED",
-          fromStatus: booking.status,
-          toStatus: "CAB_VERIFICATION",
-          note: notes ?? "Hotel availability and pricing confirmed",
-          performedById: actor.id,
-          performedByName: actor.name ?? "Unknown",
-          departmentId: actor.departmentId ?? undefined,
-        },
-      }),
-    ]);
+    await updateBookingFKs(bookingId, {
+      hotelConfirmedAt: new Date().toISOString(),
+      hotelNotes:       notes ?? null,
+      status:           "CAB_VERIFICATION",
+      currentDepartmentId: cabDept?.id ?? null,
+      currentAssigneeId:   null,
+    });
+
+    await createTimelineEntry({
+      bookingId,
+      action:          "DEPARTMENT_CONFIRMED",
+      fromStatus:      booking.status,
+      toStatus:        "CAB_VERIFICATION",
+      note:            notes ?? "Hotel availability and pricing confirmed",
+      performedById:   actor.id,
+      performedByName: actor.name,
+      departmentId:    actor.departmentId,
+    });
 
     revalidatePath("/dashboard/package-bookings");
     revalidatePath("/dashboard/verify-hotel");
@@ -245,32 +322,26 @@ export async function confirmHotel(
   }
 }
 
-export async function flagHotelIssue(
-  bookingId: string,
-  note: string
-): Promise<ActionResult> {
+export async function flagHotelIssue(bookingId: string, note: string): Promise<ActionResult> {
   try {
-    const actor = await dashboardAuth();
+    const actor = await getActor();
     const booking = await db.booking.findUniqueOrThrow({ where: { id: bookingId } });
 
-    await db.$transaction([
-      db.booking.update({
-        where: { id: bookingId },
-        data: { status: "MODIFICATION_REQUESTED", modificationNote: note },
-      }),
-      db.bookingTimeline.create({
-        data: {
-          bookingId,
-          action: "DEPARTMENT_FLAGGED",
-          fromStatus: booking.status,
-          toStatus: "MODIFICATION_REQUESTED",
-          note,
-          performedById: actor.id,
-          performedByName: actor.name ?? "Unknown",
-          departmentId: actor.departmentId ?? undefined,
-        },
-      }),
-    ]);
+    await updateBookingFKs(bookingId, {
+      status:           "MODIFICATION_REQUESTED",
+      modificationNote: note,
+    });
+
+    await createTimelineEntry({
+      bookingId,
+      action:          "DEPARTMENT_FLAGGED",
+      fromStatus:      booking.status,
+      toStatus:        "MODIFICATION_REQUESTED",
+      note,
+      performedById:   actor.id,
+      performedByName: actor.name,
+      departmentId:    actor.departmentId,
+    });
 
     revalidatePath("/dashboard/package-bookings");
     revalidatePath("/dashboard/verify-hotel");
@@ -281,40 +352,30 @@ export async function flagHotelIssue(
   }
 }
 
-export async function confirmCab(
-  bookingId: string,
-  notes?: string
-): Promise<ActionResult> {
+export async function confirmCab(bookingId: string, notes?: string): Promise<ActionResult> {
   try {
-    const actor = await dashboardAuth();
+    const actor = await getActor();
     const booking = await db.booking.findUniqueOrThrow({ where: { id: bookingId } });
-
     const opsDept = await db.department.findFirst({ where: { name: "Operations" } });
 
-    await db.$transaction([
-      db.booking.update({
-        where: { id: bookingId },
-        data: {
-          cabConfirmedAt: new Date(),
-          cabNotes: notes,
-          status: "OPS_REVIEW",
-          currentDepartmentId: opsDept?.id ?? null,
-          currentAssigneeId: null,
-        },
-      }),
-      db.bookingTimeline.create({
-        data: {
-          bookingId,
-          action: "DEPARTMENT_CONFIRMED",
-          fromStatus: booking.status,
-          toStatus: "OPS_REVIEW",
-          note: notes ?? "Cab availability confirmed",
-          performedById: actor.id,
-          performedByName: actor.name ?? "Unknown",
-          departmentId: actor.departmentId ?? undefined,
-        },
-      }),
-    ]);
+    await updateBookingFKs(bookingId, {
+      cabConfirmedAt:      new Date().toISOString(),
+      cabNotes:            notes ?? null,
+      status:              "OPS_REVIEW",
+      currentDepartmentId: opsDept?.id ?? null,
+      currentAssigneeId:   null,
+    });
+
+    await createTimelineEntry({
+      bookingId,
+      action:          "DEPARTMENT_CONFIRMED",
+      fromStatus:      booking.status,
+      toStatus:        "OPS_REVIEW",
+      note:            notes ?? "Cab availability confirmed",
+      performedById:   actor.id,
+      performedByName: actor.name,
+      departmentId:    actor.departmentId,
+    });
 
     revalidatePath("/dashboard/package-bookings");
     revalidatePath("/dashboard/verify-cabs");
@@ -325,32 +386,26 @@ export async function confirmCab(
   }
 }
 
-export async function flagCabIssue(
-  bookingId: string,
-  note: string
-): Promise<ActionResult> {
+export async function flagCabIssue(bookingId: string, note: string): Promise<ActionResult> {
   try {
-    const actor = await dashboardAuth();
+    const actor = await getActor();
     const booking = await db.booking.findUniqueOrThrow({ where: { id: bookingId } });
 
-    await db.$transaction([
-      db.booking.update({
-        where: { id: bookingId },
-        data: { status: "MODIFICATION_REQUESTED", modificationNote: note },
-      }),
-      db.bookingTimeline.create({
-        data: {
-          bookingId,
-          action: "DEPARTMENT_FLAGGED",
-          fromStatus: booking.status,
-          toStatus: "MODIFICATION_REQUESTED",
-          note,
-          performedById: actor.id,
-          performedByName: actor.name ?? "Unknown",
-          departmentId: actor.departmentId ?? undefined,
-        },
-      }),
-    ]);
+    await updateBookingFKs(bookingId, {
+      status:           "MODIFICATION_REQUESTED",
+      modificationNote: note,
+    });
+
+    await createTimelineEntry({
+      bookingId,
+      action:          "DEPARTMENT_FLAGGED",
+      fromStatus:      booking.status,
+      toStatus:        "MODIFICATION_REQUESTED",
+      note,
+      performedById:   actor.id,
+      performedByName: actor.name,
+      departmentId:    actor.departmentId,
+    });
 
     revalidatePath("/dashboard/package-bookings");
     revalidatePath("/dashboard/verify-cabs");
@@ -361,40 +416,29 @@ export async function flagCabIssue(
   }
 }
 
-export async function confirmBooking(
-  bookingId: string,
-  note?: string
-): Promise<ActionResult> {
+export async function confirmBooking(bookingId: string, note?: string): Promise<ActionResult> {
   try {
-    const actor = await dashboardAuth();
+    const actor = await getActor();
     const booking = await db.booking.findUniqueOrThrow({ where: { id: bookingId } });
 
-    await db.$transaction([
-      db.booking.update({
-        where: { id: bookingId },
-        data: {
-          status: "CONFIRMED",
-          opsReviewedAt: new Date(),
-          opsAssigneeId: actor.id,
-          currentDepartmentId: null,
-          currentAssigneeId: null,
-        },
-      }),
-      db.bookingTimeline.create({
-        data: {
-          bookingId,
-          action: "STATUS_CHANGED",
-          fromStatus: booking.status,
-          toStatus: "CONFIRMED",
-          note: note ?? "Booking confirmed by operations",
-          performedById: actor.id,
-          performedByName: actor.name ?? "Unknown",
-          departmentId: actor.departmentId ?? undefined,
-        },
-      }),
-    ]);
+    await updateBookingFKs(bookingId, {
+      status:              "CONFIRMED",
+      opsReviewedAt:       new Date().toISOString(),
+      opsAssigneeId:       actor.id,
+      currentDepartmentId: null,
+      currentAssigneeId:   null,
+    });
 
-    // TODO: trigger confirmation email here
+    await createTimelineEntry({
+      bookingId,
+      action:          "STATUS_CHANGED",
+      fromStatus:      booking.status,
+      toStatus:        "CONFIRMED",
+      note:            note ?? "Booking confirmed by operations",
+      performedById:   actor.id,
+      performedByName: actor.name,
+      departmentId:    actor.departmentId,
+    });
 
     revalidatePath("/dashboard/package-bookings");
     revalidatePath(`/dashboard/package-bookings/${bookingId}`);
@@ -404,39 +448,28 @@ export async function confirmBooking(
   }
 }
 
-export async function rejectBooking(
-  bookingId: string,
-  reason: string
-): Promise<ActionResult> {
+export async function rejectBooking(bookingId: string, reason: string): Promise<ActionResult> {
   try {
-    const actor = await dashboardAuth();
+    const actor = await getActor();
     const booking = await db.booking.findUniqueOrThrow({ where: { id: bookingId } });
 
-    await db.$transaction([
-      db.booking.update({
-        where: { id: bookingId },
-        data: {
-          status: "REJECTED",
-          rejectionReason: reason,
-          currentDepartmentId: null,
-          currentAssigneeId: null,
-        },
-      }),
-      db.bookingTimeline.create({
-        data: {
-          bookingId,
-          action: "STATUS_CHANGED",
-          fromStatus: booking.status,
-          toStatus: "REJECTED",
-          note: reason,
-          performedById: actor.id,
-          performedByName: actor.name ?? "Unknown",
-          departmentId: actor.departmentId ?? undefined,
-        },
-      }),
-    ]);
+    await updateBookingFKs(bookingId, {
+      status:              "REJECTED",
+      rejectionReason:     reason,
+      currentDepartmentId: null,
+      currentAssigneeId:   null,
+    });
 
-    // TODO: trigger rejection email + refund flag
+    await createTimelineEntry({
+      bookingId,
+      action:          "STATUS_CHANGED",
+      fromStatus:      booking.status,
+      toStatus:        "REJECTED",
+      note:            reason,
+      performedById:   actor.id,
+      performedByName: actor.name,
+      departmentId:    actor.departmentId,
+    });
 
     revalidatePath("/dashboard/package-bookings");
     revalidatePath(`/dashboard/package-bookings/${bookingId}`);
@@ -446,33 +479,24 @@ export async function rejectBooking(
   }
 }
 
-export async function assignMember(
-  bookingId: string,
-  memberId: string
-): Promise<ActionResult> {
+export async function assignMember(bookingId: string, memberId: string): Promise<ActionResult> {
   try {
-    const actor = await dashboardAuth();
+    const actor = await getActor();
     const member = await db.teamMember.findUniqueOrThrow({
       where: { id: memberId },
       select: { name: true },
     });
 
-    await db.$transaction([
-      db.booking.update({
-        where: { id: bookingId },
-        data: { currentAssigneeId: memberId },
-      }),
-      db.bookingTimeline.create({
-        data: {
-          bookingId,
-          action: "MEMBER_ASSIGNED",
-          note: `Assigned to ${member.name}`,
-          performedById: actor.id,
-          performedByName: actor.name ?? "Unknown",
-          departmentId: actor.departmentId ?? undefined,
-        },
-      }),
-    ]);
+    await updateBookingFKs(bookingId, { currentAssigneeId: memberId });
+
+    await createTimelineEntry({
+      bookingId,
+      action:          "MEMBER_ASSIGNED",
+      note:            `Assigned to ${member.name}`,
+      performedById:   actor.id,
+      performedByName: actor.name,
+      departmentId:    actor.departmentId,
+    });
 
     revalidatePath("/dashboard/package-bookings");
     revalidatePath(`/dashboard/package-bookings/${bookingId}`);
@@ -482,22 +506,17 @@ export async function assignMember(
   }
 }
 
-export async function addNote(
-  bookingId: string,
-  note: string
-): Promise<ActionResult> {
+export async function addNote(bookingId: string, note: string): Promise<ActionResult> {
   try {
-    const actor = await dashboardAuth();
+    const actor = await getActor();
 
-    await db.bookingTimeline.create({
-      data: {
-        bookingId,
-        action: "NOTE_ADDED",
-        note,
-        performedById: actor.id,
-        performedByName: actor.name ?? "Unknown",
-        departmentId: actor.departmentId ?? undefined,
-      },
+    await createTimelineEntry({
+      bookingId,
+      action:          "NOTE_ADDED",
+      note,
+      performedById:   actor.id,
+      performedByName: actor.name,
+      departmentId:    actor.departmentId,
     });
 
     revalidatePath(`/dashboard/package-bookings/${bookingId}`);

@@ -9,16 +9,15 @@ import {
   BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/breadcrumb";
 import { Separator } from "@/app/(dashboard)/dashboard/(main)/components/ui/separator";
-import { getBookingById, getTeamMembersForAssign } from "../../../../../package-bookings/actions";
-import { BookingStatusBadge, BookingTimeline } from "../BookingShared";
-
+import { getBookingById, getTeamMembersForAssign } from "../actions";
+import { BookingStatusBadge, BookingTimeline } from "@/app/(dashboard)/dashboard/(main)/(booking)/package-bookings/Bookingshared";
 import {
   HotelActionPanel,
   CabActionPanel,
   OpsActionPanel,
   AssignMemberPanel,
   AddNotePanel,
-} from "../../../../../package-bookings/Bookingactions";
+} from "../Bookingactions";
 
 interface PageProps {
   params: Promise<{ id: string }>;
