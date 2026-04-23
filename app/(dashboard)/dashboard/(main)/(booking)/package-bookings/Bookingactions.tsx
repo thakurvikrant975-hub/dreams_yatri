@@ -27,7 +27,6 @@ import {
 import type { BookingWithRelations } from "./actions";
 
 // ── Confirm Hotel ─────────────────────────────────────────────────────────────
-
 export function HotelActionPanel({ booking }: { booking: BookingWithRelations }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [flagOpen, setFlagOpen] = useState(false);
@@ -111,7 +110,7 @@ export function HotelActionPanel({ booking }: { booking: BookingWithRelations })
             <Button variant="outline" onClick={() => setConfirmOpen(false)}>Cancel</Button>
             <Button onClick={handleConfirm} disabled={isPending} className="bg-blue-600 hover:bg-blue-700 text-white">
               {isPending && <RefreshCw className="h-3 w-3 animate-spin mr-2" />}
-              Confirm & Move to Cab Verification
+              Confirm
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -167,14 +166,14 @@ export function CabActionPanel({ booking }: { booking: BookingWithRelations }) {
     );
   }
 
-  if (!booking.hotelConfirmedAt) {
-    return (
-      <div className="flex items-center gap-2 rounded-lg bg-muted/50 border px-3 py-2.5">
-        <Car className="h-4 w-4 text-muted-foreground shrink-0" />
-        <p className="text-sm text-muted-foreground">Cab verification — waiting for hotel confirmation</p>
-      </div>
-    );
-  }
+//   if (!booking.hotelConfirmedAt) {
+//     return (
+//       <div className="flex items-center gap-2 rounded-lg bg-muted/50 border px-3 py-2.5">
+//         <Car className="h-4 w-4 text-muted-foreground shrink-0" />
+//         <p className="text-sm text-muted-foreground">Cab verification — waiting for hotel confirmation</p>
+//       </div>
+//     );
+//   }
 
   const handleConfirm = () => {
     start(async () => {
@@ -237,7 +236,7 @@ export function CabActionPanel({ booking }: { booking: BookingWithRelations }) {
             <Button variant="outline" onClick={() => setConfirmOpen(false)}>Cancel</Button>
             <Button onClick={handleConfirm} disabled={isPending} className="bg-purple-600 hover:bg-purple-700 text-white">
               {isPending && <RefreshCw className="h-3 w-3 animate-spin mr-2" />}
-              Confirm & Move to Ops Review
+              Confirm
             </Button>
           </DialogFooter>
         </DialogContent>

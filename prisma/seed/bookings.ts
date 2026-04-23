@@ -1,6 +1,7 @@
+import "dotenv/config";
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient, BookingStatus, TripType, TimelineAction } from "../../app/generated/prisma";
+import { PrismaClient, BookingStatus, TripType } from "../../app/generated/prisma";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
@@ -18,14 +19,9 @@ function addDays(date: Date, days: number): Date {
   return d;
 }
 
-function randomFutureDate(minDays = 10, maxDays = 120): Date {
+function randomFutureDate(minDays = 15, maxDays = 120): Date {
   const days = Math.floor(Math.random() * (maxDays - minDays)) + minDays;
   return addDays(new Date(), days);
-}
-
-function randomPastDate(minDays = 1, maxDays = 30): Date {
-  const days = Math.floor(Math.random() * (maxDays - minDays)) + minDays;
-  return addDays(new Date(), -days);
 }
 
 function generateBookingNumber(index: number): string {
@@ -33,474 +29,262 @@ function generateBookingNumber(index: number): string {
   return `DY-${year}-${String(index).padStart(5, "0")}`;
 }
 
+// ── Real Indian traveller profiles ────────────────────────────────────────────
+
+const travellers = [
+  { name: "Rahul Sharma",     email: "rahul.sharma@gmail.com",     phone: "+91-9876543210" },
+  { name: "Priya Mehta",      email: "priya.mehta@gmail.com",      phone: "+91-9823456781" },
+  { name: "Amit Verma",       email: "amit.verma@outlook.com",     phone: "+91-9712345678" },
+  { name: "Sneha Kapoor",     email: "sneha.kapoor@gmail.com",     phone: "+91-9654321098" },
+  { name: "Vikram Singh",     email: "vikram.singh@yahoo.com",     phone: "+91-9543210987" },
+  { name: "Anjali Gupta",     email: "anjali.gupta@gmail.com",     phone: "+91-9432109876" },
+  { name: "Rohit Malhotra",   email: "rohit.malhotra@gmail.com",   phone: "+91-9321098765" },
+  { name: "Deepika Nair",     email: "deepika.nair@gmail.com",     phone: "+91-9210987654" },
+  { name: "Arjun Patel",      email: "arjun.patel@hotmail.com",    phone: "+91-9109876543" },
+  { name: "Kavita Joshi",     email: "kavita.joshi@gmail.com",     phone: "+91-9098765432" },
+  { name: "Suresh Iyer",      email: "suresh.iyer@gmail.com",      phone: "+91-8987654321" },
+  { name: "Meena Pillai",     email: "meena.pillai@gmail.com",     phone: "+91-8876543210" },
+  { name: "Ravi Tiwari",      email: "ravi.tiwari@outlook.com",    phone: "+91-8765432109" },
+  { name: "Pooja Yadav",      email: "pooja.yadav@gmail.com",      phone: "+91-8654321098" },
+  { name: "Nikhil Bhatia",    email: "nikhil.bhatia@gmail.com",    phone: "+91-8543210987" },
+  { name: "Shalini Mishra",   email: "shalini.mishra@yahoo.com",   phone: "+91-8432109876" },
+  { name: "Karan Oberoi",     email: "karan.oberoi@gmail.com",     phone: "+91-8321098765" },
+  { name: "Nisha Chaudhary",  email: "nisha.chaudhary@gmail.com",  phone: "+91-8210987654" },
+  { name: "Manish Agarwal",   email: "manish.agarwal@gmail.com",   phone: "+91-8109876543" },
+  { name: "Sunita Pandey",    email: "sunita.pandey@hotmail.com",  phone: "+91-8098765432" },
+];
+
+// ── Package details by destination ───────────────────────────────────────────
+
+const packagesByDest: Record<string, {
+  duration: number;
+  tripType: TripType;
+  baseRate: number;
+  notes: string | null;
+}[]> = {
+  "Manali": [
+    { duration: 5, tripType: TripType.Adventure,  baseRate: 12000, notes: "Need snow gear rental info please." },
+    { duration: 7, tripType: TripType.Honeymoon,  baseRate: 18000, notes: "Honeymoon package. Please arrange flower decoration in room." },
+    { duration: 4, tripType: TripType.Family,     baseRate: 10000, notes: "Travelling with 2 kids aged 6 and 9." },
+  ],
+  "Kashmir": [
+    { duration: 6, tripType: TripType.Leisure,    baseRate: 16000, notes: "First time in Kashmir. Need complete guidance." },
+    { duration: 8, tripType: TripType.Honeymoon,  baseRate: 22000, notes: "Anniversary trip. Shikara ride must be included." },
+    { duration: 5, tripType: TripType.Family,     baseRate: 14000, notes: "Vegetarian meals required for all members." },
+  ],
+  "Goa": [
+    { duration: 4, tripType: TripType.Leisure,    baseRate: 9000,  notes: null },
+    { duration: 3, tripType: TripType.Corporate,  baseRate: 11000, notes: "Team outing. Need GST invoice. Company: TechSoft Pvt Ltd." },
+    { duration: 5, tripType: TripType.Honeymoon,  baseRate: 13000, notes: "Beach-facing room preferred." },
+  ],
+  "Rajasthan": [
+    { duration: 7, tripType: TripType.Leisure,    baseRate: 13000, notes: "Interested in heritage sites and local cuisine." },
+    { duration: 5, tripType: TripType.Family,     baseRate: 11000, notes: "Elderly parents travelling. Need ground floor rooms." },
+    { duration: 4, tripType: TripType.Corporate,  baseRate: 15000, notes: "Corporate retreat. Need conference room for half day." },
+  ],
+  "Shimla": [
+    { duration: 4, tripType: TripType.Family,     baseRate: 8000,  notes: "Kids excited for snow. First hill station trip." },
+    { duration: 3, tripType: TripType.Honeymoon,  baseRate: 10000, notes: null },
+    { duration: 5, tripType: TripType.Leisure,    baseRate: 9000,  notes: "Mall Road shopping and local sightseeing." },
+  ],
+  "Uttarakhand": [
+    { duration: 6, tripType: TripType.Adventure,  baseRate: 11000, notes: "Interested in river rafting and camping." },
+    { duration: 5, tripType: TripType.Pilgrimage, baseRate: 10000, notes: "Char Dham yatra. Need comfortable transport for senior citizens." },
+    { duration: 4, tripType: TripType.Family,     baseRate: 9000,  notes: null },
+  ],
+  "Spiti Valley": [
+    { duration: 8, tripType: TripType.Adventure,  baseRate: 15000, notes: "Bike trip. Need luggage vehicle support." },
+    { duration: 7, tripType: TripType.Backpacking,baseRate: 9000,  notes: "Budget accommodation preferred." },
+  ],
+  "Andaman": [
+    { duration: 6, tripType: TripType.Honeymoon,  baseRate: 20000, notes: "Scuba diving package must be included." },
+    { duration: 5, tripType: TripType.Family,     baseRate: 17000, notes: "Neil Island and Havelock both." },
+  ],
+  "Kerala": [
+    { duration: 6, tripType: TripType.Honeymoon,  baseRate: 16000, notes: "Houseboat stay is a must." },
+    { duration: 5, tripType: TripType.Leisure,    baseRate: 13000, notes: "Interested in backwaters and Ayurveda." },
+    { duration: 7, tripType: TripType.Family,     baseRate: 14000, notes: null },
+  ],
+  "Dubai": [
+    { duration: 5, tripType: TripType.Leisure,    baseRate: 35000, notes: "Need visa assistance. Travelling as couple." },
+    { duration: 6, tripType: TripType.Corporate,  baseRate: 45000, notes: "Business trip + sightseeing. Need business class." },
+    { duration: 4, tripType: TripType.Family,     baseRate: 38000, notes: "Kids park visits a must. Burj Khalifa tickets needed." },
+  ],
+  "Thailand": [
+    { duration: 6, tripType: TripType.Leisure,    baseRate: 28000, notes: "Phuket and Bangkok both. Island hopping." },
+    { duration: 5, tripType: TripType.Honeymoon,  baseRate: 32000, notes: "Luxury resort preferred. Spa package." },
+    { duration: 7, tripType: TripType.Adventure,  baseRate: 25000, notes: "Diving and trekking activities." },
+  ],
+};
+
+const defaultPackages = [
+  { duration: 5, tripType: TripType.Leisure,  baseRate: 12000, notes: null },
+  { duration: 4, tripType: TripType.Family,   baseRate: 10000, notes: "Family trip with elderly parents." },
+  { duration: 6, tripType: TripType.Adventure,baseRate: 14000, notes: null },
+];
+
 // ── Seed ─────────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log("🌱 Seeding bookings...");
+  console.log("🌱 Seeding fresh bookings (PENDING_REVIEW only)...\n");
 
-  // ── Fetch required relations ──────────────────────────────────────────────
-
-  const users = await db.user.findMany({
-    select: { id: true, name: true, email: true },
-    take: 20,
-  });
-
-  if (users.length === 0) {
-    throw new Error("No users found. Seed users first before seeding bookings.");
-  }
+  // ── Fetch destinations ────────────────────────────────────────────────────
 
   const destinations = await db.destinations.findMany({
     select: { id: true, name: true },
   });
 
   if (destinations.length === 0) {
-    throw new Error("No destinations found. Seed destinations first.");
+    throw new Error("❌ No destinations found. Seed destinations first.");
   }
 
-  const teamMembers = await db.teamMember.findMany({
-    select: {
-      id: true,
-      name: true,
-      departmentId: true,
-      department: { select: { id: true, name: true } },
-    },
-    where: { isActive: true },
-  });
+  console.log(`✓ Found ${destinations.length} destinations`);
 
-  if (teamMembers.length === 0) {
-    console.warn("⚠️  No team members found. Bookings will be created without assignees.");
+  // ── Fetch or create users ─────────────────────────────────────────────────
+  // We create real-looking users if they don't exist yet.
+
+  const userIds: string[] = [];
+
+  for (const traveller of travellers) {
+    let user = await db.user.findUnique({
+      where: { email: traveller.email },
+      select: { id: true },
+    });
+
+    if (!user) {
+      user = await db.user.create({
+        data: {
+          name:  traveller.name,
+          email: traveller.email,
+          // phone field — add if your User model has it
+          // phone: traveller.phone,
+        },
+        select: { id: true },
+      });
+      console.log(`  + Created user: ${traveller.name}`);
+    }
+
+    userIds.push(user.id);
   }
 
-  const hotelTeam = teamMembers.filter(
-    (m) => m.department?.name?.toLowerCase().includes("hotel")
-  );
-  const cabTeam = teamMembers.filter(
-    (m) => m.department?.name?.toLowerCase().includes("cab")
-  );
-  const opsTeam = teamMembers.filter(
-    (m) =>
-      m.department?.name?.toLowerCase().includes("ops") ||
-      m.department?.name?.toLowerCase().includes("operation")
-  );
+  console.log(`\n✓ ${userIds.length} users ready\n`);
 
-  const anyMember = teamMembers[0];
-  const hotelMember = hotelTeam[0] ?? anyMember;
-  const cabMember = cabTeam[0] ?? anyMember;
-  const opsMember = opsTeam[0] ?? anyMember;
-
-  const hotelDept = await db.department.findFirst({
-    where: { name: { contains: "Hotel", mode: "insensitive" } },
-  });
-  const cabDept = await db.department.findFirst({
-    where: { name: { contains: "Cab", mode: "insensitive" } },
-  });
-  const opsDept = await db.department.findFirst({
-    where: {
-      OR: [
-        { name: { contains: "Ops", mode: "insensitive" } },
-        { name: { contains: "Operation", mode: "insensitive" } },
-      ],
-    },
-  });
-
-  // ── Booking templates ─────────────────────────────────────────────────────
-
-  const tripTypes = Object.values(TripType);
-
-  const bookingTemplates: {
-    status: BookingStatus;
-    label: string;
-    count: number;
-  }[] = [
-    { status: BookingStatus.PENDING_REVIEW,           label: "Pending Review",          count: 5 },
-    { status: BookingStatus.HOTEL_VERIFICATION,       label: "Hotel Verification",      count: 4 },
-    { status: BookingStatus.HOTEL_CONFIRMED,          label: "Hotel Confirmed",         count: 3 },
-    { status: BookingStatus.CAB_VERIFICATION,         label: "Cab Verification",        count: 4 },
-    { status: BookingStatus.CAB_CONFIRMED,            label: "Cab Confirmed",           count: 2 },
-    { status: BookingStatus.OPS_REVIEW,               label: "Ops Review",              count: 3 },
-    { status: BookingStatus.CONFIRMED,                label: "Confirmed",               count: 5 },
-    { status: BookingStatus.UPCOMING,                 label: "Upcoming",                count: 4 },
-    { status: BookingStatus.ONGOING,                  label: "Ongoing",                 count: 2 },
-    { status: BookingStatus.COMPLETED,                label: "Completed",               count: 4 },
-    { status: BookingStatus.MODIFICATION_REQUESTED,   label: "Modification Requested",  count: 2 },
-    { status: BookingStatus.CANCELLED,                label: "Cancelled",               count: 3 },
-    { status: BookingStatus.REJECTED,                 label: "Rejected",                count: 2 },
-  ];
-
-  const notes = [
-    "Need ground floor room, travelling with elderly parents.",
-    "Honeymoon trip, please arrange flowers in room if possible.",
-    "Vegetarian meals required for all members.",
-    "First time travellers, please guide on what to carry.",
-    "Need extra bed for child.",
-    "Corporate team outing, require invoice with GST.",
-    null,
-    null,
-    null,
-  ];
-
-  const hotelNoteOptions = [
-    "Hotel Shivalik confirmed, deluxe rooms available. Rate: ₹3500/night.",
-    "The Orchard Retreat confirmed. 3 rooms blocked for travel dates.",
-    "Hotel Snowflake Manali confirmed. Early check-in arranged.",
-    "Zostel Kasol confirmed. Dormitory + private room booked.",
-    "Vivanta by Taj confirmed. Suite available for dates.",
-  ];
-
-  const cabNoteOptions = [
-    "Tempo Traveller confirmed. Driver: Ramesh +91-9876543210. Pickup: 6 AM.",
-    "Innova Crysta confirmed. Driver will report at hotel lobby.",
-    "Force Urbania confirmed for 12-seater group. AC vehicle.",
-    "Swift Dzire confirmed for couple package. Driver: Suresh.",
-    "Mini bus (20-seater) confirmed for corporate group.",
-  ];
-
-  const rejectionReasons = [
-    "Package dates are unavailable due to peak season block.",
-    "Customer failed to provide required travel documents.",
-    "Hotel and transport unavailable for selected dates.",
-  ];
-
-  const modificationNotes = [
-    "Hotel fully booked for Jun 15-18. Requesting date change to Jun 20-23.",
-    "Requested cab type (Tempo Traveller) not available. Suggesting Force Urbania instead.",
-  ];
-
-  // ── Create bookings ───────────────────────────────────────────────────────
+  // ── Get existing booking count for numbering ──────────────────────────────
 
   const existingCount = await db.booking.count();
   let bookingIndex = existingCount + 1;
 
-  for (const template of bookingTemplates) {
-    console.log(`  → Creating ${template.count} bookings: ${template.label}`);
+  // ── Create fresh PENDING_REVIEW bookings ──────────────────────────────────
 
-    for (let i = 0; i < template.count; i++) {
-      const user = randomItem(users);
-      const destination = randomItem(destinations);
-      const tripType = randomItem(tripTypes);
-      const duration = randomItem([3, 4, 5, 6, 7, 8, 10]);
-      const travellers = randomItem([1, 2, 2, 3, 4, 5, 6]);
-      const baseRate = randomItem([8000, 10000, 12000, 15000, 18000, 22000]);
-      const totalAmount = baseRate * travellers + (duration - 3) * 2000;
-      const paidAmount = totalAmount;
-      const startDate = randomFutureDate(15, 100);
-      const endDate = addDays(startDate, duration);
-      const createdAt = randomPastDate(1, 20);
+  const bookingsToCreate = [
+    // Recent bookings — just paid, hot leads
+    { traveller: travellers[0],  daysAgo: 0,  dest: "Manali",      pax: 2 },
+    { traveller: travellers[1],  daysAgo: 0,  dest: "Kashmir",     pax: 2 },
+    { traveller: travellers[2],  daysAgo: 1,  dest: "Goa",         pax: 4 },
+    { traveller: travellers[3],  daysAgo: 1,  dest: "Rajasthan",   pax: 3 },
+    { traveller: travellers[4],  daysAgo: 1,  dest: "Dubai",       pax: 2 },
+    { traveller: travellers[5],  daysAgo: 2,  dest: "Thailand",    pax: 2 },
+    { traveller: travellers[6],  daysAgo: 2,  dest: "Shimla",      pax: 5 },
+    { traveller: travellers[7],  daysAgo: 2,  dest: "Kerala",      pax: 2 },
+    { traveller: travellers[8],  daysAgo: 3,  dest: "Andaman",     pax: 2 },
+    { traveller: travellers[9],  daysAgo: 3,  dest: "Uttarakhand", pax: 6 },
+    { traveller: travellers[10], daysAgo: 4,  dest: "Spiti Valley",pax: 4 },
+    { traveller: travellers[11], daysAgo: 4,  dest: "Manali",      pax: 3 },
+    { traveller: travellers[12], daysAgo: 5,  dest: "Kashmir",     pax: 2 },
+    { traveller: travellers[13], daysAgo: 5,  dest: "Goa",         pax: 2 },
+    { traveller: travellers[14], daysAgo: 6,  dest: "Rajasthan",   pax: 4 },
+    { traveller: travellers[15], daysAgo: 7,  dest: "Dubai",       pax: 2 },
+    { traveller: travellers[16], daysAgo: 7,  dest: "Thailand",    pax: 3 },
+    { traveller: travellers[17], daysAgo: 8,  dest: "Kerala",      pax: 2 },
+    { traveller: travellers[18], daysAgo: 9,  dest: "Shimla",      pax: 4 },
+    { traveller: travellers[19], daysAgo: 10, dest: "Andaman",     pax: 2 },
+  ];
 
-      const s = template.status;
+  let created = 0;
 
-      let hotelConfirmedAt: Date | null = null;
-      let hotelNotes: string | null = null;
-      let cabConfirmedAt: Date | null = null;
-      let cabNotes: string | null = null;
-      let opsReviewedAt: Date | null = null;
-      let rejectionReason: string | null = null;
-      let modificationNote: string | null = null;
-      let cancelledAt: Date | null = null;
-      let cancelReason: string | null = null;
-      let currentDepartmentId: string | null = null;
-      let currentAssigneeId: string | null = null;
-      let hotelAssigneeId: string | null = null;
-      let cabAssigneeId: string | null = null;
-      let opsAssigneeId: string | null = null;
+  for (const entry of bookingsToCreate) {
+    // Find destination
+    const destination = destinations.find(
+      (d) => d.name.toLowerCase().includes(entry.dest.toLowerCase())
+    ) ?? randomItem(destinations);
 
-      const hotelDoneStatuses: BookingStatus[] = [
-        BookingStatus.HOTEL_CONFIRMED,
-        BookingStatus.CAB_VERIFICATION,
-        BookingStatus.CAB_CONFIRMED,
-        BookingStatus.OPS_REVIEW,
-        BookingStatus.CONFIRMED,
-        BookingStatus.UPCOMING,
-        BookingStatus.ONGOING,
-        BookingStatus.COMPLETED,
-      ];
-      const hotelDone = hotelDoneStatuses.includes(s);
+    // Find user
+    const user = await db.user.findUnique({
+      where: { email: entry.traveller.email },
+      select: { id: true },
+    });
 
-      const cabDoneStatuses: BookingStatus[] = [
-        BookingStatus.CAB_CONFIRMED,
-        BookingStatus.OPS_REVIEW,
-        BookingStatus.CONFIRMED,
-        BookingStatus.UPCOMING,
-        BookingStatus.ONGOING,
-        BookingStatus.COMPLETED,
-      ];
-      const cabDone = cabDoneStatuses.includes(s);
+    if (!user) continue;
 
-      if (hotelDone && hotelMember) {
-        hotelConfirmedAt = addDays(createdAt, 1);
-        hotelNotes = randomItem(hotelNoteOptions);
-        hotelAssigneeId = hotelMember.id;
-      }
+    // Pick package details for this destination
+    const packages = packagesByDest[entry.dest] ?? defaultPackages;
+    const pkg = randomItem(packages);
 
-      if (cabDone && cabMember) {
-        cabConfirmedAt = addDays(createdAt, 2);
-        cabNotes = randomItem(cabNoteOptions);
-        cabAssigneeId = cabMember.id;
-      }
+    const totalAmount = pkg.baseRate * entry.pax;
+    const paidAmount  = totalAmount; // assume full payment at booking
 
-      const opsReviewStatuses: BookingStatus[] = [
-        BookingStatus.OPS_REVIEW,
-        BookingStatus.CONFIRMED,
-        BookingStatus.UPCOMING,
-        BookingStatus.ONGOING,
-        BookingStatus.COMPLETED,
-      ];
-      if (opsReviewStatuses.includes(s) && opsMember) {
-        opsReviewedAt = addDays(createdAt, 3);
-        opsAssigneeId = opsMember.id;
-      }
+    const createdAt = addDays(new Date(), -entry.daysAgo);
+    // Set exact time to simulate different booking times
+    createdAt.setHours(
+      randomItem([9, 10, 11, 14, 15, 16, 18, 19, 20]),
+      randomItem([0, 15, 30, 45]),
+      0, 0
+    );
 
-      if (s === BookingStatus.PENDING_REVIEW && opsDept) {
-        currentDepartmentId = opsDept.id;
-        currentAssigneeId = opsMember?.id ?? null;
-      } else if (s === BookingStatus.HOTEL_VERIFICATION && hotelDept) {
-        currentDepartmentId = hotelDept.id;
-        currentAssigneeId = hotelMember?.id ?? null;
-        hotelAssigneeId = hotelMember?.id ?? null;
-      } else if (s === BookingStatus.HOTEL_CONFIRMED && hotelDept) {
-        currentDepartmentId = hotelDept.id;
-        hotelConfirmedAt = addDays(createdAt, 1);
-        hotelNotes = randomItem(hotelNoteOptions);
-        hotelAssigneeId = hotelMember?.id ?? null;
-      } else if (s === BookingStatus.CAB_VERIFICATION && cabDept) {
-        currentDepartmentId = cabDept.id;
-        currentAssigneeId = cabMember?.id ?? null;
-        cabAssigneeId = cabMember?.id ?? null;
-      } else if (s === BookingStatus.OPS_REVIEW && opsDept) {
-        currentDepartmentId = opsDept.id;
-        currentAssigneeId = opsMember?.id ?? null;
-      }
+    const startDate = randomFutureDate(20, 90);
+    const endDate   = addDays(startDate, pkg.duration);
 
-      if (s === BookingStatus.REJECTED) {
-        rejectionReason = randomItem(rejectionReasons);
-      }
-
-      if (s === BookingStatus.MODIFICATION_REQUESTED) {
-        modificationNote = randomItem(modificationNotes);
-      }
-
-      if (s === BookingStatus.CANCELLED) {
-        cancelledAt = randomPastDate(1, 10);
-        cancelReason = randomItem([
-          "Customer requested cancellation due to personal reasons.",
-          "Flight cancelled, unable to travel.",
-          "Medical emergency in family.",
-        ]);
-      }
-
-      // ── Create booking ────────────────────────────────────────────────────
-      const booking = await db.booking.create({
-        data: {
-          bookingNumber: generateBookingNumber(bookingIndex++),
-          userId: user.id,
-          destinationId: destination.id,
-          tripType,
-          startDate,
-          endDate,
-          duration,
-          travellers,
-          status: s,
-          totalAmount,
-          paidAmount,
-          currency: "INR",
-          notes: randomItem(notes),
-          hotelConfirmedAt,
-          hotelNotes,
-          hotelAssigneeId,
-          cabConfirmedAt,
-          cabNotes,
-          cabAssigneeId,
-          opsReviewedAt,
-          opsAssigneeId,
-          rejectionReason,
-          modificationNote,
-          cancelledAt,
-          cancelReason,
-          currentDepartmentId,
-          currentAssigneeId,
-          createdAt,
-          updatedAt: createdAt,
-        },
-      });
-
-      // ── Create timeline entries ───────────────────────────────────────────
-      if (!anyMember) continue;
-
-      const timelineActor = opsMember ?? anyMember;
-
-      const timelineEntries: {
-        action: TimelineAction;
-        fromStatus?: BookingStatus;
-        toStatus?: BookingStatus;
-        note: string;
-        performedById: string;
-        performedByName: string;
-        departmentId?: string | null;
-        createdAt: Date;
-      }[] = [];
-
-      // Always: booking created
-      timelineEntries.push({
-        action: TimelineAction.BOOKING_CREATED,
-        toStatus: BookingStatus.PENDING_REVIEW,
-        note: "Booking received after successful payment.",
-        performedById: timelineActor.id,
-        performedByName: timelineActor.name,
-        departmentId: opsDept?.id ?? null,
+    const booking = await db.booking.create({
+      data: {
+        bookingNumber: generateBookingNumber(bookingIndex++),
+        userId:        user.id,
+        destinationId: destination.id,
+        tripType:      pkg.tripType,
+        startDate,
+        endDate,
+        duration:      pkg.duration,
+        travellers:    entry.pax,
+        status:        BookingStatus.PENDING_REVIEW,
+        totalAmount,
+        paidAmount,
+        currency:      "INR",
+        notes:         pkg.notes,
+        // All verification fields null — fresh booking
+        hotelConfirmedAt:      null,
+        hotelNotes:            null,
+        hotelAssigneeId:       null,
+        cabConfirmedAt:        null,
+        cabNotes:              null,
+        cabAssigneeId:         null,
+        opsReviewedAt:         null,
+        opsAssigneeId:         null,
+        currentDepartmentId:   null,
+        currentAssigneeId:     null,
+        rejectionReason:       null,
+        modificationNote:      null,
+        cancelledAt:           null,
+        cancelReason:          null,
         createdAt,
-      });
+        updatedAt: createdAt,
+      },
+    });
 
-      // Hotel dept assigned
-      if (s !== BookingStatus.PENDING_REVIEW && hotelMember) {
-        timelineEntries.push({
-          action: TimelineAction.DEPARTMENT_ASSIGNED,
-          fromStatus: BookingStatus.PENDING_REVIEW,
-          toStatus: BookingStatus.HOTEL_VERIFICATION,
-          note: "Assigned to hotel department for verification.",
-          performedById: timelineActor.id,
-          performedByName: timelineActor.name,
-          departmentId: hotelDept?.id ?? null,
-          createdAt: addDays(createdAt, 0),
-        });
-      }
+    console.log(
+      `  ✓ ${booking.bookingNumber} | ${entry.traveller.name.padEnd(20)} | ${entry.dest.padEnd(14)} | ` +
+      `${entry.pax} pax | ₹${totalAmount.toLocaleString("en-IN")} | ` +
+      `${entry.daysAgo === 0 ? "Today" : `${entry.daysAgo}d ago`}`
+    );
 
-      // Hotel confirmed
-      if (hotelDone && hotelMember) {
-        timelineEntries.push({
-          action: TimelineAction.DEPARTMENT_CONFIRMED,
-          fromStatus: BookingStatus.HOTEL_VERIFICATION,
-          toStatus: BookingStatus.CAB_VERIFICATION,
-          note: hotelNotes ?? "Hotel confirmed.",
-          performedById: hotelMember.id,
-          performedByName: hotelMember.name,
-          departmentId: hotelDept?.id ?? null,
-          createdAt: addDays(createdAt, 1),
-        });
-      }
-
-      // Cab confirmed
-      if (cabDone && cabMember) {
-        timelineEntries.push({
-          action: TimelineAction.DEPARTMENT_CONFIRMED,
-          fromStatus: BookingStatus.CAB_VERIFICATION,
-          toStatus: BookingStatus.OPS_REVIEW,
-          note: cabNotes ?? "Cab confirmed.",
-          performedById: cabMember.id,
-          performedByName: cabMember.name,
-          departmentId: cabDept?.id ?? null,
-          createdAt: addDays(createdAt, 2),
-        });
-      }
-
-      // Ops confirmed
-      const opsConfirmedStatuses: BookingStatus[] = [
-        BookingStatus.CONFIRMED,
-        BookingStatus.UPCOMING,
-        BookingStatus.ONGOING,
-        BookingStatus.COMPLETED,
-      ];
-      if (opsConfirmedStatuses.includes(s) && opsMember) {
-        timelineEntries.push({
-          action: TimelineAction.STATUS_CHANGED,
-          fromStatus: BookingStatus.OPS_REVIEW,
-          toStatus: BookingStatus.CONFIRMED,
-          note: "All verifications complete. Booking confirmed. Confirmation email sent to customer.",
-          performedById: opsMember.id,
-          performedByName: opsMember.name,
-          departmentId: opsDept?.id ?? null,
-          createdAt: addDays(createdAt, 3),
-        });
-      }
-
-      // Ongoing
-      const ongoingStatuses: BookingStatus[] = [BookingStatus.ONGOING, BookingStatus.COMPLETED];
-      if (ongoingStatuses.includes(s)) {
-        timelineEntries.push({
-          action: TimelineAction.STATUS_CHANGED,
-          fromStatus: BookingStatus.UPCOMING,
-          toStatus: BookingStatus.ONGOING,
-          note: "Travel started. Customer departed.",
-          performedById: timelineActor.id,
-          performedByName: timelineActor.name,
-          departmentId: opsDept?.id ?? null,
-          createdAt: addDays(new Date(), -3),
-        });
-      }
-
-      // Completed
-      if (s === BookingStatus.COMPLETED) {
-        timelineEntries.push({
-          action: TimelineAction.STATUS_CHANGED,
-          fromStatus: BookingStatus.ONGOING,
-          toStatus: BookingStatus.COMPLETED,
-          note: "Trip completed successfully. Customer returned.",
-          performedById: timelineActor.id,
-          performedByName: timelineActor.name,
-          departmentId: opsDept?.id ?? null,
-          createdAt: addDays(new Date(), -1),
-        });
-      }
-
-      // Modification
-      if (s === BookingStatus.MODIFICATION_REQUESTED) {
-        timelineEntries.push({
-          action: TimelineAction.DEPARTMENT_FLAGGED,
-          fromStatus: BookingStatus.HOTEL_VERIFICATION,
-          toStatus: BookingStatus.MODIFICATION_REQUESTED,
-          note: modificationNote ?? "Issue flagged by department.",
-          performedById: hotelMember?.id ?? timelineActor.id,
-          performedByName: hotelMember?.name ?? timelineActor.name,
-          departmentId: hotelDept?.id ?? null,
-          createdAt: addDays(createdAt, 1),
-        });
-      }
-
-      // Rejected
-      if (s === BookingStatus.REJECTED) {
-        timelineEntries.push({
-          action: TimelineAction.STATUS_CHANGED,
-          fromStatus: BookingStatus.OPS_REVIEW,
-          toStatus: BookingStatus.REJECTED,
-          note: rejectionReason ?? "Booking rejected.",
-          performedById: opsMember?.id ?? timelineActor.id,
-          performedByName: opsMember?.name ?? timelineActor.name,
-          departmentId: opsDept?.id ?? null,
-          createdAt: addDays(createdAt, 2),
-        });
-      }
-
-      // Cancelled
-      if (s === BookingStatus.CANCELLED) {
-        timelineEntries.push({
-          action: TimelineAction.STATUS_CHANGED,
-          fromStatus: BookingStatus.CONFIRMED,
-          toStatus: BookingStatus.CANCELLED,
-          note: cancelReason ?? "Booking cancelled.",
-          performedById: timelineActor.id,
-          performedByName: timelineActor.name,
-          departmentId: opsDept?.id ?? null,
-          createdAt: cancelledAt ?? addDays(createdAt, 5),
-        });
-      }
-
-      await db.bookingTimeline.createMany({
-        data: timelineEntries.map((entry) => ({
-          bookingId: booking.id,
-          action: entry.action,
-          fromStatus: entry.fromStatus ?? null,
-          toStatus: entry.toStatus ?? null,
-          note: entry.note,
-          performedById: entry.performedById,
-          performedByName: entry.performedByName,
-          departmentId: entry.departmentId ?? null,
-          createdAt: entry.createdAt,
-        })),
-      });
-    }
+    created++;
   }
 
-  const total = await db.booking.count();
-  console.log(`✅ Booking seed complete. Total bookings in DB: ${total}`);
+  console.log(`\n✅ Created ${created} fresh PENDING_REVIEW bookings`);
+  console.log(`📊 Total bookings in DB: ${await db.booking.count()}`);
+  console.log(`\nWhat to test:`);
+  console.log(`  1. Open /dashboard/package-bookings → all ${created} show as "Pending Review"`);
+  console.log(`  2. Open any booking → click "Confirm Hotel" and "Confirm Cab" from different team members`);
+  console.log(`  3. Once both confirmed → booking auto-moves to OPS_REVIEW`);
+  console.log(`  4. Ops manager confirms → status becomes CONFIRMED`);
 }
 
 main()
@@ -509,4 +293,3 @@ main()
     await db.$disconnect();
     await pool.end();
   });
-  
