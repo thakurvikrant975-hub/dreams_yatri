@@ -99,7 +99,7 @@ model packages {
   hotels          package_hotels[]
   images          package_images[]
   itineraries     package_itineraries[]
-  policies        package_policy_map[]
+  policies        package_policy_map[] 
   pricing         package_pricing[]
   stay_categories package_stay_categories[]
   tags            package_tags[]
@@ -558,6 +558,20 @@ model TravelPreference {
   @@map("travel_preferences")
 }
 
+
+enum TimelineAction {
+  BOOKING_CREATED
+  STATUS_CHANGED
+  DEPARTMENT_ASSIGNED
+  MEMBER_ASSIGNED
+  DEPARTMENT_CONFIRMED
+  DEPARTMENT_FLAGGED
+  NOTE_ADDED
+  MODIFICATION_REQUESTED
+  EMAIL_SENT
+  REFUND_INITIATED
+}
+
 model Booking {
   id            String        @id @default(cuid())
   bookingNumber String        @unique
@@ -568,22 +582,75 @@ model Booking {
   endDate       DateTime
   duration      Int
   travellers    Int           @default(1)
-  status        BookingStatus @default(UPCOMING)
+  status        BookingStatus @default(PENDING_REVIEW) // changed default only
+
+  // ── Existing financial fields (unchanged)
   totalAmount   Decimal       @db.Decimal(10, 2)
   paidAmount    Decimal       @default(0) @db.Decimal(10, 2)
   currency      String        @default("INR")
+
+  // ── Existing fields (unchanged)
   notes         String?
   cancelledAt   DateTime?
   cancelReason  String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
+
+  // ── NEW: Department pipeline fields
+  currentDepartmentId     String?
+  currentAssigneeId       String?
+  hotelAssigneeId         String?
+  hotelConfirmedAt        DateTime?
+  hotelNotes              String?
+  cabAssigneeId           String?
+  cabConfirmedAt          DateTime?
+  cabNotes                String?
+  opsAssigneeId           String?
+  opsReviewedAt           DateTime?
+  rejectionReason         String?
+  modificationNote        String?
+  modificationRequestedBy String?
+
+  // ── Existing relations (unchanged)
   destination   destinations  @relation(fields: [destinationId], references: [id])
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   payments      Payment[]
 
+  // ── NEW relations
+  timeline            BookingTimeline[]
+  currentDepartment   Department?   @relation("BookingCurrentDept", fields: [currentDepartmentId], references: [id])
+  currentAssignee     TeamMember?   @relation("BookingCurrentAssignee", fields: [currentAssigneeId], references: [id])
+  hotelAssignee       TeamMember?   @relation("BookingHotelAssignee", fields: [hotelAssigneeId], references: [id])
+  cabAssignee         TeamMember?   @relation("BookingCabAssignee", fields: [cabAssigneeId], references: [id])
+  opsAssignee         TeamMember?   @relation("BookingOpsAssignee", fields: [opsAssigneeId], references: [id])
+
   @@index([userId])
   @@index([status])
+  @@index([hotelAssigneeId])
+  @@index([cabAssigneeId])
+  @@index([currentAssigneeId])
   @@map("bookings")
+}
+
+model BookingTimeline {
+  id              String         @id @default(cuid())
+  bookingId       String
+  action          TimelineAction
+  fromStatus      BookingStatus?
+  toStatus        BookingStatus?
+  note            String?
+  performedById   String
+  performedByName String
+  departmentId    String?
+  createdAt       DateTime       @default(now())
+
+  booking         Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  performedBy     TeamMember     @relation("TimelinePerformedBy", fields: [performedById], references: [id])
+  department      Department?    @relation("TimelineDepartment", fields: [departmentId], references: [id])
+
+  @@index([bookingId])
+  @@index([performedById])
+  @@map("booking_timeline")
 }
 
 model Payment {
@@ -706,8 +773,13 @@ model Department {
   updatedAt   DateTime     @updatedAt
   members     TeamMember[]
 
+  // NEW back-relations
+  currentBookings   Booking[]         @relation("BookingCurrentDept")
+  timelineEntries   BookingTimeline[]  @relation("TimelineDepartment")
+
   @@map("departments")
 }
+
 
 model TeamRole {
   id          String       @id @default(cuid())
@@ -733,8 +805,17 @@ model TeamMember {
   createdById  String?
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
+
+  // Existing relations (unchanged)
   department   Department? @relation(fields: [departmentId], references: [id])
   teamRole     TeamRole?   @relation(fields: [teamRoleId], references: [id])
+
+  // NEW back-relations
+  currentBookings   Booking[]         @relation("BookingCurrentAssignee")
+  hotelBookings     Booking[]         @relation("BookingHotelAssignee")
+  cabBookings       Booking[]         @relation("BookingCabAssignee")
+  opsBookings       Booking[]         @relation("BookingOpsAssignee")
+  timelineEntries   BookingTimeline[]  @relation("TimelinePerformedBy")
 
   @@index([email])
   @@index([departmentId])
@@ -969,8 +1050,18 @@ enum TravelMonth {
 
 enum BookingStatus {
   UPCOMING
+  ONGOING
   COMPLETED
   CANCELLED
+  PENDING_REVIEW
+  HOTEL_VERIFICATION
+  HOTEL_CONFIRMED
+  CAB_VERIFICATION
+  CAB_CONFIRMED
+  OPS_REVIEW
+  CONFIRMED
+  REJECTED
+  MODIFICATION_REQUESTED
 }
 
 enum PaymentStatus {
