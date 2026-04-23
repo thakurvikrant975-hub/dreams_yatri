@@ -14,7 +14,7 @@ export type BookingWithRelations = Prisma.BookingGetPayload<{
     user: { select: { id: true; name: true; email: true; image: true } };
     destination: { select: { id: true; name: true } };
     payments: { select: { id: true; amount: true; status: true; createdAt: true } };
-    timeline: {
+    timeline: { 
       include: {
         performedBy: { select: { id: true; name: true } };
         department: { select: { id: true; name: true } };
