@@ -151,11 +151,10 @@ model package_images {
 model package_durations {
   id          Int                   @id @default(autoincrement())
   package_id  Int
-  slug        String
+  slug        String           
   label       String
   days        Int
   nights      Int
-  routes      Json
   meta_title  String?
   meta_desc   String?
   is_default  Boolean               @default(false)
@@ -166,9 +165,25 @@ model package_durations {
   package     packages              @relation(fields: [package_id], references: [id])
   itineraries package_itineraries[]
   pricing     package_pricing[]
+  routes      package_routes[]
 
   @@unique([package_id, slug])
   @@index([package_id, is_active])
+}
+
+model package_routes {
+  id          Int @id @default(autoincrement())
+  duration_id Int
+  name        String
+  slug        String
+  sort_order  Int @default(0)
+  is_active   Boolean @default(true)
+
+  duration package_durations @relation(fields: [duration_id], references: [id], onDelete: Cascade)
+  itineraries package_itineraries[]
+
+  @@index([duration_id])
+  @@unique([duration_id, slug])
 }
 
 model package_stay_categories {
@@ -210,6 +225,7 @@ model package_itineraries {
   id           Int               @id @default(autoincrement())
   package_id   Int
   duration_id  Int
+  route_id     Int?
   day          Int
   title        String
   description  String?
@@ -220,6 +236,7 @@ model package_itineraries {
   hotel_days   Int?
   hotel_id     Int?
   duration     package_durations @relation(fields: [duration_id], references: [id])
+  route        package_routes?   @relation(fields: [route_id], references: [id])
   hotel        hotels?           @relation(fields: [hotel_id], references: [id])
   package      packages          @relation(fields: [package_id], references: [id])
 
