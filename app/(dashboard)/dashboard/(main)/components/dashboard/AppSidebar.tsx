@@ -5,7 +5,7 @@ import {
 } from "../ui/sidebar";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, } from "../ui/accordion";
 
-import { LayoutDashboard, Settings, Users, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound, MessageCircleQuestion, ClockCheck, Mails, Forward, BadgePercent, HandCoins, Banknote, ChartSpline, BanknoteArrowDown, BanknoteX
+import { LayoutDashboard, Settings, Users, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound, MessageCircleQuestion, ClockCheck, Mails, Forward, BadgePercent, HandCoins, Banknote, ChartSpline, BanknoteArrowDown, BanknoteX, Car, Bed
 } from "lucide-react";
 
 import {
@@ -91,12 +91,12 @@ const navGroups = [
         ],
     },
     {
-        id: "users",
-        label: "Users & Bookings",
+        id: "bookings",
+        label: "Booking management",
         items: [
-            { title: "Customers", href: "/dashboard/customers", icon: <Users className="size-6 text-muted-foreground" /> },
-            { title: "Bookings", href: "/dashboard/bookings", icon: <BookOpen className="size-6 text-muted-foreground" /> },
-            { title: "Leads", href: "/dashboard/leads", icon: <BarChart3 className="size-6 text-muted-foreground" /> },
+            { title: "Package Bookings", href: "/dashboard/package-bookings", icon: <BookOpen className="size-6 text-muted-foreground" /> },
+            { title: "Verify Cabs", href: "/dashboard/verify-cabs", icon: <Car className="size-6 text-muted-foreground" /> },
+            { title: "Verify Hotels", href: "/dashboard/verify-hotels", icon: <Bed className="size-6 text-muted-foreground" /> },
         ],
     },
     {
