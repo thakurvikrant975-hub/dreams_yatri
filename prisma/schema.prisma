@@ -1033,6 +1033,7 @@ enum TravelMonth {
 
 enum BookingStatus {
   UPCOMING
+  ONGOING
   COMPLETED
   CANCELLED
   PENDING_REVIEW

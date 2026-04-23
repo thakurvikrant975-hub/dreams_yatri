@@ -17,7 +17,7 @@ import { toast } from "sonner";
 import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable";
 import { TableFilters } from "../../components/dashboard/Tablefilters";
 import { Stats } from "../../components/dashboard/Stats";
-import { BookingStatusBadge } from "./BookingShared";
+import { BookingStatusBadge } from "./Bookingshared";
 import type { BookingWithRelations, PaginatedBookings, BookingStats } from "./actions";
 import type { BookingStatus } from "@/app/generated/prisma";
 
