@@ -137,7 +137,7 @@ export function PricingTab({
   );
 
   const duration = durations.find(d => d.id === Number(selectedDurationId));
-  const routes   = duration ? (duration.routes as RouteOption[]) : [];
+  const routes   = duration ? (duration.routes || []) as any : [];
 
   if (durations.length === 0) {
     return (
@@ -189,7 +189,7 @@ export function PricingTab({
             Leave empty to mark as unavailable.
           </p>
 
-          {routes.map(route => (
+          {routes.map((route: any) => (
             <div key={route.id} className="space-y-3">
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="text-xs">

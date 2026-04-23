@@ -142,9 +142,17 @@ export async function getPackageById(id: number) {
   });
 }
 
-export async function getPackageItinerary(package_id: number, duration_id: number) {
+export async function getPackageItinerary(
+  package_id:  number,
+  duration_id: number,
+  route_id?:   number | null,
+) {
   return db.package_itineraries.findMany({
-    where:   { package_id, duration_id },
+    where: {
+      package_id,
+      duration_id,
+      ...(route_id !== undefined ? { route_id } : {}),
+    },
     orderBy: { day: "asc" },
     include: {
       hotel: {
@@ -331,9 +339,6 @@ export async function deletePackage(id: number): Promise<PackageFormState> {
 
 export async function createDuration(package_id: number, formData: FormData): Promise<PackageFormState> {
   try {
-    let routes: RouteOption[] = [];
-    try { routes = JSON.parse((formData.get("routes") as string) || "[]"); } catch { /* ignore */ }
-
     const count = await db.package_durations.count({ where: { package_id } });
     await db.package_durations.create({
       data: {
@@ -342,7 +347,6 @@ export async function createDuration(package_id: number, formData: FormData): Pr
         label:      formData.get("label") as string,
         days:       Number(formData.get("days")),
         nights:     Number(formData.get("nights")),
-        routes,
         is_default: formData.get("is_default") === "true",
         is_active:  true,
         sort_order: count,
@@ -359,16 +363,12 @@ export async function createDuration(package_id: number, formData: FormData): Pr
 
 export async function updateDuration(id: number, package_id: number, formData: FormData): Promise<PackageFormState> {
   try {
-    let routes: RouteOption[] = [];
-    try { routes = JSON.parse((formData.get("routes") as string) || "[]"); } catch { /* ignore */ }
-
     await db.package_durations.update({
       where: { id },
       data: {
         label:      formData.get("label") as string,
         days:       Number(formData.get("days")),
         nights:     Number(formData.get("nights")),
-        routes,
         is_default: formData.get("is_default") === "true",
         meta_title: (formData.get("meta_title") as string) || null,
         meta_desc:  (formData.get("meta_desc")  as string) || null,
@@ -493,11 +493,19 @@ export async function upsertItineraryDay(
     activity_ids: number[];
     meals:        string[];
     route_index:  number | null;
+    route_id:     number | null;
   },
 ): Promise<PackageFormState> {
   try {
     const existing = await db.package_itineraries.findFirst({
-      where: { package_id, duration_id, day },
+      where: {
+        package_id,
+        duration_id,
+        day,
+        ...(data.route_id !== null
+          ? { route_id: data.route_id }
+          : { route_id: null, route_index: data.route_index }),
+      },
     });
 
     const payload = {
@@ -508,6 +516,7 @@ export async function upsertItineraryDay(
       activity_ids: data.activity_ids,
       meals:        data.meals,
       route_index:  data.route_index,
+      route_id:     data.route_id,
       activities:   [],
     };
 

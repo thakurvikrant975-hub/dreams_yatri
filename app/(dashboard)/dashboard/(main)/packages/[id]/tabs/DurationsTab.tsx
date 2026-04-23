@@ -200,7 +200,7 @@ function DurationDialog({
   const [metaDesc,  setMetaDesc]  = useState(existing?.meta_desc  ?? "");
   const [routes,    setRoutes]    = useState<RouteOption[]>(
     existing
-      ? (existing.routes as RouteOption[])
+      ? (existing.routes || []) as any
       : [{ id: 0, slug: "route-0", label: "", stops: [{ d: 1, p: "" }], is_default: true }]
   );
 
@@ -372,7 +372,7 @@ export function DurationsTab({
       ) : (
         <div className="space-y-3">
           {durations.map(dur => {
-            const routes = dur.routes as RouteOption[];
+            const routes = Array.isArray(dur.routes) ? dur.routes as any[] : [];
             const isExp  = expanded.has(dur.id);
 
             return (
@@ -439,7 +439,7 @@ export function DurationsTab({
                           {r.is_default && <Badge variant="secondary" className="text-[10px]">Default</Badge>}
                         </div>
                         <div className="flex flex-wrap items-center gap-1.5">
-                          {r.stops.map((stop, si) => (
+                          {r.stops.map((stop: any, si: number) => (
                             <span key={si} className="flex items-center gap-1 text-xs text-muted-foreground">
                               {si > 0 && <ArrowRight className="h-2.5 w-2.5" />}
                               <span className="bg-muted px-2 py-0.5 rounded">{stop.p} ({stop.d}N)</span>

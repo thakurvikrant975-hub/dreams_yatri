@@ -64,6 +64,7 @@ type ItineraryDay = {
   activity_ids: unknown;
   meals:        unknown;
   route_index:  number | null;
+  route_id:     number | null;
   hotel_id:     number | null;
   hotel_days:   number | null;
   hotel: {
@@ -191,7 +192,7 @@ function DayDialog({
   );
   const [hotelDays,   setHotelDays]  = useState<number | null>(existing?.hotel_days ?? null);
   const [routeIndex,  setRouteIndex] = useState<string>(
-    existing?.route_index != null ? String(existing.route_index) : "all"
+    existing?.route_id != null ? String(existing.route_id) : "all"
   );
 
   function toggleMeal(meal: string) {
@@ -201,12 +202,14 @@ function DayDialog({
   async function handleSave() {
     if (!title.trim()) { toast.error("Title is required"); return; }
     startTransition(async () => {
+      const resolvedRouteId = routeIndex === "all" ? null : Number(routeIndex);
       const r = await upsertItineraryDay(package_id, duration_id, day, {
         title,
         description,
         activity_ids: activityIds,
         meals,
-        route_index:  routeIndex === "all" ? null : Number(routeIndex),
+        route_index:  resolvedRouteId,
+        route_id:     resolvedRouteId,
         hotel_id:     hotelId ? Number(hotelId) : null,
         hotel_days:   hotelDays,
       });
@@ -383,7 +386,7 @@ export function ItineraryTab({
   const [isPending,   startTransition] = useTransition();
 
   const duration  = durations.find(d => d.id === Number(selectedDurationId));
-  const routes    = duration ? (duration.routes as RouteOption[]) : [];
+  const routes    = duration ? (duration.routes || []) as any : [];
   const days      = duration?.itineraries ?? [];
   const totalDays = duration?.days ?? 0;
   const dayNumbers = Array.from({ length: totalDays }, (_, i) => i + 1);
@@ -440,7 +443,7 @@ export function ItineraryTab({
         <div className="rounded-lg bg-muted/30 border px-3 py-2">
           <p className="text-xs font-medium text-muted-foreground mb-1.5">Routes in this duration:</p>
           <div className="flex flex-wrap gap-2">
-            {routes.map(r => (
+            {routes.map((r: any) => (
               <Badge key={r.id} variant={r.is_default ? "default" : "outline"} className="text-xs">
                 Route {r.id + 1}: {r.label}
               </Badge>
@@ -488,7 +491,7 @@ export function ItineraryTab({
                       const actIds   = (entry.activity_ids as number[] | null) ?? [];
                       const mealList = (entry.meals as string[] | null)         ?? [];
                       const routeLabel = entry.route_index != null
-                        ? (routes.find(r => r.id === entry.route_index)?.label ?? `Route ${(entry.route_index ?? 0) + 1}`)
+                        ? (routes.find((r: any) => r.id === entry.route_index)?.label ?? `Route ${(entry.route_index ?? 0) + 1}`)
                         : "All routes";
 
                       return (

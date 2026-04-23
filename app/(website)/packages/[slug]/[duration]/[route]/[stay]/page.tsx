@@ -53,9 +53,9 @@ export default async function PackagePage({
     // package hero
 
     // routes hero
-    const routes = data.currentDuration.routes as RouteOption[];
-    const defaultRoute = routes.find(r => r.is_default) ?? routes[0];
-    const routeStops = defaultRoute.stops.map((stop, i) => ({
+    const routes = (Array.isArray(data.currentDuration.routes) ? data.currentDuration.routes : []) as any;
+    const defaultRoute = routes.find((r: any) => r.is_default) ?? routes[0];
+    const routeStops = defaultRoute.stops.map((stop: any) => ({
         days: stop?.d,
         place: stop?.p,
     }));
@@ -101,9 +101,9 @@ export default async function PackagePage({
 
 
     // trip routes
-    const routesOption = data.currentDuration.routes.map(r => ({
+    const routesOption = (data.currentDuration.routes || []).map((r: any) => ({
         slug: r.slug,
-        stops: r.stops.map(s => s.p)
+        stops: r.stops.map((s: any) => s.p)
     }))
 
     // stay category

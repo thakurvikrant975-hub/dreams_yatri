@@ -29,8 +29,8 @@ export default async function DurationRedirectPage({
 
   if (!pkg || !pkg.durations[0]) notFound();
 
-  const routes       = pkg.durations[0].routes as RouteOption[];
-  const defaultRoute = routes.find(r => r.is_default) ?? routes[0];
+  const routes = (Array.isArray(pkg.durations[0].routes) ? pkg.durations[0].routes : []) as any;
+  const defaultRoute = routes.find((r: any) => r.is_default) ?? routes[0];
   const defaultStay  =
     pkg.stay_categories.find(s => s.is_default) ?? pkg.stay_categories[0];
 
