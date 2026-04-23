@@ -37,15 +37,30 @@ export type PaginatedBookings = {
 
 export type BookingStats = {
   total: number;
-  pendingReview: number;
-  hotelVerification: number;
-  cabVerification: number;
-  confirmed: number;
-  cancelled: number;
+
+  // Pipeline statuses — these all add up to total
+  pendingReview:          number; // inbox — just paid, not yet dispatched
+  hotelVerification:      number; // hotel dept working on it
+  hotelConfirmed:         number; // hotel done, cab still pending
+  cabVerification:        number; // cab dept working on it
+  cabConfirmed:           number; // cab done, hotel still pending
+  opsReview:              number; // both verified, ops final check
+  confirmed:              number; // fully confirmed, email sent
+  upcoming:               number; // confirmed + travel date in future
+  ongoing:                number; // currently travelling
+  completed:              number; // returned
+
+  // Problem statuses
+  modificationRequested:  number; // dept flagged an issue
+  cancelled:              number; // customer/ops cancelled
+  rejected:               number; // ops rejected
+
+  // Derived — for sidebar badges (not additive to total)
+  hotelQueuePending:      number; // bookings hotel dept still needs to action
+  cabQueuePending:        number; // bookings cab dept still needs to action
 };
 
 // ── Actor helper ──────────────────────────────────────────────────────────────
-// dashboardAuth() returns Session | null. Extract user fields safely.
 
 type Actor = {
   id: string;
@@ -83,24 +98,127 @@ const bookingInclude = {
   opsAssignee: { select: { id: true, name: true } },
 } satisfies Prisma.BookingInclude;
 
-// ── Raw FK update helper ──────────────────────────────────────────────────────
-// @prisma/adapter-pg intercepts $executeRaw through its relation resolver.
-// $queryRawUnsafe bypasses it completely and writes directly to Postgres.
+// ── Statuses visible to verification depts ────────────────────────────────────
+// Both hotel and cab see a booking as long as it is anywhere in the
+// verification pipeline and their own confirmation is still pending.
+
+const VERIFICATION_STATUSES: BookingStatus[] = [
+  "PENDING_REVIEW",
+  "HOTEL_VERIFICATION",
+  "HOTEL_CONFIRMED",
+  "CAB_VERIFICATION",
+  "CAB_CONFIRMED",
+];
+
+// ── Decimal serializer ────────────────────────────────────────────────────────
+
+function serializeBooking(booking: any): any {
+  return {
+    ...booking,
+    totalAmount: Number(booking.totalAmount),
+    paidAmount: Number(booking.paidAmount),
+    payments: booking.payments?.map((p: any) => ({
+      ...p,
+      amount: Number(p.amount),
+    })),
+  };
+}
+
+// ── Raw FK update ─────────────────────────────────────────────────────────────
 
 async function updateBookingFKs(
   bookingId: string,
   fields: Record<string, string | null>
 ) {
+  let i = 1;
   const setClauses = Object.entries(fields)
-    .map(([col]) => `"${col}" = ?`)
+    .map(([col]) => `"${col}" = $${i++}`)
     .join(", ");
   const values = [...Object.values(fields), bookingId];
+  await db.$queryRawUnsafe(
+    `UPDATE bookings SET ${setClauses} WHERE id = $${i}`,
+    ...values
+  );
+}
 
-  // Convert ? placeholders to $1, $2... for pg
-  let i = 1;
-  const pgQuery = `UPDATE bookings SET ${setClauses.replace(/\?/g, () => `$${i++}`)} WHERE id = $${i}`;
+// ── Timeline create helper ────────────────────────────────────────────────────
 
-  await db.$queryRawUnsafe(pgQuery, ...values);
+function createTimelineEntry({
+  bookingId,
+  action,
+  fromStatus,
+  toStatus,
+  note,
+  performedById,
+  performedByName,
+  departmentId,
+}: {
+  bookingId: string;
+  action: TimelineAction;
+  fromStatus?: BookingStatus | null;
+  toStatus?: BookingStatus | null;
+  note: string;
+  performedById: string;
+  performedByName: string;
+  departmentId?: string | null;
+}) {
+  return db.bookingTimeline.create({
+    data: {
+      booking:     { connect: { id: bookingId } },
+      performedBy: { connect: { id: performedById } },
+      action,
+      fromStatus:  fromStatus ?? null,
+      toStatus:    toStatus ?? null,
+      note,
+      performedByName,
+      ...(departmentId
+        ? { department: { connect: { id: departmentId } } }
+        : {}),
+    },
+  });
+}
+
+// ── Auto-advance logic ────────────────────────────────────────────────────────
+// Called after every hotel/cab confirmation.
+// If BOTH are now confirmed → move booking to OPS_REVIEW automatically.
+
+async function maybeAdvanceToOpsReview(
+  bookingId: string,
+  currentStatus: BookingStatus,
+  actor: Actor
+) {
+  const fresh = await db.booking.findUniqueOrThrow({
+    where: { id: bookingId },
+    select: { hotelConfirmedAt: true, cabConfirmedAt: true },
+  });
+
+  if (!fresh.hotelConfirmedAt || !fresh.cabConfirmedAt) return; // not both done yet
+
+  const opsDept = await db.department.findFirst({
+    where: {
+      OR: [
+        { name: { contains: "Ops", mode: "insensitive" } },
+        { name: { contains: "Operation", mode: "insensitive" } },
+      ],
+    },
+  });
+
+  await updateBookingFKs(bookingId, {
+    status:              "OPS_REVIEW",
+    currentDepartmentId: opsDept?.id ?? null,
+    currentAssigneeId:   null,
+  });
+
+  await createTimelineEntry({
+    bookingId,
+    action:          "STATUS_CHANGED",
+    fromStatus:      currentStatus,
+    toStatus:        "OPS_REVIEW",
+    note:            "Both hotel and cab verified. Auto-moved to ops review.",
+    performedById:   actor.id,
+    performedByName: actor.name,
+    departmentId:    actor.departmentId,
+  });
 }
 
 // ── Queries ───────────────────────────────────────────────────────────────────
@@ -140,31 +258,53 @@ export async function getBookingsPaginated(
     db.booking.count({ where }),
   ]);
 
-  // Serialize Decimal → number so Next.js can pass to Client Components
-  const serialized = bookings.map(serializeBooking);
-
   return {
-    bookings: serialized as unknown as BookingWithRelations[],
+    bookings: bookings.map(serializeBooking) as unknown as BookingWithRelations[],
     totalPages: Math.ceil(totalCount / BOOKINGS_PER_PAGE),
     totalCount,
   };
 }
 
 export async function getBookingStats(): Promise<BookingStats> {
-  const counts = await db.booking.groupBy({
-    by: ["status"],
-    _count: { _all: true },
-  });
+  const [statusCounts, hotelQueuePending, cabQueuePending] = await Promise.all([
+    // One query gives us all status counts
+    db.booking.groupBy({ by: ["status"], _count: { _all: true } }),
+    // Sidebar badge — how many bookings hotel dept still needs to action
+    db.booking.count({
+      where: { status: { in: VERIFICATION_STATUSES }, hotelConfirmedAt: null },
+    }),
+    // Sidebar badge — how many bookings cab dept still needs to action
+    db.booking.count({
+      where: { status: { in: VERIFICATION_STATUSES }, cabConfirmedAt: null },
+    }),
+  ]);
 
-  const map = Object.fromEntries(counts.map((c) => [c.status, c._count._all]));
+  const s = Object.fromEntries(
+    statusCounts.map((c) => [c.status, c._count._all])
+  );
+
+  const total = Object.values(s).reduce((a, b) => a + b, 0);
 
   return {
-    total: Object.values(map).reduce((a, b) => a + b, 0),
-    pendingReview:    map["PENDING_REVIEW"] ?? 0,
-    hotelVerification: map["HOTEL_VERIFICATION"] ?? 0,
-    cabVerification:  map["CAB_VERIFICATION"] ?? 0,
-    confirmed:        map["CONFIRMED"] ?? 0,
-    cancelled:        map["CANCELLED"] ?? 0,
+    total,
+    // Pipeline — all add up to total
+    pendingReview:         s["PENDING_REVIEW"]         ?? 0,
+    hotelVerification:     s["HOTEL_VERIFICATION"]     ?? 0,
+    hotelConfirmed:        s["HOTEL_CONFIRMED"]        ?? 0,
+    cabVerification:       s["CAB_VERIFICATION"]       ?? 0,
+    cabConfirmed:          s["CAB_CONFIRMED"]          ?? 0,
+    opsReview:             s["OPS_REVIEW"]             ?? 0,
+    confirmed:             s["CONFIRMED"]              ?? 0,
+    upcoming:              s["UPCOMING"]               ?? 0,
+    ongoing:               s["ONGOING"]                ?? 0,
+    completed:             s["COMPLETED"]              ?? 0,
+    // Problem statuses
+    modificationRequested: s["MODIFICATION_REQUESTED"] ?? 0,
+    cancelled:             s["CANCELLED"]              ?? 0,
+    rejected:              s["REJECTED"]               ?? 0,
+    // Derived sidebar badges
+    hotelQueuePending,
+    cabQueuePending,
   };
 }
 
@@ -177,10 +317,11 @@ export async function getBookingById(id: string): Promise<BookingWithRelations |
   return serializeBooking(booking) as unknown as BookingWithRelations;
 }
 
+// Hotel dept queue — any verification-stage booking where hotel not confirmed yet
 export async function getHotelVerificationQueue(page: number = 1): Promise<PaginatedBookings> {
   const skip = (page - 1) * BOOKINGS_PER_PAGE;
   const where: Prisma.BookingWhereInput = {
-    status: { in: ["HOTEL_VERIFICATION", "PENDING_REVIEW"] },
+    status: { in: VERIFICATION_STATUSES },
     hotelConfirmedAt: null,
   };
 
@@ -196,10 +337,11 @@ export async function getHotelVerificationQueue(page: number = 1): Promise<Pagin
   };
 }
 
+// Cab dept queue — any verification-stage booking where cab not confirmed yet
 export async function getCabVerificationQueue(page: number = 1): Promise<PaginatedBookings> {
   const skip = (page - 1) * BOOKINGS_PER_PAGE;
   const where: Prisma.BookingWhereInput = {
-    status: "CAB_VERIFICATION",
+    status: { in: VERIFICATION_STATUSES },
     cabConfirmedAt: null,
   };
 
@@ -230,60 +372,6 @@ export async function getDestinationsForFilter() {
   });
 }
 
-// ── Decimal serializer ────────────────────────────────────────────────────────
-// Prisma Decimal objects cannot be passed from Server → Client Components.
-// Convert to plain numbers at the boundary.
-
-function serializeBooking(booking: any): any {
-  return {
-    ...booking,
-    totalAmount: Number(booking.totalAmount),
-    paidAmount:  Number(booking.paidAmount),
-    payments: booking.payments?.map((p: any) => ({
-      ...p,
-      amount: Number(p.amount),
-    })),
-  };
-}
-
-// ── Timeline create helper ────────────────────────────────────────────────────
-
-function createTimelineEntry({
-  bookingId,
-  action,
-  fromStatus,
-  toStatus,
-  note,
-  performedById,
-  performedByName,
-  departmentId,
-}: {
-  bookingId: string;
-  action: TimelineAction;
-  fromStatus?: BookingStatus | null;
-  toStatus?: BookingStatus | null;
-  note: string;
-  performedById: string;
-  performedByName: string;
-  departmentId?: string | null;
-}) {
-  return db.bookingTimeline.create({
-    data: {
-      booking:     { connect: { id: bookingId } },
-      performedBy: { connect: { id: performedById } },
-      action,
-      fromStatus:     fromStatus ?? null,
-      toStatus:       toStatus ?? null,
-      note,
-      performedByName,
-      // departmentId is a relation — use connect when present, omit when null
-      ...(departmentId
-        ? { department: { connect: { id: departmentId } } }
-        : {}),
-    },
-  });
-}
-
 // ── Mutations ─────────────────────────────────────────────────────────────────
 
 type ActionResult = { success: true } | { success: false; error: string };
@@ -292,26 +380,28 @@ export async function confirmHotel(bookingId: string, notes?: string): Promise<A
   try {
     const actor = await getActor();
     const booking = await db.booking.findUniqueOrThrow({ where: { id: bookingId } });
-    const cabDept = await db.department.findFirst({ where: { name: "Cab" } });
 
+    // Mark hotel as confirmed — status stays wherever it is
+    // (cab dept may still be working on their side)
     await updateBookingFKs(bookingId, {
       hotelConfirmedAt: new Date().toISOString(),
       hotelNotes:       notes ?? null,
-      status:           "CAB_VERIFICATION",
-      currentDepartmentId: cabDept?.id ?? null,
-      currentAssigneeId:   null,
+      hotelAssigneeId:  actor.id,
     });
 
     await createTimelineEntry({
       bookingId,
       action:          "DEPARTMENT_CONFIRMED",
       fromStatus:      booking.status,
-      toStatus:        "CAB_VERIFICATION",
+      toStatus:        booking.status, // status unchanged — parallel flow
       note:            notes ?? "Hotel availability and pricing confirmed",
       performedById:   actor.id,
       performedByName: actor.name,
       departmentId:    actor.departmentId,
     });
+
+    // If cab is also done → auto-advance to OPS_REVIEW
+    await maybeAdvanceToOpsReview(bookingId, booking.status, actor);
 
     revalidatePath("/dashboard/package-bookings");
     revalidatePath("/dashboard/verify-hotel");
@@ -356,26 +446,28 @@ export async function confirmCab(bookingId: string, notes?: string): Promise<Act
   try {
     const actor = await getActor();
     const booking = await db.booking.findUniqueOrThrow({ where: { id: bookingId } });
-    const opsDept = await db.department.findFirst({ where: { name: "Operations" } });
 
+    // Mark cab as confirmed — status stays wherever it is
+    // (hotel dept may still be working on their side)
     await updateBookingFKs(bookingId, {
-      cabConfirmedAt:      new Date().toISOString(),
-      cabNotes:            notes ?? null,
-      status:              "OPS_REVIEW",
-      currentDepartmentId: opsDept?.id ?? null,
-      currentAssigneeId:   null,
+      cabConfirmedAt: new Date().toISOString(),
+      cabNotes:       notes ?? null,
+      cabAssigneeId:  actor.id,
     });
 
     await createTimelineEntry({
       bookingId,
       action:          "DEPARTMENT_CONFIRMED",
       fromStatus:      booking.status,
-      toStatus:        "OPS_REVIEW",
+      toStatus:        booking.status, // status unchanged — parallel flow
       note:            notes ?? "Cab availability confirmed",
       performedById:   actor.id,
       performedByName: actor.name,
       departmentId:    actor.departmentId,
     });
+
+    // If hotel is also done → auto-advance to OPS_REVIEW
+    await maybeAdvanceToOpsReview(bookingId, booking.status, actor);
 
     revalidatePath("/dashboard/package-bookings");
     revalidatePath("/dashboard/verify-cabs");
