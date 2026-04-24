@@ -24,7 +24,6 @@ import {
   confirmBooking, rejectBooking,
   assignMember, addNote,
 } from "./actions";
-import confirmHotel
 import type { BookingWithRelations } from "./actions";
 
 // ── Confirm Hotel ─────────────────────────────────────────────────────────────
