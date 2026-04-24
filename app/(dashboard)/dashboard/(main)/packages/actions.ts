@@ -415,62 +415,14 @@ export async function deleteDuration(id: number, package_id: number): Promise<Pa
   }
 }
 
-// ── Stay Categories ───────────────────────────────────────────────────────
-
-export async function createStayCategory(package_id: number, formData: FormData): Promise<PackageFormState> {
-  try {
-    const count = await db.package_stay_categories.count({ where: { package_id } });
-    await db.package_stay_categories.create({
-      data: {
-        package_id,
-        slug:              formData.get("slug")  as string,
-        label:             formData.get("label") as string,
-        description:       (formData.get("description") as string) || null,
-        min_duration_days: formData.get("min_duration_days") ? Number(formData.get("min_duration_days")) : null,
-        is_default:        formData.get("is_default") === "true",
-        sort_order:        count,
-        is_active:         true,
-      },
-    });
-    revalidatePath(`/dashboard/packages/${package_id}`);
-    return { success: true, message: "Stay category added" };
-  } catch {
-    return { success: false, message: "Database error." };
-  }
-}
-
-export async function updateStayCategory(id: number, package_id: number, formData: FormData): Promise<PackageFormState> {
-  try {
-    await db.package_stay_categories.update({
-      where: { id },
-      data: {
-        label:             formData.get("label") as string,
-        description:       (formData.get("description") as string) || null,
-        min_duration_days: formData.get("min_duration_days") ? Number(formData.get("min_duration_days")) : null,
-        is_default:        formData.get("is_default") === "true",
-        is_active:         formData.get("is_active") === "true",
-      },
-    });
-    revalidatePath(`/dashboard/packages/${package_id}`);
-    return { success: true, message: "Stay category updated" };
-  } catch {
-    return { success: false, message: "Database error." };
-  }
-}
-
-export async function deleteStayCategory(id: number, package_id: number): Promise<PackageFormState> {
-  try {
-    await db.$transaction([
-      db.package_pricing.deleteMany({     where: { stay_category_id: id } }),
-      db.package_hotels.deleteMany({      where: { stay_category_id: id } }),
-      db.package_stay_categories.delete({ where: { id } }),
-    ]);
-    revalidatePath(`/dashboard/packages/${package_id}`);
-    return { success: true, message: "Stay category deleted" };
-  } catch {
-    return { success: false, message: "Database error." };
-  }
-}
+// ── Stay Categories (deprecated — UI removed, schema kept for migration) ──
+//
+// export async function createStayCategory(...) { ... }
+// export async function updateStayCategory(...) { ... }
+// export async function deleteStayCategory(...) { ... }
+//
+// Stay types are now carried directly on hotels.stay_type.
+// These functions are intentionally disabled; do not re-enable without a schema migration.
 
 // ── Pricing matrix ────────────────────────────────────────────────────────
 
@@ -746,6 +698,44 @@ export async function getItineraryDayDetails(itinerary_id: number) {
 }
 
 // ── Policies ──────────────────────────────────────────────────────────────
+
+export async function searchPolicies(query: string, type?: string) {
+  const rows = await db.policies.findMany({
+    where: {
+      is_active: true,
+      ...(type  && { type:  type  as any }),
+      ...(query && { title: { contains: query, mode: "insensitive" } }),
+    },
+    orderBy: [{ sort_order: "asc" }, { title: "asc" }],
+    take:    20,
+    select:  { id: true, title: true },
+  });
+  return rows.map(p => ({ id: p.id, label: p.title }));
+}
+
+export async function updatePackagePoliciesByType(
+  package_id: number,
+  selections: Record<string, number | null>,
+): Promise<PackageFormState> {
+  try {
+    await db.$transaction(async tx => {
+      for (const [type, policy_id] of Object.entries(selections)) {
+        await tx.package_policy_map.deleteMany({
+          where: { package_id, policy: { type: type as any } },
+        });
+        if (policy_id !== null) {
+          await tx.package_policy_map.create({
+            data: { package_id, policy_id },
+          });
+        }
+      }
+    });
+    revalidatePath(`/dashboard/packages/${package_id}`);
+    return { success: true, message: "Policies updated" };
+  } catch {
+    return { success: false, message: "Database error." };
+  }
+}
 
 export async function assignPolicy(package_id: number, policy_id: number): Promise<PackageFormState> {
   try {

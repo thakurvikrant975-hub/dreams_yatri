@@ -108,7 +108,6 @@ export default async function PackageEditPage({
           </div>
           <p className="text-sm text-muted-foreground">
             {pkg.destination.name} · {durations.length} duration{durations.length !== 1 ? "s" : ""}
-            {pkg.stay_categories.length > 0 && ` · ${pkg.stay_categories.length} stay type${pkg.stay_categories.length !== 1 ? "s" : ""}`}
           </p>
         </div>
       </div>
