@@ -168,6 +168,7 @@ export default async function PackageEditPage({
             durations={durations}
             hotels={hotels}
             activities={serializedActivities}
+            stayCategories={pkg.stay_categories}
           />
         </TabsContent>
 

@@ -117,7 +117,9 @@ export async function createHotel(
 
     await db.$transaction(async (tx) => {
       // 1. Create hotel
-      const hotel = await tx.hotels.create({ data: parsed.data });
+      const hotel = await tx.hotels.create({
+        data: { ...parsed.data, stay_type: formData.get("stay_type") as string || null },
+      });
 
       // 2. Create room pricing rows and track created rooms
       const createdRooms: { id: number; room_type: string }[] = [];
@@ -221,7 +223,10 @@ export async function updateHotelDetails(
       await deleteFromR2(current.thumbnail).catch(console.error);
     }
 
-    await db.hotels.update({ where: { id }, data: parsed.data });
+    await db.hotels.update({
+      where: { id },
+      data: { ...parsed.data, stay_type: formData.get("stay_type") as string || null },
+    });
     revalidatePath("/dashboard/hotels");
     revalidatePath(`/dashboard/hotels/${id}`);
     return { success: true, message: "Hotel details updated" };

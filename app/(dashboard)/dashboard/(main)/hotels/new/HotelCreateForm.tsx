@@ -41,6 +41,7 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
   const [slug,          setSlug]          = useState("");
   const [destinationId, setDestinationId] = useState("");
   const [category,      setCategory]      = useState("");
+  const [stayType,      setStayType]      = useState("");
   const [starRating,    setStarRating]    = useState("");
   const [checkIn,       setCheckIn]       = useState("14:00");
   const [checkOut,      setCheckOut]      = useState("11:00");
@@ -91,6 +92,7 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
       formData.append("destination_id", destinationId);
       formData.append("thumbnail",      thumbnail[0]?.key ?? "");
       formData.append("category",       category);
+      formData.append("stay_type",      stayType);
       formData.append("star_rating",    starRating);
       formData.append("check_in_time",  checkIn);
       formData.append("check_out_time", checkOut);
@@ -169,6 +171,20 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
                   {CATEGORIES.map(c => (
                     <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Stay Type</Label>
+              <Select value={stayType} onValueChange={setStayType}>
+                <SelectTrigger><SelectValue placeholder="Select stay type" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Standard">Standard</SelectItem>
+                  <SelectItem value="Deluxe 2*">Deluxe 2*</SelectItem>
+                  <SelectItem value="Super Deluxe 3*">Super Deluxe 3*</SelectItem>
+                  <SelectItem value="Luxury 4*">Luxury 4*</SelectItem>
+                  <SelectItem value="Super Luxury 5*">Super Luxury 5*</SelectItem>
                 </SelectContent>
               </Select>
             </div>

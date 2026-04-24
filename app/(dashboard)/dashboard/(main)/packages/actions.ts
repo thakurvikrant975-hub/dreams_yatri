@@ -61,12 +61,12 @@ export async function getTagsForSelect() {
   });
 }
 
-export async function getHotelsForSelect(destination_id?: number) {
+export async function getHotelsForSelect(destination_id?: number, stay_type?: string) {
   return db.hotels.findMany({
-    where:   { is_active: true, ...(destination_id && { destination_id }) },
+    where:   { is_active: true, ...(destination_id && { destination_id }), ...(stay_type && { stay_type }) },
     orderBy: { name: "asc" },
     select: {
-      id: true, name: true, slug: true, category: true, star_rating: true,
+      id: true, name: true, slug: true, category: true, star_rating: true, stay_type: true,
       destination: { select: { name: true } },
       images: {
         where:  { is_primary: true },
@@ -122,6 +122,7 @@ export async function getPackageById(id: number) {
         orderBy: { sort_order: "asc" },
         include: {
           pricing: true,
+          routes: { orderBy: { sort_order: "asc" } },
           itineraries: {
             orderBy: { day: "asc" },
             include: {
@@ -541,6 +542,188 @@ export async function clearItineraryDay(package_id: number, duration_id: number,
   } catch {
     return { success: false, message: "Database error." };
   }
+}
+
+// ── Itinerary Day — full relational save ─────────────────────────────────
+
+type ItineraryHotelInput = {
+  stay_category_id: number;
+  hotel_id:         number;
+  hotel_days:       number | null;
+};
+
+type ItineraryTransferInput = {
+  cab_type:      string | null;
+  pickup_point:  string | null;
+  drop_point:    string | null;
+  duration_text: string | null;
+};
+
+type ItineraryNoteInput = {
+  message:            string;
+  type:               string;
+  position:           string;
+  optional_link_text: string | null;
+  optional_link_url:  string | null;
+};
+
+export async function upsertItineraryDayFull(
+  package_id:  number,
+  duration_id: number,
+  day:         number,
+  data: {
+    title:        string;
+    description:  string;
+    meals:        string[];
+    route_index:  number | null;
+    route_id:     number | null;
+    activity_ids: number[];
+    hotels:       ItineraryHotelInput[];
+    activities:   number[];
+    transfers:    ItineraryTransferInput[];
+    notes:        ItineraryNoteInput[];
+  },
+): Promise<PackageFormState> {
+  try {
+    await db.$transaction(async tx => {
+      const existing = await tx.package_itineraries.findFirst({
+        where: {
+          package_id,
+          duration_id,
+          day,
+          ...(data.route_id !== null
+            ? { route_id: data.route_id }
+            : { route_id: null, route_index: data.route_index }),
+        },
+      });
+
+      const payload = {
+        title:        data.title,
+        description:  data.description || null,
+        meals:        data.meals,
+        route_index:  data.route_index,
+        route_id:     data.route_id,
+        activity_ids: data.activities,
+        hotel_id:     data.hotels[0]?.hotel_id ?? null,
+        hotel_days:   data.hotels[0]?.hotel_days ?? null,
+        activities:   [],
+      };
+
+      let itineraryId: number;
+      if (existing) {
+        await tx.package_itineraries.update({ where: { id: existing.id }, data: payload });
+        itineraryId = existing.id;
+      } else {
+        const created = await tx.package_itineraries.create({
+          data: { package_id, duration_id, day, ...payload },
+        });
+        itineraryId = created.id;
+      }
+
+      await tx.itinerary_hotels.deleteMany({ where: { itinerary_id: itineraryId } });
+      if (data.hotels.length > 0) {
+        await tx.itinerary_hotels.createMany({
+          data: data.hotels.map((h, i) => ({
+            itinerary_id:     itineraryId,
+            stay_category_id: h.stay_category_id,
+            hotel_id:         h.hotel_id,
+            hotel_days:       h.hotel_days,
+            sort_order:       i,
+          })),
+        });
+      }
+
+      await tx.itinerary_activities.deleteMany({ where: { itinerary_id: itineraryId } });
+      if (data.activities.length > 0) {
+        await tx.itinerary_activities.createMany({
+          data: data.activities.map((activity_id, i) => ({
+            itinerary_id: itineraryId,
+            activity_id,
+            sort_order:   i,
+          })),
+        });
+      }
+
+      await tx.itinerary_transfers.deleteMany({ where: { itinerary_id: itineraryId } });
+      if (data.transfers.length > 0) {
+        await tx.itinerary_transfers.createMany({
+          data: data.transfers.map((t, i) => ({
+            itinerary_id:  itineraryId,
+            cab_type:      t.cab_type,
+            pickup_point:  t.pickup_point,
+            drop_point:    t.drop_point,
+            duration_text: t.duration_text,
+            sort_order:    i,
+          })),
+        });
+      }
+
+      await tx.itinerary_notes.deleteMany({ where: { itinerary_id: itineraryId } });
+      if (data.notes.length > 0) {
+        await tx.itinerary_notes.createMany({
+          data: data.notes.map((n, i) => ({
+            itinerary_id:       itineraryId,
+            message:            n.message,
+            type:               n.type,
+            position:           n.position,
+            optional_link_text: n.optional_link_text,
+            optional_link_url:  n.optional_link_url,
+            sort_order:         i,
+          })),
+        });
+      }
+    });
+
+    revalidatePath(`/dashboard/packages/${package_id}`);
+    return { success: true, message: "Day saved" };
+  } catch (err) {
+    console.error("[upsertItineraryDayFull]", err);
+    return { success: false, message: "Database error." };
+  }
+}
+
+export async function getItineraryDayDetails(itinerary_id: number) {
+  return db.package_itineraries.findUnique({
+    where: { id: itinerary_id },
+    select: {
+      id:          true,
+      title:       true,
+      description: true,
+      meals:       true,
+      route_id:    true,
+      itinerary_hotels: {
+        orderBy: { sort_order: "asc" },
+        select: {
+          stay_category_id: true,
+          hotel_id:         true,
+          hotel_days:       true,
+        },
+      },
+      itinerary_activities: {
+        orderBy: { sort_order: "asc" },
+        select: { activity_id: true },
+      },
+      itinerary_transfers: {
+        orderBy: { sort_order: "asc" },
+        select: {
+          cab_type:      true,
+          pickup_point:  true,
+          drop_point:    true,
+          duration_text: true,
+        },
+      },
+      itinerary_notes: {
+        orderBy: { sort_order: "asc" },
+        select: {
+          message:            true,
+          type:               true,
+          position:           true,
+          optional_link_text: true,
+          optional_link_url:  true,
+        },
+      },
+    },
+  });
 }
 
 // ── Policies ──────────────────────────────────────────────────────────────
