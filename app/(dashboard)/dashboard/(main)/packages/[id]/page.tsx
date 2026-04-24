@@ -165,6 +165,7 @@ export default async function PackageEditPage({
         <TabsContent value="itinerary" className="mt-6">
           <ItineraryTab
             package_id={id}
+            destination_id={pkg.destination.id}
             durations={durations}
             hotels={hotels}
             activities={serializedActivities}

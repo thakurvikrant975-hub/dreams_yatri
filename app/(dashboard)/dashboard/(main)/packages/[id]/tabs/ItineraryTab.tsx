@@ -28,15 +28,16 @@ import {
   upsertItineraryDayFull,
   clearItineraryDay,
   getItineraryDayDetails,
+  searchHotels,
 } from "../../actions";
 import type { RouteOption } from "../../actions";
+import { SearchSelect } from "../../../components/dashboard/SearchSelect";
 import { MultiStepModal } from "../../../components/dashboard/MultiStepModel";
 import type { Step } from "../../../components/dashboard/MultiStepModel";
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
 const MEAL_OPTIONS = ["Breakfast", "Lunch", "Dinner"];
-const BASE = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -196,6 +197,7 @@ function MultiStepDayDialog({
   package_id,
   duration_id,
   day,
+  destination_id,
   routes,
   hotels,
   activities,
@@ -208,6 +210,7 @@ function MultiStepDayDialog({
   package_id:        number;
   duration_id:       number;
   day:               number;
+  destination_id:    number;
   routes:            RouteOption[];
   hotels:            HotelOption[];
   activities:        ActivityOption[];
@@ -422,55 +425,32 @@ function MultiStepDayDialog({
           </p>
         ) : (
           stayCategories.map(cat => {
-            const assignment = hotelAssignments.find(a => a.stay_category_id === cat.id)!;
-            const selectedHotel = hotels.find(h => h.id === assignment.hotel_id);
+            const assignment   = hotelAssignments.find(a => a.stay_category_id === cat.id)!;
+            const initialLabel = hotels.find(h => h.id === assignment.hotel_id)?.name ?? "";
             return (
               <div key={cat.id} className="rounded-lg border p-3 space-y-2.5">
                 <p className="text-sm font-medium">{cat.label}</p>
-                <Select
-                  value={assignment.hotel_id ? String(assignment.hotel_id) : "none"}
-                  onValueChange={v => updateHotel(cat.id, { hotel_id: v === "none" ? null : Number(v) })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select hotel (optional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No hotel</SelectItem>
-                    {hotels.map(h => (
-                      <SelectItem key={h.id} value={String(h.id)}>
-                        {h.name}
-                        <span className="text-muted-foreground ml-1 text-xs">
-                          ({h.destination.name}{h.star_rating ? ` · ${h.star_rating}★` : ""})
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                {selectedHotel && (
-                  <div className="flex items-center gap-3 bg-muted/20 rounded-lg p-2">
-                    {selectedHotel.images[0] && (
-                      <img
-                        src={`${BASE}/${selectedHotel.images[0].thumbnail ?? selectedHotel.images[0].url}`}
-                        alt={selectedHotel.name}
-                        className="h-10 w-14 rounded object-cover shrink-0"
-                      />
-                    )}
-                    <div className="flex-1 text-xs text-muted-foreground">
-                      {selectedHotel.star_rating ? `${selectedHotel.star_rating}★ ` : ""}
-                      {selectedHotel.category} · {selectedHotel.destination.name}
-                    </div>
-                    <div className="shrink-0 space-y-0.5">
-                      <Label className="text-xs">Nights</Label>
-                      <Input
-                        type="number"
-                        min="1"
-                        value={assignment.hotel_days ?? ""}
-                        onChange={e => updateHotel(cat.id, { hotel_days: e.target.value ? Number(e.target.value) : null })}
-                        className="w-20 h-7 text-sm"
-                        placeholder="1"
-                      />
-                    </div>
+                <SearchSelect
+                  value={assignment.hotel_id}
+                  onChange={val => updateHotel(cat.id, val === null
+                    ? { hotel_id: null, hotel_days: null }
+                    : { hotel_id: val }
+                  )}
+                  fetchOptions={query => searchHotels(query, destination_id)}
+                  placeholder="Search hotels..."
+                  initialLabel={initialLabel}
+                />
+                {assignment.hotel_id !== null && (
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs shrink-0">Nights</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={assignment.hotel_days ?? ""}
+                      onChange={e => updateHotel(cat.id, { hotel_days: e.target.value ? Number(e.target.value) : null })}
+                      className="w-24 h-7 text-sm"
+                      placeholder="1"
+                    />
                   </div>
                 )}
               </div>
@@ -612,12 +592,14 @@ function MultiStepDayDialog({
 
 export function ItineraryTab({
   package_id,
+  destination_id,
   durations,
   hotels,
   activities,
   stayCategories,
 }: {
   package_id:     number;
+  destination_id: number;
   durations:      Duration[];
   hotels:         HotelOption[];
   activities:     ActivityOption[];
@@ -857,6 +839,7 @@ export function ItineraryTab({
           package_id={package_id}
           duration_id={duration.id}
           day={addingDay}
+          destination_id={destination_id}
           routes={routes}
           hotels={hotels}
           activities={activities}
@@ -872,6 +855,7 @@ export function ItineraryTab({
           package_id={package_id}
           duration_id={duration.id}
           day={editingData.entry.day}
+          destination_id={destination_id}
           routes={routes}
           hotels={hotels}
           activities={activities}

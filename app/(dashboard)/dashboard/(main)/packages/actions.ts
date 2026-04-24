@@ -77,6 +77,25 @@ export async function getHotelsForSelect(destination_id?: number, stay_type?: st
   });
 }
 
+export async function searchHotels(query: string, destination_id?: number, stay_type?: string) {
+  const hotels = await db.hotels.findMany({
+    where: {
+      is_active: true,
+      ...(query && { name: { contains: query, mode: "insensitive" } }),
+      ...(destination_id && { destination_id }),
+      ...(stay_type && { stay_type }),
+    },
+    take: 20,
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, stay_type: true, star_rating: true },
+  });
+  return hotels.map(h => ({
+    id:          h.id,
+    label:       h.name,
+    description: [h.stay_type, h.star_rating ? `${h.star_rating}★` : ""].filter(Boolean).join(" · "),
+  }));
+}
+
 export async function getActivitiesForSelect(destination_id?: number) {
   return db.activities.findMany({
     where:   { is_active: true, ...(destination_id && { destination_id }) },
