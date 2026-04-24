@@ -16,8 +16,7 @@ import { BookingStatusBadge, BookingTimeline } from "../BookingShared";
 import {
   HotelDayPanel, CabLegPanel,
   OpsActionPanel, AssignMemberPanel, AddNotePanel,
-} from "../Bookingactions";
-
+} from "./Bookingdetailactions";
 interface PageProps {
   params: Promise<{ id: string }>;
 }

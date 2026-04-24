@@ -77,6 +77,7 @@ model tags {
   @@index([group])
   @@index([slug])
 }
+
 enum CabType {
   SEDAN
   HATCHBACK
@@ -89,16 +90,12 @@ enum CabType {
   MINI_VAN
   BUS
 }
+
 enum RoomSharingType {
-  SHARED    // travellers share rooms (cost-optimized)
-  PRIVATE   // each traveller/couple gets own room
+  SHARED // travellers share rooms (cost-optimized)
+  PRIVATE // each traveller/couple gets own room
 }
-enum MealPlan {
-  EP        // room only
-  CP        // breakfast
-  MAP       // breakfast + dinner
-  AP        // all meals
-}
+
 model packages {
   id              Int                       @id @default(autoincrement())
   title           String
@@ -120,11 +117,13 @@ model packages {
   hotels          package_hotels[]
   images          package_images[]
   itineraries     package_itineraries[]
-  policies        package_policy_map[] 
+  policies        package_policy_map[]
   pricing         package_pricing[]
   stay_categories package_stay_categories[]
   tags            package_tags[]
   destination     destinations              @relation(fields: [destination_id], references: [id])
+  bookings        Booking[]
+  cabOptions      package_cab_options[]
 
   @@index([destination_id, is_active])
   @@index([slug])
@@ -176,7 +175,7 @@ model package_durations {
   label       String
   days        Int
   nights      Int
-  routes      Json
+  routes      Json?
   meta_title  String?
   meta_desc   String?
   is_default  Boolean               @default(false)
@@ -193,116 +192,100 @@ model package_durations {
 }
 
 model package_stay_categories {
-  id                Int               @id @default(autoincrement())
+  id                Int     @id @default(autoincrement())
   package_id        Int
   label             String
   description       String?
   min_duration_days Int?
-  is_default        Boolean           @default(false)
-  sort_order        Int               @default(0)
-  is_active         Boolean           @default(true)
+  is_default        Boolean @default(false)
+  sort_order        Int     @default(0)
+  is_active         Boolean @default(true)
   slug              String
-  hotels            package_hotels[]
-  pricing           package_pricing[]
-  package           packages          @relation(fields: [package_id], references: [id])
+
+  hotels  package_hotels[]
+  pricing package_pricing[]
+
+  package packages @relation(fields: [package_id], references: [id])
 
   @@unique([package_id, slug])
   @@index([package_id, is_active])
 }
 
 model package_pricing {
-  id            Int      @id @default(autoincrement())
-  package_id    Int
-  duration_id   Int      // links to package_durations
+  id               Int @id @default(autoincrement())
+  package_id       Int
+  duration_id      Int
+  stay_category_id Int // ✅ ADD THIS
 
-  // Per person per day rates
-  meal_rate_cp  Decimal  @db.Decimal(10, 2) // cost per person/day for CP
-  meal_rate_map Decimal  @db.Decimal(10, 2) // cost per person/day for MAP
-  meal_rate_ap  Decimal  @db.Decimal(10, 2) // cost per person/day for AP
+  meal_rate_cp  Decimal @db.Decimal(10, 2)
+  meal_rate_map Decimal @db.Decimal(10, 2)
+  meal_rate_ap  Decimal @db.Decimal(10, 2)
 
-  // Margin and tax
-  margin_pct    Decimal  @default(22) @db.Decimal(5, 2)
-  gst_pct       Decimal  @default(5)  @db.Decimal(5, 2)
+  margin_pct Decimal @default(22) @db.Decimal(5, 2)
+  gst_pct    Decimal @default(5) @db.Decimal(5, 2)
 
-  is_active     Boolean  @default(true)
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
-  package       packages          @relation(fields: [package_id], references: [id])
-  duration      package_durations @relation(fields: [duration_id], references: [id])
+  package  packages          @relation(fields: [package_id], references: [id])
+  duration package_durations @relation(fields: [duration_id], references: [id])
 
-  @@unique([package_id, duration_id])
+  stay_category package_stay_categories @relation(fields: [stay_category_id], references: [id]) // ✅ ADD
+
+  @@unique([package_id, duration_id, stay_category_id])
   @@map("package_pricing")
 }
 
 // ── Package day-wise itinerary hotels ─────────────────────────────────────────
 
 model package_itinerary_hotels {
-  id              Int      @id @default(autoincrement())
-  itinerary_id    Int      // links to package_itineraries (day)
-  hotel_id        Int      // default hotel for this day
-  is_default      Boolean  @default(true)
-  sort_order      Int      @default(0)
+  id           Int     @id @default(autoincrement())
+  itinerary_id Int // links to package_itineraries (day)
+  hotel_id     Int // default hotel for this day
+  is_default   Boolean @default(true)
+  sort_order   Int     @default(0)
 
-  itinerary       package_itineraries @relation(fields: [itinerary_id], references: [id])
-  hotel           hotels              @relation(fields: [hotel_id], references: [id])
+  itinerary package_itineraries @relation(fields: [itinerary_id], references: [id])
+  hotel     hotels              @relation(fields: [hotel_id], references: [id])
 
   @@map("package_itinerary_hotels")
-}
-
-// ── Hotel room types and rates ────────────────────────────────────────────────
-// Already have hotel_room_pricing — extend it:
-
-model hotel_room_pricing {
-  id              Int      @id @default(autoincrement())
-  hotel_id        Int
-  room_type       String   // "Deluxe", "Standard", "Suite", "Dormitory"
-  max_occupancy   Int      @default(3)
-  rate_per_night  Decimal  @db.Decimal(10, 2)
-  extra_bed_rate  Decimal? @db.Decimal(10, 2)
-  is_active       Boolean  @default(true)
-  created_at      DateTime @default(now())
-  updated_at      DateTime @updatedAt
-
-  hotel           hotels   @relation(fields: [hotel_id], references: [id])
-
-  @@map("hotel_room_pricing")
 }
 
 // ── Package cab options ───────────────────────────────────────────────────────
 
 model package_cab_options {
-  id            Int      @id @default(autoincrement())
-  package_id    Int
-  cab_type      CabType
-  capacity      Int      // max passengers
-  rate_per_day  Decimal  @db.Decimal(10, 2)
-  is_default    Boolean  @default(false)
-  is_active     Boolean  @default(true)
+  id           Int     @id @default(autoincrement())
+  package_id   Int
+  cab_type     CabType
+  capacity     Int // max passengers
+  rate_per_day Decimal @db.Decimal(10, 2)
+  is_default   Boolean @default(false)
+  is_active    Boolean @default(true)
 
-  package       packages @relation(fields: [package_id], references: [id])
+  package packages @relation(fields: [package_id], references: [id])
 
   @@unique([package_id, cab_type])
   @@map("package_cab_options")
 }
 
-
 model package_itineraries {
-  id           Int               @id @default(autoincrement())
-  package_id   Int
-  duration_id  Int
-  day          Int
-  title        String
-  description  String?
-  activities   Json
-  activity_ids Json?
-  meals        Json?
-  route_index  Int?
-  hotel_days   Int?
-  hotel_id     Int?
-  duration     package_durations @relation(fields: [duration_id], references: [id])
-  hotel        hotels?           @relation(fields: [hotel_id], references: [id])
-  package      packages          @relation(fields: [package_id], references: [id])
+  id              Int                        @id @default(autoincrement())
+  package_id      Int
+  duration_id     Int
+  day             Int
+  title           String
+  description     String?
+  activities      Json
+  activity_ids    Json?
+  meals           Json?
+  route_index     Int?
+  hotel_days      Int?
+  hotel_id        Int?
+  duration        package_durations          @relation(fields: [duration_id], references: [id])
+  hotel           hotels?                    @relation(fields: [hotel_id], references: [id])
+  package         packages                   @relation(fields: [package_id], references: [id])
+  itineraryHotels package_itinerary_hotels[]
 
   @@index([package_id, duration_id])
   @@index([hotel_id])
@@ -329,31 +312,35 @@ model package_categories {
 }
 
 model hotels {
-  id               Int                      @id @default(autoincrement())
+  id               Int                        @id @default(autoincrement())
   name             String
-  slug             String                   @unique
+  slug             String                     @unique
   description      String?
   meta_title       String?
   meta_desc        String?
   destination_id   Int
   address          String?
-  latitude         Decimal?                 @db.Decimal(10, 8)
-  longitude        Decimal?                 @db.Decimal(11, 8)
+  latitude         Decimal?                   @db.Decimal(10, 8)
+  longitude        Decimal?                   @db.Decimal(11, 8)
   star_rating      Int?
   category         String?
   amenities        Json?
   check_in_time    String?
   check_out_time   String?
-  is_active        Boolean                  @default(true)
-  created_at       DateTime                 @default(now())
-  updated_at       DateTime                 @updatedAt
+  is_active        Boolean                    @default(true)
+  created_at       DateTime                   @default(now())
+  updated_at       DateTime                   @updatedAt
   thumbnail        String?
   image_categories hotel_image_categories[]
   images           hotel_images[]
   room_pricing     hotel_room_pricing[]
-  destination      destinations             @relation(fields: [destination_id], references: [id])
+  destination      destinations               @relation(fields: [destination_id], references: [id])
   packages         package_hotels[]
   itineraries      package_itineraries[]
+  packageBookings  PackageBookingHotel[]
+  itineraryHotels  package_itinerary_hotels[]
+  bookingHotels    BookingHotel[]
+  mealRates        hotel_meal_rates[]
 
   @@index([destination_id, is_active])
   @@index([slug])
@@ -394,24 +381,48 @@ model hotel_images {
 }
 
 model hotel_room_pricing {
-  id                Int                      @id @default(autoincrement())
-  hotel_id          Int
-  room_type         String
-  description       String?
-  occupancy         Int                      @default(2)
-  price_per_night   Decimal                  @db.Decimal(10, 2)
-  original_price    Decimal?                 @db.Decimal(10, 2)
-  season            String                   @default("all")
-  amenities         Json?
-  is_active         Boolean                  @default(true)
-  sort_order        Int                      @default(0)
-  margin_percentage Decimal                  @default(10) @db.Decimal(5, 2)
-  image_categories  hotel_image_categories[]
-  hotel             hotels                   @relation(fields: [hotel_id], references: [id])
+  id Int @id @default(autoincrement())
 
+  // Relations
+  hotel_id Int
+  hotel    hotels @relation(fields: [hotel_id], references: [id])
+
+  // Room details
+  room_type   String
+  description String?
+
+  // Occupancy
+  max_occupancy Int @default(3) // from first schema
+  occupancy     Int @default(2) // from second schema
+
+  // Pricing
+  rate_per_night  Decimal  @db.Decimal(10, 2) // from first schema
+  price_per_night Decimal  @db.Decimal(10, 2) // from second schema
+  original_price  Decimal? @db.Decimal(10, 2)
+  extra_bed_rate  Decimal? @db.Decimal(10, 2)
+
+  // Business logic
+  season            String  @default("all")
+  margin_percentage Decimal @default(10) @db.Decimal(5, 2)
+
+  // Extras
+  amenities        Json?
+  image_categories hotel_image_categories[]
+
+  // Flags & ordering
+  is_active  Boolean @default(true)
+  sort_order Int     @default(0)
+
+  // Timestamps
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  // Indexes
   @@index([hotel_id, is_active])
   @@index([hotel_id, season])
+  @@map("hotel_room_pricing")
 }
+
 enum MealType {
   BREAKFAST
   LUNCH
@@ -424,10 +435,10 @@ enum FoodPreference {
 }
 
 enum MealPlan {
-  EP   // no meals
-  CP   // breakfast only
-  MAP  // breakfast + dinner
-  AP   // all meals
+  EP // no meals
+  CP // breakfast only
+  MAP // breakfast + dinner
+  AP // all meals
 }
 
 // ── Hotel meal rates ──────────────────────────────────────────────────────────
@@ -436,14 +447,14 @@ enum MealPlan {
 model hotel_meal_rates {
   id              Int            @id @default(autoincrement())
   hotel_id        Int
-  meal_type       MealType       // BREAKFAST | LUNCH | DINNER
+  meal_type       MealType // BREAKFAST | LUNCH | DINNER
   food_preference FoodPreference // VEG | NON_VEG
   rate_per_person Decimal        @db.Decimal(10, 2)
   is_active       Boolean        @default(true)
   created_at      DateTime       @default(now())
   updated_at      DateTime       @updatedAt
 
-  hotel           hotels         @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
+  hotel hotels @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
 
   @@unique([hotel_id, meal_type, food_preference])
   @@index([hotel_id])
@@ -461,18 +472,18 @@ model hotel_meal_rates {
 // One record per hotel night — meal cost varies because hotel changes each day.
 
 model BookingMeal {
-  id              String         @id @default(cuid())
-  bookingId       String
-  bookingHotelId  String         // which night this meal belongs to
-  dayNumber       Int
-  mealType        MealType
-  foodPreference  FoodPreference
-  ratePerPerson   Decimal        @db.Decimal(10, 2)  // snapshot from hotel_meal_rates
-  travellers      Int
-  totalCost       Decimal        @db.Decimal(10, 2)  // ratePerPerson × travellers
+  id             String         @id @default(cuid())
+  bookingId      String
+  bookingHotelId String
+  dayNumber      Int
+  mealType       MealType
+  foodPreference FoodPreference
+  ratePerPerson  Decimal        @db.Decimal(10, 2)
+  travellers     Int
+  totalCost      Decimal        @db.Decimal(10, 2)
 
-  booking         Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  bookingHotel    BookingHotel   @relation(fields: [bookingHotelId], references: [id], onDelete: Cascade)
+  booking      Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  bookingHotel BookingHotel @relation(fields: [bookingHotelId], references: [id], onDelete: Cascade)
 
   @@index([bookingId])
   @@index([bookingHotelId])
@@ -688,7 +699,6 @@ model TravelPreference {
   @@map("travel_preferences")
 }
 
-
 enum TimelineAction {
   BOOKING_CREATED
   STATUS_CHANGED
@@ -708,7 +718,7 @@ model Booking {
   id            String        @id @default(cuid())
   bookingNumber String        @unique
   userId        String
-  packageId     Int           // LINK TO PACKAGE — critical
+  packageId     Int? // LINK TO PACKAGE — critical
   destinationId Int
   tripType      TripType
   startDate     DateTime
@@ -718,26 +728,26 @@ model Booking {
   status        BookingStatus @default(PENDING_REVIEW)
 
   // Customer preferences at booking time
-  cabType           CabType         @default(INNOVA)
-  roomSharingType   RoomSharingType @default(SHARED)
-  mealPlan          MealPlan        @default(MAP)
+  cabType         CabType         @default(INNOVA)
+  roomSharingType RoomSharingType @default(SHARED)
+  mealPlan        MealPlan        @default(MAP)
 
   // Calculated price breakdown (snapshot at booking time)
-  hotelCost     Decimal  @default(0) @db.Decimal(10, 2)
-  cabCost       Decimal  @default(0) @db.Decimal(10, 2)
-  mealCost      Decimal  @default(0) @db.Decimal(10, 2)
-  subtotal      Decimal  @default(0) @db.Decimal(10, 2)
-  marginAmount  Decimal  @default(0) @db.Decimal(10, 2)
-  gstAmount     Decimal  @default(0) @db.Decimal(10, 2)
-  totalAmount   Decimal  @db.Decimal(10, 2)
-  paidAmount    Decimal  @default(0) @db.Decimal(10, 2)
-  currency      String   @default("INR")
+  hotelCost    Decimal @default(0) @db.Decimal(10, 2)
+  cabCost      Decimal @default(0) @db.Decimal(10, 2)
+  mealCost     Decimal @default(0) @db.Decimal(10, 2)
+  subtotal     Decimal @default(0) @db.Decimal(10, 2)
+  marginAmount Decimal @default(0) @db.Decimal(10, 2)
+  gstAmount    Decimal @default(0) @db.Decimal(10, 2)
+  totalAmount  Decimal @db.Decimal(10, 2)
+  paidAmount   Decimal @default(0) @db.Decimal(10, 2)
+  currency     String  @default("INR")
 
-  notes         String?
-  cancelledAt   DateTime?
-  cancelReason  String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  notes        String?
+  cancelledAt  DateTime?
+  cancelReason String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   // Pipeline fields
   currentDepartmentId     String?
@@ -755,53 +765,57 @@ model Booking {
   modificationRequestedBy String?
 
   // Relations
-  destination         destinations    @relation(fields: [destinationId], references: [id])
-  user                User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  package             packages        @relation(fields: [packageId], references: [id])
-  payments            Payment[]
-  timeline            BookingTimeline[]
-  hotelBookings       BookingHotel[]  // day-wise hotel assignments
-  cabBookings         BookingCab[]    // leg-wise cab assignments
+  destination   destinations          @relation(fields: [destinationId], references: [id])
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  package       packages?             @relation(fields: [packageId], references: [id])
+  payments      Payment[]
+  timeline      BookingTimeline[]
+  hotelBookings BookingHotel[] // day-wise hotel assignments
+  cabBookings   BookingCab[] // leg-wise cab assignments
+  packageHotels PackageBookingHotel[]
 
-  currentDepartment   Department?   @relation("BookingCurrentDept", fields: [currentDepartmentId], references: [id])
-  currentAssignee     TeamMember?   @relation("BookingCurrentAssignee", fields: [currentAssigneeId], references: [id])
-  hotelAssignee       TeamMember?   @relation("BookingHotelAssignee", fields: [hotelAssigneeId], references: [id])
-  cabAssignee         TeamMember?   @relation("BookingCabAssignee", fields: [cabAssigneeId], references: [id])
-  opsAssignee         TeamMember?   @relation("BookingOpsAssignee", fields: [opsAssigneeId], references: [id])
+  currentDepartment Department?   @relation("BookingCurrentDept", fields: [currentDepartmentId], references: [id])
+  currentAssignee   TeamMember?   @relation("BookingCurrentAssignee", fields: [currentAssigneeId], references: [id])
+  hotelAssignee     TeamMember?   @relation("BookingHotelAssignee", fields: [hotelAssigneeId], references: [id])
+  cabAssignee       TeamMember?   @relation("BookingCabAssignee", fields: [cabAssigneeId], references: [id])
+  opsAssignee       TeamMember?   @relation("BookingOpsAssignee", fields: [opsAssigneeId], references: [id])
+  bookingMeals      BookingMeal[]
 
   @@index([userId])
   @@index([packageId])
   @@index([status])
   @@map("bookings")
 }
+
 // ── Day-wise hotel assignment per booking ─────────────────────────────────────
 // One record per night of the trip.
 // Hotel team sees this and can swap hotels, change room types.
 
 model BookingHotel {
-  id              String   @id @default(cuid())
-  bookingId       String
-  dayNumber       Int      // Day 1, Day 2, Day 3...
-  cityName        String   // "Manali", "Solang Valley" etc — for filtering nearby hotels
-  checkInDate     DateTime
-  checkOutDate    DateTime
+  id           String   @id @default(cuid())
+  bookingId    String
+  dayNumber    Int // Day 1, Day 2, Day 3...
+  cityName     String // "Manali", "Solang Valley" etc — for filtering nearby hotels
+  checkInDate  DateTime
+  checkOutDate DateTime
 
   // Hotel assignment (can be changed by hotel dept)
-  hotelId         Int
-  roomType        String   // "Deluxe", "Standard"
-  roomsCount      Int      // how many rooms for this night
-  ratePerRoom     Decimal  @db.Decimal(10, 2)
-  totalCost       Decimal  @db.Decimal(10, 2) // roomsCount × ratePerRoom
+  hotelId     Int
+  roomType    String // "Deluxe", "Standard"
+  roomsCount  Int // how many rooms for this night
+  ratePerRoom Decimal @db.Decimal(10, 2)
+  totalCost   Decimal @db.Decimal(10, 2) // roomsCount × ratePerRoom
 
   // Verification
-  isConfirmed     Boolean  @default(false)
-  confirmedAt     DateTime?
-  confirmedById   String?
-  notes           String?
+  isConfirmed   Boolean   @default(false)
+  confirmedAt   DateTime?
+  confirmedById String?
+  notes         String?
 
-  booking         Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  hotel           hotels       @relation(fields: [hotelId], references: [id])
-  confirmedBy     TeamMember?  @relation(fields: [confirmedById], references: [id])
+  booking     Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  hotel       hotels        @relation(fields: [hotelId], references: [id])
+  confirmedBy TeamMember?   @relation(fields: [confirmedById], references: [id])
+  meals       BookingMeal[]
 
   @@unique([bookingId, dayNumber])
   @@index([bookingId])
@@ -813,51 +827,53 @@ model BookingHotel {
 // One record per leg (pickup → dropoff).
 
 model BookingCab {
-  id              String   @id @default(cuid())
-  bookingId       String
-  legNumber       Int      // Leg 1, Leg 2...
-  fromLocation    String   // "Delhi Airport"
-  toLocation      String   // "Manali Hotel"
-  transferDate    DateTime
+  id           String   @id @default(cuid())
+  bookingId    String
+  legNumber    Int // Leg 1, Leg 2...
+  fromLocation String // "Delhi Airport"
+  toLocation   String // "Manali Hotel"
+  transferDate DateTime
 
   // Cab assignment
-  cabType         CabType
-  cabCount        Int      @default(1)
-  capacity        Int      // per cab
-  ratePerCab      Decimal  @db.Decimal(10, 2)
-  totalCost       Decimal  @db.Decimal(10, 2)
+  cabType    CabType
+  cabCount   Int     @default(1)
+  capacity   Int // per cab
+  ratePerCab Decimal @db.Decimal(10, 2)
+  totalCost  Decimal @db.Decimal(10, 2)
 
   // Verification
-  isConfirmed     Boolean  @default(false)
-  confirmedAt     DateTime?
-  confirmedById   String?
-  driverName      String?
-  driverPhone     String?
-  vehicleNumber   String?
-  notes           String?
+  isConfirmed   Boolean   @default(false)
+  confirmedAt   DateTime?
+  confirmedById String?
+  driverName    String?
+  driverPhone   String?
+  vehicleNumber String?
+  notes         String?
 
-  booking         Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  confirmedBy     TeamMember?  @relation(fields: [confirmedById], references: [id])
+  booking     Booking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  confirmedBy TeamMember? @relation(fields: [confirmedById], references: [id])
 
   @@unique([bookingId, legNumber])
   @@index([bookingId])
   @@map("booking_cabs")
 }
 
-model PackageBookingHotel{
-  id String @id @default(cuid())
-  bookingId
-  hotelId
-  stayType 
-  checking_date
-  checkout_date
-  pax 
-  rooms
+model PackageBookingHotel {
+  id           String   @id @default(cuid())
+  bookingId    String
+  hotelId      Int
+  stayType     String?
+  checkingDate DateTime
+  checkoutDate DateTime
+  pax          Int      @default(1)
+  rooms        Int      @default(1)
 
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  hotel   hotels  @relation(fields: [hotelId], references: [id])
 
+  @@index([bookingId])
   @@map("package_booking_hotel")
 }
-
 
 model BookingTimeline {
   id              String         @id @default(cuid())
@@ -871,9 +887,9 @@ model BookingTimeline {
   departmentId    String?
   createdAt       DateTime       @default(now())
 
-  booking         Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  performedBy     TeamMember     @relation("TimelinePerformedBy", fields: [performedById], references: [id])
-  department      Department?    @relation("TimelineDepartment", fields: [departmentId], references: [id])
+  booking     Booking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  performedBy TeamMember  @relation("TimelinePerformedBy", fields: [performedById], references: [id])
+  department  Department? @relation("TimelineDepartment", fields: [departmentId], references: [id])
 
   @@index([bookingId])
   @@index([performedById])
@@ -1001,48 +1017,51 @@ model Department {
   members     TeamMember[]
 
   // NEW back-relations
-  currentBookings   Booking[]         @relation("BookingCurrentDept")
-  timelineEntries   BookingTimeline[]  @relation("TimelineDepartment")
+  currentBookings Booking[]         @relation("BookingCurrentDept")
+  timelineEntries BookingTimeline[] @relation("TimelineDepartment")
 
   @@map("departments")
 }
-
 
 model TeamRole {
   id          String       @id @default(cuid())
   name        String       @unique @db.VarChar(100)
   description String?      @db.VarChar(500)
-  permissions Json         @default("[]")   // ← changed from String[]
+  permissions Json         @default("[]") // ← changed from String[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   members     TeamMember[]
+
   @@map("team_roles")
 }
 
 model TeamMember {
-  id           String      @id @default(cuid())
-  name         String      @db.VarChar(255)
-  email        String      @unique
+  id           String    @id @default(cuid())
+  name         String    @db.VarChar(255)
+  email        String    @unique
   password     String?
   departmentId String?
   teamRoleId   String?
-  isActive     Boolean     @default(true)
+  isActive     Boolean   @default(true)
   joiningDate  DateTime?
   lastLoginAt  DateTime?
   createdById  String?
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   // Existing relations (unchanged)
-  department   Department? @relation(fields: [departmentId], references: [id])
-  teamRole     TeamRole?   @relation(fields: [teamRoleId], references: [id])
+  department Department? @relation(fields: [departmentId], references: [id])
+  teamRole   TeamRole?   @relation(fields: [teamRoleId], references: [id])
 
   // NEW back-relations
-  currentBookings   Booking[]         @relation("BookingCurrentAssignee")
-  hotelBookings     Booking[]         @relation("BookingHotelAssignee")
-  cabBookings       Booking[]         @relation("BookingCabAssignee")
-  opsBookings       Booking[]         @relation("BookingOpsAssignee")
-  timelineEntries   BookingTimeline[]  @relation("TimelinePerformedBy")
+  currentBookings Booking[]         @relation("BookingCurrentAssignee")
+  hotelBookings   Booking[]         @relation("BookingHotelAssignee")
+  cabBookings     Booking[]         @relation("BookingCabAssignee")
+  opsBookings     Booking[]         @relation("BookingOpsAssignee")
+  timelineEntries BookingTimeline[] @relation("TimelinePerformedBy")
+
+  confirmedHotelBookings BookingHotel[]
+  confirmedCabBookings   BookingCab[]
 
   @@index([email])
   @@index([departmentId])
@@ -1100,7 +1119,7 @@ model PackageQuery {
   name              String
   email             String?
   phone             String
-  countryCode       String  @default("IN")
+  countryCode       String           @default("IN")
   message           String?
   packageName       String?
   destination       String?
@@ -1181,16 +1200,16 @@ model QueryTimeline {
 }
 
 model LeadProfile {
-  id          String         @id @default(cuid())
-  phone       String         @unique  // normalized e.g. "+919876543210"
-  name        String                  // from latest query
-  email       String?
-  totalQueries Int           @default(0)
-  lastSeenAt  DateTime       @default(now())
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id           String   @id @default(cuid())
+  phone        String   @unique // normalized e.g. "+919876543210"
+  name         String // from latest query
+  email        String?
+  totalQueries Int      @default(0)
+  lastSeenAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  queries     PackageQuery[]
+  queries PackageQuery[]
 
   @@map("lead_profiles")
 }

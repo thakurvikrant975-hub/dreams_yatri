@@ -46,7 +46,6 @@ export type BookingWithRelations = Prisma.BookingGetPayload<{
   include: {
     user: { select: { id: true; name: true; email: true; image: true } };
     destination: { select: { id: true; name: true } };
-    package: { select: { id: true; title: true; slug: true } };
     payments: { select: { id: true; amount: true; status: true; createdAt: true } };
     timeline: {
       include: {
@@ -124,7 +123,6 @@ const cabBookingInclude = {
 const bookingInclude = {
   user: { select: { id: true, name: true, email: true, image: true } },
   destination: { select: { id: true, name: true } },
-  package: { select: { id: true, title: true, slug: true } },
   payments: { select: { id: true, amount: true, status: true, createdAt: true } },
   timeline: {
     include: {
