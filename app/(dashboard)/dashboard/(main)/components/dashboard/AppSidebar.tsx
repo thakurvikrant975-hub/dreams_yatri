@@ -17,6 +17,7 @@ import {
     ParachuteIcon,
     FileTextIcon,
     PackageIcon,
+    SteeringWheelIcon,
 } from "@phosphor-icons/react";
 
 import Link from "next/link";
@@ -95,8 +96,9 @@ const navGroups = [
         label: "Booking management",
         items: [
             { title: "Package Bookings", href: "/dashboard/package-bookings", icon: <BookOpen className="size-6 text-muted-foreground" /> },
-            { title: "Verify Cabs", href: "/dashboard/verify-cabs", icon: <Car className="size-6 text-muted-foreground" /> },
             { title: "Verify Hotels", href: "/dashboard/verify-hotels", icon: <Bed className="size-6 text-muted-foreground" /> },
+            { title: "Verify Cabs", href: "/dashboard/verify-cabs", icon: <Car className="size-6 text-muted-foreground" /> },
+            { title: "Assign Cab Driver", href: "/dashboard/assign-driver", icon: <SteeringWheelIcon className="size-6 text-muted-foreground" /> },
         ],
     },
     {
