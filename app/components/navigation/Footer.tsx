@@ -70,7 +70,7 @@ const FOOTER_COLUMNS: FooterColumn[] = [
     heading: "Support",
     links: [
       { label: "Contact Us", href: "/contact" },
-      // { label: "FAQs", href: "/faqs" },
+      { label: "FAQs", href: "/faqs" },
       { label: "Terms & Conditions", href: "/terms" },
       { label: "Privacy Policy", href: "/privacy-policy" },
       { label: "Cancellation Policy", href: "/cancellation-policy" },

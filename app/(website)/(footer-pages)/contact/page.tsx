@@ -215,7 +215,7 @@ export default function ContactPage() {
 
         <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 text-center">
           <div
-className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border mb-6 text-xs font-semibold tracking-widest uppercase
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border mb-6 text-xs font-semibold tracking-widest uppercase
 bg-amber-500/15 border-amber-500/35 text-amber-500"
           >
             <PlaneIcon size={14} />
@@ -425,7 +425,7 @@ bg-amber-500/15 border-amber-500/35 text-amber-500"
                   placeholder="Tell us your dream destination, travel dates, group size, budget..."
                   value={form.message}
                   onChange={set("message")}
-                  rows={4}
+                  rows={12}
                   className={`w-full px-4 py-2.5 rounded-xl text-sm text-primary bg-page border transition-colors outline-none focus:ring-2 ring-focus placeholder-color resize-y ${fieldErrors.message ? "border-error" : "border-default focus:border-focus"}`}
                 />
                 <FieldError field="message" />

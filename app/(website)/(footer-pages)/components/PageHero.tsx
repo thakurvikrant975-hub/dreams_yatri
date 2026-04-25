@@ -57,6 +57,7 @@ function ScrollStrip({ images, direction, speed = 35 }: {
       <div
         style={{
           display: "flex",
+          opacity: 0.8,
           flexDirection: "column",
           gap: "10px",
           animation: `strip-${direction} ${speed}s linear infinite`,
@@ -149,10 +150,7 @@ export function PageHero({
           from { opacity: 0; transform: translateY(28px); }
           to   { opacity: 1; transform: translateY(0);    }
         }
-        @keyframes badge-pop  {
-          from { opacity: 0; transform: scale(0.75) rotate(-8deg); }
-          to   { opacity: 1; transform: scale(1)    rotate(-8deg); }
-        }
+
         @keyframes stamp-float-a {
           0%,100% { transform: translateY(0)    rotate(-14deg); }
           50%     { transform: translateY(-9px) rotate(-14deg); }
@@ -204,7 +202,7 @@ export function PageHero({
       `}</style>
 
       <section
-        className="relative w-full bg-white overflow-hidden max-h-[95vh]"
+        className="relative w-full bg overflow-hidden h-[92vh]"
         style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
       >
 
@@ -265,7 +263,7 @@ export function PageHero({
 
         {/* Three-column layout */}
         <div
-          className="relative z-10 flex w-full max-h-[88vh]"
+          className="relative z-10 flex w-full"
           style={{ alignItems: "stretch" }}
         >
 
@@ -283,7 +281,7 @@ export function PageHero({
           </div>
 
           {/* CENTRE content */}
-          <div className="flex-1 flex flex-col items-center justify-center text-center px-3 sm:px-6">
+          <div className="flex-1 flex flex-col items-center justify-center text-center px-3 sm:px-6 max-h-[92vh]">
 
             {/* Badge */}
             {badge && (
@@ -299,7 +297,6 @@ export function PageHero({
                   fontWeight: 700,
                   letterSpacing: "0.07em",
                   textTransform: "uppercase",
-                  transform: "rotate(-1.5deg)",
                   animation: loaded ? "badge-pop 0.5s ease 0.05s both" : "none",
                 }}
               >
@@ -312,7 +309,6 @@ export function PageHero({
             <div style={{ animation: loaded ? "hero-rise 0.65s ease 0.12s both" : "none" }}>
               <h1
                 style={{
-                  fontFamily: "'Playfair Display', serif",
                   fontSize: "clamp(2.4rem, 5.8vw, 4.2rem)",
                   fontWeight: 800,
                   color: "#111827",
@@ -326,7 +322,6 @@ export function PageHero({
 
               <h1
                 style={{
-                  fontFamily: "'Playfair Display', serif",
                   fontSize: "clamp(2.4rem, 5.8vw, 4.2rem)",
                   fontWeight: 800,
                   color: "#111827",
@@ -363,21 +358,7 @@ export function PageHero({
                   >
                     {headingHighlight}
                   </span>
-                  {/* Squiggle */}
-                  <span
-                    style={{
-                      position: "absolute",
-                      left: 0, right: 0, bottom: "-8px",
-                      display: "block",
-                      lineHeight: 0,
-                    }}
-                    aria-hidden="true"
-                  >
-                    <svg viewBox="0 0 300 10" preserveAspectRatio="none" style={{ width: "100%", height: "8px" }}>
-                      <path d="M0 7 Q37.5 1 75 7 Q112.5 13 150 7 Q187.5 1 225 7 Q262.5 13 300 7"
-                        stroke="#EF4444" strokeWidth="2.5" fill="none" strokeLinecap="round" opacity="0.55" />
-                    </svg>
-                  </span>
+
                 </span>
 
                 {headingLine2Suffix && <span style={{ color: "#111827" }}>{headingLine2Suffix}</span>}
@@ -420,7 +401,7 @@ export function PageHero({
 
             {/* Stats */}
             <div
-              className="flex flex-wrap justify-center gap-8 mt-9"
+              className="flex flex-wrap justify-center gap-8 mt-24"
               style={{ animation: loaded ? "hero-rise 0.65s ease 0.42s both" : "none" }}
             >
               {[
@@ -430,7 +411,6 @@ export function PageHero({
               ].map((s, i) => (
                 <div key={i} style={{ textAlign: "center" }}>
                   <p style={{
-                    fontFamily: "'Playfair Display', serif",
                     fontSize: "clamp(1.5rem, 2.8vw, 2rem)",
                     fontWeight: 800,
                     color: "#111827",
@@ -469,7 +449,7 @@ export function PageHero({
         </div>
 
         {/* Destination ticker — red bar */}
-        <div
+        {/* <div
           className="relative z-10 overflow-hidden flex items-center"
           style={{ height: "40px", background: "#EF4444" }}
         >
@@ -512,7 +492,7 @@ export function PageHero({
               </span>
             ))}
           </div>
-        </div>
+        </div> */}
       </section>
     </>
   );
