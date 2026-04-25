@@ -237,6 +237,17 @@ export default function Footer() {
                         >
                           {link.label}
                         </Link>
+                        {link.href === "/services/holiday-packages" && (
+                          <span className="text-[9px] bg-gradient-to-r from-red-500 to-orange-400 text-white px-2 py-0.5 rounded-full ml-2 leading-none">
+                            NEW
+                          </span>
+                        )}
+
+                        {link.href === "/destinations/kashmir" && (
+                          <span className="text-[9px] bg-gradient-to-r from-pink-500 to-red-500 text-white px-2 py-0.5 rounded-full ml-2 leading-none">
+                            HOT
+                          </span>
+                        )}
                       </li>
                     ))}
                   </ul>
