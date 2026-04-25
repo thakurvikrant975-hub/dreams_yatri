@@ -244,7 +244,7 @@ export default function Footer() {
                         )}
 
                         {link.href === "/destinations/kashmir" && (
-                          <span className="text-[9px] bg-gradient-to-r from-pink-500 to-red-500 text-white px-2 py-0.5 rounded-full ml-2 leading-none">
+                          <span className="text-[9px] bg-gradient-to-r from-pink-500 to-red-500 text-white px-2 py-0.5 rounded-full ml-2 leading-none shadow-sm shadow-red-500/30">
                             HOT
                           </span>
                         )}
