@@ -8,6 +8,22 @@ import {
   Navigation, Camera, Wifi, CreditCard, Users,
   ArrowRight, Star, Send,
 } from "lucide-react";
+import { useContact } from "@/app/context/Global";
+
+function ProcessStep({ num, title, desc, delay }: { num: string; title: string; desc: string; delay?: number }) {
+  return (
+    <Reveal delay={delay} className="flex gap-5 items-start">
+      <div className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center font-extrabold text-sm"
+        style={{ background: "rgba(239,68,68,0.12)", color: "#EF4444", fontFamily: "'Playfair Display', serif" }}>
+        {num}
+      </div>
+      <div>
+        <p className="font-bold text-white text-sm mb-1">{title}</p>
+        <p className="text-gray-400 text-sm leading-relaxed">{desc}</p>
+      </div>
+    </Reveal>
+  );
+}
 
 // ── Reveal ────────────────────────────────────────────────────────────────────
 function useInView(threshold = 0.1) {
@@ -67,18 +83,7 @@ function IssueCard({ icon, title, desc, action, href, delay }: {
   );
 }
 
-// ── Process step ──────────────────────────────────────────────────────────────
-function ProcessStep({ num, title, desc, delay }: { num: string; title: string; desc: string; delay?: number }) {
-  return (
-    <Reveal delay={delay} className="flex gap-5 items-start">
-      <div className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center font-extrabold text-sm" style={{ background: "rgba(239,68,68,0.12)", color: "#EF4444", fontFamily: "'Playfair Display', serif" }}>{num}</div>
-      <div>
-        <p className="font-bold text-white text-sm mb-1">{title}</p>
-        <p className="text-gray-400 text-sm leading-relaxed">{desc}</p>
-      </div>
-    </Reveal>
-  );
-}
+
 
 // ── Contact channel card ──────────────────────────────────────────────────────
 function ChannelCard({ icon, accent, label, tag, title, desc, value, cta, href, hours, delay }: {
@@ -87,7 +92,7 @@ function ChannelCard({ icon, accent, label, tag, title, desc, value, cta, href, 
 }) {
   return (
     <Reveal delay={delay} className="h-full">
-      <div className="h-full flex flex-col bg-white rounded-2xl border border-gray-100 p-7 hover:border-opacity-60 hover:shadow-xl transition-all duration-300 group"
+      <div className="h-full flex flex-col bg-white shadow-lg border border-gray-200 rounded-2xl border border-gray-100 p-7 hover:border-opacity-60 hover:shadow-xl transition-all duration-300 group"
         style={{ "--accent": accent } as React.CSSProperties}
         onMouseEnter={e => (e.currentTarget.style.borderColor = accent + "55")}
         onMouseLeave={e => (e.currentTarget.style.borderColor = "")}
@@ -103,9 +108,9 @@ function ChannelCard({ icon, accent, label, tag, title, desc, value, cta, href, 
         <p className="text-xs font-bold tracking-widest uppercase mb-1" style={{ color: accent }}>{label}</p>
         <h3 className="text-gray-900 font-bold text-lg mb-2" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{title}</h3>
         <p className="text-gray-500 text-sm leading-relaxed mb-5 flex-1">{desc}</p>
-        <p className="font-bold text-gray-900 text-base mb-4">{value}</p>
+        <p className=" text-gray-500 text-sm mb-4">{value}</p>
         <a href={href}
-          className="w-full py-3 rounded-xl text-sm font-bold text-center transition-all duration-200 no-underline flex items-center justify-center gap-2 mb-4"
+          className="w-full py-3 rounded-xl cursor-pointer text-sm font-bold text-center transition-all duration-200 no-underline flex items-center justify-center gap-2 mb-4"
           style={{ background: accent, color: "#fff", boxShadow: `0 4px 14px ${accent}40` }}
           onMouseEnter={e => (e.currentTarget.style.opacity = "0.88")}
           onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
@@ -196,7 +201,7 @@ function QuickForm() {
         type="button"
         onClick={submit}
         disabled={loading || !form.name || !form.phone || !form.issue}
-        className="w-full py-3.5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full py-3.5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 transition-all disabled:opacity-90 disabled:cursor-not-allowed"
         style={{ background: loading ? "#D1D5DB" : "#EF4444", boxShadow: loading ? "none" : "0 4px 16px rgba(239,68,68,0.32)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
       >
         {loading ? (
@@ -212,6 +217,8 @@ function QuickForm() {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function CustomerSupportPage() {
+    const contact = useContact();
+  
   const ISSUE_CATEGORIES = [
     { icon: <Navigation size={20} />, title: "Transfer & Transport", desc: "Cab not arrived, route changes, driver issues, vehicle problems.", action: "Get help", href: "tel:+917023907099" },
     { icon: <Shield size={20} />, title: "Hotel & Accommodation", desc: "Room issues, check-in problems, hotel not as booked, amenity concerns.", action: "Get help", href: "tel:+917023907099" },
@@ -258,7 +265,7 @@ export default function CustomerSupportPage() {
               </div>
 
               <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(2.2rem, 5.5vw, 3.8rem)", fontWeight: 800, color: "#fff", lineHeight: 1.1, margin: "0 0 18px", animation: "hero-rise 0.55s ease 0.08s both" }}>
-                We're here —{" "}
+                We're here  <br />{"   "}
                 <span style={{ color: "#EF4444", fontStyle: "italic" }}>always.</span>
               </h1>
 
@@ -282,19 +289,19 @@ export default function CustomerSupportPage() {
 
               {/* Quick action buttons */}
               <div className="flex flex-wrap gap-3" style={{ animation: "hero-rise 0.55s ease 0.28s both" }}>
-                <a href="tel:+917023907023"
+                <a href={contact.sales.phoneUrl}
                   className="inline-flex items-center gap-2 font-bold text-sm px-5 py-3 rounded-xl text-white no-underline transition-all hover:opacity-88"
                   style={{ background: "#EF4444", boxShadow: "0 4px 16px rgba(239,68,68,0.38)", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
                   <Phone size={15} /> Call Sales
                 </a>
-                <a href="tel:+917023907099"
+                <a href={contact.support.phoneUrl}
                   className="inline-flex items-center gap-2 font-bold text-sm px-5 py-3 rounded-xl no-underline transition-all"
                   style={{ background: "rgba(255,255,255,0.07)", border: "1.5px solid rgba(255,255,255,0.15)", color: "#fff", fontFamily: "'Plus Jakarta Sans',sans-serif" }}
                   onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.12)")}
                   onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,0.07)")}>
                   <Shield size={15} /> Call Support
                 </a>
-                <a href="https://wa.me/917023907023"
+                <a href={contact.whatsapp.url}
                   target="_blank" rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 font-bold text-sm px-5 py-3 rounded-xl no-underline transition-all"
                   style={{ background: "rgba(37,211,102,0.15)", border: "1.5px solid rgba(37,211,102,0.3)", color: "#25D366", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
@@ -372,7 +379,7 @@ export default function CustomerSupportPage() {
                 <span className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: s.color + "18", color: s.color }}>{s.icon}</span>
                 <div>
                   <p className="text-gray-500 text-xs leading-none mb-1">{s.label}</p>
-                  <p className="font-extrabold text-gray-900 text-sm" style={{ fontFamily: "'Playfair Display',serif" }}>{s.value}</p>
+                  <p className="font-extrabold text-gray-900 text-sm">{s.value}</p>
                 </div>
               </Reveal>
             ))}
@@ -395,67 +402,30 @@ export default function CustomerSupportPage() {
             <ChannelCard
               icon={<Phone size={22} />} accent="#EF4444" label="Sales Team" tag="Most Popular"
               title="Book a New Trip" desc="Talk to a travel expert who will design the perfect itinerary for you."
-              value="+91 70239 07023" cta="Call Sales" href="tel:+917023907023"
+              value={contact.sales.phone} cta="Call Sales" href={contact.sales.phone}
               hours="Mon–Sat, 9 AM–7 PM IST" delay={0}
             />
             <ChannelCard
               icon={<Shield size={22} />} accent="#10B981" label="Support Team" tag="Existing Bookings"
               title="Trip Assistance" desc="Hotel issues, transfer delays, cancellations, and on-trip emergencies."
-              value="+91 70239 07099" cta="Call Support" href="tel:+917023907099"
+              value={contact.support.phone} cta="Call Support" href={contact.support.phone}
               hours="24/7 for active trips" delay={80}
             />
             <ChannelCard
               icon={<MessageCircle size={22} />} accent="#25D366" label="WhatsApp" tag="Fastest Response"
               title="Chat Instantly" desc="Drop a message anytime. Share documents, photos, and queries — we reply in minutes."
-              value="+91 70239 07023" cta="Open WhatsApp"
-              href="https://wa.me/917023907023?text=Hi%2C%20I%20need%20support%20from%20Dreams%20Yatri."
+              value={contact.whatsapp.phone} cta="Open WhatsApp"
+              href={contact.whatsapp.url}
               hours="Typically under 5 minutes" delay={160}
             />
             <ChannelCard
               icon={<Mail size={22} />} accent="#0EA5E9" label="Email Support"
               title="Detailed Queries"
               desc="Refund requests, billing disputes, complaints, and document submissions go here."
-              value="support@dreamsyatri.com" cta="Send Email" href="mailto:support@dreamsyatri.com"
+              value={contact.support.email} cta="Send Email" href={contact.support.email}
               hours="Response within 4 hours" delay={240}
             />
           </div>
-        </div>
-      </section>
-
-      {/* ── ISSUE FINDER ──────────────────────────────────────────────────── */}
-      <section className="py-20 bg-gray-50">
-        <div className="max-w-6xl mx-auto px-6 sm:px-8">
-          <Reveal className="text-center mb-12">
-            <p className="text-xs font-bold tracking-widest uppercase text-red-500 mb-3">Find Your Issue</p>
-            <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: "clamp(1.7rem,3.5vw,2.5rem)", fontWeight: 800, color: "#111827", margin: "0 0 12px" }}>
-              What do you need help with?
-            </h2>
-            <p className="text-gray-500 text-base max-w-md mx-auto leading-relaxed">Select your issue type to get directed to the right team instantly.</p>
-          </Reveal>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {ISSUE_CATEGORIES.map((cat, i) => (
-              <IssueCard key={i} {...cat} delay={i * 40} />
-            ))}
-          </div>
-
-          {/* Emergency callout */}
-          <Reveal className="mt-8">
-            <div className="rounded-2xl border-2 border-red-200 bg-red-50 px-7 py-5 flex flex-wrap items-center gap-5">
-              <div className="w-10 h-10 rounded-xl bg-red-500 flex items-center justify-center flex-shrink-0">
-                <AlertCircle size={20} className="text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-bold text-red-700 text-sm mb-0.5">On-Trip Emergency?</p>
-                <p className="text-red-600/70 text-sm">If you're currently on a trip and facing a medical emergency, safety concern, or immediate crisis — call our emergency line directly. Do not wait.</p>
-              </div>
-              <a href="tel:+917023907099"
-                className="inline-flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white font-bold px-6 py-3 rounded-xl text-sm no-underline flex-shrink-0 transition-colors"
-                style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", boxShadow: "0 3px 12px rgba(239,68,68,0.35)" }}>
-                <Phone size={15} /> Emergency Line
-              </a>
-            </div>
-          </Reveal>
         </div>
       </section>
 
@@ -466,7 +436,7 @@ export default function CustomerSupportPage() {
 
             {/* Left — callback form */}
             <Reveal dir="left">
-              <div className="bg-white border border-gray-100 rounded-3xl p-8 shadow-xl shadow-gray-100/80">
+              <div className="bg-white border border-gray-200 rounded-3xl p-8 shadow-xl">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center text-red-500">
                     <Phone size={18} />
@@ -490,29 +460,18 @@ export default function CustomerSupportPage() {
                 <p className="text-gray-500 text-sm leading-relaxed">From the moment you reach out, our team moves with urgency — not bureaucracy.</p>
               </Reveal>
 
-              <div className="bg-gray-950 rounded-3xl p-8">
-                <div className="flex flex-col gap-6">
-                  {[
-                    { n: "01", t: "Contact us on any channel", d: "Call, WhatsApp, email, or fill the callback form. We're active on all channels simultaneously." },
-                    { n: "02", t: "We verify your booking", d: "Share your booking reference or name. We pull up your itinerary and understand the full context before responding." },
-                    { n: "03", t: "Immediate action is taken", d: "We coordinate with hotels, drivers, and vendors directly. You get a real update — not a ticket number." },
-                    { n: "04", t: "Issue resolved & confirmed", d: "We follow up to ensure everything is sorted and your trip continues without disruption." },
-                  ].map((s, i) => (
-                    <ProcessStep key={i} {...s} delay={i * 60} />
-                  ))}
-                </div>
-              </div>
-
-              {/* SLA table */}
-              <Reveal className="mt-6 bg-white border border-gray-100 rounded-2xl px-6 overflow-hidden">
-                <p className="text-xs font-bold tracking-widest uppercase text-gray-400 py-4 border-b border-gray-100">Our Response Commitments</p>
-                <SLARow icon={<Zap size={14} />} label="WhatsApp message" value="< 5 minutes" color="#25D366" />
-                <SLARow icon={<Phone size={14} />} label="Incoming call answered" value="< 2 rings" color="#EF4444" />
-                <SLARow icon={<Mail size={14} />} label="Email reply" value="< 4 hours" color="#0EA5E9" />
-                <SLARow icon={<RefreshCw size={14} />} label="Callback request" value="< 2 hours" color="#F97316" />
-                <SLARow icon={<AlertCircle size={14} />} label="Emergency resolution" value="Same day" color="#8B5CF6" />
-                <SLARow icon={<CreditCard size={14} />} label="Refund processing" value="7–10 business days" color="#F59E0B" />
-              </Reveal>
+<div className="bg-gray-950 rounded-3xl p-8">
+  <div className="flex flex-col gap-6">
+    {[
+      { num: "01", title: "Contact us on any channel",  desc: "Call, WhatsApp, email, or fill the callback form. We're active on all channels simultaneously." },
+      { num: "02", title: "We verify your booking",     desc: "Share your booking reference or name. We pull up your itinerary and understand the full context before responding." },
+      { num: "03", title: "Immediate action is taken",  desc: "We coordinate with hotels, drivers, and vendors directly. You get a real update — not a ticket number." },
+      { num: "04", title: "Issue resolved & confirmed", desc: "We follow up to ensure everything is sorted and your trip continues without disruption." },
+    ].map((s, i) => (
+      <ProcessStep key={i} {...s} delay={i * 60} />
+    ))}
+  </div>
+</div>
             </div>
           </div>
         </div>
@@ -534,24 +493,24 @@ export default function CustomerSupportPage() {
                 icon: <Users size={24} />, color: "#EF4444", label: "Sales Team",
                 who: "Travel planners & booking specialists",
                 handles: ["New trip enquiries", "Custom itinerary design", "Package pricing & availability", "B2B and group bookings"],
-                contact: "sales@dreamsyatri.com",
-                phone: "+91 70239 07023",
+                contact: contact.sales.email,
+                phone: contact.sales.phone,
                 hours: "Mon–Sat, 9 AM–7 PM",
               },
               {
                 icon: <Shield size={24} />, color: "#10B981", label: "Support Team",
-                who: "On-trip coordinators & problem solvers",
+                who: "On-trip problem solvers",
                 handles: ["Hotel & transport issues", "Itinerary amendments", "Document resending", "On-trip emergency management"],
-                contact: "support@dreamsyatri.com",
-                phone: "+91 70239 07099",
+                contact: contact.support.email,
+                phone: contact.support.phone,
                 hours: "24/7 for active bookings",
               },
               {
                 icon: <CreditCard size={24} />, color: "#0EA5E9", label: "Finance Team",
                 who: "Billing, refunds & payment experts",
                 handles: ["Refund processing", "Payment reconciliation", "GST invoices & receipts", "Dispute resolution"],
-                contact: "support@dreamsyatri.com",
-                phone: "+91 70239 07023",
+                contact: contact.finance.email,
+                phone: contact.finance.phone,
                 hours: "Mon–Sat, 10 AM–6 PM",
               },
             ].map((team, i) => (
@@ -592,7 +551,7 @@ export default function CustomerSupportPage() {
           </div>
 
           {/* Office info */}
-          <Reveal className="mt-8 border border-white/10 rounded-2xl px-7 py-5 flex flex-wrap gap-6 items-center">
+          <Reveal className="mt-8 border border-white/10 rounded-2xl px-7 py-5 flex flex-wrap gap-6 justify-between text-center items-center">
             {[
               { icon: <MapPin size={15} />, label: "Head Office", value: "Shimla, Himachal Pradesh – 171001" },
               { icon: <Clock size={15} />, label: "General Hours", value: "Mon–Sat, 9:00 AM – 7:00 PM IST" },
@@ -600,7 +559,7 @@ export default function CustomerSupportPage() {
             ].map((item, i) => (
               <div key={i} className="flex items-center gap-3">
                 <span className="text-red-400">{item.icon}</span>
-                <div>
+                <div className="text-left">
                   <p className="text-gray-500 text-xs font-semibold uppercase tracking-wide mb-0.5">{item.label}</p>
                   <p className="text-white text-sm font-semibold">{item.value}</p>
                 </div>
@@ -609,52 +568,6 @@ export default function CustomerSupportPage() {
             ))}
           </Reveal>
         </div>
-      </section>
-
-      {/* ── TRUST STRIP ───────────────────────────────────────────────────── */}
-      <section className="bg-white border-b border-gray-100 py-12">
-        <div className="max-w-6xl mx-auto px-6 sm:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-            {[
-              { v: "< 5 min", l: "WhatsApp Response" },
-              { v: "98%", l: "Issue Resolution Rate" },
-              { v: "4.9★", l: "Support Rating" },
-              { v: "24/7", l: "Emergency Coverage" },
-            ].map((s, i) => (
-              <Reveal key={i} delay={i * 60}>
-                <p style={{ fontFamily: "'Playfair Display',serif", fontSize: "1.75rem", fontWeight: 800, color: "#EF4444", margin: "0 0 4px" }}>{s.v}</p>
-                <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">{s.l}</p>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── CTA ───────────────────────────────────────────────────────────── */}
-      <section className="bg-red-500 py-20 px-6 text-center relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10 pointer-events-none"
-          style={{ backgroundImage: "radial-gradient(circle,rgba(255,255,255,0.6) 1px,transparent 1px)", backgroundSize: "26px 26px" }} />
-        <Reveal className="relative z-10 max-w-xl mx-auto">
-          <p className="text-red-100 text-xs font-bold tracking-widest uppercase mb-4">We're Standing By</p>
-          <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: "clamp(1.7rem,4vw,2.8rem)", fontWeight: 800, color: "#fff", margin: "0 0 14px" }}>
-            Need help right now?
-          </h2>
-          <p className="text-red-100 text-base leading-relaxed mb-8 max-w-md mx-auto">
-            Our team is online and ready. Don't struggle alone — we've solved thousands of travel problems and we'll solve yours too.
-          </p>
-          <div className="flex flex-wrap justify-center gap-3">
-            <a href="tel:+917023907023"
-              className="inline-flex items-center gap-2 bg-white text-red-500 hover:bg-red-50 font-bold px-8 py-3.5 rounded-xl text-sm transition-colors no-underline"
-              style={{ boxShadow: "0 4px 16px rgba(0,0,0,0.14)", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-              <Phone size={15} /> Call Sales: +91 70239 07023
-            </a>
-            <a href="tel:+917023907099"
-              className="inline-flex items-center gap-2 border border-white/40 hover:border-white text-white font-semibold px-8 py-3.5 rounded-xl text-sm transition-all no-underline"
-              style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
-              <Shield size={15} /> Call Support: +91 70239 07099
-            </a>
-          </div>
-        </Reveal>
       </section>
     </div>
   );

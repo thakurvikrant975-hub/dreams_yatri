@@ -14,10 +14,17 @@ export const GlobalProvider = ({ children }) => {
     },
     support: {
       label: "Call Support",
-      phone: "+91-9123456780",
-      phoneUrl: "tel:+91-9123456780",
+      phone: "+91-8888888888",
+      phoneUrl: "tel:+91-8888888888",
       email: "support@dreamsyatri.com",
       emailUrl: "mailto:support@dreamsyatri.com"
+    },
+    finance: {
+      label: "Finance Support",
+      phone: "+91-7777777777",
+      phoneUrl: "tel:+91-7777777777",
+      email: "finance@dreamsyatri.com",
+      emailUrl: "mailto:finance@dreamsyatri.com"
     },
     whatsapp: {
       label: "WhatsApp Us",
