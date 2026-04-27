@@ -395,32 +395,6 @@ export default function OurStoryPage() {
                 </div>
             </section>
 
-            {/* ── FINAL CTA ────────────────────────────────────────────────────── */}
-            <section className="bg-red-500 py-20 px-6 text-center relative overflow-hidden">
-                <div className="absolute inset-0 opacity-10"
-                    style={{ backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)", backgroundSize: "28px 28px" }} />
-                <Reveal className="relative z-10 max-w-2xl mx-auto">
-                    <p className="text-red-100 text-sm font-bold tracking-widest uppercase mb-4">Start Your Journey</p>
-                    <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(1.8rem, 4vw, 3rem)", fontWeight: 700 }}
-                        className="text-white mb-5 leading-tight">
-                        You dream the destination. <br />We handle everything else.
-                    </h2>
-                    <p className="text-red-100 text-base leading-relaxed mb-8 max-w-lg mx-auto">
-                        Join 10,000+ travellers who've discovered what it feels like to arrive somewhere completely stress-free.
-                    </p>
-                    <div className="flex flex-wrap justify-center gap-4">
-                        <a href="/contact"
-                            className="inline-flex items-center gap-2 bg-white text-red-500 hover:bg-red-50 font-bold px-8 py-3.5 rounded-xl text-sm transition-colors shadow-lg shadow-red-700/30">
-                            Plan My Trip <ArrowRight size={16} />
-                        </a>
-                        <a href="tel:+917023907023"
-                            className="inline-flex items-center gap-2 border border-white/40 hover:border-white text-white font-semibold px-8 py-3.5 rounded-xl text-sm transition-all">
-                            <Phone size={15} /> +91 70239 07023
-                        </a>
-                    </div>
-                </Reveal>
-            </section>
-
             {/* ── Animations ───────────────────────────────────────────────────── */}
             <style>{`
         @keyframes fadeSlideUp {

@@ -498,7 +498,7 @@ ${isPending
                 </span>
                 <div>
                   <p className="text-sm font-semibold text-primary mb-0.5">Office Hours</p>
-                  <p className="text-secondary text-sm leading-relaxed">Mon – Sat: 9:00 AM – 7:00 PM<br />Sunday: By Appointment</p>
+                  <p className="text-secondary text-sm leading-relaxed">Mon – Sat: 10:00 AM – 7:00 PM<br />Sunday: By Appointment</p>
                 </div>
               </div>
             </div>
