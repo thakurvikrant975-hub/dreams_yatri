@@ -3,6 +3,9 @@
 import { useState, useTransition } from "react";
 import { COUNTRY_CODES, type CountryCode } from "@/app/lib/assets/country-codes";
 import { submitContactForm, type ContactActionResult } from "./action";
+import Hero from "../components/Hero";
+import { useContact } from "@/app/context/Global";
+
 
 // ── Inline SVG Icons (no external dep) ───────────────────────────────────────
 
@@ -103,6 +106,8 @@ const DEFAULT_COUNTRY = COUNTRY_CODES[0]; // India
 
 export default function ContactPage() {
   const [isPending, startTransition] = useTransition();
+  const contact = useContact();
+
 
   const [form, setForm] = useState<FormState>({
     name: "",
@@ -196,42 +201,29 @@ export default function ContactPage() {
 
       {/* ── HERO ─────────────────────────────────────────────────────────── */}
       {/* Flush with header: no top padding, negative margin to override any parent gap */}
-      <div className="relative overflow-hidden bg-surface-inverse" style={{ paddingTop: "80px", paddingBottom: "96px" }}>
+      <Hero>
 
-        {/* Travel decorative SVGs */}
-        <svg className="absolute inset-0 w-full h-full opacity-[0.04]" viewBox="0 0 1200 400" preserveAspectRatio="xMidYMid slice">
-          <path d="M0 300 Q200 180 400 240 Q600 300 800 200 Q1000 100 1200 220" stroke="white" strokeWidth="2" fill="none" strokeDasharray="10 8" />
-          <path d="M0 350 Q300 250 600 310 Q900 370 1200 280" stroke="white" strokeWidth="1.5" fill="none" strokeDasharray="6 10" opacity="0.5" />
-          {/* Mountain silhouettes */}
-          <path d="M50 380 L120 260 L190 380Z" fill="white" opacity="0.4" />
-          <path d="M100 380 L190 220 L280 380Z" fill="white" opacity="0.3" />
-          <path d="M920 380 L980 240 L1040 380Z" fill="white" opacity="0.4" />
-          <path d="M970 380 L1060 200 L1150 380Z" fill="white" opacity="0.3" />
-          {/* Plane path */}
-          <circle cx="600" cy="180" r="4" fill="white" opacity="0.6" />
-          <circle cx="650" cy="160" r="3" fill="white" opacity="0.4" />
-          <circle cx="700" cy="148" r="2" fill="white" opacity="0.3" />
-        </svg>
 
         <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 text-center">
           <div
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border mb-6 text-xs font-semibold tracking-widest uppercase
-bg-amber-500/15 border-amber-500/35 text-amber-500"
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border mb-6 text-xs font-semibold tracking-widest uppercase bg-amber-500/15 border-amber-500/35 text-amber-500"
           >
             <PlaneIcon size={14} />
             Get In Touch
           </div>
 
-          <h1 className="text-inverse font-extrabold leading-tight mb-5 "
-            style={{ fontSize: "clamp(2rem, 5vw, 3.25rem)" }}>
-            Let's Plan Your{" "}
-            <span className="text-red-400">Dream</span> Journey
-          </h1>
 
-          <p className="mx-auto mb-8 leading-relaxed"
-            style={{ maxWidth: "520px", color: "rgba(255,255,255,0.65)", fontSize: "clamp(0.95rem, 2vw, 1.1rem)" }}>
-            Whether it's a weekend escape or a cross-continent adventure — our travel experts are ready to craft it, price it, and book it for you.
-          </p>
+          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(2.2rem, 5.5vw, 3.8rem)", fontWeight: 800, color: "#fff", lineHeight: 1.1, margin: "0 0 16px", animation: "hero-rise 0.55s ease 0.08s both" }}>
+              Let's Plan Your{" "}
+              <span style={{ color: "#EF4444", fontStyle: "italic" }}>Dream Journey</span>
+            </h1>
+
+            <p className="text-gray-400 leading-relaxed mb-8"
+              style={{ fontSize: "clamp(0.95rem, 1.8vw, 1.05rem)", animation: "hero-rise 0.55s ease 0.16s both" }}>
+              Whether it’s a quick weekend escape or an unforgettable cross-continent adventure, our travel experts take care of everything. From designing personalized itineraries to securing the best prices and handling every booking detail, we ensure your journey is smooth, stress-free, and perfectly tailored to your preferences from start to finish.
+            </p>
+
+   
 
           <div className="flex flex-wrap justify-center gap-6">
             {[
@@ -251,12 +243,9 @@ bg-amber-500/15 border-amber-500/35 text-amber-500"
             ))}
           </div>
         </div>
-      </div>
+      </Hero>
 
-      {/* Wave */}
-      <svg className="block bg-page -mt-px" viewBox="0 0 1200 56" preserveAspectRatio="none" style={{ height: 56 }}>
-        <path d="M0 0 Q300 56 600 28 Q900 0 1200 38 L1200 0 Z" className="bg-surface-inverse" fill="currentColor" style={{ fill: "var(--bg-surface-inverse)" }} />
-      </svg>
+
 
       {/* ── BODY ─────────────────────────────────────────────────────────── */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-20">
@@ -282,17 +271,17 @@ bg-amber-500/15 border-amber-500/35 text-amber-500"
               Planning a vacation? Our sales team will curate personalised packages, pricing, and itineraries for you.
             </p>
             <div className="flex flex-col gap-3">
-              <a href="tel:+917023907023" className="flex items-center gap-3 text-primary text-sm font-semibold hover:text-brand transition-colors no-underline">
+              <a href={contact.sales.phoneUrl} className="flex items-center gap-3 text-primary text-sm font-semibold hover:text-brand transition-colors no-underline">
                 <span className="w-8 h-8 rounded-lg flex items-center justify-center text-brand flex-shrink-0" style={{ background: "rgba(245,166,35,0.12)" }}>
                   <PhoneIcon />
                 </span>
-                +91 70239 07023
+                {contact.sales.phone}
               </a>
-              <a href="mailto:sales@dreamsyatri.com" className="flex items-center gap-3 text-primary text-sm font-semibold hover:text-brand transition-colors no-underline">
+              <a href={contact.sales.emailUrl} className="flex items-center gap-3 text-primary text-sm font-semibold hover:text-brand transition-colors no-underline">
                 <span className="w-8 h-8 rounded-lg flex items-center justify-center text-brand flex-shrink-0" style={{ background: "rgba(245,166,35,0.12)" }}>
                   <MailIcon />
                 </span>
-                sales@dreamsyatri.com
+                {contact.sales.email}
               </a>
             </div>
             <div className="flex items-center gap-2 text-muted text-xs mt-5 pt-5 border-t border-default">
@@ -314,17 +303,17 @@ bg-amber-500/15 border-amber-500/35 text-amber-500"
               Already booked with us? Our support team handles changes, cancellations, and on-trip assistance 24/7.
             </p>
             <div className="flex flex-col gap-3">
-              <a href="tel:+917023907099" className="flex items-center gap-3 text-primary text-sm font-semibold hover:text-brand transition-colors no-underline">
+              <a href={contact.support.phoneUrl} className="flex items-center gap-3 text-primary text-sm font-semibold hover:text-brand transition-colors no-underline">
                 <span className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(245,166,35,0.1)", color: "#F5A623" }}>
                   <PhoneIcon />
                 </span>
-                +91 70239 07099
+                {contact.support.phone}
               </a>
-              <a href="mailto:support@dreamsyatri.com" className="flex items-center gap-3 text-primary text-sm font-semibold hover:text-brand transition-colors no-underline">
+              <a href={contact.support.emailUrl} className="flex items-center gap-3 text-primary text-sm font-semibold hover:text-brand transition-colors no-underline">
                 <span className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(245,166,35,0.1)", color: "#F5A623" }}>
                   <MailIcon />
                 </span>
-                support@dreamsyatri.com
+                {contact.support.email}
               </a>
             </div>
             <div className="flex items-center gap-2 text-muted text-xs mt-5 pt-5 border-t border-default">

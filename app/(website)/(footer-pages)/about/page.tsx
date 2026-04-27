@@ -20,7 +20,7 @@ const useInView = (threshold = 0.12) => {
   return [ref, inView];
 };
 
-const Reveal = ({ children, delay = 0, className = "" }) => {
+const Reveal = ({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) => {
   const [ref, inView] = useInView();
   return (
     <div ref={ref} className={className} style={{
