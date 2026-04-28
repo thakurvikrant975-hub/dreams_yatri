@@ -79,10 +79,10 @@ export default function OurStoryPage() {
                 ctaLabel="Read Our Story"
                 ctaHref="#story"
             />
-      <FounderStory />
-      <OurJourneyTimeline />
-      <ValuesSection />
-      <VisionSection />
+            <FounderStory />
+            <OurJourneyTimeline />
+            <ValuesSection />
+            <VisionSection />
 
 
             {/* ── TEAM TEASER ──────────────────────────────────────────────────── */}
@@ -113,66 +113,66 @@ export default function OurStoryPage() {
                             </Reveal>
 
                             {/* Right — decorative grid of destination cards */}
-<div className="p-8 grid grid-cols-2 gap-3 content-center">
-  {[
-    {
-      dest: "Shimla",
-      tag: "HQ",
-      image: "https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=400&h=300&fit=crop&auto=format",
-    },
-    {
-      dest: "Kashmir",
-      tag: "Top Pick",
-      image: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop&auto=format",
-    },
-    {
-      dest: "Rajasthan",
-      tag: "Heritage",
-      image: "https://images.unsplash.com/photo-1524492412937-b28074a5d7da?w=400&h=300&fit=crop&auto=format",
-    },
-    {
-      dest: "Dubai",
-      tag: "International",
-      image: "https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=400&h=300&fit=crop&auto=format",
-    },
-  ].map((d, i) => (
-    <Reveal
-      key={i}
-      delay={i * 80}
-      className="relative rounded-2xl overflow-hidden min-h-[120px] flex flex-col justify-between cursor-default group"
-    >
-      {/* Background image */}
-      <img
-        src={d.image}
-        alt={d.dest}
-        className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-        loading="lazy"
-        draggable={false}
-      />
+                            <div className="p-8 grid grid-cols-2 gap-3 content-center">
+                                {[
+                                    {
+                                        dest: "Shimla",
+                                        tag: "HQ",
+                                        image: "https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=400&h=300&fit=crop&auto=format",
+                                    },
+                                    {
+                                        dest: "Kashmir",
+                                        tag: "Top Pick",
+                                        image: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop&auto=format",
+                                    },
+                                    {
+                                        dest: "Rajasthan",
+                                        tag: "Heritage",
+                                        image: "https://images.unsplash.com/photo-1524492412937-b28074a5d7da?w=400&h=300&fit=crop&auto=format",
+                                    },
+                                    {
+                                        dest: "Dubai",
+                                        tag: "International",
+                                        image: "https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=400&h=300&fit=crop&auto=format",
+                                    },
+                                ].map((d, i) => (
+                                    <Reveal
+                                        key={i}
+                                        delay={i * 80}
+                                        className="relative rounded-2xl overflow-hidden min-h-[120px] flex flex-col justify-between cursor-default group"
+                                    >
+                                        {/* Background image */}
+                                        <img
+                                            src={d.image}
+                                            alt={d.dest}
+                                            className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                            loading="lazy"
+                                            draggable={false}
+                                        />
 
-      {/* Dark gradient overlay — stronger at bottom */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/10" />
+                                        {/* Dark gradient overlay — stronger at bottom */}
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/10" />
 
-      {/* Border shimmer on hover */}
-      <div className="absolute inset-0 rounded-2xl ring-1 ring-white/10 group-hover:ring-white/25 transition-all duration-300" />
+                                        {/* Border shimmer on hover */}
+                                        <div className="absolute inset-0 rounded-2xl ring-1 ring-white/10 group-hover:ring-white/25 transition-all duration-300" />
 
-      {/* Content */}
-      <div className="relative z-10 flex flex-col justify-between h-full p-4">
-        <span className="text-[10px] font-bold text-white/50 tracking-widest uppercase">
-          {d.tag}
-        </span>
-        <div>
-          <p className="text-white font-bold text-base leading-tight">{d.dest}</p>
-          <div className="flex mt-1.5 gap-0.5">
-            {[...Array(5)].map((_, j) => (
-              <Star key={j} size={10} fill="#EF4444" stroke="none" />
-            ))}
-          </div>
-        </div>
-      </div>
-    </Reveal>
-  ))}
-</div>
+                                        {/* Content */}
+                                        <div className="relative z-10 flex flex-col justify-between h-full p-4">
+                                            <span className="text-[10px] font-bold text-white/50 tracking-widest uppercase">
+                                                {d.tag}
+                                            </span>
+                                            <div>
+                                                <p className="text-white font-bold text-base leading-tight">{d.dest}</p>
+                                                <div className="flex mt-1.5 gap-0.5">
+                                                    {[...Array(5)].map((_, j) => (
+                                                        <Star key={j} size={10} fill="#EF4444" stroke="none" />
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </Reveal>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 </div>

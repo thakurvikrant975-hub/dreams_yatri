@@ -9,7 +9,7 @@ import {
   Headphones,
   Star,
   Users,
-} from "lucide-react"; 
+} from "lucide-react";
 import { VALUES } from "./data";
 
 
@@ -81,7 +81,7 @@ interface Value {
 }
 
 function ValueCard({ v, delay }: { v: Value; delay: number }) {
-    const Icon = v.icon;
+  const Icon = v.icon;
 
   return (
     <div>

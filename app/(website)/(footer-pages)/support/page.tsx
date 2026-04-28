@@ -9,6 +9,8 @@ import {
   ArrowRight, Star, Send,
 } from "lucide-react";
 import { useContact } from "@/app/context/Global";
+import { ISSUE_CATEGORIES } from "./data";
+import { SectionHeading } from "../components/SectionHeading";
 
 function ProcessStep({ num, title, desc, delay }: { num: string; title: string; desc: string; delay?: number }) {
   return (
@@ -151,7 +153,7 @@ function QuickForm() {
     setTimeout(() => { setLoading(false); setSent(true); }, 1200);
   };
 
-  const inputCls = "w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-gray-900 bg-white outline-none transition-all placeholder:text-gray-400 focus:border-red-400 focus:ring-2 focus:ring-red-100";
+  const inputCls = "w-full px-4 py-3 rounded-lg ring ring-gray-300 border-gray-300 text-sm text-gray-900 bg-white outline-none transition-all placeholder:text-gray-400 focus:border-red-400 focus:ring-2 focus:ring-red-100";
 
   if (sent) {
     return (
@@ -195,7 +197,7 @@ function QuickForm() {
       </div>
       <div>
         <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Brief Description</label>
-        <textarea className={inputCls} rows={3} placeholder="Describe your issue briefly so we can prepare before calling you…" value={form.msg} onChange={set("msg")} style={{ resize: "none" }} />
+        <textarea className={inputCls} rows={6} placeholder="Describe your issue briefly so we can prepare before calling you…" value={form.msg} onChange={set("msg")} style={{ resize: "none" }} />
       </div>
       <button
         type="button"
@@ -210,26 +212,14 @@ function QuickForm() {
           <><Send size={15} /> Request a Callback</>
         )}
       </button>
-      <p className="text-center text-xs text-gray-400">We'll call you back within 2 hours · Mon–Sat, 9 AM–7 PM IST</p>
+      <p className="text-center text-xs text-gray-500">We'll call you back Shortly.</p>
     </div>
   );
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function CustomerSupportPage() {
-    const contact = useContact();
-  
-  const ISSUE_CATEGORIES = [
-    { icon: <Navigation size={20} />, title: "Transfer & Transport", desc: "Cab not arrived, route changes, driver issues, vehicle problems.", action: "Get help", href: "tel:+917023907099" },
-    { icon: <Shield size={20} />, title: "Hotel & Accommodation", desc: "Room issues, check-in problems, hotel not as booked, amenity concerns.", action: "Get help", href: "tel:+917023907099" },
-    { icon: <RefreshCw size={20} />, title: "Cancellations & Refunds", desc: "Trip cancellation, refund status, date change requests, amendment fees.", action: "Get help", href: "mailto:support@dreamsyatri.com" },
-    { icon: <FileText size={20} />, title: "Documents & Vouchers", desc: "Missing hotel vouchers, guide confirmation, permit documents, booking proof.", action: "Get help", href: "mailto:support@dreamsyatri.com" },
-    { icon: <CreditCard size={20} />, title: "Payments & Billing", desc: "Payment not reflected, duplicate charge, invoice request, GST certificate.", action: "Get help", href: "mailto:support@dreamsyatri.com" },
-    { icon: <AlertCircle size={20} />, title: "On-Trip Emergency", desc: "Medical emergency, natural disruption, safety concern, immediate assistance needed.", action: "Call now", href: "tel:+917023907099" },
-    { icon: <Camera size={20} />, title: "Itinerary Changes", desc: "Add/remove activities, extend stay, change hotel preference, route modification.", action: "Get help", href: "tel:+917023907023" },
-    { icon: <Wifi size={20} />, title: "Connectivity & Guides", desc: "Local guide not available, SIM or data issues, language barrier at destination.", action: "Get help", href: "tel:+917023907099" },
-  ];
-
+  const contact = useContact();
   return (
     <div className="bg-white min-h-screen" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       <style>{`
@@ -392,9 +382,12 @@ export default function CustomerSupportPage() {
         <div className="max-w-6xl mx-auto px-6 sm:px-8">
           <Reveal className="text-center mb-12">
             <p className="text-xs font-bold tracking-widest uppercase text-red-500 mb-3">Contact Channels</p>
-            <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: "clamp(1.7rem,3.5vw,2.5rem)", fontWeight: 800, color: "#111827", margin: "0 0 12px" }}>
-              Reach us the way that suits you
-            </h2>
+            <SectionHeading
+                text="Reach Us The Way That"
+                highlight="Suits Your"
+                highlightPosition="suffix"
+                variant="light"
+              />
             <p className="text-gray-500 text-base max-w-md mx-auto leading-relaxed">Every channel connects you to a real person — no bots, no automated menus.</p>
           </Reveal>
 
@@ -454,24 +447,27 @@ export default function CustomerSupportPage() {
             <div>
               <Reveal dir="right" className="mb-10">
                 <p className="text-xs font-bold tracking-widest uppercase text-red-500 mb-3">How It Works</p>
-                <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: "clamp(1.6rem,3vw,2.2rem)", fontWeight: 800, color: "#111827", margin: "0 0 12px" }}>
-                  Fast. Human. Resolved.
-                </h2>
+              <SectionHeading
+                text="Fast Human"
+                highlight="Solutions"
+                highlightPosition="suffix"
+                variant="light"
+              />
                 <p className="text-gray-500 text-sm leading-relaxed">From the moment you reach out, our team moves with urgency — not bureaucracy.</p>
               </Reveal>
 
-<div className="bg-gray-950 rounded-3xl p-8">
-  <div className="flex flex-col gap-6">
-    {[
-      { num: "01", title: "Contact us on any channel",  desc: "Call, WhatsApp, email, or fill the callback form. We're active on all channels simultaneously." },
-      { num: "02", title: "We verify your booking",     desc: "Share your booking reference or name. We pull up your itinerary and understand the full context before responding." },
-      { num: "03", title: "Immediate action is taken",  desc: "We coordinate with hotels, drivers, and vendors directly. You get a real update — not a ticket number." },
-      { num: "04", title: "Issue resolved & confirmed", desc: "We follow up to ensure everything is sorted and your trip continues without disruption." },
-    ].map((s, i) => (
-      <ProcessStep key={i} {...s} delay={i * 60} />
-    ))}
-  </div>
-</div>
+              <div className="bg-gray-950 rounded-3xl p-8">
+                <div className="flex flex-col gap-6">
+                  {[
+                    { num: "01", title: "Contact us on any channel", desc: "Call, WhatsApp, email, or fill the callback form. We're active on all channels simultaneously." },
+                    { num: "02", title: "We verify your booking", desc: "Share your booking reference or name. We pull up your itinerary and understand the full context before responding." },
+                    { num: "03", title: "Immediate action is taken", desc: "We coordinate with hotels, drivers, and vendors directly. You get a real update — not a ticket number." },
+                    { num: "04", title: "Issue resolved & confirmed", desc: "We follow up to ensure everything is sorted and your trip continues without disruption." },
+                  ].map((s, i) => (
+                    <ProcessStep key={i} {...s} delay={i * 60} />
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -482,9 +478,13 @@ export default function CustomerSupportPage() {
         <div className="max-w-6xl mx-auto px-6 sm:px-8">
           <Reveal className="text-center mb-14">
             <p className="text-xs font-bold tracking-widest uppercase text-red-400 mb-3">Meet the Teams</p>
-            <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: "clamp(1.7rem,3.5vw,2.5rem)", fontWeight: 800, color: "#fff", margin: 0 }}>
-              Real people. Real help.
-            </h2>
+
+            <SectionHeading
+              text="Real People."
+              highlight="Real Solutions."
+              highlightPosition="suffix"
+              variant="dark"
+            />
           </Reveal>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
