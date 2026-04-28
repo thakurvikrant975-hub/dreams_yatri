@@ -18,6 +18,7 @@ import TestimonialSlider from "./TestimonialSlider";
 import { OurStoryHero } from "./Ourstoryhero";
 import Link from "next/link";
 import { TeamSection } from "./TeamSection";
+import OurJourneyTimeline from "./TimelineSection";
 
 const useInView = (threshold = 0.12) => {
   const ref = useRef(null);
@@ -190,7 +191,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-
+      <OurJourneyTimeline />
 
       <WhatWeBelieve
         label="Our Philosophy"

@@ -1,4 +1,4 @@
-import { CalendarCheck, Car, CheckCircle2, Clock, Compass, Globe, Headphones, HeartHandshake, Hotel, Mountain, PhoneCall, Plane, ShieldCheck, Sparkles, Star, TrendingUp, Users, Wallet, Map } from "lucide-react";
+import { CalendarCheck, Car, CheckCircle2, Clock, Compass, Globe, Headphones, HeartHandshake, Hotel, Mountain, PhoneCall, Plane, ShieldCheck, Sparkles, Star, TrendingUp, Users, Wallet, Map, MapPin, Globe2, Rocket } from "lucide-react";
 
 
 export const gallery = [
@@ -21,14 +21,6 @@ export const services = [
   { Icon: Wallet, title: "Best Price Promise", desc: "We negotiate rates you can't find online. Same quality, smarter price. No hidden fees, ever.", color: "text-violet-500", bg: "bg-violet-50", border: "border-violet-100" },
 ];
 
-export const timelineData = [
-  { year: "2018", title: "The Nightmare Trip", Icon: Mountain, desc: "Our founder landed in Manali at midnight — hotel unconfirmed, cab ghosted, phone at 3%. He stood in the cold in a strange city and thought: someone needs to fix this." },
-  { year: "2019", title: "The Mission Takes Shape", Icon: Sparkles, desc: "After one too many panicked texts asking 'what do I do now?', the vision crystallised: build a travel service that removes every ounce of logistics anxiety." },
-  { year: "2020", title: "Roamly is Born", Icon: Plane, desc: "Built from a laptop, fuelled by chai and conviction. One product, one promise — you travel, we handle every detail." },
-  { year: "2021", title: "First 5,000 Travelers", Icon: Users, desc: "Word spread fast. Solo backpackers, honeymooners, families — all coming back with one thing in common: zero horror stories." },
-  { year: "2022", title: "50,000 Happy Journeys", Icon: Globe, desc: "From Ladakh to Lombok, Rajasthan to Rome. 50,000 trips managed. A 98% hassle-free record that we're obsessively proud of." },
-  { year: "2024", title: "200+ Destinations & Growing", Icon: TrendingUp, desc: "A team of 80 travel obsessives, 200+ destinations, and one singular obsession — making every trip feel effortless." },
-];
 
 export const values = [
   { Icon: HeartHandshake, title: "Born from Real Pain", desc: "We didn't build this in a boardroom. We built it because we lived the chaos — unconfirmed hotels, missing cabs, and panicked midnight calls in unfamiliar cities.", color: "text-red-500", bg: "bg-red-50" },
@@ -92,66 +84,93 @@ export const team = [
     quote: "Spiritual journeys deserve precision and reverence.",
   },
 ];
-
-// export const timelineData = [
-//   {
-//     year: "2021",
-//     tag: "The Beginning",
-//     title: "Himachal & Goa Launch",
-//     desc: "Started with curated trips to Himachal and Goa, serving our first 1,000+ travelers with personalized itineraries.",
-//     icon: Mountain,
-//     image: "https://images.unsplash.com/photo-1501785888041-af3ef285b470",
-//     imageAlt: "Himachal mountains landscape",
-//     stat: { value: "1K+", label: "Travellers" },
-//   },
-//   {
-//     year: "2022",
-//     tag: "Rapid Growth",
-//     title: "Pan India Expansion",
-//     desc: "Expanded to Rajasthan, Kerala, and Northeast India with 5,000+ happy travelers and growing community.",
-//     icon: Map,
-//     image: "https://images.unsplash.com/photo-1477587458883-47145ed94245",
-//     imageAlt: "Kerala backwaters",
-//     stat: { value: "5K+", label: "Travellers" },
-//   },
-//   {
-//     year: "2023",
-//     tag: "International Launch",
-//     title: "Dubai & Thailand",
-//     desc: "Entered international markets with premium Dubai and Thailand packages, crossing 10,000+ bookings.",
-//     icon: Plane,
-//     image: "https://images.unsplash.com/photo-1518684079-3c830dcef090",
-//     imageAlt: "Dubai skyline",
-//     stat: { value: "10K+", label: "Travellers" },
-//   },
-//   {
-//     year: "2024",
-//     tag: "Global Reach",
-//     title: "Europe & Bali",
-//     desc: "Launched Europe circuits and Bali experiences, offering luxury and budget travel to 20,000+ customers.",
-//     icon: Globe,
-//     image: "https://images.unsplash.com/photo-1502602898657-3e91760cbb34",
-//     imageAlt: "Eiffel Tower Paris",
-//     stat: { value: "20K+", label: "Travellers" },
-//   },
-//   {
-//     year: "2025",
-//     tag: "Community First",
-//     title: "Group & Solo Trips",
-//     desc: "Built a strong travel community with group departures and solo-friendly trips across 15+ countries.",
-//     icon: Users,
-//     image: "https://images.unsplash.com/photo-1526772662000-3f88f10405ff",
-//     imageAlt: "Group of travelers",
-//     stat: { value: "35K+", label: "Travellers" },
-//   },
-//   {
-//     year: "2026",
-//     tag: "Next Chapter",
-//     title: "Custom Travel Platform",
-//     desc: "Launched AI-powered itinerary builder and seamless booking platform for personalized global travel.",
-//     icon: Compass,
-//     image: "https://images.unsplash.com/photo-1491553895911-0055eca6402d",
-//     imageAlt: "Travel planning map",
-//     stat: { value: "50K+", label: "Travellers" },
-//   },
-// ];
+export const timelineData = [
+  {
+    year: "2023",
+    tag: "The Origin",
+    title: "A Night in Manali Sparked It All",
+    Icon: MapPin,
+    desc: "After a long bus ride, Vikrant reached Manali to find no hotel, no cab, and no support at 2 AM. That moment exposed a broken system — and led to the idea of Dreams Yatri: travel without uncertainty.",
+    images: [
+      {
+        src: "https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=600&q=75",
+        alt: "Manali snow-covered mountains at dusk",
+      },
+      {
+        src: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=600&q=75",
+        alt: "Mountain road in Himachal Pradesh",
+      },
+      {
+        src: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=600&q=75",
+        alt: "Cozy mountain hotel interior",
+      },
+    ],
+  },
+  {
+    year: "2024",
+    tag: "Building the Foundation",
+    title: "A Team That Knew the Mountains",
+    Icon: Users,
+    desc: "A team of 10 travel experts mapped Himachal end-to-end, building trusted local networks. 5,000+ travellers explored with us — and none were left stranded.",
+    images: [
+      {
+        src: "https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=600&q=75",
+        alt: "Dreams Yatri team in Himachal Pradesh",
+      },
+      {
+        src: "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=600&q=75",
+        alt: "Spiti Valley landscape",
+      },
+      {
+        src: "https://images.unsplash.com/photo-1547981609-4b6bfe67ca0b?w=600&q=75",
+        alt: "Dharamshala hills and monasteries",
+      },
+      {
+        src: "https://images.unsplash.com/photo-1526772662000-3f88f10405ff?q=80&w=1674&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D?w=600&q=75",
+        alt: "Happy travellers on mountain trail",
+      },
+    ],
+  },
+  {
+    year: "2025",
+    tag: "Going Pan-India",
+    title: "Expanding Across India",
+    Icon: Globe2,
+    desc: "From Kashmir to Kerala, we scaled nationwide and launched international trips. 50,000+ journeys completed with a 4.8★ rating — growth backed by trust.",
+    images: [
+      {
+        src: "https://images.unsplash.com/photo-1587474260584-136574528ed5?w=600&q=75",
+        alt: "Houseboat on Dal Lake Kashmir",
+      },
+      {
+        src: "https://images.unsplash.com/photo-1509316785289-025f5b846b35?q=80&w=2076&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D?w=600&q=75",
+        alt: "Rajasthan desert safari",
+      },
+      {
+        src: "https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=600&q=75",
+        alt: "Goa beaches at golden hour",
+      },
+    ],
+  },
+  {
+    year: "2026",
+    tag: "Going Global",
+    title: "Taking Travel Worldwide",
+    Icon: Rocket,
+    desc: "We’re expanding to Southeast Asia, Europe, and beyond — bringing the same reliable, hassle-free travel experience to global destinations.",
+    images: [
+      {
+        src: "https://plus.unsplash.com/premium_photo-1697729914552-368899dc4757?q=80&w=2012&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D?w=600&q=75",
+        alt: "International travel destination Dubai",
+      },
+      {
+        src: "https://images.unsplash.com/photo-1486299267070-83823f5448dd?q=80&w=2071&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D?w=600&q=75",
+        alt: "London cityscape",
+      },
+      {
+        src: "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D?w=600&q=75",
+        alt: "International travel destination",
+      },
+    ],
+  },
+];
