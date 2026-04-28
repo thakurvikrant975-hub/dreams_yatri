@@ -7,12 +7,13 @@ import {
   ChevronDown, Globe, TrendingUp, Users, Heart,
   CheckCircle, Circle, ArrowRight,
 } from "lucide-react";
-import { PERKS, HERO_STATS, OPENINGS } from "./data";
+import {HERO_STATS, OPENINGS } from "./data";
 import { Reveal } from "../components/Reveal";
 import { SectionLabel } from "../components/SectionLabel";
 import { SectionHeading } from "../components/SectionHeading";
 import Openings from "./openings";
-
+import ContactHr from "./ContactHr";
+import Perks from "./Perks";
 
 export default function CareersPage() {
   const [openId, setOpenId] = useState<number | null>(null);
@@ -88,38 +89,8 @@ export default function CareersPage() {
       {/* ── BODY ── */}
       <div className="max-w-6xl mx-auto px-6 sm:px-8 pb-24">
 
-        {/* PERKS */}
-        <section className="pt-16 pb-16">
-          <Reveal className="text-center mb-12">
-            <SectionLabel>Life at DreamsYatri</SectionLabel>
-            <SectionHeading
-              text="Why Works"
-              highlight="with us"
-              highlightPosition="suffix"
-              variant="light"
-            />
-          </Reveal>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {PERKS.map(({ icon: Icon, title, desc }, i) => (
-              <Reveal key={i} delay={i * 60}>
-                <div className="bg-white border border-gray-100 rounded-2xl p-6 text-center h-full
-                                flex flex-col hover:border-red-200 hover:shadow-lg
-                                hover:shadow-red-500/[0.05] hover:-translate-y-1 transition-all duration-300">
-                  <div className="w-12 h-12 rounded-xl bg-red-50 text-red-500 flex items-center
-                                  justify-center mx-auto mb-4 flex-shrink-0">
-                    <Icon size={22} />
-                  </div>
-                  <p className="font-bold text-gray-900 text-sm mb-1.5"
-                    style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{title}</p>
-                  <p className="text-gray-400 text-xs leading-relaxed"
-                    style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{desc}</p>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </section>
-
+        <Perks />
         <Openings />
 
 
@@ -185,104 +156,10 @@ export default function CareersPage() {
           </div>
         </Reveal>
 
-        {/* CONTACT HR */}
-        <Reveal>
-          <div className="bg-white border border-gray-100 rounded-2xl p-7 sm:p-10">
-            <div className="grid sm:grid-cols-2 gap-8 items-center">
-              <div>
-                <p className="text-xs font-bold tracking-widest uppercase text-red-500 mb-3">
-                  Have Questions?
-                </p>
-                <h3 className="font-bold text-gray-900 mb-2"
-                  style={{
-                    fontFamily: "'Playfair Display', serif",
-                    fontSize: "clamp(1.2rem, 2.5vw, 1.55rem)",
-                  }}>
-                  Talk to Our HR Team
-                </h3>
-                <p className="text-gray-500 text-sm leading-relaxed"
-                  style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                  Not sure which role fits you, or want to know more before applying?
-                  Reach out — we're happy to help.
-                </p>
-              </div>
+        <ContactHr />
 
-              <div className="flex flex-col gap-3">
-                {[
-                  { href: "mailto:hr@dreamsyatri.com", Icon: Mail, label: "Email HR", value: "hr@dreamsyatri.com" },
-                  { href: "tel:+917023907023", Icon: Phone, label: "Call Us", value: "+91 70239 07023" },
-                  { href: "tel:+917023907099", Icon: Phone, label: "Alternate", value: "+91 70239 07099" },
-                ].map(({ href, Icon, label, value }, i) => (
-                  <a
-                    key={i}
-                    href={href}
-                    className="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-100
-                               bg-gray-50 no-underline group hover:border-red-200 hover:bg-red-50/40
-                               transition-all duration-200"
-                  >
-                    <span className="w-9 h-9 rounded-lg bg-red-50 text-red-500 flex items-center
-                                     justify-center flex-shrink-0 group-hover:bg-red-500
-                                     group-hover:text-white transition-colors duration-200">
-                      <Icon size={15} />
-                    </span>
-                    <div>
-                      <p className="text-xs text-gray-400 mb-0.5">{label}</p>
-                      <p className="text-sm font-semibold text-gray-900 group-hover:text-red-600 transition-colors">
-                        {value}
-                      </p>
-                    </div>
-                  </a>
-                ))}
-              </div>
-            </div>
-          </div>
-        </Reveal>
+
       </div>
-
-      {/* CTA STRIP */}
-      <section className="bg-red-500 py-16 px-6 text-center relative overflow-hidden">
-        <div
-          className="absolute inset-0 opacity-10 pointer-events-none"
-          style={{
-            backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.6) 1px, transparent 1px)",
-            backgroundSize: "26px 26px",
-          }}
-        />
-        <Reveal className="relative z-10 max-w-xl mx-auto">
-          <h2
-            className="text-white font-extrabold mb-3"
-            style={{
-              fontFamily: "'Playfair Display', serif",
-              fontSize: "clamp(1.5rem, 3.5vw, 2.2rem)",
-            }}
-          >
-            Ready to Join the Team?
-          </h2>
-          <p className="text-red-100 text-sm leading-relaxed mb-7"
-            style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            Send your CV to <strong>hr@dreamsyatri.com</strong> — we'll take it from there.
-          </p>
-          <div className="flex flex-wrap justify-center gap-3">
-            <a
-              href="mailto:hr@dreamsyatri.com?subject=Job%20Application%20%E2%80%94%20Dreams%20Yatri"
-              className="inline-flex items-center gap-2 bg-white text-red-500 hover:bg-red-50
-                         font-bold px-7 py-3.5 rounded-xl text-sm no-underline transition-colors"
-              style={{ boxShadow: "0 4px 16px rgba(0,0,0,0.14)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-            >
-              <Mail size={15} />
-              Email hr@dreamsyatri.com
-            </a>
-            <a
-              href="/careers"
-              className="inline-flex items-center gap-2 border border-white/40 hover:border-white
-                         text-white font-semibold px-7 py-3.5 rounded-xl text-sm no-underline transition-all"
-              style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-            >
-              View All Roles <ArrowRight size={15} />
-            </a>
-          </div>
-        </Reveal>
-      </section>
     </div>
   );
 }
