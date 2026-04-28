@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { ChevronLeft, ChevronRight, MapPin, Quote, Star } from "lucide-react";
+import Image from "next/image";
+import Card from "@/app/components/ui/Card";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -43,21 +45,41 @@ export type TestimonialSliderProps = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Google icon SVG
+// Google icon SVG — inline, no external dep
 // ─────────────────────────────────────────────────────────────────────────────
 function GoogleIcon({ size = 16 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
-      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      role="img"
+    >
+      <path
+        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+        fill="#4285F4"
+      />
+      <path
+        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+        fill="#34A853"
+      />
+      <path
+        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
+        fill="#FBBC05"
+      />
+      <path
+        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+        fill="#EA4335"
+      />
     </svg>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Responsive perView
+// Responsive perView hook
 // ─────────────────────────────────────────────────────────────────────────────
 function usePerView(base: number) {
   const [pv, setPv] = useState(base);
@@ -75,7 +97,7 @@ function usePerView(base: number) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Touch / mouse drag
+// Touch / mouse drag hook
 // ─────────────────────────────────────────────────────────────────────────────
 function useDrag(onSwipe: (dir: -1 | 1) => void) {
   const startX = useRef(0);
@@ -91,7 +113,10 @@ function useDrag(onSwipe: (dir: -1 | 1) => void) {
     onTouchEnd: (e: React.TouchEvent) => {
       if (!dragging.current) return;
       const dx = e.changedTouches[0].clientX - startX.current;
-      if (Math.abs(dx) > 44) { onSwipe(dx < 0 ? 1 : -1); moved.current = true; }
+      if (Math.abs(dx) > 44) {
+        onSwipe(dx < 0 ? 1 : -1);
+        moved.current = true;
+      }
       dragging.current = false;
     },
     onMouseDown: (e: React.MouseEvent) => {
@@ -102,7 +127,10 @@ function useDrag(onSwipe: (dir: -1 | 1) => void) {
     onMouseUp: (e: React.MouseEvent) => {
       if (!dragging.current) return;
       const dx = e.clientX - startX.current;
-      if (Math.abs(dx) > 44) { onSwipe(dx < 0 ? 1 : -1); moved.current = true; }
+      if (Math.abs(dx) > 44) {
+        onSwipe(dx < 0 ? 1 : -1);
+        moved.current = true;
+      }
       dragging.current = false;
     },
     wasMoved: () => moved.current,
@@ -110,55 +138,51 @@ function useDrag(onSwipe: (dir: -1 | 1) => void) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Avatar
+// Avatar palette & component
 // ─────────────────────────────────────────────────────────────────────────────
-const AVATAR_PALETTES = [
-  ["#FEE2E2", "#DC2626"],
-  ["#FEF3C7", "#D97706"],
-  ["#E0F2FE", "#0284C7"],
-  ["#D1FAE5", "#059669"],
-  ["#EDE9FE", "#7C3AED"],
-  ["#FCE7F3", "#DB2777"],
+const AVATAR_PALETTES: [string, string][] = [
+  ["bg-red-100", "text-red-600"],
+  ["bg-amber-100", "text-amber-600"],
+  ["bg-sky-100", "text-sky-600"],
+  ["bg-emerald-100", "text-emerald-600"],
+  ["bg-violet-100", "text-violet-600"],
+  ["bg-pink-100", "text-pink-600"],
 ];
 
-function Avatar({ photo, initials, index, size = 48 }: {
-  photo?: string; initials: string; index: number; size?: number;
+function Avatar({
+  photo,
+  initials,
+  name,
+  index,
+}: {
+  photo?: string;
+  initials: string;
+  name: string;
+  index: number;
 }) {
   const [err, setErr] = useState(false);
   const [bg, text] = AVATAR_PALETTES[index % AVATAR_PALETTES.length];
 
   if (photo && !err) {
     return (
-      <img
-        src={photo}
-        alt={initials}
-        onError={() => setErr(true)}
-        style={{
-          width: size, height: size,
-          borderRadius: "50%",
-          objectFit: "cover",
-          border: "2px solid #F3F4F6",
-          flexShrink: 0,
-        }}
-      />
+      <div className="relative size-11 shrink-0 rounded-full overflow-hidden ring-2 ring-white shadow-sm">
+        <Image
+          src={photo}
+          alt={`${name} — Dreams Yatri verified traveller`}
+          fill
+          sizes="44px"
+          className="object-cover"
+          onError={() => setErr(true)}
+        />
+      </div>
     );
   }
 
   return (
-    <div style={{
-      width: size, height: size,
-      borderRadius: "50%",
-      background: bg,
-      color: text,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      fontFamily: "'Plus Jakarta Sans', sans-serif",
-      fontWeight: 800,
-      fontSize: size * 0.35,
-      flexShrink: 0,
-      border: `2px solid ${bg}`,
-    }}>
+    <div
+      className={`size-11 shrink-0 rounded-full flex items-center justify-center font-extrabold text-sm ring-2 ring-white shadow-sm ${bg} ${text}`}
+      aria-label={`${name} initials`}
+    >
       {initials}
     </div>
   );
@@ -169,7 +193,11 @@ function Avatar({ photo, initials, index, size = 48 }: {
 // ─────────────────────────────────────────────────────────────────────────────
 function Stars({ count = 5 }: { count?: number }) {
   return (
-    <div style={{ display: "flex", gap: 2 }}>
+    <div
+      className="flex gap-0.5"
+      aria-label={`${count} out of 5 stars`}
+      role="img"
+    >
       {Array.from({ length: 5 }).map((_, i) => (
         <Star
           key={i}
@@ -177,6 +205,7 @@ function Stars({ count = 5 }: { count?: number }) {
           fill={i < count ? "#FBBF24" : "none"}
           stroke={i < count ? "#FBBF24" : "#D1D5DB"}
           strokeWidth={1.5}
+          aria-hidden="true"
         />
       ))}
     </div>
@@ -184,175 +213,134 @@ function Stars({ count = 5 }: { count?: number }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Single card
+// Testimonial Card — uses your Card component system
 // ─────────────────────────────────────────────────────────────────────────────
-function TestimonialCard({ item, index, onGoogleClick }: {
+function TestimonialCard({
+  item,
+  index,
+  onGoogleClick,
+}: {
   item: TestimonialItem;
   index: number;
   onGoogleClick: (e: React.MouseEvent, url: string) => void;
 }) {
-  const [hovered, setHovered] = useState(false);
-
   return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        background:   "#ffffff",
-        borderRadius: 20,
-        border:       `1.5px solid ${hovered ? "#FECACA" : "#F3F4F6"}`,
-        padding:      "28px 26px 24px",
-        display:      "flex",
-        flexDirection: "column",
-        height:       "100%",
-        boxSizing:    "border-box",
-        transition:   "border-color 0.22s ease, box-shadow 0.22s ease, transform 0.22s ease",
-        boxShadow:    hovered
-          ? "0 12px 40px rgba(239,68,68,0.08), 0 2px 8px rgba(0,0,0,0.04)"
-          : "0 1px 4px rgba(0,0,0,0.04)",
-        transform:    hovered ? "translateY(-4px)" : "none",
-        position:     "relative",
-        overflow:     "hidden",
-      }}
+    /**
+     * Card variant: elevated — uses shadow-xl + ring-1 from your CVA system.
+     * We add group for Tailwind group-hover utilities on children.
+     * hover:-translate-y-2 + shadow upgrade on hover for the "lift" effect.
+     * The extra shadow-red-100/50 gives the brand-tinted depth.
+     */
+    <Card
+      asArticle
+      variant="flat"
+      radius="xl"
+      padding="none"
+      hoverable
+      className={[
+        "group flex flex-col h-full overflow-hidden",
+        "hover:border-red-200",
+        "transition-all duration-300 ease-out",
+        "border border-neutral-200 shadow-lg",
+      ].join(" ")}
+      itemScope
+      itemType="https://schema.org/Review"
     >
-      {/* Decorative corner */}
-      <div style={{
-        position:   "absolute", top: 0, right: 0,
-        width:      70, height: 70,
-        borderRadius: "0 20px 0 70px",
-        background: hovered ? "rgba(239,68,68,0.07)" : "rgba(239,68,68,0.03)",
-        transition: "background 0.22s ease",
-        pointerEvents: "none",
-      }} />
+      <div className="flex flex-col flex-1 p-6 gap-4">
+        {/* ── Top row: stars + Google badge ── */}
+        <div className="flex items-center justify-between">
+          <Stars count={item.rating ?? 5} />
 
-      {/* Top row: stars + Google badge */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <Stars count={item.rating ?? 5} />
-        {item.googleUrl && (
-          <button
-            onClick={(e) => onGoogleClick(e, item.googleUrl!)}
-            title="View on Google"
-            style={{
-              display:        "flex",
-              alignItems:     "center",
-              gap:            5,
-              background:     hovered ? "#F9FAFB" : "transparent",
-              border:         "1px solid #E5E7EB",
-              borderRadius:   999,
-              padding:        "4px 10px",
-              cursor:         "pointer",
-              transition:     "background 0.18s ease, border-color 0.18s ease",
-              fontFamily:     "'Plus Jakarta Sans', sans-serif",
-              fontSize:       10,
-              fontWeight:     700,
-              color:          "#6B7280",
-              letterSpacing:  "0.04em",
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.background = "#FEF2F2";
-              e.currentTarget.style.borderColor = "#FECACA";
-              e.currentTarget.style.color = "#DC2626";
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.background = hovered ? "#F9FAFB" : "transparent";
-              e.currentTarget.style.borderColor = "#E5E7EB";
-              e.currentTarget.style.color = "#6B7280";
-            }}
-          >
-            <GoogleIcon size={13} />
-            Review
-          </button>
-        )}
-      </div>
-
-      {/* Trip tag */}
-      {item.tripTag && (
-        <span style={{
-          display:       "inline-block",
-          background:    "#FEF2F2",
-          color:         "#DC2626",
-          border:        "1px solid #FECACA",
-          borderRadius:  999,
-          fontSize:      10,
-          fontWeight:    700,
-          letterSpacing: "0.06em",
-          textTransform: "uppercase",
-          padding:       "3px 10px",
-          marginBottom:  14,
-          fontFamily:    "'Plus Jakarta Sans', sans-serif",
-          width:         "fit-content",
-        }}>
-          {item.tripTag}
-        </span>
-      )}
-
-      {/* Quote icon */}
-      <Quote size={16} style={{ color: "#FECACA", marginBottom: 10, flexShrink: 0 }} />
-
-      {/* Review text */}
-      <p style={{
-        fontFamily: "'Plus Jakarta Sans', sans-serif",
-        fontSize:   13.5,
-        color:      "#374151",
-        lineHeight: 1.78,
-        margin:     "0 0 20px",
-        flex:       1,
-      }}>
-        {item.text}
-      </p>
-
-      {/* Divider */}
-      <div style={{ height: 1, background: "#F3F4F6", marginBottom: 18 }} />
-
-      {/* Reviewer */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <Avatar photo={item.photo} initials={item.initials} index={index} size={44} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
-            fontSize:   13,
-            fontWeight: 700,
-            color:      "#111827",
-            margin:     0,
-            whiteSpace: "nowrap",
-            overflow:   "hidden",
-            textOverflow: "ellipsis",
-          }}>
-            {item.name}
-          </p>
-          <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
-            <MapPin size={11} style={{ color: "#EF4444", flexShrink: 0 }} />
-            <p style={{
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
-              fontSize:   11,
-              color:      "#9CA3AF",
-              margin:     0,
-              whiteSpace: "nowrap",
-              overflow:   "hidden",
-              textOverflow: "ellipsis",
-            }}>
-              {item.route}
-            </p>
-          </div>
+          {item.googleUrl && (
+            <button
+              onClick={(e) => onGoogleClick(e, item.googleUrl!)}
+              title={`Read ${item.name}'s full review on Google`}
+              aria-label={`View ${item.name}'s review on Google`}
+              className={[
+                "flex items-center gap-1.5 px-2.5 py-1",
+                "rounded-full border border-neutral-200 bg-transparent",
+                "text-[10px] font-bold tracking-wide text-neutral-400",
+                "hover:border-red-200 hover:bg-red-50 hover:text-red-600",
+                "transition-all duration-150 cursor-pointer z-30",
+              ].join(" ")}
+            >
+              <GoogleIcon size={12} />
+              Review
+            </button>
+          )}
         </div>
 
-        {/* Google G mark on avatar side */}
-        {item.googleUrl && (
-          <div style={{
-            width:          28, height: 28,
-            borderRadius:   "50%",
-            background:     "#F9FAFB",
-            border:         "1px solid #E5E7EB",
-            display:        "flex",
-            alignItems:     "center",
-            justifyContent: "center",
-            flexShrink:     0,
-          }}>
-            <GoogleIcon size={14} />
-          </div>
+        {/* ── Trip tag ── */}
+        {item.tripTag && (
+          <span
+            className="self-start inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase text-red-600 bg-red-50 border border-red-100"
+            itemProp="about"
+          >
+            {item.tripTag}
+          </span>
         )}
+
+        {/* ── Quote icon ── */}
+        <Quote
+          size={15}
+          aria-hidden="true"
+          className="text-red-200 shrink-0 -mb-2"
+        />
+
+        {/* ── Review text ── */}
+        <p
+          className="flex-1 text-[13.5px] leading-[1.8] text-neutral-600 font-normal"
+          itemProp="reviewBody"
+        >
+          {item.text}
+        </p>
+
+        {/* ── Divider ── */}
+        <hr className="border-neutral-100" />
+
+        {/* ── Reviewer row ── */}
+        <div
+          className="flex items-center gap-3"
+          itemProp="author"
+          itemScope
+          itemType="https://schema.org/Person"
+        >
+          <Avatar
+            photo={item.photo}
+            initials={item.initials}
+            name={item.name}
+            index={index}
+          />
+
+          <div className="flex-1 min-w-0">
+            <p
+              className="text-[13px] font-bold text-neutral-900 truncate"
+              itemProp="name"
+            >
+              {item.name}
+            </p>
+            <div className="flex items-center gap-1 mt-0.5">
+              <MapPin size={10} aria-hidden="true" className="text-red-400 shrink-0" />
+              <p className="text-[11px] text-neutral-400 truncate">{item.route}</p>
+            </div>
+          </div>
+
+          {/* Google G mark */}
+          {item.googleUrl && (
+            <div
+              className="size-7 rounded-full bg-neutral-50 border border-neutral-200 flex items-center justify-center shrink-0"
+              aria-hidden="true"
+            >
+              <GoogleIcon size={13} />
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+
+      {/* Schema.org rating meta */}
+      <meta itemProp="ratingValue" content={String(item.rating ?? 5)} />
+      <meta itemProp="bestRating" content="5" />
+    </Card>
   );
 }
 
@@ -361,52 +349,48 @@ function TestimonialCard({ item, index, onGoogleClick }: {
 // ─────────────────────────────────────────────────────────────────────────────
 export function TestimonialSlider({
   items,
-  perView    = 3,
-  autoplay   = 5000,
-  label      = "What Travellers Say",
-  heading    = "Real trips.",
+  perView = 3,
+  autoplay = 5000,
+  label = "What Travellers Say",
+  heading = "Real trips.",
   headingHighlight = "Real stories.",
   subheading = "Every review below is from a verified traveller — unedited, unfiltered, and linked directly to Google.",
 }: TestimonialSliderProps) {
-  const pv        = usePerView(perView);
-  const max       = Math.max(0, items.length - pv);
-  const [idx, setIdx]       = useState(0);
+  const pv = usePerView(perView);
+  const max = Math.max(0, items.length - pv);
+  const [idx, setIdx] = useState(0);
   const [locked, setLocked] = useState(false);
-  const autoRef = useRef<ReturnType<typeof setTimeout>>();
+  const autoRef = useRef<ReturnType<typeof setInterval>>();
 
-  const clamp  = (n: number) => Math.max(0, Math.min(max, n));
-  const slide  = useCallback((next: number) => {
-    if (locked) return;
-    const c = clamp(next);
-    if (c === idx) return;
-    setLocked(true);
-    setIdx(c);
-    setTimeout(() => setLocked(false), 500);
-  }, [locked, idx, max]);
+  const clamp = (n: number) => Math.max(0, Math.min(max, n));
+
+  const slide = useCallback(
+    (next: number) => {
+      if (locked) return;
+      const c = clamp(next);
+      if (c === idx) return;
+      setLocked(true);
+      setIdx(c);
+      setTimeout(() => setLocked(false), 500);
+    },
+    [locked, idx, max]
+  );
 
   const prev = () => slide(idx - 1);
   const next = () => slide(idx + 1);
 
   // Autoplay
-  useEffect(() => {
+  const startAutoplay = useCallback(() => {
     if (!autoplay) return;
     autoRef.current = setInterval(() => {
-      setIdx(i => {
-        const n = i + 1;
-        return n > max ? 0 : n;
-      });
+      setIdx((i) => (i + 1 > max ? 0 : i + 1));
     }, autoplay);
-    return () => clearInterval(autoRef.current);
   }, [autoplay, max]);
 
-  // Pause autoplay on hover
-  const pauseAutoplay  = () => clearInterval(autoRef.current);
-  const resumeAutoplay = () => {
-    if (!autoplay) return;
-    autoRef.current = setInterval(() => {
-      setIdx(i => { const n = i + 1; return n > max ? 0 : n; });
-    }, autoplay);
-  };
+  useEffect(() => {
+    startAutoplay();
+    return () => clearInterval(autoRef.current);
+  }, [startAutoplay]);
 
   // Keyboard nav
   useEffect(() => {
@@ -418,13 +402,15 @@ export function TestimonialSlider({
     return () => window.removeEventListener("keydown", h);
   }, [idx]);
 
-  // Reset on resize
-  useEffect(() => { setIdx(0); }, [pv]);
+  // Reset on responsive breakpoint change
+  useEffect(() => {
+    setIdx(0);
+  }, [pv]);
 
-  const drag = useDrag((dir) => { dir === 1 ? next() : prev(); });
+  const drag = useDrag((dir) => (dir === 1 ? next() : prev()));
 
+  const GAP = 16; // px — matches gap-4
   const translatePct = -(idx * (100 / pv));
-  const gapPx        = 16;
 
   const handleGoogleClick = (e: React.MouseEvent, url: string) => {
     e.stopPropagation();
@@ -432,241 +418,192 @@ export function TestimonialSlider({
   };
 
   return (
-    <>
-      <div
-        onMouseEnter={pauseAutoplay}
-        onMouseLeave={resumeAutoplay}
-      >
+    <section
+      aria-label={label}
+      itemScope
+      itemType="https://schema.org/ItemList"
+      onMouseEnter={() => clearInterval(autoRef.current)}
+      onMouseLeave={startAutoplay}
+    >
+      <meta itemProp="name" content={label} />
 
-
-        {/* ── Slider track ── */}
-        <div style={{ position: "relative" }}>
-
-          {/* Left fade */}
-          {idx > 0 && (
-            <div style={{
-              position: "absolute", left: 0, top: 0, bottom: 40,
-              width: 48, zIndex: 2, pointerEvents: "none",
-            }} />
-          )}
-          {/* Right fade */}
-          {idx < max && (
-            <div style={{
-              position: "absolute", right: 0, top: 0, bottom: 40,
-              width: 48, zIndex: 2, pointerEvents: "none",
-            }} />
-          )}
-
-          {/* Overflow container */}
+      {/* ── Slider track ── */}
+      <div className="relative">
+        {/* Overflow container */}
+        <div
+          className="overflow-x-hidden rounded-2xl py-4"
+          onTouchStart={drag.onTouchStart}
+          onTouchEnd={drag.onTouchEnd}
+          onMouseDown={drag.onMouseDown}
+          onMouseUp={drag.onMouseUp}
+          onMouseLeave={drag.onMouseUp}
+        >
+          {/* Moving track */}
           <div
-            style={{ overflow: "hidden", borderRadius: 20 }}
-            onTouchStart={drag.onTouchStart}
-            onTouchEnd={drag.onTouchEnd}
-            onMouseDown={drag.onMouseDown}
-            onMouseUp={drag.onMouseUp}
-            onMouseLeave={drag.onMouseUp}
-            className="py-6"
+            className="flex transition-transform duration-500 ease-[cubic-bezier(0.25,0.46,0.45,0.94)] will-change-transform cursor-grab items-stretch"
+            style={{
+              gap: `${GAP}px`,
+              transform: `translateX(calc(${translatePct}% - ${(idx * GAP) / pv}px))`,
+            }}
           >
-            {/* Moving track */}
-            <div
-              style={{
-                display:    "flex",
-                gap:        `${gapPx}px`,
-                transition: locked
-                  ? "transform 0.48s cubic-bezier(0.25, 0.46, 0.45, 0.94)"
-                  : "transform 0.48s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
-                transform:  `translateX(calc(${translatePct}% - ${idx * gapPx / pv}px))`,
-                willChange: "transform",
-                cursor:     "grab",
-                alignItems: "stretch",
-              }}
-            >
-              {items.map((item, i) => (
-                <div
-                  key={i}
-                  style={{
-                    flexShrink: 0,
-                    width:      `calc((100% - ${(pv - 1) * gapPx}px) / ${pv})`,
-                    display:    "flex",
-                    flexDirection: "column",
-                  }}
-                >
-                  <TestimonialCard
-                    item={item}
-                    index={i}
-                    onGoogleClick={handleGoogleClick}
-                  />
-                </div>
-              ))}
-            </div>
+            {items.map((item, i) => (
+              <div
+                key={i}
+                className="shrink-0 flex flex-col"
+                style={{ width: `calc((100% - ${(pv - 1) * GAP}px) / ${pv})` }}
+                itemProp="itemListElement"
+                itemScope
+                itemType="https://schema.org/ListItem"
+              >
+                <meta itemProp="position" content={String(i + 1)} />
+                <TestimonialCard
+                  item={item}
+                  index={i}
+                  onGoogleClick={handleGoogleClick}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Controls ── */}
+        <div className="flex items-center justify-between mt-6">
+          {/* Dot indicators */}
+          <div className="flex items-center gap-1.5" role="tablist" aria-label="Testimonial slides">
+            {Array.from({ length: max + 1 }).map((_, i) => (
+              <button
+                key={i}
+                onClick={() => slide(i)}
+                role="tab"
+                aria-selected={i === idx}
+                aria-label={`Go to slide ${i + 1}`}
+                className={[
+                  "h-1.5 rounded-full border-none p-0 cursor-pointer",
+                  "transition-all duration-300 ease-[cubic-bezier(0.25,0.46,0.45,0.94)]",
+                  i === idx ? "w-7 bg-red-500" : "w-1.5 bg-neutral-200 hover:bg-neutral-300",
+                ].join(" ")}
+              />
+            ))}
           </div>
 
-          {/* ── Controls ── */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 24 }}>
+          {/* Prev / count / Next */}
+          <div className="flex items-center gap-2">
+            {/* Prev */}
+            <button
+              onClick={prev}
+              disabled={idx === 0}
+              aria-label="Previous testimonials"
+              className={[
+                "size-10 rounded-full flex items-center justify-center",
+                "border-[1.5px] border-neutral-200 bg-white",
+                "transition-all duration-150",
+                idx === 0
+                  ? "text-neutral-300 cursor-not-allowed opacity-45"
+                  : "text-neutral-800 hover:border-red-400 hover:text-red-500 cursor-pointer",
+              ].join(" ")}
+            >
+              <ChevronLeft size={18} aria-hidden="true" />
+            </button>
 
-            {/* Dot indicators */}
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              {Array.from({ length: max + 1 }).map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => slide(i)}
-                  aria-label={`Go to slide ${i + 1}`}
-                  style={{
-                    height:       6,
-                    width:        i === idx ? 28 : 6,
-                    borderRadius: 999,
-                    background:   i === idx ? "#EF4444" : "#E5E7EB",
-                    border:       "none",
-                    padding:      0,
-                    cursor:       "pointer",
-                    transition:   "width 0.3s cubic-bezier(0.25,0.46,0.45,0.94), background 0.3s ease",
-                    flexShrink:   0,
-                  }}
-                />
-              ))}
-            </div>
+            {/* Counter */}
+            <span
+              className="text-xs font-semibold text-neutral-400 w-11 text-center select-none tabular-nums"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              {idx + 1} / {max + 1}
+            </span>
 
-            {/* Prev / count / Next */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <button
-                onClick={prev}
-                disabled={idx === 0}
-                aria-label="Previous"
-                style={{
-                  width:          40, height: 40,
-                  borderRadius:   "50%",
-                  border:         "1.5px solid #E5E7EB",
-                  background:     "#fff",
-                  color:          idx === 0 ? "#D1D5DB" : "#111827",
-                  display:        "flex",
-                  alignItems:     "center",
-                  justifyContent: "center",
-                  cursor:         idx === 0 ? "not-allowed" : "pointer",
-                  opacity:        idx === 0 ? 0.45 : 1,
-                  transition:     "all 0.18s ease",
-                  flexShrink:     0,
-                }}
-                onMouseEnter={e => {
-                  if (idx !== 0) {
-                    e.currentTarget.style.borderColor = "#EF4444";
-                    e.currentTarget.style.color = "#EF4444";
-                  }
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.borderColor = "#E5E7EB";
-                  e.currentTarget.style.color = idx === 0 ? "#D1D5DB" : "#111827";
-                }}
-              >
-                <ChevronLeft size={18} />
-              </button>
-
-              <span style={{
-                fontFamily:  "'Plus Jakarta Sans', sans-serif",
-                fontSize:    12,
-                fontWeight:  600,
-                color:       "#9CA3AF",
-                width:       44,
-                textAlign:   "center",
-                userSelect:  "none",
-              }}>
-                {idx + 1} / {max + 1}
-              </span>
-
-              <button
-                onClick={next}
-                disabled={idx === max}
-                aria-label="Next"
-                style={{
-                  width:          40, height: 40,
-                  borderRadius:   "50%",
-                  border:         "none",
-                  background:     idx === max ? "#F3F4F6" : "#EF4444",
-                  color:          "#fff",
-                  display:        "flex",
-                  alignItems:     "center",
-                  justifyContent: "center",
-                  cursor:         idx === max ? "not-allowed" : "pointer",
-                  opacity:        idx === max ? 0.45 : 1,
-                  transition:     "all 0.18s ease",
-                  boxShadow:      idx === max ? "none" : "0 3px 12px rgba(239,68,68,0.35)",
-                  flexShrink:     0,
-                }}
-              >
-                <ChevronRight size={18} />
-              </button>
-            </div>
+            {/* Next */}
+            <button
+              onClick={next}
+              disabled={idx === max}
+              aria-label="Next testimonials"
+              className={[
+                "size-10 rounded-full flex items-center justify-center",
+                "border-none text-white",
+                "transition-all duration-150",
+                idx === max
+                  ? "bg-neutral-200 cursor-not-allowed opacity-45 shadow-none"
+                  : "bg-red-500 hover:bg-red-600 cursor-pointer shadow-[0_3px_12px_rgba(239,68,68,0.40)] hover:shadow-[0_4px_16px_rgba(239,68,68,0.50)]",
+              ].join(" ")}
+            >
+              <ChevronRight size={18} aria-hidden="true" />
+            </button>
           </div>
         </div>
       </div>
-    </>
+    </section>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Demo — remove before production, keep only TestimonialSlider export
+// Demo — remove before production
 // ─────────────────────────────────────────────────────────────────────────────
 const DEMO_ITEMS: TestimonialItem[] = [
   {
-    name:       "Priya & Rohit Sharma",
-    initials:   "PR",
-    route:      "Mumbai · Kashmir Grand Tour",
-    tripTag:    "Kashmir",
-    rating:     5,
-    photo:      "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=120&h=120&fit=crop&auto=format&face=1",
-    googleUrl:  "https://maps.google.com",
-    text:       "We'd been planning Kashmir for three years. Every time, logistics killed it. Dreams Yatri handed us an itinerary so airtight that the only thing we had to think about was which lens to use. We just showed up and fell in love.",
+    name: "Priya & Rohit Sharma",
+    initials: "PR",
+    route: "Mumbai · Kashmir Grand Tour",
+    tripTag: "Kashmir",
+    rating: 5,
+    photo: "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=120&h=120&fit=crop&auto=format",
+    googleUrl: "https://maps.google.com",
+    text: "We'd been planning Kashmir for three years. Every time, logistics killed it. Dreams Yatri handed us an itinerary so airtight that the only thing we had to think about was which lens to use.",
   },
   {
-    name:       "Amit Verma",
-    initials:   "AV",
-    route:      "Delhi · Manali Family Package",
-    tripTag:    "Himachal Pradesh",
-    rating:     5,
-    googleUrl:  "https://maps.google.com",
-    text:       "Booked a family trip to Manali with my parents who are 65+. The team customised the entire itinerary around their pace — no rushing, no panic. My father said it was the best holiday of his life.",
+    name: "Amit Verma",
+    initials: "AV",
+    route: "Delhi · Manali Family Package",
+    tripTag: "Himachal Pradesh",
+    rating: 5,
+    googleUrl: "https://maps.google.com",
+    text: "Booked a family trip to Manali with my parents who are 65+. The team customised the entire itinerary around their pace — no rushing, no panic. My father said it was the best holiday of his life.",
   },
   {
-    name:       "Sneha Kulkarni",
-    initials:   "SK",
-    route:      "Pune · Goa Girls Trip",
-    tripTag:    "Goa",
-    rating:     5,
-    photo:      "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&h=120&fit=crop&auto=format",
-    googleUrl:  "https://maps.google.com",
-    text:       "Planned a bachelorette for 8 girls and I was terrified something would go wrong. Nothing did. Villas, transfers, beach shacks — all sorted. Dreams Yatri turned a logistical nightmare into the most fun week of our lives.",
+    name: "Sneha Kulkarni",
+    initials: "SK",
+    route: "Pune · Goa Girls Trip",
+    tripTag: "Goa",
+    rating: 5,
+    photo: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&h=120&fit=crop&auto=format",
+    googleUrl: "https://maps.google.com",
+    text: "Planned a bachelorette for 8 girls and I was terrified something would go wrong. Nothing did. Villas, transfers, beach shacks — all sorted. Dreams Yatri turned a logistical nightmare into the most fun week of our lives.",
   },
   {
-    name:       "Karan & Deepika Mehta",
-    initials:   "KD",
-    route:      "Bangalore · Dubai Honeymoon",
-    tripTag:    "Dubai",
-    rating:     5,
-    googleUrl:  "https://maps.google.com",
-    text:       "First international trip together. The visa guidance alone was worth it — zero stress. Desert safari, Burj Khalifa, the souks — perfectly paced. We never once felt like tourists on a schedule.",
+    name: "Karan & Deepika Mehta",
+    initials: "KD",
+    route: "Bangalore · Dubai Honeymoon",
+    tripTag: "Dubai",
+    rating: 5,
+    googleUrl: "https://maps.google.com",
+    text: "First international trip together. The visa guidance alone was worth it — zero stress. Desert safari, Burj Khalifa, the souks — perfectly paced. We never once felt like tourists on a schedule.",
   },
   {
-    name:       "Meera Iyer",
-    initials:   "MI",
-    route:      "Hyderabad · Thailand Solo",
-    tripTag:    "Thailand",
-    rating:     5,
-    photo:      "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=120&h=120&fit=crop&auto=format",
-    googleUrl:  "https://maps.google.com",
-    text:       "Solo female traveller going to Bangkok and Phuket for the first time. The team checked in every day. I never once felt alone or unsafe. Ended up extending by 2 days because I didn't want to leave.",
+    name: "Meera Iyer",
+    initials: "MI",
+    route: "Hyderabad · Thailand Solo",
+    tripTag: "Thailand",
+    rating: 5,
+    photo: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=120&h=120&fit=crop&auto=format",
+    googleUrl: "https://maps.google.com",
+    text: "Solo female traveller going to Bangkok and Phuket for the first time. The team checked in every day. I never once felt alone or unsafe. Ended up extending by 2 days because I didn't want to leave.",
   },
   {
-    name:       "Rajesh Nair",
-    initials:   "RN",
-    route:      "Chennai · Rajasthan Royal Circuit",
-    tripTag:    "Rajasthan",
-    rating:     5,
-    googleUrl:  "https://maps.google.com",
-    text:       "I'm the kind of traveller who reads every review obsessively before booking. I spent exactly 20 minutes with Dreams Yatri, shared my wish list, and got back an itinerary I couldn't have built myself in a week.",
+    name: "Rajesh Nair",
+    initials: "RN",
+    route: "Chennai · Rajasthan Royal Circuit",
+    tripTag: "Rajasthan",
+    rating: 5,
+    googleUrl: "https://maps.google.com",
+    text: "I'm the kind of traveller who reads every review obsessively before booking. I spent exactly 20 minutes with Dreams Yatri, shared my wish list, and got back an itinerary I couldn't have built myself in a week.",
   },
 ];
 
 export default function TestimonialSliderDemo() {
   return (
-        <TestimonialSlider items={DEMO_ITEMS} perView={3} autoplay={5000} />
+    <div className="max-w-7xl mx-auto px-4">
+      <TestimonialSlider items={DEMO_ITEMS} perView={3} autoplay={5000} />
+    </div>
   );
 }

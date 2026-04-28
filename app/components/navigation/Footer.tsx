@@ -74,7 +74,7 @@ const FOOTER_COLUMNS: FooterColumn[] = [
       { label: "Terms & Conditions", href: "/terms" },
       { label: "Privacy Policy", href: "/privacy-policy" },
       { label: "Cancellation Policy", href: "/cancellation-policy" },
-      { label: "Payment Options", href: "/payment-options" },
+      // { label: "Payment Options", href: "/payment-options" },
       { label: "Travel Insurance", href: "/travel-insurance" },
       { label: "Customer Support", href: "/support" },
     ],

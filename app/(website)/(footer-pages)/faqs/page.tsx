@@ -11,6 +11,7 @@ import Hero from "../components/Hero";
 import Accordion from "@/app/components/ui/Accordian";
 import { FAQS } from "./faq";
 import Cta from "../components/Cta";
+import HeroTitle from "../components/HeroTitle";
 
 // ── Reveal on scroll ──────────────────────────────────────────────────────────
 function useInView(threshold = 0.1) {
@@ -122,15 +123,9 @@ export default function FAQPage() {
               Help Centre
             </div>
 
-            <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(2.2rem, 5.5vw, 3.8rem)", fontWeight: 800, color: "#fff", lineHeight: 1.1, margin: "0 0 16px", animation: "hero-rise 0.55s ease 0.08s both" }}>
-              Frequently Asked{" "}
-              <span style={{ color: "#EF4444", fontStyle: "italic" }}>Questions</span>
-            </h1>
-
-            <p className="text-gray-400 leading-relaxed mb-8"
-              style={{ fontSize: "clamp(0.95rem, 1.8vw, 1.05rem)", maxWidth: "480px", animation: "hero-rise 0.55s ease 0.16s both" }}>
-              Everything you need to know before, during, and after booking with Dreams Yatri. Can't find your answer? Our team is one call away.
-            </p>
+            <HeroTitle highlight="Questions" paragraph="Everything you need to know before, during, and after booking with Dreams Yatri. Can't find your answer? Our team is one call away.">
+              Frequently Asked
+            </HeroTitle>
 
             {/* Search bar */}
             <div className="relative max-w-xl" style={{ animation: "hero-rise 0.55s ease 0.24s both" }}>

@@ -4,9 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import {
     MapPin, Compass, Heart, Users, Star, Zap,
     Mountain, Sunrise, Navigation, Quote, ArrowRight,
-    Phone, Shield, Smile, Globe, CheckCircle, Plane,
+    Phone, Shield, Smile, Globe, CheckCircle, Plane
 } from "lucide-react";
 import { PageHero } from "../components/PageHero";
+import { SectionHeading } from "../components/SectionHeading";
+import Link from "next/link";
 
 // ── Intersection observer hook for scroll reveals ─────────────────────────────
 function useInView(threshold = 0.15) {
@@ -144,11 +146,12 @@ export default function OurStoryPage() {
                         <div className="flex flex-col gap-8">
                             <Reveal delay={100}>
                                 <p className="text-xs font-bold tracking-widest uppercase text-red-500 mb-4">The Origin Story</p>
-                                <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(1.8rem, 3.5vw, 2.6rem)", fontWeight: 700, lineHeight: 1.2 }}
-                                    className="text-gray-900 mb-6">
-                                    One night in Manali. <br />
-                                    <span className="text-red-500">Midnight. 3% battery.</span>
-                                </h2>
+                                <SectionHeading
+                                    text="One night in Manali."
+                                    highlight="Midnight. 3% battery."
+                                    highlightPosition="suffix"
+                                    variant="light"
+                                />
                             </Reveal>
 
                             <Reveal delay={150}>
@@ -181,21 +184,6 @@ export default function OurStoryPage() {
                 </div>
             </section>
 
-            {/* ── STATS BAND ───────────────────────────────────────────────────── */}
-            <section className="bg-gray-950 py-16">
-                <div className="max-w-6xl mx-auto px-6 sm:px-8">
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
-                        {STATS.map((s, i) => (
-                            <Reveal key={i} delay={i * 80} className="text-center">
-                                <p className="text-4xl sm:text-5xl font-extrabold text-white mb-1">
-                                    <Counter to={s.value} suffix={s.suffix} />
-                                </p>
-                                <p className="text-gray-500 text-sm font-medium">{s.label}</p>
-                            </Reveal>
-                        ))}
-                    </div>
-                </div>
-            </section>
 
             {/* ── VISION ───────────────────────────────────────────────────────── */}
             <section id="vision" className="py-24 sm:py-32 bg-white">
@@ -203,12 +191,13 @@ export default function OurStoryPage() {
 
                     <Reveal className="text-center mb-20 max-w-2xl mx-auto">
                         <p className="text-xs font-bold tracking-widest uppercase text-red-500 mb-4">Our Vision</p>
-                        <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(2rem, 4vw, 3rem)", fontWeight: 700, lineHeight: 1.2 }}
-                            className="text-gray-900 mb-6">
-                            Travel should feel like{" "}
-                            <span className="text-red-500 italic">freedom,</span>{" "}
-                            not a second job.
-                        </h2>
+                        <SectionHeading
+                            text="Travel should feel like freedom"
+                            highlight="not a second job."
+                            highlightPosition="suffix"
+                            variant="light"
+                        />
+
                         <p className="text-gray-500 text-base leading-relaxed">
                             We exist so that every traveller — first-timer or seasoned explorer — can be fully present in the moment they've been looking forward to, without a single logistics worry clouding it.
                         </p>
@@ -262,10 +251,12 @@ export default function OurStoryPage() {
 
                     <Reveal className="text-center mb-16">
                         <p className="text-xs font-bold tracking-widest uppercase text-red-500 mb-4">Our Journey</p>
-                        <h2 style={{ fontSize: "clamp(1.8rem, 3.5vw, 2.8rem)", fontWeight: 700 }}
-                            className="text-gray-900">
-                            From a cold midnight to 10,000+ journeys
-                        </h2>
+                        <SectionHeading
+                            text="From a cold midnight to"
+                            highlight="10,000+ journeys."
+                            highlightPosition="suffix"
+                            variant="light"
+                        />
                     </Reveal>
 
                     {/* Timeline — desktop: alternating; mobile: left-aligned */}
@@ -325,10 +316,12 @@ export default function OurStoryPage() {
 
                     <Reveal className="text-center mb-16">
                         <p className="text-xs font-bold tracking-widest uppercase text-red-500 mb-4">What We Stand For</p>
-                        <h2 style={{ fontSize: "clamp(1.8rem, 3.5vw, 2.8rem)", fontWeight: 700 }}
-                            className="text-gray-900">
-                            The promises we don't break
-                        </h2>
+                        <SectionHeading
+                            text="The promises we "
+                            highlight="don't break"
+                            highlightPosition="suffix"
+                            variant="light"
+                        />
                     </Reveal>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -356,40 +349,84 @@ export default function OurStoryPage() {
                             <Reveal className="p-10 sm:p-14 flex flex-col justify-center relative">
                                 <div className="absolute top-0 right-0 w-64 h-64 bg-red-500/10 rounded-full blur-3xl pointer-events-none" />
                                 <p className="text-xs font-bold tracking-widest uppercase text-red-400 mb-4">The People</p>
-                                <h2 style={{ fontSize: "clamp(1.6rem, 3vw, 2.4rem)", fontWeight: 700 }}
-                                    className="text-white mb-5 leading-tight">
-                                    A team of travellers who happen to run a travel company
-                                </h2>
+                                <SectionHeading
+                                    text="A team of travellers who happen to run a"
+                                    highlight="Travel Company"
+                                    highlightPosition="suffix"
+                                    variant="dark"
+                                />
+
                                 <p className="text-gray-400 text-base leading-relaxed mb-8">
                                     Everyone at Dreams Yatri has stood at a bus stop in an unfamiliar city, eaten street food they couldn't name, and slept in a hotel room with a view worth the entire trip. That's our hiring criteria.
                                 </p>
-                                <a href="/careers"
+                                <Link href="/careers"
                                     className="inline-flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white font-bold px-6 py-3 rounded-xl text-sm transition-colors w-fit"
                                     style={{ boxShadow: "0 4px 16px rgba(239,68,68,0.3)" }}>
                                     Join the Team <ArrowRight size={15} />
-                                </a>
+                                </Link>
                             </Reveal>
 
                             {/* Right — decorative grid of destination cards */}
-                            <div className="p-8 grid grid-cols-2 gap-3 content-center">
-                                {[
-                                    { dest: "Shimla", tag: "HQ", bg: "bg-red-500/20" },
-                                    { dest: "Kashmir", tag: "Top Pick", bg: "bg-blue-500/10" },
-                                    { dest: "Rajasthan", tag: "Heritage", bg: "bg-amber-500/10" },
-                                    { dest: "Dubai", tag: "International", bg: "bg-purple-500/10" },
-                                ].map((d, i) => (
-                                    <Reveal key={i} delay={i * 80}
-                                        className={`${d.bg} border border-white/5 rounded-2xl p-5 flex flex-col justify-between min-h-[120px]`}>
-                                        <span className="text-xs font-semibold text-white/40 tracking-wider uppercase">{d.tag}</span>
-                                        <div>
-                                            <p className="text-white font-bold text-lg">{d.dest}</p>
-                                            <div className="flex mt-1 gap-0.5">
-                                                {[...Array(5)].map((_, j) => <Star key={j} size={10} fill="#EF4444" stroke="none" className="text-red-500" />)}
-                                            </div>
-                                        </div>
-                                    </Reveal>
-                                ))}
-                            </div>
+<div className="p-8 grid grid-cols-2 gap-3 content-center">
+  {[
+    {
+      dest: "Shimla",
+      tag: "HQ",
+      image: "https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=400&h=300&fit=crop&auto=format",
+    },
+    {
+      dest: "Kashmir",
+      tag: "Top Pick",
+      image: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop&auto=format",
+    },
+    {
+      dest: "Rajasthan",
+      tag: "Heritage",
+      image: "https://images.unsplash.com/photo-1524492412937-b28074a5d7da?w=400&h=300&fit=crop&auto=format",
+    },
+    {
+      dest: "Dubai",
+      tag: "International",
+      image: "https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=400&h=300&fit=crop&auto=format",
+    },
+  ].map((d, i) => (
+    <Reveal
+      key={i}
+      delay={i * 80}
+      className="relative rounded-2xl overflow-hidden min-h-[120px] flex flex-col justify-between cursor-default group"
+    >
+      {/* Background image */}
+      <img
+        src={d.image}
+        alt={d.dest}
+        className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+        loading="lazy"
+        draggable={false}
+      />
+
+      {/* Dark gradient overlay — stronger at bottom */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/10" />
+
+      {/* Border shimmer on hover */}
+      <div className="absolute inset-0 rounded-2xl ring-1 ring-white/10 group-hover:ring-white/25 transition-all duration-300" />
+
+      {/* Content */}
+      <div className="relative z-10 flex flex-col justify-between h-full p-4">
+        <span className="text-[10px] font-bold text-white/50 tracking-widest uppercase">
+          {d.tag}
+        </span>
+        <div>
+          <p className="text-white font-bold text-base leading-tight">{d.dest}</p>
+          <div className="flex mt-1.5 gap-0.5">
+            {[...Array(5)].map((_, j) => (
+              <Star key={j} size={10} fill="#EF4444" stroke="none" />
+            ))}
+          </div>
+        </div>
+      </div>
+    </Reveal>
+  ))}
+</div>
                         </div>
                     </div>
                 </div>

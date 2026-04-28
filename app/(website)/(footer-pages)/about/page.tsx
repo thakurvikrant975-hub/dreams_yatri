@@ -9,13 +9,15 @@ import {
   CalendarCheck, Headphones, Wallet, Mountain
 } from "lucide-react";
 import Hero from "../components/Hero";
-import {services, timelineData, values, stats, testimonials, team } from "./data";
+import { services, timelineData, values, stats, testimonials, team } from "./data";
 import { Gallery } from "./Gallery";
 import { gallery } from "./data";
 import { SectionHeading } from "../components/SectionHeading";
 import { WhatWeBelieve } from "./Whatwebelieve";
 import TestimonialSlider from "./TestimonialSlider";
 import { OurStoryHero } from "./Ourstoryhero";
+import Link from "next/link";
+import { TeamSection } from "./TeamSection";
 
 const useInView = (threshold = 0.12) => {
   const ref = useRef(null);
@@ -56,7 +58,7 @@ export default function AboutPage() {
   return (
     <div className="bg-white" style={{ fontFamily: "'Segoe UI', system-ui, sans-serif" }}>
 
-<OurStoryHero />
+      <OurStoryHero />
 
       {/* ══ 2. HOW IT STARTED ══ */}
       <section className="py-24 px-6 bg-gray-50">
@@ -64,13 +66,13 @@ export default function AboutPage() {
           <Reveal>
             <SectionLabel>The Origin</SectionLabel>
             <SectionHeading
-                text="How It"
-                highlight="Started"
-                highlightPosition="suffix"
-                variant="light"
-              />
+              text="How It"
+              highlight="Started"
+              highlightPosition="suffix"
+              variant="light"
+            />
           </Reveal>
-          <div className="grid lg:grid-cols-2 gap-12 items-start">
+          <div className="grid lg:grid-cols-2 gap-12 items-start mt-10">
             <div className="space-y-5">
               <Reveal delay={0.05}>
                 <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm relative">
@@ -188,81 +190,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* ══ 5. TIMELINE ══ */}
-      <section className="py-24 px-6 bg-white">
-        <div className="max-w-5xl mx-auto">
-          <Reveal>
-            <SectionLabel>Our Journey</SectionLabel>
 
-            <SectionHeading
-                text="From One Bad Night to"
-                highlight="50,000 Great Trips"
-                highlightPosition="suffix"
-                variant="light"
-              />
-            
-          </Reveal>
-
-          <div className="relative">
-            {/* Vertical line — desktop center, mobile left */}
-            <div className="absolute left-5 sm:left-1/2 top-2 bottom-2 w-px bg-gray-200 sm:-translate-x-px" />
-
-            <div className="space-y-10">
-              {timelineData.map(({ year, title, Icon, desc }, i) => {
-                const isLeft = i % 2 === 0;
-                return (
-                  <Reveal key={i} delay={0.04}>
-                    <div className="relative flex items-start sm:items-center pl-14 sm:pl-0">
-
-                      {/* Mobile dot */}
-                      <div className="absolute left-[13px] top-4 w-5 h-5 rounded-full bg-red-500 border-4 border-white shadow-md sm:hidden z-10" />
-
-                      {/* Desktop layout */}
-                      <div className="hidden sm:flex w-full items-center gap-0">
-                        {/* Left side */}
-                        <div className={`w-[calc(50%-2rem)] ${isLeft ? "pr-8" : ""}`}>
-                          {isLeft && (
-                            <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md hover:border-red-200 transition-all text-right">
-                              <span className="inline-block text-xs font-black text-red-500 bg-red-50 border border-red-200 rounded-full px-3 py-1 mb-3">{year}</span>
-                              <h3 className="text-lg font-bold text-gray-900 mb-2">{title}</h3>
-                              <p className="text-gray-500 text-sm leading-relaxed">{desc}</p>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Center dot */}
-                        <div className="flex-shrink-0 w-16 flex items-center justify-center z-10">
-                          <div className="w-10 h-10 rounded-full bg-red-500 border-4 border-white shadow-md flex items-center justify-center">
-                            <Icon size={16} className="text-white" />
-                          </div>
-                        </div>
-
-                        {/* Right side */}
-                        <div className={`w-[calc(50%-2rem)] ${!isLeft ? "pl-8" : ""}`}>
-                          {!isLeft && (
-                            <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md hover:border-red-200 transition-all">
-                              <span className="inline-block text-xs font-black text-red-500 bg-red-50 border border-red-200 rounded-full px-3 py-1 mb-3">{year}</span>
-                              <h3 className="text-lg font-bold text-gray-900 mb-2">{title}</h3>
-                              <p className="text-gray-500 text-sm leading-relaxed">{desc}</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Mobile card */}
-                      <div className="sm:hidden bg-white rounded-2xl p-5 border border-gray-100 shadow-sm w-full">
-                        <span className="inline-block text-xs font-black text-red-500 bg-red-50 border border-red-200 rounded-full px-3 py-1 mb-3">{year}</span>
-                        <h3 className="text-base font-bold text-gray-900 mb-2">{title}</h3>
-                        <p className="text-gray-500 text-sm leading-relaxed">{desc}</p>
-                      </div>
-                    </div>
-                  </Reveal>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </section>
 
       <WhatWeBelieve
         label="Our Philosophy"
@@ -283,50 +211,18 @@ export default function AboutPage() {
               variant="light"
             />
           </Reveal>
-<TestimonialSlider
-  items={testimonials}   // TestimonialItem[]
-  perView={3}            // cards visible at once
-  autoplay={5000}        // ms, 0 = off
-  label="What Travellers Say"
-  heading="Real trips."
-  headingHighlight="Real stories."
-/>
+          <TestimonialSlider
+            items={testimonials}   // TestimonialItem[]
+            perView={3}            // cards visible at once
+            autoplay={5000}        // ms, 0 = off
+            label="What Travellers Say"
+            heading="Real trips."
+            headingHighlight="Real stories."
+          />
         </div>
       </section>
 
-      {/* ══ 8. TEAM ══ */}
-      <section className="py-24 px-6 bg-gray-50">
-        <div className="max-w-6xl mx-auto">
-          <Reveal>
-            <SectionLabel>The Team</SectionLabel>
-
-            <SectionHeading
-              text="Travelers Who"
-              highlight="Plan Your Travels"
-              highlightPosition="suffix"
-              variant="light"
-            />
-            <p className="text-gray-500 text-base mb-16 max-w-lg leading-relaxed">Our team has collectively visited 80+ countries. We're not just planners — we're obsessive travelers who happen to be really good at logistics.</p>
-          </Reveal>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-            {team.map(({ name, role, Icon, countries }, i) => (
-              <Reveal key={i} delay={i * 0.08}>
-                <div className="bg-white rounded-2xl p-6 border border-gray-100 hover:border-red-200 hover:shadow-sm transition-all text-center group">
-                  <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-red-100 transition-colors">
-                    <Icon size={26} className="text-red-500" />
-                  </div>
-                  <p className="font-bold text-gray-900 text-sm">{name}</p>
-                  <p className="text-gray-400 text-xs mt-1 mb-3 leading-tight">{role}</p>
-                  <div className="flex items-center justify-center gap-1">
-                    <Globe size={11} className="text-red-400" />
-                    <span className="text-xs text-red-500 font-semibold">{countries}</span>
-                  </div>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
+    <TeamSection />
 
       {/* ══ 9. CTA — WHITE CARD matching footer ══ */}
       <section className="py-20 px-6 bg-white">
@@ -336,28 +232,44 @@ export default function AboutPage() {
               <div className="grid lg:grid-cols-2">
 
                 {/* Left — red */}
-                <div className="bg-red-500 p-10 sm:p-12 flex flex-col justify-between relative overflow-hidden min-h-[340px]">
-                  <div className="absolute -top-16 -right-16 w-48 h-48 bg-red-400 rounded-full opacity-30 pointer-events-none" />
-                  <div className="absolute -bottom-12 -left-12 w-36 h-36 bg-red-600 rounded-full opacity-20 pointer-events-none" />
-                  <div className="relative">
-                    <div className="flex items-center gap-2 mb-6">
-                      <Plane size={18} className="text-red-200" />
-                      <span className="text-red-200 text-xs font-bold uppercase tracking-widest">Ready to go?</span>
-                    </div>
-                    <h3 className="text-3xl sm:text-4xl font-black text-white leading-tight mb-4" >
-                      Your Next Trip,<br />Zero Tension.
-                    </h3>
-                    <p className="text-red-100 leading-relaxed text-[15px]">
-                      Hotels confirmed. Cabs arranged. Activities booked. You just show up and enjoy.
-                    </p>
-                  </div>
-                  <div className="relative mt-8 flex flex-wrap gap-2">
-                    {["No hidden fees", "Free consultation", "24/7 support"].map((t, i) => (
-                      <div key={i} className="flex items-center gap-1.5 bg-white/15 rounded-full px-3.5 py-1.5">
-                        <CheckCircle2 size={13} className="text-white" />
-                        <span className="text-white text-xs font-medium">{t}</span>
+                {/* Left — image with red overlay */}
+                <div className="relative lg:col-span-1 flex flex-col justify-between overflow-hidden min-h-[340px]">
+
+                  {/* Background Image */}
+                  <img
+                    src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80"
+                    alt="Mountain travel destination"
+                    className="absolute inset-0 w-full h-full object-cover object-center"
+                  />
+
+                  {/* Red gradient overlay — maintains brand color while keeping image visible */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-slate-400/20 via-slate-300/15 to-slate-500/20" />
+                  {/* Decorative blobs — keep your existing ones */}
+                  <div className="absolute -top-16 -right-16 w-48 h-48 bg-slate-400 rounded-full opacity-20 pointer-events-none" />
+                  <div className="absolute -bottom-12 -left-12 w-36 h-36 bg-slate-600 rounded-full opacity-20 pointer-events-none" />
+
+                  {/* Content */}
+                  <div className="relative p-10 sm:p-12 flex flex-col justify-between h-full">
+                    <div>
+                      <div className="flex items-center gap-2 mb-6">
+                        <Plane size={18} className="text-black" />
+                        <span className="text-black text-xs font-bold uppercase tracking-widest">Ready to go?</span>
                       </div>
-                    ))}
+                      <h3 className="text-3xl sm:text-4xl font-black text-white leading-tight mb-4">
+                        Your Next Trip,<br />Zero Tension.
+                      </h3>
+                      <p className="text-white leading-relaxed text-[15px]">
+                        Hotels confirmed. Cabs arranged. Activities booked. You just show up and enjoy.
+                      </p>
+                    </div>
+                    <div className="mt-8 flex flex-wrap gap-2">
+                      {["No hidden fees", "Free consultation", "24/7 support"].map((t, i) => (
+                        <div key={i} className="flex items-center gap-1.5 bg-white/15 backdrop-blur-sm rounded-full px-3.5 py-1.5">
+                          <CheckCircle2 size={13} className="text-white" />
+                          <span className="text-white text-xs font-medium">{t}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
 

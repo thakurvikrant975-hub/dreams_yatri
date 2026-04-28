@@ -51,12 +51,47 @@ export const testimonials = [
 ];
 
 export const team = [
-  { name: "Arjun Mehta", role: "Founder & Chief Explorer", Icon: Mountain, countries: "42 countries" },
-  { name: "Simran Kaur", role: "Head of Experiences", Icon: Sparkles, countries: "38 countries" },
-  { name: "Dev Patel", role: "Tech & Operations", Icon: Globe, countries: "29 countries" },
-  { name: "Neha Sharma", role: "Customer Happiness", Icon: HeartHandshake, countries: "31 countries" },
+  {
+    name: "Vikrant Thakur",
+    role: "Founder & Lead Planner",
+    photo: "https://media.istockphoto.com/id/1325161510/photo/portrait-of-mature-business-men-wearing-suit-standing-against-gray-background-stock-photo.jpg?s=612x612&w=0&k=20&c=q6w13AEiELAifa_FUOzu1EzC9IIFa56zlNZtcoKefIU=",
+    experience: "11 yrs",
+    statVal: "480+",
+    statKey: "Countries",
+    tag: "HP Specialist",
+    quote: "Every mountain has a story. I help you find yours.",
+  },
+  {
+    name: "Ravi Kant",
+    role: "Operations Manager",
+    photo: "https://images.unsplash.com/photo-1522529599102-193c0d76b5b6?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+    experience: "8 yrs",
+    statVal: "1,200+",
+    statKey: "Trips Managed",
+    tag: "N. India Expert",
+    quote: "Flawless logistics is its own kind of art form.",
+  },
+  {
+    name: "Priya Sharma",
+    role: "International Packages Lead",
+    photo: "https://images.unsplash.com/photo-1609505848912-b7c3b8b4beda?q=80&w=1065&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+    experience: "6 yrs",
+    statVal: "135+",
+    statKey: "Countries",
+    tag: "Dubai & Thailand",
+    quote: "I find the hidden gems the guidebooks always miss.",
+  },
+  {
+    name: "Arjun Mehta",
+    role: "Pilgrimage & Culture Expert",
+    photo: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&q=80",
+    experience: "5 yrs",
+    statVal: "500+",
+    statKey: "Clients Served",
+    tag: "Char Dham",
+    quote: "Spiritual journeys deserve precision and reverence.",
+  },
 ];
-
 
 // export const timelineData = [
 //   {

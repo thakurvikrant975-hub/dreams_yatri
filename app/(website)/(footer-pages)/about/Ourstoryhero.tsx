@@ -7,6 +7,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import { Plane, ArrowRight, Users, MapPin, Star, Clock } from "lucide-react";
 import Link from "next/link";
+import HeroTitle from "../components/HeroTitle";
 
 
 type HeroVariant = "dark" | "light";
@@ -211,54 +212,17 @@ export function OurStoryHero() {
             </div>
           </Reveal>
 
-          {/* Headline */}
-          <Reveal delay={80}>
-            <h1
-              className="text-white leading-[1.1] mb-6"
-              style={{
-                fontFamily: "'Playfair Display', serif",
-                fontSize:   "clamp(2.4rem, 5.5vw, 4rem)",
-                fontWeight: 800,
-              }}
-            >
-              Travel Should Feel Like{" "}
-              <span className="relative inline-block">
-                <span className="text-red-500 italic">Freedom.</span>
-                {/* Squiggle underline */}
-                <svg
-                  className="absolute -bottom-1 left-0 w-full overflow-visible"
-                  viewBox="0 0 200 8"
-                  fill="none"
-                  aria-hidden="true"
-                >
-                  <path
-                    d="M2 6 Q50 1 100 5 Q150 9 198 4"
-                    stroke="#EF4444"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    fill="none"
-                    opacity="0.5"
-                  />
-                </svg>
-              </span>
-            </h1>
-          </Reveal>
-
           {/* Body copy */}
           <Reveal delay={140}>
-            <p className="text-gray-400 text-base sm:text-lg leading-relaxed mb-3"
-              style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", maxWidth: 480 }}>
-              We started because travel kept breaking us—unconfirmed hotels, missing cabs, midnight panic.
-            </p>
-            <p className="text-white text-base sm:text-lg leading-relaxed font-semibold mb-10">
-              So we built the travel company we always wished existed.
-            </p>
+            <HeroTitle highlight="Freedom" paragraph="Travel should feel like a liberating experience, allowing you to explore new horizons and create unforgettable memories.">
+              Travel should feel like
+            </HeroTitle>
           </Reveal>
 
           {/* CTAs */}
           <Reveal delay={200}>
             <div className="flex flex-wrap gap-3">
-              <a
+              <Link
                 href="/contact"
                 className="inline-flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white
                            font-bold px-7 py-3.5 rounded-xl transition-all text-sm no-underline"
@@ -270,7 +234,7 @@ export function OurStoryHero() {
                 onMouseLeave={e => (e.currentTarget.style.transform = "none")}
               >
                 <Plane size={15} /> Plan My Trip
-              </a>
+              </Link>
               <Link
                 href="/our-story"
                 className="inline-flex items-center gap-2 font-bold px-7 py-3.5 rounded-xl
