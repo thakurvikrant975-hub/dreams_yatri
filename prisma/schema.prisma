@@ -103,8 +103,6 @@ model packages {
   thumbnail       String?
   cover_image     String?
   description     String?
-  meta_title      String?
-  meta_desc       String?
   destination_id  Int
   inclusions      String[]
   exclusions      String[]
@@ -124,6 +122,7 @@ model packages {
   bookings        Booking[]
   cabOptions      package_cab_options[]
   gallery         package_gallery[]
+  packageRoutes   package_routes[]
 
   @@index([destination_id, is_active])
   @@index([slug])
@@ -226,6 +225,7 @@ model package_routes {
   duration_id Int
   name        String
   slug        String
+  package_id  Int?
 
   meta_title String?
   meta_desc  String?
@@ -233,8 +233,8 @@ model package_routes {
   sort_order Int     @default(0)
   is_active  Boolean @default(true)
 
-  duration package_durations @relation(fields: [duration_id], references: [id], onDelete: Cascade)
-
+  duration    package_durations     @relation(fields: [duration_id], references: [id], onDelete: Cascade)
+  package     packages?             @relation(fields: [package_id], references: [id])
   itineraries package_itineraries[]
   stops       route_stops[]
 
@@ -252,6 +252,7 @@ model route_stops {
 
   route package_routes @relation(fields: [route_id], references: [id], onDelete: Cascade)
 
+  @@unique([route_id, location])
   @@index([route_id])
 }
 
@@ -341,7 +342,7 @@ model package_itineraries {
   itinerary_notes      itinerary_notes[]
 
   @@unique([route_id, day])
-  @@index([route_id])
+  @@index([route_id, duration_id])
 }
 
 model itinerary_hotels {
