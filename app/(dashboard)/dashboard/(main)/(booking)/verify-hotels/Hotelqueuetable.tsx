@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable";
 import { Stats } from "../../components/dashboard/Stats";
 import { confirmHotel, flagHotelIssue } from "../package-bookings/actions";
+import { confirmBookingHotelDay } from "../package-bookings/actions";
 import type { BookingWithRelations, PaginatedBookings } from "../package-bookings/actions";
 
 interface Props {

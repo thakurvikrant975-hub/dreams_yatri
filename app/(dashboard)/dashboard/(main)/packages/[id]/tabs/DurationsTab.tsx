@@ -28,18 +28,18 @@ import { createDuration, updateDuration, deleteDuration, type RouteOption } from
 // ── Types ─────────────────────────────────────────────────────────────────
 
 type Duration = {
-  id:         number;
-  slug:       string;
-  label:      string;
-  days:       number;
-  nights:     number;
-  routes:     unknown;
-  is_default: boolean;
-  is_active:  boolean;
-  sort_order: number;
-  meta_title: string | null;
-  meta_desc:  string | null;
-  pricing:    { stay_category_id: number; route_index: number; price: number; original_price: number | null }[];
+  id:          number;
+  slug:        string;
+  label:       string;
+  days:        number;
+  nights:      number;
+  thumbnail?:  string | null;
+  routes:      unknown;
+  is_default:  boolean;
+  is_active:   boolean;
+  sort_order:  number;
+  meta_title:  string | null;
+  meta_desc:   string | null;
   itineraries: { id: number; day: number; title: string }[];
 };
 
@@ -190,14 +190,16 @@ function DurationDialog({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const [label,     setLabel]     = useState(existing?.label      ?? "");
-  const [days,      setDays]      = useState(existing?.days       ?? 1);
-  const [nights,    setNights]    = useState(existing?.nights     ?? 0);
-  const [isDefault, setIsDefault] = useState(existing?.is_default ?? false);
-  const [isActive,  setIsActive]  = useState(existing?.is_active  ?? true);
-  const [sortOrder, setSortOrder] = useState(existing?.sort_order ?? nextSortOrder);
-  const [metaTitle, setMetaTitle] = useState(existing?.meta_title ?? "");
-  const [metaDesc,  setMetaDesc]  = useState(existing?.meta_desc  ?? "");
+  const [label,        setLabel]        = useState(existing?.label        ?? "");
+  const [days,         setDays]         = useState(existing?.days         ?? 1);
+  const [isDefault,    setIsDefault]    = useState(existing?.is_default   ?? false);
+  const [isActive,     setIsActive]     = useState(existing?.is_active    ?? true);
+  const [sortOrder,    setSortOrder]    = useState(existing?.sort_order   ?? nextSortOrder);
+  const [metaTitle,    setMetaTitle]    = useState(existing?.meta_title   ?? "");
+  const [metaDesc,     setMetaDesc]     = useState(existing?.meta_desc    ?? "");
+  const [thumbnailUrl, setThumbnailUrl] = useState(existing?.thumbnail    ?? "");
+
+  const nights = Math.max(0, days - 1);
   const [routes,    setRoutes]    = useState<RouteOption[]>(
     existing
       ? (existing.routes || []) as any
@@ -214,16 +216,16 @@ function DurationDialog({
 
     startTransition(async () => {
       const fd = new FormData();
-      fd.append("slug",       existing?.slug ?? `${slugify(label)}-${days}d`);
-      fd.append("label",      label);
-      fd.append("days",       String(days));
-      fd.append("nights",     String(nights));
-      fd.append("routes",     JSON.stringify(routes));
-      fd.append("meta_title", metaTitle);
-      fd.append("meta_desc",  metaDesc);
-      fd.append("is_default", String(isDefault));
-      fd.append("sort_order", String(sortOrder));
-      fd.append("is_active",  String(isActive));
+      fd.append("slug",          existing?.slug ?? `${slugify(label)}-${days}d`);
+      fd.append("label",         label);
+      fd.append("days",          String(days));
+      fd.append("routes",        JSON.stringify(routes));
+      fd.append("meta_title",    metaTitle);
+      fd.append("meta_desc",     metaDesc);
+      fd.append("is_default",    String(isDefault));
+      fd.append("sort_order",    String(sortOrder));
+      fd.append("is_active",     String(isActive));
+      fd.append("thumbnail_url", thumbnailUrl);
 
       const result = existing
         ? await updateDuration(existing.id, package_id, fd)
@@ -254,16 +256,41 @@ function DurationDialog({
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-1.5">
               <Label>Days</Label>
-              <Input type="number" min="1" value={days} onChange={e => setDays(Number(e.target.value))} />
+              <Input
+                type="number"
+                min="1"
+                value={days}
+                onChange={e => {
+                  const d = Math.max(1, Number(e.target.value));
+                  setDays(d);
+                }}
+              />
             </div>
             <div className="space-y-1.5">
-              <Label>Nights</Label>
-              <Input type="number" min="0" value={nights} onChange={e => setNights(Number(e.target.value))} />
+              <Label>Nights <span className="text-xs text-muted-foreground">(auto)</span></Label>
+              <Input
+                type="number"
+                value={nights}
+                readOnly
+                className="bg-muted/40 cursor-not-allowed"
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Sort Order</Label>
               <Input type="number" min="0" value={sortOrder} onChange={e => setSortOrder(Number(e.target.value))} />
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Thumbnail URL</Label>
+            <Input
+              value={thumbnailUrl}
+              onChange={e => setThumbnailUrl(e.target.value)}
+              placeholder="https://... or R2 key"
+            />
+            <p className="text-xs text-muted-foreground">
+              Optional — displayed as the duration card image
+            </p>
           </div>
 
           <div className="space-y-2">

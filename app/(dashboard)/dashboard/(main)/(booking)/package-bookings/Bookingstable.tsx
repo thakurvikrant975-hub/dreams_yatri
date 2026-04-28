@@ -184,14 +184,21 @@ export function BookingsTable({ paginated, stats, currentPage, destinations }: P
 
   return (
     <div className="space-y-4">
+      {/* Row 1 — Pipeline overview */}
       <Stats
         rows={[
-          { label: "Total Bookings", value: stats.total },
-          { label: "Pending Review", value: stats.pendingReview },
-          { label: "Hotel Queue", value: stats.hotelVerification },
-          { label: "Cab Queue", value: stats.cabVerification },
-          { label: "Confirmed", value: stats.confirmed },
-          { label: "Cancelled", value: stats.cancelled, muted: true },
+          { label: "Total Bookings",    value: stats.total },
+          { label: "Pending Review",    value: stats.pendingReview },
+          { label: "In Verification",   value: stats.hotelVerification + stats.hotelConfirmed + stats.cabVerification + stats.cabConfirmed },
+          { label: "Ops Review",        value: stats.opsReview },
+          { label: "Confirmed",         value: stats.confirmed },
+          { label: "Upcoming",          value: stats.upcoming },
+          { label: "Hotel Queue",       value: stats.hotelQueuePending },
+          { label: "Cab Queue",         value: stats.cabQueuePending },
+          { label: "Ongoing",           value: stats.ongoing },
+          { label: "Completed",         value: stats.completed },
+          { label: "Modification",      value: stats.modificationRequested, muted: true },
+          { label: "Cancelled / Rejected", value: stats.cancelled + stats.rejected, muted: true },
         ]}
       />
 

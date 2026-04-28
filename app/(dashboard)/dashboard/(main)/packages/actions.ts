@@ -359,14 +359,15 @@ export async function deletePackage(id: number): Promise<PackageFormState> {
 
 export async function createDuration(package_id: number, formData: FormData): Promise<PackageFormState> {
   try {
+    const days  = Math.max(1, Number(formData.get("days")));
     const count = await db.package_durations.count({ where: { package_id } });
     await db.package_durations.create({
       data: {
         package_id,
         slug:       formData.get("slug")  as string,
         label:      formData.get("label") as string,
-        days:       Number(formData.get("days")),
-        nights:     Number(formData.get("nights")),
+        days,
+        nights:     Math.max(0, days - 1),
         is_default: formData.get("is_default") === "true",
         is_active:  true,
         sort_order: count,
@@ -383,12 +384,13 @@ export async function createDuration(package_id: number, formData: FormData): Pr
 
 export async function updateDuration(id: number, package_id: number, formData: FormData): Promise<PackageFormState> {
   try {
+    const days = Math.max(1, Number(formData.get("days")));
     await db.package_durations.update({
       where: { id },
       data: {
         label:      formData.get("label") as string,
-        days:       Number(formData.get("days")),
-        nights:     Number(formData.get("nights")),
+        days,
+        nights:     Math.max(0, days - 1),
         is_default: formData.get("is_default") === "true",
         meta_title: (formData.get("meta_title") as string) || null,
         meta_desc:  (formData.get("meta_desc")  as string) || null,

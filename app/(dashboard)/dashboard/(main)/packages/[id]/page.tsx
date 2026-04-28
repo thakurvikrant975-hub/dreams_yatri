@@ -56,10 +56,13 @@ export default async function PackageEditPage({
     ...d,
     pricing: d.pricing.map(p => ({
       ...p,
-      price: Number(p.price),
-      original_price: p.original_price ? Number(p.original_price) : null,
+      meal_rate_cp: Number(p.meal_rate_cp),
+      meal_rate_map: Number(p.meal_rate_map),
+      meal_rate_ap: Number(p.meal_rate_ap),
+      margin_pct: Number(p.margin_pct),
+      gst_pct: Number(p.gst_pct),
     })),
-  }));
+  }));;
 
   // In [id]/page.tsx — after the Promise.all, add:
 
@@ -71,11 +74,8 @@ export default async function PackageEditPage({
   const TABS = [
     { value: "basic", label: "Basic Info" },
     { value: "durations", label: `Durations (${durations.length})` },
-    { value: "stay", label: `Stay Types (${pkg.stay_categories.length})` },
-    { value: "pricing", label: "Pricing" },
     { value: "itinerary", label: "Itinerary" },
     { value: "policies", label: "Policies" },
-    { value: "images", label: `Images (${pkg.images.length})` },
   ];
 
 
@@ -136,6 +136,7 @@ export default async function PackageEditPage({
               exclusions: pkg.exclusions,
               is_active: pkg.is_active,
               destination: pkg.destination,
+              images: pkg.images,
             }}
             destinations={destinations}
             categories={categories}
@@ -151,14 +152,6 @@ export default async function PackageEditPage({
 
         <TabsContent value="stay" className="mt-6">
           <StayCategoriesTab package_id={id} stayCategories={pkg.stay_categories} />
-        </TabsContent>
-
-        <TabsContent value="pricing" className="mt-6">
-          <PricingTab
-            package_id={id}
-            durations={durations}
-            stayCategories={pkg.stay_categories}
-          />
         </TabsContent>
 
         <TabsContent value="itinerary" className="mt-6">

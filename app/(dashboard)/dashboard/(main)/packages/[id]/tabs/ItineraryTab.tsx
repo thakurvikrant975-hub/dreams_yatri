@@ -421,7 +421,7 @@ function MultiStepDayDialog({
       <div className="space-y-3">
         {stayCategories.length === 0 ? (
           <p className="text-sm text-muted-foreground py-4 text-center">
-            No stay categories defined for this package. Add them in the Stay Types tab.
+            No stay categories defined for this package.
           </p>
         ) : (
           stayCategories.map(cat => {
