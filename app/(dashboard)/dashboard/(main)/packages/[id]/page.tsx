@@ -1,181 +1,140 @@
-// app/(dashboard)/dashboard/packages/[id]/page.tsx
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, Package as PkgIcon } from "lucide-react";
-import { Badge } from "../../components/ui/badge";
-import { Button } from "../../components/ui/button";
-import {
-  Breadcrumb, BreadcrumbItem, BreadcrumbLink,
-  BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
-} from "../../components/ui/breadcrumb";
+import { ChevronLeft } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
-import {
-  getPackageById,
-  getDestinationsForSelect,
-  getHotelsForSelect,
-  getActivitiesForSelect,
-  getCategoriesForSelect,
-  getTagsForSelect,
-  getPoliciesForSelect,
-} from "../actions";
+import { Badge } from "../../components/ui/badge";
+import { getPackageForEdit, getStayCategories, getAllPolicies } from "../actions";
 import { BasicTab } from "./tabs/BasicTab";
-import { DurationsTab } from "./tabs/DurationsTab";
-import { StayCategoriesTab } from "./tabs/StayCategoriesTab";
-import { PricingTab } from "./tabs/PricingTab";
+import { RoutesTab } from "./tabs/RoutesTab";
 import { ItineraryTab } from "./tabs/ItineraryTab";
+import { HotelsTab } from "./tabs/HotelsTab";
+import { PricingTab } from "./tabs/PricingTab";
+import { CabsTab } from "./tabs/CabsTab";
 import { PoliciesTab } from "./tabs/PoliciesTab";
-import { ImagesTab } from "./tabs/ImagesTab";
+import { GalleryTab } from "./tabs/GalleryTab";
+import { AdvancedTab } from "./tabs/AdvancedTab";
 
-export default async function PackageEditPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
-}) {
+type Props = { params: Promise<{ id: string }> };
+
+export default async function PackageEditPage({ params }: Props) {
   const { id: idStr } = await params;
-  const { tab = "basic" } = await searchParams;
   const id = Number(idStr);
+  if (isNaN(id)) notFound();
 
-  const [pkg, destinations, hotels, activities, categories, tags, policies] = await Promise.all([
-    getPackageById(id),
-    getDestinationsForSelect(),
-    getHotelsForSelect(),
-    getActivitiesForSelect(),
-    getCategoriesForSelect(),
-    getTagsForSelect(),
-    getPoliciesForSelect(),
+  const [data, stayCategories, allPolicies] = await Promise.all([
+    getPackageForEdit(id),
+    getStayCategories(),
+    getAllPolicies(),
   ]);
 
-  if (!pkg) notFound();
+  if (!data) notFound();
 
-  const assignedPolicyIds = pkg.policies.map(p => p.policy_id);
+  // Flatten all routes from all durations for the itinerary tab
+  const allRoutes = data.durations.flatMap((d) =>
+    d.routes.map((r) => ({ id: r.id, duration_id: r.duration_id, name: r.name }))
+  );
 
-  // Serialise Decimal fields
-  const durations = pkg.durations.map(d => ({
-    ...d,
-    pricing: d.pricing.map(p => ({
-      ...p,
-      meal_rate_cp: Number(p.meal_rate_cp),
-      meal_rate_map: Number(p.meal_rate_map),
-      meal_rate_ap: Number(p.meal_rate_ap),
-      margin_pct: Number(p.margin_pct),
-      gst_pct: Number(p.gst_pct),
-    })),
-  }));;
+  // Collect used stay category ids from hotels and pricing
+  const usedCategoryIds = new Set<number>([
+    ...data.packageHotels.map((h) => h.stay_category_id),
+    ...data.pricing.map((p) => p.stay_category_id),
+  ]);
+  const usedStayCategories = stayCategories.filter((c) => usedCategoryIds.has(c.id));
 
-  // In [id]/page.tsx — after the Promise.all, add:
-
-  const serializedActivities = activities.map(a => ({
-    ...a,
-    duration_hours: a.duration_hours ? Number(a.duration_hours) : null,
-  }));
-
-  const TABS = [
-    { value: "basic", label: "Basic Info" },
-    { value: "durations", label: `Durations (${durations.length})` },
-    { value: "itinerary", label: "Itinerary" },
-    { value: "policies", label: "Policies" },
-  ];
-
-
+  const selectedPolicyIds = data.policyMaps.map((pm) => pm.policy_id);
 
   return (
-    <div className="space-y-6 ">
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem><BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink></BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem><BreadcrumbLink href="/dashboard/packages">Packages</BreadcrumbLink></BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem><BreadcrumbPage>{pkg.title}</BreadcrumbPage></BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-
+    <div className="p-6 space-y-5  mx-auto">
+      {/* Header */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/dashboard/packages"><ChevronLeft className="h-4 w-4" /></Link>
-        </Button>
-        <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-          <PkgIcon className="h-5 w-5 text-primary" />
-        </div>
-        <div className="flex-1">
+        <Link href="/dashboard/packages" className="text-muted-foreground hover:text-foreground transition-colors">
+          <ChevronLeft className="h-5 w-5" />
+        </Link>
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold">{pkg.title}</h1>
-            <Badge variant={pkg.is_active ? "default" : "secondary"} className="text-xs">
-              {pkg.is_active ? "Active" : "Inactive"}
+            <h1 className="text-xl font-bold truncate">{data.title}</h1>
+            <Badge variant={data.is_active ? "default" : "secondary"} className="shrink-0">
+              {data.is_active ? "Active" : "Inactive"}
             </Badge>
           </div>
-          <p className="text-sm text-muted-foreground">
-            {pkg.destination.name} · {durations.length} duration{durations.length !== 1 ? "s" : ""}
-          </p>
+          <p className="text-sm text-muted-foreground font-mono">{data.slug}</p>
         </div>
       </div>
 
-      <Tabs defaultValue={tab}>
-        <TabsList className="flex w-full overflow-x-auto">
-          {TABS.map(t => (
-            <TabsTrigger key={t.value} value={t.value} className="shrink-0">
-              {t.label}
-            </TabsTrigger>
-          ))}
+      {/* Tabs */}
+      <Tabs defaultValue="basic">
+        <TabsList className="flex-wrap h-auto gap-1">
+          <TabsTrigger value="basic">Basic</TabsTrigger>
+          <TabsTrigger value="routes">Routes</TabsTrigger>
+          <TabsTrigger value="itinerary">Itinerary</TabsTrigger>
+          <TabsTrigger value="hotels">Hotels</TabsTrigger>
+          <TabsTrigger value="pricing">Pricing</TabsTrigger>
+          <TabsTrigger value="cabs">Cabs</TabsTrigger>
+          <TabsTrigger value="policies">Policies</TabsTrigger>
+          <TabsTrigger value="gallery">Gallery</TabsTrigger>
+          <TabsTrigger value="advanced">Advanced</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="basic" className="mt-6">
-          <BasicTab
-            pkg={{
-              id: pkg.id,
-              title: pkg.title,
-              slug: pkg.slug,
-              description: pkg.description,
-              meta_title: pkg.meta_title,
-              meta_desc: pkg.meta_desc,
-              thumbnail: pkg.thumbnail,
-              cover_image: pkg.cover_image,
-              inclusions: pkg.inclusions,
-              exclusions: pkg.exclusions,
-              is_active: pkg.is_active,
-              destination: pkg.destination,
-              images: pkg.images,
-            }}
-            destinations={destinations}
-            categories={categories}
-            tags={tags}
-            assignedTagIds={pkg.tags.map(t => t.tag.id)}
-            assignedCategoryIds={pkg.categories.map(c => c.category.id)}
-          />
-        </TabsContent>
+        <div className="mt-5 border rounded-xl p-6">
+          <TabsContent value="basic" className="mt-0">
+            <BasicTab pkg={data} />
+          </TabsContent>
 
-        <TabsContent value="durations" className="mt-6">
-          <DurationsTab package_id={id} durations={durations} />
-        </TabsContent>
+          <TabsContent value="routes" className="mt-0">
+            <RoutesTab packageId={data.id} durations={data.durations} />
+          </TabsContent>
 
-        <TabsContent value="stay" className="mt-6">
-          <StayCategoriesTab package_id={id} stayCategories={pkg.stay_categories} />
-        </TabsContent>
+          <TabsContent value="itinerary" className="mt-0">
+            <ItineraryTab
+              packageId={data.id}
+              durations={data.durations.map((d) => ({ id: d.id, label: d.label }))}
+              allRoutes={allRoutes}
+              stayCategories={stayCategories}
+            />
+          </TabsContent>
 
-        <TabsContent value="itinerary" className="mt-6">
-          <ItineraryTab
-            package_id={id}
-            destination_id={pkg.destination.id}
-            durations={durations}
-            hotels={hotels}
-            activities={serializedActivities}
-            stayCategories={pkg.stay_categories}
-          />
-        </TabsContent>
+          <TabsContent value="hotels" className="mt-0">
+            <HotelsTab
+              packageId={data.id}
+              initialHotels={data.packageHotels}
+              stayCategories={stayCategories}
+            />
+          </TabsContent>
 
-        <TabsContent value="policies" className="mt-6">
-          <PoliciesTab
-            package_id={id}
-            allPolicies={policies}
-            assignedPolicyIds={assignedPolicyIds}
-          />
-        </TabsContent>
+          <TabsContent value="pricing" className="mt-0">
+            <PricingTab
+              packageId={data.id}
+              durations={data.durations.map((d) => ({ id: d.id, label: d.label }))}
+              stayCategories={stayCategories}
+              initialPricing={data.pricing}
+            />
+          </TabsContent>
 
-        <TabsContent value="images" className="mt-6">
-          <ImagesTab package_id={id} images={pkg.images} />
-        </TabsContent>
+          <TabsContent value="cabs" className="mt-0">
+            <CabsTab packageId={data.id} initialCabs={data.cabs} />
+          </TabsContent>
+
+          <TabsContent value="policies" className="mt-0">
+            <PoliciesTab
+              packageId={data.id}
+              allPolicies={allPolicies}
+              selectedIds={selectedPolicyIds}
+            />
+          </TabsContent>
+
+          <TabsContent value="gallery" className="mt-0">
+            <GalleryTab packageId={data.id} initial={data.gallery} />
+          </TabsContent>
+
+          <TabsContent value="advanced" className="mt-0">
+            <AdvancedTab
+              packageId={data.id}
+              slug={data.slug}
+              isActive={data.is_active}
+              usedStayCategories={usedStayCategories}
+            />
+          </TabsContent>
+        </div>
       </Tabs>
     </div>
   );

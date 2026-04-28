@@ -1,52 +1,69 @@
-// app/(dashboard)/dashboard/packages/page.tsx
-import { Suspense }             from "react";
-import Link                     from "next/link";
-import { Package as PkgIcon }   from "lucide-react";
+import Link from "next/link";
+import { getPackages } from "./actions";
 import { Button } from "../components/ui/button";
-import { getPackages }          from "./actions";
-import { PackagesTableClient }  from "./PackagesTableClient";
+import { Badge } from "../components/ui/badge";
+import { PlusCircle, Pencil } from "lucide-react";
 
-function Skeleton() {
-  return (
-    <div className="space-y-4 animate-pulse">
-      <div className="grid grid-cols-4 gap-4">
-        {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-16 rounded-xl bg-muted" />)}
-      </div>
-      <div className="rounded-xl border overflow-hidden">
-        {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-14 border-b bg-muted/20 last:border-0" />)}
-      </div>
-    </div>
-  );
-}
-
-async function PackagesData() {
+export default async function PackagesV2Page() {
   const packages = await getPackages();
-  return <PackagesTableClient packages={packages} />;
-}
 
-export default async function PackagesPage() {
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <PkgIcon className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold">Packages</h1>
-            <p className="text-sm text-muted-foreground">
-              Create and manage travel packages with durations, itineraries and pricing
-            </p>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold">Packages</h1>
+          <p className="text-sm text-muted-foreground">{packages.length} packages total</p>
         </div>
         <Button asChild>
-          <Link href="/dashboard/packages/new">+ New Package</Link>
+          <Link href="/dashboard/packages/new">
+            <PlusCircle className="h-4 w-4 mr-2" />
+            Create Package
+          </Link>
         </Button>
       </div>
 
-      <Suspense fallback={<Skeleton />}>
-        <PackagesData />
-      </Suspense>
+      <div className="rounded-lg border overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50">
+            <tr>
+              <th className="text-left px-4 py-3 font-medium">Title</th>
+              <th className="text-left px-4 py-3 font-medium">Slug</th>
+              <th className="text-left px-4 py-3 font-medium">Durations</th>
+              <th className="text-left px-4 py-3 font-medium">Status</th>
+              <th className="text-right px-4 py-3 font-medium">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {packages.length === 0 && (
+              <tr>
+                <td colSpan={5} className="text-center py-12 text-muted-foreground">
+                  No packages yet. Create your first one.
+                </td>
+              </tr>
+            )}
+            {packages.map((pkg) => (
+              <tr key={pkg.id} className="hover:bg-muted/30 transition-colors">
+                <td className="px-4 py-3 font-medium">{pkg.title}</td>
+                <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{pkg.slug}</td>
+                <td className="px-4 py-3">{pkg.durations.length}</td>
+                <td className="px-4 py-3">
+                  <Badge variant={pkg.is_active ? "default" : "secondary"}>
+                    {pkg.is_active ? "Active" : "Inactive"}
+                  </Badge>
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <Button asChild size="sm" variant="ghost">
+                    <Link href={`/dashboard/packages/${pkg.id}`}>
+                      <Pencil className="h-3.5 w-3.5 mr-1" />
+                      Edit
+                    </Link>
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
