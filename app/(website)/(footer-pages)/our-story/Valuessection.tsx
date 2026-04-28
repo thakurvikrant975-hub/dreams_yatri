@@ -9,72 +9,9 @@ import {
   Headphones,
   Star,
   Users,
-} from "lucide-react"; // swap with Phosphor if you prefer
+} from "lucide-react"; 
+import { VALUES } from "./data";
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   DATA
-───────────────────────────────────────────────────────────────────────────── */
-
-const VALUES = [
-  {
-    icon: <ShieldCheck size={20} />,
-    title: "Transparent Pricing",
-    body: "No hidden charges, no last-minute surprises. Every rupee is accounted for before you pack your bags.",
-    stat: "100%",
-    statLabel: "Price Clarity",
-    image: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=600&q=80",
-    alt: "Mountain landscape representing transparent travel pricing",
-  },
-  {
-    icon: <Clock size={20} />,
-    title: "On-Time Operations",
-    body: "Precision logistics across every destination — from hotel check-ins to Himalayan transfers.",
-    stat: "98%",
-    statLabel: "On-Time Rate",
-    image: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=600&q=80",
-    alt: "Himalayan trail representing reliable travel operations",
-  },
-  {
-    icon: <MapPin size={20} />,
-    title: "Local Expertise",
-    body: "Born in Shimla, built for the mountains. Our ground knowledge converts into seamless experiences.",
-    stat: "15+",
-    statLabel: "Years On Ground",
-    image: "https://images.unsplash.com/photo-1605649487212-47bdab064df7?w=600&q=80",
-    alt: "Shimla hill station representing local travel expertise",
-  },
-  {
-    icon: <Headphones size={20} />,
-    title: "24/7 Support",
-    body: "A real person answers when you call — during your trip, not just while booking.",
-    stat: "24/7",
-    statLabel: "Live Assistance",
-    image: "https://images.unsplash.com/photo-1523906834658-6e24ef2386f9?w=600&q=80",
-    alt: "Beautiful destination representing round the clock travel support",
-  },
-  {
-    icon: <Star size={20} />,
-    title: "Curated Stays",
-    body: "Every hotel and homestay is personally verified. Comfort and character — never a coin toss.",
-    stat: "200+",
-    statLabel: "Verified Properties",
-    image: "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=600&q=80",
-    alt: "Premium hotel room representing curated accommodation selection",
-  },
-  {
-    icon: <Users size={20} />,
-    title: "Group & Family First",
-    body: "Designed for India's diverse travellers — families, couples, pilgrimages, and corporate groups.",
-    stat: "5000+",
-    statLabel: "Happy Travellers",
-    image: "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=600&q=80",
-    alt: "Group of happy travellers representing family and group tours",
-  },
-];
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   COMPONENT
-───────────────────────────────────────────────────────────────────────────── */
 
 export function ValuesSection() {
   return (
@@ -144,6 +81,8 @@ interface Value {
 }
 
 function ValueCard({ v, delay }: { v: Value; delay: number }) {
+    const Icon = v.icon;
+
   return (
     <div>
       <article className="group relative overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.03] hover:border-red-500/30 transition-all duration-500 hover:shadow-[0_0_40px_-8px_rgba(251,43,55,0.25)] cursor-default">
@@ -173,7 +112,7 @@ function ValueCard({ v, delay }: { v: Value; delay: number }) {
 
           {/* Icon badge */}
           <div className="absolute top-4 right-4 w-9 h-9 rounded-lg bg-black/60 backdrop-blur-sm border border-white/10 text-red-400 flex items-center justify-center group-hover:bg-red-500 group-hover:text-white group-hover:border-red-500 transition-all duration-300">
-            {v.icon}
+            <Icon size={18} />
           </div>
         </div>
 
