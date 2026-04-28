@@ -1,4 +1,4 @@
-import { CalendarCheck, Car, CheckCircle2, Clock, Compass, Globe, Headphones, HeartHandshake, Hotel, Mountain, PhoneCall, Plane, ShieldCheck, Sparkles, Star, TrendingUp, Users, Wallet, Map, MapPin, Globe2, Rocket } from "lucide-react";
+import { CalendarCheck, Car, CheckCircle2, Clock, Compass, Globe, Headphones, HeartHandshake, Hotel, Mountain, PhoneCall, Plane, ShieldCheck, Sparkles, Star, TrendingUp, Users, Wallet, Map, MapPin, Globe2, Rocket, Shield, Utensils } from "lucide-react";
 
 
 export const gallery = [
@@ -12,13 +12,68 @@ export const gallery = [
   { id: 8, src: "https://images.unsplash.com/photo-1548013146-72479768bada?w=600&q=80", label: "Ladakh Roads", tag: "India" },
 ];
 
+// ── Service data with Unsplash image URLs ──────────────────────────────────
 export const services = [
-  { Icon: Hotel, title: "Hotel Booking", desc: "Handpicked, confirmed accommodations locked in before you pack — boutique stays to luxury resorts.", color: "text-red-500", bg: "bg-red-50", border: "border-red-100" },
-  { Icon: Car, title: "Cab & Transfers", desc: "Airport pickups, city rides, outstation transfers. Driver details shared 24 hrs in advance. Always on time.", color: "text-orange-500", bg: "bg-orange-50", border: "border-orange-100" },
-  { Icon: Compass, title: "Activity Booking", desc: "Paragliding, safaris, city walks, food tours — every adventure curated and pre-booked for your vibe.", color: "text-amber-500", bg: "bg-amber-50", border: "border-amber-100" },
-  { Icon: CalendarCheck, title: "Itinerary Planning", desc: "Share your dates and preferences. We send back a complete day-by-day plan — no research required.", color: "text-emerald-500", bg: "bg-emerald-50", border: "border-emerald-100" },
-  { Icon: Headphones, title: "24/7 Support", desc: "Missed a flight? Hotel confusion? WhatsApp us at 2 AM. A real human responds in minutes.", color: "text-blue-500", bg: "bg-blue-50", border: "border-blue-100" },
-  { Icon: Wallet, title: "Best Price Promise", desc: "We negotiate rates you can't find online. Same quality, smarter price. No hidden fees, ever.", color: "text-violet-500", bg: "bg-violet-50", border: "border-violet-100" },
+  {
+    Icon: Hotel,
+    title: "Hotel Bookings",
+    desc: "Handpicked accommodations across every budget — from heritage havelis to mountain retreats.",
+    color: "text-rose-600",
+    bg: "bg-rose-50",
+    border: "border-rose-100",
+    image: "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&q=80",
+    imageAlt: "Luxury hotel lobby with elegant interiors for travel packages",
+  },
+  {
+    Icon: Car,
+    title: "Cab & Transfers",
+    desc: "Verified cabs, airport pickups, and intercity transfers — every leg of the journey, covered.",
+    color: "text-amber-600",
+    bg: "bg-amber-50",
+    border: "border-amber-100",
+    image: "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?w=800&q=80",
+    imageAlt: "Private cab transfer through scenic mountain road",
+  },
+  {
+    Icon: MapPin,
+    title: "Sightseeing",
+    desc: "Curated local experiences, guided tours, and activities that make every destination memorable.",
+    color: "text-emerald-600",
+    bg: "bg-emerald-50",
+    border: "border-emerald-100",
+    image: "https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=800&q=80",
+    imageAlt: "Tourists exploring iconic scenic sightseeing destinations",
+  },
+  {
+    Icon: Utensils,
+    title: "Meals & Dining",
+    desc: "Authentic local cuisine included in your itinerary — from Himalayan dhabas to beachside dinners.",
+    color: "text-orange-600",
+    bg: "bg-orange-50",
+    border: "border-orange-100",
+    image: "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=800&q=80",
+    imageAlt: "Beautifully plated local Indian cuisine for travelers",
+  },
+  {
+    Icon: Shield,
+    title: "24/7 Support",
+    desc: "A dedicated manager reachable round the clock — because emergencies don't follow schedules.",
+    color: "text-blue-600",
+    bg: "bg-blue-50",
+    border: "border-blue-100",
+    image: "https://images.unsplash.com/photo-1521791136064-7986c2920216?w=800&q=80",
+    imageAlt: "Travel support team providing 24/7 customer assistance",
+  },
+  {
+    Icon: Sparkles,
+    title: "Customisation",
+    desc: "Every itinerary built from scratch around your dates, budget, and travel style. Nothing off-the-shelf.",
+    color: "text-violet-600",
+    bg: "bg-violet-50",
+    border: "border-violet-100",
+    image: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80",
+    imageAlt: "Custom mountain travel itinerary with scenic Himalayan views",
+  },
 ];
 
 
@@ -29,12 +84,6 @@ export const values = [
   { Icon: PhoneCall, title: "Real Humans, Always", desc: "No chatbots. No automated hold music. When you reach out, a real person who genuinely loves travel picks up.", color: "text-blue-500", bg: "bg-blue-50" },
 ];
 
-export const stats = [
-  { number: "50K+", label: "Happy Travelers", Icon: Users },
-  { number: "200+", label: "Destinations", Icon: Globe },
-  { number: "98%", label: "Hassle-Free Rate", Icon: CheckCircle2 },
-  { number: "24/7", label: "Expert Support", Icon: Clock },
-];
 
 export const testimonials = [
   { name: "Priya S.", route: "Mumbai → Bali", text: "I literally just showed up at the airport. Hotel, cab, day trips — everything was already sorted. This is what travel should feel like.", initials: "PS" },
@@ -173,4 +222,47 @@ export const timelineData = [
       },
     ],
   },
+];
+
+
+export const stats = [
+    { num: "12+", label: "Destinations covered" },
+    { num: "<5m", label: "Expert response time" },
+    { num: "5000+", label: "Travellers served" },
+    { num: "4.9★", label: "Average satisfaction" },
+];
+
+export const painScenes = [
+    {
+        num: "01",
+        title: "Unconfirmed hotel at midnight in a strange city",
+        fix: "Hotel confirmed days prior — check-in briefing sent to you.",
+        image: "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&q=80",
+        height: "h-56",
+        size: "full" as const,
+    },
+    {
+        num: "02",
+        title: "Cab not responding. Stuck at the station.",
+        fix: "Driver briefed & contact shared before you land",
+        image: "https://images.unsplash.com/photo-1464219789935-c2d9d9aba644?w=600&q=80",
+        height: "h-40",
+        size: "half" as const,
+    },
+    {
+        num: "03",
+        title: "Overwhelmed. No idea what to do.",
+        fix: "Curated itinerary, pre-booked for you",
+        image: "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=600&q=80",
+        height: "h-40",
+        size: "half" as const,
+    },
+    {
+        num: "04",
+        title: "40 min on hold. No resolution. No real person.",
+        fix: "Connect with a real expert — response in under 2 minutes",
+        image: "https://images.unsplash.com/photo-1534536281715-e28d76689b4d?w=800&q=80",
+        height: "h-32",
+        size: "full" as const,
+    },
 ];

@@ -8,7 +8,7 @@ import {
   Sparkles, Globe, TrendingUp, ChevronLeft, ChevronRight,
   CalendarCheck, Headphones, Wallet, Mountain
 } from "lucide-react";
-import Hero from "../components/Hero";
+import Image from "next/image";
 import { services, timelineData, values, stats, testimonials, team } from "./data";
 import { Gallery } from "./Gallery";
 import { gallery } from "./data";
@@ -19,6 +19,8 @@ import { OurStoryHero } from "./Ourstoryhero";
 import Link from "next/link";
 import { TeamSection } from "./TeamSection";
 import OurJourneyTimeline from "./TimelineSection";
+import Card from "@/app/components/ui/Card";
+import { OriginSection } from "./OriginSection";
 
 const useInView = (threshold = 0.12) => {
   const ref = useRef(null);
@@ -44,7 +46,7 @@ const Reveal = ({ children, delay = 0, className = "" }: { children: React.React
 
 
 
-function SectionLabel({ children }) {
+function SectionLabel({ children }:{ children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-3 mb-3">
       <div className="w-8 h-0.5 bg-red-500" />
@@ -60,113 +62,143 @@ export default function AboutPage() {
     <div className="bg-white" style={{ fontFamily: "'Segoe UI', system-ui, sans-serif" }}>
 
       <OurStoryHero />
+      <OriginSection />
 
-      {/* ══ 2. HOW IT STARTED ══ */}
-      <section className="py-24 px-6 bg-gray-50">
-        <div className="max-w-6xl mx-auto">
-          <Reveal>
-            <SectionLabel>The Origin</SectionLabel>
+
+
+{/* ══ 3. YOU TRAVEL. WE MANAGE. ══ */}
+<section
+  className="relative py-28 px-6 bg-white overflow-hidden"
+  aria-labelledby="services-heading"
+>
+  {/* Subtle background texture */}
+  <div
+    className="absolute inset-0 opacity-[0.03] pointer-events-none"
+    style={{
+      backgroundImage: `radial-gradient(circle at 1px 1px, #FB2B37 1px, transparent 0)`,
+      backgroundSize: "40px 40px",
+    }}
+    aria-hidden="true"
+  />
+
+  <div className="max-w-7xl mx-auto relative z-10">
+
+    {/* ── Header Block ─────────────────────────────────────── */}
+    <Reveal>
+      <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between mb-20 gap-8">
+        <div>
+          <SectionLabel>What We Do</SectionLabel>
             <SectionHeading
-              text="How It"
-              highlight="Started"
-              highlightPosition="suffix"
-              variant="light"
-            />
-          </Reveal>
-          <div className="grid lg:grid-cols-2 gap-12 items-start mt-10">
-            <div className="space-y-5">
-              <Reveal delay={0.05}>
-                <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm relative">
-                  <div className="absolute -top-5 -left-3">
-                    <div className="bg-red-500 rounded-2xl w-12 h-12 flex items-center justify-center shadow-lg shadow-red-200">
-                      <Quote size={20} className="text-white" />
-                    </div>
-                  </div>
-                  <p className="text-gray-700 text-[17px] leading-relaxed mt-3 mb-4">
-                    "I've always loved to travel. The spontaneity, the new faces, the food you can't find anywhere else. But every trip came with a shadow — the anxiety of logistics in an unfamiliar place."
-                  </p>
-                  <p className="text-gray-700 text-[17px] leading-relaxed">
-                    "One night in Manali, I landed at midnight. Hotel unconfirmed. Cab not responding. Phone at 3%. Standing in the cold, surrounded by strangers —
-                    <strong className="text-gray-900"> I asked myself why something I love feels like punishment.</strong>"
-                  </p>
-                  <div className="mt-7 flex items-center gap-3 pt-6 border-t border-gray-100">
-                    <div className="w-11 h-11 bg-red-100 rounded-full flex items-center justify-center font-black text-red-600">V</div>
-                    <div>
-                      <p className="font-bold text-gray-900 text-sm">Vikrant Thakur</p>
-                      <p className="text-xs text-gray-500">Founder, DremsYatri</p>
-                    </div>
-                  </div>
-                </div>
-              </Reveal>
-              <Reveal delay={0.1}>
-                <div className="bg-red-500 rounded-3xl p-8 text-white">
-                  <Sparkles size={22} className="text-red-200 mb-4" />
-                  <p className="text-xl font-bold mb-3">So I built the solution.</p>
-                  <p className="text-red-100 leading-relaxed">
-                    Roamly was born not as a startup idea, but as a personal mission — remove every ounce of friction from travel so that every person, wherever they go, can focus entirely on the experience and not the logistics.
-                  </p>
-                </div>
-              </Reveal>
-            </div>
-            <div className="space-y-3">
-              {[
-                { Icon: Hotel, problem: "Arriving at midnight to an unconfirmed hotel in a strange city", solution: "Hotel confirmed days in advance. Check-in details sent to your phone." },
-                { Icon: Car, problem: "Cab driver not responding. Standing at the station alone.", solution: "Driver briefed, contact shared, live-tracking available." },
-                { Icon: Compass, problem: "No idea what to do. Overwhelmed by 1,000 Google results.", solution: "Curated activity list, pre-booked, tailored to your interests." },
-                { Icon: Headphones, problem: "40 minutes on hold with faceless customer care, no resolution.", solution: "WhatsApp a real expert. Response in under 5 minutes." },
-              ].map(({ Icon, problem, solution }, i) => (
-                <Reveal key={i} delay={i * 0.07}>
-                  <div className="bg-white rounded-2xl p-5 border border-gray-100 hover:border-red-200 hover:shadow-sm transition-all group">
-                    <div className="flex gap-4 items-start">
-                      <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-red-100 transition-colors mt-0.5">
-                        <Icon size={18} className="text-red-500" />
-                      </div>
-                      <div>
-                        <p className="text-gray-400 line-through text-sm mb-2">{problem}</p>
-                        <div className="flex items-start gap-2">
-                          <CheckCircle2 size={14} className="text-emerald-500 flex-shrink-0 mt-0.5" />
-                          <p className="text-gray-800 text-sm font-medium">{solution}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </Reveal>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ══ 3. YOU TRAVEL. WE MANAGE. ══ */}
-      <section className="py-24 px-6 bg-white">
-        <div className="max-w-6xl mx-auto">
-          <Reveal>
-            <SectionLabel>What We Do</SectionLabel>
-            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between mb-16 gap-6">
-              <SectionHeading
-                text="You Travel"
-                highlight="We Manage"
+                text="You travel and we"
+                highlight="Manage"
                 highlightPosition="suffix"
                 variant="light"
               />
-              <p className="text-gray-500 text-base max-w-sm leading-relaxed">Every detail that keeps you up at night before a trip — hotels, cabs, activities, emergencies — consider it handled.</p>
-            </div>
-          </Reveal>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {services.map(({ Icon, title, desc, color, bg, border }, i) => (
-              <Reveal key={i} delay={i * 0.07}>
-                <div className={`rounded-2xl p-7 border-2 ${border} ${bg} hover:shadow-md transition-all duration-300 h-full group`}>
-                  <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center mb-5 shadow-sm group-hover:scale-110 transition-transform">
-                    <Icon size={22} className={color} />
-                  </div>
-                  <h3 className="text-base font-bold text-gray-900 mb-2">{title}</h3>
-                  <p className="text-gray-600 text-sm leading-relaxed">{desc}</p>
-                </div>
-              </Reveal>
-            ))}
-          </div>
         </div>
-      </section>
+        <p className="text-gray-500 max-w-md leading-relaxed lg:text-right">
+          Every detail that keeps you up at night before a trip — hotels, cabs,
+          activities, emergencies — consider it handled.
+        </p>
+      </div>
+    </Reveal>
+
+    {/* ── Hero Feature Card (top full-width) ──────────────── */}
+    <Reveal>
+      <div className="relative rounded-3xl overflow-hidden mb-5 group h-[380px] md:h-[460px]">
+        <Image
+          src="https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=1600&q=85"
+          alt="Dreams Yatri travel packages — scenic road trip through mountains with happy travellers"
+          fill
+          className="object-cover group-hover:scale-105 transition-transform duration-700 ease-in-out"
+          sizes="(max-width: 768px) 100vw, 1200px"
+          priority
+        />
+        {/* Gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-r from-gray-950/80 via-gray-950/40 to-transparent" />
+
+        {/* Text overlay */}
+        <div className="absolute inset-0 flex flex-col justify-end p-8 md:p-12">
+          <p className="text-rose-400 text-sm font-semibold uppercase tracking-widest mb-3">
+            End-to-End Travel Management
+          </p>
+          <h3 className="text-white text-3xl md:text-4xl font-bold max-w-lg leading-tight">
+            One call. Every detail sorted before you land.
+          </h3>
+          <p className="text-gray-300 text-base mt-3 max-w-md">
+            From the moment you enquire to the moment you return — Dreams Yatri
+            handles every moving part of your trip.
+          </p>
+        </div>
+
+        {/* Trust badge */}
+        <div className="absolute top-6 right-6 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-4 py-3 text-center">
+          <p className="text-white text-2xl font-bold leading-none">5000+</p>
+          <p className="text-gray-300 text-xs mt-1">Happy Travellers</p>
+        </div>
+      </div>
+    </Reveal>
+
+    {/* ── 6-Card Service Grid ──────────────────────────────── */}
+    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+      {services.map(({ Icon, title, desc, color, bg, border, image, imageAlt }, i) => (
+        <Reveal key={i} delay={i * 0.07}>
+          <Card
+            className={`group rounded-2xl border ${border} overflow-hidden hover:shadow-xl transition-all duration-500 h-full flex flex-col shadow-lg border-gray-200`}
+          >
+            {/* Card Image */}
+            <div className="relative h-44">
+              <Image
+                src={image}
+                alt={imageAlt}
+                fill
+                className="object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                loading={i < 3 ? "eager" : "lazy"}
+              />
+              {/* Subtle tint overlay matching card color */}
+              <div className={`absolute inset-0 ${bg} opacity-10 group-hover:opacity-10 transition-opacity duration-500`} />
+
+              {/* Icon badge floating on image */}
+              <div className="absolute bottom-0 left-5 translate-y-1/2 z-50">
+                <div className={`w-12 h-12 rounded-xl ${bg} border-2 ${border} flex items-center justify-center shadow-md z-50`}>
+                  <Icon size={20} className={color} />
+                </div>
+              </div>
+            </div>
+
+            {/* Card Body */}
+            <div className="p-6 pt-10 flex flex-col flex-1">
+              <h3 className="text-base font-bold text-gray-900 mb-2">{title}</h3>
+              <p className="text-gray-500 text-sm leading-relaxed flex-1">{desc}</p>
+              <div className={`mt-4 h-0.5 w-8 ${bg} rounded-full border ${border} group-hover:w-16 transition-all duration-500`} />
+            </div>
+          </Card>
+        </Reveal>
+      ))}
+    </div>
+
+    {/* ── Bottom Stats Row ─────────────────────────────────── */}
+    <Reveal delay={0.3}>
+      <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-px bg-gray-100 rounded-2xl overflow-hidden border border-gray-100">
+        {[
+          { value: "12+", label: "Destinations Covered" },
+          { value: "5000+", label: "Trips Completed" },
+          { value: "4.8★", label: "Average Rating" },
+          { value: "24/7", label: "Support Available" },
+        ].map(({ value, label }) => (
+          <div
+            key={label}
+            className="bg-white py-8 px-6 text-center hover:bg-rose-50 transition-colors duration-300"
+          >
+            <p className="text-3xl font-bold text-[#FB2B37]">{value}</p>
+            <p className="text-gray-500 text-sm mt-1">{label}</p>
+          </div>
+        ))}
+      </div>
+    </Reveal>
+
+  </div>
+</section>
 
       {/* ══ 4. PHOTO GALLERY ══ */}
       <section className="py-24 px-6 bg-gray-50">

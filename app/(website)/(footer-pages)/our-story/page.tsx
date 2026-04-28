@@ -9,6 +9,9 @@ import {
 import { PageHero } from "../components/PageHero";
 import { SectionHeading } from "../components/SectionHeading";
 import Link from "next/link";
+import OurJourneyTimeline from "../about/TimelineSection";
+import { ValuesSection } from "./Valuessection";
+import VisionSection from "./Visionsection";
 
 // ── Intersection observer hook for scroll reveals ─────────────────────────────
 function useInView(threshold = 0.15) {
@@ -58,34 +61,6 @@ function Reveal({ children, delay = 0, className = "" }: { children: React.React
         </div>
     );
 }
-
-// ── Data ──────────────────────────────────────────────────────────────────────
-const TIMELINE = [
-    { year: "2019", icon: <Mountain size={16} />, title: "The Midnight That Changed Everything", body: "Stranded in Manali at midnight — hotel unconfirmed, cab missing, phone at 3%. That moment of helpless cold became the spark for everything." },
-    { year: "2020", icon: <Zap size={16} />, title: "Built in Lockdown", body: "While the world paused, Vikrant mapped out every friction point in travel. Vendor networks, pricing models, backup protocols — the blueprint took shape." },
-    { year: "2021", icon: <Users size={16} />, title: "First 100 Travellers", body: "Word of mouth carried us further than any ad. Hundred families explored Himachal Pradesh with zero logistics anxiety — that was the proof of concept." },
-    { year: "2022", icon: <Globe size={16} />, title: "Expanding the Map", body: "Kashmir, Rajasthan, Uttarakhand, Goa — each destination added with the same obsession: can we make this completely worry-free?" },
-    { year: "2023", icon: <Plane size={16} />, title: "Going International", body: "Dubai and Thailand joined the portfolio. 10,000+ travellers had trusted us by year-end. The team grew to match the ambition." },
-    { year: "2024+", icon: <Star size={16} />, title: "The Vision Scales", body: "50+ destinations. A platform in the making. And the same promise we made in 2021: you travel, we handle everything else." },
-];
-
-const VALUES = [
-    { icon: <Shield size={22} />, title: "Zero Surprises", body: "Every hotel, cab, and activity is confirmed before you depart. If something changes, we fix it — not you." },
-    { icon: <Phone size={22} />, title: "Always Reachable", body: "Day or night, our team is a call away. Emergencies don't keep business hours, and neither do we." },
-    { icon: <Heart size={22} />, title: "Made Personal", body: "Cookie-cutter packages don't exist here. Every trip is shaped around your pace, your preferences, your people." },
-    { icon: <Smile size={22} />, title: "Joy is the Metric", body: "We don't measure success in bookings. We measure it in 'I can't wait to go back.'" },
-    { icon: <Navigation size={22} />, title: "Local Depth", body: "We don't Google your destination. Our vendor network means you eat where locals eat and sleep where views are real." },
-    { icon: <CheckCircle size={22} />, title: "Honest Pricing", body: "No hidden charges. No bait-and-switch. The price you see is the price you pay — with a full cost breakdown." },
-];
-
-const STATS = [
-    { value: 10000, suffix: "+", label: "Happy Travellers" },
-    { value: 50, suffix: "+", label: "Destinations" },
-    { value: 98, suffix: "%", label: "Satisfaction Rate" },
-    { value: 5, suffix: "+", label: "Years of Journeys" },
-];
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 export default function OurStoryPage() {
     const [activeYear, setActiveYear] = useState(0);
@@ -185,163 +160,18 @@ export default function OurStoryPage() {
             </section>
 
 
-            {/* ── VISION ───────────────────────────────────────────────────────── */}
-            <section id="vision" className="py-24 sm:py-32 bg-white">
-                <div className="max-w-6xl mx-auto px-6 sm:px-8">
 
-                    <Reveal className="text-center mb-20 max-w-2xl mx-auto">
-                        <p className="text-xs font-bold tracking-widest uppercase text-red-500 mb-4">Our Vision</p>
-                        <SectionHeading
-                            text="Travel should feel like freedom"
-                            highlight="not a second job."
-                            highlightPosition="suffix"
-                            variant="light"
-                        />
-
-                        <p className="text-gray-500 text-base leading-relaxed">
-                            We exist so that every traveller — first-timer or seasoned explorer — can be fully present in the moment they've been looking forward to, without a single logistics worry clouding it.
-                        </p>
-                    </Reveal>
-
-                    {/* Vision pillars — asymmetric layout */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        {/* Big left card */}
-                        <Reveal delay={0} className="md:col-span-2 bg-gray-950 rounded-3xl p-8 sm:p-10 relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 w-64 h-64 bg-red-500/10 rounded-full blur-3xl group-hover:bg-red-500/15 transition-all duration-700" />
-                            <Sunrise size={36} className="text-red-500 mb-6" />
-                            <h3 className="text-white text-2xl font-bold mb-4" style={{ fontFamily: "'Playfair Display', serif" }}>
-                                A world where you show up and just… enjoy.
-                            </h3>
-                            <p className="text-gray-400 text-base leading-relaxed max-w-lg">
-                                Our vision is a travel experience so seamlessly organised that the only decision you make on the road is what to eat next. Hotels confirmed. Cabs waiting. Guides briefed. Every variable accounted for before you board your flight.
-                            </p>
-                            <div className="mt-8 flex flex-wrap gap-3">
-                                {["Pre-confirmed stays", "24/7 on-trip support", "Zero hidden costs", "Backup plans always ready"].map((t, i) => (
-                                    <span key={i} className="text-xs font-semibold bg-red-500/15 text-red-400 border border-red-500/20 px-3 py-1.5 rounded-full">{t}</span>
-                                ))}
-                            </div>
-                        </Reveal>
-
-                        {/* Right column — two stacked cards */}
-                        <div className="flex flex-col gap-6">
-                            <Reveal delay={100} className="bg-red-500 rounded-3xl p-7 relative overflow-hidden group">
-                                <div className="absolute -bottom-8 -right-8 w-32 h-32 rounded-full bg-white/10" />
-                                <Heart size={28} className="text-white mb-4" />
-                                <h3 className="text-white text-lg font-bold mb-2">Designed for Joy</h3>
-                                <p className="text-red-100 text-sm leading-relaxed">
-                                    Every package is engineered backwards from the feeling we want you to have — not from what's cheapest to operate.
-                                </p>
-                            </Reveal>
-
-                            <Reveal delay={160} className="bg-gray-50 border border-gray-200 rounded-3xl p-7">
-                                <Compass size={28} className="text-gray-900 mb-4" />
-                                <h3 className="text-gray-900 text-lg font-bold mb-2">Rooted in India</h3>
-                                <p className="text-gray-500 text-sm leading-relaxed">
-                                    From Shimla's misty ridges to Rajasthan's golden deserts — we know these places because we live them.
-                                </p>
-                            </Reveal>
-                        </div>
-                    </div>
-                </div>
-            </section>
 
             {/* ── TIMELINE ─────────────────────────────────────────────────────── */}
-            <section className="py-24 sm:py-32 bg-gray-50">
-                <div className="max-w-6xl mx-auto px-6 sm:px-8">
+      <OurJourneyTimeline />
+      <ValuesSection />
+      <VisionSection />
 
-                    <Reveal className="text-center mb-16">
-                        <p className="text-xs font-bold tracking-widest uppercase text-red-500 mb-4">Our Journey</p>
-                        <SectionHeading
-                            text="From a cold midnight to"
-                            highlight="10,000+ journeys."
-                            highlightPosition="suffix"
-                            variant="light"
-                        />
-                    </Reveal>
 
-                    {/* Timeline — desktop: alternating; mobile: left-aligned */}
-                    <div className="relative">
-                        {/* Vertical line */}
-                        <div className="hidden md:block absolute left-1/2 top-0 bottom-0 w-px bg-gray-200 -translate-x-1/2" />
-
-                        <div className="flex flex-col gap-0">
-                            {TIMELINE.map((item, i) => {
-                                const isLeft = i % 2 === 0;
-                                return (
-                                    <Reveal key={i} delay={i * 60}>
-                                        <div className={`relative flex items-start gap-6 md:gap-0 py-8 ${isLeft ? "md:flex-row" : "md:flex-row-reverse"}`}>
-
-                                            {/* Content box */}
-                                            <div className={`flex-1 md:max-w-[calc(50%-40px)] ${isLeft ? "md:pr-12 md:text-right" : "md:pl-12"}`}>
-                                                <button
-                                                    onClick={() => setActiveYear(activeYear === i ? -1 : i)}
-                                                    className="w-full text-left md:text-inherit group"
-                                                >
-                                                    <div className={`bg-white border rounded-2xl p-6 transition-all duration-300 hover:shadow-lg hover:border-red-200 cursor-pointer ${activeYear === i ? "border-red-300 shadow-md shadow-red-500/10" : "border-gray-200"} ${isLeft ? "md:ml-auto" : ""}`}>
-                                                        <div className={`flex items-center gap-3 mb-3 ${isLeft ? "md:justify-end" : ""}`}>
-                                                            <span className="inline-flex items-center gap-1.5 bg-red-50 text-red-500 border border-red-100 text-xs font-bold px-3 py-1 rounded-full">
-                                                                {item.icon} {item.year}
-                                                            </span>
-                                                        </div>
-                                                        <h3 className="text-gray-900 font-bold text-base mb-2">{item.title}</h3>
-                                                        <p className="text-gray-500 text-sm leading-relaxed">{item.body}</p>
-                                                    </div>
-                                                </button>
-                                            </div>
-
-                                            {/* Centre dot */}
-                                            <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
-                                                <div className={`w-4 h-4 rounded-full border-2 transition-all duration-300 ${activeYear === i ? "bg-red-500 border-red-500 scale-125" : "bg-white border-gray-300"}`} />
-                                            </div>
-
-                                            {/* Mobile left dot */}
-                                            <div className="md:hidden flex-shrink-0 mt-6">
-                                                <div className={`w-3 h-3 rounded-full border-2 ${activeYear === i ? "bg-red-500 border-red-500" : "bg-white border-gray-300"}`} />
-                                            </div>
-
-                                            {/* Empty right side for alternation */}
-                                            <div className="hidden md:block flex-1 md:max-w-[calc(50%-40px)]" />
-                                        </div>
-                                    </Reveal>
-                                );
-                            })}
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* ── VALUES ───────────────────────────────────────────────────────── */}
-            <section className="py-24 sm:py-32 bg-white">
-                <div className="max-w-6xl mx-auto px-6 sm:px-8">
-
-                    <Reveal className="text-center mb-16">
-                        <p className="text-xs font-bold tracking-widest uppercase text-red-500 mb-4">What We Stand For</p>
-                        <SectionHeading
-                            text="The promises we "
-                            highlight="don't break"
-                            highlightPosition="suffix"
-                            variant="light"
-                        />
-                    </Reveal>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                        {VALUES.map((v, i) => (
-                            <Reveal key={i} delay={i * 60}
-                                className="group border border-gray-200 hover:border-red-200 bg-white hover:bg-red-50/30 rounded-2xl p-7 transition-all duration-300 hover:shadow-lg hover:shadow-red-500/5 cursor-default">
-                                <div className="w-11 h-11 rounded-xl bg-red-50 text-red-500 flex items-center justify-center mb-5 group-hover:bg-red-500 group-hover:text-white transition-colors duration-300">
-                                    {v.icon}
-                                </div>
-                                <h3 className="text-gray-900 font-bold text-base mb-2">{v.title}</h3>
-                                <p className="text-gray-500 text-sm leading-relaxed">{v.body}</p>
-                            </Reveal>
-                        ))}
-                    </div>
-                </div>
-            </section>
 
             {/* ── TEAM TEASER ──────────────────────────────────────────────────── */}
             <section className="py-20 bg-gray-50">
-                <div className="max-w-6xl mx-auto px-6 sm:px-8">
+                <div className="max-w-7xl mx-auto px-6 sm:px-8">
                     <div className="bg-gray-950 rounded-3xl overflow-hidden">
                         <div className="grid md:grid-cols-2 gap-0">
 
