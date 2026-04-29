@@ -111,7 +111,7 @@ function Avatar({ initials, index, size = 52 }: { initials: string; index: numbe
       width: size, height: size, borderRadius: "50%",
       background: bg, color: text,
       display: "flex", alignItems: "center", justifyContent: "center",
-      fontWeight: 800, fontSize: size * 0.32, fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontWeight: 800, fontSize: size * 0.32,
       flexShrink: 0, border: "2.5px solid white",
       boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
     }}>
@@ -188,8 +188,6 @@ export function FeaturedTestimonialSlider({
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,700;0,800;1,700&display=swap');
-
         @keyframes slide-in-right  { from { opacity:0; transform:translateX(40px);  } to { opacity:1; transform:none; } }
         @keyframes slide-in-left   { from { opacity:0; transform:translateX(-40px); } to { opacity:1; transform:none; } }
         @keyframes slide-out-right { from { opacity:1; transform:none; } to { opacity:0; transform:translateX(-40px); } }
@@ -350,7 +348,6 @@ export function FeaturedTestimonialSlider({
                   <blockquote
                     className="ft-quote-delay text-gray-700 leading-relaxed flex-1 mb-6"
                     style={{
-                      fontFamily: "'Plus Jakarta Sans', sans-serif",
                       fontSize:   "clamp(0.9rem, 1.4vw, 1.02rem)",
                     }}
                   >
@@ -373,7 +370,6 @@ export function FeaturedTestimonialSlider({
                     <p
                       className="pl-2"
                       style={{
-                        fontFamily: "'Playfair Display', serif",
                         fontSize:   "1rem",
                         fontStyle:  "italic",
                         fontWeight: 700,
@@ -392,8 +388,7 @@ export function FeaturedTestimonialSlider({
                   >
                     <Avatar initials={item.avatar} index={cur} size={48} />
                     <div className="flex-1 min-w-0">
-                      <p className="font-bold text-gray-900 text-sm leading-tight mb-1"
-                         style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                      <p className="font-bold text-gray-900 text-sm leading-tight mb-1">
                         {item.name}
                       </p>
                       <div className="flex items-center gap-2 mb-0.5">

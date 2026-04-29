@@ -78,6 +78,20 @@ export const AVATAR_COLORS = [
   ["#F3F4F6", "#374151"], ["#FFF7ED", "#EA580C"], ["#F0FDF4", "#16A34A"],
 ];
 
+type FeaturedTestimonial = {
+  name:        string;
+  avatar:      string;
+  location:    string;
+  destination: string;
+  rating:      number;
+  date:        string;
+  image:       string;
+  quote:       string;
+  highlight:   string;
+  trip:        string;
+  bgAccent?:   string; // optional tint color per slide
+};
+
 export const FEATURED_ITEMS: FeaturedTestimonial[] = [
   {
     name:        "Priya & Rohit Sharma",

@@ -99,22 +99,37 @@ const Reviews = () => {
             <section className="max-w-6xl mx-auto px-6 sm:px-8 py-16">
 
                 {/* Filter bar */}
-                <div className="mb-10">
-                    <div className="flex items-center gap-3 flex-wrap">
-                        <div className="flex items-center gap-2 text-gray-400 text-sm font-semibold mr-1">
-                            <Filter size={14} />
-                            Filter by
+                <div className="mb-12">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+
+                        {/* Label */}
+                        <div className="flex items-center gap-2 text-gray-500 text-sm font-medium">
+                            <div className="p-1.5 rounded-md bg-gray-100">
+                                <Filter size={14} />
+                            </div>
+                            <span>Filter destinations</span>
                         </div>
-                        {DESTINATIONS.map((d) => (
-                            <button
-                                key={d}
-                                type="button"
-                                onClick={() => { setActiveFilter(d); setShowAll(false); }}
-                                className={`filter-btn ${activeFilter === d ? "active" : ""}`}
-                            >
-                                {d}
-                            </button>
-                        ))}
+
+                        {/* Filters */}
+                        <div className="flex flex-wrap gap-2">
+
+                            {DESTINATIONS.map((d) => (
+                                <button
+                                    key={d}
+                                    onClick={() => {
+                                        setActiveFilter(d);
+                                        setShowAll(false);
+                                    }}
+                                    className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200
+      ${activeFilter === d
+                                            ? "bg-black text-white shadow-sm scale-[1.02]"
+                                            : "bg-gray-100 text-gray-600 hover:bg-gray-200 hover:scale-[1.03]"
+                                        }`}
+                                >
+                                    {d}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
 
