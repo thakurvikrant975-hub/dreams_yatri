@@ -5,14 +5,8 @@ import { Reveal } from "../components/Reveal";
 import { SectionLabel } from "../components/SectionLabel";
 import { SectionHeading } from "../components/SectionHeading";
 import { Quote } from "lucide-react";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-type GalleryItem = {
-  src: string;
-  alt: string;
-  caption: string;
-  span?: "col" | "row" | "both" | "none";
-};
+import { CULTURE_POINTS, TESTIMONIALS, GALLERY } from "./data";
+import Card from "@/app/components/ui/Card";
 
 type Testimonial = {
   quote: string;
@@ -21,80 +15,6 @@ type Testimonial = {
   initials: string;
   color: string;
 };
-
-// ─── Data ─────────────────────────────────────────────────────────────────────
-const GALLERY: GalleryItem[] = [
-  {
-    src: "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=900&q=80",
-    alt: "Team collaboration",
-    caption: "Strategy sessions that actually get things done",
-    span: "col",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1600880292203-757bb62b4baf?w=800&q=80",
-    alt: "Team at work",
-    caption: "A culture of focus and ownership",
-    span: "none",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=800&q=80",
-    alt: "Office moments",
-    caption: "Good vibes, always",
-    span: "none",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1506929562872-bb421503ef21?w=900&q=80",
-    alt: "FAM Trip - Beach",
-    caption: "FAM trip — Bali 2024",
-    span: "col",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1524492412937-b28074a5d7da?w=900&q=80",
-    alt: "FAM Trip - Rajasthan",
-    caption: "FAM trip — Jaipur, Rajasthan",
-    span: "none",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1519671482749-fd09be7ccebf?w=800&q=80",
-    alt: "Team celebration",
-    caption: "We celebrate every win — big or small",
-    span: "none",
-  },
-];
-
-const TESTIMONIALS: Testimonial[] = [
-  {
-    quote:
-      "I joined as a travel executive and within 8 months I was leading my own destination vertical. The growth here is real — if you put in the work, it shows.",
-    name: "Priya S.",
-    role: "Destination Lead – Kashmir",
-    initials: "PS",
-    color: "bg-red-100 text-red-600",
-  },
-  {
-    quote:
-      "The FAM trips are genuinely one of the best perks I've ever had. I've now been to Spiti, Rajasthan, and Goa — all while doing my job better.",
-    name: "Arjun M.",
-    role: "Senior Sales Executive",
-    initials: "AM",
-    color: "bg-violet-100 text-violet-600",
-  },
-  {
-    quote:
-      "Working from Shimla is a different experience altogether. The pace, the views, the team — it's a work environment I never want to leave.",
-    name: "Kavya T.",
-    role: "Operations Manager",
-    initials: "KT",
-    color: "bg-emerald-100 text-emerald-600",
-  },
-];
-
-const CULTURE_POINTS = [
-  { label: "Ownership over hierarchy", icon: "🏆" },
-  { label: "Transparent communication", icon: "💬" },
-  { label: "Travel-first mindset", icon: "✈️" },
-  { label: "No-nonsense hiring", icon: "⚡" },
-];
 
 // ─── Gallery Grid ─────────────────────────────────────────────────────────────
 function GalleryGrid() {
@@ -140,7 +60,7 @@ function GalleryGrid() {
 // ─── Testimonial Card ─────────────────────────────────────────────────────────
 function TestimonialCard({ item }: { item: Testimonial }) {
   return (
-    <div className="relative bg-white border border-gray-100 rounded-2xl p-7 shadow-sm
+    <Card className="relative bg-white border border-gray-100 rounded-2xl p-7 shadow-sm
                     hover:shadow-md hover:-translate-y-0.5 transition-all duration-300">
       {/* Quote icon */}
       <div className="w-8 h-8 rounded-xl bg-red-50 flex items-center justify-center mb-5">
@@ -177,7 +97,7 @@ function TestimonialCard({ item }: { item: Testimonial }) {
           </p>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -212,7 +132,7 @@ export default function LifeAtDreamsYatri() {
       {/* Culture Pillars */}
       <Reveal className="mb-20">
         <div className="bg-gray-950 rounded-3xl p-8 sm:p-12">
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid sm:grid-cols-2 gap-6">
             {/* Heading block */}
             <div className="lg:col-span-1 flex flex-col justify-center">
               <p
@@ -221,32 +141,37 @@ export default function LifeAtDreamsYatri() {
               >
                 Our Culture
               </p>
-              <h3
-                className="text-white font-extrabold leading-snug"
-                style={{
-                  fontFamily: "'Playfair Display', serif",
-                  fontSize: "clamp(1.2rem, 2.5vw, 1.6rem)",
-                }}
-              >
-                What makes us different
-              </h3>
+              <SectionHeading
+                text="What makes us"
+                highlight="different"
+                highlightPosition="suffix"
+                variant="dark"
+                level="h3"
+              />
             </div>
 
-            {/* Culture points */}
-            {CULTURE_POINTS.map((p, i) => (
-              <div
-                key={i}
-                className="flex items-center gap-4 bg-white/5 border border-white/10 rounded-2xl px-5 py-4"
-              >
-                <span className="text-2xl">{p.icon}</span>
-                <p
-                  className="text-white font-semibold text-sm leading-snug"
-                  style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-                >
-                  {p.label}
-                </p>
-              </div>
-            ))}
+            <div className="grid grid-cols-2 gap-3 w-full">
+              {CULTURE_POINTS.map((p, i) => {
+                const Icon = p.icon;
+
+                return (
+                  <div
+                    key={i}
+                    className="flex items-center w-full gap-4 bg-white/5 border border-white/10 rounded-2xl px-5 py-4"
+                  >
+                    <div className="flex items-center justify-center w-12 h-10 rounded-xl bg-white/10">
+                      <Icon size={20} className="text-white/50" />
+                    </div>
+
+                    <p
+                      className="text-white font-semibold text-sm leading-snug"
+                    >
+                      {p.label}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </Reveal>
@@ -254,14 +179,14 @@ export default function LifeAtDreamsYatri() {
       {/* Team Voices */}
       <Reveal className="mb-4">
         <div className="flex items-center gap-3 mb-8">
-          <div className="h-px flex-1 bg-gray-100" />
+          <div className="h-px flex-1 bg-red-100" />
           <p
-            className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400"
+            className="text-[11px] font-bold uppercase tracking-[0.2em] text-red-400"
             style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
           >
             Team Voices
           </p>
-          <div className="h-px flex-1 bg-gray-100" />
+          <div className="h-px flex-1 bg-red-100" />
         </div>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">

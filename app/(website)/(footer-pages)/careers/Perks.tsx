@@ -2,6 +2,8 @@
 
 import { Reveal } from "../components/Reveal";
 import { PERKS } from "./data";
+import Card from "@/app/components/ui/Card";
+
 
 export default function Perks() {
   return (
@@ -9,7 +11,7 @@ export default function Perks() {
       <Reveal>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {PERKS.map(({ icon: Icon, title, desc }, i) => (
-            <div
+            <Card
               key={i}
               className="group relative bg-white border border-gray-100 rounded-2xl p-6
                          hover:border-red-200 hover:shadow-md hover:-translate-y-0.5
@@ -36,7 +38,7 @@ export default function Perks() {
               >
                 {desc}
               </p>
-            </div>
+            </Card>
           ))}
         </div>
       </Reveal>

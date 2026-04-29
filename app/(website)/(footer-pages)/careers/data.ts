@@ -1,10 +1,30 @@
-import { Globe, TrendingUp, Users, Heart } from "lucide-react";
+import { Globe, TrendingUp, Users, Heart, Gift, ShieldCheck, Coffee, Zap, MapPin, Trophy, MessageCircle, Plane } from "lucide-react";
+
 import { LucideIcon } from "lucide-react";
 
 type Perk = {
   icon: LucideIcon;
   title: string;
   desc: string;
+};
+
+type FeaturedOffer = {
+  tag: string;
+  title: string;
+  subtitle: string;
+  body: string;
+  image: string;
+  stat: string;
+  statLabel: string;
+};
+
+
+type Offer = {
+  icon: LucideIcon;
+  title: string;
+  desc: string;
+  accent: string;
+  bg: string;
 };
 
 export const PERKS: Perk[] = [
@@ -135,3 +155,173 @@ export const OPENINGS = [
   },
 ];
 
+
+// ─── Data ─────────────────────────────────────────────────────────────────────
+export const FEATURED: FeaturedOffer[] = [
+  {
+    tag: "International Travel",
+    title: "Annual International Tour Package",
+    subtitle: "See the world — on us.",
+    body:
+      "Every year, Dreams Yatri sends its team on a fully company-sponsored international trip. Past destinations include Bali, Dubai, and Thailand. You help people travel the world — so should you.",
+    image:
+      "https://plus.unsplash.com/premium_photo-1697729914552-368899dc4757?w=900&q=80",
+    stat: "1",
+    statLabel: "Intl. trip / year",
+  },
+  {
+    tag: "FAM Trips",
+    title: "Familiarisation Tours Across India",
+    subtitle: "Know what you sell, firsthand.",
+    body:
+      "Regularly scheduled FAM trips take our team to the destinations we sell — Kashmir, Rajasthan, Spiti, and more. These aren't leisure trips; they're how we build deep product knowledge and craft better experiences for our customers.",
+    image:
+      "https://images.unsplash.com/photo-1614591276564-7b3e69347a48?w=900&q=80",
+    stat: "6+",
+    statLabel: "FAM trips / year",
+  },
+];
+
+export const OFFERS: Offer[] = [
+  {
+    icon: TrendingUp,
+    title: "Merit-Based Growth",
+    desc: "Fast-track promotions tied to impact, not tenure. At an early-stage company, your contributions are noticed quickly.",
+    accent: "text-violet-600",
+    bg: "bg-violet-50 border-violet-100",
+  },
+  {
+    icon: Gift,
+    title: "Employee Travel Discounts",
+    desc: "Enjoy exclusive discounts on personal bookings — for you, your family, and your friends — on all our packages.",
+    accent: "text-pink-600",
+    bg: "bg-pink-50 border-pink-100",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Stable Salary + Incentives",
+    desc: "Competitive fixed pay with performance incentives. Sales roles come with uncapped earning potential.",
+    accent: "text-emerald-600",
+    bg: "bg-emerald-50 border-emerald-100",
+  },
+  {
+    icon: Coffee,
+    title: "Collaborative Environment",
+    desc: "A small, focused team where ideas are welcomed. No bureaucracy — just good people doing meaningful work together.",
+    accent: "text-amber-600",
+    bg: "bg-amber-50 border-amber-100",
+  },
+  {
+    icon: Zap,
+    title: "Direct Impact",
+    desc: "Every person on the team directly shapes company outcomes. Your work is never invisible here.",
+    accent: "text-sky-600",
+    bg: "bg-sky-50 border-sky-100",
+  },
+  {
+    icon: MapPin,
+    title: "Work From Shimla",
+    desc: "Our headquarters is in one of India's most beautiful hill stations — fresh air, mountain views, and a great quality of life.",
+    accent: "text-red-600",
+    bg: "bg-red-50 border-red-100",
+  },
+];
+
+
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+type GalleryItem = {
+  src: string;
+  alt: string;
+  caption: string;
+  span?: "col" | "row" | "both" | "none";
+};
+
+type Testimonial = {
+  quote: string;
+  name: string;
+  role: string;
+  initials: string;
+  color: string;
+};
+
+// ─── Data ─────────────────────────────────────────────────────────────────────
+export const GALLERY: GalleryItem[] = [
+  {
+    src: "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=900&q=80",
+    alt: "Team collaboration",
+    caption: "Strategy sessions that actually get things done",
+    span: "col",
+  },
+  {
+    src: "https://images.unsplash.com/photo-1600880292203-757bb62b4baf?w=800&q=80",
+    alt: "Team at work",
+    caption: "A culture of focus and ownership",
+    span: "none",
+  },
+  {
+    src: "https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=800&q=80",
+    alt: "Office moments",
+    caption: "Good vibes, always",
+    span: "none",
+  },
+  {
+    src: "https://images.unsplash.com/photo-1506929562872-bb421503ef21?w=900&q=80",
+    alt: "FAM Trip - Beach",
+    caption: "FAM trip — Bali 2024",
+    span: "col",
+  },
+  {
+    src: "https://images.unsplash.com/photo-1506461883276-594a12b11cf3?w=900&q=80",
+    alt: "FAM Trips to employees",
+    caption: "FAM Trips to our team",
+    span: "none",
+  },
+  {
+    src: "https://plus.unsplash.com/premium_photo-1663075847012-c781e0d194ce?w=800&q=80",
+    alt: "Monthly Training",
+    caption: "Monthly training sessions to upskill our team",
+    span: "none",
+  },
+  {
+    src: "https://plus.unsplash.com/premium_photo-1734658702777-8b770b41d753?w=800&q=80",
+    alt: "Office celebration",
+    caption: "Celebrating our team's achievements",
+    span: "none",
+  },
+];
+
+export const TESTIMONIALS: Testimonial[] = [
+  {
+    quote:
+      "I joined as a travel executive and within 8 months I was leading my own destination vertical. The growth here is real — if you put in the work, it shows.",
+    name: "Priya S.",
+    role: "Destination Lead – Kashmir",
+    initials: "PS",
+    color: "bg-red-100 text-red-600",
+  },
+  {
+    quote:
+      "The FAM trips are genuinely one of the best perks I've ever had. I've now been to Spiti, Rajasthan, and Goa — all while doing my job better.",
+    name: "Arjun M.",
+    role: "Senior Sales Executive",
+    initials: "AM",
+    color: "bg-violet-100 text-violet-600",
+  },
+  {
+    quote:
+      "Working from Shimla is a different experience altogether. The pace, the views, the team — it's a work environment I never want to leave.",
+    name: "Kavya T.",
+    role: "Operations Manager",
+    initials: "KT",
+    color: "bg-emerald-100 text-emerald-600",
+  },
+];
+
+
+export const CULTURE_POINTS = [
+  { label: "Ownership over hierarchy", icon: Trophy },
+  { label: "Transparent communication", icon: MessageCircle },
+  { label: "Travel-first mindset", icon: Plane },
+  { label: "No-nonsense hiring", icon: Zap },
+];

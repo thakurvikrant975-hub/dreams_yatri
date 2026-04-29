@@ -15,11 +15,8 @@ export default function CareersPage() {
   return (
     <div
       className="bg-white min-h-screen"
-      style={{ fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif" }}
     >
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,700;0,800;1,700&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-      `}</style>
+
 
       {/* ── HERO ── */}
       <Hero variant="dark" decoration="grid" showWave watermark="✈">
