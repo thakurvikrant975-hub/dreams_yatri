@@ -19,7 +19,7 @@ export type PackageQuery = {
     id: string;
     name: string;
     email: string | null;
-    phone: string;
+    phone: string; 
     countryCode: string;
     leadProfileId: string | null;
     message: string | null;

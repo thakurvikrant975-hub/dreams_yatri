@@ -552,3 +552,25 @@ body {
     --sidebar-ring: oklch(0.556 0 0);
 
 }
+
+
+/* timeline here */
+/* This lets Tailwind respond to the JS-added class */
+.tl-item .tl-dot {
+  @apply bg-gray-300 transition-all duration-500 ease-in-out;
+}
+.tl-item.is-visible .tl-dot {
+  @apply bg-red-500 shadow-[0_0_0_4px_#fee2e2];
+}
+.tl-item .tl-year {
+  @apply text-gray-400 transition-colors duration-500;
+}
+.tl-item.is-visible .tl-year {
+  @apply text-red-400;
+}
+.tl-item .tl-card {
+  @apply opacity-0 translate-y-3 transition-all duration-500 ease-out;
+}
+.tl-item.is-visible .tl-card {
+  @apply opacity-100 translate-y-0;
+}

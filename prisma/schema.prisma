@@ -204,10 +204,13 @@ enum TimelineAction {
 
 // ── Booking (updated) ─────────────────────────────────────────────────────────
 
+// ── Booking (updated) ─────────────────────────────────────────────────────────
+
 model Booking {
   id            String        @id @default(cuid())
   bookingNumber String        @unique
   userId        String
+  packageId     Int? // LINK TO PACKAGE — critical
   packageId     Int? // LINK TO PACKAGE — critical
   destinationId Int
   tripType      TripType
@@ -232,13 +235,36 @@ model Booking {
   totalAmount  Decimal @db.Decimal(10, 2)
   paidAmount   Decimal @default(0) @db.Decimal(10, 2)
   currency     String  @default("INR")
+  status        BookingStatus @default(PENDING_REVIEW)
+
+  // Customer preferences at booking time
+  cabType         CabType         @default(INNOVA)
+  roomSharingType RoomSharingType @default(SHARED)
+  mealPlan        MealPlan        @default(MAP)
+
+  // Calculated price breakdown (snapshot at booking time)
+  hotelCost    Decimal @default(0) @db.Decimal(10, 2)
+  cabCost      Decimal @default(0) @db.Decimal(10, 2)
+  mealCost     Decimal @default(0) @db.Decimal(10, 2)
+  subtotal     Decimal @default(0) @db.Decimal(10, 2)
+  marginAmount Decimal @default(0) @db.Decimal(10, 2)
+  gstAmount    Decimal @default(0) @db.Decimal(10, 2)
+  totalAmount  Decimal @db.Decimal(10, 2)
+  paidAmount   Decimal @default(0) @db.Decimal(10, 2)
+  currency     String  @default("INR")
 
   notes        String?
   cancelledAt  DateTime?
   cancelReason String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+  notes        String?
+  cancelledAt  DateTime?
+  cancelReason String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
+  // Pipeline fields
   // Pipeline fields
   currentDepartmentId     String?
   currentAssigneeId       String?
@@ -258,7 +284,22 @@ model Booking {
   destination   destinations          @relation(fields: [destinationId], references: [id])
   user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   package       packages?             @relation(fields: [packageId], references: [id])
+  // Relations
+  destination   destinations          @relation(fields: [destinationId], references: [id])
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  package       packages?             @relation(fields: [packageId], references: [id])
   payments      Payment[]
+  timeline      BookingTimeline[]
+  hotelBookings BookingHotel[] // day-wise hotel assignments
+  cabBookings   BookingCab[] // leg-wise cab assignments
+  packageHotels PackageBookingHotel[]
+
+  currentDepartment Department?   @relation("BookingCurrentDept", fields: [currentDepartmentId], references: [id])
+  currentAssignee   TeamMember?   @relation("BookingCurrentAssignee", fields: [currentAssigneeId], references: [id])
+  hotelAssignee     TeamMember?   @relation("BookingHotelAssignee", fields: [hotelAssigneeId], references: [id])
+  cabAssignee       TeamMember?   @relation("BookingCabAssignee", fields: [cabAssigneeId], references: [id])
+  opsAssignee       TeamMember?   @relation("BookingOpsAssignee", fields: [opsAssigneeId], references: [id])
+  bookingMeals      BookingMeal[]
   timeline      BookingTimeline[]
   hotelBookings BookingHotel[] // day-wise hotel assignments
   cabBookings   BookingCab[] // leg-wise cab assignments
@@ -273,8 +314,97 @@ model Booking {
 
   @@index([userId])
   @@index([packageId])
+  @@index([packageId])
   @@index([status])
   @@map("bookings")
+}
+
+// ── Day-wise hotel assignment per booking ─────────────────────────────────────
+// One record per night of the trip.
+// Hotel team sees this and can swap hotels, change room types.
+
+model BookingHotel {
+  id           String   @id @default(cuid())
+  bookingId    String
+  dayNumber    Int // Day 1, Day 2, Day 3...
+  cityName     String // "Manali", "Solang Valley" etc — for filtering nearby hotels
+  checkInDate  DateTime
+  checkOutDate DateTime
+
+  // Hotel assignment (can be changed by hotel dept)
+  hotelId     Int
+  roomType    String // "Deluxe", "Standard"
+  roomsCount  Int // how many rooms for this night
+  ratePerRoom Decimal @db.Decimal(10, 2)
+  totalCost   Decimal @db.Decimal(10, 2) // roomsCount × ratePerRoom
+
+  // Verification
+  isConfirmed   Boolean   @default(false)
+  confirmedAt   DateTime?
+  confirmedById String?
+  notes         String?
+
+  booking     Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  hotel       hotels        @relation(fields: [hotelId], references: [id])
+  confirmedBy TeamMember?   @relation(fields: [confirmedById], references: [id])
+  meals       BookingMeal[]
+
+  @@unique([bookingId, dayNumber])
+  @@index([bookingId])
+  @@index([hotelId])
+  @@map("booking_hotels")
+}
+
+// ── Cab assignment per booking ────────────────────────────────────────────────
+// One record per leg (pickup → dropoff).
+
+model BookingCab {
+  id           String   @id @default(cuid())
+  bookingId    String
+  legNumber    Int // Leg 1, Leg 2...
+  fromLocation String // "Delhi Airport"
+  toLocation   String // "Manali Hotel"
+  transferDate DateTime
+
+  // Cab assignment
+  cabType    CabType
+  cabCount   Int     @default(1)
+  capacity   Int // per cab
+  ratePerCab Decimal @db.Decimal(10, 2)
+  totalCost  Decimal @db.Decimal(10, 2)
+
+  // Verification
+  isConfirmed   Boolean   @default(false)
+  confirmedAt   DateTime?
+  confirmedById String?
+  driverName    String?
+  driverPhone   String?
+  vehicleNumber String?
+  notes         String?
+
+  booking     Booking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  confirmedBy TeamMember? @relation(fields: [confirmedById], references: [id])
+
+  @@unique([bookingId, legNumber])
+  @@index([bookingId])
+  @@map("booking_cabs")
+}
+
+model PackageBookingHotel {
+  id           String   @id @default(cuid())
+  bookingId    String
+  hotelId      Int
+  stayType     String?
+  checkingDate DateTime
+  checkoutDate DateTime
+  pax          Int      @default(1)
+  rooms        Int      @default(1)
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  hotel   hotels  @relation(fields: [hotelId], references: [id])
+
+  @@index([bookingId])
+  @@map("package_booking_hotel")
 }
 
 // ── Day-wise hotel assignment per booking ─────────────────────────────────────
@@ -377,6 +507,9 @@ model BookingTimeline {
   departmentId    String?
   createdAt       DateTime       @default(now())
 
+  booking     Booking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  performedBy TeamMember  @relation("TimelinePerformedBy", fields: [performedById], references: [id])
+  department  Department? @relation("TimelineDepartment", fields: [departmentId], references: [id])
   booking     Booking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   performedBy TeamMember  @relation("TimelinePerformedBy", fields: [performedById], references: [id])
   department  Department? @relation("TimelineDepartment", fields: [departmentId], references: [id])
@@ -509,6 +642,8 @@ model Department {
   // NEW back-relations
   currentBookings Booking[]         @relation("BookingCurrentDept")
   timelineEntries BookingTimeline[] @relation("TimelineDepartment")
+  currentBookings Booking[]         @relation("BookingCurrentDept")
+  timelineEntries BookingTimeline[] @relation("TimelineDepartment")
 
   @@map("departments")
 }
@@ -518,9 +653,11 @@ model TeamRole {
   name        String       @unique @db.VarChar(100)
   description String?      @db.VarChar(500)
   permissions Json         @default("[]") // ← changed from String[]
+  permissions Json         @default("[]") // ← changed from String[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   members     TeamMember[]
+
 
   @@map("team_roles")
 }
@@ -529,21 +666,37 @@ model TeamMember {
   id           String    @id @default(cuid())
   name         String    @db.VarChar(255)
   email        String    @unique
+  id           String    @id @default(cuid())
+  name         String    @db.VarChar(255)
+  email        String    @unique
   password     String?
   departmentId String?
   teamRoleId   String?
+  isActive     Boolean   @default(true)
   isActive     Boolean   @default(true)
   joiningDate  DateTime?
   lastLoginAt  DateTime?
   createdById  String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   // Existing relations (unchanged)
   department Department? @relation(fields: [departmentId], references: [id])
   teamRole   TeamRole?   @relation(fields: [teamRoleId], references: [id])
+  department Department? @relation(fields: [departmentId], references: [id])
+  teamRole   TeamRole?   @relation(fields: [teamRoleId], references: [id])
 
   // NEW back-relations
+  currentBookings Booking[]         @relation("BookingCurrentAssignee")
+  hotelBookings   Booking[]         @relation("BookingHotelAssignee")
+  cabBookings     Booking[]         @relation("BookingCabAssignee")
+  opsBookings     Booking[]         @relation("BookingOpsAssignee")
+  timelineEntries BookingTimeline[] @relation("TimelinePerformedBy")
+
+  confirmedHotelBookings BookingHotel[]
+  confirmedCabBookings   BookingCab[]
   currentBookings Booking[]         @relation("BookingCurrentAssignee")
   hotelBookings   Booking[]         @relation("BookingHotelAssignee")
   cabBookings     Booking[]         @relation("BookingCabAssignee")
@@ -609,6 +762,7 @@ model PackageQuery {
   name              String
   email             String?
   phone             String
+  countryCode       String           @default("IN")
   countryCode       String           @default("IN")
   message           String?
   packageName       String?
@@ -698,7 +852,16 @@ model LeadProfile {
   lastSeenAt   DateTime @default(now())
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  id           String   @id @default(cuid())
+  phone        String   @unique // normalized e.g. "+919876543210"
+  name         String // from latest query
+  email        String?
+  totalQueries Int      @default(0)
+  lastSeenAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
+  queries PackageQuery[]
   queries PackageQuery[]
 
   @@map("lead_profiles")

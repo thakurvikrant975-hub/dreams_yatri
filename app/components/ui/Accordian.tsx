@@ -258,7 +258,7 @@ function Chevron({ className }: ChevronProps) {
   return (
     <ChevronDownIcon
       className={cn(
-        'size-4 text-muted shrink-0 transition-transform duration-200',
+        'size-4 text-muted shrink-0 transition-transform duration-200 cursor-pointer',
         isOpen && 'rotate-180',
         className
       )}

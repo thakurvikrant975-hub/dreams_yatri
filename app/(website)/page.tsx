@@ -1,37 +1,12 @@
-// export const revalidate = 1800 // ISR every 30 minutes
+// app/page.tsx
+import { Metadata } from "next";
+import HomeClient from "./HomeClient";
 
-import Hero from "@/app/home/hero";
-import TrustSignals from "@/app/home/trust";
-import PackageSection from "@/app/home/package";
-import ExploreDestinations from "@/app/home/destination";
-import AvantiSection from "@/app/home/avantiIntro";
-import WhyChooseUsSection from "@/app/home/whyChoose";
-import BlogsSection from "@/app/home/blog";
-import TestimonialsSection from "@/app/home/review";
-import NewsletterSection from "@/app/home/newsletter";
-import Footer from "../components/navigation/Footer";
-import Header from "../components/navigation/Header";
-import ModalRoot from "../components/modals/ModalRoot";
+export const metadata: Metadata = {
+  title: "DreamsYatri | Best Travel Company in India",
+  description: "Explore Kashmir, Manali, Dubai & more with DreamsYatri.",
+};
 
-
-export default function Home() {
-
-  return (
-    <>
-      <ModalRoot />
-      <Header transparent={true} />
-      <main>
-        <Hero />
-        <TrustSignals />
-        <PackageSection />
-        <ExploreDestinations />
-        <AvantiSection />
-        <WhyChooseUsSection />
-        <TestimonialsSection />
-        <BlogsSection />
-        <NewsletterSection />
-        <Footer />
-      </main>
-    </>
-  )
+export default function Page() {
+  return <HomeClient />;
 }

@@ -239,7 +239,11 @@ export function HotelDayPanel({
                     <Select value={selectedRoomType} onValueChange={(v) => {
                       setSelectedRoomType(v);
                       const room = selectedHotelData.room_pricing.find((r: any) => r.room_type === v);
+<<<<<<< HEAD
                       setSelectedRate(room ? Number(room.price_per_night) : 0);
+=======
+                      setSelectedRate(room ? Number(room.rate_per_night) : 0);
+>>>>>>> origin/website-pages
                     }}>
                       <SelectTrigger>
                         <SelectValue placeholder="Choose room type..." />
@@ -247,7 +251,11 @@ export function HotelDayPanel({
                       <SelectContent>
                         {selectedHotelData.room_pricing.map((r: any) => (
                           <SelectItem key={r.id} value={r.room_type}>
+<<<<<<< HEAD
                             {r.room_type} — ₹{Number(r.price_per_night).toLocaleString("en-IN")}/night
+=======
+                            {r.room_type} — ₹{Number(r.rate_per_night).toLocaleString("en-IN")}/night
+>>>>>>> origin/website-pages
                             (max {r.max_occupancy} pax)
                           </SelectItem>
                         ))}
