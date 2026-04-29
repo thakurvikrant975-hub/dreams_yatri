@@ -17,9 +17,27 @@ const poppins = Poppins({
   display: "swap",
 });
 
+
 export const metadata: Metadata = {
-  title: "Dreams Yatri",
-  description: "Explore amazing travel destinations",
+  metadataBase: new URL("https://dreamsyatri.com"),
+  title: {
+    default: "DreamsYatri – Trusted Travel Agency in India",
+    template: "%s | DreamsYatri",
+  },
+  description: "DreamsYatri offers customized tour packages across India and abroad.",
+  openGraph: {
+    siteName: "DreamsYatri",
+    type: "website",
+    locale: "en_IN",
+  },
+  twitter: {
+    card: "summary_large_image",
+    site: "@dreamsyatri",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({
