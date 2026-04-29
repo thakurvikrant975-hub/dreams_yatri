@@ -1033,66 +1033,111 @@ model hotel_images {
   @@index([category_id])
 }
 
+model hotel_rooms {
+  id        Int    @id @default(autoincrement())
+  hotel_id  Int
+
+  // Basic
+  name      String // Luxe Queen Room
+  slug      String
+
+  // Room specs
+  area_sqft Int?
+  bed_type  String? // Queen / Twin
+  view_type String? // City / Mountain
+
+  // Capacity
+  max_occupancy Int @default(3)
+
+  // Rich details (can stay JSON for now)
+  amenities Json?
+  features  Json?
+  bathroom  Json?
+  facilities Json?
+
+  description String?
+
+  is_active Boolean @default(true)
+  sort_order Int @default(0)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  hotel hotels @relation(fields: [hotel_id], references: [id])
+
+  images hotel_room_images[]
+  pricing hotel_room_pricing[]
+
+  @@unique([hotel_id, slug])
+  @@index([hotel_id])
+}
+
+model hotel_room_images {
+  id        Int @id @default(autoincrement())
+  room_id   Int
+
+  url       String
+  thumbnail String?
+  alt       String?
+
+  is_primary Boolean @default(false)
+  sort_order Int @default(0)
+
+  room hotel_rooms @relation(fields: [room_id], references: [id])
+
+  @@index([room_id])
+}
+
 model hotel_room_pricing {
   id Int @id @default(autoincrement())
 
   // Relations
   hotel_id Int
-  hotel    hotels @relation(fields: [hotel_id], references: [id])
+  room_id  Int
 
-  // Room details
-  room_type   String
-  description String?
+  hotel hotels @relation(fields: [hotel_id], references: [id])
+  room  hotel_rooms @relation(fields: [room_id], references: [id])
 
-  // Occupancy
-  max_occupancy Int @default(3) // from first schema
-  occupancy     Int @default(2) // from second schema
+  // PLAN (this is key)
+  plan_name String? // With Breakfast / Non-Veg Plan
+
+  meal_type_id Int?
+  diet_type_id Int?
+
+  meal_type meal_types? @relation(fields: [meal_type_id], references: [id])
+  diet_type diet_types? @relation(fields: [diet_type_id], references: [id])
 
   // Pricing
-  price_per_night Decimal  @db.Decimal(10, 2)
+  price_per_night Decimal @db.Decimal(10, 2)
   original_price  Decimal? @db.Decimal(10, 2)
   extra_bed_rate  Decimal? @db.Decimal(10, 2)
 
-  // Business logic
-  season            String  @default("all")
-  margin_percentage Decimal @default(10) @db.Decimal(5, 2)
+  // Business
+  season_id Int?
 
-  // Extras
-  amenities        Json?
-  image_categories hotel_image_categories[]
+  season hotel_seasons? @relation(fields: [season_id], references: [id])
 
-  // Flags & ordering
-  is_active  Boolean @default(true)
-  sort_order Int     @default(0)
+  margin_percentage Decimal @default(10) @db.Decimal(5,2)
 
-  // Timestamps
+  is_active Boolean @default(true)
+  sort_order Int @default(0)
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  // Indexes
-  @@index([hotel_id, is_active])
-  @@index([hotel_id, season])
-  @@map("hotel_room_pricing")
-}
-
-
-model hotel_meal_rates {
-  id              Int            @id @default(autoincrement())
-  hotel_id        Int
-  meal_type       MealType // BREAKFAST | LUNCH | DINNER
-  food_preference FoodPreference // VEG | NON_VEG
-  rate_per_person Decimal        @db.Decimal(10, 2)
-  is_active       Boolean        @default(true)
-  created_at      DateTime       @default(now())
-  updated_at      DateTime       @updatedAt
-
-  hotel hotels @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
-
-  @@unique([hotel_id, meal_type, food_preference])
   @@index([hotel_id])
-  @@map("hotel_meal_rates")
+  @@index([room_id])
 }
 
+model meal_types {
+  id    Int    @id @default(autoincrement())
+  name  String @unique // Breakfast, Lunch, Dinner
+}
+
+model diet_types {
+  id   Int    @id @default(autoincrement())
+  name String @unique // Veg, Non-Veg, Jain, No Onion Garlic
+}
 
 // Activities >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
