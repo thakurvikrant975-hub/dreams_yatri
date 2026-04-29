@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import AboutClient from "./AboutClient";
-import { organizationSchema, breadcrumbSchema } from "@/app/lib/schema";
+import { organizationSchema, breadcrumbSchema } from "@/app/lib/seo/schema";
 import SchemaScript from "@/app/components/seo/SchemaScript";
 
 export const metadata: Metadata = {
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "About Us",
     description: "Learn about DreamsYatri – a trusted travel company in India offering customized tour packages, expert planning, and unforgettable travel experiences.",
-    images: ["/about-og.jpg"],
+    images: ["/image-og.jpg"],
   },
 };
 

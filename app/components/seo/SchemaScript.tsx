@@ -1,12 +1,23 @@
-// components/SchemaScript.tsx
+// components/seo/SchemaScript.tsx
 
-export default function SchemaScript({ data }: { data: any }) {
+type SchemaData = Record<string, unknown>;
+
+interface SchemaScriptProps {
+  data: SchemaData | SchemaData[];
+}
+
+export default function SchemaScript({ data }: SchemaScriptProps) {
+  const schemas = Array.isArray(data) ? data : [data];
+
   return (
-    <script
-      type="application/ld+json"
-      dangerouslySetInnerHTML={{
-        __html: JSON.stringify(data),
-      }}
-    />
+    <>
+      {schemas.map((schema, i) => (
+        <script
+          key={i}
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+        />
+      ))}
+    </>
   );
 }
