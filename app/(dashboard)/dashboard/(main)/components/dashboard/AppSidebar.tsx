@@ -50,6 +50,8 @@ const navGroups = [
         items: [
             { title: "All Hotels", href: "/dashboard/hotels", icon: <BuildingIcon weight="duotone" className="size-6 scale-110 text-muted-foreground" /> },
             { title: "Add New", href: "/dashboard/hotels/new", icon: <PlusIcon weight="duotone" className="size-6 scale-110 text-muted-foreground" /> },
+            { title: "Meal Types", href: "/dashboard/hotels/meal-types", icon: <KeyRound className="size-6 text-muted-foreground" /> },
+            { title: "Diet Types", href: "/dashboard/hotels/diet-types", icon: <IdCardLanyard className="size-6 text-muted-foreground" /> },
         ],
     },
     {

@@ -50,7 +50,7 @@ async function HotelsData() {
     const hotels = await getHotels();
 
     const activeCount = hotels.filter(h => h.is_active).length;
-    const totalRooms = hotels.reduce((acc, h) => acc + h._count.room_pricing, 0);
+    const totalRooms = hotels.reduce((acc, h) => acc + h._count.hotelRooms, 0);
 
     return (
         <>

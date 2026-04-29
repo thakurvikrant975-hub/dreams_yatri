@@ -40,7 +40,7 @@ type HotelItem = {
   is_active:   boolean;
   created_at:  Date;
   destination: { id: number; name: string };
-  _count:      { room_pricing: number; images: number; packages: number };
+  _count:      { hotelRooms: number; images: number; packages: number };
 };
 
 export function HotelsTableClient({ hotels }: { hotels: HotelItem[] }) {
@@ -125,7 +125,7 @@ export function HotelsTableClient({ hotels }: { hotels: HotelItem[] }) {
                 <TableCell className="text-center">
                   <div className="flex items-center justify-center gap-1 text-sm">
                     <BedDouble className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="font-medium">{hotel._count.room_pricing}</span>
+                    <span className="font-medium">{hotel._count.hotelRooms}</span>
                   </div>
                 </TableCell>
 

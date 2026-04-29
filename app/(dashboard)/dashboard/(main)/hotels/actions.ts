@@ -4,10 +4,7 @@ import { db } from "@/app/lib/db";
 import { deleteFromR2 } from "@/app/lib/r2/r2delete";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import {
-  ALL_SYSTEM_HOTEL_CATEGORIES,
-  getRoomCategoryName,
-} from "@/app/lib/hotelImageCategories"
+import { ALL_SYSTEM_HOTEL_CATEGORIES } from "@/app/lib/hotelImageCategories";
 
 // ── Schemas ───────────────────────────────────────────────────────────────
 
@@ -32,7 +29,7 @@ export type HotelFormState = {
   message: string;
   errors?: Record<string, string[]>;
 };
- 
+
 // ── Read ──────────────────────────────────────────────────────────────────
 
 export async function getHotels() {
@@ -42,7 +39,7 @@ export async function getHotels() {
       destination: { select: { id: true, name: true } },
       _count: {
         select: {
-          room_pricing: true,
+          hotelRooms: true,
           images: true,
           packages: true,
         },
@@ -56,16 +53,120 @@ export async function getHotelById(id: number) {
     where: { id },
     include: {
       destination: { select: { id: true, name: true } },
-      room_pricing: { orderBy: { sort_order: "asc" } },
+      hotelRooms: {
+        orderBy: { sort_order: "asc" },
+        include: {
+          images: { orderBy: { sort_order: "asc" } },
+          pricing: {
+            orderBy: { sort_order: "asc" },
+            include: {
+              meal_type: { select: { id: true, name: true } },
+              diet_type: { select: { id: true, name: true } },
+            },
+          },
+        },
+      },
+      room_pricing: {
+        orderBy: { sort_order: "asc" },
+        include: {
+          room: { select: { id: true, name: true } },
+          meal_type: { select: { id: true, name: true } },
+          diet_type: { select: { id: true, name: true } },
+        },
+      },
       image_categories: {
         orderBy: { sort_order: "asc" },
         include: {
           images: { orderBy: { sort_order: "asc" } },
-          room_pricing: { select: { id: true, room_type: true } },
+          room_pricing: { select: { id: true } },
         },
       },
     },
   });
+}
+
+export async function getRoomsByHotel(hotel_id: number) {
+  return db.hotel_rooms.findMany({
+    where: { hotel_id },
+    orderBy: { sort_order: "asc" },
+    select: { id: true, name: true },
+  });
+}
+
+export async function getMealTypes() {
+  return db.meal_types.findMany({ orderBy: { name: "asc" } });
+}
+
+export async function createMealType(name: string): Promise<HotelFormState> {
+  const n = name.trim();
+  if (!n) return { success: false, message: "Name is required." };
+  try {
+    await db.meal_types.create({ data: { name: n } });
+    revalidatePath("/dashboard/hotels/meal-types");
+    return { success: true, message: "Meal type added" };
+  } catch {
+    return { success: false, message: "Name already exists or DB error." };
+  }
+}
+
+export async function updateMealType(id: number, name: string): Promise<HotelFormState> {
+  const n = name.trim();
+  if (!n) return { success: false, message: "Name is required." };
+  try {
+    await db.meal_types.update({ where: { id }, data: { name: n } });
+    revalidatePath("/dashboard/hotels/meal-types");
+    return { success: true, message: "Meal type updated" };
+  } catch {
+    return { success: false, message: "Name already exists or DB error." };
+  }
+}
+
+export async function deleteMealType(id: number): Promise<HotelFormState> {
+  try {
+    await db.meal_types.delete({ where: { id } });
+    revalidatePath("/dashboard/hotels/meal-types");
+    return { success: true, message: "Meal type deleted" };
+  } catch {
+    return { success: false, message: "Cannot delete — may be in use by pricing plans." };
+  }
+}
+
+export async function getDietTypes() {
+  return db.diet_types.findMany({ orderBy: { name: "asc" } });
+}
+
+export async function createDietType(name: string): Promise<HotelFormState> {
+  const n = name.trim();
+  if (!n) return { success: false, message: "Name is required." };
+  try {
+    await db.diet_types.create({ data: { name: n } });
+    revalidatePath("/dashboard/hotels/diet-types");
+    return { success: true, message: "Diet type added" };
+  } catch {
+    return { success: false, message: "Name already exists or DB error." };
+  }
+}
+
+export async function updateDietType(id: number, name: string): Promise<HotelFormState> {
+  const n = name.trim();
+  if (!n) return { success: false, message: "Name is required." };
+  try {
+    await db.diet_types.update({ where: { id }, data: { name: n } });
+    revalidatePath("/dashboard/hotels/diet-types");
+    return { success: true, message: "Diet type updated" };
+  } catch {
+    return { success: false, message: "Name already exists or DB error." };
+  }
+}
+
+export async function deleteDietType(id: number): Promise<HotelFormState> {
+  try {
+    await db.diet_types.delete({ where: { id } });
+    revalidatePath("/dashboard/hotels/diet-types");
+    return { success: true, message: "Diet type deleted" };
+  } catch {
+    return { success: false, message: "Cannot delete — may be in use by pricing plans." };
+  }
 }
 
 export async function getDestinationsForSelect() {
@@ -76,7 +177,7 @@ export async function getDestinationsForSelect() {
   });
 }
 
-// ── Create ────────────────────────────────────────────────────────────────
+// ── Create Hotel ──────────────────────────────────────────────────────────
 
 export async function createHotel(
   _prev: HotelFormState,
@@ -107,8 +208,6 @@ export async function createHotel(
     };
   }
 
-  const roomsRaw: any[] = JSON.parse(formData.get("rooms") as string || "[]");
-
   try {
     const existing = await db.hotels.findUnique({ where: { slug: parsed.data.slug } });
     if (existing) {
@@ -116,35 +215,11 @@ export async function createHotel(
     }
 
     await db.$transaction(async (tx) => {
-      // 1. Create hotel
       const hotel = await tx.hotels.create({
-        data: { ...parsed.data, stay_type: formData.get("stay_type") as string || null },
+        data: { ...parsed.data, stay_type: (formData.get("stay_type") as string) || null },
       });
-
-      // 2. Create room pricing rows and track created rooms
-      const createdRooms: { id: number; room_type: string }[] = [];
-      for (const [i, r] of roomsRaw.entries()) {
-        const room = await tx.hotel_room_pricing.create({
-          data: {
-            hotel_id: hotel.id,
-            room_type: r.room_type,
-            description: r.description || null,
-            occupancy: Number(r.occupancy) || 2,
-            price_per_night: Number(r.price_per_night),
-            original_price: r.original_price ? Number(r.original_price) : null,
-            season: r.season || "all",
-            margin_percentage: Number(r.margin_percentage) || 10,
-            sort_order: i,
-            is_active: true,
-            amenities: r.amenities || [],
-          },
-        });
-        createdRooms.push({ id: room.id, room_type: room.room_type });
-      }
-
-      // 3. Create system hotel-level image categories
       await tx.hotel_image_categories.createMany({
-        data: ALL_SYSTEM_HOTEL_CATEGORIES.map(cat => ({
+        data: ALL_SYSTEM_HOTEL_CATEGORIES.map((cat) => ({
           hotel_id: hotel.id,
           room_pricing_id: null,
           name: cat.name,
@@ -153,20 +228,6 @@ export async function createHotel(
           sort_order: cat.sort_order,
         })),
       });
-
-      // 4. Create one image category per room type
-      if (createdRooms.length > 0) {
-        await tx.hotel_image_categories.createMany({
-          data: createdRooms.map((room, i) => ({
-            hotel_id: hotel.id,
-            room_pricing_id: room.id,
-            name: getRoomCategoryName(room.room_type),
-            is_required: false,
-            is_system: true,
-            sort_order: ALL_SYSTEM_HOTEL_CATEGORIES.length + i,
-          })),
-        });
-      }
     });
 
     revalidatePath("/dashboard/hotels");
@@ -209,12 +270,7 @@ export async function updateHotelDetails(
   }
 
   try {
-    const current = await db.hotels.findUnique({
-      where: { id },
-      select: { thumbnail: true },
-    });
-
-    // If thumbnail replaced — delete old from R2
+    const current = await db.hotels.findUnique({ where: { id }, select: { thumbnail: true } });
     if (
       current?.thumbnail &&
       parsed.data.thumbnail &&
@@ -225,7 +281,7 @@ export async function updateHotelDetails(
 
     await db.hotels.update({
       where: { id },
-      data: { ...parsed.data, stay_type: formData.get("stay_type") as string || null },
+      data: { ...parsed.data, stay_type: (formData.get("stay_type") as string) || null },
     });
     revalidatePath("/dashboard/hotels");
     revalidatePath(`/dashboard/hotels/${id}`);
@@ -250,12 +306,12 @@ export async function deleteHotel(id: number): Promise<HotelFormState> {
       where: { id },
       include: {
         images: { select: { url: true, thumbnail: true } },
+        hotelRooms: { include: { images: { select: { url: true, thumbnail: true } } } },
         packages: { select: { id: true }, take: 1 },
       },
     });
 
     if (!hotel) return { success: false, message: "Hotel not found" };
-
     if (hotel.packages.length > 0) {
       return {
         success: false,
@@ -263,21 +319,29 @@ export async function deleteHotel(id: number): Promise<HotelFormState> {
       };
     }
 
-    // Collect all R2 keys: hotel thumbnail + all image urls + image thumbnails
+    const roomImageKeys = hotel.hotelRooms.flatMap((r) =>
+      r.images.flatMap((img) => [img.url, img.thumbnail].filter(Boolean) as string[])
+    );
     const r2Keys = [
-      ...new Set([
-        hotel.thumbnail,
-        ...hotel.images.flatMap(img => [img.url, img.thumbnail]),
-      ].filter(Boolean) as string[]),
+      ...new Set(
+        [
+          hotel.thumbnail,
+          ...hotel.images.flatMap((img) => [img.url, img.thumbnail]),
+          ...roomImageKeys,
+        ].filter(Boolean) as string[]
+      ),
     ];
+    await Promise.all(r2Keys.map((key) => deleteFromR2(key).catch(console.error)));
 
-    await Promise.all(r2Keys.map(key => deleteFromR2(key).catch(console.error)));
-
-    // Delete in FK-safe order
+    const roomIds = hotel.hotelRooms.map((r) => r.id);
     await db.$transaction([
       db.hotel_images.deleteMany({ where: { hotel_id: id } }),
       db.hotel_image_categories.deleteMany({ where: { hotel_id: id } }),
+      ...(roomIds.length > 0
+        ? [db.hotel_room_images.deleteMany({ where: { room_id: { in: roomIds } } })]
+        : []),
       db.hotel_room_pricing.deleteMany({ where: { hotel_id: id } }),
+      db.hotel_rooms.deleteMany({ where: { hotel_id: id } }),
       db.hotels.delete({ where: { id } }),
     ]);
 
@@ -288,35 +352,45 @@ export async function deleteHotel(id: number): Promise<HotelFormState> {
   }
 }
 
-// ── Room Pricing ──────────────────────────────────────────────────────────
+// ── Hotel Rooms (hotel_rooms) ─────────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function parseJson(val: FormDataEntryValue | null): any {
+  if (!val || val === "" || val === "null") return null;
+  try {
+    return JSON.parse(val as string);
+  } catch {
+    return null;
+  }
+}
 
 export async function createRoom(hotel_id: number, formData: FormData): Promise<HotelFormState> {
   try {
-    const room = await db.hotel_room_pricing.create({
-      data: {
-        hotel_id,
-        room_type: formData.get("room_type") as string,
-        description: (formData.get("description") as string) || null,
-        occupancy: Number(formData.get("occupancy")) || 2,
-        price_per_night: Number(formData.get("price_per_night")),
-        original_price: formData.get("original_price") ? Number(formData.get("original_price")) : null,
-        season: (formData.get("season") as string) || "all",
-        margin_percentage: Number(formData.get("margin_percentage")) || 10,
-        sort_order: Number(formData.get("sort_order")) || 0,
-        is_active: formData.get("is_active") === "true",
-        amenities: JSON.parse((formData.get("amenities") as string) || "[]"),
-      },
-    });
+    const name = (formData.get("name") as string).trim();
+    const slug = (formData.get("slug") as string).trim();
+    if (!name || !slug) return { success: false, message: "Name and slug are required." };
 
-    // Auto-create image category for this room
-    const count = await db.hotel_image_categories.count({ where: { hotel_id } });
-    await db.hotel_image_categories.create({
+    const exists = await db.hotel_rooms.findUnique({
+      where: { hotel_id_slug: { hotel_id, slug } },
+    });
+    if (exists) return { success: false, message: "A room with this slug already exists." };
+
+    const count = await db.hotel_rooms.count({ where: { hotel_id } });
+    await db.hotel_rooms.create({
       data: {
         hotel_id,
-        room_pricing_id: room.id,
-        name: getRoomCategoryName(room.room_type),
-        is_required: false,
-        is_system: true,
+        name,
+        slug,
+        area_sqft: formData.get("area_sqft") ? Number(formData.get("area_sqft")) : null,
+        bed_type: (formData.get("bed_type") as string) || null,
+        view_type: (formData.get("view_type") as string) || null,
+        max_occupancy: Number(formData.get("max_occupancy")) || 3,
+        description: (formData.get("description") as string) || null,
+        amenities: parseJson(formData.get("amenities")),
+        features: parseJson(formData.get("features")),
+        bathroom: parseJson(formData.get("bathroom")),
+        facilities: parseJson(formData.get("facilities")),
+        is_active: formData.get("is_active") === "true",
         sort_order: count,
       },
     });
@@ -334,25 +408,24 @@ export async function updateRoom(
   formData: FormData,
 ): Promise<HotelFormState> {
   try {
-    const room = await db.hotel_room_pricing.update({
+    const name = (formData.get("name") as string).trim();
+    if (!name) return { success: false, message: "Name is required." };
+
+    await db.hotel_rooms.update({
       where: { id },
       data: {
-        room_type: formData.get("room_type") as string,
+        name,
+        area_sqft: formData.get("area_sqft") ? Number(formData.get("area_sqft")) : null,
+        bed_type: (formData.get("bed_type") as string) || null,
+        view_type: (formData.get("view_type") as string) || null,
+        max_occupancy: Number(formData.get("max_occupancy")) || 3,
         description: (formData.get("description") as string) || null,
-        occupancy: Number(formData.get("occupancy")) || 2,
-        price_per_night: Number(formData.get("price_per_night")),
-        original_price: formData.get("original_price") ? Number(formData.get("original_price")) : null,
-        season: (formData.get("season") as string) || "all",
-        margin_percentage: Number(formData.get("margin_percentage")) || 10,
+        amenities: parseJson(formData.get("amenities")),
+        features: parseJson(formData.get("features")),
+        bathroom: parseJson(formData.get("bathroom")),
+        facilities: parseJson(formData.get("facilities")),
         is_active: formData.get("is_active") === "true",
-        amenities: JSON.parse((formData.get("amenities") as string) || "[]"),
       },
-    });
-
-    // Sync category name if room_type changed
-    await db.hotel_image_categories.updateMany({
-      where: { hotel_id, room_pricing_id: id },
-      data: { name: getRoomCategoryName(room.room_type) },
     });
 
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
@@ -364,33 +437,163 @@ export async function updateRoom(
 
 export async function deleteRoom(id: number, hotel_id: number): Promise<HotelFormState> {
   try {
-    // Find room's image category + its images
-    const category = await db.hotel_image_categories.findFirst({
-      where: { hotel_id, room_pricing_id: id },
+    const room = await db.hotel_rooms.findUnique({
+      where: { id },
       include: { images: { select: { url: true, thumbnail: true } } },
     });
+    if (!room) return { success: false, message: "Room not found" };
 
-    if (category) {
-      const r2Keys = [
-        ...new Set(
-          category.images.flatMap(img =>
-            [img.url, img.thumbnail].filter(Boolean) as string[]
-          )
-        ),
-      ];
-      await Promise.all(r2Keys.map(key => deleteFromR2(key).catch(console.error)));
+    const r2Keys = [
+      ...new Set(
+        room.images.flatMap((img) => [img.url, img.thumbnail].filter(Boolean) as string[])
+      ),
+    ];
+    await Promise.all(r2Keys.map((key) => deleteFromR2(key).catch(console.error)));
 
-      await db.$transaction([
-        db.hotel_images.deleteMany({ where: { category_id: category.id } }),
-        db.hotel_image_categories.delete({ where: { id: category.id } }),
-        db.hotel_room_pricing.delete({ where: { id } }),
-      ]);
-    } else {
-      await db.hotel_room_pricing.delete({ where: { id } });
-    }
+    await db.$transaction([
+      db.hotel_room_pricing.deleteMany({ where: { room_id: id } }),
+      db.hotel_room_images.deleteMany({ where: { room_id: id } }),
+      db.hotel_rooms.delete({ where: { id } }),
+    ]);
 
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Room deleted" };
+  } catch {
+    return { success: false, message: "Database error." };
+  }
+}
+
+// ── Room Pricing (hotel_room_pricing) ─────────────────────────────────────
+
+export async function createRoomPricing(
+  hotel_id: number,
+  formData: FormData,
+): Promise<HotelFormState> {
+  try {
+    const price = Number(formData.get("price_per_night"));
+    if (!price || price <= 0) return { success: false, message: "Valid price is required." };
+
+    const count = await db.hotel_room_pricing.count({ where: { hotel_id } });
+    await db.hotel_room_pricing.create({
+      data: {
+        hotel_id,
+        room_id: formData.get("room_id") ? Number(formData.get("room_id")) : null,
+        plan_name: (formData.get("plan_name") as string) || null,
+        meal_type_id: formData.get("meal_type_id") ? Number(formData.get("meal_type_id")) : null,
+        diet_type_id: formData.get("diet_type_id") ? Number(formData.get("diet_type_id")) : null,
+        price_per_night: price,
+        original_price: formData.get("original_price") ? Number(formData.get("original_price")) : null,
+        extra_bed_rate: formData.get("extra_bed_rate") ? Number(formData.get("extra_bed_rate")) : null,
+        margin_percentage: Number(formData.get("margin_percentage")) || 10,
+        is_active: formData.get("is_active") === "true",
+        sort_order: count,
+      },
+    });
+
+    revalidatePath(`/dashboard/hotels/${hotel_id}`);
+    return { success: true, message: "Pricing plan added" };
+  } catch {
+    return { success: false, message: "Database error." };
+  }
+}
+
+export async function updateRoomPricing(
+  id: number,
+  hotel_id: number,
+  formData: FormData,
+): Promise<HotelFormState> {
+  try {
+    const price = Number(formData.get("price_per_night"));
+    if (!price || price <= 0) return { success: false, message: "Valid price is required." };
+
+    await db.hotel_room_pricing.update({
+      where: { id },
+      data: {
+        room_id: formData.get("room_id") ? Number(formData.get("room_id")) : null,
+        plan_name: (formData.get("plan_name") as string) || null,
+        meal_type_id: formData.get("meal_type_id") ? Number(formData.get("meal_type_id")) : null,
+        diet_type_id: formData.get("diet_type_id") ? Number(formData.get("diet_type_id")) : null,
+        price_per_night: price,
+        original_price: formData.get("original_price") ? Number(formData.get("original_price")) : null,
+        extra_bed_rate: formData.get("extra_bed_rate") ? Number(formData.get("extra_bed_rate")) : null,
+        margin_percentage: Number(formData.get("margin_percentage")) || 10,
+        is_active: formData.get("is_active") === "true",
+      },
+    });
+
+    revalidatePath(`/dashboard/hotels/${hotel_id}`);
+    return { success: true, message: "Pricing plan updated" };
+  } catch {
+    return { success: false, message: "Database error." };
+  }
+}
+
+export async function deleteRoomPricing(id: number, hotel_id: number): Promise<HotelFormState> {
+  try {
+    await db.hotel_room_pricing.delete({ where: { id } });
+    revalidatePath(`/dashboard/hotels/${hotel_id}`);
+    return { success: true, message: "Pricing plan deleted" };
+  } catch {
+    return { success: false, message: "Database error." };
+  }
+}
+
+// ── Room Images (hotel_room_images) ───────────────────────────────────────
+
+export async function createRoomImages(
+  room_id: number,
+  hotel_id: number,
+  images: { url: string; thumbnail?: string; alt?: string }[],
+): Promise<HotelFormState> {
+  try {
+    const existingCount = await db.hotel_room_images.count({ where: { room_id } });
+    await db.hotel_room_images.createMany({
+      data: images.map((img, i) => ({
+        room_id,
+        url: img.url,
+        thumbnail: img.thumbnail || img.url,
+        alt: img.alt || null,
+        sort_order: existingCount + i,
+        is_primary: existingCount === 0 && i === 0,
+      })),
+    });
+    revalidatePath(`/dashboard/hotels/${hotel_id}`);
+    return { success: true, message: "Images added" };
+  } catch {
+    return { success: false, message: "Database error." };
+  }
+}
+
+export async function deleteRoomImage(
+  id: number,
+  room_id: number,
+  hotel_id: number,
+  url: string,
+  thumbnail?: string,
+): Promise<HotelFormState> {
+  try {
+    const keys = [...new Set([url, thumbnail].filter(Boolean) as string[])];
+    await Promise.all(keys.map((k) => deleteFromR2(k).catch(console.error)));
+    await db.hotel_room_images.delete({ where: { id } });
+    revalidatePath(`/dashboard/hotels/${hotel_id}`);
+    return { success: true, message: "Image deleted" };
+  } catch {
+    return { success: false, message: "Database error." };
+  }
+}
+
+export async function setPrimaryRoomImage(
+  id: number,
+  room_id: number,
+  hotel_id: number,
+): Promise<HotelFormState> {
+  try {
+    await db.$transaction([
+      db.hotel_room_images.updateMany({ where: { room_id }, data: { is_primary: false } }),
+      db.hotel_room_images.update({ where: { id }, data: { is_primary: true } }),
+    ]);
+    revalidatePath(`/dashboard/hotels/${hotel_id}`);
+    return { success: true, message: "Primary image set" };
   } catch {
     return { success: false, message: "Database error." };
   }
@@ -405,13 +608,7 @@ export async function createImageCategory(
   try {
     const count = await db.hotel_image_categories.count({ where: { hotel_id } });
     await db.hotel_image_categories.create({
-      data: {
-        hotel_id,
-        name,
-        is_required: false,
-        is_system: false,
-        sort_order: count,
-      },
+      data: { hotel_id, name, is_required: false, is_system: false, sort_order: count },
     });
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Category added" };
@@ -429,18 +626,16 @@ export async function deleteImageCategory(
       where: { id },
       include: { images: { select: { url: true, thumbnail: true } } },
     });
-
     if (!category) return { success: false, message: "Category not found" };
-    if (category.is_required) return { success: false, message: "Required categories cannot be deleted" };
+    if (category.is_required)
+      return { success: false, message: "Required categories cannot be deleted" };
 
     const r2Keys = [
       ...new Set(
-        category.images.flatMap(img =>
-          [img.url, img.thumbnail].filter(Boolean) as string[]
-        )
+        category.images.flatMap((img) => [img.url, img.thumbnail].filter(Boolean) as string[])
       ),
     ];
-    await Promise.all(r2Keys.map(key => deleteFromR2(key).catch(console.error)));
+    await Promise.all(r2Keys.map((key) => deleteFromR2(key).catch(console.error)));
 
     await db.$transaction([
       db.hotel_images.deleteMany({ where: { category_id: id } }),
@@ -492,7 +687,7 @@ export async function deleteHotelImage(
 ): Promise<HotelFormState> {
   try {
     const keys = [...new Set([url, thumbnail].filter(Boolean) as string[])];
-    await Promise.all(keys.map(k => deleteFromR2(k).catch(console.error)));
+    await Promise.all(keys.map((k) => deleteFromR2(k).catch(console.error)));
     await db.hotel_images.delete({ where: { id } });
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Image deleted" };

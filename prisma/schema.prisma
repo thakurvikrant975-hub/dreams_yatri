@@ -46,7 +46,6 @@ enum MealPlan {
 // ── Hotel meal rates ──────────────────────────────────────────────────────────
 // Each hotel defines its own rates per meal type per food preference.
 
-
 // ── Booking meal preference ───────────────────────────────────────────────────
 // Stored on the booking — snapshot at time of booking.
 
@@ -75,7 +74,6 @@ model BookingMeal {
   @@index([bookingHotelId])
   @@map("booking_meals")
 }
-
 
 model pricing_rules {
   id         Int      @id @default(autoincrement())
@@ -870,8 +868,6 @@ enum QuerySource {
   OTHER
 }
 
-
-
 // Full Packages Schema  ----------------------------------------------------------------------------------------------------------------------------
 
 // Basic Essentials  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -963,7 +959,6 @@ model policies {
 
 // Hotels Details >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-
 model hotels {
   id               Int                      @id @default(autoincrement())
   name             String
@@ -978,7 +973,6 @@ model hotels {
   star_rating      Int?
   category         String?
   stay_type        String?
-  amenities        Json?
   check_in_time    String?
   check_out_time   String?
   is_active        Boolean                  @default(true)
@@ -992,8 +986,8 @@ model hotels {
   packages         package_hotels[]
   packageBookings  PackageBookingHotel[]
   bookingHotels    BookingHotel[]
-  mealRates        hotel_meal_rates[]
   itinerary_hotels itinerary_hotels[]
+  hotelRooms       hotel_rooms[]
 
   @@index([destination_id, is_active])
   @@index([slug])
@@ -1019,9 +1013,7 @@ model hotel_images {
   id          Int                    @id @default(autoincrement())
   hotel_id    Int
   category_id Int
-  url         String
   thumbnail   String?
-  blur_base64 String?
   alt         String?
   sort_order  Int                    @default(0)
   is_primary  Boolean                @default(false)
@@ -1034,12 +1026,12 @@ model hotel_images {
 }
 
 model hotel_rooms {
-  id        Int    @id @default(autoincrement())
-  hotel_id  Int
+  id       Int @id @default(autoincrement())
+  hotel_id Int
 
   // Basic
-  name      String // Luxe Queen Room
-  slug      String
+  name String // Luxe Queen Room
+  slug String
 
   // Room specs
   area_sqft Int?
@@ -1050,22 +1042,22 @@ model hotel_rooms {
   max_occupancy Int @default(3)
 
   // Rich details (can stay JSON for now)
-  amenities Json?
-  features  Json?
-  bathroom  Json?
+  amenities  Json?
+  features   Json?
+  bathroom   Json?
   facilities Json?
 
   description String?
 
-  is_active Boolean @default(true)
-  sort_order Int @default(0)
+  is_active  Boolean @default(true)
+  sort_order Int     @default(0)
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   hotel hotels @relation(fields: [hotel_id], references: [id])
 
-  images hotel_room_images[]
+  images  hotel_room_images[]
   pricing hotel_room_pricing[]
 
   @@unique([hotel_id, slug])
@@ -1073,15 +1065,15 @@ model hotel_rooms {
 }
 
 model hotel_room_images {
-  id        Int @id @default(autoincrement())
-  room_id   Int
+  id      Int @id @default(autoincrement())
+  room_id Int
 
   url       String
   thumbnail String?
   alt       String?
 
   is_primary Boolean @default(false)
-  sort_order Int @default(0)
+  sort_order Int     @default(0)
 
   room hotel_rooms @relation(fields: [room_id], references: [id])
 
@@ -1093,10 +1085,10 @@ model hotel_room_pricing {
 
   // Relations
   hotel_id Int
-  room_id  Int
+  room_id  Int?
 
-  hotel hotels @relation(fields: [hotel_id], references: [id])
-  room  hotel_rooms @relation(fields: [room_id], references: [id])
+  hotel hotels       @relation(fields: [hotel_id], references: [id])
+  room  hotel_rooms? @relation(fields: [room_id], references: [id])
 
   // PLAN (this is key)
   plan_name String? // With Breakfast / Non-Veg Plan
@@ -1108,35 +1100,33 @@ model hotel_room_pricing {
   diet_type diet_types? @relation(fields: [diet_type_id], references: [id])
 
   // Pricing
-  price_per_night Decimal @db.Decimal(10, 2)
+  price_per_night Decimal  @db.Decimal(10, 2)
   original_price  Decimal? @db.Decimal(10, 2)
   extra_bed_rate  Decimal? @db.Decimal(10, 2)
 
-  // Business
-  season_id Int?
+  margin_percentage Decimal @default(10) @db.Decimal(5, 2)
 
-  season hotel_seasons? @relation(fields: [season_id], references: [id])
+  is_active  Boolean @default(true)
+  sort_order Int     @default(0)
 
-  margin_percentage Decimal @default(10) @db.Decimal(5,2)
-
-  is_active Boolean @default(true)
-  sort_order Int @default(0)
-
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  created_at           DateTime                 @default(now())
+  updated_at           DateTime                 @updatedAt
+  hotelImageCategories hotel_image_categories[]
 
   @@index([hotel_id])
   @@index([room_id])
 }
 
 model meal_types {
-  id    Int    @id @default(autoincrement())
-  name  String @unique // Breakfast, Lunch, Dinner
+  id                Int                  @id @default(autoincrement())
+  name              String               @unique // Breakfast, Lunch, Dinner
+  hotelRoomPricings hotel_room_pricing[]
 }
 
 model diet_types {
-  id   Int    @id @default(autoincrement())
-  name String @unique // Veg, Non-Veg, Jain, No Onion Garlic
+  id                Int                  @id @default(autoincrement())
+  name              String               @unique // Veg, Non-Veg, Jain, No Onion Garlic
+  hotelRoomPricings hotel_room_pricing[]
 }
 
 // Activities >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -1205,7 +1195,6 @@ model packages {
   images          package_images[]
   itineraries     package_itineraries[]
   policies        package_policy_map[]
-  pricing         package_pricing[]
   stay_categories package_stay_categories[]
   tags            package_tags[]
   destination     destinations              @relation(fields: [destination_id], references: [id])
@@ -1213,21 +1202,22 @@ model packages {
   cabOptions      package_cab_options[]
   gallery         package_gallery[]
   packageRoutes   package_routes[]
+  packagePricings package_pricing[]
 
   @@index([destination_id, is_active])
   @@index([slug])
 }
 
 model package_images {
-  id          Int      @id @default(autoincrement())
-  package_id  Int
-  url         String
-  thumbnail   String?
-  alt         String?
-  sort_order  Int      @default(0)
-  is_primary  Boolean  @default(false)
-  created_at  DateTime @default(now())
-  package     packages @relation(fields: [package_id], references: [id])
+  id         Int      @id @default(autoincrement())
+  package_id Int
+  url        String
+  thumbnail  String?
+  alt        String?
+  sort_order Int      @default(0)
+  is_primary Boolean  @default(false)
+  created_at DateTime @default(now())
+  package    packages @relation(fields: [package_id], references: [id])
 
   @@index([package_id])
 }
@@ -1289,7 +1279,6 @@ model route_stops {
   @@unique([route_id, location])
   @@index([route_id])
 }
-
 
 // packages covers >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -1395,10 +1384,9 @@ model itinerary_notes {
   @@index([itinerary_id])
 }
 
-
 // Hotels & Pricing   >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
- 
- model package_hotels {
+
+model package_hotels {
   id               Int                     @id @default(autoincrement())
   package_id       Int
   hotel_id         Int
@@ -1431,7 +1419,6 @@ model package_stay_categories {
   @@unique([package_id, slug])
   @@index([package_id, is_active])
 }
-
 
 model package_pricing {
   id               Int @id @default(autoincrement())
