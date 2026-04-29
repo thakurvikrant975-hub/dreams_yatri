@@ -7,14 +7,23 @@ import { SectionHeading } from "../components/SectionHeading";
 import { Quote } from "lucide-react";
 import { CULTURE_POINTS, TESTIMONIALS, GALLERY } from "./data";
 import Card from "@/app/components/ui/Card";
+import { StarIcon } from "lucide-react";
 
 type Testimonial = {
-  quote: string;
-  name: string;
-  role: string;
-  initials: string;
-  color: string;
-};
+  quote: string
+  name: string
+  role: string
+  tenure: string
+  initials: string
+  department: string
+  accent: string
+  avatarBg: string
+  avatarText: string
+  avatarBorder: string
+  badgeBg: string
+  badgeText: string
+  badgeBorder: string
+}
 
 // ─── Gallery Grid ─────────────────────────────────────────────────────────────
 function GalleryGrid() {
@@ -57,48 +66,78 @@ function GalleryGrid() {
   );
 }
 
-// ─── Testimonial Card ─────────────────────────────────────────────────────────
+
 function TestimonialCard({ item }: { item: Testimonial }) {
   return (
-    <Card className="relative bg-white border border-gray-100 rounded-2xl p-7 shadow-sm
-                    hover:shadow-md hover:-translate-y-0.5 transition-all duration-300">
-      {/* Quote icon */}
-      <div className="w-8 h-8 rounded-xl bg-red-50 flex items-center justify-center mb-5">
-        <Quote size={14} className="text-red-400" />
+    <Card
+      className="group relative flex flex-col overflow-hidden rounded-2xl border
+                 border-gray-100 bg-white p-7 transition-all duration-200
+                 hover:-translate-y-0.5 hover:border-gray-200"
+      style={{ fontFamily: "'Figtree', sans-serif" }}
+    >
+      {/* Accent top stripe on hover */}
+      <div
+        className="absolute inset-x-0 top-0 h-0.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+        style={{ background: item.accent }}
+      />
+
+      {/* Decorative quote mark */}
+      <span
+        className="mb-3 block text-5xl leading-none select-none"
+        style={{ color: item.accent, opacity: 0.22, fontFamily: "'DM Serif Display', serif" }}
+      >
+        "
+      </span>
+
+      {/* Stars */}
+      <div className="mb-3 flex gap-1">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <StarIcon key={i} className="text-yellow-400" />
+        ))}
       </div>
 
-      <p
-        className="text-gray-600 text-[13.5px] leading-relaxed mb-6 italic"
-        style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-      >
-        "{item.quote}"
+      {/* Quote */}
+      <p className="mb-6 flex-1 text-[14px] leading-relaxed text-gray-500">
+        {item.quote}
       </p>
 
-      {/* Author */}
+      {/* Divider */}
+      <div className="mb-5 h-px bg-gray-100" />
+
+      {/* Author row */}
       <div className="flex items-center gap-3">
         <div
-          className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 ${item.color}`}
-          style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+          className="flex h-10 w-10 flex-shrink-0 items-center justify-center
+                     rounded-full text-xs font-semibold tracking-wide"
+          style={{
+            background: item.avatarBg,
+            color: item.avatarText,
+            border: `0.5px solid ${item.avatarBorder}`,
+          }}
         >
           {item.initials}
         </div>
-        <div>
-          <p
-            className="text-[13px] font-bold text-gray-900"
-            style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-          >
-            {item.name}
-          </p>
-          <p
-            className="text-[11px] text-gray-400"
-            style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-          >
-            {item.role}
+
+        <div className="flex-1">
+          <p className="text-[13.5px] font-semibold text-gray-900">{item.name}</p>
+          <p className="text-[11.5px] text-gray-400">
+            {item.role} · {item.tenure}
           </p>
         </div>
+
+        <span
+          className="flex-shrink-0 rounded-full px-2.5 py-1 text-[10.5px] font-semibold tracking-wide"
+          style={{
+            background: item.badgeBg,
+            color: item.badgeText,
+            border: `0.5px solid ${item.badgeBorder}`,
+          }}
+        >
+          {item.department}
+        </span>
       </div>
     </Card>
-  );
+  )
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────

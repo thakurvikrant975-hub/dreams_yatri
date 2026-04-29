@@ -1,4 +1,4 @@
-import { Globe, TrendingUp, Users, Heart, Gift, ShieldCheck, Coffee, Zap, MapPin, Trophy, MessageCircle, Plane } from "lucide-react";
+import { Globe, TrendingUp, Users, Heart, Gift, ShieldCheck, Coffee, Zap, MapPin, Trophy, MessageCircle, Plane, Phone, Mail } from "lucide-react";
 
 import { LucideIcon } from "lucide-react";
 
@@ -56,104 +56,6 @@ export const HERO_STATS = [
   { value: "10K+", label: "Happy Travellers" },
 ];
 
-export const OPENINGS = [
-  {
-    id: 1,
-    title:       "Sales Executive",
-    department:  "Sales",
-    type:        "Full-time",
-    location:    "Shimla, HP",
-    experience:  "1–3 Years",
-    badge:       "Urgent Hiring",
-    badgeCls:    "bg-red-50 text-red-600 border border-red-200",
-    description: "Drive revenue by converting inbound leads into confirmed bookings. You'll engage with prospective travellers across phone, WhatsApp, and email — understanding their requirements and presenting the right packages with confidence.",
-    responsibilities: [
-      "Handle inbound enquiries and follow up on leads from Google Ads and organic channels",
-      "Understand customer travel requirements and recommend suitable packages",
-      "Achieve monthly booking and revenue targets",
-      "Maintain accurate lead records in the CRM",
-      "Coordinate with the operations team post-confirmation",
-    ],
-    requirements: [
-      "1–3 years of sales experience (travel industry preferred)",
-      "Strong verbal communication in Hindi and English",
-      "Comfort working with CRM tools and WhatsApp Business",
-      "Target-driven with a customer-first mindset",
-    ],
-  },
-  {
-    id: 2,
-    title:       "Travel Expert",
-    department:  "Product",
-    type:        "Full-time",
-    location:    "Shimla, HP",
-    experience:  "2–4 Years",
-    badge:       "Open",
-    badgeCls:    "bg-green-50 text-green-700 border border-green-200",
-    description: "Craft memorable travel experiences by designing detailed, accurate, and competitive tour packages. You are the backbone of our product — your itinerary knowledge directly impacts what we sell and how customers experience their journeys.",
-    responsibilities: [
-      "Research and build itineraries for HP, Kashmir, Rajasthan, Goa, and international destinations",
-      "Source, negotiate, and manage hotel, transport, and activity vendor relationships",
-      "Price packages competitively while maintaining healthy margins",
-      "Ensure all itinerary documentation is accurate and up-to-date",
-      "Support the sales team with destination knowledge during customer calls",
-    ],
-    requirements: [
-      "2–4 years in travel operations or tour planning",
-      "Strong knowledge of domestic destinations (HP, Kashmir, Rajasthan mandatory)",
-      "Vendor negotiation and costing experience",
-      "Detail-oriented with excellent written communication",
-    ],
-  },
-  {
-    id: 3,
-    title:       "Business Development Manager",
-    department:  "Growth",
-    type:        "Full-time",
-    location:    "Shimla / Remote",
-    experience:  "4–7 Years",
-    badge:       "Senior Role",
-    badgeCls:    "bg-indigo-50 text-indigo-700 border border-indigo-200",
-    description: "Own our B2B and partnership growth strategy. You will identify and close partnerships with corporates, schools, travel agents, and international inbound operators — expanding our distribution beyond direct consumer channels.",
-    responsibilities: [
-      "Identify and develop B2B partnerships with corporates, educational institutions, and travel agents",
-      "Build and manage a pipeline of channel partners across North India",
-      "Lead outreach for international inbound tourism from UK, USA, Australia, and GCC markets",
-      "Negotiate and finalise partnership agreements",
-      "Represent Dreams Yatri at travel trade fairs and networking events",
-    ],
-    requirements: [
-      "4–7 years in business development, preferably in travel or hospitality",
-      "Proven B2B sales track record with a strong professional network",
-      "Excellent presentation and negotiation skills",
-      "Willingness to travel for client meetings and trade events",
-    ],
-  },
-  {
-    id: 4,
-    title:       "Operations Manager",
-    department:  "Operations",
-    type:        "Full-time",
-    location:    "Shimla, HP",
-    experience:  "3–6 Years",
-    badge:       "Open",
-    badgeCls:    "bg-green-50 text-green-700 border border-green-200",
-    description: "Own the end-to-end execution of confirmed tours — from vendor coordination to on-trip customer support. You ensure every traveller experience matches what was promised at the point of sale, protecting our brand and reputation.",
-    responsibilities: [
-      "Coordinate with hotels, transporters, and guides to ensure seamless tour execution",
-      "Manage last-minute changes, cancellations, and on-trip escalations",
-      "Oversee documentation: vouchers, confirmations, and travel kits",
-      "Monitor vendor quality and address service failures proactively",
-      "Build and maintain relationships with key vendors across all active destinations",
-    ],
-    requirements: [
-      "3–6 years in travel operations or tour management",
-      "Strong vendor network in Himachal Pradesh preferred",
-      "Calm under pressure with exceptional problem-solving skills",
-      "Proficient in MS Office; experience with booking systems is a plus",
-    ],
-  },
-];
 
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
@@ -238,12 +140,20 @@ type GalleryItem = {
 };
 
 type Testimonial = {
-  quote: string;
-  name: string;
-  role: string;
-  initials: string;
-  color: string;
-};
+  quote: string
+  name: string
+  role: string
+  tenure: string
+  initials: string
+  department: string
+  accent: string
+  avatarBg: string
+  avatarText: string
+  avatarBorder: string
+  badgeBg: string
+  badgeText: string
+  badgeBorder: string
+}
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 export const GALLERY: GalleryItem[] = [
@@ -291,6 +201,7 @@ export const GALLERY: GalleryItem[] = [
   },
 ];
 
+
 export const TESTIMONIALS: Testimonial[] = [
   {
     quote:
@@ -298,7 +209,15 @@ export const TESTIMONIALS: Testimonial[] = [
     name: "Priya S.",
     role: "Destination Lead – Kashmir",
     initials: "PS",
-    color: "bg-red-100 text-red-600",
+    department: "Growth",
+    accent: "#D85A30",
+    avatarBg: "#FAECE7",
+    avatarText: "#993C1D",
+    tenure: "8 months",
+    avatarBorder: "#F5C4B3",
+    badgeBg: "#FAECE7",
+    badgeText: "#993C1D",
+    badgeBorder: "#F5C4B3",
   },
   {
     quote:
@@ -306,7 +225,15 @@ export const TESTIMONIALS: Testimonial[] = [
     name: "Arjun M.",
     role: "Senior Sales Executive",
     initials: "AM",
-    color: "bg-violet-100 text-violet-600",
+    department: "Sales",
+    accent: "#7F77DD",
+    avatarBg: "#EEEDFE",
+    avatarText: "#534AB7",
+    tenure: "8 months",
+    avatarBorder: "#CECBF6",
+    badgeBg: "#EEEDFE",
+    badgeText: "#534AB7",
+    badgeBorder: "#CECBF6",
   },
   {
     quote:
@@ -314,7 +241,15 @@ export const TESTIMONIALS: Testimonial[] = [
     name: "Kavya T.",
     role: "Operations Manager",
     initials: "KT",
-    color: "bg-emerald-100 text-emerald-600",
+    department: "Operations",
+    accent: "#1D9E75",
+    avatarBg: "#E1F5EE",
+    avatarText: "#0F6E56",
+    tenure: "8 months",
+    avatarBorder: "#9FE1CB",
+    badgeBg: "#E1F5EE",
+    badgeText: "#0F6E56",
+    badgeBorder: "#9FE1CB",
   },
 ];
 
@@ -324,4 +259,204 @@ export const CULTURE_POINTS = [
   { label: "Transparent communication", icon: MessageCircle },
   { label: "Travel-first mindset", icon: Plane },
   { label: "No-nonsense hiring", icon: Zap },
+];
+
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+interface Job {
+  id: number;
+  index: string;
+  title: string;
+  department: Department;
+  badge: string;
+  badgeType: "urgent" | "featured" | "open";
+  location: string;
+  type: string;
+  experience: string;
+  openings: string;
+  description: string;
+  responsibilities: string[];
+  requirements: string[];
+}
+
+type Department = "Sales" | "Product" | "Growth" | "Operations" | "All";
+
+// ─── Data ─────────────────────────────────────────────────────────────────────
+export const OPENINGS: Job[] = [
+  {
+    id: 1,
+    index: "01",
+    title: "Senior Sales Executive",
+    department: "Sales",
+    badge: "Urgent",
+    badgeType: "urgent",
+    location: "Shimla, HP",
+    type: "Full-time",
+    experience: "3–5 yrs",
+    openings: "2",
+    description:
+      "Drive revenue growth by building relationships with travel agents, corporate clients, and direct customers. You will be the face of Dreams Yatri in key markets, owning the full sales cycle from prospecting to closing.",
+    responsibilities: [
+      "Own and grow a portfolio of B2B and B2C accounts",
+      "Conduct product demos and tailored pitches",
+      "Achieve monthly and quarterly revenue targets",
+      "Collaborate with operations to ensure smooth customer onboarding",
+    ],
+    requirements: [
+      "3+ years in travel, hospitality, or B2B sales",
+      "Strong network of travel agents or corporate contacts",
+      "Excellent communication and negotiation skills",
+      "Comfort with CRM tools and sales dashboards",
+    ],
+  },
+  {
+    id: 2,
+    index: "02",
+    title: "Product Manager — Booking Platform",
+    department: "Product",
+    badge: "Featured",
+    badgeType: "featured",
+    location: "Remote / Shimla",
+    type: "Full-time",
+    experience: "4–7 yrs",
+    openings: "1",
+    description:
+      "Shape the core booking experience used by thousands of travellers each month. You will define the roadmap, work closely with engineering, and translate user research into high-impact product decisions.",
+    responsibilities: [
+      "Own end-to-end roadmap for the booking and payment flows",
+      "Run discovery interviews and synthesise user feedback",
+      "Write precise PRDs and coordinate with design + engineering",
+      "Define and track KPIs — conversion, drop-off, NPS",
+    ],
+    requirements: [
+      "4+ years as a PM at a consumer or travel product",
+      "Strong analytical mindset; comfort with SQL or BI tools",
+      "Experience with agile delivery and sprint rituals",
+      "Bonus: prior work in fintech or marketplace products",
+    ],
+  },
+  {
+    id: 3,
+    index: "03",
+    title: "Growth Marketing Lead",
+    department: "Growth",
+    badge: "Open",
+    badgeType: "open",
+    location: "Remote",
+    type: "Full-time",
+    experience: "3–6 yrs",
+    openings: "3",
+    description:
+      "Own acquisition, activation, and retention across digital channels. You will build experiments, manage paid budgets, and work with content and product to grow Dreams Yatri's customer base sustainably.",
+    responsibilities: [
+      "Lead performance marketing across Meta, Google, and programmatic",
+      "Build and A/B test landing pages and onboarding flows",
+      "Own the email/WhatsApp lifecycle programmes",
+      "Report weekly on CAC, LTV, ROAS, and cohort retention",
+    ],
+    requirements: [
+      "3+ years in growth or performance marketing",
+      "Hands-on experience with attribution and analytics stacks",
+      "Creative and data-driven in equal measure",
+      "Experience in travel, e-commerce, or marketplace preferred",
+    ],
+  },
+  {
+    id: 4,
+    index: "04",
+    title: "Travel Operations Coordinator",
+    department: "Operations",
+    badge: "Open",
+    badgeType: "open",
+    location: "Shimla, HP",
+    type: "Full-time",
+    experience: "1–3 yrs",
+    openings: "1",
+    description:
+      "Ensure every itinerary runs flawlessly from booking to completion. You will coordinate with hotels, vendors, guides, and customers — the operational backbone that makes memorable trips happen.",
+    responsibilities: [
+      "Confirm and manage vendor bookings and schedules",
+      "Handle customer queries pre-, during, and post-trip",
+      "Resolve on-ground escalations quickly and calmly",
+      "Maintain accurate records in our operations system",
+    ],
+    requirements: [
+      "1+ year in travel operations or hospitality coordination",
+      "Strong organisational and multitasking skills",
+      "Fluent in Hindi and English; regional language a plus",
+      "Calm under pressure and highly detail-oriented",
+    ],
+  },
+  {
+    id: 5,
+    index: "05",
+    title: "Content & Social Media Manager",
+    department: "Growth",
+    badge: "Open",
+    badgeType: "open",
+    location: "Remote",
+    type: "Full-time",
+    experience: "2–4 yrs",
+    openings: "3",
+    description:
+      "Tell the Dreams Yatri story across Instagram, YouTube, and beyond. You will create aspirational travel content, manage communities, and partner with influencers to grow a loyal audience.",
+    responsibilities: [
+      "Plan and produce short-form and long-form travel content",
+      "Manage posting calendars across platforms",
+      "Identify and brief travel creators for partnerships",
+      "Track engagement, reach, and follower growth metrics",
+    ],
+    requirements: [
+      "2+ years managing social media for a consumer brand",
+      "Strong visual eye and video editing skills (Reels, Shorts)",
+      "Experience with influencer outreach and briefs",
+      "Passion for travel and authentic storytelling",
+    ],
+  },
+  {
+    id: 6,
+    index: "06",
+    title: "Finance & Compliance Analyst",
+    department: "Operations",
+    badge: "Open",
+    badgeType: "open",
+    location: "Shimla, HP",
+    type: "Full-time",
+    experience: "2–5 yrs",
+    openings: "2",
+    description:
+      "Own financial reporting, cash flow tracking, and regulatory compliance for a fast-growing travel company. You will work directly with leadership to provide the financial clarity that drives sound decisions.",
+    responsibilities: [
+      "Prepare monthly P&L, balance sheet, and cash flow reports",
+      "Monitor vendor payments and reconcile accounts",
+      "Ensure GST and TCS compliance for travel services",
+      "Support annual audits and fundraising data requests",
+    ],
+    requirements: [
+      "2+ years in finance, accounting, or CA articleship",
+      "Proficient in Tally or similar accounting software",
+      "Knowledge of GST regulations in the travel sector",
+      "High integrity and meticulous attention to detail",
+    ],
+  },
+];
+export const CONTACTS = [
+  {
+    href: "mailto:hr@dreamsyatri.com",
+    label: "Email HR",
+    value: "hr@dreamsyatri.com",
+    icon: Mail,
+  },
+  {
+    href: "tel:+917023907023",
+    label: "Primary",
+    value: "+91 70239 07023",
+    icon: Phone,
+  },
+  {
+    href: "tel:+917023907099",
+    label: "Alternate",
+    value: "+91 70239 07099",
+    icon: Phone,
+  },
 ];

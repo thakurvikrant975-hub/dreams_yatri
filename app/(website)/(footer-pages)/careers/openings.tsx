@@ -1,349 +1,350 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Reveal } from "../components/Reveal";
-import { SectionLabel } from "../components/SectionLabel";
-import { SectionHeading } from "../components/SectionHeading";
-import { OPENINGS } from "./data";
 import {
-  CheckCircle,
-  Circle,
   Mail,
   MapPin,
   Briefcase,
   Clock,
-  ChevronRight,
+  Plus,
+  X,
   ArrowUpRight,
+  DollarSign,
 } from "lucide-react";
+import { SectionLabel } from "../components/SectionLabel";
+import { SectionHeading } from "../components/SectionHeading";
+import Card from "@/app/components/ui/Card";
+import { OPENINGS } from "./data";
 
-// ─── Department color map ─────────────────────────────────────────────────────
-const DEPT_COLORS: Record<string, string> = {
-  Sales:      "bg-orange-50 text-orange-600 border-orange-200",
-  Product:    "bg-sky-50 text-sky-600 border-sky-200",
-  Growth:     "bg-violet-50 text-violet-600 border-violet-200",
-  Operations: "bg-emerald-50 text-emerald-600 border-emerald-200",
-};
+// ─── Types ────────────────────────────────────────────────────────────────────
+interface Job {
+  id: number;
+  index: string;
+  title: string;
+  department: Department;
+  badge: string;
+  badgeType: "urgent" | "featured" | "open";
+  location: string;
+  type: string;
+  experience: string;
+  openings: string;
+  description: string;
+  responsibilities: string[];
+  requirements: string[];
+}
 
-// ─── JobCard ──────────────────────────────────────────────────────────────────
+type Department = "Sales" | "Product" | "Growth" | "Operations" | "All";
+
+
+const DEPARTMENTS: Department[] = ["All", "Sales", "Product", "Growth", "Operations"];
+
+// ─── Badge ────────────────────────────────────────────────────────────────────
+function Badge({ type, label }: { type: Job["badgeType"] | "dept"; label: string }) {
+  const base =
+    "inline-flex items-center font-mono text-[10px] font-medium tracking-wider uppercase px-2.5 py-0.5 rounded-full border";
+
+  const variants: Record<string, string> = {
+    urgent: "bg-red-50 text-red-600 border-red-200",
+    featured: "bg-blue-50 text-blue-600 border-blue-200",
+    open: "bg-emerald-50 text-emerald-600 border-emerald-200",
+    dept: "bg-gray-100 text-gray-500 border-gray-200",
+  };
+
+  return <span className={`${base} ${variants[type]}`}>{label}</span>;
+}
+
+// ─── Meta Pill ────────────────────────────────────────────────────────────────
+function MetaPill({
+  icon: Icon,
+  text,
+}: {
+  icon: React.ElementType;
+  text: string;
+}) {
+  return (
+    <span className="flex items-center gap-1.5 text-[11.5px] text-gray-500 font-light">
+      <Icon size={11} className="text-gray-500 shrink-0" />
+      {text}
+    </span>
+  );
+}
+
+// ─── Animated body height ─────────────────────────────────────────────────────
+function AnimatedBody({ open, children }: { open: boolean; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState(0);
+
+  useEffect(() => {
+    if (ref.current) setHeight(open ? ref.current.scrollHeight : 0);
+  }, [open]);
+
+  return (
+    <div
+      style={{ height, overflow: "hidden", transition: "height 0.4s cubic-bezier(0.4,0,0.2,1)" }}
+    >
+      <div ref={ref}>{children}</div>
+    </div>
+  );
+}
+
+// ─── Job Card ─────────────────────────────────────────────────────────────────
 function JobCard({
   job,
-  index,
   isOpen,
   onToggle,
 }: {
-  job: (typeof OPENINGS)[0];
-  index: number;
+  job: Job;
   isOpen: boolean;
   onToggle: () => void;
 }) {
-  const bodyRef = useRef<HTMLDivElement>(null);
-  const [h, setH] = useState(0);
-
-  useEffect(() => {
-    if (bodyRef.current) {
-      setH(isOpen ? bodyRef.current.scrollHeight : 0);
-    }
-  }, [isOpen]);
-
   const mailSubject = encodeURIComponent(
     `Application for ${job.title} — Dreams Yatri`
   );
 
-  const deptCls =
-    DEPT_COLORS[job.department] ?? "bg-gray-50 text-gray-600 border-gray-200";
-
   return (
     <div
-      className={`
-        relative rounded-2xl border transition-all duration-300 overflow-hidden
-        ${isOpen
-          ? "border-red-200 shadow-lg shadow-red-500/[0.07] bg-white"
-          : "border-gray-200 bg-white hover:border-gray-300 hover:shadow-md"
-        }
-      `}
+      className={[
+        "relative border-b border-gray-300 last:border-b-0 transition-colors duration-200",
+        isOpen ? "bg-gray-50/70" : "bg-white hover:bg-gray-50/80",
+      ].join(" ")}
     >
-      {/* Left accent bar */}
+      {/* Left accent */}
       <div
-        className={`absolute left-0 top-0 bottom-0 w-[3px] rounded-l-2xl transition-all duration-300
-          ${isOpen ? "bg-red-500" : "bg-transparent group-hover:bg-gray-200"}`}
+        className={[
+          "absolute left-0 top-0 bottom-0 w-[2px] transition-all duration-300",
+          isOpen ? "bg-gray-900" : "bg-transparent",
+        ].join(" ")}
       />
 
-      {/* ── HEADER BUTTON ── */}
+      {/* Header */}
       <button
         onClick={onToggle}
-        className="group w-full text-left pl-8 pr-6 py-6 flex items-start justify-between gap-6"
+        className="w-full text-left pl-8 pr-6 py-5 flex items-center gap-5 group"
+        aria-expanded={isOpen}
       >
+        {/* Index */}
+        <span className="font-mono text-[11px] text-gray-800 tabular-nums w-6 shrink-0">
+          {job.index}
+        </span>
+
+        {/* Main */}
         <div className="flex-1 min-w-0">
-
-          {/* Index + Badges row */}
-          <div className="flex flex-wrap items-center gap-2 mb-3">
-            {/* Serial number */}
-            <span
-              className="text-[10px] font-semibold text-gray-300 tabular-nums mr-1"
-              style={{ fontFamily: "'DM Mono', monospace" }}
-            >
-              {String(index + 1).padStart(2, "0")}
-            </span>
-
-            {/* Urgency badge */}
-            <span className={`text-[10px] font-bold tracking-wide px-2.5 py-0.5 rounded-full border ${job.badgeCls}`}>
-              {job.badge}
-            </span>
-
-            {/* Department badge */}
-            <span className={`text-[10px] font-semibold tracking-wide px-2.5 py-0.5 rounded-full border ${deptCls}`}>
-              {job.department}
-            </span>
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <Badge type={job.badgeType} label={job.badge} />
+            <Badge type="dept" label={job.department} />
           </div>
 
-          {/* Title */}
-          <h3
-            className="text-[17px] font-bold text-gray-900 leading-snug mb-3 group-hover:text-red-600 transition-colors duration-200"
-            style={{ fontFamily: "'DM Sans', sans-serif" }}
-          >
+          <h3 className="text-[16px] font-semibold text-gray-900 leading-snug mb-2 group-hover:text-gray-600 transition-colors duration-150">
             {job.title}
           </h3>
 
-          {/* Meta pills */}
           <div className="flex flex-wrap gap-4">
-            {[
-              { Icon: MapPin,   text: job.location   },
-              { Icon: Briefcase, text: job.type      },
-              { Icon: Clock,    text: job.experience },
-            ].map(({ Icon, text }, i) => (
-              <span
-                key={i}
-                className="flex items-center gap-1.5 text-[12px] text-gray-400"
-                style={{ fontFamily: "'DM Sans', sans-serif" }}
-              >
-                <Icon size={11} className="text-gray-300" />
-                {text}
-              </span>
-            ))}
+            <MetaPill icon={MapPin} text={job.location} />
+            <MetaPill icon={Briefcase} text={job.type} />
+            <MetaPill icon={Clock} text={job.experience} />
           </div>
         </div>
 
-        {/* Toggle chevron */}
+        {/* Salary */}
+        <span className="hidden sm:block font-mono text-[12px] text-gray-500 text-right shrink-0">
+          {job.openings} opening
+        </span>
+
+        {/* Toggle */}
         <div
-          className={`
-            mt-1 w-8 h-8 rounded-xl flex items-center justify-center shrink-0
-            border transition-all duration-300
-            ${isOpen
-              ? "bg-red-500 border-red-500 text-white rotate-90"
-              : "bg-gray-50 border-gray-200 text-gray-400 group-hover:border-gray-300 group-hover:bg-gray-100"
-            }
-          `}
+          className={[
+            "w-7 h-7 rounded-full border flex items-center justify-center shrink-0 transition-all duration-300",
+            isOpen
+              ? "bg-gray-900 border-gray-900 text-white rotate-0"
+              : "bg-white border-gray-200 text-gray-500 group-hover:border-gray-400",
+          ].join(" ")}
         >
-          <ChevronRight size={15} />
+          {isOpen ? <X size={12} /> : <Plus size={12} />}
         </div>
       </button>
 
-      {/* ── EXPANDABLE BODY ── */}
-      <div
-        style={{
-          height: h,
-          overflow: "hidden",
-          transition: "height 0.4s cubic-bezier(.4,0,.2,1)",
-        }}
-      >
-        <div ref={bodyRef}>
-          <div className="pl-8 pr-6 pb-7">
+      {/* Body */}
+      <AnimatedBody open={isOpen}>
+        <div className="pl-[calc(2rem+1.5rem+1.25rem)] pr-6 pb-6">
+          <div className="h-px bg-gray-100 mb-5" />
 
-            {/* Divider */}
-            <div className="w-full h-px bg-gray-100 mb-6" />
+          {/* Description */}
+          <p className="text-[13px] font-light text-gray-700 leading-relaxed mb-6 max-w-2xl">
+            {job.description}
+          </p>
 
-            {/* Description */}
-            <p
-              className="text-[13.5px] text-gray-500 leading-relaxed mb-7 max-w-2xl"
-              style={{ fontFamily: "'DM Sans', sans-serif" }}
-            >
-              {job.description}
-            </p>
-
-            {/* Two-column list grid */}
-            <div className="grid md:grid-cols-2 gap-4 mb-7">
-
-              {/* What You'll Do */}
-              <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-5">
-                <p
-                  className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400 mb-4"
-                  style={{ fontFamily: "'DM Mono', monospace" }}
-                >
-                  What You'll Do
-                </p>
-                <ul className="flex flex-col gap-2.5">
-                  {job.responsibilities.map((r, i) => (
-                    <li
-                      key={i}
-                      className="flex gap-2.5 text-[12.5px] text-gray-600 leading-snug"
-                      style={{ fontFamily: "'DM Sans', sans-serif" }}
-                    >
-                      <CheckCircle
-                        size={13}
-                        className="text-red-400 mt-0.5 shrink-0"
-                      />
-                      {r}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* What We're Looking For */}
-              <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-5">
-                <p
-                  className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400 mb-4"
-                  style={{ fontFamily: "'DM Mono', monospace" }}
-                >
-                  What We're Looking For
-                </p>
-                <ul className="flex flex-col gap-2.5">
-                  {job.requirements.map((r, i) => (
-                    <li
-                      key={i}
-                      className="flex gap-2.5 text-[12.5px] text-gray-600 leading-snug"
-                      style={{ fontFamily: "'DM Sans', sans-serif" }}
-                    >
-                      <Circle
-                        size={12}
-                        className="text-gray-300 mt-0.5 shrink-0"
-                      />
-                      {r}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-
-            {/* CTA bar */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-5 border-t border-gray-100">
-              <a
-                href={`mailto:hr@dreamsyatri.com?subject=${mailSubject}`}
-                className="
-                  inline-flex items-center gap-2
-                  bg-red-500 hover:bg-red-600
-                  text-white text-[13px] font-semibold
-                  px-5 py-2.5 rounded-xl
-                  shadow-sm hover:shadow-md
-                  transition-all duration-200
-                "
-                style={{ fontFamily: "'DM Sans', sans-serif" }}
-              >
-                <Mail size={14} />
-                Apply for this role
-                <ArrowUpRight size={13} className="opacity-70" />
-              </a>
-
-              <p
-                className="text-[11.5px] text-gray-400"
-                style={{ fontFamily: "'DM Sans', sans-serif" }}
-              >
-                Send your CV to{" "}
-                <span className="font-semibold text-gray-600">
-                  hr@dreamsyatri.com
-                </span>
+          {/* Two columns */}
+          <div className="grid md:grid-cols-2 gap-3 mb-6">
+            {/* Responsibilities */}
+            <div className="rounded-xl border border-gray-100 bg-white p-4">
+              <p className="font-semibold text-[9px] tracking-[0.2em] uppercase text-gray-700 mb-3">
+                What You'll Do
               </p>
+              <ul className="space-y-2">
+                {job.responsibilities.map((r, i) => (
+                  <li key={i} className="flex gap-2 text-[12.5px] text-gray-700 font-light leading-snug">
+                    <span className="mt-1.5 w-1 h-1 rounded-full bg-gray-300 shrink-0" />
+                    {r}
+                  </li>
+                ))}
+              </ul>
             </div>
 
+            {/* Requirements */}
+            <div className="rounded-xl border border-gray-100 bg-white p-4">
+              <p className="font-semibold text-[9px] tracking-[0.2em] uppercase text-gray-700 mb-3">
+                What We're Looking For
+              </p>
+              <ul className="space-y-2">
+                {job.requirements.map((r, i) => (
+                  <li key={i} className="flex gap-2 text-[12.5px] text-gray-700 font-light leading-snug">
+                    <span className="mt-1.5 w-1 h-1 rounded-full bg-gray-200 shrink-0" />
+                    {r}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          {/* CTA */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-4 border-t border-gray-100">
+            <a
+              href={`mailto:hr@dreamsyatri.com?subject=${mailSubject}`}
+              className="inline-flex items-center gap-2 bg-gray-900 hover:bg-gray-700 text-white text-[12.5px] font-medium px-5 py-2.5 rounded-xl transition-colors duration-150"
+            >
+              <Mail size={13} />
+              Apply for this role
+              <ArrowUpRight size={12} className="opacity-60" />
+            </a>
+            <p className="text-[11px] text-gray-500 font-light">
+              Send your CV to{" "}
+              <span className="font-medium text-gray-600">hr@dreamsyatri.com</span>
+            </p>
           </div>
         </div>
-      </div>
+      </AnimatedBody>
     </div>
   );
 }
 
 // ─── Main Section ─────────────────────────────────────────────────────────────
-const Openings = () => {
+export default function Openings() {
   const [openId, setOpenId] = useState<number | null>(null);
+  const [activeFilter, setActiveFilter] = useState<Department>("All");
 
   const toggle = (id: number) =>
     setOpenId((prev) => (prev === id ? null : id));
 
+  const filtered =
+    activeFilter === "All"
+      ? OPENINGS
+      : OPENINGS.filter((j) => j.department === activeFilter);
+
   return (
-    <section className="py-24">
-      <div className="max-w-8xl mx-auto">
+    <section className="py-24 px-4">
+      <div className="max-w-5xl mx-auto">
 
         {/* ── Header ── */}
-        <Reveal className="text-center mb-14">
-          <SectionLabel>Careers at Dreams Yatri</SectionLabel>
+        <div className="grid md:grid-cols-2 gap-10 items-start border-b border-gray-900 pb-12 mb-12">
+          {/* Left */}
+          <div>
 
-          <SectionHeading
-            text="Find Your "
-            highlight="Dream Role"
-            highlightPosition="suffix"
-            variant="light"
-          />
 
-          <p
-            className="text-gray-400 text-[13.5px] mt-4 max-w-lg mx-auto leading-relaxed"
-            style={{ fontFamily: "'DM Sans', sans-serif" }}
-          >
-            Explore open roles and become part of a team building meaningful
-            travel experiences. We review every application personally.
-          </p>
-        </Reveal>
+            <SectionLabel>Careers at DreamsYatri</SectionLabel>
 
-        {/* ── Stats row ── */}
-        <Reveal>
-          <div className="flex flex-wrap justify-center gap-8 mb-12 pb-10 border-b border-gray-100">
-            {[
-              { value: `${OPENINGS.length}`, label: "Open Positions" },
-              { value: "Shimla", label: "Headquarters" },
-              { value: "Fast", label: "Hiring Process" },
-            ].map(({ value, label }, i) => (
-              <div key={i} className="text-center">
-                <p
-                  className="text-2xl font-bold text-gray-900"
-                  style={{ fontFamily: "'DM Sans', sans-serif" }}
-                >
-                  {value}
-                </p>
-                <p
-                  className="text-[11px] text-gray-400 uppercase tracking-widest mt-0.5"
-                  style={{ fontFamily: "'DM Mono', monospace" }}
-                >
-                  {label}
-                </p>
-              </div>
-            ))}
+            <SectionHeading
+              text="Find your"
+              highlight="Dream Role"
+              level="h3"
+              highlightPosition="suffix"
+              variant="light"
+            />
           </div>
-        </Reveal>
 
-        {/* ── Job cards ── */}
-        <div className="flex flex-col gap-3">
-          {OPENINGS.map((job, i) => (
-            <Reveal key={job.id} delay={i * 60}>
-              <JobCard
-                job={job}
-                index={i}
-                isOpen={openId === job.id}
-                onToggle={() => toggle(job.id)}
-              />
-            </Reveal>
+          {/* Right */}
+          <div className="pt-1">
+            <p className="text-[13.5px] font-light text-gray-500 leading-relaxed mb-8 max-w-sm">
+              Explore open roles and become part of a team building meaningful
+              travel experiences. We review every application personally.
+            </p>
+
+            <div className="flex gap-8">
+              {[
+                { value: String(filtered.length), label: "Open Positions" },
+                { value: "Shimla", label: "Headquarters" },
+                { value: "< 2 wks", label: "Avg. Time to Offer" },
+              ].map(({ value, label }) => (
+                <div key={label}>
+                  <p
+                    className="text-[22px] font-medium text-gray-900"
+                  >
+                    {value}
+                  </p>
+                  <p className="font-mono text-[9px] tracking-[0.15em] uppercase text-gray-500 mt-1">
+                    {label}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Filters ── */}
+        <div className="flex flex-wrap items-center gap-2 mb-8">
+          <span className="font-mono text-[10px] tracking-wider uppercase text-gray-500 mr-2">
+            Filter —
+          </span>
+          {DEPARTMENTS.map((dept) => (
+            <button
+              key={dept}
+              onClick={() => {
+                setActiveFilter(dept);
+                setOpenId(null);
+              }}
+              className={[
+                "text-[12px] font-medium px-4 py-1.5 rounded-full border transition-all duration-150",
+                activeFilter === dept
+                  ? "bg-gray-900 border-gray-900 text-white"
+                  : "bg-white border-gray-200 text-gray-500 hover:border-gray-400 hover:text-gray-700",
+              ].join(" ")}
+            >
+              {dept}
+            </button>
           ))}
         </div>
 
+        {/* ── Job List ── */}
+        <Card className="border  rounded-2xl overflow-hidden shadow-sm">
+          {filtered.length === 0 ? (
+            <div className="py-16 text-center text-gray-500 text-[13px] font-light">
+              No openings in this department right now.
+            </div>
+          ) : (
+            filtered.map((job) => (
+              <JobCard
+                key={job.id}
+                job={job}
+                isOpen={openId === job.id}
+                onToggle={() => toggle(job.id)}
+              />
+            ))
+          )}
+        </Card>
+
         {/* ── Bottom note ── */}
-        <Reveal>
-          <div className="mt-10 text-center">
-            <p
-              className="text-[12px] text-gray-400 leading-relaxed"
-              style={{ fontFamily: "'DM Sans', sans-serif" }}
-            >
-              Don't see a fit?{" "}
-              <a
-                href="mailto:hr@dreamsyatri.com?subject=Open Application — Dreams Yatri"
-                className="text-red-500 font-semibold hover:text-red-600 transition-colors"
-              >
-                Send an open application
-              </a>{" "}
-              — we're always looking for exceptional people.
-            </p>
-          </div>
-        </Reveal>
+        <div className="mt-8 pt-6 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <p className="text-[12.5px] font-light text-gray-500">
+            Don't see the right fit?
+          </p>
+          <a
+            href="mailto:hr@dreamsyatri.com?subject=Open Application — Dreams Yatri"
+            className="text-[12.5px] font-medium text-gray-700 border-b border-gray-300 pb-px hover:text-gray-900 hover:border-gray-900 transition-colors duration-150"
+          >
+            Send an open application →
+          </a>
+        </div>
 
       </div>
     </section>
   );
-};
-
-export default Openings;
+}

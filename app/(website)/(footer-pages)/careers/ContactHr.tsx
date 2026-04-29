@@ -1,120 +1,140 @@
 "use client"
 
 import React from 'react'
-import Image from 'next/image'
 import { Reveal } from '../components/Reveal'
-import { SectionLabel } from '../components/SectionLabel'
+import Card from '@/app/components/ui/Card'
+import { CONTACTS } from './data'
 import { SectionHeading } from '../components/SectionHeading'
-import { Mail, Phone } from 'lucide-react'
+import { SectionLabel } from '../components/SectionLabel'
 
-const CONTACTS = [
-  {
-    href: "mailto:hr@dreamsyatri.com",
-    Icon: Mail,
-    label: "Email HR",
-    value: "hr@dreamsyatri.com",
-  },
-  {
-    href: "tel:+917023907023",
-    Icon: Phone,
-    label: "Call HR",
-    value: "+91 70239 07023",
-  },
-  {
-    href: "tel:+917023907099",
-    Icon: Phone,
-    label: "Alternate Number",
-    value: "+91 70239 07099",
-  },
-]
+
+const ArrowIcon = () => (
+  <svg className="ml-auto opacity-35 shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M7 17L17 7M17 7H7M17 7v10" />
+  </svg>
+)
 
 const ContactHr = () => {
   return (
-    <section className="relative">
+    <section>
       <Reveal>
-        <div className="relative overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm">
-          <div className="relative grid lg:grid-cols-2 gap-10 p-8 sm:p-12 items-center">
+        <Card className="rounded-2xl border border-gray-100 bg-white overflow-hidden shadow-sm">
+          <div className="grid lg:grid-cols-2">
 
-            {/* LEFT CONTENT */}
-            <div>
-              <SectionLabel>We're Here to Help</SectionLabel>
+            {/* LEFT — Contact Panel */}
+            <div className="p-8 sm:p-10 flex flex-col justify-center border-b lg:border-b-0 lg:border-r border-gray-100">
 
-              <SectionHeading
-                text="Talk to our "
-                highlight="HR Team"
-                level="h3"
-                highlightPosition="suffix"
-                variant="light"
-              />
+              {/* Label */}
+  
 
-              <p
-                className="text-gray-600 text-sm leading-relaxed max-w-md mt-3"
-                style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-              >
-                Not sure which role fits you, or want to understand the hiring process better?
-                Our HR team is just a message away — we’ll guide you every step of the way.
+                      <SectionLabel>Careers Support</SectionLabel>
+                      <SectionHeading
+                        text="Speak directly with "
+                        highlight="HR Team"
+                        highlightPosition="suffix"
+                        variant="light"
+                        level='h3'
+                      />
+
+              {/* Description */}
+              <p className="text-sm text-gray-500 leading-relaxed max-w-sm mb-7">
+                Whether you have questions about open roles, the hiring process, or company culture — our HR team is available and responsive.
               </p>
 
-              {/* CONTACT CARDS */}
-              <div className="mt-6 flex flex-col gap-3">
-                {CONTACTS.map(({ href, Icon, label, value }, i) => (
-                  <a
-                    key={i}
-                    href={href}
-                    className="group flex items-center gap-4 px-5 py-4 rounded-xl border border-gray-100
-                               bg-white shadow-sm hover:shadow-md hover:border-red-200
-                               transition-all duration-300"
-                  >
-                    {/* ICON */}
-                    <span className="w-10 h-10 rounded-xl bg-red-50 text-red-500 flex items-center justify-center
-                                     group-hover:bg-red-500 group-hover:text-white transition-all duration-300">
-                      <Icon size={16} />
-                    </span>
+              {/* Contact Items */}
+              <div className="flex flex-col gap-2.5">
+                {CONTACTS.map(({ href, label, value, icon }, i) => {
+                  const Icon = icon;
 
-                    {/* TEXT */}
-                    <div>
-                      <p className="text-xs text-gray-400">{label}</p>
-                      <p className="text-sm font-semibold text-gray-900 group-hover:text-red-600 transition-colors">
-                        {value}
-                      </p>
-                    </div>
-                  </a>
-                ))}
+                  return (
+                    <a
+                      key={i}
+                      href={href}
+                      className="group flex items-center gap-3.5 px-4 py-3.5 rounded-xl border border-gray-100 bg-gray-50 hover:border-red-100 hover:bg-red-50/30 transition-all duration-200"
+                    >
+                      <span className="w-9 h-9 rounded-lg bg-red-50 text-red-500 flex items-center justify-center shrink-0 group-hover:bg-red-500 group-hover:text-white transition-all duration-200">
+                        <Icon size={18} />
+                      </span>
+
+                      <div>
+                        <p className="text-[11px] text-gray-400 mb-0.5">{label}</p>
+                        <p className="text-sm font-medium text-gray-900 group-hover:text-red-600 transition-colors">
+                          {value}
+                        </p>
+                      </div>
+
+                      <ArrowIcon />
+                    </a>
+                  );
+                })}
               </div>
             </div>
 
-            {/* RIGHT IMAGE / VISUAL */}
-            <div className="relative hidden lg:block">
-              <div className="relative rounded-2xl overflow-hidden shadow-lg border border-gray-200">
+            {/* RIGHT — Info Panel */}
+            <div className="p-8 sm:p-10 bg-gray-50 flex flex-col gap-4">
 
-                <Image
-                  src="https://images.unsplash.com/photo-1635350736475-c8cef4b21906?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D?w=900&q=80"
-                  alt="HR Support"
-                  width={500}
-                  height={400}
-                  className="w-full h-full object-cover shadow-lg"
-                />
+              {/* Stat Cards */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-4 rounded-xl border border-gray-100 bg-white">
+                  <p className="text-xl font-medium text-gray-900 mb-0.5">&lt; 2 hrs</p>
+                  <p className="text-[11px] text-gray-400">Avg. response time</p>
+                </div>
+                <div className="p-4 rounded-xl border border-gray-100 bg-white">
+                  <p className="text-xl font-medium text-gray-900 mb-0.5">Mon–Sat</p>
+                  <p className="text-[11px] text-gray-400">Availability</p>
+                </div>
+              </div>
 
-                {/* Overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/10 to-transparent" />
+              {/* HR Profile Card */}
+              <div className="flex-1 p-5 rounded-xl border border-gray-100 bg-white flex flex-col justify-between gap-4">
 
-                {/* Floating Card */}
-                <div className="absolute bottom-4 left-4 right-4 bg-white/90 backdrop-blur-md rounded-xl p-4 shadow">
-                  <p className="text-sm font-semibold text-gray-900">
-                    Need quick help?
+                {/* Avatar + Status */}
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center text-sm font-medium text-red-700 shrink-0">
+                    DY
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Dreams Yatri HR</p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <div className="w-1.5 h-1.5 rounded-full bg-green-600" />
+                      <span className="text-[11px] text-gray-400">Available now</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quote */}
+                <div className="p-3.5 bg-gray-50 rounded-lg border border-gray-100">
+                  <p className="text-xs text-gray-500 leading-relaxed">
+                    "We're always happy to help with queries about open positions, interview schedules, or company onboarding."
                   </p>
-                  <p className="text-xs text-gray-700">
-                    Our HR team usually responds within a few hours.
-                  </p>
+                </div>
+
+                {/* Tags */}
+                <div className="flex gap-2 flex-wrap">
+                  {["Hiring", "Onboarding", "Culture"].map((tag) => (
+                    <span key={tag} className="text-[11px] px-3 py-1 rounded-full border border-gray-200 text-gray-500 bg-gray-50">
+                      {tag}
+                    </span>
+                  ))}
                 </div>
               </div>
             </div>
-
           </div>
-        </div>
+
+          {/* Footer Bar */}
+          <div className="border-t border-gray-100 px-8 sm:px-10 py-3.5 bg-gray-50 flex items-center justify-between">
+            <p className="text-xs text-gray-400">
+              Dreams Yatri (OPC) Private Limited — Shimla, Himachal Pradesh
+            </p>
+            <div className="flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-600" />
+              <span className="text-xs text-gray-400">Confidential communications</span>
+            </div>
+          </div>
+        </Card>
       </Reveal>
     </section>
   )
 }
 
-export default ContactHr
+export default ContactHr;
