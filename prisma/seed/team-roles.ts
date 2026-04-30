@@ -35,16 +35,14 @@ async function main() {
   console.log("Seeding TeamRole...");
 
   for (const role of roles) {
-    const pgArray = `{${role.permissions.map((p) => `"${p}"`).join(",")}}`;
-
     await pool.query(
       `INSERT INTO team_roles (id, name, description, permissions, "createdAt", "updatedAt")
-       VALUES (gen_random_uuid(), $1, $2, $3::text[], NOW(), NOW())
+       VALUES (gen_random_uuid(), $1, $2, $3::jsonb, NOW(), NOW())
        ON CONFLICT (name) DO UPDATE
          SET description = EXCLUDED.description,
              permissions = EXCLUDED.permissions,
              "updatedAt" = NOW()`,
-      [role.name, role.description ?? null, pgArray]
+      [role.name, role.description ?? null, JSON.stringify(role.permissions)]
     );
 
     console.log("  ->", role.name);
