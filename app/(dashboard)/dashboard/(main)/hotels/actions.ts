@@ -41,7 +41,6 @@ export async function getHotels() {
         select: {
           hotelRooms: true,
           images: true,
-          packages: true,
         },
       },
     },

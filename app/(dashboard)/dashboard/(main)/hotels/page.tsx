@@ -60,7 +60,6 @@ async function HotelsData() {
                     { label: "Total Hotels", value: hotels.length },
                     { label: "Active", value: activeCount, highlight: true },
                     { label: "Total Rooms", value: totalRooms },
-                    { label: "In Packages", value: hotels.reduce((a, h) => a + h._count.packages, 0) },
                 ].map(stat => (
                     <div key={stat.label} className="rounded-xl border bg-card p-4">
                         <p className="text-xs text-muted-foreground uppercase tracking-wider">{stat.label}</p>
