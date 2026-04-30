@@ -1,4 +1,4 @@
-// app/(website)/about/page.tsx
+// app/(website)/careers/page.tsx
 
 import { Metadata } from "next";
 import { organizationSchema, breadcrumbSchema } from "@/app/lib/seo/schema";
@@ -16,12 +16,12 @@ export const metadata: Metadata = {
     "join travel company Shimla",
     "jobs in travel industry Shimla",
   ],
-  alternates: { canonical: "/career" },
+  alternates: { canonical: "/careers" },
   openGraph: {
     title: "Careers at DreamsYatri",
     description:
       "Join DreamsYatri and be part of a passionate team creating unforgettable travel experiences.",
-    url: "/career",
+    url: "/careers",
   },
 };
 
