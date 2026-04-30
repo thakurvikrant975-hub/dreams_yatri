@@ -5,7 +5,7 @@ import {
 } from "../ui/sidebar";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, } from "../ui/accordion";
 
-import { LayoutDashboard, Settings, Users, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound, MessageCircleQuestion, ClockCheck, Mails, Forward, BadgePercent, HandCoins, Banknote, ChartSpline, BanknoteArrowDown, BanknoteX, Car, Bed
+import { LayoutDashboard, Settings, Users, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound, MessageCircleQuestion, ClockCheck, Mails, Forward, BadgePercent, HandCoins, Banknote, ChartSpline, BanknoteArrowDown, BanknoteX, Car, Bed, ChartNoAxesCombined, BellRing, PackagePlus, ChartNoAxesGantt
 } from "lucide-react";
 
 import {
@@ -75,9 +75,11 @@ const navGroups = [
         id: "sales",
         label: "Sales",
         items: [
-            { title: "Queries Management", href: "/dashboard/sale-queries", icon: <MessageCircleQuestion className="size-6 text-muted-foreground" /> },
-            { title: "Follow ups", href: "/dashboard/sales-follow-ups", icon: <Mails className="size-6 text-muted-foreground" /> },
-            { title: "Package Builder", href: "/dashboard/package-builder", icon: <ClockCheck className="size-6 text-muted-foreground" /> },
+            { title: "Dashboard", href: "/sales-dashboard", icon: <LayoutDashboard className="size-6 text-muted-foreground" /> },
+            { title: "Queries Management", href: "/dashboard/sale-queries", icon: <ChartNoAxesGantt className="size-6 text-muted-foreground" /> },
+            { title: "Analytics", href: "/dashboard/sale-analytics", icon: <ChartNoAxesCombined className="size-6 text-muted-foreground" /> },
+            { title: "Follow ups", href: "/dashboard/sales-follow-ups", icon: <BellRing className="size-6 text-muted-foreground" /> },
+            { title: "Package Builder", href: "/dashboard/package-builder", icon: <PackagePlus className="size-6 text-muted-foreground" /> },
         ],
     },
     {
