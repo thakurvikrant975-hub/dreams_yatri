@@ -195,6 +195,6 @@ export default function TestimonialsPage() {
           </Reveal>
         </div>
       </section>
-    </div>
+    </div> 
   );
 }
