@@ -6,7 +6,7 @@ import { organizationSchema, breadcrumbSchema } from "@/app/lib/seo/schema";
 import SchemaScript from "@/app/components/seo/SchemaScript";
 
 export const metadata: Metadata = {
-  title: "About Us",  // Renders as "About Us | DreamsYatri" via root template
+  title: "About Us", 
   description:
     "DreamsYatri is a Shimla-based travel agency offering customized tour packages across Himachal Pradesh, Kashmir, Rajasthan, Goa, and international destinations.",
   alternates: {
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     url: "/about",
     images: [
       {
-        url: "/og/about.jpg",   // Use a page-specific OG image, not a generic one
+        url: "/og/about.jpg",
         width: 1200,
         height: 630,
         alt: "About DreamsYatri – Travel Agency in Shimla",
