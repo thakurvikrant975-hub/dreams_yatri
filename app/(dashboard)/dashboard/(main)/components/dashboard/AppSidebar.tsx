@@ -72,6 +72,15 @@ const navGroups = [
         ],
     },
     {
+        id: "sales",
+        label: "Sales",
+        items: [
+            { title: "Queries Management", href: "/dashboard/sale-queries", icon: <MessageCircleQuestion className="size-6 text-muted-foreground" /> },
+            { title: "Follow ups", href: "/dashboard/sales-follow-ups", icon: <Mails className="size-6 text-muted-foreground" /> },
+            { title: "Package Builder", href: "/dashboard/package-builder", icon: <ClockCheck className="size-6 text-muted-foreground" /> },
+        ],
+    },
+    {
         id: "Transactions",
         label: "Transactions",
         items: [
