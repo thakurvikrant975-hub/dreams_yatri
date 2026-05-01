@@ -1,4 +1,3 @@
-// app/dashboard/components/shared/SalesStatusToggle.tsx
 "use client";
 
 import { useTransition, useState, useEffect } from "react";
@@ -10,60 +9,104 @@ interface SalesStatusToggleProps {
   initialActive: boolean;
 }
 
+const ACTIVE_LABELS   = ["On Fire 🔥", "Beast Mode 🦁", "Closing 💰", "Dialing 📞", "Let's Go ⚡"];
+const INACTIVE_LABELS = ["Gone Dark 🌙", "AFK 💤", "Ghosted 👻", "Offline 🪦", "Vanished 🌫️"];
+
 export function SalesStatusToggle({ memberId, initialActive }: SalesStatusToggleProps) {
-  const [isActive, setIsActive] = useState(initialActive);
-  const [isPending, startTransition] = useTransition();
+  const [isActive, setIsActive]       = useState(initialActive);
+  const [isPending, startTransition]  = useTransition();
+  const [labelSeed]                   = useState(() => Math.floor(Math.random() * 100));
+  const [justToggled, setJustToggled] = useState(false);
+  const [mounted, setMounted]         = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
 
   const handleToggle = () => {
+    if (isPending) return;
     const next = !isActive;
-    setIsActive(next); // optimistic
+    setIsActive(next);
+    setJustToggled(true);
+    setTimeout(() => setJustToggled(false), 300);
     startTransition(async () => {
       const result = await toggleMemberStatus(memberId, next);
-      if (!result.success) setIsActive(!next); // rollback on error
+      if (!result.success) setIsActive(!next);
     });
   };
+
+  const activeLabel   = ACTIVE_LABELS[labelSeed % ACTIVE_LABELS.length];
+  const inactiveLabel = INACTIVE_LABELS[labelSeed % INACTIVE_LABELS.length];
+
+  if (!mounted) return null;
 
   return (
     <button
       onClick={handleToggle}
       disabled={isPending}
+      aria-pressed={isActive}
       className={cn(
-        "group relative flex items-center gap-2.5 px-3.5 py-2 rounded-xl border transition-all duration-200",
-        "text-sm font-medium select-none",
+        "relative flex items-center gap-3 px-4 py-2.5 rounded-2xl border-2",
+        "text-sm font-semibold select-none outline-none cursor-pointer",
+        "focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         isActive
-          ? "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-400 hover:bg-green-500/15"
-          : "border-border bg-muted/50 text-muted-foreground hover:bg-muted",
-        isPending && "opacity-60 cursor-not-allowed"
+          ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 focus-visible:ring-emerald-400"
+          : "border-zinc-300 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800/60 text-zinc-500 dark:text-zinc-400 focus-visible:ring-zinc-400",
+        isPending && "opacity-60 cursor-wait",
       )}
+      style={{
+        transform: justToggled ? "scale(0.94)" : "scale(1)",
+        transition: "transform 150ms ease, background-color 300ms ease, border-color 300ms ease, color 300ms ease",
+      }}
     >
-      {/* Pulsing dot */}
-      <span className="relative flex h-2 w-2">
+      {/* Pulsing status dot */}
+      <span className="relative flex h-2.5 w-2.5 shrink-0">
         {isActive && !isPending && (
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75" />
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60" />
+        )}
+        {isPending && (
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-60" />
         )}
         <span
-          className={cn(
-            "relative inline-flex h-2 w-2 rounded-full",
-            isActive ? "bg-green-500" : "bg-muted-foreground/50",
-            isPending && "animate-pulse"
-          )}
+          className="relative inline-flex h-2.5 w-2.5 rounded-full"
+          style={{
+            backgroundColor: isPending ? "#fbbf24" : isActive ? "#10b981" : "#9ca3af",
+            transition: "background-color 300ms ease",
+          }}
         />
       </span>
 
-      {isPending ? "Updating..." : isActive ? "Active" : "Offline"}
+      {/* Label */}
+      <span style={{ minWidth: "96px", textAlign: "left" }}>
+        {isPending ? "Updating..." : isActive ? activeLabel : inactiveLabel}
+      </span>
 
       {/* Toggle pill */}
       <span
-        className={cn(
-          "ml-1 inline-flex items-center h-4 w-7 rounded-full border transition-colors duration-200",
-          isActive ? "bg-green-500 border-green-500" : "bg-muted-foreground/20 border-border"
-        )}
+        style={{
+          position: "relative",
+          display: "inline-block",
+          height: "24px",
+          width: "44px",
+          flexShrink: 0,
+          borderRadius: "9999px",
+          border: "2px solid",
+          borderColor: isActive ? "#10b981" : "#d1d5db",
+          backgroundColor: isActive ? "#10b981" : "#e5e7eb",
+          transition: "background-color 300ms ease, border-color 300ms ease",
+        }}
       >
+        {/* Thumb */}
         <span
-          className={cn(
-            "h-3 w-3 rounded-full bg-white shadow transition-transform duration-200",
-            isActive ? "translate-x-3.5" : "translate-x-0.5"
-          )}
+          style={{
+            position: "absolute",
+            top: "2px",
+            left: isActive ? "22px" : "2px",
+            height: "16px",
+            width: "16px",
+            borderRadius: "9999px",
+            backgroundColor: "#ffffff",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+            transition: "left 300ms ease",
+          }}
         />
       </span>
     </button>
