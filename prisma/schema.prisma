@@ -1263,7 +1263,6 @@ model package_routes {
   duration_id Int
   name        String
   slug        String
-  package_id  Int?
 
   meta_title String?
   meta_desc  String?
@@ -1276,9 +1275,10 @@ model package_routes {
   polyline           Json?
 
   duration    package_durations     @relation(fields: [duration_id], references: [id], onDelete: Cascade)
-  package     packages?             @relation(fields: [package_id], references: [id])
   itineraries package_itineraries[]
   stops       route_stops[]
+  packages    packages?             @relation(fields: [packagesId], references: [id])
+  packagesId  Int?
 
   @@unique([duration_id, slug])
   @@index([duration_id])
@@ -1299,6 +1299,7 @@ model route_stops {
   route       package_routes @relation(fields: [route_id], references: [id])
   destination destinations   @relation(fields: [destination_id], references: [id])
 
+  @@unique([route_id, sort_order])
   @@index([route_id])
 }
 
@@ -1346,7 +1347,7 @@ model package_itineraries {
   itinerary_notes      itinerary_notes[]
   itineraryStays       itinerary_stays[]
 
-  @@unique([route_id, day])
+  @@unique([package_id, duration_id, route_id, day])
   @@index([route_id, duration_id])
 }
 
@@ -1357,7 +1358,7 @@ model itinerary_stays {
   stay_category_id Int
   room_pricing_id  Int
 
-  nights Int?
+  sort_order Int @default(0)
 
   itinerary     package_itineraries     @relation(fields: [itinerary_id], references: [id])
   stay_category package_stay_categories @relation(fields: [stay_category_id], references: [id])
@@ -1375,8 +1376,7 @@ model itinerary_activities {
   itinerary    package_itineraries @relation(fields: [itinerary_id], references: [id], onDelete: Cascade)
   activity     activities          @relation(fields: [activity_id], references: [id])
 
-  @@unique([itinerary_id, activity_id])
-  @@index([itinerary_id])
+  @@index([itinerary_id, sort_order])
 }
 
 model itinerary_transfers {
@@ -1389,7 +1389,7 @@ model itinerary_transfers {
   sort_order    Int                 @default(0)
   itinerary     package_itineraries @relation(fields: [itinerary_id], references: [id], onDelete: Cascade)
 
-  @@index([itinerary_id])
+  @@index([itinerary_id, sort_order])
 }
 
 model itinerary_notes {
@@ -1403,7 +1403,7 @@ model itinerary_notes {
   sort_order         Int                 @default(0)
   itinerary          package_itineraries @relation(fields: [itinerary_id], references: [id], onDelete: Cascade)
 
-  @@index([itinerary_id])
+  @@index([itinerary_id, sort_order])
 }
 
 // Hotels & Pricing   >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -1427,29 +1427,21 @@ model package_stay_categories {
 }
 
 model package_pricing {
-  id               Int @id @default(autoincrement())
+  id Int @id @default(autoincrement())
+
   package_id       Int
   duration_id      Int
-  stay_category_id Int // ✅ ADD THIS
+  stay_category_id Int
 
-  meal_rate_cp  Decimal @db.Decimal(10, 2)
-  meal_rate_map Decimal @db.Decimal(10, 2)
-  meal_rate_ap  Decimal @db.Decimal(10, 2)
+  margin_percentage Decimal @default(10) @db.Decimal(5, 2)
+  gst_percentage    Decimal @default(5) @db.Decimal(5, 2)
 
-  margin_pct Decimal @default(22) @db.Decimal(5, 2)
-  gst_pct    Decimal @default(5) @db.Decimal(5, 2)
-
-  is_active  Boolean  @default(true)
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  package  packages          @relation(fields: [package_id], references: [id])
-  duration package_durations @relation(fields: [duration_id], references: [id])
-
-  stay_category package_stay_categories @relation(fields: [stay_category_id], references: [id]) // ✅ ADD
+  package       packages                @relation(fields: [package_id], references: [id])
+  duration      package_durations       @relation(fields: [duration_id], references: [id])
+  stay_category package_stay_categories @relation(fields: [stay_category_id], references: [id])
 
   @@unique([package_id, duration_id, stay_category_id])
-  @@map("package_pricing")
+  @@index([package_id])
 }
 
 // Transport & Policies >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -1459,7 +1451,7 @@ model package_cab_options {
   package_id   Int
   cab_type     CabType
   capacity     Int // max passengers
-  rate_per_day Decimal @db.Decimal(10, 2)
+  rate_per_cab Decimal @db.Decimal(10, 2)
   is_default   Boolean @default(false)
   is_active    Boolean @default(true)
 
