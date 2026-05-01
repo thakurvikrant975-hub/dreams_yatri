@@ -71,9 +71,6 @@ async function DefaultDashboardContent({ member }: { member: CurrentMember }) {
 
   return (
     <div className="space-y-6">
-
-      <p>default dashboard</p>
-
       <FunNotification memberId={member.id} />
 
       {/* KPI overview */}
@@ -246,11 +243,6 @@ function DefaultDashboardSkeleton() {
 export function DefaultDashboard({ member }: DefaultDashboardProps) {
   return (
     <div className="space-y-6">
-      <GreetingBanner
-        name={member.name}
-        role={member.teamRole?.name}
-        department={member.department?.name}
-      />
       <Suspense fallback={<DefaultDashboardSkeleton />}>
         <DefaultDashboardContent member={member} />
       </Suspense>

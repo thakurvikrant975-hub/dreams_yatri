@@ -85,7 +85,7 @@ async function SalesDashboardContent({ member }: { member: CurrentMember }) {
 
   return (
     <div className="space-y-6">
-            <p>Sales dashboard</p>
+      <p>Sales dashboard</p>
 
 
       {/* ── Fun notification (client, conditional) ── */}
@@ -400,22 +400,6 @@ function SalesDashboardSkeleton() {
 export function SalesDashboard({ member }: SalesDashboardProps) {
   return (
     <div className="space-y-6">
-
-      {/* Header row: greeting + status toggle */}
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-        <GreetingBanner
-          name={member.name}
-          role={member.teamRole?.name}
-          department={member.department?.name}
-        />
-        <div className="shrink-0">
-          <SalesStatusToggle
-            memberId={member.id}
-            initialActive={member.isActive}
-          />
-        </div>
-      </div>
-
       {/* Async data section */}
       <Suspense fallback={<SalesDashboardSkeleton />}>
         <SalesDashboardContent member={member} />

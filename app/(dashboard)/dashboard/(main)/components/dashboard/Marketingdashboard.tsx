@@ -10,8 +10,6 @@ interface MarketingDashboardProps {
 export function MarketingDashboard({ member }: MarketingDashboardProps) {
   // Replace this with the real MarketingDashboard implementation
   return <>
-        <p>Marketing Dashboard</p>
-
   <DefaultDashboard member={member} />;
 </>
 }

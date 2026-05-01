@@ -3,6 +3,9 @@ import { getCurrentMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-cur
 import { SalesDashboard } from "./components/dashboard/Salesdashboard";
 import { MarketingDashboard } from "./components/dashboard/Marketingdashboard";
 import { DefaultDashboard } from "./components/dashboard/Defaultdashboard";
+import DashboardHeader from "./components/dashboard/DashboardHeader";
+
+
 export default async function DashboardPage() {
   const member = await getCurrentMember();
 
@@ -24,8 +27,27 @@ export default async function DashboardPage() {
   const dept = member.department?.name?.toLowerCase() ?? "";
   const identifier = role || dept;
 
-  if (identifier === "sales")     return <SalesDashboard member={member} />;
-  if (identifier === "marketing") return <MarketingDashboard member={member} />;
+  if (identifier === "sales") {
+    return (
+      <>
+        <DashboardHeader member={member} />
+        <SalesDashboard member={member} />
+      </>
+    );
+  }
+  if (identifier === "marketing") {
+    return (
+      <>
+        <DashboardHeader member={member} />
+        <MarketingDashboard member={member} />
+      </>
+    );
+  }
 
-  return <DefaultDashboard member={member} />;
+  return (
+    <>
+      <DashboardHeader member={member} />
+      <DefaultDashboard member={member} />
+    </>
+  );
 }
