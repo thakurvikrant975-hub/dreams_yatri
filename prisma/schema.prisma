@@ -897,24 +897,31 @@ model regions {
 }
 
 model destinations {
-  id          Int          @id @default(autoincrement())
-  name        String
-  slug        String       @unique
-  country     String       @default("India")
-  region_id   Int
-  created_at  DateTime     @default(now())
+  id        Int    @id @default(autoincrement())
+  name      String
+  slug      String @unique
+  country   String @default("India")
+  region_id Int
+
+  latitude  Decimal? @db.Decimal(10, 8)
+  longitude Decimal? @db.Decimal(11, 8)
+  place_id  String? // Google Place ID / Mapbox ID (optional)
+
+  created_at  DateTime @default(now())
   description String?
-  is_active   Boolean      @default(true)
+  is_active   Boolean  @default(true)
   meta_desc   String?
   meta_title  String?
-  updated_at  DateTime     @updatedAt
+  updated_at  DateTime @updatedAt
   cover_image String?
   thumbnail   String?
-  activities  activities[]
-  bookings    Booking[]
-  region      regions      @relation(fields: [region_id], references: [id])
-  hotels      hotels[]
-  packages    packages[]
+
+  activities activities[]
+  bookings   Booking[]
+  region     regions       @relation(fields: [region_id], references: [id])
+  hotels     hotels[]
+  packages   packages[]
+  routeStops route_stops[]
 
   @@index([region_id])
   @@index([slug])
@@ -1227,12 +1234,15 @@ model package_images {
 }
 
 model package_durations {
-  id          Int                   @id @default(autoincrement())
-  package_id  Int
-  slug        String
-  label       String
-  days        Int
-  nights      Int
+  id         Int    @id @default(autoincrement())
+  package_id Int
+  slug       String
+  label      String
+  days       Int
+  nights     Int
+
+  thumbnail_url String?
+
   is_default  Boolean               @default(false)
   sort_order  Int                   @default(0)
   is_active   Boolean               @default(true)
@@ -1261,6 +1271,10 @@ model package_routes {
   sort_order Int     @default(0)
   is_active  Boolean @default(true)
 
+  total_distance_km  Float?
+  total_duration_min Int?
+  polyline           Json?
+
   duration    package_durations     @relation(fields: [duration_id], references: [id], onDelete: Cascade)
   package     packages?             @relation(fields: [package_id], references: [id])
   itineraries package_itineraries[]
@@ -1273,14 +1287,18 @@ model package_routes {
 model route_stops {
   id Int @id @default(autoincrement())
 
-  route_id   Int
-  location   String
-  stay_days  Int
-  sort_order Int    @default(0)
+  route_id       Int
+  destination_id Int
+  stay_days      Int
+  sort_order     Int
 
-  route package_routes @relation(fields: [route_id], references: [id], onDelete: Cascade)
+  // map support (optional)
+  latitude  Decimal? @db.Decimal(10, 8)
+  longitude Decimal? @db.Decimal(11, 8)
 
-  @@unique([route_id, location])
+  route       package_routes @relation(fields: [route_id], references: [id])
+  destination destinations   @relation(fields: [destination_id], references: [id])
+
   @@index([route_id])
 }
 
@@ -1466,25 +1484,25 @@ model package_policy_map {
 enum GallerySourceType {
   PACKAGE
   HOTEL
+  ROOM
   ACTIVITY
 }
 
 model package_gallery {
-  id         Int @id @default(autoincrement())
+  id Int @id @default(autoincrement())
+
   package_id Int
 
-  // Image (final resolved URL — no joins required at runtime)
+  // Image
   image_url String
-  thumbnail String?
-  alt       String?
 
-  // Source tracking (optional but useful)
+  // Source tracking
   source_type GallerySourceType
-  source_id   Int? // hotel_id / activity_id / package_image_id
+  source_id   Int?
 
-  // UI control
-  position  Int // 1 = cover, 2–5 = grid images
-  is_active Boolean @default(true)
+  // Layout control
+  position Int // 1 = cover, 2–5 grid
+  label    String? // Destinations, Stays, Activities, etc.
 
   created_at DateTime @default(now())
 
