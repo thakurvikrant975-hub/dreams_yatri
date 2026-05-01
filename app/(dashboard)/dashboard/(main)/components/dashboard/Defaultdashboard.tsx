@@ -72,6 +72,8 @@ async function DefaultDashboardContent({ member }: { member: CurrentMember }) {
   return (
     <div className="space-y-6">
 
+      <p>default dashboard</p>
+
       <FunNotification memberId={member.id} />
 
       {/* KPI overview */}

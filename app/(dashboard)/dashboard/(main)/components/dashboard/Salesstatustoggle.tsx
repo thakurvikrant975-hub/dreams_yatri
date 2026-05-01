@@ -1,7 +1,7 @@
 // app/dashboard/components/shared/SalesStatusToggle.tsx
 "use client";
 
-import { useTransition, useState } from "react";
+import { useTransition, useState, useEffect } from "react";
 import { cn } from "@/app/lib/utils";
 import { toggleMemberStatus } from "../../actions/member-actions";
 

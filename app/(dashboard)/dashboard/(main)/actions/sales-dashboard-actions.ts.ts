@@ -36,6 +36,7 @@ export async function getSalesDashboardData(
 
   const todayStart = new Date(now);
   todayStart.setHours(0, 0, 0, 0);
+
   const todayEnd = new Date(now);
   todayEnd.setHours(23, 59, 59, 999);
 
@@ -44,12 +45,11 @@ export async function getSalesDashboardData(
   weekStart.setHours(0, 0, 0, 0);
 
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
-  // Statuses that are still open (not terminal)
   const openStatuses: $Enums.QueryStatus[] = [
     $Enums.QueryStatus.SUBMITTED,
-    $Enums.QueryStatus.ASSIGNED,
+    $Enums.QueryStatus.VERIFIED,
   ];
 
   const [
@@ -87,7 +87,6 @@ export async function getSalesDashboardData(
       },
     }),
 
-    // "Confirmed" = verified: true this month
     db.packageQuery.count({
       where: {
         assignedTo: memberId,
