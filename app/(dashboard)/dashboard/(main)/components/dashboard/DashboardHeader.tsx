@@ -9,7 +9,7 @@ interface DashboardHeaderProps {
 
 const DashboardHeader = ({ member }: DashboardHeaderProps) => {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 mb-6">
       {/* Header row: greeting + status toggle */}
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
             <GreetingBanner

@@ -14,14 +14,20 @@ function getGreeting(hour: number): { text: string; emoji: string; sub: string }
     return {
       text: "Namaste",
       emoji: "🙏",
-      sub: "Early riser detected. The best deals go to those who start first.",
+      sub: "Office khula ya tumne hi start kiya?"    
+    };
+  }  if (hour < 11) {
+    return {
+      text: "Namaste",
+      emoji: "🙏",
+      sub: "Uncle bringing you chai?",
     };
   }
   if (hour < 12) {
     return {
       text: "Good morning",
       emoji: "☕",
-      sub: "Coffee in hand? Good. Let's turn leads into bookings.",
+      sub: "Chai in hand?",
     };
   }
   if (hour < 17) {

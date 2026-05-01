@@ -85,9 +85,6 @@ async function SalesDashboardContent({ member }: { member: CurrentMember }) {
 
   return (
     <div className="space-y-6">
-      <p>Sales dashboard</p>
-
-
       {/* ── Fun notification (client, conditional) ── */}
       <FunNotification memberId={member.id} />
 

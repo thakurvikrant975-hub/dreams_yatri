@@ -4,7 +4,14 @@ import { SalesDashboard } from "./components/dashboard/Salesdashboard";
 import { MarketingDashboard } from "./components/dashboard/Marketingdashboard";
 import { DefaultDashboard } from "./components/dashboard/Defaultdashboard";
 import DashboardHeader from "./components/dashboard/DashboardHeader";
+import type { Member } from "@/types"; // adjust to your actual type
 
+type DashboardComponent = React.ComponentType<{ member: Member }>;
+
+const ROLE_DASHBOARD_MAP: Record<string, DashboardComponent> = {
+  sales: SalesDashboard,
+  marketing: MarketingDashboard,
+};
 
 export default async function DashboardPage() {
   const member = await getCurrentMember();
@@ -21,33 +28,17 @@ export default async function DashboardPage() {
     );
   }
 
-  // Route by role name since department is not yet assigned in DB
-  // Falls back to department name if role is missing
-  const role = member.teamRole?.name?.toLowerCase() ?? "";
-  const dept = member.department?.name?.toLowerCase() ?? "";
-  const identifier = role || dept;
+  const identifier =
+    member.teamRole?.name?.toLowerCase() ||
+    member.department?.name?.toLowerCase() ||
+    "";
 
-  if (identifier === "sales") {
-    return (
-      <>
-        <DashboardHeader member={member} />
-        <SalesDashboard member={member} />
-      </>
-    );
-  }
-  if (identifier === "marketing") {
-    return (
-      <>
-        <DashboardHeader member={member} />
-        <MarketingDashboard member={member} />
-      </>
-    );
-  }
+  const Dashboard = ROLE_DASHBOARD_MAP[identifier] ?? DefaultDashboard;
 
   return (
     <>
       <DashboardHeader member={member} />
-      <DefaultDashboard member={member} />
+      <Dashboard member={member} />
     </>
   );
 }
