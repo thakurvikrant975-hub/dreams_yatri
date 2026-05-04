@@ -17,12 +17,12 @@ const DashboardHeader = ({ member }: DashboardHeaderProps) => {
               role={member.teamRole?.name}
               department={member.department?.name}
             />
-            <div className="shrink-0">
+            {/* <div className="shrink-0">
               <SalesStatusToggle
                 memberId={member.id}
                 initialActive={member.isActive}
-              />
-            </div>
+              /> 
+            </div> */}
           </div>
       
     </div>

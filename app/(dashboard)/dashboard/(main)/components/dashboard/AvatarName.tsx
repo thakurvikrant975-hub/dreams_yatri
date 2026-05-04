@@ -1,3 +1,5 @@
+// app/(dashboard)/dashboard/(main)/components/dashboard/AvatarName.tsx
+
 "use client"
 
 import React, { useState, useRef, useEffect, useTransition } from 'react'
