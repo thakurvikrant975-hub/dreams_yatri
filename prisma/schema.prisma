@@ -1024,6 +1024,7 @@ model hotel_images {
   id          Int                    @id @default(autoincrement())
   hotel_id    Int
   category_id Int
+  url   String?
   thumbnail   String?
   alt         String?
   sort_order  Int                    @default(0)
