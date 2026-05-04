@@ -6,6 +6,9 @@ import { dashboardAuth } from "@/app/lib/auth-dashboard";
 import { z } from "zod";
 import { Prisma } from "@/app/generated/prisma";
 
+const session = await dashboardAuth();
+console.log(session);
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type ActionResult<T = void> =
@@ -29,7 +32,7 @@ export type SalesQuery = {
     status: SalesQueryStatus;
     assignedTo: string | null;
     assignedAt: Date | null;
-    closeReasonId: string | null;
+    closeReasonId:    string | null;   // stores the string ID e.g. "COST_TOO_HIGH"
     closeReasonOther: string | null;
     closedAt: Date | null;
     closedBy: string | null;
@@ -85,21 +88,19 @@ export async function getSalesQueries(): Promise<SalesQuery[]> {
     const session = await dashboardAuth();
     const userId = session?.user?.id;
 
-    return db.salesQuery.findMany({
-        where: userId ? { assignedTo: userId } : undefined,
-        include: {
-            closeReason: { select: { id: true, label: true } },
-            _count: { select: { followUps: true, notes: true } },
-        },
-        orderBy: { assignedAt: "desc" },
-    }) as unknown as Promise<SalesQuery[]>;
+return db.salesQuery.findMany({
+    where: userId ? { assignedTo: userId } : undefined,
+    include: {
+        _count: { select: { followUps: true, notes: true } },
+    },
+    orderBy: { assignedAt: "desc" },
+}) as unknown as Promise<SalesQuery[]>;
 }
 
 export async function getSalesQueryById(id: string) {
     return db.salesQuery.findUnique({
         where: { id },
         include: {
-            closeReason: true,
             followUps: { orderBy: { createdAt: "asc" } },
             notes: { orderBy: { createdAt: "asc" } },
             timeline: { orderBy: { createdAt: "asc" } },

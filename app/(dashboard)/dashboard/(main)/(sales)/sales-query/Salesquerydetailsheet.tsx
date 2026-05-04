@@ -36,11 +36,11 @@ type SalesQueryWithDetails = SalesQuery & {
 };
 
 type Props = {
-    query:        SalesQueryWithDetails | null;
+    query: SalesQueryWithDetails | null;
     closeReasons: CloseReason[];
-    open:         boolean;
+    open: boolean;
     onOpenChange: (v: boolean) => void;
-    onRefresh?:   () => void;
+    onRefresh?: () => void;
 };
 
 function InfoRow({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: React.ReactNode }) {
@@ -59,11 +59,11 @@ function InfoRow({ icon: Icon, label, value }: { icon: React.ElementType; label:
 }
 
 function timelineDot(event: string) {
-    if (event.includes("✅") || event.includes("Verified"))  return "bg-green-500";
-    if (event.includes("❌") || event.includes("Closed"))    return "bg-destructive";
-    if (event.includes("📞") || event.includes("Follow"))    return "bg-amber-500";
-    if (event.includes("📝") || event.includes("Note"))      return "bg-blue-500";
-    if (event.includes("🔄") || event.includes("Reopen"))    return "bg-primary";
+    if (event.includes("✅") || event.includes("Verified")) return "bg-green-500";
+    if (event.includes("❌") || event.includes("Closed")) return "bg-destructive";
+    if (event.includes("📞") || event.includes("Follow")) return "bg-amber-500";
+    if (event.includes("📝") || event.includes("Note")) return "bg-blue-500";
+    if (event.includes("🔄") || event.includes("Reopen")) return "bg-primary";
     return "bg-muted-foreground/40";
 }
 
@@ -141,11 +141,12 @@ export function SalesQueryDetailSheet({ query, closeReasons, open, onOpenChange,
                         </div>
                     )}
 
-                    {/* Closed banner */}
-                    {isClosed && query.closeReason && (
+                    {isClosed && query.closeReasonId && (
                         <div className="mt-3 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2">
                             <p className="text-xs font-semibold text-destructive uppercase tracking-wide mb-1">Closed</p>
-                            <p className="text-sm font-medium">{query.closeReason.label}</p>
+                            <p className="text-sm font-medium">
+                                {closeReasons.find(r => r.id === query.closeReasonId)?.label ?? query.closeReasonId}
+                            </p>
                             {query.closeReasonOther && (
                                 <p className="text-xs text-muted-foreground mt-1 italic">"{query.closeReasonOther}"</p>
                             )}
@@ -175,11 +176,11 @@ export function SalesQueryDetailSheet({ query, closeReasons, open, onOpenChange,
                         <section>
                             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2">Lead Information</h3>
                             <div className="divide-y divide-border/50">
-                                <InfoRow icon={Phone}    label="Phone"       value={query.phone} />
-                                <InfoRow icon={Mail}     label="Email"       value={query.email} />
-                                <InfoRow icon={MapPin}   label="Destination" value={query.destination} />
-                                <InfoRow icon={Globe}    label="Package"     value={query.packageName} />
-                                <InfoRow icon={Users}    label="Group Size"  value={query.groupSize ? `${query.groupSize} people` : null} />
+                                <InfoRow icon={Phone} label="Phone" value={query.phone} />
+                                <InfoRow icon={Mail} label="Email" value={query.email} />
+                                <InfoRow icon={MapPin} label="Destination" value={query.destination} />
+                                <InfoRow icon={Globe} label="Package" value={query.packageName} />
+                                <InfoRow icon={Users} label="Group Size" value={query.groupSize ? `${query.groupSize} people` : null} />
                                 <InfoRow icon={Calendar} label="Travel Date" value={query.travelDate ? format(new Date(query.travelDate), "dd MMM yyyy") : null} />
                             </div>
                             {query.message && (
