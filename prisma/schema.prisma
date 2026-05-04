@@ -1377,3 +1377,81 @@ enum QuerySource {
   REFERRAL
   OTHER
 }
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sales CRM required schema for query management
+// ─────────────────────────────────────────────────────────────────────────────
+
+model SalesQuery {
+  id               String    @id @default(cuid())
+  // ── Copied / linked from PackageQuery ──────────────────────────────────────
+  packageQueryId   String?   // optional link back to the original PackageQuery
+  name             String
+  email            String?
+  phone            String
+  countryCode      String    @default("IN")
+  packageName      String?
+  destination      String?
+  travelDate       DateTime?
+  groupSize        Int?
+  message          String?   @db.Text
+  source           String    @default("WEBSITE_FORM")
+  // ── Sales-specific ─────────────────────────────────────────────────────────
+  status           String    @default("ACTIVE")   // ACTIVE | CLOSED
+  assignedTo       String?   // user id
+  assignedAt       DateTime?
+  nextFollowUpAt   DateTime?
+  // ── Close metadata ─────────────────────────────────────────────────────────
+  closeReasonId    String?
+  closeReasonOther String?   @db.Text
+  closedAt         DateTime?
+  closedBy         String?
+  // ── Timestamps ─────────────────────────────────────────────────────────────
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  followUps        SalesQueryFollowUp[]
+  notes            SalesQueryNote[]
+  timeline         SalesQueryTimeline[]
+
+  @@index([assignedTo])
+  @@index([status])
+}
+
+model SalesQueryFollowUp {
+  id             String    @id @default(cuid())
+  salesQueryId   String
+  salesQuery     SalesQuery @relation(fields: [salesQueryId], references: [id], onDelete: Cascade)
+  note           String     @db.Text
+  followUpAt     DateTime?
+  createdBy      String?
+  createdByName  String?
+  createdAt      DateTime  @default(now())
+
+  @@index([salesQueryId])
+}
+
+model SalesQueryNote {
+  id             String    @id @default(cuid())
+  salesQueryId   String
+  salesQuery     SalesQuery @relation(fields: [salesQueryId], references: [id], onDelete: Cascade)
+  content        String     @db.Text
+  authorId       String
+  createdAt      DateTime  @default(now())
+
+  @@index([salesQueryId])
+}
+
+model SalesQueryTimeline {
+  id             String    @id @default(cuid())
+  salesQueryId   String
+  salesQuery     SalesQuery @relation(fields: [salesQueryId], references: [id], onDelete: Cascade)
+  event          String
+  actorId        String?
+  actorName      String?
+  meta           Json?
+  createdAt      DateTime  @default(now())
+
+  @@index([salesQueryId])
+}
