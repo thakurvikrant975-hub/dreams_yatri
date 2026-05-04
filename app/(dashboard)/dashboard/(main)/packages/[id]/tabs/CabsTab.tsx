@@ -4,190 +4,244 @@ import { useState, useTransition } from "react";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
-import { createCabOption, updateCabOption, deleteCabOption } from "../../actions";
-import { Plus, Trash2, Pencil, Check, X, Loader2 } from "lucide-react";
+import { Switch } from "../../../components/ui/switch";
+import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
+import { Badge } from "../../../components/ui/badge";
+import {
+  Select, SelectContent, SelectItem,
+  SelectTrigger, SelectValue,
+} from "../../../components/ui/select";
+import { Plus, Car, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { upsertCabOptionAction } from "@/app/actions/packages/pricing.actions";
+import type { PackageCabOption } from "@/app/types/packages";
+
+type CabOptionSerialized = {
+  id: number;
+  package_id: number;
+  cab_type: string;
+  capacity: number;
+  rate_per_cab: number;
+  is_default: boolean;
+  is_active: boolean;
+};
 
 const CAB_TYPES = [
-  "SEDAN", "HATCHBACK", "SUV", "INNOVA", "ERTIGA",
-  "WAGON_R", "BOLERO", "TEMPO_TRAVELLER", "MINI_VAN", "BUS",
+  { value: "SEDAN", label: "Sedan" },
+  { value: "HATCHBACK", label: "Hatchback" },
+  { value: "SUV", label: "SUV" },
+  { value: "INNOVA", label: "Innova" },
+  { value: "ERTIGA", label: "Ertiga" },
+  { value: "WAGON_R", label: "Wagon R" },
+  { value: "BOLERO", label: "Bolero" },
+  { value: "TEMPO_TRAVELLER", label: "Tempo Traveller" },
+  { value: "MINI_VAN", label: "Mini Van" },
+  { value: "BUS", label: "Bus" },
 ] as const;
 
-type CabRow = { id: number; package_id: number; cab_type: string; capacity: number; rate_per_day: number | { toNumber(): number } };
+type CabType = typeof CAB_TYPES[number]["value"];
 
 type Props = {
   packageId: number;
-  initialCabs: CabRow[];
+  cabOptions: CabOptionSerialized[];
 };
 
-type EditState = { cab_type: string; capacity: string; rate_per_day: string };
+type FormState = {
+  cab_type: CabType | "";
+  capacity: string;
+  rate_per_cab: string;
+  is_default: boolean;
+  is_active: boolean;
+};
 
-function toRate(v: number | { toNumber(): number }): number {
-  if (typeof v === "number") return v;
-  return v.toNumber();
-}
+const EMPTY_FORM: FormState = {
+  cab_type: "",
+  capacity: "4",
+  rate_per_cab: "",
+  is_default: false,
+  is_active: true,
+};
 
-export function CabsTab({ packageId, initialCabs }: Props) {
-  const [cabs, setCabs] = useState<CabRow[]>(initialCabs);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editState, setEditState] = useState<EditState>({ cab_type: "SEDAN", capacity: "4", rate_per_day: "" });
-  const [newCab, setNewCab] = useState<EditState>({ cab_type: "SEDAN", capacity: "4", rate_per_day: "" });
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+export function CabsTab({ packageId, cabOptions: init }: Props) {
+  const [options, setOptions] = useState(init);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [isPending, startTransition] = useTransition();
 
-  function handleAdd() {
-    if (!newCab.rate_per_day) { setError("Rate per day is required."); return; }
-    setError(null);
+  // Find existing option for the selected cab_type
+  const existingForType = form.cab_type
+    ? options.find(o => o.cab_type === form.cab_type)
+    : null;
+
+  function openNew() {
+    setForm(EMPTY_FORM);
+    setShowForm(true);
+  }
+
+  function openEdit(opt: CabOptionSerialized) {
+    setForm({
+      cab_type: opt.cab_type as CabType,
+      capacity: String(opt.capacity),
+      rate_per_cab: String(opt.rate_per_cab),
+      is_default: opt.is_default,
+      is_active: opt.is_active,
+    });
+    setShowForm(true);
+  }
+
+  function handleSave() {
+    if (!form.cab_type) return toast.error("Cab type is required");
+    const capacity = parseInt(form.capacity);
+    const rate = parseFloat(form.rate_per_cab);
+    if (isNaN(capacity) || capacity < 1) return toast.error("Invalid capacity");
+    if (isNaN(rate) || rate <= 0) return toast.error("Invalid rate");
+
     startTransition(async () => {
-      const record = await createCabOption({
+      const res = await upsertCabOptionAction({
         package_id: packageId,
-        cab_type: newCab.cab_type,
-        capacity: Number(newCab.capacity),
-        rate_per_day: Number(newCab.rate_per_day),
+        cab_type: form.cab_type as CabType,
+        capacity,
+        rate_per_cab: rate,
+        is_default: form.is_default,
+        is_active: form.is_active,
       });
-      setCabs((prev) => [...prev, record]);
-      setNewCab({ cab_type: "SEDAN", capacity: "4", rate_per_day: "" });
-    });
-  }
 
-  function startEdit(cab: CabRow) {
-    setEditingId(cab.id);
-    setEditState({ cab_type: cab.cab_type, capacity: String(cab.capacity), rate_per_day: String(toRate(cab.rate_per_day)) });
-  }
-
-  function handleUpdate(id: number) {
-    startTransition(async () => {
-      await updateCabOption(id, packageId, {
-        cab_type: editState.cab_type,
-        capacity: Number(editState.capacity),
-        rate_per_day: Number(editState.rate_per_day),
-      });
-      setCabs((prev) =>
-        prev.map((c) =>
-          c.id === id
-            ? { ...c, cab_type: editState.cab_type, capacity: Number(editState.capacity), rate_per_day: Number(editState.rate_per_day) }
-            : c
-        )
-      );
-      setEditingId(null);
-    });
-  }
-
-  function handleDelete(id: number) {
-    startTransition(async () => {
-      await deleteCabOption(id, packageId);
-      setCabs((prev) => prev.filter((c) => c.id !== id));
+      if (res.success) {
+        toast.success(existingForType ? "Cab option updated" : "Cab option added");
+        const updated: CabOptionSerialized = {
+          id: existingForType?.id ?? 0,
+          package_id: packageId,
+          cab_type: form.cab_type as CabType,
+          capacity,
+          rate_per_cab: rate,
+          is_default: form.is_default,
+          is_active: form.is_active,
+        };
+        setOptions(opts => {
+          const exists = opts.find(o => o.cab_type === form.cab_type);
+          const base = form.is_default ? opts.map(o => ({ ...o, is_default: false })) : opts;
+          return exists
+            ? base.map(o => o.cab_type === form.cab_type ? updated : o)
+            : [...base, updated];
+        });
+        setShowForm(false);
+      } else {
+        toast.error(res.error);
+      }
     });
   }
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h2 className="text-base font-semibold">Cab Options</h2>
-        <p className="text-sm text-muted-foreground">Manage cab types and rates for this package.</p>
-      </div>
-
-      {error && <p className="text-sm text-destructive">{error}</p>}
-
-      {/* Add new cab */}
-      <div className="border rounded-lg p-4 space-y-3 bg-muted/20">
-        <p className="text-sm font-medium">Add Cab Option</p>
-        <div className="grid grid-cols-3 gap-3">
-          <div className="space-y-1">
-            <Label className="text-xs">Cab Type</Label>
-            <select
-              value={newCab.cab_type}
-              onChange={(e) => setNewCab((p) => ({ ...p, cab_type: e.target.value }))}
-              className="w-full h-8 rounded-md border border-input bg-background px-2 py-1 text-sm"
-            >
-              {CAB_TYPES.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
-            </select>
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base">Cab Options</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                Available vehicle types for this package with per-cab rates
+              </p>
+            </div>
+            <Button size="sm" variant="outline" onClick={openNew}>
+              <Plus className="h-4 w-4 mr-1" /> Add Cab
+            </Button>
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Capacity</Label>
-            <Input
-              type="number"
-              min={1}
-              value={newCab.capacity}
-              onChange={(e) => setNewCab((p) => ({ ...p, capacity: e.target.value }))}
-              className="h-8 text-sm"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Rate / Day (₹)</Label>
-            <Input
-              type="number"
-              min={0}
-              value={newCab.rate_per_day}
-              onChange={(e) => setNewCab((p) => ({ ...p, rate_per_day: e.target.value }))}
-              placeholder="0"
-              className="h-8 text-sm"
-            />
-          </div>
-        </div>
-        <Button size="sm" onClick={handleAdd} disabled={pending}>
-          {pending ? <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" /> : <Plus className="h-3.5 w-3.5 mr-2" />}
-          Add
-        </Button>
-      </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {options.length === 0 && !showForm && (
+            <div className="flex flex-col items-center py-10 text-center">
+              <Car className="h-8 w-8 text-muted-foreground mb-2" />
+              <p className="text-sm text-muted-foreground">No cab options yet</p>
+              <p className="text-xs text-muted-foreground">Add vehicle options and rates for this package</p>
+            </div>
+          )}
 
-      {/* Cabs list */}
-      {cabs.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-6">No cab options added yet.</p>
-      ) : (
-        <div className="border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/30">
-              <tr>
-                <th className="text-left px-4 py-2 font-medium">Type</th>
-                <th className="text-left px-4 py-2 font-medium">Capacity</th>
-                <th className="text-left px-4 py-2 font-medium">Rate / Day</th>
-                <th className="text-right px-4 py-2 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {cabs.map((cab) =>
-                editingId === cab.id ? (
-                  <tr key={cab.id} className="bg-muted/10">
-                    <td className="px-3 py-2">
-                      <select
-                        value={editState.cab_type}
-                        onChange={(e) => setEditState((p) => ({ ...p, cab_type: e.target.value }))}
-                        className="h-7 rounded-md border border-input bg-background px-2 text-sm"
-                      >
-                        {CAB_TYPES.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
-                      </select>
-                    </td>
-                    <td className="px-3 py-2">
-                      <Input type="number" value={editState.capacity} onChange={(e) => setEditState((p) => ({ ...p, capacity: e.target.value }))} className="h-7 text-sm w-20" />
-                    </td>
-                    <td className="px-3 py-2">
-                      <Input type="number" value={editState.rate_per_day} onChange={(e) => setEditState((p) => ({ ...p, rate_per_day: e.target.value }))} className="h-7 text-sm w-28" />
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button type="button" onClick={() => handleUpdate(cab.id)} className="text-green-600 hover:text-green-700"><Check className="h-4 w-4" /></button>
-                        <button type="button" onClick={() => setEditingId(null)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  <tr key={cab.id} className="hover:bg-muted/20">
-                    <td className="px-4 py-2.5 font-medium">{cab.cab_type.replace(/_/g, " ")}</td>
-                    <td className="px-4 py-2.5 text-muted-foreground">{cab.capacity} pax</td>
-                    <td className="px-4 py-2.5">₹{toRate(cab.rate_per_day).toLocaleString()}</td>
-                    <td className="px-4 py-2.5 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button type="button" onClick={() => startEdit(cab)} className="text-muted-foreground hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
-                        <button type="button" onClick={() => handleDelete(cab.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+          {options.map(opt => (
+            <div key={opt.cab_type} className="flex items-center justify-between rounded-lg border p-3">
+              <div className="flex items-center gap-3">
+                <Car className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-sm">
+                      {CAB_TYPES.find(c => c.value === opt.cab_type)?.label ?? opt.cab_type}
+                    </p>
+                    {opt.is_default && <Badge variant="default" className="text-xs">Default</Badge>}
+                    {!opt.is_active && <Badge variant="secondary" className="text-xs">Inactive</Badge>}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Capacity: {opt.capacity} · ₹{opt.rate_per_cab.toLocaleString()} / cab
+                  </p>
+                </div>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => openEdit(opt)}>Edit</Button>
+            </div>
+          ))}
+
+          {showForm && (
+            <div className="rounded-lg border p-4 space-y-3 bg-muted/30">
+              <p className="text-sm font-medium">{existingForType ? "Edit Cab Option" : "New Cab Option"}</p>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Vehicle Type</Label>
+                <Select
+                  value={form.cab_type}
+                  onValueChange={v => setForm(f => ({ ...f, cab_type: v as CabType }))}
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="Select vehicle type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CAB_TYPES.map(c => (
+                      <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Capacity (persons)</Label>
+                  <Input
+                    type="number" min={1} max={60}
+                    value={form.capacity}
+                    onChange={e => setForm(f => ({ ...f, capacity: e.target.value }))}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Rate per Cab (₹)</Label>
+                  <Input
+                    type="number" min={0} step={100}
+                    value={form.rate_per_cab}
+                    onChange={e => setForm(f => ({ ...f, rate_per_cab: e.target.value }))}
+                    placeholder="e.g. 12000"
+                    className="h-8 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-2">
+                  <Switch checked={form.is_default} onCheckedChange={v => setForm(f => ({ ...f, is_default: v }))} />
+                  <Label className="text-sm">Default</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch checked={form.is_active} onCheckedChange={v => setForm(f => ({ ...f, is_active: v }))} />
+                  <Label className="text-sm">Active</Label>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button size="sm" onClick={handleSave} disabled={isPending}>
+                  {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
+                  {existingForType ? "Update" : "Add"}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => { setShowForm(false); }}>Cancel</Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

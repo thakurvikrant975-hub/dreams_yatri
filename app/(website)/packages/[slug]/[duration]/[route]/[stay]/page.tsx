@@ -10,7 +10,7 @@ import StayCategory from "./components/inputs/StayCategory";
 import PricingCard from "./components/SidebarCards/PricingCard";
 import CoupenCard from "./components/SidebarCards/CoupenCard";
 import EnquiryForm from "./components/SidebarCards/EnquiryForm";
-import ItinerarySection, {ItineraryDay,  DaySection } from "./components/Itnary";
+import ItinerarySection, { ItineraryDay, DaySection } from "./components/Itnary";
 import { RouteOption } from "@/app/types/package-page.types";
 import DestinationRoutes from "./components/inputs/DestinationRoutes";
 
@@ -37,18 +37,267 @@ export default async function PackagePage({
 }: {
     params: Promise<{ slug: string; duration: string; route: string; stay: string }>;
 }) {
-    const { slug, duration, route, stay } = await params;
+    // const { slug, duration, route, stay } = await params;
 
-    const result = await packagesRepository.findPageData(slug, duration, route, stay);
+    // const result = await packagesRepository.findPageData(slug, duration, route, stay);
 
-    if (!result.success) {
-        if (result.error.code === "NOT_FOUND") notFound();
-        throw new Error(result.error.message);
-    }
+    // if (!result.success) {
+    //     if (result.error.code === "NOT_FOUND") notFound();
+    //     throw new Error(result.error.message);
+    // }
 
-    const data = result.data;
+    // const data = result.data;
 
-    console.log(data);
+    // console.log(data);
+
+    const slug = "kashmir-great-lakes-trek";
+    const duration = "7d-6n";
+    const route = "srinagar-sonamarg";
+    const stay = "standard"
+
+    const data = {
+        title: "Kashmir Great Lakes Trek",
+        description: "An iconic high-altitude trek through the stunning Kashmir Valley passing pristine alpine lakes.",
+        cover_image: "https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=1200",
+        images: [
+            { url: "https://images.unsplash.com/photo-1707344088547-3cf7cea5ca49?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDF8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D" },
+            { url: "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=1121&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D" },
+            { url: "https://images.unsplash.com/photo-1707343848552-893e05dba6ac?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDF8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D" },
+            { url: "https://images.unsplash.com/photo-1539635278303-d4002c07eae3?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D" },
+        ],
+        destination: {
+            name: "Kashmir",
+            slug: "kashmir",
+            region: {
+                name: "North India",
+                slug: "north-india",
+            },
+        },
+        stay_categories: [
+            { slug: "standard", label: "Standard" },
+            { slug: "deluxe", label: "Deluxe" },
+            { slug: "luxury", label: "Luxury" },
+        ],
+        durations: [
+            { slug: "5d-4n", days: 5, nights: 4, startingPrice: 14999, is_default: false },
+            { slug: "7d-6n", days: 7, nights: 6, startingPrice: 19999, is_default: true },
+            { slug: "9d-8n", days: 9, nights: 8, startingPrice: 26999, is_default: false },
+        ],
+        currentDuration: {
+            days: 7,
+            nights: 6,
+            slug: "7d-6n",
+            meta_title: "Kashmir Great Lakes Trek – 7 Days | Dreams Yatri",
+            meta_desc: "7-day Kashmir Great Lakes Trek covering Naranag, Gangabal, and Sonamarg.",
+            routes: [
+                {
+                    slug: "srinagar-sonamarg",
+                    is_default: true,
+                    stops: [
+                        { d: 1, p: "Srinagar" },
+                        { d: 2, p: "Naranag" },
+                        { d: 3, p: "Gangabal" },
+                        { d: 4, p: "Nundkol" },
+                        { d: 5, p: "Sonamarg" },
+                        { d: 6, p: "Srinagar" },
+                        { d: 7, p: "Departure" },
+                    ],
+                },
+                {
+                    slug: "srinagar-pahalgam",
+                    is_default: false,
+                    stops: [
+                        { d: 1, p: "Srinagar" },
+                        { d: 2, p: "Pahalgam" },
+                        { d: 3, p: "Aru Valley" },
+                        { d: 4, p: "Baisaran" },
+                        { d: 5, p: "Chandanwari" },
+                        { d: 6, p: "Pahalgam" },
+                        { d: 7, p: "Departure" },
+                    ],
+                },
+            ],
+            filteredItinerary: [
+                {
+                    day: 1,
+                    title: "Arrive in Srinagar",
+                    description: "Touch down in Srinagar, transfer to your houseboat on Dal Lake. Evening shikara ride.",
+                    hotel_days: "2",
+                    meals: ["Dinner"],
+                    hotel: {
+                        name: "Houseboat Heritage Inn",
+                        star_rating: 4,
+                        check_in_time: "14:00",
+                        check_out_time: "11:00",
+                        images: [
+                            { url: "https://images.unsplash.com/photo-1618773928121-c32242e63f39?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D", alt: "Houseboat" },
+                            { url: "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D", alt: "Dal Lake" },
+                            { url: "https://plus.unsplash.com/premium_photo-1675745329378-5573c360f69f?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3DD", alt: "Dal Lake" },
+                            { url: "https://images.unsplash.com/photo-1631049307264-da0ec9d70304?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D", alt: "Dal Lake" },
+                            { url: "https://images.unsplash.com/photo-1621293954908-907159247fc8?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D", alt: "Dal Lake" },
+                        ],
+                        room_pricing: [
+                            { original_price: "4000", price_per_night: "3200", margin_percentage: "15" },
+                            { original_price: "5500", price_per_night: "4400", margin_percentage: "15" },
+                        ],
+                    },
+                    activity_details: [
+                        {
+                            name: "Shikara Ride on Dal Lake",
+                            original_price: "1200",
+                            price: "900",
+                            margin_percentage: "10",
+                            images: [
+                                { url: "https://images.unsplash.com/photo-1564329494258-3f72215ba175?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MXx8c2hpa2FyYSUyMHJpZGV8ZW58MHx8MHx8fDA%3D", alt: "Shikara" },
+                                { url: "https://media.istockphoto.com/id/1861559093/photo/colorful-shikara-boats.webp?a=1&b=1&s=612x612&w=0&k=20&c=XBx5n_PD3d70pOgBelsE9PqI3FntXC4dvGl5Ch-eENI=", alt: "Beutifull Lake" },
+                                { url: "https://media.istockphoto.com/id/1390314915/photo/sikaras-boat-at-dal-lake-kashmir.webp?a=1&b=1&s=612x612&w=0&k=20&c=GyWIxmkjpfj5JVa2-LygALJIkmn7OdblGJp4im2Pr7Q=", alt: "Boats" },
+                            ],
+                        },
+                      
+                    ],
+                },
+                {
+                    day: 2,
+                    title: "Srinagar → Naranag Trek Begins",
+                    description: "Drive to Naranag (2,400 m) and begin the ascent through pine forests.",
+                    hotel_days: "2",
+                    meals: ["Breakfast", "Dinner"],
+                    hotel: {
+                        name: "Naranag Camp",
+                        star_rating: 3,
+                        check_in_time: "16:00",
+                        check_out_time: "08:00",
+                        images: [
+                            { url: "https://images.unsplash.com/photo-1498307833015-e7b400441eb8?q=80&w=1228&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D", alt: "Camp" },
+                        ],
+                        room_pricing: [
+                            { original_price: "3000", price_per_night: "2400", margin_percentage: "12" },
+                        ],
+                    },
+                    activity_details: [
+                        {
+                            name: "Pine Forest Nature Walk",
+                            original_price: "800",
+                            price: "600",
+                            margin_percentage: "10",
+                            images: [
+                                { url: "https://plus.unsplash.com/premium_photo-1664362416374-4f734db57037?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D", alt: "Pine Forest" },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    day: 3,
+                    title: "Naranag → Gangabal Lake",
+                    description: "The crown jewel of the trek. Arrive at the twin Gangabal lakes (3,600 m).",
+                    hotel_days: "2",
+                    meals: ["Breakfast", "Lunch", "Dinner"],
+                    hotel: {
+                        name: "Gangabal Lakeside Camp",
+                        star_rating: 3,
+                        check_in_time: "15:00",
+                        check_out_time: "08:00",
+                        images: [
+                            { url: "https://images.unsplash.com/photo-1503220317375-aaad61436b1b?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D", alt: "Gangabal Lake" },
+                        ],
+                        room_pricing: [
+                            { original_price: "3200", price_per_night: "2500", margin_percentage: "12" },
+                        ],
+                    },
+                    activity_details: [],
+                },
+                {
+                    day: 4,
+                    title: "Gangabal → Nundkol Lake",
+                    description: "Short trek to the adjacent Nundkol Lake with views of Harmukh peak.",
+                    hotel_days: "2",
+                    meals: ["Breakfast", "Dinner"],
+                    hotel: {
+                        name: "Nundkol Camp",
+                        star_rating: 3,
+                        check_in_time: "14:00",
+                        check_out_time: "08:00",
+                        images: [
+                            { url: "https://images.unsplash.com/photo-1499678329028-101435549a4e?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D", alt: "Nundkol" },
+                        ],
+                        room_pricing: [
+                            { original_price: "3200", price_per_night: "2500", margin_percentage: "12" },
+                        ],
+                    },
+                    activity_details: [
+                        {
+                            name: "Harmukh Peak Viewpoint Hike",
+                            original_price: "1000",
+                            price: "750",
+                            margin_percentage: "10",
+                            images: [
+                                { url: "https://images.unsplash.com/photo-1433838552652-f9a46b332c40?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D", alt: "Mountain View" },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    day: 5,
+                    title: "Nundkol → Sonamarg",
+                    description: "Descend through meadows to reach the 'Meadow of Gold' — Sonamarg.",
+                    hotel_days: "2",
+                    meals: ["Breakfast", "Dinner"],
+                    hotel: {
+                        name: "Sonamarg Alpine Resort",
+                        star_rating: 4,
+                        check_in_time: "15:00",
+                        check_out_time: "11:00",
+                        images: [
+                            { url: "https://plus.unsplash.com/premium_photo-1683121054777-acb80e8c5dc4?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D", alt: "Sonamarg" },
+                        ],
+                        room_pricing: [
+                            { original_price: "4500", price_per_night: "3600", margin_percentage: "15" },
+                        ],
+                    },
+                    activity_details: [],
+                },
+                {
+                    day: 6,
+                    title: "Sonamarg → Srinagar",
+                    description: "Drive back to Srinagar. Evening free for shopping at Lal Chowk.",
+                    hotel_days: "2",
+                    meals: ["Breakfast"],
+                    hotel: {
+                        name: "Srinagar Grand Hotel",
+                        star_rating: 4,
+                        check_in_time: "14:00",
+                        check_out_time: "11:00",
+                        images: [
+                            { url: "https://plus.unsplash.com/premium_photo-1700483717331-6da3888bc3db?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D", alt: "Hotel" },
+                        ],
+                        room_pricing: [
+                            { original_price: "5000", price_per_night: "4000", margin_percentage: "15" },
+                        ],
+                    },
+                    activity_details: [
+                        {
+                            name: "Lal Chowk Market Tour",
+                            original_price: "600",
+                            price: "450",
+                            margin_percentage: "10",
+                            images: [
+                                { url: "https://images.unsplash.com/photo-1526772662000-3f88f10405ff?q=80&w=1074&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D", alt: "Market" },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    day: 7,
+                    title: "Departure",
+                    description: "Check out and transfer to Srinagar Airport. Trek complete!",
+                    hotel_days: "1",
+                    meals: ["Breakfast"],
+                    hotel: null,
+                    activity_details: [],
+                },
+            ],
+        },
+    };
 
     // package hero
 
@@ -196,7 +445,7 @@ export default async function PackagePage({
                         status: i.meals?.includes("Dinner") ? "included" : "excluded",
                     },
                 ],
-                images: i.hotel.images?.map(img =>  img.url) || [],
+                images: i.hotel.images?.map(img => img.url) || [],
             }] : []),
 
             ...(i.activity_details ?

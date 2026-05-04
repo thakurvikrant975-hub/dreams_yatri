@@ -1,140 +1,150 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
+import { ChevronLeft, Package } from "lucide-react";
 import { Badge } from "../../components/ui/badge";
-import { getPackageForEdit, getStayCategories, getAllPolicies } from "../actions";
+import { Button } from "../../components/ui/button";
+import {
+  Breadcrumb, BreadcrumbItem, BreadcrumbLink,
+  BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
+} from "../../components/ui/breadcrumb";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
+import {
+  getPackageByIdAction,
+  getDestinationsForSelectAction,
+  getPoliciesAction,
+  getPackagePoliciesAction,
+} from "@/app/actions/packages/package.actions";
 import { BasicTab } from "./tabs/BasicTab";
+import { ImagesTab } from "./tabs/ImagesTab";
+import { GalleryTab } from "./tabs/GalleryTab";
 import { RoutesTab } from "./tabs/RoutesTab";
 import { ItineraryTab } from "./tabs/ItineraryTab";
-import { HotelsTab } from "./tabs/HotelsTab";
-import { PricingTab } from "./tabs/PricingTab";
-import { CabsTab } from "./tabs/CabsTab";
+import { PricingPreviewTab } from "./tabs/PricingPreviewTab";
 import { PoliciesTab } from "./tabs/PoliciesTab";
-import { GalleryTab } from "./tabs/GalleryTab";
-import { AdvancedTab } from "./tabs/AdvancedTab";
 
-type Props = { params: Promise<{ id: string }> };
-
-export default async function PackageEditPage({ params }: Props) {
+export default async function PackageEditPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id: idStr } = await params;
   const id = Number(idStr);
-  if (isNaN(id)) notFound();
 
-  const [data, stayCategories, allPolicies] = await Promise.all([
-    getPackageForEdit(id),
-    getStayCategories(),
-    getAllPolicies(),
+  const [result, destinations, allPolicies, activePolicyIds] = await Promise.all([
+    getPackageByIdAction(id),
+    getDestinationsForSelectAction(),
+    getPoliciesAction(),
+    getPackagePoliciesAction(id),
   ]);
 
-  if (!data) notFound();
+  if (!result.success) notFound();
+  const pkg = result.data;
 
-  // Flatten all routes from all durations for the itinerary tab
-  const allRoutes = data.durations.flatMap((d) =>
-    d.routes.map((r) => ({ id: r.id, duration_id: r.duration_id, name: r.name }))
-  );
+  const serializedPricings = pkg.packagePricings.map(p => ({
+    ...p,
+    margin_percentage: Number(p.margin_percentage),
+    gst_percentage: Number(p.gst_percentage),
+  }));
 
-  // Collect used stay category ids from hotels and pricing
-  const usedCategoryIds = new Set<number>([
-    ...data.packageHotels.map((h) => h.stay_category_id),
-    ...data.pricing.map((p) => p.stay_category_id),
-  ]);
-  const usedStayCategories = stayCategories.filter((c) => usedCategoryIds.has(c.id));
-
-  const selectedPolicyIds = data.policyMaps.map((pm) => pm.policy_id);
+  const serializedCabOptions = pkg.cabOptions.map(c => ({
+    ...c,
+    rate_per_cab: Number(c.rate_per_cab),
+  }));
 
   return (
-    <div className="p-6 space-y-5  mx-auto">
-      {/* Header */}
+    <div className="space-y-6 w-full">
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem><BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink></BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem><BreadcrumbLink href="/dashboard/packages">Packages</BreadcrumbLink></BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem><BreadcrumbPage>{pkg.title}</BreadcrumbPage></BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
       <div className="flex items-center gap-3">
-        <Link href="/dashboard/packages" className="text-muted-foreground hover:text-foreground transition-colors">
-          <ChevronLeft className="h-5 w-5" />
-        </Link>
-        <div className="flex-1 min-w-0">
+        <Button variant="ghost" size="icon" asChild>
+          <Link href="/dashboard/packages"><ChevronLeft className="h-4 w-4" /></Link>
+        </Button>
+        <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+          <Package className="h-5 w-5 text-primary" />
+        </div>
+        <div className="flex-1">
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold truncate">{data.title}</h1>
-            <Badge variant={data.is_active ? "default" : "secondary"} className="shrink-0">
-              {data.is_active ? "Active" : "Inactive"}
+            <h1 className="text-xl font-semibold">{pkg.title}</h1>
+            <Badge variant={pkg.is_active ? "default" : "secondary"} className="text-xs">
+              {pkg.is_active ? "Active" : "Inactive"}
             </Badge>
           </div>
-          <p className="text-sm text-muted-foreground font-mono">{data.slug}</p>
+          <p className="text-sm text-muted-foreground">
+            {pkg.destination.name}
+            {pkg.durations.length > 0 && ` · ${pkg.durations.length} duration${pkg.durations.length !== 1 ? "s" : ""}`}
+            {pkg.packageRoutes.length > 0 && ` · ${pkg.packageRoutes.length} route${pkg.packageRoutes.length !== 1 ? "s" : ""}`}
+          </p>
         </div>
       </div>
 
-      {/* Tabs */}
       <Tabs defaultValue="basic">
-        <TabsList className="flex-wrap h-auto gap-1">
-          <TabsTrigger value="basic">Basic</TabsTrigger>
-          <TabsTrigger value="routes">Routes</TabsTrigger>
-          <TabsTrigger value="itinerary">Itinerary</TabsTrigger>
-          <TabsTrigger value="hotels">Hotels</TabsTrigger>
-          <TabsTrigger value="pricing">Pricing</TabsTrigger>
-          <TabsTrigger value="cabs">Cabs</TabsTrigger>
-          <TabsTrigger value="policies">Policies</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-7">
+          <TabsTrigger value="basic">Basic Info</TabsTrigger>
+          <TabsTrigger value="images">Images</TabsTrigger>
           <TabsTrigger value="gallery">Gallery</TabsTrigger>
-          <TabsTrigger value="advanced">Advanced</TabsTrigger>
+          <TabsTrigger value="routes">Route Builder</TabsTrigger>
+          <TabsTrigger value="itinerary">Itinerary</TabsTrigger>
+          <TabsTrigger value="pricing">Pricing</TabsTrigger>
+          <TabsTrigger value="policies">Policies</TabsTrigger>
         </TabsList>
 
-        <div className="mt-5 border rounded-xl p-6">
-          <TabsContent value="basic" className="mt-0">
-            <BasicTab pkg={data} />
-          </TabsContent>
+        <TabsContent value="basic" className="mt-6">
+          <BasicTab pkg={pkg} destinations={destinations} />
+        </TabsContent>
 
-          <TabsContent value="routes" className="mt-0">
-            <RoutesTab packageId={data.id} durations={data.durations} />
-          </TabsContent>
+        <TabsContent value="images" className="mt-6">
+          <ImagesTab packageId={id} />
+        </TabsContent>
 
-          <TabsContent value="itinerary" className="mt-0">
-            <ItineraryTab
-              packageId={data.id}
-              durations={data.durations.map((d) => ({ id: d.id, label: d.label }))}
-              allRoutes={allRoutes}
-              stayCategories={stayCategories}
-            />
-          </TabsContent>
+        <TabsContent value="gallery" className="mt-6">
+          <GalleryTab packageId={id} />
+        </TabsContent>
 
-          <TabsContent value="hotels" className="mt-0">
-            <HotelsTab
-              packageId={data.id}
-              initialHotels={data.packageHotels}
-              stayCategories={stayCategories}
-            />
-          </TabsContent>
+        <TabsContent value="routes" className="mt-6">
+          <RoutesTab
+            packageId={id}
+            durations={pkg.durations}
+            routes={pkg.packageRoutes}
+            destinations={destinations}
+          />
+        </TabsContent>
 
-          <TabsContent value="pricing" className="mt-0">
-            <PricingTab
-              packageId={data.id}
-              durations={data.durations.map((d) => ({ id: d.id, label: d.label }))}
-              stayCategories={stayCategories}
-              initialPricing={data.pricing}
-            />
-          </TabsContent>
+        <TabsContent value="itinerary" className="mt-6">
+          <ItineraryTab
+            packageId={id}
+            destinationId={pkg.destination.id}
+            durations={pkg.durations}
+            routes={pkg.packageRoutes}
+            categories={pkg.stay_categories}
+            cabOptions={serializedCabOptions}
+          />
+        </TabsContent>
 
-          <TabsContent value="cabs" className="mt-0">
-            <CabsTab packageId={data.id} initialCabs={data.cabs} />
-          </TabsContent>
+        <TabsContent value="pricing" className="mt-6">
+          <PricingPreviewTab
+            packageId={id}
+            durations={pkg.durations}
+            categories={pkg.stay_categories}
+            routes={pkg.packageRoutes}
+            pricings={serializedPricings}
+          />
+        </TabsContent>
 
-          <TabsContent value="policies" className="mt-0">
-            <PoliciesTab
-              packageId={data.id}
-              allPolicies={allPolicies}
-              selectedIds={selectedPolicyIds}
-            />
-          </TabsContent>
-
-          <TabsContent value="gallery" className="mt-0">
-            <GalleryTab packageId={data.id} initial={data.gallery} />
-          </TabsContent>
-
-          <TabsContent value="advanced" className="mt-0">
-            <AdvancedTab
-              packageId={data.id}
-              slug={data.slug}
-              isActive={data.is_active}
-              usedStayCategories={usedStayCategories}
-            />
-          </TabsContent>
-        </div>
+        <TabsContent value="policies" className="mt-6">
+          <PoliciesTab
+            packageId={id}
+            allPolicies={allPolicies}
+            activePolicyIds={activePolicyIds}
+          />
+        </TabsContent>
       </Tabs>
     </div>
   );
