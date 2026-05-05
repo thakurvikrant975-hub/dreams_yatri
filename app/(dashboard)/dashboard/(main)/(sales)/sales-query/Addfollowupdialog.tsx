@@ -18,13 +18,25 @@ type Props = {
     leadName: string;
     children: React.ReactNode;
     onDone?: () => void;
+    // Pass existing follow-up data to pre-fill when updating
+    existingNote?: string;
+    existingFollowUpAt?: string; // ISO datetime string
 };
 
-export function AddFollowUpDialog({ salesQueryId, leadName, children, onDone }: Props) {
+export function AddFollowUpDialog({
+    salesQueryId,
+    leadName,
+    children,
+    onDone,
+    existingNote,
+    existingFollowUpAt,
+}: Props) {
     const [open, setOpen] = useState(false);
     const [isPending, startTransition] = useTransition();
     const [errors, setErrors] = useState<Record<string, string[]>>({});
     const formRef = useRef<HTMLFormElement>(null);
+
+    const isUpdate = Boolean(existingNote);
 
     function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
@@ -58,12 +70,14 @@ export function AddFollowUpDialog({ salesQueryId, leadName, children, onDone }: 
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-primary">
-                        <CalendarClock className="h-4 w-4" /> Add Follow-Up
+                        <CalendarClock className="h-4 w-4" />
+                        {isUpdate ? "Update Follow-Up" : "Add Follow-Up"}
                     </DialogTitle>
                     <DialogDescription>
-                        Log a follow-up note for{" "}
-                        <span className="font-semibold">{leadName}</span>.
-                        Only you will see your follow-ups. Optionally schedule the next reminder.
+                        {isUpdate
+                            ? <>Updating your existing follow-up for <span className="font-semibold">{leadName}</span>. Your previous note will be replaced.</>
+                            : <>Log a follow-up note for <span className="font-semibold">{leadName}</span>. Only you will see your follow-ups.</>
+                        }
                     </DialogDescription>
                 </DialogHeader>
 
@@ -75,7 +89,8 @@ export function AddFollowUpDialog({ salesQueryId, leadName, children, onDone }: 
                         <Textarea
                             id="note"
                             name="note"
-                            placeholder="e.g. Called customer, they are interested in Manali package. Will confirm budget tomorrow..."
+                            defaultValue={existingNote}
+                            placeholder="e.g. Called customer — they are interested in Manali package. Will confirm budget by Friday..."
                             rows={4}
                             className={`resize-none text-sm ${errors.note ? "border-destructive" : ""}`}
                         />
@@ -86,7 +101,7 @@ export function AddFollowUpDialog({ salesQueryId, leadName, children, onDone }: 
 
                     <div className="space-y-1.5">
                         <Label htmlFor="followUpAt">
-                            Schedule Next Follow-Up{" "}
+                            Schedule Next Reminder{" "}
                             <span className="text-muted-foreground text-xs font-normal">(optional)</span>
                         </Label>
                         <Input
@@ -94,10 +109,11 @@ export function AddFollowUpDialog({ salesQueryId, leadName, children, onDone }: 
                             name="followUpAt"
                             type="datetime-local"
                             className="text-sm"
+                            defaultValue={existingFollowUpAt?.slice(0, 16)}
                             min={new Date().toISOString().slice(0, 16)}
                         />
                         <p className="text-xs text-muted-foreground">
-                            A reminder will be shown on your next follow-ups list.
+                            Appears as a reminder on your My Follow-Ups page.
                         </p>
                     </div>
 
@@ -106,7 +122,9 @@ export function AddFollowUpDialog({ salesQueryId, leadName, children, onDone }: 
                             Cancel
                         </Button>
                         <Button type="submit" disabled={isPending}>
-                            {isPending ? "Saving..." : "Save Follow-Up"}
+                            {isPending
+                                ? (isUpdate ? "Updating..." : "Saving...")
+                                : (isUpdate ? "Update Follow-Up" : "Save Follow-Up")}
                         </Button>
                     </div>
                 </form>

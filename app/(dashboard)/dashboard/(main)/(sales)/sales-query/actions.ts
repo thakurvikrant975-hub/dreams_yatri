@@ -12,9 +12,49 @@ export type ActionResult<T = void> =
     | { success: true; data: T; message: string }
     | { success: false; data?: never; message: string; errors?: Record<string, string[]> };
 
-// Sales module uses SUBMITTED → ACTIVE → CLOSED lifecycle
-// These map to the QueryStatus enum values added in migration
-export type SalesQueryStatus = "SUBMITTED" | "ACTIVE" | "CLOSED";
+// Matches schema enum exactly
+export type QueryStatus =
+    | "SUBMITTED"
+    | "VERIFIED"
+    | "REJECTED"
+    | "ASSIGNED"
+    | "IN_PROGRESS"
+    | "PACKAGE_SENT"
+    | "CLIENT_ACCEPTED"
+    | "CLIENT_DECLINED"
+    | "PAYMENT_INITIATED"
+    | "CONVERTED"
+    | "CLOSED";
+
+// Statuses visible in the sales module (query has been assigned to a sales exec)
+export type SalesQueryStatus = Extract<
+    QueryStatus,
+    | "ASSIGNED"
+    | "IN_PROGRESS"
+    | "PACKAGE_SENT"
+    | "CLIENT_ACCEPTED"
+    | "CLIENT_DECLINED"
+    | "PAYMENT_INITIATED"
+    | "CONVERTED"
+    | "CLOSED"
+>;
+
+// Still actionable by sales exec (not yet terminal)
+export function isActiveQuery(status: QueryStatus): boolean {
+    return (
+        status === "ASSIGNED" ||
+        status === "IN_PROGRESS" ||
+        status === "PACKAGE_SENT" ||
+        status === "CLIENT_ACCEPTED" ||
+        status === "CLIENT_DECLINED" ||
+        status === "PAYMENT_INITIATED"
+    );
+}
+
+// Terminal — query is done
+export function isClosedQuery(status: QueryStatus): boolean {
+    return status === "CONVERTED" || status === "CLOSED";
+}
 
 export type PackageQueryType = {
     id: string;
@@ -28,7 +68,7 @@ export type PackageQueryType = {
     groupSize: number | null;
     message: string | null;
     source: string;
-    status: SalesQueryStatus;
+    status: QueryStatus;
     assignedTo: string | null;
     assignedAt: Date | null;
     closedAt: Date | null;
@@ -200,7 +240,7 @@ async function getCurrentActor() {
             select: { id: true, name: true },
         });
         teamMemberId = tm?.id ?? null;
-        teamMemberName = tm?.name ?? actor.name ?? null;
+        teamMemberName = tm?.name ?? (actor as any).name ?? null;
     }
 
     return { actor, teamMemberId, teamMemberName };
@@ -237,23 +277,35 @@ export async function getSalesQueries() {
 }
 
 export async function getSalesQueryById(id: string) {
-    return db.package_queries.findUnique({
+    const { teamMemberId } = await getCurrentActor();
+
+    // FIX: include _count so detail sheet has queryFollowUps count available
+    const query = await db.package_queries.findUnique({
         where: { id },
         include: {
-            // Only return follow-ups created by the current user
+            // Filter follow-ups to only current user's entries (privacy rule)
             queryFollowUps: {
+                where: teamMemberId ? { createdById: teamMemberId } : {},
                 orderBy: { createdAt: "asc" },
             },
             notes: { orderBy: { createdAt: "asc" } },
             timeline: { orderBy: { createdAt: "asc" } },
+            // FIX: always include _count so _count.queryFollowUps is never undefined
+            _count: {
+                select: {
+                    queryFollowUps: true,
+                    notes: true,
+                },
+            },
         },
     });
+
+    return query;
 }
 
-// Returns follow-ups for a query that belong to the currently logged-in team member
+// Returns all follow-ups for the current user, across all their assigned queries
 export async function getMyFollowUps(packageQueryId?: string) {
     const { teamMemberId } = await getCurrentActor();
-
     if (!teamMemberId) return [];
 
     return db.queryFollowUp.findMany({
@@ -261,7 +313,11 @@ export async function getMyFollowUps(packageQueryId?: string) {
             createdById: teamMemberId,
             ...(packageQueryId ? { packageQueryId } : {}),
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: [
+            // Overdue first, then soonest upcoming
+            { followUpAt: "asc" },
+            { createdAt: "desc" },
+        ],
         include: {
             packageQuery: {
                 select: {
@@ -283,12 +339,16 @@ export async function getCloseReasons(): Promise<CloseReason[]> {
         { id: "BOOKED_ELSEWHERE", label: "Booked Elsewhere", requiresNote: false },
         { id: "TRAVEL_CANCELLED", label: "Travel Cancelled", requiresNote: false },
         { id: "UNRESPONSIVE", label: "Unresponsive", requiresNote: false },
-        { id: "BOOKED_WITH_US", label: "Booked With Us ✓", requiresNote: false },
+        { id: "CONVERTED", label: "Booking Confirmed ✓", requiresNote: false },
         { id: "OTHER", label: "Other", requiresNote: true },
     ];
 }
 
-// ── FOLLOW-UP ─────────────────────────────────────────────────────────────────
+// ── FOLLOW-UP — one per (packageQueryId × createdById) ───────────────────────
+//
+// Business rule: each sales exec has ONE follow-up record per query.
+// Re-submitting the form updates the existing record (upsert).
+// This prevents duplicate rows cluttering the follow-up list.
 
 export async function addFollowUp(
     packageQueryId: string,
@@ -310,19 +370,41 @@ export async function addFollowUp(
     try {
         const { teamMemberId, teamMemberName } = await getCurrentActor();
 
-        await db.queryFollowUp.create({
-            data: {
-                packageQueryId,
-                note: parsed.data.note,
-                followUpAt: parsed.data.followUpAt
-                    ? new Date(parsed.data.followUpAt)
-                    : null,
-                // Store who created this follow-up for privacy filtering
-                createdById: teamMemberId,
-                createdByName: teamMemberName,
-            },
-        });
+        // Look for existing follow-up by this exec on this query
+        const existing = teamMemberId
+            ? await db.queryFollowUp.findFirst({
+                where: { packageQueryId, createdById: teamMemberId },
+                select: { id: true },
+            })
+            : null;
 
+        if (existing) {
+            // UPDATE — do not create a duplicate
+            await db.queryFollowUp.update({
+                where: { id: existing.id },
+                data: {
+                    note: parsed.data.note,
+                    followUpAt: parsed.data.followUpAt
+                        ? new Date(parsed.data.followUpAt)
+                        : null,
+                },
+            });
+        } else {
+            // CREATE — first follow-up for this exec on this query
+            await db.queryFollowUp.create({
+                data: {
+                    packageQueryId,
+                    note: parsed.data.note,
+                    followUpAt: parsed.data.followUpAt
+                        ? new Date(parsed.data.followUpAt)
+                        : null,
+                    createdById: teamMemberId,
+                    createdByName: teamMemberName,
+                },
+            });
+        }
+
+        // Update nextFollowUpAt on the query if a date was given
         if (parsed.data.followUpAt) {
             await db.package_queries.update({
                 where: { id: packageQueryId },
@@ -330,33 +412,36 @@ export async function addFollowUp(
             });
         }
 
-        // Activate query when first follow-up is logged
+        // Advance status: ASSIGNED → IN_PROGRESS when exec first engages.
+        // Never go backwards — only advance if still at ASSIGNED.
         const currentQuery = await db.package_queries.findUnique({
             where: { id: packageQueryId },
             select: { status: true },
         });
 
-        if (currentQuery?.status === "SUBMITTED") {
+        if (currentQuery?.status === "ASSIGNED") {
             await db.package_queries.update({
                 where: { id: packageQueryId },
-                // FIX: Use "ACTIVE" which is a valid QueryStatus enum value
-                // (requires migration: add ACTIVE and CLOSED to QueryStatus enum)
-                data: { status: "ACTIVE" },
+                data: { status: "IN_PROGRESS" },
             });
         }
 
         await logTimeline(
             packageQueryId,
-            `📞 Follow-up logged`,
+            existing ? `📞 Follow-up updated` : `📞 Follow-up logged`,
             teamMemberId ?? undefined,
             teamMemberName ?? undefined,
         );
 
         revalidatePath("/dashboard/sales-query");
-        return { success: true, data: undefined, message: "Follow-up added" };
+        return {
+            success: true,
+            data: undefined,
+            message: existing ? "Follow-up updated" : "Follow-up added",
+        };
     } catch (err) {
         console.error("addFollowUp error:", err);
-        return { success: false, message: "Failed to add follow-up" };
+        return { success: false, message: "Failed to save follow-up" };
     }
 }
 
@@ -382,11 +467,13 @@ export async function closeSalesQuery(
     try {
         const { teamMemberId, teamMemberName } = await getCurrentActor();
 
+        // Booking confirmed → CONVERTED; everything else → CLOSED
+        const isConverted = parsed.data.closeReasonId === "CONVERTED";
+
         await db.package_queries.update({
             where: { id: packageQueryId },
             data: {
-                // FIX: "CLOSED" is valid after migration
-                status: "CLOSED",
+                status: isConverted ? "CONVERTED" : "CLOSED",
                 closeReasonId: parsed.data.closeReasonId,
                 closeReasonOther: parsed.data.closeReasonOther ?? null,
                 closedAt: new Date(),
@@ -396,13 +483,19 @@ export async function closeSalesQuery(
 
         await logTimeline(
             packageQueryId,
-            `❌ Query Closed — ${parsed.data.closeReasonId}`,
+            isConverted
+                ? `✅ Converted — Booking Confirmed`
+                : `❌ Closed — ${parsed.data.closeReasonId}`,
             teamMemberId ?? undefined,
             teamMemberName ?? undefined,
         );
 
         revalidatePath("/dashboard/sales-query");
-        return { success: true, data: undefined, message: "Closed successfully" };
+        return {
+            success: true,
+            data: undefined,
+            message: isConverted ? "Marked as Converted!" : "Closed successfully",
+        };
     } catch (err) {
         console.error("closeSalesQuery error:", err);
         return { success: false, message: "Failed to close query" };
@@ -418,8 +511,8 @@ export async function reopenSalesQuery(packageQueryId: string): Promise<ActionRe
         await db.package_queries.update({
             where: { id: packageQueryId },
             data: {
-                // FIX: "ACTIVE" is valid after migration
-                status: "ACTIVE",
+                // Reopen to IN_PROGRESS — exec has already engaged previously
+                status: "IN_PROGRESS",
                 closeReasonId: null,
                 closeReasonOther: null,
                 closedAt: null,
@@ -461,17 +554,26 @@ export async function savePackageRequirements(
     try {
         const { teamMemberId, teamMemberName } = await getCurrentActor();
 
+        // Read current status — only advance forward, never backwards
+        const currentQuery = await db.package_queries.findUnique({
+            where: { id: packageQueryId },
+            select: { status: true },
+        });
+
+        const shouldAdvance = currentQuery?.status === "ASSIGNED";
+
         await db.package_queries.update({
             where: { id: packageQueryId },
             data: {
                 requirements: parsed.data as Prisma.InputJsonValue,
-                groupSize: parsed.data.travellers.adults + parsed.data.travellers.children,
+                groupSize:
+                    parsed.data.travellers.adults + parsed.data.travellers.children,
                 destination: parsed.data.journey.destinations[0] ?? null,
                 travelDate: parsed.data.journey.travelDate
                     ? new Date(parsed.data.journey.travelDate)
                     : null,
-                // FIX: "ACTIVE" is valid after adding to QueryStatus enum in migration
-                status: "ACTIVE",
+                // Only advance ASSIGNED → IN_PROGRESS; leave all other statuses alone
+                ...(shouldAdvance ? { status: "IN_PROGRESS" as const } : {}),
             },
         });
 
@@ -482,7 +584,10 @@ export async function savePackageRequirements(
             teamMemberName ?? undefined,
             {
                 destinations: parsed.data.journey.destinations,
-                pax: parsed.data.travellers.adults + parsed.data.travellers.children + parsed.data.travellers.infants,
+                pax:
+                    parsed.data.travellers.adults +
+                    parsed.data.travellers.children +
+                    parsed.data.travellers.infants,
                 budget: parsed.data.budget,
             },
         );
@@ -491,15 +596,9 @@ export async function savePackageRequirements(
         return { success: true, data: undefined, message: "Package requirements saved" };
     } catch (err: unknown) {
         console.error("savePackageRequirements error:", err);
-
         if (err instanceof Error) {
             return { success: false, message: err.message || "Something went wrong" };
         }
-
-        if (typeof err === "object" && err !== null && "code" in err) {
-            return { success: false, message: "Database error occurred" };
-        }
-
         return { success: false, message: "Unexpected error occurred" };
     }
 }

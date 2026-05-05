@@ -1147,18 +1147,18 @@ model route_stops {
 }
 
 model QueryFollowUp {
-  id             String    @id @default(cuid())
+  id             String          @id @default(cuid())
   packageQueryId String
   note           String
   followUpAt     DateTime?
-  createdAt      DateTime  @default(now())
-  createdById    String? // ← ADD THIS
-  createdByName  String? // ← ADD THIS
+  createdAt      DateTime        @default(now())
+  createdById    String?         // ← ADD THIS
+  createdByName  String?         // ← ADD THIS
 
-  packageQuery package_queries @relation(fields: [packageQueryId], references: [id], onDelete: Cascade)
+  packageQuery   package_queries @relation(fields: [packageQueryId], references: [id], onDelete: Cascade)
 
   @@index([packageQueryId])
-  @@index([createdById]) // ← ADD THIS
+  @@index([createdById])         // ← ADD THIS
 }
 
 model package_queries {

@@ -61,25 +61,25 @@ export async function getSalesDashboardData(
     recentQueries,
     todayFollowUps,
   ] = await Promise.all([
-    db.packageQuery.count({
+    db.package_queries.count({
       where: { assignedTo: memberId },
     }),
 
-    db.packageQuery.count({
+    db.package_queries.count({
       where: {
         assignedTo: memberId,
         assignedAt: { gte: weekStart },
       },
     }),
 
-    db.packageQuery.count({
+    db.package_queries.count({
       where: {
         assignedTo: memberId,
         nextFollowUpAt: { gte: todayStart, lte: todayEnd },
       },
     }),
 
-    db.packageQuery.count({
+    db.package_queries.count({
       where: {
         assignedTo: memberId,
         nextFollowUpAt: { lt: todayStart },
@@ -87,7 +87,7 @@ export async function getSalesDashboardData(
       },
     }),
 
-    db.packageQuery.count({
+    db.package_queries.count({
       where: {
         assignedTo: memberId,
         verified: true,
@@ -95,7 +95,7 @@ export async function getSalesDashboardData(
       },
     }),
 
-    db.packageQuery.findMany({
+    db.package_queries.findMany({
       where: { assignedTo: memberId },
       orderBy: { assignedAt: "desc" },
       take: 5,
@@ -110,7 +110,7 @@ export async function getSalesDashboardData(
       },
     }),
 
-    db.packageQuery.findMany({
+    db.package_queries.findMany({
       where: {
         assignedTo: memberId,
         nextFollowUpAt: { gte: todayStart, lte: todayEnd },

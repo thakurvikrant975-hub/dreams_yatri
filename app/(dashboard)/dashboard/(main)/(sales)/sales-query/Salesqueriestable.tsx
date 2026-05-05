@@ -5,11 +5,10 @@ import { format, formatDistanceToNow, isToday } from "date-fns";
 import {
     CalendarClock, XCircle, Eye, Phone, Mail,
     MapPin, Users, Calendar, StickyNote, TrendingUp,
-    RotateCcw, ClipboardList, Inbox,
+    RotateCcw, ClipboardList,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
-import { Badge } from "../../components/ui/badge";
 import {
     Tooltip, TooltipContent, TooltipTrigger, TooltipProvider,
 } from "../../components/ui/tooltip";
@@ -17,18 +16,21 @@ import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable"
 import { TableFilters } from "../../components/dashboard/Tablefilters";
 import { Stats } from "../../components/dashboard/Stats";
 import { SalesQueryStatusBadge } from "./Salesquerybadges";
-import { QuerySourceBadge } from "../../(marketing)/queries/QueryBadges";
 import { AddFollowUpDialog } from "./Addfollowupdialog";
 import { CloseQueryDialog } from "./Closequerydialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { SalesQueryDetailSheet } from "./Salesquerydetailsheet";
-import { reopenSalesQuery, getSalesQueryById } from "./actions";
-import type { PackageQueryType, CloseReason, SalesQueryStatus, PackageRequirements } from "./actions";
+import {
+    reopenSalesQuery, getSalesQueryById,
+    isActiveQuery, isClosedQuery,
+} from "./actions";
+import type {
+    PackageQueryType, CloseReason, QueryStatus, PackageRequirements,
+} from "./actions";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type SalesQueryWithDetails = PackageQueryType & {
-    // queryFollowUps from DB mapped to followUps for the sheet
     followUps: Array<{
         id: string;
         note: string;
@@ -48,16 +50,6 @@ type Props = {
 
 const PAGE_SIZE = 10;
 
-// ── Status helpers ────────────────────────────────────────────────────────────
-
-function isActiveStatus(status: SalesQueryStatus) {
-    return status === "SUBMITTED" || status === "ACTIVE";
-}
-
-function isClosedStatus(status: SalesQueryStatus) {
-    return status === "CLOSED";
-}
-
 // ── Action Cell ───────────────────────────────────────────────────────────────
 
 function ActionCell({
@@ -70,7 +62,8 @@ function ActionCell({
     onView: () => void;
 }) {
     const [isPendingReopen, startReopen] = useTransition();
-    const closed = isClosedStatus(query.status);
+    const closed = isClosedQuery(query.status);
+    const active = isActiveQuery(query.status);
 
     function handleReopen(e: React.MouseEvent) {
         e.stopPropagation();
@@ -98,7 +91,7 @@ function ActionCell({
                     <TooltipContent>View Details</TooltipContent>
                 </Tooltip>
 
-                {!closed && (
+                {active && (
                     <>
                         {/* Package Requirements */}
                         <Tooltip>
@@ -120,7 +113,7 @@ function ActionCell({
                             <TooltipContent>Fill Package Requirements</TooltipContent>
                         </Tooltip>
 
-                        {/* Add Follow-Up */}
+                        {/* Add / Update Follow-Up */}
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <span onClick={(e) => e.stopPropagation()}>
@@ -134,7 +127,9 @@ function ActionCell({
                                     </AddFollowUpDialog>
                                 </span>
                             </TooltipTrigger>
-                            <TooltipContent>Add Follow-Up</TooltipContent>
+                            <TooltipContent>
+                                {query._count.queryFollowUps > 0 ? "Update Follow-Up" : "Add Follow-Up"}
+                            </TooltipContent>
                         </Tooltip>
 
                         {/* Close Query */}
@@ -160,7 +155,7 @@ function ActionCell({
                     </>
                 )}
 
-                {/* Reopen — closed only */}
+                {/* Reopen — terminal only */}
                 {closed && (
                     <Tooltip>
                         <TooltipTrigger asChild>
@@ -181,14 +176,28 @@ function ActionCell({
     );
 }
 
+// ── Filter options ─────────────────────────────────────────────────────────────
+
+const STATUS_FILTER_OPTIONS = [
+    { label: "All Queries", value: "all" },
+    { label: "New / Assigned", value: "ASSIGNED" },
+    { label: "In Progress", value: "IN_PROGRESS" },
+    { label: "Package Sent", value: "PACKAGE_SENT" },
+    { label: "Client Accepted", value: "CLIENT_ACCEPTED" },
+    { label: "Client Declined", value: "CLIENT_DECLINED" },
+    { label: "Payment Initiated", value: "PAYMENT_INITIATED" },
+    { label: "Converted", value: "CONVERTED" },
+    { label: "Closed", value: "CLOSED" },
+];
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export function SalesQueriesTable({ queries, closeReasons }: Props) {
     const [search, setSearch] = useState("");
-    const [filterStatus, setFilterStatus] = useState<"all" | "SUBMITTED" | "ACTIVE" | "CLOSED">("all");
+    const [filterStatus, setFilterStatus] = useState("all");
     const [page, setPage] = useState(1);
 
-    // Detail sheet
+    // Detail sheet state
     const [sheetOpen, setSheetOpen] = useState(false);
     const [detailQuery, setDetailQuery] = useState<SalesQueryWithDetails | null>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
@@ -196,17 +205,18 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
     async function openDetail(query: PackageQueryType) {
         setSheetOpen(true);
         setLoadingDetail(true);
-
         try {
             const full = await getSalesQueryById(query.id);
             if (!full) return;
 
+            // Map queryFollowUps → followUps for the sheet
             const normalized: SalesQueryWithDetails = {
                 ...(full as unknown as PackageQueryType),
-                // Map queryFollowUps → followUps for the detail sheet
                 followUps: (full as any).queryFollowUps ?? [],
                 notes: (full as any).notes ?? [],
                 timeline: (full as any).timeline ?? [],
+                // _count is now always included from getSalesQueryById
+                _count: (full as any)._count ?? { queryFollowUps: 0, notes: 0 },
             };
 
             setDetailQuery(normalized);
@@ -218,16 +228,15 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
     // ── Filtering ─────────────────────────────────────────────────────────────
     const filtered = queries.filter(q => {
         const s = search.toLowerCase();
-        const matchSearch = !search
-            || q.name.toLowerCase().includes(s)
-            || q.phone.includes(s)
-            || (q.email ?? "").toLowerCase().includes(s)
-            || (q.destination ?? "").toLowerCase().includes(s)
-            || (q.packageName ?? "").toLowerCase().includes(s);
+        const matchSearch =
+            !search ||
+            q.name.toLowerCase().includes(s) ||
+            q.phone.includes(s) ||
+            (q.email ?? "").toLowerCase().includes(s) ||
+            (q.destination ?? "").toLowerCase().includes(s) ||
+            (q.packageName ?? "").toLowerCase().includes(s);
 
-        const matchStatus =
-            filterStatus === "all"
-            || q.status === filterStatus;
+        const matchStatus = filterStatus === "all" || q.status === filterStatus;
 
         return matchSearch && matchStatus;
     });
@@ -239,23 +248,25 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
 
     // ── Stats ─────────────────────────────────────────────────────────────────
     const totalCount = queries.length;
-    // New today = assigned to this user today (or created today if no assignedAt)
+
+    // New today = assigned today
     const newToday = queries.filter(q => {
-        const dateToCheck = q.assignedAt ?? q.createdAt;
-        return isToday(new Date(dateToCheck));
+        const d = q.assignedAt ?? q.createdAt;
+        return isToday(new Date(d));
     }).length;
-    // In Progress = ACTIVE status (requirements filled or follow-up logged)
-    const inProgress = queries.filter(q => q.status === "ACTIVE").length;
-    // Submitted = newly assigned, not yet worked
-    const submitted = queries.filter(q => q.status === "SUBMITTED").length;
-    // Closed = any closed query
+
+    // In progress = all active statuses (not yet terminal)
+    const inProgressCount = queries.filter(q => isActiveQuery(q.status)).length;
+
+    // Closed = CLOSED (without conversion)
     const closedCount = queries.filter(q => q.status === "CLOSED").length;
-    // Booked = closed with "BOOKED_WITH_US" reason
-    const bookedCount = queries.filter(q =>
-        q.status === "CLOSED" && q.closeReasonId === "BOOKED_WITH_US"
-    ).length;
-    // Conversation % = closed queries that converted (booked) / total closed
-    const convRate = closedCount > 0 ? Math.round((bookedCount / closedCount) * 100) : 0;
+
+    // Booked / converted
+    const convertedCount = queries.filter(q => q.status === "CONVERTED").length;
+
+    // Conversion % = converted / (converted + closed)
+    const terminal = convertedCount + closedCount;
+    const convRate = terminal > 0 ? Math.round((convertedCount / terminal) * 100) : 0;
 
     // ── Columns ───────────────────────────────────────────────────────────────
     const columns: ColumnDef<PackageQueryType>[] = [
@@ -268,10 +279,7 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
                         <p className="font-medium text-sm leading-tight">{q.name}</p>
                         {/* Green dot = requirements filled */}
                         {q.requirements && (
-                            <span
-                                title="Requirements filled"
-                                className="h-1.5 w-1.5 rounded-full bg-green-500 shrink-0"
-                            />
+                            <span title="Requirements filled" className="h-1.5 w-1.5 rounded-full bg-green-500 shrink-0" />
                         )}
                     </div>
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -310,8 +318,8 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
             header: "Status",
             cell: (q) => (
                 <div className="space-y-1">
-                    <SalesQueryStatusBadge status={q.status as SalesQueryStatus} />
-                    {q.status === "CLOSED" && q.closeReasonId && (
+                    <SalesQueryStatusBadge status={q.status} />
+                    {isClosedQuery(q.status) && q.closeReasonId && (
                         <p className="text-[10px] text-muted-foreground max-w-[110px] truncate">
                             {closeReasons.find(r => r.id === q.closeReasonId)?.label ?? q.closeReasonId}
                         </p>
@@ -340,29 +348,18 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
             ),
         },
         {
-            header: "Follow-Ups",
+            header: "Follow-Up",
             align: "center" as const,
             cell: (q) => (
-                <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
-                    <StickyNote className="h-3 w-3" />
-                    {q._count.queryFollowUps}
-                </div>
-            ),
-        },
-        {
-            header: "Next Follow-Up",
-            cell: (q) => (
-                <div className="text-xs">
-                    {q.nextFollowUpAt ? (
-                        <span className={`font-medium ${
-                            new Date(q.nextFollowUpAt) < new Date()
-                                ? "text-destructive"
-                                : "text-amber-600"
-                        }`}>
-                            {format(new Date(q.nextFollowUpAt), "dd MMM, hh:mm a")}
+                <div className="flex flex-col items-center gap-0.5 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                        <StickyNote className="h-3 w-3" />
+                        {q._count.queryFollowUps}
+                    </div>
+                    {q.nextFollowUpAt && (
+                        <span className={`text-[10px] ${new Date(q.nextFollowUpAt) < new Date() ? "text-destructive" : "text-amber-600"}`}>
+                            {format(new Date(q.nextFollowUpAt), "dd MMM")}
                         </span>
-                    ) : (
-                        <span className="text-muted-foreground italic">—</span>
                     )}
                 </div>
             ),
@@ -401,14 +398,14 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
     return (
         <>
             <div className="space-y-4">
-                {/* Stats — matches requested: total, new today, in progress, closed, booked, conv% */}
+                {/* Stats */}
                 <Stats
                     rows={[
                         { label: "Total Queries", value: totalCount },
                         { label: "New Today", value: newToday },
-                        { label: "In Progress", value: inProgress + submitted },
+                        { label: "In Progress", value: inProgressCount },
                         { label: "Closed", value: closedCount, muted: closedCount === 0 },
-                        { label: "Booked", value: bookedCount },
+                        { label: "Booked", value: convertedCount },
                         { label: "Conv. %", value: `${convRate}%` },
                     ]}
                 />
@@ -423,18 +420,10 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
                     filters={[
                         {
                             value: filterStatus,
-                            onChange: (v) => {
-                                setFilterStatus(v as "all" | "SUBMITTED" | "ACTIVE" | "CLOSED");
-                                setPage(1);
-                            },
+                            onChange: (v) => { setFilterStatus(v); setPage(1); },
                             placeholder: "All Statuses",
-                            width: "w-44",
-                            options: [
-                                { label: "All Queries", value: "all" },
-                                { label: "New / Submitted", value: "SUBMITTED" },
-                                { label: "In Progress (Active)", value: "ACTIVE" },
-                                { label: "Closed", value: "CLOSED" },
-                            ],
+                            width: "w-48",
+                            options: STATUS_FILTER_OPTIONS,
                         },
                     ]}
                 />
@@ -462,8 +451,9 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
                     rowKey={(q) => q.id}
                     onRowClick={(q) => openDetail(q)}
                     rowClassName={(q) => {
-                        if (isClosedStatus(q.status as SalesQueryStatus)) return "opacity-60 hover:opacity-80";
-                        if (q.status === "SUBMITTED") return "bg-amber-50/40 dark:bg-amber-950/10";
+                        if (isClosedQuery(q.status)) return "opacity-60 hover:opacity-80";
+                        if (q.status === "CONVERTED") return "bg-emerald-50/40 dark:bg-emerald-950/10";
+                        if (q.status === "ASSIGNED") return "bg-amber-50/40 dark:bg-amber-950/10";
                         return "";
                     }}
                     emptyState={
@@ -471,13 +461,11 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
                             <TrendingUp className="h-10 w-10 text-muted-foreground" />
                             <p className="text-sm font-medium text-muted-foreground">No queries found</p>
                             <p className="text-xs text-muted-foreground">
-                                {filterStatus === "CLOSED"
-                                    ? "No closed queries yet"
-                                    : filterStatus === "ACTIVE"
-                                        ? "No active queries — you're all caught up!"
-                                        : filterStatus === "SUBMITTED"
-                                            ? "No new queries awaiting action"
-                                            : "No queries match your search"}
+                                {filterStatus !== "all"
+                                    ? `No queries with status "${STATUS_FILTER_OPTIONS.find(o => o.value === filterStatus)?.label ?? filterStatus}"`
+                                    : search
+                                        ? "No queries match your search"
+                                        : "Queries assigned to you will appear here"}
                             </p>
                         </div>
                     }
@@ -491,7 +479,9 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
                 closeReasons={closeReasons}
                 open={sheetOpen}
                 onOpenChange={setSheetOpen}
-                onRefresh={() => openDetail(detailQuery as PackageQueryType)}
+                onRefresh={() => {
+                    if (detailQuery) openDetail(detailQuery);
+                }}
             />
         </>
     );
