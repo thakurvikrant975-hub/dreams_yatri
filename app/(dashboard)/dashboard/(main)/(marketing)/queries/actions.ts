@@ -83,21 +83,24 @@ async function logTimeline(
 export async function getQueries(): Promise<package_queries[]> {
     const queries = await db.package_queries.findMany({
         include: {
-            rejectionReason: { select: { id: true, label: true } },
+            // BEFORE: rejectionReason    AFTER: rejection_reasons
+            rejection_reasons: { select: { id: true, label: true } },
             _count: { select: { notes: true } },
-            leadProfile: {
+            lead_profiles: {
                 select: {
-                    _count: { select: { queries: true } },
+                    // BEFORE: leadProfile    AFTER: lead_profiles
+                    _count: { select: { package_queries: true } },
                 },
             },
         },
         orderBy: { createdAt: "desc" },
     }) as any[];
 
-    // Flatten totalLeadQueries onto each query
     return queries.map(q => ({
         ...q,
-        totalLeadQueries: q.leadProfile?._count?.queries ?? 1,
+        // BEFORE: q.leadProfile?._count?.package_queries
+        // AFTER:
+        totalLeadQueries: q.lead_profiles?._count?.package_queries ?? 1,
     })) as package_queries[];
 }
 
@@ -105,19 +108,29 @@ export async function getQueryById(id: string) {
     return db.package_queries.findUnique({
         where: { id },
         include: {
-            rejectionReason: true,
+            // BEFORE: rejectionReason    AFTER: rejection_reasons
+            rejection_reasons: true,
             notes: { orderBy: { createdAt: "asc" } },
             timeline: { orderBy: { createdAt: "asc" } },
         },
     });
 }
 
-export async function getRejectionReasons(): Promise<RejectionReason[]> {
+
+type RejectionReasonWithCount = Prisma.RejectionReasonGetPayload<{
+    include: {
+        _count: { select: { package_queries: true } };
+    };
+}>;
+
+export async function getRejectionReasons(): Promise<RejectionReasonWithCount[]> {
     return db.rejectionReason.findMany({
         where: { isActive: true },
-        include: { _count: { select: { queries: true } } },
+        include: {
+            _count: { select: { package_queries: true } },
+        },
         orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
-    }) as Promise<RejectionReason[]>;
+    });
 }
 
 // ── STATUS TRANSITIONS ────────────────────────────────────────────────────────
