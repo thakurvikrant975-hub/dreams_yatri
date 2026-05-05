@@ -5,7 +5,7 @@ import {
     Breadcrumb, BreadcrumbItem, BreadcrumbLink,
     BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "../../components/ui/breadcrumb";
-import { getSalesQueries, getCloseReasons } from "./actions";
+import { getSalesQueries, getCloseReasons, PackageQueryType } from "./actions";
 import { SalesQueriesTable } from "./Salesqueriestable";
 
 function TableSkeleton() {
@@ -43,7 +43,7 @@ async function SalesQueriesData() {
         getSalesQueries(),
         getCloseReasons(),
     ]);
-    return <SalesQueriesTable queries={queries} closeReasons={closeReasons} />;
+    return <SalesQueriesTable queries={queries as PackageQueryType[]} closeReasons={closeReasons} />;
 }
 
 export default function SalesQueryPage() {

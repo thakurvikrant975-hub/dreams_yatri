@@ -19,7 +19,7 @@ export type PackageQuery = {
     id: string;
     name: string;
     email: string | null;
-    phone: string; 
+    phone: string;
     countryCode: string;
     leadProfileId: string | null;
     message: string | null;
@@ -43,7 +43,7 @@ export type PackageQuery = {
     updatedAt: Date;
     rejectionReason: { id: string; label: string } | null;
     _count: { notes: number };
-    totalLeadQueries: number;  
+    totalLeadQueries: number;
 };
 
 export type RejectionReason = {
@@ -125,6 +125,136 @@ export async function getRejectionReasons(): Promise<RejectionReason[]> {
 const markInProgressSchema = z.object({
     queryId: z.string().min(1),
 });
+
+
+
+
+
+
+export type SalesMember = {
+    id: string;
+    name: string;
+    email: string;
+    activeQueries: number;
+};
+
+export async function getSalesMembers(): Promise<SalesMember[]> {
+    // ✅ Removed `isActive` — TeamMember schema has no such field.
+    //    Filter is by teamRole.name only. Add your own active/status
+    //    filter below if your schema has one (check your TeamMember model).
+    const members = await db.teamMember.findMany({
+        where: {
+            teamRole: {
+                name: { equals: "Sales", mode: "insensitive" },
+            },
+        },
+        select: { id: true, name: true, email: true },
+        orderBy: { name: "asc" },
+    });
+
+    if (members.length === 0) return [];
+
+    const ids = members.map((m) => m.id);
+
+    const counts = await db.packageQuery.groupBy({
+        by: ["assignedTo"],
+        where: {
+            assignedTo: { in: ids },
+            status: { in: ["SUBMITTED", "IN_PROGRESS"] },
+        },
+        _count: { id: true },
+    });
+
+    const countMap = Object.fromEntries(
+        counts.map((c) => [c.assignedTo!, c._count.id]),
+    );
+
+    return members.map((m) => ({
+        ...m,
+        activeQueries: countMap[m.id] ?? 0,
+    }));
+}
+
+export async function assignQuery(
+    queryId: string,
+    memberId: string | null,
+): Promise<ActionResult> {
+    try {
+        const session = await dashboardAuth();
+
+        // 🔑 Map session user → team member (IMPORTANT)
+        const actorMember = await db.teamMember.findUnique({
+            where: { email: session?.user?.email ?? "" },
+            select: { id: true, name: true },
+        });
+
+        let assigneeName: string | null = null;
+
+        // ✅ Validate & fetch assignee
+        if (memberId) {
+            const member = await db.teamMember.findUnique({
+                where: { id: memberId },
+                select: { id: true, name: true },
+            });
+
+            if (!member) {
+                return {
+                    success: false,
+                    message: "Invalid team member selected",
+                };
+            }
+
+            assigneeName = member.name;
+        }
+
+        // ✅ Update query assignment
+        await db.packageQuery.update({
+            where: { id: queryId },
+            data: {
+                assignedTo: memberId ?? null,       // MUST be teamMember.id
+                assignedAt: memberId ? new Date() : null,
+            },
+        });
+
+        // ✅ Timeline log (consistent actor)
+        await db.queryTimeline.create({
+            data: {
+                queryId,
+                event: memberId
+                    ? `👤 Assigned to ${assigneeName ?? "team member"}`
+                    : `👤 Assignment removed`,
+                actorId: actorMember?.id ?? null,      // ✅ NOT session id
+                actorName: actorMember?.name ?? null,
+                meta: {
+                    assignedTo: memberId,
+                    assigneeName,
+                } as Prisma.InputJsonValue,
+            },
+        });
+
+        revalidatePath("/dashboard/sales-query");
+
+        return {
+            success: true,
+            data: undefined,
+            message: memberId
+                ? `Assigned to ${assigneeName}`
+                : "Assignment removed",
+        };
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("[assignQuery] FAILED:", msg);
+
+        return {
+            success: false,
+            message: `Failed to assign query: ${msg}`,
+        };
+    }
+}
+
+
+
+
 
 export async function markInProgress(queryId: string): Promise<ActionResult> {
     try {
@@ -469,7 +599,7 @@ export async function createManualQuery(
         };
     }
 
-try {
+    try {
         const session = await dashboardAuth();
         const actor = session?.user;
 
@@ -478,7 +608,7 @@ try {
 
         const recentDuplicate = await db.packageQuery.findFirst({
             where: {
-                phone:     parsed.data.phone,
+                phone: parsed.data.phone,
                 createdAt: { gte: new Date(Date.now() - 1000 * 60 * 5) },
             },
         });
@@ -487,16 +617,16 @@ try {
         }
 
         const profile = await db.leadProfile.upsert({
-            where:  { phone: normalizedPhone },
+            where: { phone: normalizedPhone },
             update: {
-                name:         parsed.data.name,
-                email:        parsed.data.email || undefined,
-                lastSeenAt:   new Date(),
+                name: parsed.data.name,
+                email: parsed.data.email || undefined,
+                lastSeenAt: new Date(),
                 totalQueries: { increment: 1 },
             },
             create: {
                 phone: normalizedPhone,
-                name:  parsed.data.name,
+                name: parsed.data.name,
                 email: parsed.data.email || null,
             },
         });
@@ -504,17 +634,17 @@ try {
 
         const query = await db.packageQuery.create({
             data: {
-                name:          parsed.data.name,
-                phone:         parsed.data.phone,
-                email:         parsed.data.email || null,
-                destination:   parsed.data.destination || null,
-                packageName:   parsed.data.packageName || null,
-                groupSize:     parsed.data.groupSize ?? null,
-                travelDate:    parsed.data.travelDate ? new Date(parsed.data.travelDate) : null,
-                message:       parsed.data.message || null,
-                source:        parsed.data.source,
-                status:        "VERIFIED",
-                verified:      false,
+                name: parsed.data.name,
+                phone: parsed.data.phone,
+                email: parsed.data.email || null,
+                destination: parsed.data.destination || null,
+                packageName: parsed.data.packageName || null,
+                groupSize: parsed.data.groupSize ?? null,
+                travelDate: parsed.data.travelDate ? new Date(parsed.data.travelDate) : null,
+                message: parsed.data.message || null,
+                source: parsed.data.source,
+                status: "VERIFIED",
+                verified: false,
                 leadProfileId: profile.id,   // ← link to profile
             },
         });
@@ -535,16 +665,16 @@ try {
 }
 
 const updateQuerySchema = z.object({
-    name:        z.string().min(1, "Name is required").max(100),
-    phone:       z.string().min(6, "Valid phone required").max(20),
+    name: z.string().min(1, "Name is required").max(100),
+    phone: z.string().min(6, "Valid phone required").max(20),
     countryCode: z.string().default("IN"),
-    email:       z.string().email("Invalid email").optional().or(z.literal("")),
+    email: z.string().email("Invalid email").optional().or(z.literal("")),
     destination: z.string().min(1, "Destination is required"),
     packageName: z.string().optional(),
-    groupSize:   z.coerce.number().int().min(1).max(500).optional(),
-    travelDate:  z.string().optional(),
-    message:     z.string().max(2000).optional(),
-    source:      z.enum(["WEBSITE_FORM", "LANDING_PAGE", "WHATSAPP", "PHONE_CALL", "REFERRAL", "OTHER"]),
+    groupSize: z.coerce.number().int().min(1).max(500).optional(),
+    travelDate: z.string().optional(),
+    message: z.string().max(2000).optional(),
+    source: z.enum(["WEBSITE_FORM", "LANDING_PAGE", "WHATSAPP", "PHONE_CALL", "REFERRAL", "OTHER"]),
 });
 
 export async function updateQuery(
@@ -552,16 +682,16 @@ export async function updateQuery(
     formData: FormData,
 ): Promise<ActionResult> {
     const raw = {
-        name:        formData.get("name"),
-        phone:       formData.get("phone"),
+        name: formData.get("name"),
+        phone: formData.get("phone"),
         countryCode: formData.get("countryCode") as string || "IN",
-        email:       formData.get("email") || undefined,
+        email: formData.get("email") || undefined,
         destination: formData.get("destination") as string,
         packageName: formData.get("packageName") || undefined,
-        groupSize:   formData.get("groupSize") || undefined,
-        travelDate:  formData.get("travelDate") || undefined,
-        message:     formData.get("message") || undefined,
-        source:      formData.get("source"),
+        groupSize: formData.get("groupSize") || undefined,
+        travelDate: formData.get("travelDate") || undefined,
+        message: formData.get("message") || undefined,
+        source: formData.get("source"),
     };
 
     const parsed = updateQuerySchema.safeParse(raw);
@@ -569,27 +699,27 @@ export async function updateQuery(
         return {
             success: false,
             message: "Validation failed",
-            errors:  parsed.error.flatten().fieldErrors as Record<string, string[]>,
+            errors: parsed.error.flatten().fieldErrors as Record<string, string[]>,
         };
     }
 
     try {
         const session = await dashboardAuth();
-        const actor   = session?.user;
+        const actor = session?.user;
 
         // ── Sync lead profile ──────────────────────────────────────────────
         const normalizedPhone = parsed.data.phone.replace(/[\s\-().+]/g, "");
 
         await db.leadProfile.upsert({
-            where:  { phone: normalizedPhone },
+            where: { phone: normalizedPhone },
             update: {
-                name:       parsed.data.name,
-                email:      parsed.data.email || undefined,
+                name: parsed.data.name,
+                email: parsed.data.email || undefined,
                 lastSeenAt: new Date(),
             },
             create: {
                 phone: normalizedPhone,
-                name:  parsed.data.name,
+                name: parsed.data.name,
                 email: parsed.data.email || null,
             },
         });
@@ -598,16 +728,16 @@ export async function updateQuery(
         await db.packageQuery.update({
             where: { id: queryId },
             data: {
-                name:        parsed.data.name,
-                phone:       parsed.data.phone,
+                name: parsed.data.name,
+                phone: parsed.data.phone,
                 countryCode: parsed.data.countryCode,
-                email:       parsed.data.email || null,
+                email: parsed.data.email || null,
                 destination: parsed.data.destination || null,
                 packageName: parsed.data.packageName || null,
-                groupSize:   parsed.data.groupSize ?? null,
-                travelDate:  parsed.data.travelDate ? new Date(parsed.data.travelDate) : null,
-                message:     parsed.data.message || null,
-                source:      parsed.data.source,
+                groupSize: parsed.data.groupSize ?? null,
+                travelDate: parsed.data.travelDate ? new Date(parsed.data.travelDate) : null,
+                message: parsed.data.message || null,
+                source: parsed.data.source,
             },
         });
 
@@ -626,12 +756,12 @@ export async function updateQuery(
 }
 
 export type DestinationOption = { id: number; name: string; slug: string };
-export type PackageOption     = { id: number; title: string; slug: string };
+export type PackageOption = { id: number; title: string; slug: string };
 
 export async function getDestinationsForQuery(): Promise<DestinationOption[]> {
     return db.destinations.findMany({
-        where:   { is_active: true },
-        select:  { id: true, name: true, slug: true },
+        where: { is_active: true },
+        select: { id: true, name: true, slug: true },
         orderBy: { name: "asc" },
     });
 }
@@ -641,8 +771,8 @@ export async function getPackagesByDestination(destinationId: number): Promise<P
     if (!id || isNaN(id)) return [];
 
     return db.packages.findMany({
-        where:   { destination_id: id, is_active: true },
-        select:  { id: true, title: true, slug: true },
+        where: { destination_id: id, is_active: true },
+        select: { id: true, title: true, slug: true },
         orderBy: { title: "asc" },
     });
 }

@@ -25,7 +25,7 @@ const roles = [
     permissions: ["queries:read","packages:read","reports:read"],
   },
   {
-    name: "Content Manager",
+    name: "sales",
     description: "Manages package content, hotels, and media",
     permissions: ["packages:read","packages:write","hotels:read","hotels:write"],
   },

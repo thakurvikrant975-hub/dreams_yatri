@@ -16,13 +16,16 @@ import {
 import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable";
 import { TableFilters } from "../../components/dashboard/Tablefilters";
 import { Stats } from "../../components/dashboard/Stats";
-import { QueryStatusBadge, QuerySourceBadge, CallAttemptsDots } from "./Salesquerybadges";
+import { QueryStatusBadge, QuerySourceBadge, CallAttemptsDots } from "./QueryBadges";
 import { RejectQueryDialog } from "./Rejectquerydialog";
 import { QueryDetailSheet } from "./Querydetailsheet";
 import { verifyQuery, markInProgress, getQueryById } from "./actions";
-import type { PackageQuery, RejectionReason } from "./actions";
+import { PackageQueryType } from "./actions";
 import { Pencil } from "lucide-react";
-import { EditQueryDialog } from "./Editquerydialog";
+
+import type { PackageQueryType } from "./actions";
+import type { RejectionReason } from "./actions"; // ✅ if exists
+import { EditQueryDialog } from "./Editquerydialog"; // ✅ add this
 
 
 // ── Types ─────────────────────────────────────────────────────────────────────

@@ -23,7 +23,17 @@ const STATUS_CONFIG: Record<SalesQueryStatus, {
 
 export function SalesQueryStatusBadge({ status }: { status: SalesQueryStatus }) {
     const cfg = STATUS_CONFIG[status];
+
+    if (!cfg) {
+        return (
+            <Badge variant="outline" className="text-xs">
+                Unknown
+            </Badge>
+        );
+    }
+
     const Icon = cfg.icon;
+
     return (
         <Badge
             variant="outline"

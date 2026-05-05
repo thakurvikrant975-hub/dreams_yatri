@@ -5,7 +5,8 @@ import {
 } from "../ui/sidebar";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, } from "../ui/accordion";
 
-import { LayoutDashboard, Settings, Users, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound, MessageCircleQuestion, ClockCheck, Mails, Forward, BadgePercent, HandCoins, Banknote, ChartSpline, BanknoteArrowDown, BanknoteX, Car, Bed, ChartNoAxesCombined, BellRing, PackagePlus, ChartNoAxesGantt
+import {
+    LayoutDashboard, Settings, Users, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound, MessageCircleQuestion, ClockCheck, Mails, Forward, BadgePercent, HandCoins, Banknote, ChartSpline, BanknoteArrowDown, BanknoteX, Car, Bed, ChartNoAxesCombined, BellRing, PackagePlus, ChartNoAxesGantt
 } from "lucide-react";
 
 import {
@@ -76,7 +77,7 @@ const navGroups = [
         label: "Sales",
         items: [
             { title: "Dashboard", href: "/sales-dashboard", icon: <LayoutDashboard className="size-6 text-muted-foreground" /> },
-            { title: "Queries Management", href: "/dashboard/sale-queries", icon: <ChartNoAxesGantt className="size-6 text-muted-foreground" /> },
+            { title: "Queries Management", href: "/dashboard/sales-query", icon: <ChartNoAxesGantt className="size-6 text-muted-foreground" /> },
             { title: "Analytics", href: "/dashboard/sale-analytics", icon: <ChartNoAxesCombined className="size-6 text-muted-foreground" /> },
             { title: "Follow ups", href: "/dashboard/sales-follow-ups", icon: <BellRing className="size-6 text-muted-foreground" /> },
             { title: "Package Builder", href: "/dashboard/package-builder", icon: <PackagePlus className="size-6 text-muted-foreground" /> },
@@ -157,19 +158,24 @@ export function AppSidebar() {
                             <AccordionContent className="pb-1">
                                 <SidebarGroup className="p-0">
                                     <SidebarMenu>
-                                        {group.items.map(item => (
-                                            <SidebarMenuItem key={item.href}>
-                                                <SidebarMenuButton
-                                                    asChild
-                                                    isActive={isActive(item.href)}
-                                                >
-                                                    <Link href={item.href}>
-                                                        {item.icon}
-                                                        <span className="text-sm ml-1.5">{item.title}</span>
-                                                    </Link>
-                                                </SidebarMenuButton>
-                                            </SidebarMenuItem>
-                                        ))}
+                                        {group.items.map(item => {
+                                            const active = isActive(item.href);
+
+                                            return (
+                                                <SidebarMenuItem key={item.href}>
+                                                    <SidebarMenuButton
+                                                        asChild
+                                                        isActive={isActive(item.href)}
+                                                        className="data-[active=true]:bg-blue-50 data-[active=true]:text-blue-600"
+                                                    >
+                                                        <Link href={item.href}>
+                                                            {item.icon}
+                                                            <span className="text-sm ml-1.5">{item.title}</span>
+                                                        </Link>
+                                                    </SidebarMenuButton>
+                                                </SidebarMenuItem>
+                                            );
+                                        })}
                                     </SidebarMenu>
                                 </SidebarGroup>
                             </AccordionContent>

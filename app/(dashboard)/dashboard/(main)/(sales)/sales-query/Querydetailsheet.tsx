@@ -16,7 +16,7 @@ import {
     SheetTitle, SheetDescription,
 } from "../../components/ui/sheet";
 import { ScrollArea } from "../../components/ui/scroll-area";
-import { QueryStatusBadge, QuerySourceBadge, CallAttemptsDots } from "./Salesquerybadges";
+import { QueryStatusBadge, QuerySourceBadge, CallAttemptsDots } from "./QueryBadges";
 import { verifyQuery, addNote } from "./actions";
 import { RejectQueryDialog } from "./Rejectquerydialog";
 import { CallAttemptDialog } from "./Callattemptdialog";
