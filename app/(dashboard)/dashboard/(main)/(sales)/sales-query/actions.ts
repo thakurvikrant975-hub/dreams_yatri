@@ -7,54 +7,13 @@ import { z } from "zod";
 import { Prisma } from "@/app/generated/prisma";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+// NOTE: QueryStatus / SalesQueryStatus / isActiveQuery / isClosedQuery
+// live in ./query-status.ts — import from there in client components.
+// "use server" files cannot export synchronous functions.
 
 export type ActionResult<T = void> =
     | { success: true; data: T; message: string }
     | { success: false; data?: never; message: string; errors?: Record<string, string[]> };
-
-// Matches schema enum exactly
-export type QueryStatus =
-    | "SUBMITTED"
-    | "VERIFIED"
-    | "REJECTED"
-    | "ASSIGNED"
-    | "IN_PROGRESS"
-    | "PACKAGE_SENT"
-    | "CLIENT_ACCEPTED"
-    | "CLIENT_DECLINED"
-    | "PAYMENT_INITIATED"
-    | "CONVERTED"
-    | "CLOSED";
-
-// Statuses visible in the sales module (query has been assigned to a sales exec)
-export type SalesQueryStatus = Extract<
-    QueryStatus,
-    | "ASSIGNED"
-    | "IN_PROGRESS"
-    | "PACKAGE_SENT"
-    | "CLIENT_ACCEPTED"
-    | "CLIENT_DECLINED"
-    | "PAYMENT_INITIATED"
-    | "CONVERTED"
-    | "CLOSED"
->;
-
-// Still actionable by sales exec (not yet terminal)
-export function isActiveQuery(status: QueryStatus): boolean {
-    return (
-        status === "ASSIGNED" ||
-        status === "IN_PROGRESS" ||
-        status === "PACKAGE_SENT" ||
-        status === "CLIENT_ACCEPTED" ||
-        status === "CLIENT_DECLINED" ||
-        status === "PAYMENT_INITIATED"
-    );
-}
-
-// Terminal — query is done
-export function isClosedQuery(status: QueryStatus): boolean {
-    return status === "CONVERTED" || status === "CLOSED";
-}
 
 export type PackageQueryType = {
     id: string;
@@ -68,7 +27,7 @@ export type PackageQueryType = {
     groupSize: number | null;
     message: string | null;
     source: string;
-    status: QueryStatus;
+    status: string;
     assignedTo: string | null;
     assignedAt: Date | null;
     closedAt: Date | null;
@@ -103,8 +62,6 @@ export type FollowUp = {
     createdById: string | null;
     createdByName: string | null;
 };
-
-// ── Package Requirements Type ─────────────────────────────────────────────────
 
 export type PackageRequirements = {
     travellers: {
@@ -208,7 +165,7 @@ const packageRequirementsSchema = z.object({
     }),
 });
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Internal async helpers ────────────────────────────────────────────────────
 
 async function logTimeline(
     queryId: string,
@@ -260,7 +217,7 @@ export async function getSalesQueries() {
         userId = teamMember?.id ?? null;
     }
 
-    const queries = await db.package_queries.findMany({
+    return db.package_queries.findMany({
         where: userId ? { assignedTo: userId } : {},
         include: {
             _count: {
@@ -272,25 +229,20 @@ export async function getSalesQueries() {
         },
         orderBy: { assignedAt: "desc" },
     });
-
-    return queries;
 }
 
 export async function getSalesQueryById(id: string) {
     const { teamMemberId } = await getCurrentActor();
 
-    // FIX: include _count so detail sheet has queryFollowUps count available
-    const query = await db.package_queries.findUnique({
+    return db.package_queries.findUnique({
         where: { id },
         include: {
-            // Filter follow-ups to only current user's entries (privacy rule)
             queryFollowUps: {
                 where: teamMemberId ? { createdById: teamMemberId } : {},
                 orderBy: { createdAt: "asc" },
             },
             notes: { orderBy: { createdAt: "asc" } },
             timeline: { orderBy: { createdAt: "asc" } },
-            // FIX: always include _count so _count.queryFollowUps is never undefined
             _count: {
                 select: {
                     queryFollowUps: true,
@@ -299,11 +251,8 @@ export async function getSalesQueryById(id: string) {
             },
         },
     });
-
-    return query;
 }
 
-// Returns all follow-ups for the current user, across all their assigned queries
 export async function getMyFollowUps(packageQueryId?: string) {
     const { teamMemberId } = await getCurrentActor();
     if (!teamMemberId) return [];
@@ -314,7 +263,6 @@ export async function getMyFollowUps(packageQueryId?: string) {
             ...(packageQueryId ? { packageQueryId } : {}),
         },
         orderBy: [
-            // Overdue first, then soonest upcoming
             { followUpAt: "asc" },
             { createdAt: "desc" },
         ],
@@ -344,11 +292,7 @@ export async function getCloseReasons(): Promise<CloseReason[]> {
     ];
 }
 
-// ── FOLLOW-UP — one per (packageQueryId × createdById) ───────────────────────
-//
-// Business rule: each sales exec has ONE follow-up record per query.
-// Re-submitting the form updates the existing record (upsert).
-// This prevents duplicate rows cluttering the follow-up list.
+// ── FOLLOW-UP — upsert (one record per exec per query) ───────────────────────
 
 export async function addFollowUp(
     packageQueryId: string,
@@ -370,7 +314,6 @@ export async function addFollowUp(
     try {
         const { teamMemberId, teamMemberName } = await getCurrentActor();
 
-        // Look for existing follow-up by this exec on this query
         const existing = teamMemberId
             ? await db.queryFollowUp.findFirst({
                 where: { packageQueryId, createdById: teamMemberId },
@@ -379,7 +322,6 @@ export async function addFollowUp(
             : null;
 
         if (existing) {
-            // UPDATE — do not create a duplicate
             await db.queryFollowUp.update({
                 where: { id: existing.id },
                 data: {
@@ -390,7 +332,6 @@ export async function addFollowUp(
                 },
             });
         } else {
-            // CREATE — first follow-up for this exec on this query
             await db.queryFollowUp.create({
                 data: {
                     packageQueryId,
@@ -404,7 +345,6 @@ export async function addFollowUp(
             });
         }
 
-        // Update nextFollowUpAt on the query if a date was given
         if (parsed.data.followUpAt) {
             await db.package_queries.update({
                 where: { id: packageQueryId },
@@ -412,8 +352,6 @@ export async function addFollowUp(
             });
         }
 
-        // Advance status: ASSIGNED → IN_PROGRESS when exec first engages.
-        // Never go backwards — only advance if still at ASSIGNED.
         const currentQuery = await db.package_queries.findUnique({
             where: { id: packageQueryId },
             select: { status: true },
@@ -466,8 +404,6 @@ export async function closeSalesQuery(
 
     try {
         const { teamMemberId, teamMemberName } = await getCurrentActor();
-
-        // Booking confirmed → CONVERTED; everything else → CLOSED
         const isConverted = parsed.data.closeReasonId === "CONVERTED";
 
         await db.package_queries.update({
@@ -511,7 +447,6 @@ export async function reopenSalesQuery(packageQueryId: string): Promise<ActionRe
         await db.package_queries.update({
             where: { id: packageQueryId },
             data: {
-                // Reopen to IN_PROGRESS — exec has already engaged previously
                 status: "IN_PROGRESS",
                 closeReasonId: null,
                 closeReasonOther: null,
@@ -554,7 +489,6 @@ export async function savePackageRequirements(
     try {
         const { teamMemberId, teamMemberName } = await getCurrentActor();
 
-        // Read current status — only advance forward, never backwards
         const currentQuery = await db.package_queries.findUnique({
             where: { id: packageQueryId },
             select: { status: true },
@@ -572,7 +506,6 @@ export async function savePackageRequirements(
                 travelDate: parsed.data.journey.travelDate
                     ? new Date(parsed.data.journey.travelDate)
                     : null,
-                // Only advance ASSIGNED → IN_PROGRESS; leave all other statuses alone
                 ...(shouldAdvance ? { status: "IN_PROGRESS" as const } : {}),
             },
         });

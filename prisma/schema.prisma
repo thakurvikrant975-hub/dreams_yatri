@@ -1162,7 +1162,7 @@ model QueryFollowUp {
 }
 
 model package_queries {
-  id                String           @id
+  id                String           @id @default(cuid())
   name              String
   email             String?
   phone             String
@@ -1190,7 +1190,7 @@ model package_queries {
   assignedTo        String?
   assignedAt        DateTime?
   createdAt         DateTime         @default(now())
-  updatedAt         DateTime
+  updatedAt         DateTime         @updatedAt
   leadProfileId     String?
   assignedToName    String?
   closeReasonId     String?

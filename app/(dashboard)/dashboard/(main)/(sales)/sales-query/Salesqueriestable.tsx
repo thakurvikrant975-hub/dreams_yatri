@@ -22,8 +22,8 @@ import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { SalesQueryDetailSheet } from "./Salesquerydetailsheet";
 import {
     reopenSalesQuery, getSalesQueryById,
-    isActiveQuery, isClosedQuery,
 } from "./actions";
+import { isClosedQuery, isActiveQuery } from "./query-status";
 import type {
     PackageQueryType, CloseReason, QueryStatus, PackageRequirements,
 } from "./actions";
