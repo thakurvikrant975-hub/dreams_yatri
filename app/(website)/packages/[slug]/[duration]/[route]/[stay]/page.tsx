@@ -168,7 +168,11 @@ export default async function PackagePage({
                         check_in_time: "16:00",
                         check_out_time: "08:00",
                         images: [
-                            { url: "https://images.unsplash.com/photo-1498307833015-e7b400441eb8?q=80&w=1228&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D", alt: "Camp" },
+                            { url: "https://images.unsplash.com/photo-1571677465484-2dd540924245?q=80&w=1062&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D", alt: "Camp" },
+                            { url: "https://images.unsplash.com/photo-1718781941548-01d220bf62fd?q=80&w=1074&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D", alt: "Camp" },
+                            { url: "https://images.unsplash.com/photo-1650643683959-b45e595db8ec?q=80&w=1169&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D", alt: "Camp" },
+                            { url: "https://images.unsplash.com/photo-1647014070673-43bad4171631?q=80&w=1332&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D", alt: "Camp" },
+                              { url: "https://images.unsplash.com/photo-1557540827-5dda50d8b8b7?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D", alt: "Camp" },
                         ],
                         room_pricing: [
                             { original_price: "3000", price_per_night: "2400", margin_percentage: "12" },

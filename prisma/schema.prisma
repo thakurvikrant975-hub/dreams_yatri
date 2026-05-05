@@ -534,6 +534,12 @@ model PackageQuery {
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
   leadProfileId     String?
+  assignedToName    String?
+  closeReasonId     String?
+  closeReasonOther  String?
+  closedAt          DateTime?
+  closedBy          String?
+  QueryFollowUp     QueryFollowUp[]
   leadProfile       LeadProfile?     @relation(fields: [leadProfileId], references: [id])
   rejectionReason   RejectionReason? @relation(fields: [rejectionReasonId], references: [id])
   notes             QueryNote[]
@@ -742,12 +748,12 @@ model hotel_images {
   id          Int                    @id @default(autoincrement())
   hotel_id    Int
   category_id Int
-  url          String?
   thumbnail   String?
   alt         String?
   sort_order  Int                    @default(0)
   is_primary  Boolean                @default(false)
   created_at  DateTime               @default(now())
+  url         String?
   category    hotel_image_categories @relation(fields: [category_id], references: [id])
   hotel       hotels                 @relation(fields: [hotel_id], references: [id])
 
@@ -1141,6 +1147,17 @@ model package_gallery {
 
   @@unique([package_id, position])
   @@index([package_id])
+}
+
+model QueryFollowUp {
+  id              String       @id
+  packageQueryId  String
+  note            String
+  followUpAt      DateTime?
+  createdAt       DateTime     @default(now())
+  package_queries PackageQuery @relation(fields: [packageQueryId], references: [id], onDelete: Cascade)
+
+  @@index([packageQueryId])
 }
 
 enum CabType {
