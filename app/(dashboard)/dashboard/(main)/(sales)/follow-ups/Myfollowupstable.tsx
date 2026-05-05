@@ -85,7 +85,7 @@ export function MyFollowUpsTable({ followUps }: Props) {
             </Badge>
         );
         if (status === "today") return (
-            <Badge variant="outline" className="text-[10px] gap-1 text-amber-600 border-amber-200 bg-amber-50">
+            <Badge variant="outline" className="text-[10px] gap-1 text-gray-600 border-gray-200 bg-gray-50">
                 <Clock className="h-2.5 w-2.5" /> Today
             </Badge>
         );
@@ -109,7 +109,7 @@ export function MyFollowUpsTable({ followUps }: Props) {
                         </div>
                     )}
                     {todayCount > 0 && (
-                        <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+                        <div className="flex items-center gap-1.5 text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">
                             <Clock className="h-3.5 w-3.5" />
                             {todayCount} due today
                         </div>
@@ -168,7 +168,7 @@ export function MyFollowUpsTable({ followUps }: Props) {
                                 className={[
                                     "rounded-xl border bg-card p-4 space-y-2.5 transition-all",
                                     status === "overdue" ? "border-destructive/20 bg-destructive/5" : "",
-                                    status === "today" ? "border-amber-200 bg-amber-50/40 dark:bg-amber-950/10" : "",
+                                    status === "today" ? "border-gray-200 bg-gray-50/40 dark:bg-gray-950/10" : "",
                                 ].join(" ")}
                             >
                                 {/* Header: lead name + status badge */}
@@ -211,7 +211,7 @@ export function MyFollowUpsTable({ followUps }: Props) {
                                                 status === "overdue"
                                                     ? "text-destructive bg-destructive/5 border-destructive/20"
                                                     : status === "today"
-                                                        ? "text-amber-700 bg-amber-50 border-amber-200"
+                                                        ? "text-gray-700 bg-gray-50 border-gray-200"
                                                         : "text-primary bg-primary/5 border-primary/20",
                                             ].join(" ")}
                                         >
