@@ -15,9 +15,9 @@ import { addFollowUp } from "./actions";
 
 type Props = {
     salesQueryId: string;
-    leadName:     string;
-    children:     React.ReactNode;
-    onDone?:      () => void;
+    leadName: string;
+    children: React.ReactNode;
+    onDone?: () => void;
 };
 
 export function AddFollowUpDialog({ salesQueryId, leadName, children, onDone }: Props) {
@@ -47,7 +47,13 @@ export function AddFollowUpDialog({ salesQueryId, leadName, children, onDone }: 
     }
 
     return (
-        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setErrors({}); }}>
+        <Dialog
+            open={open}
+            onOpenChange={(v) => {
+                setOpen(v);
+                if (!v) setErrors({});
+            }}
+        >
             <DialogTrigger asChild>{children}</DialogTrigger>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
@@ -55,8 +61,9 @@ export function AddFollowUpDialog({ salesQueryId, leadName, children, onDone }: 
                         <CalendarClock className="h-4 w-4" /> Add Follow-Up
                     </DialogTitle>
                     <DialogDescription>
-                        Log a follow-up note for <span className="font-semibold">{leadName}</span>.
-                        Optionally schedule the next follow-up date.
+                        Log a follow-up note for{" "}
+                        <span className="font-semibold">{leadName}</span>.
+                        Only you will see your follow-ups. Optionally schedule the next reminder.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -89,6 +96,9 @@ export function AddFollowUpDialog({ salesQueryId, leadName, children, onDone }: 
                             className="text-sm"
                             min={new Date().toISOString().slice(0, 16)}
                         />
+                        <p className="text-xs text-muted-foreground">
+                            A reminder will be shown on your next follow-ups list.
+                        </p>
                     </div>
 
                     <div className="flex justify-end gap-2 pt-1">

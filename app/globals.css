@@ -574,3 +574,13 @@ body {
 .tl-item.is-visible .tl-card {
   @apply opacity-100 translate-y-0;
 }
+
+/* Hide scrollbar but allow scrolling */
+.scrollbar-none {
+  -ms-overflow-style: none;  /* IE & Edge */
+  scrollbar-width: none;     /* Firefox */
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;             /* Chrome, Safari */
+}
+

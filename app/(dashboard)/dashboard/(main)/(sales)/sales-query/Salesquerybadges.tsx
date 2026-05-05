@@ -1,7 +1,7 @@
 "use client";
 
 import { Badge } from "../../components/ui/badge";
-import { CheckCircle2, XCircle, TrendingUp } from "lucide-react";
+import { Clock, XCircle, TrendingUp, Inbox } from "lucide-react";
 import type { SalesQueryStatus } from "./actions";
 
 const STATUS_CONFIG: Record<SalesQueryStatus, {
@@ -9,8 +9,13 @@ const STATUS_CONFIG: Record<SalesQueryStatus, {
     icon: React.ElementType;
     className: string;
 }> = {
+    SUBMITTED: {
+        label: "New",
+        icon: Inbox,
+        className: "bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-800",
+    },
     ACTIVE: {
-        label: "Active",
+        label: "In Progress",
         icon: TrendingUp,
         className: "bg-green-500/10 text-green-600 border-green-200 dark:border-green-800",
     },
@@ -27,7 +32,7 @@ export function SalesQueryStatusBadge({ status }: { status: SalesQueryStatus }) 
     if (!cfg) {
         return (
             <Badge variant="outline" className="text-xs">
-                Unknown
+                {status ?? "Unknown"}
             </Badge>
         );
     }

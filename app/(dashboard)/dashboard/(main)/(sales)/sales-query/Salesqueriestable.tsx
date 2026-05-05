@@ -1,14 +1,15 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { format, formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow, isToday } from "date-fns";
 import {
     CalendarClock, XCircle, Eye, Phone, Mail,
     MapPin, Users, Calendar, StickyNote, TrendingUp,
-    RotateCcw, ClipboardList,
+    RotateCcw, ClipboardList, Inbox,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
+import { Badge } from "../../components/ui/badge";
 import {
     Tooltip, TooltipContent, TooltipTrigger, TooltipProvider,
 } from "../../components/ui/tooltip";
@@ -26,13 +27,14 @@ import type { PackageQueryType, CloseReason, SalesQueryStatus, PackageRequiremen
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-// BUG FIX: Was "followUps" — Prisma relation name from QueryFollowUp model is "queryFollowUps"
 type SalesQueryWithDetails = PackageQueryType & {
+    // queryFollowUps from DB mapped to followUps for the sheet
     followUps: Array<{
         id: string;
         note: string;
         followUpAt: Date | null;
         createdAt: Date;
+        createdById: string | null;
         createdByName: string | null;
     }>;
     notes: Array<{ id: string; content: string; createdAt: Date }>;
@@ -47,9 +49,6 @@ type Props = {
 const PAGE_SIZE = 10;
 
 // ── Status helpers ────────────────────────────────────────────────────────────
-// BUG FIX: Old isActive() checked for "VERIFIED" which is a marketing-module status
-// and doesn't exist in the sales QueryStatus = "SUBMITTED" | "ACTIVE" | "CLOSED".
-// Sales lifecycle: SUBMITTED (ops assigned it) → ACTIVE (sales is working it) → CLOSED
 
 function isActiveStatus(status: SalesQueryStatus) {
     return status === "SUBMITTED" || status === "ACTIVE";
@@ -186,10 +185,7 @@ function ActionCell({
 
 export function SalesQueriesTable({ queries, closeReasons }: Props) {
     const [search, setSearch] = useState("");
-    // BUG FIX: Default was "ACTIVE" — isFiltering then checked !== "all" which
-    // was always true, permanently showing the filtered count. Default is now "ACTIVE"
-    // but isFiltering logic correctly excludes this default from the count display.
-    const [filterStatus, setFilterStatus] = useState<"all" | "ACTIVE" | "CLOSED">("ACTIVE");
+    const [filterStatus, setFilterStatus] = useState<"all" | "SUBMITTED" | "ACTIVE" | "CLOSED">("all");
     const [page, setPage] = useState(1);
 
     // Detail sheet
@@ -197,62 +193,69 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
     const [detailQuery, setDetailQuery] = useState<SalesQueryWithDetails | null>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
 
-async function openDetail(query: PackageQueryType) {
-    setSheetOpen(true);
-    setLoadingDetail(true);
+    async function openDetail(query: PackageQueryType) {
+        setSheetOpen(true);
+        setLoadingDetail(true);
 
-    try {
-        const full = await getSalesQueryById(query.id);
+        try {
+            const full = await getSalesQueryById(query.id);
+            if (!full) return;
 
-        const normalized: SalesQueryWithDetails = {
-            ...full,
-            followUps: full.queryFollowUps,
-        };
+            const normalized: SalesQueryWithDetails = {
+                ...(full as unknown as PackageQueryType),
+                // Map queryFollowUps → followUps for the detail sheet
+                followUps: (full as any).queryFollowUps ?? [],
+                notes: (full as any).notes ?? [],
+                timeline: (full as any).timeline ?? [],
+            };
 
-        setDetailQuery(normalized);
-    } finally {
-        setLoadingDetail(false);
+            setDetailQuery(normalized);
+        } finally {
+            setLoadingDetail(false);
+        }
     }
-}
 
     // ── Filtering ─────────────────────────────────────────────────────────────
-    // const filtered = queries.filter(q => {
-    //     const s = search.toLowerCase();
-    //     const matchSearch = !search
-    //         || q.name.toLowerCase().includes(s)
-    //         || q.phone.includes(s)
-    //         || (q.email ?? "").toLowerCase().includes(s)
-    //         || (q.destination ?? "").toLowerCase().includes(s)
-    //         || (q.packageName ?? "").toLowerCase().includes(s);
+    const filtered = queries.filter(q => {
+        const s = search.toLowerCase();
+        const matchSearch = !search
+            || q.name.toLowerCase().includes(s)
+            || q.phone.includes(s)
+            || (q.email ?? "").toLowerCase().includes(s)
+            || (q.destination ?? "").toLowerCase().includes(s)
+            || (q.packageName ?? "").toLowerCase().includes(s);
 
-    //     // BUG FIX: Old code mapped "ACTIVE" filter to isActive() which checked
-    //     // SUBMITTED|VERIFIED — VERIFIED doesn't exist in this module.
-    //     const matchStatus =
-    //         filterStatus === "all"
-    //         || (filterStatus === "ACTIVE" && isActiveStatus(q.status))
-    //         || (filterStatus === "CLOSED" && isClosedStatus(q.status))
-    //         || (filterStatus === "ACTIVE" && isClosedStatus(q.status));
+        const matchStatus =
+            filterStatus === "all"
+            || q.status === filterStatus;
 
-    //     return matchSearch && matchStatus;
-    // });
+        return matchSearch && matchStatus;
+    });
 
-    const filtered = queries;
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
     const safePage = Math.min(page, totalPages);
     const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
-
-    // BUG FIX: isFiltering now ignores the default "ACTIVE" filter so the
-    // "X of Y results" count only shows when the user actively changes something.
-    const isFiltering = search !== "" || filterStatus !== "ACTIVE";
+    const isFiltering = search !== "" || filterStatus !== "all";
 
     // ── Stats ─────────────────────────────────────────────────────────────────
-    // BUG FIX: Old stats only counted status === "ACTIVE" but the active view
-    // includes both SUBMITTED and ACTIVE. Now correctly split.
+    const totalCount = queries.length;
+    // New today = assigned to this user today (or created today if no assignedAt)
+    const newToday = queries.filter(q => {
+        const dateToCheck = q.assignedAt ?? q.createdAt;
+        return isToday(new Date(dateToCheck));
+    }).length;
+    // In Progress = ACTIVE status (requirements filled or follow-up logged)
+    const inProgress = queries.filter(q => q.status === "ACTIVE").length;
+    // Submitted = newly assigned, not yet worked
     const submitted = queries.filter(q => q.status === "SUBMITTED").length;
-    const active = queries.filter(q => q.status === "ACTIVE").length;
-    const closed = queries.filter(q => q.status === "CLOSED").length;
-    const withFollowUp = queries.filter(q => q._count.queryFollowUps > 0).length;
-    const closeRate = queries.length > 0 ? Math.round((closed / queries.length) * 100) : 0;
+    // Closed = any closed query
+    const closedCount = queries.filter(q => q.status === "CLOSED").length;
+    // Booked = closed with "BOOKED_WITH_US" reason
+    const bookedCount = queries.filter(q =>
+        q.status === "CLOSED" && q.closeReasonId === "BOOKED_WITH_US"
+    ).length;
+    // Conversation % = closed queries that converted (booked) / total closed
+    const convRate = closedCount > 0 ? Math.round((bookedCount / closedCount) * 100) : 0;
 
     // ── Columns ───────────────────────────────────────────────────────────────
     const columns: ColumnDef<PackageQueryType>[] = [
@@ -263,9 +266,12 @@ async function openDetail(query: PackageQueryType) {
                 <div className="space-y-0.5">
                     <div className="flex items-center gap-1.5">
                         <p className="font-medium text-sm leading-tight">{q.name}</p>
-                        {/* Show if requirements have been filled */}
+                        {/* Green dot = requirements filled */}
                         {q.requirements && (
-                            <span title="Requirements filled" className="h-1.5 w-1.5 rounded-full bg-green-500 shrink-0" />
+                            <span
+                                title="Requirements filled"
+                                className="h-1.5 w-1.5 rounded-full bg-green-500 shrink-0"
+                            />
                         )}
                     </div>
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -304,12 +310,8 @@ async function openDetail(query: PackageQueryType) {
             header: "Status",
             cell: (q) => (
                 <div className="space-y-1">
-                    <SalesQueryStatusBadge status={q.status} />
+                    <SalesQueryStatusBadge status={q.status as SalesQueryStatus} />
                     {q.status === "CLOSED" && q.closeReasonId && (
-                        // BUG FIX: Old code used q.closeReason?.label — closeReason isn't
-                        // a joined relation in PackageQueryType. We only have closeReasonId.
-                        // Look up the label from the closeReasons prop in a parent-level column
-                        // by passing closeReasons down. For now, show the raw ID humanized.
                         <p className="text-[10px] text-muted-foreground max-w-[110px] truncate">
                             {closeReasons.find(r => r.id === q.closeReasonId)?.label ?? q.closeReasonId}
                         </p>
@@ -339,12 +341,29 @@ async function openDetail(query: PackageQueryType) {
         },
         {
             header: "Follow-Ups",
-            align: "center",
+            align: "center" as const,
             cell: (q) => (
                 <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
                     <StickyNote className="h-3 w-3" />
-                    {/* BUG FIX: was q._count.followUps — field is queryFollowUps */}
                     {q._count.queryFollowUps}
+                </div>
+            ),
+        },
+        {
+            header: "Next Follow-Up",
+            cell: (q) => (
+                <div className="text-xs">
+                    {q.nextFollowUpAt ? (
+                        <span className={`font-medium ${
+                            new Date(q.nextFollowUpAt) < new Date()
+                                ? "text-destructive"
+                                : "text-amber-600"
+                        }`}>
+                            {format(new Date(q.nextFollowUpAt), "dd MMM, hh:mm a")}
+                        </span>
+                    ) : (
+                        <span className="text-muted-foreground italic">—</span>
+                    )}
                 </div>
             ),
         },
@@ -357,7 +376,7 @@ async function openDetail(query: PackageQueryType) {
                             <p className="font-medium text-foreground text-[11px]">
                                 {format(new Date(q.assignedAt), "dd MMM yy")}
                             </p>
-                            <p>{format(new Date(q.assignedAt), "hh:mm a")}</p>
+                            <p>{formatDistanceToNow(new Date(q.assignedAt), { addSuffix: true })}</p>
                         </>
                     ) : (
                         <span className="italic">—</span>
@@ -367,8 +386,8 @@ async function openDetail(query: PackageQueryType) {
         },
         {
             header: "Actions",
-            align: "right",
-            width: "w-[140px]",
+            align: "right" as const,
+            width: "w-[160px]",
             cell: (q) => (
                 <ActionCell
                     query={q}
@@ -382,15 +401,15 @@ async function openDetail(query: PackageQueryType) {
     return (
         <>
             <div className="space-y-4">
-                {/* Stats */}
+                {/* Stats — matches requested: total, new today, in progress, closed, booked, conv% */}
                 <Stats
                     rows={[
-                        { label: "Total Queries", value: queries.length },
-                        { label: "New / Submitted", value: submitted },
-                        { label: "In Progress", value: active },
-                        { label: "Closed", value: closed, muted: closed === 0 },
-                        { label: "With Follow-Ups", value: withFollowUp },
-                        { label: "Close Rate", value: `${closeRate}%` },
+                        { label: "Total Queries", value: totalCount },
+                        { label: "New Today", value: newToday },
+                        { label: "In Progress", value: inProgress + submitted },
+                        { label: "Closed", value: closedCount, muted: closedCount === 0 },
+                        { label: "Booked", value: bookedCount },
+                        { label: "Conv. %", value: `${convRate}%` },
                     ]}
                 />
 
@@ -404,13 +423,17 @@ async function openDetail(query: PackageQueryType) {
                     filters={[
                         {
                             value: filterStatus,
-                            onChange: (v) => { setFilterStatus(v as "all" | "ACTIVE" | "CLOSED"); setPage(1); },
+                            onChange: (v) => {
+                                setFilterStatus(v as "all" | "SUBMITTED" | "ACTIVE" | "CLOSED");
+                                setPage(1);
+                            },
                             placeholder: "All Statuses",
                             width: "w-44",
                             options: [
                                 { label: "All Queries", value: "all" },
-                                { label: "Active Queries", value: "ACTIVE" },
-                                { label: "Closed Queries", value: "CLOSED" },
+                                { label: "New / Submitted", value: "SUBMITTED" },
+                                { label: "In Progress (Active)", value: "ACTIVE" },
+                                { label: "Closed", value: "CLOSED" },
                             ],
                         },
                     ]}
@@ -438,9 +461,11 @@ async function openDetail(query: PackageQueryType) {
                     columns={columns}
                     rowKey={(q) => q.id}
                     onRowClick={(q) => openDetail(q)}
-                    rowClassName={(q) =>
-                        isClosedStatus(q.status) ? "opacity-60 hover:opacity-80" : ""
-                    }
+                    rowClassName={(q) => {
+                        if (isClosedStatus(q.status as SalesQueryStatus)) return "opacity-60 hover:opacity-80";
+                        if (q.status === "SUBMITTED") return "bg-amber-50/40 dark:bg-amber-950/10";
+                        return "";
+                    }}
                     emptyState={
                         <div className="flex flex-col items-center gap-2">
                             <TrendingUp className="h-10 w-10 text-muted-foreground" />
@@ -450,7 +475,9 @@ async function openDetail(query: PackageQueryType) {
                                     ? "No closed queries yet"
                                     : filterStatus === "ACTIVE"
                                         ? "No active queries — you're all caught up!"
-                                        : "No queries match your search"}
+                                        : filterStatus === "SUBMITTED"
+                                            ? "No new queries awaiting action"
+                                            : "No queries match your search"}
                             </p>
                         </div>
                     }
@@ -464,6 +491,7 @@ async function openDetail(query: PackageQueryType) {
                 closeReasons={closeReasons}
                 open={sheetOpen}
                 onOpenChange={setSheetOpen}
+                onRefresh={() => openDetail(detailQuery as PackageQueryType)}
             />
         </>
     );

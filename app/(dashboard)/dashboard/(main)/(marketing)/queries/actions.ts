@@ -15,7 +15,7 @@ export type ActionResult<T = void> =
 export type QueryStatus = "SUBMITTED" | "IN_PROGRESS" | "VERIFIED" | "REJECTED";
 export type QuerySource = "WEBSITE_FORM" | "LANDING_PAGE" | "WHATSAPP" | "PHONE_CALL" | "REFERRAL" | "OTHER";
 
-export type PackageQuery = {
+export type package_queries = {
     id: string;
     name: string;
     email: string | null;
@@ -80,8 +80,8 @@ async function logTimeline(
 
 // ── READ ──────────────────────────────────────────────────────────────────────
 
-export async function getQueries(): Promise<PackageQuery[]> {
-    const queries = await db.packageQuery.findMany({
+export async function getQueries(): Promise<package_queries[]> {
+    const queries = await db.package_queries.findMany({
         include: {
             rejectionReason: { select: { id: true, label: true } },
             _count: { select: { notes: true } },
@@ -98,11 +98,11 @@ export async function getQueries(): Promise<PackageQuery[]> {
     return queries.map(q => ({
         ...q,
         totalLeadQueries: q.leadProfile?._count?.queries ?? 1,
-    })) as PackageQuery[];
+    })) as package_queries[];
 }
 
 export async function getQueryById(id: string) {
-    return db.packageQuery.findUnique({
+    return db.package_queries.findUnique({
         where: { id },
         include: {
             rejectionReason: true,
@@ -156,7 +156,7 @@ export async function getSalesMembers(): Promise<SalesMember[]> {
 
     const ids = members.map((m) => m.id);
 
-    const counts = await db.packageQuery.groupBy({
+    const counts = await db.package_queries.groupBy({
         by: ["assignedTo"],
         where: {
             assignedTo: { in: ids },
@@ -208,7 +208,7 @@ export async function assignQuery(
         }
 
         // ✅ Update query assignment
-        await db.packageQuery.update({
+        await db.package_queries.update({
             where: { id: queryId },
             data: {
                 assignedTo: memberId ?? null,       // MUST be teamMember.id
@@ -261,7 +261,7 @@ export async function markInProgress(queryId: string): Promise<ActionResult> {
         const session = await dashboardAuth();
         const actor = session?.user;
 
-        await db.packageQuery.update({
+        await db.package_queries.update({
             where: { id: queryId },
             data: { status: "IN_PROGRESS", callAttempts: { increment: 1 }, lastAttemptAt: new Date() },
         });
@@ -281,7 +281,7 @@ export async function verifyQuery(queryId: string): Promise<ActionResult> {
         const session = await dashboardAuth();
         const actor = session?.user;
 
-        await db.packageQuery.update({
+        await db.package_queries.update({
             where: { id: queryId },
             data: {
                 status: "VERIFIED",
@@ -331,7 +331,7 @@ export async function rejectQuery(
             where: { id: parsed.data.rejectionReasonId },
         });
 
-        await db.packageQuery.update({
+        await db.package_queries.update({
             where: { id: queryId },
             data: {
                 status: "REJECTED",
@@ -389,7 +389,7 @@ export async function logCallAttempt(
         const session = await dashboardAuth();
         const actor = session?.user;
 
-        await db.packageQuery.update({
+        await db.package_queries.update({
             where: { id: queryId },
             data: {
                 callAttempts: { increment: 1 },
@@ -400,7 +400,7 @@ export async function logCallAttempt(
         });
 
         const outcomeLabel = outcome ? CALL_OUTCOME_LABELS[outcome] : "Call attempted";
-        const eventParts = [`📞 Call Attempt #${(await db.packageQuery.findUnique({ where: { id: queryId }, select: { callAttempts: true } }))?.callAttempts ?? "?"} — ${outcomeLabel}`];
+        const eventParts = [`📞 Call Attempt #${(await db.package_queries.findUnique({ where: { id: queryId }, select: { callAttempts: true } }))?.callAttempts ?? "?"} — ${outcomeLabel}`];
         if (response) eventParts.push(`Note: ${response}`);
 
         await logTimeline(
@@ -606,7 +606,7 @@ export async function createManualQuery(
         // ── Normalize phone & duplicate check ──────────────────────────────
         const normalizedPhone = parsed.data.phone.replace(/[\s\-().+]/g, "");
 
-        const recentDuplicate = await db.packageQuery.findFirst({
+        const recentDuplicate = await db.package_queries.findFirst({
             where: {
                 phone: parsed.data.phone,
                 createdAt: { gte: new Date(Date.now() - 1000 * 60 * 5) },
@@ -632,7 +632,7 @@ export async function createManualQuery(
         });
         // ───────────────────────────────────────────────────────────────────
 
-        const query = await db.packageQuery.create({
+        const query = await db.package_queries.create({
             data: {
                 name: parsed.data.name,
                 phone: parsed.data.phone,
@@ -725,7 +725,7 @@ export async function updateQuery(
         });
         // ───────────────────────────────────────────────────────────────────
 
-        await db.packageQuery.update({
+        await db.package_queries.update({
             where: { id: queryId },
             data: {
                 name: parsed.data.name,

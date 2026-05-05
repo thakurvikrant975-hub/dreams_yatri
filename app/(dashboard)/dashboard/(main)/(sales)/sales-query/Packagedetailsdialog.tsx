@@ -19,64 +19,65 @@ import {
 } from "lucide-react";
 import { savePackageRequirements } from "./actions";
 import type { PackageQueryType, PackageRequirements } from "./actions";
+import { number } from "zod";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const STAY_TYPES = [
-    { value: "STAR_3", label: "⭐⭐⭐ 3 Star" },
-    { value: "STAR_4", label: "⭐⭐⭐⭐ 4 Star" },
-    { value: "STAR_5", label: "⭐⭐⭐⭐⭐ 5 Star" },
-    { value: "BOUTIQUE", label: "🏡 Boutique" },
-    { value: "HOMESTAY", label: "🏠 Homestay" },
-    { value: "RESORT", label: "🌴 Resort" },
-    { value: "CAMP", label: "⛺ Camp / Tent" },
-    { value: "BUDGET", label: "💰 Budget" },
+    { value: "STAR_3", label: "3 Star" },
+    { value: "STAR_4", label: "4 Star" },
+    { value: "STAR_5", label: "5 Star" },
+    { value: "BOUTIQUE", label: "Boutique" },
+    { value: "HOMESTAY", label: "Homestay" },
+    { value: "RESORT", label: "Resort" },
+    { value: "CAMP", label: "Camp / Tent" },
+    { value: "BUDGET", label: "Budget" },
 ];
 
 const MEAL_TYPES = [
-    { value: "VEG", label: "🥗 Veg" },
-    { value: "NON_VEG", label: "🍖 Non-Veg" },
-    { value: "JAIN", label: "🕉️ Jain" },
-    { value: "HALAL", label: "☪️ Halal" },
-    { value: "VEGAN", label: "🌱 Vegan" },
+    { value: "VEG", label: "Veg" },
+    { value: "NON_VEG", label: "Non-Veg" },
+    { value: "JAIN", label: "Jain" },
+    { value: "HALAL", label: "Halal" },
+    { value: "VEGAN", label: "Vegan" },
 ];
 
 const CAB_TYPES = [
-    { value: "SEDAN", label: "🚗 Sedan" },
-    { value: "SUV", label: "🚙 SUV" },
-    { value: "BOLERO", label: "🛻 Bolero" },
-    { value: "INNOVA", label: "🚐 Innova/Crysta" },
-    { value: "TEMPO", label: "🚌 Tempo Traveller" },
-    { value: "VOLVO", label: "🚍 Volvo Bus" },
-    { value: "MINI_BUS", label: "🚎 Mini Bus" },
-    { value: "BIKE", label: "🏍️ Bike Rental" },
+    { value: "SEDAN", label: "Sedan" },
+    { value: "SUV", label: "SUV" },
+    { value: "BOLERO", label: "Bolero" },
+    { value: "INNOVA", label: "Innova/Crysta" },
+    { value: "TEMPO", label: "Tempo Traveller" },
+    { value: "VOLVO", label: "Volvo Bus" },
+    { value: "MINI_BUS", label: "Mini Bus" },
+    { value: "BIKE", label: "Bike Rental" },
 ];
 
 const PRESET_ACTIVITIES = [
-    { value: "PARAGLIDING", label: "🪂 Paragliding" },
-    { value: "RIVER_RAFTING", label: "🚣 River Rafting" },
-    { value: "TREKKING", label: "🥾 Trekking" },
-    { value: "SKIING", label: "⛷️ Skiing/Snowboard" },
-    { value: "BUNGEE", label: "🪢 Bungee Jumping" },
-    { value: "ZIP_LINE", label: "🤸 Zip Line" },
-    { value: "CAMPING", label: "⛺ Camping" },
-    { value: "SNORKELING", label: "🤿 Snorkeling" },
-    { value: "SCUBA", label: "🐠 Scuba Diving" },
-    { value: "SAFARI", label: "🦁 Wildlife Safari" },
-    { value: "BOAT_RIDE", label: "⛵ Boat/Shikara Ride" },
-    { value: "ATV", label: "🏎️ ATV/Quad Biking" },
-    { value: "HOT_AIR", label: "🎈 Hot Air Balloon" },
-    { value: "SIGHTSEEING", label: "🏛️ Sightseeing Tour" },
-    { value: "PHOTOGRAPHY", label: "📸 Photography Tour" },
-    { value: "COOKING", label: "👨‍🍳 Cooking Class" },
-    { value: "YOGA", label: "🧘 Yoga/Wellness" },
-    { value: "HORSE_RIDE", label: "🐴 Horse Riding" },
-    { value: "CABLE_CAR", label: "🚡 Cable Car" },
-    { value: "ICE_SKATING", label: "⛸️ Ice Skating" },
+    { value: "PARAGLIDING", label: "Paragliding" },
+    { value: "RIVER_RAFTING", label: "River Rafting" },
+    { value: "TREKKING", label: "Trekking" },
+    { value: "SKIING", label: "Skiing/Snowboard" },
+    { value: "BUNGEE", label: "Bungee Jumping" },
+    { value: "ZIP_LINE", label: "Zip Line" },
+    { value: "CAMPING", label: "Camping" },
+    { value: "SNORKELING", label: "Snorkeling" },
+    { value: "SCUBA", label: "Scuba Diving" },
+    { value: "SAFARI", label: "Wildlife Safari" },
+    { value: "BOAT_RIDE", label: "Boat/Shikara Ride" },
+    { value: "ATV", label: "ATV/Quad Biking" },
+    { value: "HOT_AIR", label: "Hot Air Balloon" },
+    { value: "SIGHTSEEING", label: "Sightseeing Tour" },
+    { value: "PHOTOGRAPHY", label: "Photography Tour" },
+    { value: "COOKING", label: "Cooking Class" },
+    { value: "YOGA", label: "Yoga/Wellness" },
+    { value: "HORSE_RIDE", label: "Horse Riding" },
+    { value: "CABLE_CAR", label: "Cable Car" },
+    { value: "ICE_SKATING", label: "Ice Skating" },
 ];
 
 const TABS = [
-    { id: "travellers", label: "Travellers", icon: Users, color: "text-blue-600" },
+    { id: "travellers", label: "Travellers", icon: Users, color: "text-violet-600" },
     { id: "journey", label: "Journey", icon: MapPin, color: "text-green-600" },
     { id: "stay", label: "Stay", icon: Hotel, color: "text-purple-600" },
     { id: "transport", label: "Transport", icon: Car, color: "text-orange-600" },
@@ -153,9 +154,9 @@ function ToggleChip({
             type="button"
             onClick={onClick}
             className={[
-                "px-3 py-1.5 rounded-full text-xs font-medium border transition-all select-none",
+                "px-3 py-1.5 rounded-full text-xs font-medium border transition-all select-none cursor-pointer",
                 selected
-                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                    ? "bg-violet-100 text-violet-600 border-violet-600 shadow-sm"
                     : "bg-background text-foreground border-border hover:border-primary/60 hover:bg-primary/5",
             ].join(" ")}
         >
@@ -199,7 +200,7 @@ function SpecialDemands({
 }) {
     return (
         <div className="space-y-1.5 pt-4 mt-2 border-t border-dashed border-border/60">
-            <Label className="text-xs text-gray-600 flex items-center gap-1.5">
+            <Label className="text-xs text-gray-700 flex items-center gap-1.5">
                 <AlertCircle className="h-3 w-3" />
                 Special Demands <span className="text-muted-foreground font-normal">(optional)</span>
             </Label>
@@ -208,7 +209,7 @@ function SpecialDemands({
                 onChange={e => onChange(e.target.value)}
                 placeholder="Any special requirements for this section..."
                 rows={2}
-                className="resize-none text-sm bg-gray-50/30 border-gray-200/60 focus-visible:ring-gray-300/50 placeholder:text-gray-400/70"
+                className="resize-none text-sm bg-gray-50/30 border-gray-200 focus-visible:ring-gray-300/50 placeholder:text-gray-400/70"
             />
         </div>
     );
@@ -254,7 +255,7 @@ function ToggleButton({
             className={[
                 "flex-1 py-2.5 rounded-lg border text-sm font-medium transition-all",
                 selected
-                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                    ? "bg-violet-400 text-primary-foreground border-violet-400 shadow-sm"
                     : "bg-background text-muted-foreground border-border hover:border-primary/40 hover:text-foreground",
             ].join(" ")}
         >
@@ -365,7 +366,7 @@ export function PackageDetailsDialog({
             }}
         >
             <DialogTrigger asChild>{children}</DialogTrigger>
-            <DialogContent className="max-w-5xl h-[88vh] p-0 flex flex-col gap-0 overflow-hidden">
+            <DialogContent className="max-w-8xl h-[88vh] p-0 flex flex-col gap-0 overflow-y-auto scrollbar-none">
 
                 {/* Header */}
                 <DialogHeader className="px-6 py-4 border-b shrink-0">
@@ -378,7 +379,7 @@ export function PackageDetailsDialog({
                             </DialogDescription>
                         </div>
                         {totalPax > 0 && (
-                            <Badge variant="secondary" className="shrink-0 text-xs font-medium">
+                            <Badge variant="secondary" className="shrink-0 text-xs bg-violet-200 text-violet-600 font-medium">
                                 <Users className="h-3 w-3 mr-1" />
                                 {totalPax} Pax
                             </Badge>
@@ -398,13 +399,13 @@ export function PackageDetailsDialog({
                                 onClick={() => goToTab(tab.id)}
                                 className={[
                                     "flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium whitespace-nowrap",
-                                    "border-b-2 transition-colors shrink-0",
+                                    "border-b-2 transition-colors shrink-0 cursor-pointer ",
                                     isActive
-                                        ? `border-primary text-primary bg-background`
+                                        ? `border-violet-500 text-violet-500 bg-violet-50`
                                         : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40",
                                 ].join(" ")}
                             >
-                                <Icon className="h-3.5 w-3.5" />
+                                <Icon className="h-4 w-4" />
                                 <span className="hidden sm:inline">{tab.label}</span>
                                 <span className="sm:hidden">{i + 1}</span>
                             </button>
@@ -422,7 +423,7 @@ export function PackageDetailsDialog({
                                 <SectionHeader
                                     icon={Users}
                                     title="Traveller Details"
-                                    color="text-blue-600"
+                                    color="text-violet-600"
                                     subtitle="Who's coming on this trip?"
                                 />
 
@@ -478,13 +479,13 @@ export function PackageDetailsDialog({
                                     </div>
                                 </div>
 
-                                <div className="rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 px-3 py-2.5">
-                                    <p className="text-xs text-blue-700 dark:text-blue-400">
+                                <div className="rounded-lg bg-violet-50 dark:bg-violet-950/20 border border-violet-100 dark:border-violet-900/40 px-3 py-2.5">
+                                    <p className="text-xs text-violet-700 dark:text-violet-400">
                                         Total Pax:{" "}
                                         <span className="font-semibold text-sm">
                                             {totalPax}
                                         </span>
-                                        <span className="text-blue-600/70 ml-1.5">
+                                        <span className="text-violet-600/70 ml-1.5">
                                             ({reqs.travellers.adults}A
                                             {reqs.travellers.children > 0 && ` + ${reqs.travellers.children}C`}
                                             {reqs.travellers.infants > 0 && ` + ${reqs.travellers.infants}I`})
@@ -526,13 +527,13 @@ export function PackageDetailsDialog({
                                             selected={reqs.journey.dateType === "FIXED"}
                                             onClick={() => update("journey", { dateType: "FIXED" })}
                                         >
-                                            📅 Fixed Date
+                                            Fixed Date
                                         </ToggleButton>
                                         <ToggleButton
                                             selected={reqs.journey.dateType === "FLEXIBLE"}
                                             onClick={() => update("journey", { dateType: "FLEXIBLE" })}
                                         >
-                                            📆 Flexible
+                                            Flexible
                                         </ToggleButton>
                                     </div>
                                 </div>
@@ -582,8 +583,24 @@ export function PackageDetailsDialog({
                                             min={1}
                                             value={reqs.journey.noOfDays}
                                             onChange={e => {
+                                                const value = e.target.value;
+
+                                                // Allow empty input while typing
+                                                if (value === "") {
+                                                    update("journey", { noOfDays: "" });
+                                                    return;
+                                                }
+
+                                                update("journey", {
+                                                    noOfDays: parseInt(value) || 0,
+                                                });
+                                            }}
+                                            onBlur={e => {
                                                 const d = Math.max(1, parseInt(e.target.value) || 1);
-                                                update("journey", { noOfDays: d, noOfNights: Math.max(0, d - 1) });
+                                                update("journey", {
+                                                    noOfDays: d,
+                                                    noOfNights: Math.max(0, d - 1),
+                                                });
                                             }}
                                         />
                                     </div>
@@ -594,7 +611,23 @@ export function PackageDetailsDialog({
                                             type="number"
                                             min={0}
                                             value={reqs.journey.noOfNights}
-                                            onChange={e => update("journey", { noOfNights: Math.max(0, parseInt(e.target.value) || 0) })}
+                                            onChange={e => {
+                                                const value = e.target.value;
+
+                                                if (value === "") {
+                                                    update("journey", { noOfNights: "" });
+                                                    return;
+                                                }
+
+                                                update("journey", {
+                                                    noOfNights: parseInt(value) || 0,
+                                                });
+                                            }}
+                                            onBlur={e => {
+                                                update("journey", {
+                                                    noOfNights: Math.max(0, parseInt(e.target.value) || 0),
+                                                });
+                                            }}
                                         />
                                     </div>
                                 </div>
@@ -742,13 +775,13 @@ export function PackageDetailsDialog({
                                             selected={reqs.transport.required === true}
                                             onClick={() => update("transport", { required: true })}
                                         >
-                                            🚗 Yes, Include Transport
+                                            Yes, Include Transport
                                         </ToggleButton>
                                         <ToggleButton
                                             selected={reqs.transport.required === false}
                                             onClick={() => update("transport", { required: false })}
                                         >
-                                            ❌ Not Required
+                                            Not Required
                                         </ToggleButton>
                                     </div>
                                 </div>
@@ -774,13 +807,13 @@ export function PackageDetailsDialog({
                                                     selected={reqs.transport.includeFlights === false}
                                                     onClick={() => update("transport", { includeFlights: false })}
                                                 >
-                                                    🚫 No Flights
+                                                    No Flights
                                                 </ToggleButton>
                                                 <ToggleButton
                                                     selected={reqs.transport.includeFlights === true}
                                                     onClick={() => update("transport", { includeFlights: true })}
                                                 >
-                                                    ✈️ Include Flights
+                                                    Include Flights
                                                 </ToggleButton>
                                             </div>
                                         </div>
@@ -894,13 +927,13 @@ export function PackageDetailsDialog({
                                             selected={reqs.budget.type === "PER_PERSON"}
                                             onClick={() => update("budget", { type: "PER_PERSON" })}
                                         >
-                                            👤 Per Person
+                                            Per Person
                                         </ToggleButton>
                                         <ToggleButton
                                             selected={reqs.budget.type === "TOTAL"}
                                             onClick={() => update("budget", { type: "TOTAL" })}
                                         >
-                                            👥 Total Budget
+                                            Total Budget
                                         </ToggleButton>
                                     </div>
                                 </div>
@@ -941,14 +974,14 @@ export function PackageDetailsDialog({
                                 </div>
 
                                 {(reqs.budget.min || reqs.budget.max) && (
-                                    <div className="rounded-lg bg-primary/5 border border-primary/20 px-4 py-3">
-                                        <p className="text-xs text-muted-foreground mb-0.5">Budget Range</p>
+                                    <div className="rounded-lg bg-violet-200/60 border border-primary/20 px-4 py-3">
+                                        <p className="text-xs text-violet-700 mb-0.5">Budget Range</p>
                                         <p className="text-lg font-semibold text-primary">
                                             ₹{(reqs.budget.min ?? 0).toLocaleString("en-IN")}
                                             {" — "}
                                             ₹{(reqs.budget.max ?? 0).toLocaleString("en-IN")}
                                         </p>
-                                        <p className="text-xs text-muted-foreground mt-0.5">
+                                        <p className="text-xs text-violet-700 mt-0.5">
                                             {reqs.budget.type === "PER_PERSON" ? "per person" : "total for the group"}
                                             {reqs.budget.type === "PER_PERSON" && totalPax > 0 && (
                                                 <span className="ml-1">
@@ -983,7 +1016,7 @@ export function PackageDetailsDialog({
                                 className={[
                                     "h-1.5 rounded-full transition-all duration-200",
                                     activeTab === tab.id
-                                        ? "w-6 bg-primary"
+                                        ? "w-6 bg-violet-600"
                                         : "w-1.5 bg-muted-foreground/30 hover:bg-muted-foreground/60",
                                 ].join(" ")}
                                 title={tab.label}
@@ -1020,7 +1053,7 @@ export function PackageDetailsDialog({
                                 size="sm"
                                 onClick={handleSave}
                                 disabled={isPending}
-                                className="gap-1.5 bg-green-600 hover:bg-green-700 text-white"
+                                className="gap-1.5 bg-violet-600 hover:bg-violet-700 text-white p-2 rounded-md cursor-pointer"
                             >
                                 <CheckCircle2 className="h-3.5 w-3.5" />
                                 {isPending ? "Saving..." : "Save Requirements"}

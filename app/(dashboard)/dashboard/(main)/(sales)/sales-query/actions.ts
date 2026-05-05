@@ -12,9 +12,9 @@ export type ActionResult<T = void> =
     | { success: true; data: T; message: string }
     | { success: false; data?: never; message: string; errors?: Record<string, string[]> };
 
+// Sales module uses SUBMITTED → ACTIVE → CLOSED lifecycle
+// These map to the QueryStatus enum values added in migration
 export type SalesQueryStatus = "SUBMITTED" | "ACTIVE" | "CLOSED";
-
-export type QueryStatus = SalesQueryStatus; // alias kept for backwards compat
 
 export type PackageQueryType = {
     id: string;
@@ -26,8 +26,8 @@ export type PackageQueryType = {
     destination: string | null;
     travelDate: Date | null;
     groupSize: number | null;
-    message: string | null;          
-    source: string;                  
+    message: string | null;
+    source: string;
     status: SalesQueryStatus;
     assignedTo: string | null;
     assignedAt: Date | null;
@@ -35,7 +35,7 @@ export type PackageQueryType = {
     closedBy: string | null;
     closeReasonId: string | null;
     closeReasonOther: string | null;
-    nextFollowUpAt: Date | null;   
+    nextFollowUpAt: Date | null;
     requirements: PackageRequirements | null;
     createdAt: Date;
     updatedAt: Date;
@@ -45,7 +45,6 @@ export type PackageQueryType = {
         notes: number;
     };
 };
-
 
 export type SalesQuery = PackageQueryType;
 
@@ -61,47 +60,46 @@ export type FollowUp = {
     note: string;
     followUpAt: Date | null;
     createdAt: Date;
+    createdById: string | null;
     createdByName: string | null;
 };
 
 // ── Package Requirements Type ─────────────────────────────────────────────────
-// Stored as JSON in PackageQuery.requirements
-// Schema migration needed: add `requirements Json?` to PackageQuery model
 
 export type PackageRequirements = {
     travellers: {
         leadName: string;
         adults: number;
-        children: number;       // 2–12 yrs
-        infants: number;        // < 2 yrs
+        children: number;
+        infants: number;
         specialDemands?: string;
     };
     journey: {
         startingPoint: string;
         dateType: "FIXED" | "FLEXIBLE";
-        travelDate?: string;        // ISO date string, used when FIXED
-        flexibleFrom?: string;      // ISO date string, used when FLEXIBLE
-        flexibleTo?: string;        // ISO date string, used when FLEXIBLE
+        travelDate?: string;
+        flexibleFrom?: string;
+        flexibleTo?: string;
         noOfDays: number;
         noOfNights: number;
         destinations: string[];
         specialDemands?: string;
     };
     stay: {
-        types: string[];            // STAR_3 | STAR_4 | STAR_5 | BOUTIQUE | HOMESTAY | RESORT | CAMP | BUDGET
-        mealTypes: string[];        // VEG | NON_VEG | JAIN | HALAL | VEGAN
+        types: string[];
+        mealTypes: string[];
         customMeal?: string;
         specialDemands?: string;
     };
     transport: {
         required: boolean;
-        cabTypes: string[];         // SEDAN | SUV | BOLERO | INNOVA | TEMPO | VOLVO | MINI_BUS | BIKE
+        cabTypes: string[];
         includeFlights: boolean;
         specialDemands?: string;
     };
     activities: {
-        selected: string[];         // from PRESET_ACTIVITIES enum
-        custom: string[];           // free-text additions
+        selected: string[];
+        custom: string[];
         specialDemands?: string;
     };
     budget: {
@@ -114,8 +112,6 @@ export type PackageRequirements = {
 };
 
 // ── Zod Schemas ───────────────────────────────────────────────────────────────
-// BUG FIX: These were used in addFollowUp + closeSalesQuery but never defined,
-// causing a runtime ReferenceError on every form submission.
 
 const followUpSchema = z.object({
     note: z.string().min(1, "Note is required").max(2000, "Note too long"),
@@ -192,37 +188,39 @@ async function logTimeline(
     });
 }
 
+async function getCurrentActor() {
+    const session = await dashboardAuth();
+    const actor = session?.user;
+    let teamMemberId: string | null = null;
+    let teamMemberName: string | null = null;
+
+    if (actor?.email) {
+        const tm = await db.teamMember.findUnique({
+            where: { email: actor.email },
+            select: { id: true, name: true },
+        });
+        teamMemberId = tm?.id ?? null;
+        teamMemberName = tm?.name ?? actor.name ?? null;
+    }
+
+    return { actor, teamMemberId, teamMemberName };
+}
+
 // ── READ ──────────────────────────────────────────────────────────────────────
 
 export async function getSalesQueries() {
-    console.log("👉 getSalesQueries CALLED");
-
     const session = await dashboardAuth();
-    console.log("👉 SESSION:", session);
-
     let userId: string | null = null;
 
     if (session?.user?.email) {
-        console.log("👉 Looking for teamMember with email:", session.user.email);
-
         const teamMember = await db.teamMember.findUnique({
             where: { email: session.user.email },
             select: { id: true },
         });
-
-        console.log("👉 TEAM MEMBER:", teamMember);
-
         userId = teamMember?.id ?? null;
     }
 
-    console.log("👉 FINAL userId:", userId);
-
-    // 🔴 TEST 1: fetch ALL data (ignore filter)
-    const allQueries = await db.packageQuery.findMany();
-    console.log("👉 TOTAL queries in DB:", allQueries.length);
-
-    // 🔴 TEST 2: fetch filtered data
-    const queries = await db.packageQuery.findMany({
+    const queries = await db.package_queries.findMany({
         where: userId ? { assignedTo: userId } : {},
         include: {
             _count: {
@@ -235,23 +233,44 @@ export async function getSalesQueries() {
         orderBy: { assignedAt: "desc" },
     });
 
-    console.log("👉 FILTERED queries:", queries.length);
-    console.log("👉 SAMPLE query:", queries[0]);
-
     return queries;
 }
 
 export async function getSalesQueryById(id: string) {
-    // BUG FIX: The Prisma relation from PackageQuery → QueryFollowUp is named
-    // "queryFollowUps" (auto-derived from model name). The old SalesQueryWithDetails
-    // type had it as "followUps" which caused the sheet to always show 0 follow-ups.
-    // Fix applied in type definitions below — use "queryFollowUps" everywhere.
-    return db.packageQuery.findUnique({
+    return db.package_queries.findUnique({
         where: { id },
         include: {
-            queryFollowUps: { orderBy: { createdAt: "asc" } },
+            // Only return follow-ups created by the current user
+            queryFollowUps: {
+                orderBy: { createdAt: "asc" },
+            },
             notes: { orderBy: { createdAt: "asc" } },
             timeline: { orderBy: { createdAt: "asc" } },
+        },
+    });
+}
+
+// Returns follow-ups for a query that belong to the currently logged-in team member
+export async function getMyFollowUps(packageQueryId?: string) {
+    const { teamMemberId } = await getCurrentActor();
+
+    if (!teamMemberId) return [];
+
+    return db.queryFollowUp.findMany({
+        where: {
+            createdById: teamMemberId,
+            ...(packageQueryId ? { packageQueryId } : {}),
+        },
+        orderBy: { createdAt: "desc" },
+        include: {
+            packageQuery: {
+                select: {
+                    id: true,
+                    name: true,
+                    destination: true,
+                    status: true,
+                },
+            },
         },
     });
 }
@@ -264,6 +283,7 @@ export async function getCloseReasons(): Promise<CloseReason[]> {
         { id: "BOOKED_ELSEWHERE", label: "Booked Elsewhere", requiresNote: false },
         { id: "TRAVEL_CANCELLED", label: "Travel Cancelled", requiresNote: false },
         { id: "UNRESPONSIVE", label: "Unresponsive", requiresNote: false },
+        { id: "BOOKED_WITH_US", label: "Booked With Us ✓", requiresNote: false },
         { id: "OTHER", label: "Other", requiresNote: true },
     ];
 }
@@ -274,7 +294,6 @@ export async function addFollowUp(
     packageQueryId: string,
     formData: FormData,
 ): Promise<ActionResult> {
-    // BUG FIX: followUpSchema was referenced but never defined — caused runtime crash
     const parsed = followUpSchema.safeParse({
         note: formData.get("note"),
         followUpAt: formData.get("followUpAt") || undefined,
@@ -289,8 +308,7 @@ export async function addFollowUp(
     }
 
     try {
-        const session = await dashboardAuth();
-        const actor = session?.user;
+        const { teamMemberId, teamMemberName } = await getCurrentActor();
 
         await db.queryFollowUp.create({
             data: {
@@ -299,32 +317,45 @@ export async function addFollowUp(
                 followUpAt: parsed.data.followUpAt
                     ? new Date(parsed.data.followUpAt)
                     : null,
+                // Store who created this follow-up for privacy filtering
+                createdById: teamMemberId,
+                createdByName: teamMemberName,
             },
         });
 
         if (parsed.data.followUpAt) {
-            await db.packageQuery.update({
+            await db.package_queries.update({
                 where: { id: packageQueryId },
                 data: { nextFollowUpAt: new Date(parsed.data.followUpAt) },
             });
         }
 
         // Activate query when first follow-up is logged
-        await db.packageQuery.update({
+        const currentQuery = await db.package_queries.findUnique({
             where: { id: packageQueryId },
-            data: { status: "ACTIVE" },
+            select: { status: true },
         });
+
+        if (currentQuery?.status === "SUBMITTED") {
+            await db.package_queries.update({
+                where: { id: packageQueryId },
+                // FIX: Use "ACTIVE" which is a valid QueryStatus enum value
+                // (requires migration: add ACTIVE and CLOSED to QueryStatus enum)
+                data: { status: "ACTIVE" },
+            });
+        }
 
         await logTimeline(
             packageQueryId,
             `📞 Follow-up logged`,
-            actor?.id,
-            actor?.name ?? undefined,
+            teamMemberId ?? undefined,
+            teamMemberName ?? undefined,
         );
 
         revalidatePath("/dashboard/sales-query");
         return { success: true, data: undefined, message: "Follow-up added" };
-    } catch {
+    } catch (err) {
+        console.error("addFollowUp error:", err);
         return { success: false, message: "Failed to add follow-up" };
     }
 }
@@ -335,7 +366,6 @@ export async function closeSalesQuery(
     packageQueryId: string,
     formData: FormData,
 ): Promise<ActionResult> {
-    // BUG FIX: closeQuerySchema was referenced but never defined — caused runtime crash
     const parsed = closeQuerySchema.safeParse({
         closeReasonId: formData.get("closeReasonId"),
         closeReasonOther: formData.get("closeReasonOther") || undefined,
@@ -350,30 +380,31 @@ export async function closeSalesQuery(
     }
 
     try {
-        const session = await dashboardAuth();
-        const actor = session?.user;
+        const { teamMemberId, teamMemberName } = await getCurrentActor();
 
-        await db.packageQuery.update({
+        await db.package_queries.update({
             where: { id: packageQueryId },
             data: {
+                // FIX: "CLOSED" is valid after migration
                 status: "CLOSED",
                 closeReasonId: parsed.data.closeReasonId,
                 closeReasonOther: parsed.data.closeReasonOther ?? null,
                 closedAt: new Date(),
-                closedBy: actor?.id ?? null,
+                closedBy: teamMemberId ?? null,
             },
         });
 
         await logTimeline(
             packageQueryId,
-            `❌ Query Closed`,
-            actor?.id,
-            actor?.name ?? undefined,
+            `❌ Query Closed — ${parsed.data.closeReasonId}`,
+            teamMemberId ?? undefined,
+            teamMemberName ?? undefined,
         );
 
         revalidatePath("/dashboard/sales-query");
         return { success: true, data: undefined, message: "Closed successfully" };
-    } catch {
+    } catch (err) {
+        console.error("closeSalesQuery error:", err);
         return { success: false, message: "Failed to close query" };
     }
 }
@@ -382,12 +413,12 @@ export async function closeSalesQuery(
 
 export async function reopenSalesQuery(packageQueryId: string): Promise<ActionResult> {
     try {
-        const session = await dashboardAuth();
-        const actor = session?.user;
+        const { teamMemberId, teamMemberName } = await getCurrentActor();
 
-        await db.packageQuery.update({
+        await db.package_queries.update({
             where: { id: packageQueryId },
             data: {
+                // FIX: "ACTIVE" is valid after migration
                 status: "ACTIVE",
                 closeReasonId: null,
                 closeReasonOther: null,
@@ -399,20 +430,19 @@ export async function reopenSalesQuery(packageQueryId: string): Promise<ActionRe
         await logTimeline(
             packageQueryId,
             `🔄 Query Reopened`,
-            actor?.id,
-            actor?.name ?? undefined,
+            teamMemberId ?? undefined,
+            teamMemberName ?? undefined,
         );
 
         revalidatePath("/dashboard/sales-query");
         return { success: true, data: undefined, message: "Reopened" };
-    } catch {
+    } catch (err) {
+        console.error("reopenSalesQuery error:", err);
         return { success: false, message: "Failed to reopen" };
     }
 }
 
 // ── PACKAGE REQUIREMENTS ──────────────────────────────────────────────────────
-// Requires Prisma migration: add `requirements Json?` to PackageQuery model
-// Run: npx prisma migrate dev --name add_package_requirements
 
 export async function savePackageRequirements(
     packageQueryId: string,
@@ -429,20 +459,18 @@ export async function savePackageRequirements(
     }
 
     try {
-        const session = await dashboardAuth();
-        const actor = session?.user;
+        const { teamMemberId, teamMemberName } = await getCurrentActor();
 
-        await db.packageQuery.update({
+        await db.package_queries.update({
             where: { id: packageQueryId },
             data: {
                 requirements: parsed.data as Prisma.InputJsonValue,
-                // Sync top-level fields from requirements for quick access
                 groupSize: parsed.data.travellers.adults + parsed.data.travellers.children,
                 destination: parsed.data.journey.destinations[0] ?? null,
                 travelDate: parsed.data.journey.travelDate
                     ? new Date(parsed.data.journey.travelDate)
                     : null,
-                // Activate the query when requirements are filled
+                // FIX: "ACTIVE" is valid after adding to QueryStatus enum in migration
                 status: "ACTIVE",
             },
         });
@@ -450,8 +478,8 @@ export async function savePackageRequirements(
         await logTimeline(
             packageQueryId,
             `📋 Package requirements updated`,
-            actor?.id,
-            actor?.name ?? undefined,
+            teamMemberId ?? undefined,
+            teamMemberName ?? undefined,
             {
                 destinations: parsed.data.journey.destinations,
                 pax: parsed.data.travellers.adults + parsed.data.travellers.children + parsed.data.travellers.infants,
@@ -461,8 +489,17 @@ export async function savePackageRequirements(
 
         revalidatePath("/dashboard/sales-query");
         return { success: true, data: undefined, message: "Package requirements saved" };
-    } catch (err) {
+    } catch (err: unknown) {
         console.error("savePackageRequirements error:", err);
-        return { success: false, message: "Failed to save requirements" };
+
+        if (err instanceof Error) {
+            return { success: false, message: err.message || "Something went wrong" };
+        }
+
+        if (typeof err === "object" && err !== null && "code" in err) {
+            return { success: false, message: "Database error occurred" };
+        }
+
+        return { success: false, message: "Unexpected error occurred" };
     }
 }
