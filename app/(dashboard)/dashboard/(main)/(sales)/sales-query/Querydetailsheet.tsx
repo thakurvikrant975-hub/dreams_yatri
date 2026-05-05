@@ -21,8 +21,9 @@ import { QuerySourceBadge } from "../../(marketing)/queries/QueryBadges";
 import { AddFollowUpDialog } from "./Addfollowupdialog";
 import { CloseQueryDialog } from "./Closequerydialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
-import { reopenSalesQuery, isActiveQuery, isClosedQuery } from "./actions";
-import type { SalesQuery, CloseReason, QueryStatus, PackageRequirements } from "./actions";
+import { reopenSalesQuery } from "./actions";
+import { isActiveQuery, isClosedQuery, QueryStatus } from "./query-status";
+import type { SalesQuery, CloseReason, PackageRequirements } from "./actions";
 
 type FollowUpItem = {
     id: string;
@@ -116,7 +117,7 @@ export function SalesQueryDetailSheet({
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetContent className="w-full sm:max-w-xl p-0 flex flex-col overflow-auto">
+            <SheetContent className="w-full max-w-xl p-0 flex flex-col overflow-auto">
                 {isEmpty ? (
                     // Loading skeleton while fetching detail
                     <div className="px-6 pt-6 pb-4 space-y-3 animate-pulse">
@@ -208,14 +209,12 @@ export function SalesQueryDetailSheet({
 
                             {/* Close reason banner */}
                             {closed && query.closeReasonId && (
-                                <div className={`mt-3 rounded-lg border px-3 py-2 ${
-                                    query.status === "CONVERTED"
-                                        ? "border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20"
-                                        : "border-destructive/20 bg-destructive/5"
-                                }`}>
-                                    <p className={`text-xs font-semibold uppercase tracking-wide mb-1 ${
-                                        query.status === "CONVERTED" ? "text-emerald-700" : "text-destructive"
+                                <div className={`mt-3 rounded-lg border px-3 py-2 ${query.status === "CONVERTED"
+                                    ? "border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20"
+                                    : "border-destructive/20 bg-destructive/5"
                                     }`}>
+                                    <p className={`text-xs font-semibold uppercase tracking-wide mb-1 ${query.status === "CONVERTED" ? "text-emerald-700" : "text-destructive"
+                                        }`}>
                                         {query.status === "CONVERTED" ? "✅ Booking Confirmed" : "Closed"}
                                     </p>
                                     <p className="text-sm font-medium">
@@ -346,11 +345,10 @@ export function SalesQueryDetailSheet({
                                 {/* Next Follow-Up alert */}
                                 {query.nextFollowUpAt && (
                                     <>
-                                        <div className={`flex items-center gap-2 text-sm rounded-lg px-3 py-2 border ${
-                                            new Date(query.nextFollowUpAt) < new Date()
-                                                ? "bg-destructive/5 border-destructive/20 text-destructive"
-                                                : "bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900 text-amber-700"
-                                        }`}>
+                                        <div className={`flex items-center gap-2 text-sm rounded-lg px-3 py-2 border ${new Date(query.nextFollowUpAt) < new Date()
+                                            ? "bg-destructive/5 border-destructive/20 text-destructive"
+                                            : "bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900 text-amber-700"
+                                            }`}>
                                             <Calendar className="h-4 w-4 shrink-0" />
                                             <div>
                                                 <span className="font-medium">Next follow-up: </span>

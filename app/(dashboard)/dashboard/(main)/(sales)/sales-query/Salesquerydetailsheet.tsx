@@ -22,7 +22,8 @@ import { AddFollowUpDialog } from "./Addfollowupdialog";
 import { CloseQueryDialog } from "./Closequerydialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { reopenSalesQuery } from "./actions";
-import type { SalesQuery, CloseReason, SalesQueryStatus, PackageRequirements } from "./actions";
+import type { SalesQuery, CloseReason, PackageRequirements } from "./actions";
+import { SalesQueryStatus } from "./query-status";
 
 type FollowUpItem = {
     id: string;
