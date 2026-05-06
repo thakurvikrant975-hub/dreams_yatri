@@ -207,12 +207,6 @@ export async function addFollowUp(packageQueryId: string, formData: FormData): P
             where:  { id: packageQueryId },
             select: { status: true },
         });
-        if (currentQuery?.status === "ASSIGNED") {
-            await db.package_queries.update({
-                where: { id: packageQueryId },
-                data:  { status: "IN_PROGRESS" },
-            });
-        }
 
         await logTimeline(
             packageQueryId,
