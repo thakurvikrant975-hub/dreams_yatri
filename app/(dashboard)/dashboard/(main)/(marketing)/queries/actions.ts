@@ -143,7 +143,7 @@ export type RejectionReason = {
     sortOrder: number;
     createdAt: Date;
     updatedAt: Date;
-    _count: { queries: number };
+    _count: { queries: number };  // ← this is correct, leave it
 };
 
 export type CloseReason = {
@@ -250,22 +250,21 @@ export async function getCloseReasons(): Promise<CloseReason[]> {
     ];
 }
 
-export async function getRejectionReasons(): Promise<
-    Prisma.RejectionReasonGetPayload<{
-        include: {
-            _count: {
-                select: { package_queries: true };
-            };
-        };
-    }>[]
-> {
-    return db.rejectionReason.findMany({
-        where: { isActive: true },
-        include: {
-            _count: { select: { package_queries: true } },
-        },
-        orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
-    });
+export async function getRejectionReasons(): Promise<RejectionReason[]> {
+  const data = await db.rejectionReason.findMany({
+    where: { isActive: true },
+    include: {
+      _count: { select: { package_queries: true } },
+    },
+    orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+  });
+
+  return data.map((item) => ({
+    ...item,
+    _count: {
+      queries: item._count.package_queries, // ✅ map here
+    },
+  }));
 }
 
 export async function getSalesMembers(): Promise<SalesMember[]> {

@@ -17,7 +17,6 @@ import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable"
 import { TableFilters } from "../../components/dashboard/Tablefilters";
 import { Stats } from "../../components/dashboard/Stats";
 import { SalesQueryStatusBadge } from "./Salesquerybadges";
-import { QuerySourceBadge } from "../../components/dashboard/CustomBadges";
 import { AddFollowUpDialog } from "./Addfollowupdialog";
 import { CloseQueryDialog } from "./Closequerydialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
@@ -52,7 +51,7 @@ const PAGE_SIZE = 10;
 // ── Status helpers ────────────────────────────────────────────────────────────
 
 function isActiveStatus(status: SalesQueryStatus) {
-    return status === "SUBMITTED" || status === "ACTIVE";
+    return status === "ASSIGNED" || status === "IN_PROGRESS";
 }
 
 function isClosedStatus(status: SalesQueryStatus) {
@@ -71,8 +70,7 @@ function ActionCell({
     onView: () => void;
 }) {
     const [isPendingReopen, startReopen] = useTransition();
-    const closed = isClosedStatus(query.status);
-
+    const closed = isClosedStatus(query.status as SalesQueryStatus);
     function handleReopen(e: React.MouseEvent) {
         e.stopPropagation();
         startReopen(async () => {
@@ -186,7 +184,7 @@ function ActionCell({
 
 export function SalesQueriesTable({ queries, closeReasons }: Props) {
     const [search, setSearch] = useState("");
-    const [filterStatus, setFilterStatus] = useState<"all" | "SUBMITTED" | "ACTIVE" | "CLOSED">("all");
+    const [filterStatus, setFilterStatus] = useState<"all" | SalesQueryStatus>("all");
     const [page, setPage] = useState(1);
 
     // Detail sheet
@@ -226,9 +224,7 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
             || (q.destination ?? "").toLowerCase().includes(s)
             || (q.packageName ?? "").toLowerCase().includes(s);
 
-        const matchStatus =
-            filterStatus === "all"
-            || q.status === filterStatus;
+        const matchStatus = filterStatus === "all" || q.status === filterStatus;
 
         return matchSearch && matchStatus;
     });
@@ -245,16 +241,14 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
         const dateToCheck = q.assignedAt ?? q.createdAt;
         return isToday(new Date(dateToCheck));
     }).length;
-    // In Progress = ACTIVE status (requirements filled or follow-up logged)
-    const inProgress = queries.filter(q => q.status === "ACTIVE").length;
-    // Submitted = newly assigned, not yet worked
+
+    const inProgress = queries.filter(q => isActiveStatus(q.status as SalesQueryStatus)).length;
+
     const submitted = queries.filter(q => q.status === "SUBMITTED").length;
-    // Closed = any closed query
-    const closedCount = queries.filter(q => q.status === "CLOSED").length;
-    // Booked = closed with "BOOKED_WITH_US" reason
-    const bookedCount = queries.filter(q =>
-        q.status === "CLOSED" && q.closeReasonId === "BOOKED_WITH_US"
-    ).length;
+
+    const closedCount = queries.filter(q => isClosedStatus(q.status as SalesQueryStatus)).length;
+
+    const bookedCount = queries.filter(q => q.status === "CONVERTED").length;
     // Conversation % = closed queries that converted (booked) / total closed
     const convRate = closedCount > 0 ? Math.round((bookedCount / closedCount) * 100) : 0;
 
@@ -355,11 +349,10 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
             cell: (q) => (
                 <div className="text-xs">
                     {q.nextFollowUpAt ? (
-                        <span className={`font-medium ${
-                            new Date(q.nextFollowUpAt) < new Date()
+                        <span className={`font-medium ${new Date(q.nextFollowUpAt) < new Date()
                                 ? "text-destructive"
                                 : "text-amber-600"
-                        }`}>
+                            }`}>
                             {format(new Date(q.nextFollowUpAt), "dd MMM, hh:mm a")}
                         </span>
                     ) : (
@@ -425,16 +418,21 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
                         {
                             value: filterStatus,
                             onChange: (v) => {
-                                setFilterStatus(v as "all" | "SUBMITTED" | "ACTIVE" | "CLOSED");
+                                setFilterStatus(v as "all" | SalesQueryStatus);
                                 setPage(1);
                             },
                             placeholder: "All Statuses",
-                            width: "w-44",
+                            width: "w-52",
                             options: [
                                 { label: "All Queries", value: "all" },
-                                { label: "New / Submitted", value: "SUBMITTED" },
-                                { label: "In Progress (Active)", value: "ACTIVE" },
+                                { label: "In Progress", value: "IN_PROGRESS" },
+                                { label: "Package Sent", value: "PACKAGE_SENT" },
+                                { label: "Client Accepted", value: "CLIENT_ACCEPTED" },
+                                { label: "Client Declined", value: "CLIENT_DECLINED" },
+                                { label: "Payment Initiated", value: "PAYMENT_INITIATED" },
+                                { label: "Converted", value: "CONVERTED" },
                                 { label: "Closed", value: "CLOSED" },
+                                { label: "Rejected", value: "REJECTED" },
                             ],
                         },
                     ]}
@@ -472,9 +470,9 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
                             <TrendingUp className="h-10 w-10 text-muted-foreground" />
                             <p className="text-sm font-medium text-muted-foreground">No queries found</p>
                             <p className="text-xs text-muted-foreground">
-                                {filterStatus === "CLOSED"
+                                {filterStatus === "CLOSED" || filterStatus === "CONVERTED" || filterStatus === "REJECTED"
                                     ? "No closed queries yet"
-                                    : filterStatus === "ACTIVE"
+                                    : filterStatus === "IN_PROGRESS"
                                         ? "No active queries — you're all caught up!"
                                         : filterStatus === "SUBMITTED"
                                             ? "No new queries awaiting action"

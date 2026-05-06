@@ -17,17 +17,14 @@ import {
 import { ScrollArea } from "../../components/ui/scroll-area";
 import { Badge } from "../../components/ui/badge";
 import {
-  QueryStatusBadge,
-  QuerySourceBadge,
-  CallAttemptsDots,
-  type QueryStatus,
-  type QuerySource,
-} from "../../components/dashboard/CustomBadges";
+  QueryStatusBadge, QuerySourceBadge,  type QueryStatus,} from "../../components/dashboard/CustomBadges";
 import { AddFollowUpDialog } from "./Addfollowupdialog";
 import { CloseQueryDialog } from "./Closequerydialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { reopenSalesQuery } from "./actions";
-import type { SalesQuery, CloseReason, PackageRequirements } from "./actions";
+import type { SalesQuery } from "./actions";
+import { PackageRequirements } from "../../(marketing)/queries/actions";
+import { CloseReason } from "../../(marketing)/queries/actions";
 
 type FollowUpItem = {
     id: string;
