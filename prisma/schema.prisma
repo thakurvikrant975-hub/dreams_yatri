@@ -647,8 +647,6 @@ model destinations {
   region      regions       @relation(fields: [region_id], references: [id])
   hotels      hotels[]
   packages    packages[]
-  routeStops  route_stops[]
-
   @@index([region_id])
   @@index([slug])
 }
@@ -971,15 +969,16 @@ model package_routes {
 }
 
 model route_stops {
-  id             Int            @id @default(autoincrement())
-  route_id       Int
-  stay_days      Int
-  sort_order     Int
-  destination_id Int
-  latitude       Decimal?       @db.Decimal(10, 8)
-  longitude      Decimal?       @db.Decimal(11, 8)
-  destination    destinations   @relation(fields: [destination_id], references: [id])
-  route          package_routes @relation(fields: [route_id], references: [id])
+  id         Int            @id @default(autoincrement())
+  route_id   Int
+  place_name String
+  place_id   String?
+  address    String?
+  stay_days  Int
+  sort_order Int            @default(0)
+  latitude   Decimal?       @db.Decimal(10, 8)
+  longitude  Decimal?       @db.Decimal(11, 8)
+  route      package_routes @relation(fields: [route_id], references: [id], onDelete: Cascade)
 
   @@unique([route_id, sort_order])
   @@index([route_id])

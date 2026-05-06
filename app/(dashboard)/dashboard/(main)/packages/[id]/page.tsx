@@ -9,6 +9,7 @@ import {
 } from "../../components/ui/tabs";
 import { PackageForm } from "../components/PackageForm";
 import { ImagesTab } from "./ImagesTab";
+import { RouteBuilderTab } from "./RouteBuilderTab";
 import { getPackageForBuilder } from "../actions";
 import {
   CalendarDays, GalleryHorizontal, Images, Info, Package, Route,
@@ -130,7 +131,11 @@ export default async function PackageBuilderPage({
 
         {/* Tab 3 — Route Builder */}
         <TabsContent value="route-builder" className="pt-6">
-          <PlaceholderTab label="Route Builder — Duration & Routes" />
+          <RouteBuilderTab
+            packageId={pkg.id}
+            initialData={pkg.durations as never}
+            packageImages={pkg.images.map(img => ({ id: img.id, url: img.url, is_primary: img.is_primary }))}
+          />
         </TabsContent>
 
         {/* Tab 4 — Itinerary Builder */}

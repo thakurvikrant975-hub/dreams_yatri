@@ -26,6 +26,15 @@ export async function getPackageForBuilder(id: number) {
         orderBy: { sort_order: "asc" },
         select: { id: true, url: true, thumbnail: true, sort_order: true, is_primary: true },
       },
+      durations: {
+        orderBy: { days: "asc" },
+        include: {
+          routes: {
+            orderBy: { sort_order: "asc" },
+            include: { stops: { orderBy: { sort_order: "asc" } } },
+          },
+        },
+      },
     },
   });
 }
