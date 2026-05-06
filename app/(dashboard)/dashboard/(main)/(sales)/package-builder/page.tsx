@@ -109,13 +109,13 @@ export default function PackageBuilderPage() {
     },
     {
       header: "Budget",
-      align:  "right",
+      align:  "left",
       cell: (row) => {
         const b = row.requirements?.budget;
         if (!b) return <span className="text-muted-foreground text-sm">—</span>;
         return (
-          <div className="text-right">
-            <span className="text-sm font-semibold">
+          <div className="text-left">
+            <span className="text-xs font-semibold">
               ₹{b.min?.toLocaleString("en-IN")}–{b.max?.toLocaleString("en-IN")}
             </span>
             <span className="block text-xs text-muted-foreground">{b.type}</span>
@@ -133,7 +133,7 @@ export default function PackageBuilderPage() {
       ),
     },
     {
-      header: "Waiting",
+      header: "Waiting Time",
       align:  "center",
       cell: (row) => {
         const days = daysSince(row.updatedAt);
@@ -148,7 +148,7 @@ export default function PackageBuilderPage() {
                 : "border-emerald-300 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20"
             }
           >
-            {days}d
+            {days} days
           </Badge>
         );
       },
