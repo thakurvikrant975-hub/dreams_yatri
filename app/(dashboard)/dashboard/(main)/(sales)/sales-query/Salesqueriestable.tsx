@@ -83,20 +83,6 @@ function ActionCell({
     return (
         <TooltipProvider delayDuration={300}>
             <div className="flex items-center justify-end gap-1">
-
-                {/* View Detail */}
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <Button
-                            variant="ghost" size="icon" className="h-8 w-8"
-                            onClick={(e) => { e.stopPropagation(); onView(); }}
-                        >
-                            <Eye className="h-3.5 w-3.5" />
-                        </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>View Details</TooltipContent>
-                </Tooltip>
-
                 {!closed && (
                     <>
                         {/* Package Requirements */}

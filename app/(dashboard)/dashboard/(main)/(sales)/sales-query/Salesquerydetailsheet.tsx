@@ -22,7 +22,6 @@ import { AddFollowUpDialog } from "./Addfollowupdialog";
 import { CloseQueryDialog } from "./Closequerydialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { reopenSalesQuery } from "./actions";
-import type { SalesQuery } from "./actions";
 import { PackageRequirements } from "../../(marketing)/queries/actions";
 import { CloseReason } from "../../(marketing)/queries/actions";
 
@@ -47,6 +46,29 @@ type Props = {
     open: boolean;
     onOpenChange: (v: boolean) => void;
     onRefresh?: () => void;
+};
+
+// Remove SalesQuery from the actions import, then add:
+export type SalesQuery = {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  destination: string | null;
+  packageName: string | null;
+  groupSize: number | null;
+  travelDate: Date | null;
+  message: string | null;
+  status: string;
+  source: string;
+  createdAt: Date;
+  assignedAt: Date | null;
+  nextFollowUpAt: Date | null;
+  closeReasonId: string | null;
+  closeReasonOther: string | null;
+  closedAt: Date | null;
+  requirements: unknown;
+  _count: { queryFollowUps: number };
 };
 
 function InfoRow({
