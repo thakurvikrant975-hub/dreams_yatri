@@ -6,7 +6,7 @@ import {
     ClipboardList, Send, ThumbsUp, ThumbsDown,
     CreditCard, CheckCircle2, Lock,
 } from "lucide-react";
-import type { QueryStatus } from "./actions";
+import type { QueryStatus } from "./query-status";
 
 type StatusConfig = {
     label: string;

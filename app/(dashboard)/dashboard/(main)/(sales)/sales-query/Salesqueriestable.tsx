@@ -17,13 +17,13 @@ import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable"
 import { TableFilters } from "../../components/dashboard/Tablefilters";
 import { Stats } from "../../components/dashboard/Stats";
 import { SalesQueryStatusBadge } from "./Salesquerybadges";
-import { QuerySourceBadge } from "../../(marketing)/queries/QueryBadges";
+import { QuerySourceBadge } from "../../components/dashboard/CustomBadges";
 import { AddFollowUpDialog } from "./Addfollowupdialog";
 import { CloseQueryDialog } from "./Closequerydialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { SalesQueryDetailSheet } from "./Salesquerydetailsheet";
 import { reopenSalesQuery, getSalesQueryById } from "./actions";
-import type { PackageQueryType, CloseReason, PackageRequirements } from "./actions";
+import type { PackageQueryType, CloseReason, PackageRequirements } from "../../(marketing)/queries/actions";
 import { SalesQueryStatus } from "./query-status";
 
 // ── Types ─────────────────────────────────────────────────────────────────────

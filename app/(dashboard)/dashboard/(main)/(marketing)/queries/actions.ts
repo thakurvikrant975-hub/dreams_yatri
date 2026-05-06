@@ -1,7 +1,6 @@
-// /(marketing)/queries/action.ts
-
-
 "use server";
+
+// (marketing)/queries/actions.ts
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/app/lib/db";
@@ -15,10 +14,86 @@ export type ActionResult<T = void> =
     | { success: true; data: T; message: string }
     | { success: false; data?: never; message: string; errors?: Record<string, string[]> };
 
-export type QueryStatus = "SUBMITTED" | "IN_PROGRESS" | "VERIFIED" | "REJECTED";
-export type QuerySource = "WEBSITE_FORM" | "LANDING_PAGE" | "WHATSAPP" | "PHONE_CALL" | "REFERRAL" | "OTHER";
+export type QueryStatus =
+    | "SUBMITTED"
+    | "IN_PROGRESS"
+    | "VERIFIED"
+    | "REJECTED"
+    | "ASSIGNED"
+    | "PACKAGE_SENT"
+    | "CLIENT_ACCEPTED"
+    | "CLIENT_DECLINED"
+    | "PAYMENT_INITIATED"
+    | "CONVERTED"
+    | "CLOSED";
 
-export type package_queries = {
+export type QuerySource =
+    | "WEBSITE_FORM"
+    | "LANDING_PAGE"
+    | "WHATSAPP"
+    | "PHONE_CALL"
+    | "REFERRAL"
+    | "OTHER";
+
+export type CallOutcome =
+    | "RECEIVED"
+    | "NOT_RECEIVED"
+    | "INVALID_NUMBER"
+    | "REJECTED"
+    | "BUSY"
+    | "VOICEMAIL"
+    | "CALL_BACK_LATER";
+
+export type PackageRequirements = {
+    travellers: {
+        leadName: string;
+        adults: number;
+        children: number;
+        infants: number;
+        specialDemands?: string;
+    };
+    journey: {
+        startingPoint: string;
+        dateType: "FIXED" | "FLEXIBLE";
+        travelDate?: string;
+        flexibleFrom?: string;
+        flexibleTo?: string;
+        noOfDays: number;
+        noOfNights: number;
+        destinations: string[];
+        specialDemands?: string;
+    };
+    stay: {
+        types: string[];
+        mealTypes: string[];
+        customMeal?: string;
+        specialDemands?: string;
+    };
+    transport: {
+        required: boolean;
+        cabTypes: string[];
+        includeFlights: boolean;
+        specialDemands?: string;
+    };
+    activities: {
+        selected: string[];
+        custom: string[];
+        specialDemands?: string;
+    };
+    budget: {
+        type: "PER_PERSON" | "TOTAL";
+        min?: number;
+        max?: number;
+        currency: "INR";
+        specialDemands?: string;
+    };
+};
+
+/**
+ * Canonical query shape used by BOTH marketing and sales tables.
+ * PackageQueryType is an alias used in the sales route.
+ */
+export type PackageQuery = {
     id: string;
     name: string;
     email: string | null;
@@ -41,13 +116,23 @@ export type package_queries = {
     lastAttemptAt: Date | null;
     nextFollowUpAt: Date | null;
     assignedTo: string | null;
+    assignedToName: string | null;
     assignedAt: Date | null;
+    closedAt: Date | null;
+    closedBy: string | null;
+    closeReasonId: string | null;
+    closeReasonOther: string | null;
+    requirements: PackageRequirements | null;
     createdAt: Date;
     updatedAt: Date;
     rejectionReason: { id: string; label: string } | null;
-    _count: { notes: number };
+    _count: { notes: number; queryFollowUps: number };
     totalLeadQueries: number;
 };
+
+// Aliases for backwards compatibility
+export type PackageQueryType = PackageQuery;
+export type package_queries = PackageQuery;
 
 export type RejectionReason = {
     id: string;
@@ -61,9 +146,47 @@ export type RejectionReason = {
     _count: { queries: number };
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+export type CloseReason = {
+    id: string;
+    label: string;
+    requiresNote: boolean;
+};
 
-async function logTimeline(
+export type FollowUp = {
+    id: string;
+    packageQueryId: string;
+    note: string;
+    followUpAt: Date | null;
+    createdAt: Date;
+    createdById: string | null;
+    createdByName: string | null;
+};
+
+export type SalesMember = {
+    id: string;
+    name: string;
+    email: string;
+    activeQueries: number;
+};
+
+export type DestinationOption = { id: number; name: string; slug: string };
+export type PackageOption = { id: number; title: string; slug: string };
+
+export type ManualQueryFormState = {
+    success: boolean;
+    message: string;
+    errors?: Record<string, string[]>;
+};
+
+export type RejectionReasonFormState = {
+    success: boolean;
+    message: string;
+    errors?: Record<string, string[]>;
+};
+
+// ── Shared helpers (also used by sales/actions.ts) ────────────────────────────
+
+export async function logTimeline(
     queryId: string,
     event: string,
     actorId?: string,
@@ -81,52 +204,61 @@ async function logTimeline(
     });
 }
 
-// ── READ ──────────────────────────────────────────────────────────────────────
+export async function getCurrentActor() {
+    const session = await dashboardAuth();
+    const actor = session?.user;
+    let teamMemberId: string | null = null;
+    let teamMemberName: string | null = null;
 
-export async function getQueries(): Promise<package_queries[]> {
-    const queries = await db.package_queries.findMany({
-        include: {
-            // BEFORE: rejectionReason    AFTER: rejection_reasons
-            rejection_reasons: { select: { id: true, label: true } },
-            _count: { select: { notes: true } },
-            lead_profiles: {
-                select: {
-                    // BEFORE: leadProfile    AFTER: lead_profiles
-                    _count: { select: { package_queries: true } },
-                },
-            },
-        },
-        orderBy: { createdAt: "desc" },
-    }) as any[];
+    if (actor?.email) {
+        const tm = await db.teamMember.findUnique({
+            where: { email: actor.email },
+            select: { id: true, name: true },
+        });
+        teamMemberId = tm?.id ?? null;
+        teamMemberName = tm?.name ?? (actor as any).name ?? null;
+    }
 
-    return queries.map(q => ({
-        ...q,
-        // BEFORE: q.leadProfile?._count?.package_queries
-        // AFTER:
-        totalLeadQueries: q.lead_profiles?._count?.package_queries ?? 1,
-    })) as package_queries[];
+    return { actor, teamMemberId, teamMemberName };
 }
+
+// ── Shared READ (also used by sales/actions.ts) ───────────────────────────────
 
 export async function getQueryById(id: string) {
     return db.package_queries.findUnique({
         where: { id },
         include: {
-            // BEFORE: rejectionReason    AFTER: rejection_reasons
             rejection_reasons: true,
+            queryFollowUps: { orderBy: { createdAt: "asc" } },
             notes: { orderBy: { createdAt: "asc" } },
             timeline: { orderBy: { createdAt: "asc" } },
+            _count: { select: { queryFollowUps: true, notes: true } },
         },
     });
 }
 
+export async function getCloseReasons(): Promise<CloseReason[]> {
+    return [
+        { id: "NO_PACKAGE_NEEDED", label: "No Package Needed", requiresNote: false },
+        { id: "COST_TOO_HIGH", label: "Our Cost Is Too High", requiresNote: false },
+        { id: "NOT_SATISFIED", label: "Not Satisfied", requiresNote: false },
+        { id: "BOOKED_ELSEWHERE", label: "Booked Elsewhere", requiresNote: false },
+        { id: "TRAVEL_CANCELLED", label: "Travel Cancelled", requiresNote: false },
+        { id: "UNRESPONSIVE", label: "Unresponsive", requiresNote: false },
+        { id: "CONVERTED", label: "Booking Confirmed ✓", requiresNote: false },
+        { id: "OTHER", label: "Other", requiresNote: true },
+    ];
+}
 
-type RejectionReasonWithCount = Prisma.RejectionReasonGetPayload<{
-    include: {
-        _count: { select: { package_queries: true } };
-    };
-}>;
-
-export async function getRejectionReasons(): Promise<RejectionReasonWithCount[]> {
+export async function getRejectionReasons(): Promise<
+    Prisma.RejectionReasonGetPayload<{
+        include: {
+            _count: {
+                select: { package_queries: true };
+            };
+        };
+    }>[]
+> {
     return db.rejectionReason.findMany({
         where: { isActive: true },
         include: {
@@ -136,34 +268,9 @@ export async function getRejectionReasons(): Promise<RejectionReasonWithCount[]>
     });
 }
 
-// ── STATUS TRANSITIONS ────────────────────────────────────────────────────────
-
-const markInProgressSchema = z.object({
-    queryId: z.string().min(1),
-});
-
-
-
-
-
-
-export type SalesMember = {
-    id: string;
-    name: string;
-    email: string;
-    activeQueries: number;
-};
-
 export async function getSalesMembers(): Promise<SalesMember[]> {
-    // ✅ Removed `isActive` — TeamMember schema has no such field.
-    //    Filter is by teamRole.name only. Add your own active/status
-    //    filter below if your schema has one (check your TeamMember model).
     const members = await db.teamMember.findMany({
-        where: {
-            teamRole: {
-                name: { equals: "Sales", mode: "insensitive" },
-            },
-        },
+        where: { teamRole: { name: { equals: "Sales", mode: "insensitive" } } },
         select: { id: true, name: true, email: true },
         orderBy: { name: "asc" },
     });
@@ -171,118 +278,134 @@ export async function getSalesMembers(): Promise<SalesMember[]> {
     if (members.length === 0) return [];
 
     const ids = members.map((m) => m.id);
-
     const counts = await db.package_queries.groupBy({
         by: ["assignedTo"],
-        where: {
-            assignedTo: { in: ids },
-            status: { in: ["SUBMITTED", "IN_PROGRESS"] },
-        },
+        where: { assignedTo: { in: ids }, status: { in: ["SUBMITTED", "IN_PROGRESS"] } },
         _count: { id: true },
     });
 
-    const countMap = Object.fromEntries(
-        counts.map((c) => [c.assignedTo!, c._count.id]),
-    );
-
-    return members.map((m) => ({
-        ...m,
-        activeQueries: countMap[m.id] ?? 0,
-    }));
+    const countMap = Object.fromEntries(counts.map((c) => [c.assignedTo!, c._count.id]));
+    return members.map((m) => ({ ...m, activeQueries: countMap[m.id] ?? 0 }));
 }
 
+export async function getDestinationsForQuery(): Promise<DestinationOption[]> {
+    return db.destinations.findMany({
+        where: { is_active: true },
+        select: { id: true, name: true, slug: true },
+        orderBy: { name: "asc" },
+    });
+}
+
+export async function getPackagesByDestination(destinationId: number): Promise<PackageOption[]> {
+    const id = Number(destinationId);
+    if (!id || isNaN(id)) return [];
+    return db.packages.findMany({
+        where: { destination_id: id, is_active: true },
+        select: { id: true, title: true, slug: true },
+        orderBy: { title: "asc" },
+    });
+}
+
+/**
+ * Shared assign — used by both marketing (hand-off) and sales (reassign).
+ * setStatus=true  → flips to ASSIGNED (or back to VERIFIED if unassigned)
+ * setStatus=false → leaves status untouched (sales reassign mid-funnel)
+ */
 export async function assignQuery(
     queryId: string,
     memberId: string | null,
+    setStatus = true,
 ): Promise<ActionResult> {
     try {
-        const session = await dashboardAuth();
-
-        // 🔑 Map session user → team member (IMPORTANT)
-        const actorMember = await db.teamMember.findUnique({
-            where: { email: session?.user?.email ?? "" },
-            select: { id: true, name: true },
-        });
+        const { teamMemberId: actorId, teamMemberName: actorName } = await getCurrentActor();
 
         let assigneeName: string | null = null;
-
-        // ✅ Validate & fetch assignee
         if (memberId) {
             const member = await db.teamMember.findUnique({
                 where: { id: memberId },
                 select: { id: true, name: true },
             });
-
-            if (!member) {
-                return {
-                    success: false,
-                    message: "Invalid team member selected",
-                };
-            }
-
+            if (!member) return { success: false, message: "Invalid team member selected" };
             assigneeName = member.name;
         }
 
-        // ✅ Update query assignment
         await db.package_queries.update({
             where: { id: queryId },
             data: {
-                assignedTo: memberId ?? null,       // MUST be teamMember.id
+                assignedTo: memberId ?? null,
                 assignedAt: memberId ? new Date() : null,
+                assignedToName: assigneeName,
+                ...(setStatus
+                    ? { status: memberId ? ("ASSIGNED" as const) : ("VERIFIED" as const) }
+                    : {}),
             },
         });
 
-        // ✅ Timeline log (consistent actor)
         await db.queryTimeline.create({
             data: {
                 queryId,
                 event: memberId
                     ? `👤 Assigned to ${assigneeName ?? "team member"}`
                     : `👤 Assignment removed`,
-                actorId: actorMember?.id ?? null,      // ✅ NOT session id
-                actorName: actorMember?.name ?? null,
-                meta: {
-                    assignedTo: memberId,
-                    assigneeName,
-                } as Prisma.InputJsonValue,
+                actorId: actorId ?? null,
+                actorName: actorName ?? null,
+                meta: { assignedTo: memberId, assigneeName } as Prisma.InputJsonValue,
             },
         });
 
+        revalidatePath("/dashboard/queries");
         revalidatePath("/dashboard/sales-query");
-
         return {
             success: true,
             data: undefined,
-            message: memberId
-                ? `Assigned to ${assigneeName}`
-                : "Assignment removed",
+            message: memberId ? `Assigned to ${assigneeName}` : "Assignment removed",
         };
     } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         console.error("[assignQuery] FAILED:", msg);
-
-        return {
-            success: false,
-            message: `Failed to assign query: ${msg}`,
-        };
+        return { success: false, message: `Failed to assign query: ${msg}` };
     }
 }
 
+// ── Marketing READ ────────────────────────────────────────────────────────────
 
+export async function getQueries(): Promise<PackageQuery[]> {
+    const queries = await db.package_queries.findMany({
+        include: {
+            rejection_reasons: { select: { id: true, label: true } },
+            _count: { select: { notes: true, queryFollowUps: true } },
+            lead_profiles: {
+                select: {
+                    _count: { select: { package_queries: true } },
+                },
+            },
+        },
+        orderBy: { createdAt: "desc" },
+    }) as any[];
 
+    return queries.map((q) => ({
+        ...q,
+        rejectionReason: q.rejection_reasons ?? null,
+        totalLeadQueries: q.lead_profiles?._count?.package_queries ?? 1,
+    })) as PackageQuery[];
+}
 
+// ── Status transitions ────────────────────────────────────────────────────────
 
 export async function markInProgress(queryId: string): Promise<ActionResult> {
     try {
-        const session = await dashboardAuth();
-        const actor = session?.user;
+        const { actor } = await getCurrentActor();
 
         await db.package_queries.update({
             where: { id: queryId },
-            data: { status: "IN_PROGRESS", callAttempts: { increment: 1 }, lastAttemptAt: new Date() },
+            data: {
+                status: "IN_PROGRESS",
+                callAttempts: { increment: 1 },
+                lastAttemptAt: new Date(),
+            },
         });
 
-        await logTimeline(queryId, "Marked as In Progress — call attempted", actor?.id, actor?.name ?? undefined);
+        await logTimeline(queryId, "📞 Marked as In Progress — call attempted", actor?.id, actor?.name ?? undefined);
         revalidatePath("/dashboard/queries");
         return { success: true, data: undefined, message: "Query moved to In Progress" };
     } catch {
@@ -290,12 +413,9 @@ export async function markInProgress(queryId: string): Promise<ActionResult> {
     }
 }
 
-// ── VERIFY ────────────────────────────────────────────────────────────────────
-
 export async function verifyQuery(queryId: string): Promise<ActionResult> {
     try {
-        const session = await dashboardAuth();
-        const actor = session?.user;
+        const { actor } = await getCurrentActor();
 
         await db.package_queries.update({
             where: { id: queryId },
@@ -307,7 +427,7 @@ export async function verifyQuery(queryId: string): Promise<ActionResult> {
             },
         });
 
-        await logTimeline(queryId, "Query verified — lead confirmed interested", actor?.id, actor?.name ?? undefined);
+        await logTimeline(queryId, "✅ Lead Verified — confirmed interest", actor?.id, actor?.name ?? undefined);
         revalidatePath("/dashboard/queries");
         return { success: true, data: undefined, message: "Query verified successfully" };
     } catch {
@@ -315,37 +435,26 @@ export async function verifyQuery(queryId: string): Promise<ActionResult> {
     }
 }
 
-// ── REJECT ────────────────────────────────────────────────────────────────────
+// ── Reject ────────────────────────────────────────────────────────────────────
 
 const rejectSchema = z.object({
     rejectionReasonId: z.string().min(1, "Select a rejection reason"),
     rejectionNote: z.string().max(500).optional(),
 });
 
-export async function rejectQuery(
-    queryId: string,
-    formData: FormData,
-): Promise<ActionResult> {
+export async function rejectQuery(queryId: string, formData: FormData): Promise<ActionResult> {
     const parsed = rejectSchema.safeParse({
         rejectionReasonId: formData.get("rejectionReasonId"),
         rejectionNote: formData.get("rejectionNote") || undefined,
     });
 
     if (!parsed.success) {
-        return {
-            success: false,
-            message: "Validation failed",
-            errors: parsed.error.flatten().fieldErrors as Record<string, string[]>,
-        };
+        return { success: false, message: "Validation failed", errors: parsed.error.flatten().fieldErrors as Record<string, string[]> };
     }
 
     try {
-        const session = await dashboardAuth();
-        const actor = session?.user;
-
-        const reason = await db.rejectionReason.findUnique({
-            where: { id: parsed.data.rejectionReasonId },
-        });
+        const { actor } = await getCurrentActor();
+        const reason = await db.rejectionReason.findUnique({ where: { id: parsed.data.rejectionReasonId } });
 
         await db.package_queries.update({
             where: { id: queryId },
@@ -359,10 +468,10 @@ export async function rejectQuery(
 
         await logTimeline(
             queryId,
-            `Query rejected: ${reason?.label ?? "Unknown reason"}`,
+            `❌ Query Rejected — ${reason?.label ?? "Unknown reason"}${parsed.data.rejectionNote ? ` · Note: ${parsed.data.rejectionNote}` : ""}`,
             actor?.id,
             actor?.name ?? undefined,
-            { note: parsed.data.rejectionNote },
+            { reason: reason?.label, note: parsed.data.rejectionNote },
         );
 
         revalidatePath("/dashboard/queries");
@@ -372,28 +481,7 @@ export async function rejectQuery(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// REPLACE your existing logCallAttempt function in actions.ts with this:
-// ─────────────────────────────────────────────────────────────────────────────
-
-export type CallOutcome =
-    | "RECEIVED"
-    | "NOT_RECEIVED"
-    | "INVALID_NUMBER"
-    | "REJECTED"
-    | "BUSY"
-    | "VOICEMAIL"
-    | "CALL_BACK_LATER";
-
-const CALL_OUTCOME_LABELS: Record<CallOutcome, string> = {
-    RECEIVED: "Call Received",
-    NOT_RECEIVED: "Not Received",
-    INVALID_NUMBER: "Invalid Number",
-    REJECTED: "Call Rejected by Customer",
-    BUSY: "Line Busy",
-    VOICEMAIL: "Went to Voicemail",
-    CALL_BACK_LATER: "Customer Asked to Call Back Later",
-};
+// ── Log call attempt ──────────────────────────────────────────────────────────
 
 export async function logCallAttempt(
     queryId: string,
@@ -401,9 +489,18 @@ export async function logCallAttempt(
     outcome?: CallOutcome,
     response?: string,
 ): Promise<ActionResult> {
+    const CALL_OUTCOME_LABELS: Record<CallOutcome, string> = {
+        RECEIVED: "Call Received",
+        NOT_RECEIVED: "Not Received",
+        INVALID_NUMBER: "Invalid Number",
+        REJECTED: "Call Rejected by Customer",
+        BUSY: "Line Busy",
+        VOICEMAIL: "Went to Voicemail",
+        CALL_BACK_LATER: "Customer Asked to Call Back Later",
+    };
+
     try {
-        const session = await dashboardAuth();
-        const actor = session?.user;
+        const { actor } = await getCurrentActor();
 
         await db.package_queries.update({
             where: { id: queryId },
@@ -415,17 +512,14 @@ export async function logCallAttempt(
             },
         });
 
+        const updated = await db.package_queries.findUnique({ where: { id: queryId }, select: { callAttempts: true } });
         const outcomeLabel = outcome ? CALL_OUTCOME_LABELS[outcome] : "Call attempted";
-        const eventParts = [`📞 Call Attempt #${(await db.package_queries.findUnique({ where: { id: queryId }, select: { callAttempts: true } }))?.callAttempts ?? "?"} — ${outcomeLabel}`];
-        if (response) eventParts.push(`Note: ${response}`);
+        const parts = [`📞 Call Attempt #${updated?.callAttempts ?? "?"} — ${outcomeLabel}`];
+        if (response) parts.push(`Note: ${response}`);
 
-        await logTimeline(
-            queryId,
-            eventParts.join(" · "),
-            actor?.id,
-            actor?.name ?? undefined,
-            { outcome, response, nextFollowUp: nextFollowUpAt?.toISOString() },
-        );
+        await logTimeline(queryId, parts.join(" · "), actor?.id, actor?.name ?? undefined, {
+            outcome, response, nextFollowUp: nextFollowUpAt?.toISOString(),
+        });
 
         revalidatePath("/dashboard/queries");
         return { success: true, data: undefined, message: "Call attempt logged" };
@@ -434,70 +528,29 @@ export async function logCallAttempt(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ALSO UPDATE your rejectQuery to log a rich timeline event.
-// Replace the logTimeline call inside rejectQuery with:
-// ─────────────────────────────────────────────────────────────────────────────
-
-// await logTimeline(
-//     queryId,
-//     `❌ Query Rejected — ${reason?.label ?? "Unknown reason"}${parsed.data.rejectionNote ? ` · Note: ${parsed.data.rejectionNote}` : ""}`,
-//     actor?.id,
-//     actor?.name ?? undefined,
-//     { reason: reason?.label, note: parsed.data.rejectionNote },
-// );
-
-// ─────────────────────────────────────────────────────────────────────────────
-// AND UPDATE verifyQuery logTimeline call:
-// ─────────────────────────────────────────────────────────────────────────────
-
-// await logTimeline(
-//     queryId,
-//     `✅ Lead Verified — confirmed interest`,
-//     actor?.id,
-//     actor?.name ?? undefined,
-// );
-
-// ─────────────────────────────────────────────────────────────────────────────
-// AND UPDATE addNote logTimeline call:
-// ─────────────────────────────────────────────────────────────────────────────
-
-// await logTimeline(
-//     queryId,
-//     `📝 Note added`,
-//     actor?.id,
-//     actor?.name ?? undefined,
-//     { preview: parsed.data.content.slice(0, 80) },
-// );
-
-// ── NOTES ─────────────────────────────────────────────────────────────────────
+// ── Notes ─────────────────────────────────────────────────────────────────────
 
 const noteSchema = z.object({
     content: z.string().min(1, "Note cannot be empty").max(1000),
 });
 
-export async function addNote(
-    queryId: string,
-    formData: FormData,
-): Promise<ActionResult> {
+export async function addNote(queryId: string, formData: FormData): Promise<ActionResult> {
     const parsed = noteSchema.safeParse({ content: formData.get("content") });
     if (!parsed.success) {
         return { success: false, message: "Note is required", errors: parsed.error.flatten().fieldErrors as Record<string, string[]> };
     }
 
     try {
-        const session = await dashboardAuth();
-        const actor = session?.user;
+        const { actor } = await getCurrentActor();
 
         await db.queryNote.create({
-            data: {
-                queryId,
-                authorId: actor?.id ?? "system",
-                content: parsed.data.content,
-            },
+            data: { queryId, authorId: actor?.id ?? "system", content: parsed.data.content },
         });
 
-        await logTimeline(queryId, "Note added", actor?.id, actor?.name ?? undefined);
+        await logTimeline(queryId, `📝 Note added`, actor?.id, actor?.name ?? undefined, {
+            preview: parsed.data.content.slice(0, 80),
+        });
+
         revalidatePath("/dashboard/queries");
         return { success: true, data: undefined, message: "Note added" };
     } catch {
@@ -505,13 +558,7 @@ export async function addNote(
     }
 }
 
-// ── REJECTION REASONS CRUD ───────────────────────────────────────────────────
-
-export type RejectionReasonFormState = {
-    success: boolean;
-    message: string;
-    errors?: Record<string, string[]>;
-};
+// ── Rejection reasons CRUD ────────────────────────────────────────────────────
 
 const reasonSchema = z.object({
     label: z.string().min(1, "Label is required").max(100),
@@ -529,7 +576,6 @@ export async function createRejectionReason(
     if (!parsed.success) {
         return { success: false, message: "Validation failed", errors: parsed.error.flatten().fieldErrors as Record<string, string[]> };
     }
-
     try {
         await db.rejectionReason.create({ data: parsed.data });
         revalidatePath("/dashboard/queries");
@@ -544,7 +590,6 @@ export async function deleteRejectionReason(id: string): Promise<ActionResult> {
     try {
         const reason = await db.rejectionReason.findUnique({ where: { id } });
         if (reason?.isSystem) return { success: false, message: "System reasons cannot be deleted" };
-
         await db.rejectionReason.delete({ where: { id } });
         revalidatePath("/dashboard/queries");
         revalidatePath("/dashboard/queries/rejection-reasons");
@@ -564,23 +609,14 @@ export async function toggleRejectionReason(id: string, isActive: boolean): Prom
     }
 }
 
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ADD THIS TO YOUR EXISTING actions.ts
-// ─────────────────────────────────────────────────────────────────────────────
-
-export type ManualQueryFormState = {
-    success: boolean;
-    message: string;
-    errors?: Record<string, string[]>;
-};
+// ── Create / update query (manual entry) ──────────────────────────────────────
 
 const manualQuerySchema = z.object({
-    name: z.string(),
+    name: z.string().min(1, "Name is required"),
     phone: z.string().min(6, "Valid phone number required").max(20),
     countryCode: z.string().default("IN"),
     email: z.string().email("Invalid email").optional().or(z.literal("")),
-    destination: z.string().min(1, "Destination is required."),
+    destination: z.string().min(1, "Destination is required"),
     packageName: z.string().optional(),
     groupSize: z.coerce.number().int().min(1).max(500).optional(),
     travelDate: z.string().optional(),
@@ -592,11 +628,10 @@ export async function createManualQuery(
     _prev: ManualQueryFormState,
     formData: FormData,
 ): Promise<ManualQueryFormState> {
-    const raw = {
+    const parsed = manualQuerySchema.safeParse({
         name: formData.get("name"),
         phone: formData.get("phone"),
-        // countryCode: parsed.data.countryCode,
-        countryCode: formData.get("countryCode") as string || "IN",
+        countryCode: (formData.get("countryCode") as string) || "IN",
         email: formData.get("email") || undefined,
         destination: formData.get("destination") as string,
         packageName: formData.get("packageName") || undefined,
@@ -604,49 +639,28 @@ export async function createManualQuery(
         travelDate: formData.get("travelDate") || undefined,
         message: formData.get("message") || undefined,
         source: formData.get("source") || "PHONE_CALL",
-    };
+    });
 
-    const parsed = manualQuerySchema.safeParse(raw);
     if (!parsed.success) {
-        return {
-            success: false,
-            message: "Validation failed",
-            errors: parsed.error.flatten().fieldErrors as Record<string, string[]>,
-        };
+        return { success: false, message: "Validation failed", errors: parsed.error.flatten().fieldErrors as Record<string, string[]> };
     }
 
     try {
-        const session = await dashboardAuth();
-        const actor = session?.user;
-
-        // ── Normalize phone & duplicate check ──────────────────────────────
+        const { actor } = await getCurrentActor();
         const normalizedPhone = parsed.data.phone.replace(/[\s\-().+]/g, "");
 
         const recentDuplicate = await db.package_queries.findFirst({
-            where: {
-                phone: parsed.data.phone,
-                createdAt: { gte: new Date(Date.now() - 1000 * 60 * 5) },
-            },
+            where: { phone: parsed.data.phone, createdAt: { gte: new Date(Date.now() - 1000 * 60 * 5) } },
         });
         if (recentDuplicate) {
-            return { success: false, message: "A query from this number was submitted in the last 5 minutes. Please wait before submitting again." };
+            return { success: false, message: "A query from this number was submitted in the last 5 minutes." };
         }
 
         const profile = await db.leadProfile.upsert({
             where: { phone: normalizedPhone },
-            update: {
-                name: parsed.data.name,
-                email: parsed.data.email || undefined,
-                lastSeenAt: new Date(),
-                totalQueries: { increment: 1 },
-            },
-            create: {
-                phone: normalizedPhone,
-                name: parsed.data.name,
-                email: parsed.data.email || null,
-            },
+            update: { name: parsed.data.name, email: parsed.data.email || undefined, lastSeenAt: new Date(), totalQueries: { increment: 1 } },
+            create: { phone: normalizedPhone, name: parsed.data.name, email: parsed.data.email || null },
         });
-        // ───────────────────────────────────────────────────────────────────
 
         const query = await db.package_queries.create({
             data: {
@@ -661,17 +675,11 @@ export async function createManualQuery(
                 source: parsed.data.source,
                 status: "VERIFIED",
                 verified: false,
-                leadProfileId: profile.id,   // ← link to profile
+                leadProfileId: profile.id,
             },
         });
 
-        await logTimeline(
-            query.id,
-            `Query manually created by ${actor?.name ?? "team member"}`,
-            actor?.id,
-            actor?.name ?? undefined,
-            { source: parsed.data.source },
-        );
+        await logTimeline(query.id, `Query manually created by ${actor?.name ?? "team member"}`, actor?.id, actor?.name ?? undefined, { source: parsed.data.source });
 
         revalidatePath("/dashboard/queries");
         return { success: true, message: `Query for ${parsed.data.name} saved successfully` };
@@ -693,14 +701,11 @@ const updateQuerySchema = z.object({
     source: z.enum(["WEBSITE_FORM", "LANDING_PAGE", "WHATSAPP", "PHONE_CALL", "REFERRAL", "OTHER"]),
 });
 
-export async function updateQuery(
-    queryId: string,
-    formData: FormData,
-): Promise<ActionResult> {
-    const raw = {
+export async function updateQuery(queryId: string, formData: FormData): Promise<ActionResult> {
+    const parsed = updateQuerySchema.safeParse({
         name: formData.get("name"),
         phone: formData.get("phone"),
-        countryCode: formData.get("countryCode") as string || "IN",
+        countryCode: (formData.get("countryCode") as string) || "IN",
         email: formData.get("email") || undefined,
         destination: formData.get("destination") as string,
         packageName: formData.get("packageName") || undefined,
@@ -708,38 +713,21 @@ export async function updateQuery(
         travelDate: formData.get("travelDate") || undefined,
         message: formData.get("message") || undefined,
         source: formData.get("source"),
-    };
+    });
 
-    const parsed = updateQuerySchema.safeParse(raw);
     if (!parsed.success) {
-        return {
-            success: false,
-            message: "Validation failed",
-            errors: parsed.error.flatten().fieldErrors as Record<string, string[]>,
-        };
+        return { success: false, message: "Validation failed", errors: parsed.error.flatten().fieldErrors as Record<string, string[]> };
     }
 
     try {
-        const session = await dashboardAuth();
-        const actor = session?.user;
-
-        // ── Sync lead profile ──────────────────────────────────────────────
+        const { actor } = await getCurrentActor();
         const normalizedPhone = parsed.data.phone.replace(/[\s\-().+]/g, "");
 
         await db.leadProfile.upsert({
             where: { phone: normalizedPhone },
-            update: {
-                name: parsed.data.name,
-                email: parsed.data.email || undefined,
-                lastSeenAt: new Date(),
-            },
-            create: {
-                phone: normalizedPhone,
-                name: parsed.data.name,
-                email: parsed.data.email || null,
-            },
+            update: { name: parsed.data.name, email: parsed.data.email || undefined, lastSeenAt: new Date() },
+            create: { phone: normalizedPhone, name: parsed.data.name, email: parsed.data.email || null },
         });
-        // ───────────────────────────────────────────────────────────────────
 
         await db.package_queries.update({
             where: { id: queryId },
@@ -757,38 +745,10 @@ export async function updateQuery(
             },
         });
 
-        await logTimeline(
-            queryId,
-            `✏️ Query details updated`,
-            actor?.id,
-            actor?.name ?? undefined,
-        );
-
+        await logTimeline(queryId, `✏️ Query details updated`, actor?.id, actor?.name ?? undefined);
         revalidatePath("/dashboard/queries");
         return { success: true, data: undefined, message: "Query updated successfully" };
     } catch {
         return { success: false, message: "Failed to update query" };
     }
-}
-
-export type DestinationOption = { id: number; name: string; slug: string };
-export type PackageOption = { id: number; title: string; slug: string };
-
-export async function getDestinationsForQuery(): Promise<DestinationOption[]> {
-    return db.destinations.findMany({
-        where: { is_active: true },
-        select: { id: true, name: true, slug: true },
-        orderBy: { name: "asc" },
-    });
-}
-
-export async function getPackagesByDestination(destinationId: number): Promise<PackageOption[]> {
-    const id = Number(destinationId);
-    if (!id || isNaN(id)) return [];
-
-    return db.packages.findMany({
-        where: { destination_id: id, is_active: true },
-        select: { id: true, title: true, slug: true },
-        orderBy: { title: "asc" },
-    });
 }

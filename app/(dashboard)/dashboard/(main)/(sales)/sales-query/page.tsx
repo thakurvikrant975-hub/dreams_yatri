@@ -7,7 +7,8 @@ import {
     Breadcrumb, BreadcrumbItem, BreadcrumbLink,
     BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "../../components/ui/breadcrumb";
-import { getSalesQueries, getCloseReasons, PackageQueryType } from "./actions";
+import { getSalesQueries, getCloseReasons } from "./actions";
+import { PackageQueryType } from "../../(marketing)/queries/actions";
 import { SalesQueriesTable } from "./Salesqueriestable";
 
 function TableSkeleton() {
