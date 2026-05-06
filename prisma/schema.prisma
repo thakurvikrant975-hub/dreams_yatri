@@ -1185,7 +1185,7 @@ model package_queries {
   booking           Booking?
   lead_profiles     LeadProfile?     @relation(fields: [leadProfileId], references: [id])
   rejection_reasons RejectionReason? @relation(fields: [rejectionReasonId], references: [id])
-  custom_packages   custom_packages?   // ← add this line
+  custom_packages   custom_packages? // ← add this line
   notes             QueryNote[]
   timeline          QueryTimeline[]
 
@@ -1439,8 +1439,6 @@ enum GallerySourceType {
   ROOM
 }
 
-
-
 enum CustomPackageStatus {
   DRAFT
   READY
@@ -1450,33 +1448,33 @@ enum CustomPackageStatus {
 }
 
 model custom_packages {
-  id              String               @id @default(cuid())
-  queryId         String               @unique
-  title           String
-  destination     String
-  startingPoint   String?
-  totalDays       Int
-  totalNights     Int
-  travelDate      DateTime?
-  adults          Int                  @default(1)
-  children        Int                  @default(0)
-  infants         Int                  @default(0)
-  pricePerPerson  Float?
-  totalPrice      Float?
-  currency        String               @default("INR")
-  inclusions      String[]
-  exclusions      String[]
-  termsNotes      String?
-  status          CustomPackageStatus  @default(DRAFT)
-  builtBy         String
-  builtByName     String?
-  sentAt          DateTime?
-  pdfUrl          String?
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
+  id             String              @id @default(cuid())
+  queryId        String              @unique
+  title          String
+  destination    String
+  startingPoint  String?
+  totalDays      Int
+  totalNights    Int
+  travelDate     DateTime?
+  adults         Int                 @default(1)
+  children       Int                 @default(0)
+  infants        Int                 @default(0)
+  pricePerPerson Float?
+  totalPrice     Float?
+  currency       String              @default("INR")
+  inclusions     String[]
+  exclusions     String[]
+  termsNotes     String?
+  status         CustomPackageStatus @default(DRAFT)
+  builtBy        String
+  builtByName    String?
+  sentAt         DateTime?
+  pdfUrl         String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
 
-  query           package_queries      @relation(fields: [queryId], references: [id])
-  itineraries     custom_itineraries[]
+  query       package_queries      @relation(fields: [queryId], references: [id])
+  itineraries custom_itineraries[]
 
   @@index([queryId])
   @@index([builtBy])
@@ -1484,20 +1482,20 @@ model custom_packages {
 }
 
 model custom_itineraries {
-  id               String          @id @default(cuid())
-  customPackageId  String
-  day              Int
-  title            String
-  description      String?
-  activities       String[]
-  meals            String[]
-  accommodation    String?
-  transport        String?
-  notes            String?
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  id              String   @id @default(cuid())
+  customPackageId String
+  day             Int
+  title           String
+  description     String?
+  activities      String[]
+  meals           String[]
+  accommodation   String?
+  transport       String?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  package          custom_packages @relation(fields: [customPackageId], references: [id], onDelete: Cascade)
+  package custom_packages @relation(fields: [customPackageId], references: [id], onDelete: Cascade)
 
   @@index([customPackageId])
   @@index([day])
