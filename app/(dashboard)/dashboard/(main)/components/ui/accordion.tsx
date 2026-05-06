@@ -6,15 +6,20 @@ import { Accordion as AccordionPrimitive } from "radix-ui"
 import { cn } from "@/app/lib/utils"
 import { CaretDownIcon, CaretUpIcon } from "@phosphor-icons/react"
 
+
 function Accordion({
   className,
   ...props
 }: React.ComponentProps<typeof AccordionPrimitive.Root>) {
+const id = React.useId();
+
   return (
     <AccordionPrimitive.Root
       data-slot="accordion"
       className={cn("flex w-full flex-col", className)}
       {...props}
+      id={id}
+
     />
   )
 }

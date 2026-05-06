@@ -1,6 +1,6 @@
 // app/dashboard/sales-query/my-followups/page.tsx
 import { Suspense } from "react";
-import { CalendarClock, Clock, CheckCircle2 } from "lucide-react";
+import { CalendarClock, Clock, AlertCircle, CalendarDays } from "lucide-react";
 import { Skeleton } from "../../components/ui/skeleton";
 import {
     Breadcrumb, BreadcrumbItem, BreadcrumbLink,
@@ -8,10 +8,78 @@ import {
 } from "../../components/ui/breadcrumb";
 import { getMyFollowUps } from "../sales-query/actions";
 import { MyFollowUpsTable } from "./Myfollowupstable";
+import { Stats } from "../../components/dashboard/Stats";
+import { isPast, isToday } from "date-fns";
+import type { Metadata } from "next";
 
-async function MyFollowUpsData() {
+export const metadata: Metadata = {
+    title: "Follow ups - Dashboard",
+    description: "Follow ups page",
+    robots: {
+        index: false,
+        follow: false,
+        nocache: true,
+        googleBot: { index: false, follow: false },
+    },
+};
+
+async function MyFollowUpsContent() {
     const followUps = await getMyFollowUps();
-    return <MyFollowUpsTable followUps={followUps} />;
+
+    const overdueCount  = followUps.filter(fu =>
+        fu.followUpAt && isPast(new Date(fu.followUpAt)) && !isToday(new Date(fu.followUpAt))
+    ).length;
+    const todayCount    = followUps.filter(fu =>
+        fu.followUpAt && isToday(new Date(fu.followUpAt))
+    ).length;
+    const upcomingCount = followUps.filter(fu => {
+        if (!fu.followUpAt) return false;
+        const d = new Date(fu.followUpAt);
+        return d > new Date() && !isToday(d);
+    }).length;
+
+    return (
+        <>
+            <Stats
+                cols={4}
+                rows={[
+                    {
+                        label: "Total Follow-Ups",
+                        value: followUps.length,
+                        icon: CalendarDays,
+                        iconColor: "text-primary",
+                        iconBg: "bg-primary/10",
+                        accent: "primary",
+                    },
+                    {
+                        label: "Overdue",
+                        value: overdueCount,
+                        icon: AlertCircle,
+                        iconColor: "text-destructive",
+                        iconBg: "bg-destructive/10",
+                        accent: overdueCount > 0 ? "destructive" : "default",
+                    },
+                    {
+                        label: "Due Today",
+                        value: todayCount,
+                        icon: Clock,
+                        iconColor: "text-amber-600",
+                        iconBg: "bg-amber-500/10",
+                        accent: todayCount > 0 ? "warning" : "default",
+                    },
+                    {
+                        label: "Upcoming",
+                        value: upcomingCount,
+                        icon: CalendarClock,
+                        iconColor: "text-emerald-600",
+                        iconBg: "bg-emerald-500/10",
+                        accent: "success",
+                    },
+                ]}
+            />
+            <MyFollowUpsTable followUps={followUps} />
+        </>
+    );
 }
 
 export default function MyFollowUpsPage() {
@@ -33,34 +101,47 @@ export default function MyFollowUpsPage() {
                 </BreadcrumbList>
             </Breadcrumb>
 
-            <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
-                        <CalendarClock className="h-5 w-5 text-amber-600" />
-                    </div>
-                    <div>
-                        <h1 className="text-xl font-semibold">My Follow-Ups</h1>
-                        <p className="text-sm text-muted-foreground">
-                            All follow-ups logged by you — only visible to you
-                        </p>
-                    </div>
+            <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                    <CalendarClock className="h-5 w-5 text-amber-600" />
+                </div>
+                <div>
+                    <h1 className="text-xl font-semibold">My Follow-Ups</h1>
+                    <p className="text-sm text-muted-foreground">
+                        All follow-ups logged by you — only visible to you
+                    </p>
                 </div>
             </div>
 
             <Suspense
                 fallback={
-                    <div className="space-y-3">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                            <div key={i} className="rounded-xl border bg-card p-4">
-                                <Skeleton className="h-4 w-48 mb-2" />
-                                <Skeleton className="h-3 w-full mb-1" />
-                                <Skeleton className="h-3 w-3/4" />
-                            </div>
-                        ))}
+                    <div className="space-y-4">
+                        {/* Stats skeleton */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            {Array.from({ length: 4 }).map((_, i) => (
+                                <div key={i} className="rounded-xl border bg-muted/40 px-4 py-3.5 flex items-center gap-3">
+                                    <Skeleton className="h-9 w-9 rounded-lg shrink-0" />
+                                    <div className="space-y-1.5">
+                                        <Skeleton className="h-2.5 w-20" />
+                                        <Skeleton className="h-6 w-10" />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        {/* Cards skeleton */}
+                        <div className="space-y-2.5">
+                            {Array.from({ length: 4 }).map((_, i) => (
+                                <div key={i} className="rounded-xl border bg-card p-4">
+                                    <Skeleton className="h-4 w-48 mb-2" />
+                                    <Skeleton className="h-3 w-full mb-1" />
+                                    <Skeleton className="h-3 w-3/4" />
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 }
             >
-                <MyFollowUpsData />
+                <MyFollowUpsContent />
             </Suspense>
         </div>
     );

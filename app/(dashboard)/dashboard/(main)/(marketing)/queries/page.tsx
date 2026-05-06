@@ -11,6 +11,21 @@ import {
 import { getQueries, getRejectionReasons } from "./actions";
 import { QueriesTable } from "./Queriestable";
 import { AddQueryDialog } from "./Addquerydialog";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+    title: "All Queries - Dashboard",
+    description: "Admin dashboard for managing all queries",
+    robots: {
+        index: false,
+        follow: false,
+        nocache: true,
+        googleBot: {
+            index: false,
+            follow: false,
+        },
+    },
+};
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 

@@ -10,6 +10,21 @@ import {
 import { getSalesQueries, getCloseReasons } from "./actions";
 import { PackageQueryType } from "../../(marketing)/queries/actions";
 import { SalesQueriesTable } from "./Salesqueriestable";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+    title: "Sales Queries - Dashboard",
+    description: "Admin dashboard for managing sales queries",
+    robots: {
+        index: false,
+        follow: false,
+        nocache: true,
+        googleBot: {
+            index: false,
+            follow: false,
+        },
+    },
+};
 
 function TableSkeleton() {
     return (
