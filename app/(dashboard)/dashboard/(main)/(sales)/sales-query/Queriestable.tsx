@@ -1,3 +1,6 @@
+// /(sales)/sales-query/Queriestable.tsx
+
+
 "use client";
 
 import { useState, useTransition } from "react";

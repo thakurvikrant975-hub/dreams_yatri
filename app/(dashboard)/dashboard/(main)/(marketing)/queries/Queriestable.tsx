@@ -1,3 +1,6 @@
+// /(marketing)/queries/Queriestable.tsx
+
+
 "use client";
 
 import { useState, useTransition } from "react";
@@ -16,7 +19,11 @@ import {
 import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable";
 import { TableFilters } from "../../components/dashboard/Tablefilters";
 import { Stats } from "../../components/dashboard/Stats";
-import { QueryStatusBadge, QuerySourceBadge, CallAttemptsDots } from "./QueryBadges";
+import {
+  QueryStatusBadge,
+  QuerySourceBadge,
+  CallAttemptsDots,
+} from "../../components/dashboard/CustomBadges";
 import { RejectQueryDialog } from "./Rejectquerydialog";
 import { QueryDetailSheet } from "./Querydetailsheet";
 import { verifyQuery, markInProgress, getQueryById } from "./actions";
@@ -40,10 +47,17 @@ type Props = {
 const PAGE_SIZE = 10;
 
 const STATUS_FILTER_OPTIONS = [
-    { label: "Submitted",   value: "SUBMITTED" },
-    { label: "In Progress", value: "IN_PROGRESS" },
-    { label: "Verified",    value: "VERIFIED" },
-    { label: "Rejected",    value: "REJECTED" },
+  { label: "Submitted",         value: "SUBMITTED" },
+  { label: "Verified",          value: "VERIFIED" },
+  { label: "Rejected",          value: "REJECTED" },
+  { label: "Assigned",          value: "ASSIGNED" },
+  { label: "In Progress",       value: "IN_PROGRESS" },
+  { label: "Package Sent",      value: "PACKAGE_SENT" },
+  { label: "Client Accepted",   value: "CLIENT_ACCEPTED" },
+  { label: "Client Declined",   value: "CLIENT_DECLINED" },
+  { label: "Payment Initiated", value: "PAYMENT_INITIATED" },
+  { label: "Converted",         value: "CONVERTED" },
+  { label: "Closed",            value: "CLOSED" },
 ];
 
 const SOURCE_FILTER_OPTIONS = [
@@ -93,32 +107,6 @@ function ActionCell({
     return (
         <TooltipProvider delayDuration={300}>
             <div className="flex items-center justify-end gap-1">
-
-                {/* View Detail */}
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8"
-                            onClick={(e) => { e.stopPropagation(); onView(); }}>
-                            <Eye className="h-3.5 w-3.5" />
-                        </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>View Details</TooltipContent>
-                </Tooltip>
-
-                {/* Mark In Progress */}
-                {!isTerminal && query.status === "SUBMITTED" && (
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon"
-                                className="h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
-                                onClick={handleProgress} disabled={isPendingP}>
-                                <PhoneCall className="h-3.5 w-3.5" />
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Mark In Progress</TooltipContent>
-                    </Tooltip>
-                )}
-
                 {/* Verify */}
                 {canVerify && (
                     <Tooltip>

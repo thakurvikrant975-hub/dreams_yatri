@@ -1,3 +1,5 @@
+// /(sales)/sales-query/action.ts
+
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -5,11 +7,6 @@ import { db } from "@/app/lib/db";
 import { dashboardAuth } from "@/app/lib/auth-dashboard";
 import { z } from "zod";
 import { Prisma } from "@/app/generated/prisma";
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-// NOTE: QueryStatus / SalesQueryStatus / isActiveQuery / isClosedQuery
-// live in ./query-status.ts — import from there in client components.
-// "use server" files cannot export synchronous functions.
 
 export type ActionResult<T = void> =
     | { success: true; data: T; message: string }
@@ -38,7 +35,6 @@ export type PackageQueryType = {
     requirements: PackageRequirements | null;
     createdAt: Date;
     updatedAt: Date;
-
     _count: {
         queryFollowUps: number;
         notes: number;
@@ -165,7 +161,7 @@ const packageRequirementsSchema = z.object({
     }),
 });
 
-// ── Internal async helpers ────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 async function logTimeline(
     queryId: string,
@@ -220,12 +216,7 @@ export async function getSalesQueries() {
     return db.package_queries.findMany({
         where: userId ? { assignedTo: userId } : {},
         include: {
-            _count: {
-                select: {
-                    queryFollowUps: true,
-                    notes: true,
-                },
-            },
+            _count: { select: { queryFollowUps: true, notes: true } },
         },
         orderBy: { assignedAt: "desc" },
     });
@@ -237,20 +228,28 @@ export async function getSalesQueryById(id: string) {
     return db.package_queries.findUnique({
         where: { id },
         include: {
+            // Only this exec's follow-ups
             queryFollowUps: {
                 where: teamMemberId ? { createdById: teamMemberId } : {},
                 orderBy: { createdAt: "asc" },
             },
             notes: { orderBy: { createdAt: "asc" } },
             timeline: { orderBy: { createdAt: "asc" } },
-            _count: {
-                select: {
-                    queryFollowUps: true,
-                    notes: true,
-                },
-            },
+            _count: { select: { queryFollowUps: true, notes: true } },
         },
     });
+}
+
+// Returns the current exec's follow-up for a specific query (for pre-filling the dialog)
+export async function getMyFollowUpForQuery(packageQueryId: string): Promise<FollowUp | null> {
+    const { teamMemberId } = await getCurrentActor();
+    if (!teamMemberId) return null;
+
+    const fu = await db.queryFollowUp.findFirst({
+        where: { packageQueryId, createdById: teamMemberId },
+    });
+
+    return fu as FollowUp | null;
 }
 
 export async function getMyFollowUps(packageQueryId?: string) {
@@ -262,18 +261,10 @@ export async function getMyFollowUps(packageQueryId?: string) {
             createdById: teamMemberId,
             ...(packageQueryId ? { packageQueryId } : {}),
         },
-        orderBy: [
-            { followUpAt: "asc" },
-            { createdAt: "desc" },
-        ],
+        orderBy: [{ followUpAt: "asc" }, { createdAt: "desc" }],
         include: {
             packageQuery: {
-                select: {
-                    id: true,
-                    name: true,
-                    destination: true,
-                    status: true,
-                },
+                select: { id: true, name: true, destination: true, status: true },
             },
         },
     });
@@ -292,7 +283,7 @@ export async function getCloseReasons(): Promise<CloseReason[]> {
     ];
 }
 
-// ── FOLLOW-UP — upsert (one record per exec per query) ───────────────────────
+// ── FOLLOW-UP — upsert (one per exec per query) ───────────────────────────────
 
 export async function addFollowUp(
     packageQueryId: string,
@@ -352,11 +343,11 @@ export async function addFollowUp(
             });
         }
 
+        // ASSIGNED → IN_PROGRESS when exec first engages
         const currentQuery = await db.package_queries.findUnique({
             where: { id: packageQueryId },
             select: { status: true },
         });
-
         if (currentQuery?.status === "ASSIGNED") {
             await db.package_queries.update({
                 where: { id: packageQueryId },
@@ -380,6 +371,49 @@ export async function addFollowUp(
     } catch (err) {
         console.error("addFollowUp error:", err);
         return { success: false, message: "Failed to save follow-up" };
+    }
+}
+
+// ── DELETE FOLLOW-UP ──────────────────────────────────────────────────────────
+
+export async function deleteFollowUp(followUpId: string): Promise<ActionResult> {
+    try {
+        const { teamMemberId, teamMemberName } = await getCurrentActor();
+
+        const followUp = await db.queryFollowUp.findUnique({
+            where: { id: followUpId },
+            select: { id: true, packageQueryId: true, createdById: true },
+        });
+
+        if (!followUp) {
+            return { success: false, message: "Follow-up not found" };
+        }
+
+        // Only the creator can delete their own follow-up
+        if (followUp.createdById !== teamMemberId) {
+            return { success: false, message: "You can only delete your own follow-ups" };
+        }
+
+        await db.queryFollowUp.delete({ where: { id: followUpId } });
+
+        // Clear nextFollowUpAt on the parent query since we removed the follow-up
+        await db.package_queries.update({
+            where: { id: followUp.packageQueryId },
+            data: { nextFollowUpAt: null },
+        });
+
+        await logTimeline(
+            followUp.packageQueryId,
+            `🗑️ Follow-up removed`,
+            teamMemberId ?? undefined,
+            teamMemberName ?? undefined,
+        );
+
+        revalidatePath("/dashboard/sales-query");
+        return { success: true, data: undefined, message: "Follow-up removed" };
+    } catch (err) {
+        console.error("deleteFollowUp error:", err);
+        return { success: false, message: "Failed to delete follow-up" };
     }
 }
 
@@ -494,19 +528,22 @@ export async function savePackageRequirements(
             select: { status: true },
         });
 
-        const shouldAdvance = currentQuery?.status === "ASSIGNED";
+        // Always set IN_PROGRESS when requirements are filled/updated
+        // (unless already further along the funnel)
+        const terminalStatuses = ["PACKAGE_SENT", "CLIENT_ACCEPTED", "CLIENT_DECLINED", "PAYMENT_INITIATED", "CONVERTED", "CLOSED"];
+        const shouldSetInProgress = !terminalStatuses.includes(currentQuery?.status ?? "");
 
         await db.package_queries.update({
             where: { id: packageQueryId },
             data: {
                 requirements: parsed.data as Prisma.InputJsonValue,
-                groupSize:
-                    parsed.data.travellers.adults + parsed.data.travellers.children,
+                groupSize: parsed.data.travellers.adults + parsed.data.travellers.children,
                 destination: parsed.data.journey.destinations[0] ?? null,
                 travelDate: parsed.data.journey.travelDate
                     ? new Date(parsed.data.journey.travelDate)
                     : null,
-                ...(shouldAdvance ? { status: "IN_PROGRESS" as const } : {}),
+                // Set IN_PROGRESS unless already further along
+                ...(shouldSetInProgress ? { status: "IN_PROGRESS" as const } : {}),
             },
         });
 
@@ -517,10 +554,7 @@ export async function savePackageRequirements(
             teamMemberName ?? undefined,
             {
                 destinations: parsed.data.journey.destinations,
-                pax:
-                    parsed.data.travellers.adults +
-                    parsed.data.travellers.children +
-                    parsed.data.travellers.infants,
+                pax: parsed.data.travellers.adults + parsed.data.travellers.children + parsed.data.travellers.infants,
                 budget: parsed.data.budget,
             },
         );
@@ -533,5 +567,74 @@ export async function savePackageRequirements(
             return { success: false, message: err.message || "Something went wrong" };
         }
         return { success: false, message: "Unexpected error occurred" };
+    }
+}
+
+// ── ASSIGN QUERY (marketing → sales exec) ─────────────────────────────────────
+
+export async function assignQuery(
+    queryId: string,
+    memberId: string | null,
+): Promise<ActionResult> {
+    try {
+        const session = await dashboardAuth();
+
+        const actorMember = await db.teamMember.findUnique({
+            where: { email: session?.user?.email ?? "" },
+            select: { id: true, name: true },
+        });
+
+        let assigneeName: string | null = null;
+
+        if (memberId) {
+            const member = await db.teamMember.findUnique({
+                where: { id: memberId },
+                select: { id: true, name: true },
+            });
+
+            if (!member) {
+                return { success: false, message: "Invalid team member selected" };
+            }
+
+            assigneeName = member.name;
+        }
+
+        await db.package_queries.update({
+            where: { id: queryId },
+            data: {
+                assignedTo: memberId ?? null,
+                assignedAt: memberId ? new Date() : null,
+                assignedToName: assigneeName,
+                // FIX: set ASSIGNED status when marketing hands off to sales exec
+                ...(memberId
+                    ? { status: "ASSIGNED" as const }
+                    : { status: "VERIFIED" as const }  // revert to VERIFIED if unassigned
+                ),
+            },
+        });
+
+        await db.queryTimeline.create({
+            data: {
+                queryId,
+                event: memberId
+                    ? `👤 Assigned to ${assigneeName ?? "team member"}`
+                    : `👤 Assignment removed`,
+                actorId: actorMember?.id ?? null,
+                actorName: actorMember?.name ?? null,
+                meta: { assignedTo: memberId, assigneeName } as Prisma.InputJsonValue,
+            },
+        });
+
+        revalidatePath("/dashboard/sales-query");
+
+        return {
+            success: true,
+            data: undefined,
+            message: memberId ? `Assigned to ${assigneeName}` : "Assignment removed",
+        };
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("[assignQuery] FAILED:", msg);
+        return { success: false, message: `Failed to assign query: ${msg}` };
     }
 }

@@ -16,14 +16,18 @@ import {
 } from "../../components/ui/sheet";
 import { ScrollArea } from "../../components/ui/scroll-area";
 import { Badge } from "../../components/ui/badge";
-import { SalesQueryStatusBadge } from "./Salesquerybadges";
-import { QuerySourceBadge } from "../../(marketing)/queries/QueryBadges";
+import {
+  QueryStatusBadge,
+  QuerySourceBadge,
+  CallAttemptsDots,
+  type QueryStatus,
+  type QuerySource,
+} from "../../components/dashboard/CustomBadges";
 import { AddFollowUpDialog } from "./Addfollowupdialog";
 import { CloseQueryDialog } from "./Closequerydialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { reopenSalesQuery } from "./actions";
 import type { SalesQuery, CloseReason, PackageRequirements } from "./actions";
-import { SalesQueryStatus } from "./query-status";
 
 type FollowUpItem = {
     id: string;
@@ -124,7 +128,8 @@ export function SalesQueryDetailSheet({
                                 </span>
                             </SheetDescription>
                         </div>
-                        <SalesQueryStatusBadge status={query.status as SalesQueryStatus} />
+                        <QueryStatusBadge status={query.status as QueryStatus} />
+
                     </div>
 
                     {/* Action buttons */}

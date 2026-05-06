@@ -1,3 +1,5 @@
+// (sales)/sales-query/page.tsx
+
 import { Suspense } from "react";
 import { TrendingUp } from "lucide-react";
 import { Skeleton } from "../../components/ui/skeleton";

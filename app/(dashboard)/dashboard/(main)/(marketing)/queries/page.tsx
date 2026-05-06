@@ -1,3 +1,6 @@
+// /(marketing)/queries/page.tsx
+
+
 import { Suspense } from "react";
 import { Inbox } from "lucide-react";
 import { Skeleton } from "../../components/ui/skeleton";
