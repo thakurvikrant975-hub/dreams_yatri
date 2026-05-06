@@ -95,7 +95,7 @@ async function uniqueRouteSlug(durationId: number, name: string, excludeRouteId?
 // ── Queries ────────────────────────────────────────────────────────────────
 
 export async function getPackageRouteData(packageId: number) {
-  return db.package_durations.findMany({
+  const data = await db.package_durations.findMany({
     where: { package_id: packageId },
     orderBy: { days: "asc" },
     include: {
@@ -105,6 +105,18 @@ export async function getPackageRouteData(packageId: number) {
       },
     },
   });
+
+  return data.map((d) => ({
+    ...d,
+    routes: d.routes.map((r) => ({
+      ...r,
+      stops: r.stops.map((s) => ({
+        ...s,
+        latitude: s.latitude != null ? Number(s.latitude) : null,
+        longitude: s.longitude != null ? Number(s.longitude) : null,
+      })),
+    })),
+  }));
 }
 
 // ── Mutations ──────────────────────────────────────────────────────────────

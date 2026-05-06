@@ -233,7 +233,7 @@ export function MultiStepSheet({
   return (
     <MultiStepSheetContext.Provider value={ctx}>
       <Sheet open={open} onOpenChange={handleOpenChange}>
-        <SheetContent side="right" className="w-full sm:max-w-xl flex flex-col gap-0 p-0">
+        <SheetContent side="right" className="w-full sm:max-w-2xl flex flex-col gap-0 p-0">
 
           {/* Header */}
           <SheetHeader className="px-5 pt-5 pb-4 border-b shrink-0 space-y-0">

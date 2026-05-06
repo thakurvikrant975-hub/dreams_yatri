@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 // ── Read ──────────────────────────────────────────────────────────────────
 
 export async function getPackageForBuilder(id: number) {
-  return db.packages.findUnique({
+  const pkg = await db.packages.findUnique({
     where: { id },
     select: {
       id: true,
@@ -37,6 +37,24 @@ export async function getPackageForBuilder(id: number) {
       },
     },
   });
+
+  if (!pkg) return null;
+
+  // Prisma returns Decimal for lat/lng — serialize to plain numbers for RSC boundary
+  return {
+    ...pkg,
+    durations: pkg.durations.map((d) => ({
+      ...d,
+      routes: d.routes.map((r) => ({
+        ...r,
+        stops: r.stops.map((s) => ({
+          ...s,
+          latitude: s.latitude != null ? Number(s.latitude) : null,
+          longitude: s.longitude != null ? Number(s.longitude) : null,
+        })),
+      })),
+    })),
+  };
 }
 
 export async function getPackages() {

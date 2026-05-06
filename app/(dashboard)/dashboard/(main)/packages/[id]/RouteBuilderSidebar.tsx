@@ -204,16 +204,38 @@ function RouteMetaStep({ autoName, init }: {
   autoName: string;
   init: { name: string; meta_title: string; meta_desc: string };
 }) {
-  const { setStepData } = useMultiStepSheet();
-  const [name, setName] = useState(init.name);
-  const [metaTitle, setMetaTitle] = useState(init.meta_title);
-  const [metaDesc, setMetaDesc] = useState(init.meta_desc);
+  const { setStepData, stepData } = useMultiStepSheet();
+
+  // stepData["meta"] persists across step navigation — read from it on remount
+  // so values aren't lost when user goes to step 3 and comes back.
+  // null means "from DB / never typed" → auto-fill; "" means "user cleared" → stay empty.
+  const saved = stepData["meta"] as {
+    name?: string;
+    meta_title?: string | null;
+    meta_desc?: string | null;
+  } | undefined;
+
+  const defaultName = init.name || autoName;
+
+  // Lazy init so it only runs once per mount
+  const [name, setName] = useState<string>(() => saved?.name ?? defaultName);
+  const [metaTitle, setMetaTitle] = useState<string>(() =>
+    saved !== undefined
+      ? (saved.meta_title ?? defaultName)   // null from DB → auto-fill; "" user cleared → stay empty
+      : (init.meta_title || defaultName)    // first create visit → auto-fill from route name
+  );
+  const [metaDesc, setMetaDesc] = useState<string>(() =>
+    saved !== undefined
+      ? (saved.meta_desc ?? "")
+      : (init.meta_desc ?? "")
+  );
 
   useEffect(() => {
     setStepData("meta", {
       name: name.trim() || undefined,
-      meta_title: metaTitle.trim() || null,
-      meta_desc: metaDesc.trim() || null,
+      // Save "" (not null) for empty so we can distinguish "user cleared" from "never typed (DB null)"
+      meta_title: metaTitle.trim(),
+      meta_desc: metaDesc.trim(),
     });
   }, [name, metaTitle, metaDesc, setStepData]);
 
@@ -223,7 +245,7 @@ function RouteMetaStep({ autoName, init }: {
         <Label>Route Name</Label>
         <Input value={name} onChange={(e) => setName(e.target.value)}
           placeholder={autoName || "Auto-generated from stops"} />
-        {autoName && (
+        {autoName && name !== autoName && (
           <p className="text-[11px] text-muted-foreground">
             Auto: <span className="font-medium">{autoName}</span>
           </p>
@@ -256,18 +278,28 @@ function DurationStep({
     sort_order: number; thumbnail_url: string | null;
   };
 }) {
-  const { setStepData } = useMultiStepSheet();
+  const { setStepData, stepData } = useMultiStepSheet();
 
   const autoNights = autoDays - 1;
   const autoLabel = `${autoDays}D / ${autoNights}N`;
 
-  const [days, setDays] = useState(init?.days ?? autoDays);
-  const [nights, setNights] = useState(init?.nights ?? autoNights);
-  const [label, setLabel] = useState(init?.label ?? autoLabel);
-  const [isDefault, setIsDefault] = useState(init?.is_default ?? false);
-  const [isActive, setIsActive] = useState(init?.is_active ?? true);
-  const [sortOrder, setSortOrder] = useState(init?.sort_order ?? 0);
-  const [thumbnail, setThumbnail] = useState<string | null>(init?.thumbnail_url ?? null);
+  // Read persisted stepData on remount so values survive step navigation
+  const saved = stepData["duration"] as {
+    days?: number; nights?: number; label?: string;
+    is_default?: boolean; is_active?: boolean;
+    sort_order?: number; thumbnail_url?: string | null;
+  } | undefined;
+
+  const [days, setDays] = useState<number>(() => saved?.days ?? init?.days ?? autoDays);
+  const [nights, setNights] = useState<number>(() => saved?.nights ?? init?.nights ?? autoNights);
+  const [label, setLabel] = useState<string>(() => saved?.label ?? init?.label ?? autoLabel);
+  const [isDefault, setIsDefault] = useState<boolean>(() => saved?.is_default ?? init?.is_default ?? false);
+  const [isActive, setIsActive] = useState<boolean>(() => saved?.is_active ?? init?.is_active ?? true);
+  const [sortOrder, setSortOrder] = useState<number>(() => saved?.sort_order ?? init?.sort_order ?? 0);
+  const [thumbnail, setThumbnail] = useState<string | null>(() =>
+    // Use 'in' check so explicit null (user cleared) is preserved, not confused with "unset"
+    saved && "thumbnail_url" in saved ? (saved.thumbnail_url ?? null) : (init?.thumbnail_url ?? null)
+  );
 
   // Keep nights in sync when days changes (unless admin has edited nights manually)
   const [nightsManual, setNightsManual] = useState(false);
@@ -513,17 +545,21 @@ export function RouteBuilderSidebar({ packageId, editing, open, onClose, onSaved
   useEffect(() => {
     if (open) {
       if (editing) {
-        setStops(editing.stops.map((s) => ({
-          id: uid(),
-          stay_days: s.stay_days,
-          location: s.latitude && s.longitude ? {
-            place_name: s.place_name,
-            place_id: s.place_id ?? s.place_name,
-            address: s.address ?? s.place_name,
-            latitude: s.latitude,
-            longitude: s.longitude,
-          } : null,
-        })));
+        setStops(editing.stops.map((s) => {
+          const lat = s.latitude != null ? Number(s.latitude) : null;
+          const lng = s.longitude != null ? Number(s.longitude) : null;
+          return {
+            id: uid(),
+            stay_days: s.stay_days,
+            location: lat != null && lng != null ? {
+              place_name: s.place_name,
+              place_id: s.place_id ?? s.place_name,
+              address: s.address ?? s.place_name,
+              latitude: lat,
+              longitude: lng,
+            } : null,
+          };
+        }));
       } else {
         setStops([{ id: uid(), location: null, stay_days: 1 }]);
       }
@@ -537,7 +573,7 @@ export function RouteBuilderSidebar({ packageId, editing, open, onClose, onSaved
 
   const autoDays = useMemo(() => stops.reduce((s, r) => s + r.stay_days, 0), [stops]);
 
-  const initialStepData = useMemo(() => {
+  const initialStepData = useMemo((): Record<string, Record<string, unknown>> => {
     if (!editing) return {};
     return {
       stops: { stops },
@@ -583,7 +619,11 @@ export function RouteBuilderSidebar({ packageId, editing, open, onClose, onSaved
       const res = await handleSaveRouteVariant(
         packageId,
         stopInputs,
-        { name: meta.name || undefined, meta_title: meta.meta_title ?? null, meta_desc: meta.meta_desc ?? null },
+        {
+          name: meta.name || undefined,
+          meta_title: (meta.meta_title as string)?.trim() || null,
+          meta_desc: (meta.meta_desc as string)?.trim() || null,
+        },
         durationMeta,
         editing?.routeId,
       );

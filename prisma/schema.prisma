@@ -626,27 +626,28 @@ model regions {
 }
 
 model destinations {
-  id          Int           @id @default(autoincrement())
+  id          Int          @id @default(autoincrement())
   name        String
-  slug        String        @unique
-  country     String        @default("India")
+  slug        String       @unique
+  country     String       @default("India")
   region_id   Int
-  created_at  DateTime      @default(now())
+  created_at  DateTime     @default(now())
   description String?
-  is_active   Boolean       @default(true)
+  is_active   Boolean      @default(true)
   meta_desc   String?
   meta_title  String?
-  updated_at  DateTime      @updatedAt
+  updated_at  DateTime     @updatedAt
   cover_image String?
   thumbnail   String?
-  latitude    Decimal?      @db.Decimal(10, 8)
-  longitude   Decimal?      @db.Decimal(11, 8)
+  latitude    Decimal?     @db.Decimal(10, 8)
+  longitude   Decimal?     @db.Decimal(11, 8)
   place_id    String?
   activities  activities[]
   bookings    Booking[]
-  region      regions       @relation(fields: [region_id], references: [id])
+  region      regions      @relation(fields: [region_id], references: [id])
   hotels      hotels[]
   packages    packages[]
+
   @@index([region_id])
   @@index([slug])
 }
