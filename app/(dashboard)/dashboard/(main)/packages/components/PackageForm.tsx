@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { Input } from "../../components/ui/input";
 import { Textarea } from "../../components/ui/textarea";
 import { Label } from "../../components/ui/label";
@@ -13,8 +14,9 @@ import {
   searchTags,
   searchCategories,
 } from "@/app/actions/packages/search.actions";
-import { Plus, X } from "lucide-react";
-
+import { createPackage, updatePackageBasicInfo } from "@/app/actions/packages/package.actions";
+import { createPackageSchema } from "@/app/validators/package.validator";
+import { Loader2, Plus, X } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -43,9 +45,17 @@ const defaultData: PackageFormData = {
 };
 
 type Props = {
+  mode?: "create" | "update";
+  packageId?: number;
   initialData?: Partial<PackageFormData>;
+  initialDestinationLabel?: string;
   onChange?: (data: PackageFormData) => void;
+  onSuccess?: (result: unknown) => void;
 };
+
+type FieldErrors = Partial<Record<keyof PackageFormData, string>>;
+
+const R2_BASE = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? "";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -56,20 +66,43 @@ function slugify(str: string) {
     .replace(/^-|-$/g, "");
 }
 
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return <p className="text-xs text-destructive mt-1">{message}</p>;
+}
+
 // ── Component ──────────────────────────────────────────────────────────────
 
-export function PackageForm({ initialData, onChange }: Props) {
+export function PackageForm({
+  mode = "create",
+  packageId,
+  initialData,
+  initialDestinationLabel,
+  onChange,
+  onSuccess,
+}: Props) {
   const [data, setData] = useState<PackageFormData>({
     ...defaultData,
     ...initialData,
   });
 
-  const [thumbnailImage, setThumbnailImage] = useState<UploadedImage | null>(null);
+  // In update mode the slug is already set — don't overwrite it on title change
+  const [slugEdited, setSlugEdited] = useState(mode === "update");
+
+  const [thumbnailImage, setThumbnailImage] = useState<UploadedImage | null>(() => {
+    if (initialData?.thumbnail) {
+      return { key: initialData.thumbnail, url: `${R2_BASE}/${initialData.thumbnail}` };
+    }
+    return null;
+  });
+
   const [newInclusion, setNewInclusion] = useState("");
   const [newExclusion, setNewExclusion] = useState("");
-  const [slugEdited, setSlugEdited] = useState(false);
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   function update<K extends keyof PackageFormData>(key: K, value: PackageFormData[K]) {
+    setErrors(prev => ({ ...prev, [key]: undefined }));
     setData(prev => {
       const next = { ...prev, [key]: value };
       onChange?.(next);
@@ -78,6 +111,7 @@ export function PackageForm({ initialData, onChange }: Props) {
   }
 
   function handleTitleChange(title: string) {
+    setErrors(prev => ({ ...prev, title: undefined, slug: undefined }));
     setData(prev => {
       const next: PackageFormData = {
         ...prev,
@@ -109,8 +143,73 @@ export function PackageForm({ initialData, onChange }: Props) {
     update(field, data[field].filter((_, i) => i !== index));
   }
 
+  // Zod v4 path is PropertyKey[] (string | number | symbol) — accept the broadest shape
+  function mapZodErrors(issues: { path: readonly PropertyKey[]; message: string }[]) {
+    const fieldErrors: FieldErrors = {};
+    for (const issue of issues) {
+      const raw = issue.path[0];
+      if (raw == null) continue;
+      const field = raw as unknown as keyof PackageFormData;
+      if (!fieldErrors[field]) fieldErrors[field] = issue.message;
+    }
+    return fieldErrors;
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setErrors({});
+
+    if (!data.destination_id) {
+      setErrors({ destination_id: "Please select a destination" });
+      return;
+    }
+
+    const payload = {
+      title: data.title,
+      slug: data.slug,
+      thumbnail: data.thumbnail ?? undefined,
+      description: data.description || undefined,
+      destination_id: data.destination_id,
+      inclusions: data.inclusions,
+      exclusions: data.exclusions,
+      tags: data.tags,
+      category: data.category,
+    };
+
+    // Client-side validation before hitting the server
+    const parsed = createPackageSchema.safeParse(payload);
+    if (!parsed.success) {
+      setErrors(mapZodErrors(parsed.error.issues));
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const result =
+        mode === "update" && packageId != null
+          ? await updatePackageBasicInfo(packageId, payload)
+          : await createPackage(payload);
+
+      if (!result.success) {
+        if (result.type === "validation" && "error" in result && result.error) {
+          setErrors(mapZodErrors(result.error));
+        } else if (result.type === "conflict") {
+          setErrors({ slug: "message" in result ? (result.message as string) : "Slug already exists" });
+        } else {
+          toast.error("message" in result ? (result.message as string) : "Something went wrong");
+        }
+        return;
+      }
+
+      toast.success(mode === "update" ? "Package updated" : "Package created successfully");
+      onSuccess?.(result);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
-    <div className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-5">
       {/* Title + Slug */}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
@@ -121,6 +220,7 @@ export function PackageForm({ initialData, onChange }: Props) {
             onChange={e => handleTitleChange(e.target.value)}
             placeholder="e.g. Kerala Backwaters Tour"
           />
+          <FieldError message={errors.title} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="pkg-slug">Slug</Label>
@@ -130,23 +230,27 @@ export function PackageForm({ initialData, onChange }: Props) {
             onChange={e => handleSlugChange(e.target.value)}
             placeholder="kerala-backwaters-tour"
           />
+          <FieldError message={errors.slug} />
         </div>
       </div>
 
       {/* Thumbnail */}
       <div className="space-y-1.5">
         <Label>Thumbnail</Label>
-        <ImageUpload
-          name="thumbnail"
-          label="Upload Thumbnail"
-          folder="packages"
-          aspectRatio="wide"
-          value={thumbnailImage}
-          onChange={img => {
-            setThumbnailImage(img);
-            update("thumbnail", img?.key ?? null);
-          }}
-        />
+        <div className="w-full max-w-sm">
+          <ImageUpload
+            name="thumbnail"
+            label="Upload Thumbnail"
+            folder="packages"
+            aspectRatio="wide"
+            value={thumbnailImage}
+            onChange={img => {
+              setThumbnailImage(img);
+              update("thumbnail", img?.key ?? null);
+            }}
+          />
+        </div>
+        <FieldError message={errors.thumbnail} />
       </div>
 
       {/* Description */}
@@ -158,6 +262,7 @@ export function PackageForm({ initialData, onChange }: Props) {
           onChange={e => update("description", e.target.value)}
           placeholder="Describe what makes this package special..."
         />
+        <FieldError message={errors.description} />
       </div>
 
       {/* Destination */}
@@ -168,7 +273,9 @@ export function PackageForm({ initialData, onChange }: Props) {
           onChange={val => update("destination_id", val)}
           fetchOptions={searchDestinations}
           placeholder="Search destinations..."
+          initialLabel={initialDestinationLabel}
         />
+        <FieldError message={errors.destination_id} />
       </div>
 
       {/* Tags + Categories */}
@@ -181,6 +288,7 @@ export function PackageForm({ initialData, onChange }: Props) {
             fetchOptions={searchTags}
             placeholder="Search tags..."
           />
+          <FieldError message={errors.tags} />
         </div>
         <div className="space-y-1.5">
           <Label>Categories</Label>
@@ -190,6 +298,7 @@ export function PackageForm({ initialData, onChange }: Props) {
             fetchOptions={searchCategories}
             placeholder="Search categories..."
           />
+          <FieldError message={errors.category} />
         </div>
       </div>
 
@@ -220,6 +329,7 @@ export function PackageForm({ initialData, onChange }: Props) {
               <Plus className="h-4 w-4" />
             </Button>
           </div>
+          <FieldError message={errors.inclusions} />
           {data.inclusions.length > 0 && (
             <ul className="space-y-1">
               {data.inclusions.map((item, i) => (
@@ -268,6 +378,7 @@ export function PackageForm({ initialData, onChange }: Props) {
               <Plus className="h-4 w-4" />
             </Button>
           </div>
+          <FieldError message={errors.exclusions} />
           {data.exclusions.length > 0 && (
             <ul className="space-y-1">
               {data.exclusions.map((item, i) => (
@@ -291,6 +402,20 @@ export function PackageForm({ initialData, onChange }: Props) {
           )}
         </div>
       </div>
-    </div>
+
+      {/* Submit */}
+      <div className="flex justify-end pt-2">
+        <Button type="submit" disabled={isSubmitting} className="min-w-36">
+          {isSubmitting ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              {mode === "update" ? "Saving..." : "Creating..."}
+            </>
+          ) : (
+            mode === "update" ? "Save Changes" : "Create Package"
+          )}
+        </Button>
+      </div>
+    </form>
   );
 }
