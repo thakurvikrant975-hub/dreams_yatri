@@ -645,7 +645,7 @@ export default function PackageBuilderDetailPage() {
         )}
 
         {/* ── RIGHT: Package Builder ─────────────────────────────────────────── */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto h-[90vh]">
           <div className="max-w-5xl mx-auto px-4 py-4 space-y-6">
 
             {/* Package Overview */}

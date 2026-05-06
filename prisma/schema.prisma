@@ -26,28 +26,27 @@ model regions {
 }
 
 model destinations {
-  id          Int           @id @default(autoincrement())
+  id          Int          @id @default(autoincrement())
   name        String
-  slug        String        @unique
-  country     String        @default("India")
+  slug        String       @unique
+  country     String       @default("India")
   region_id   Int
-  created_at  DateTime      @default(now())
+  created_at  DateTime     @default(now())
   description String?
-  is_active   Boolean       @default(true)
+  is_active   Boolean      @default(true)
   meta_desc   String?
   meta_title  String?
-  updated_at  DateTime      @updatedAt
+  updated_at  DateTime     @updatedAt
   cover_image String?
   thumbnail   String?
-  latitude    Decimal?      @db.Decimal(10, 8)
-  longitude   Decimal?      @db.Decimal(11, 8)
+  latitude    Decimal?     @db.Decimal(10, 8)
+  longitude   Decimal?     @db.Decimal(11, 8)
   place_id    String?
   activities  activities[]
   bookings    Booking[]
-  region      regions       @relation(fields: [region_id], references: [id])
+  region      regions      @relation(fields: [region_id], references: [id])
   hotels      hotels[]
   packages    packages[]
-  route_stops route_stops[]
 
   @@index([region_id])
   @@index([slug])
@@ -539,7 +538,7 @@ model Booking {
   endDate                 DateTime
   duration                Int
   travellers              Int                   @default(1)
-  status                  BookingStatus         @default(CONFIRMED)
+  status                  BookingStatus         @default(PENDING_REVIEW)
   cabType                 CabType               @default(INNOVA)
   roomSharingType         RoomSharingType       @default(SHARED)
   mealPlan                MealPlan              @default(MAP)
@@ -570,6 +569,21 @@ model Booking {
   rejectionReason         String?
   modificationNote        String?
   modificationRequestedBy String?
+  paymentStatus           PaymentStatus         @default(PENDING)
+  advancePaidAmount       Decimal               @default(0) @db.Decimal(10, 2)
+  balanceDueAmount        Decimal               @default(0) @db.Decimal(10, 2)
+  balanceDueDate          DateTime?
+  sourceQueryId           String?               @unique
+  convertedAt             DateTime?
+  salesAgentId            String?
+  salesAgentName          String?
+  referredBy              String?
+  referralSource          ReferralSource?
+  opsAgentName            String?
+  hotelAgentName          String?
+  cabAgentName            String?
+  confirmationEmailSentAt DateTime?
+  confirmationEmailTo     String?
   cabBookings             BookingCab[]
   hotelBookings           BookingHotel[]
   bookingMeals            BookingMeal[]
@@ -581,35 +595,11 @@ model Booking {
   hotelAssignee           TeamMember?           @relation("BookingHotelAssignee", fields: [hotelAssigneeId], references: [id])
   opsAssignee             TeamMember?           @relation("BookingOpsAssignee", fields: [opsAssigneeId], references: [id])
   package                 packages?             @relation(fields: [packageId], references: [id])
+  sourceQuery             package_queries?      @relation(fields: [sourceQueryId], references: [id])
   user                    User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   packageHotels           PackageBookingHotel[]
   payments                Payment[]
-  paymentStatus           PaymentStatus         @default(PENDING)
-  advancePaidAmount       Decimal               @default(0) @db.Decimal(10, 2)
-  balanceDueAmount        Decimal               @default(0) @db.Decimal(10, 2)
-  balanceDueDate          DateTime? // deadline to pay balance before travel
-
-  // Traceability back to the query
-  sourceQueryId String?          @unique
-  sourceQuery   package_queries? @relation(fields: [sourceQueryId], references: [id])
-  convertedAt   DateTime?
-
-  // Full team attribution (who did what)
-  salesAgentId   String?
-  salesAgentName String? // denormalized for fast display
-  referredBy     String?
-  referralSource ReferralSource?
-
-  opsAgentName   String? // alongside existing opsAssigneeId
-  hotelAgentName String? // alongside existing hotelAssigneeId
-  cabAgentName   String? // alongside existing cabAssigneeId
-
-  // Email tracking
-  confirmationEmailSentAt DateTime?
-  confirmationEmailTo     String?
-
-  // Travel document store
-  documents TripDocument[]
+  documents               TripDocument[]
 
   @@index([userId])
   @@index([packageId])
@@ -620,20 +610,13 @@ model Booking {
 model TripDocument {
   id         String       @id @default(cuid())
   bookingId  String
-  type       DocumentType // HOTEL_VOUCHER, CAB_CONFIRMATION, ITINERARY, INVOICE, TICKET
+  type       DocumentType
   fileUrl    String
   uploadedBy String
   uploadedAt DateTime     @default(now())
   booking    Booking      @relation(fields: [bookingId], references: [id])
 
   @@map("trip_documents")
-}
-
-enum ReferralSource {
-  AGENT
-  CLIENT
-  PARTNER
-  ORGANIC
 }
 
 model BookingHotel {
@@ -1135,30 +1118,30 @@ model route_stops {
   id             Int            @id @default(autoincrement())
   route_id       Int
   stay_days      Int
-  sort_order     Int
-  destination_id Int
+  sort_order     Int            @default(0)
   latitude       Decimal?       @db.Decimal(10, 8)
   longitude      Decimal?       @db.Decimal(11, 8)
-  destinations   destinations   @relation(fields: [destination_id], references: [id])
-  package_routes package_routes @relation(fields: [route_id], references: [id])
+  place_name     String
+  place_id       String?
+  address        String?
+  package_routes package_routes @relation(fields: [route_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([route_id, sort_order])
   @@index([route_id])
 }
 
 model QueryFollowUp {
-  id             String    @id @default(cuid())
+  id             String          @id @default(cuid())
   packageQueryId String
   note           String
   followUpAt     DateTime?
-  createdAt      DateTime  @default(now())
-  createdById    String? // ← ADD THIS
-  createdByName  String? // ← ADD THIS
-
-  packageQuery package_queries @relation(fields: [packageQueryId], references: [id], onDelete: Cascade)
+  createdAt      DateTime        @default(now())
+  createdById    String?
+  createdByName  String?
+  packageQuery   package_queries @relation(fields: [packageQueryId], references: [id], onDelete: Cascade)
 
   @@index([packageQueryId])
-  @@index([createdById]) // ← ADD THIS
+  @@index([createdById])
 }
 
 model package_queries {
@@ -1199,17 +1182,25 @@ model package_queries {
   closedBy          String?
   requirements      Json?
   queryFollowUps    QueryFollowUp[]
+  booking           Booking?
   lead_profiles     LeadProfile?     @relation(fields: [leadProfileId], references: [id])
   rejection_reasons RejectionReason? @relation(fields: [rejectionReasonId], references: [id])
+  custom_packages   custom_packages?   // ← add this line
   notes             QueryNote[]
   timeline          QueryTimeline[]
-  booking           Booking?         @relation // add this line
 
   @@index([assignedTo])
   @@index([createdAt])
   @@index([destination])
   @@index([status])
   @@index([verified])
+}
+
+enum ReferralSource {
+  AGENT
+  CLIENT
+  PARTNER
+  ORGANIC
 }
 
 enum DocumentType {
@@ -1351,25 +1342,26 @@ enum TravelMonth {
 }
 
 enum BookingStatus {
-  CONFIRMED // booking created, advance/full payment received
-  OPS_REVIEW // ops team picked it up
-  HOTEL_VERIFICATION // hotel team checking availability
-  HOTEL_CONFIRMED // hotels locked, vouchers saved
-  CAB_VERIFICATION // cab team checking availability
-  CAB_CONFIRMED // cabs locked, driver assigned
-  ALL_CONFIRMED // both confirmed → auto email fires
-  UPCOMING // everything ready, trip not started yet
-  ONGOING // client is currently travelling
-  COMPLETED // trip ended, booking closed
-  MODIFICATION_REQUESTED // client asked for change mid-trip
-  CANCELLED // cancelled at any stage
+  UPCOMING
+  ONGOING
+  COMPLETED
+  CANCELLED
+  PENDING_REVIEW
+  HOTEL_VERIFICATION
+  HOTEL_CONFIRMED
+  CAB_VERIFICATION
+  CAB_CONFIRMED
+  OPS_REVIEW
+  CONFIRMED
+  REJECTED
+  MODIFICATION_REQUESTED
 }
 
 enum PaymentStatus {
-  PENDING // no payment yet
-  ADVANCE_PAID // 50% paid, balance pending
-  FULLY_PAID // 100% paid
-  REFUNDED // cancelled and refunded
+  PENDING
+  ADVANCE_PAID
+  FULLY_PAID
+  REFUNDED
   PARTIALLY_REFUNDED
 }
 
@@ -1418,17 +1410,17 @@ enum LogSeverity {
 }
 
 enum QueryStatus {
-  SUBMITTED // website form submitted
-  VERIFIED // marketing called, interested
-  REJECTED // marketing rejected (spam, uninterested)
-  ASSIGNED // handed to a sales exec
-  IN_PROGRESS // sales exec filling client details form
-  PACKAGE_SENT // custom itinerary shared with client
-  CLIENT_ACCEPTED // client said yes to the package
-  CLIENT_DECLINED // client said no (can re-engage/revise)
-  PAYMENT_INITIATED // client paying advance or full
-  CONVERTED // payment done, booking created
-  CLOSED // manually closed without conversion
+  SUBMITTED
+  VERIFIED
+  REJECTED
+  ASSIGNED
+  IN_PROGRESS
+  PACKAGE_SENT
+  CLIENT_ACCEPTED
+  CLIENT_DECLINED
+  PAYMENT_INITIATED
+  CONVERTED
+  CLOSED
 }
 
 enum QuerySource {
@@ -1445,4 +1437,68 @@ enum GallerySourceType {
   HOTEL
   ACTIVITY
   ROOM
+}
+
+
+
+enum CustomPackageStatus {
+  DRAFT
+  READY
+  SENT
+  ACCEPTED
+  DECLINED
+}
+
+model custom_packages {
+  id              String               @id @default(cuid())
+  queryId         String               @unique
+  title           String
+  destination     String
+  startingPoint   String?
+  totalDays       Int
+  totalNights     Int
+  travelDate      DateTime?
+  adults          Int                  @default(1)
+  children        Int                  @default(0)
+  infants         Int                  @default(0)
+  pricePerPerson  Float?
+  totalPrice      Float?
+  currency        String               @default("INR")
+  inclusions      String[]
+  exclusions      String[]
+  termsNotes      String?
+  status          CustomPackageStatus  @default(DRAFT)
+  builtBy         String
+  builtByName     String?
+  sentAt          DateTime?
+  pdfUrl          String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  query           package_queries      @relation(fields: [queryId], references: [id])
+  itineraries     custom_itineraries[]
+
+  @@index([queryId])
+  @@index([builtBy])
+  @@index([status])
+}
+
+model custom_itineraries {
+  id               String          @id @default(cuid())
+  customPackageId  String
+  day              Int
+  title            String
+  description      String?
+  activities       String[]
+  meals            String[]
+  accommodation    String?
+  transport        String?
+  notes            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  package          custom_packages @relation(fields: [customPackageId], references: [id], onDelete: Cascade)
+
+  @@index([customPackageId])
+  @@index([day])
 }
