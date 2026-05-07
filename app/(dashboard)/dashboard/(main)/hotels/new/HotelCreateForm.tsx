@@ -13,10 +13,9 @@ import {
   SelectTrigger, SelectValue,
 } from "../../components/ui/select";
 import { ImagePicker, type PickedImage } from "../../components/dashboard/ImagePicker";
-import { RoomPricingSection, type RoomRow } from "./RoomPricingSection";
 import { createHotel } from "../actions";
 import { toast }    from "sonner";
-import { Hotel, BedDouble, ImageIcon, Search, Loader2 } from "lucide-react";
+import { Hotel, Search, Loader2 } from "lucide-react";
 
 type Destination = {
   id:     number;
@@ -36,27 +35,20 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
   const router                       = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  // Basic info
   const [name,          setName]          = useState("");
   const [slug,          setSlug]          = useState("");
   const [destinationId, setDestinationId] = useState("");
   const [category,      setCategory]      = useState("");
+  const [stayType,      setStayType]      = useState("");
   const [starRating,    setStarRating]    = useState("");
   const [checkIn,       setCheckIn]       = useState("14:00");
   const [checkOut,      setCheckOut]      = useState("11:00");
   const [address,       setAddress]       = useState("");
   const [description,   setDescription]   = useState("");
   const [isActive,      setIsActive]      = useState(true);
-
-  // Thumbnail — separate single-image picker
-  const [thumbnail, setThumbnail] = useState<PickedImage[]>([]);
-
-  // SEO
-  const [metaTitle, setMetaTitle] = useState("");
-  const [metaDesc,  setMetaDesc]  = useState("");
-
-  // Rooms
-  const [rooms, setRooms] = useState<RoomRow[]>([]);
+  const [thumbnail,     setThumbnail]     = useState<PickedImage[]>([]);
+  const [metaTitle,     setMetaTitle]     = useState("");
+  const [metaDesc,      setMetaDesc]      = useState("");
 
   function handleNameChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value;
@@ -85,12 +77,12 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
 
     startTransition(async () => {
       const formData = new FormData();
-
       formData.append("name",           name);
       formData.append("slug",           slug);
       formData.append("destination_id", destinationId);
       formData.append("thumbnail",      thumbnail[0]?.key ?? "");
       formData.append("category",       category);
+      formData.append("stay_type",      stayType);
       formData.append("star_rating",    starRating);
       formData.append("check_in_time",  checkIn);
       formData.append("check_out_time", checkOut);
@@ -99,7 +91,6 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
       formData.append("is_active",      String(isActive));
       formData.append("meta_title",     metaTitle);
       formData.append("meta_desc",      metaDesc);
-      formData.append("rooms",          JSON.stringify(rooms));
 
       const result = await createHotel({ success: false, message: "" }, formData);
 
@@ -174,6 +165,20 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
             </div>
 
             <div className="space-y-1.5">
+              <Label>Stay Type</Label>
+              <Select value={stayType} onValueChange={setStayType}>
+                <SelectTrigger><SelectValue placeholder="Select stay type" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Standard">Standard</SelectItem>
+                  <SelectItem value="Deluxe 2*">Deluxe 2*</SelectItem>
+                  <SelectItem value="Super Deluxe 3*">Super Deluxe 3*</SelectItem>
+                  <SelectItem value="Luxury 4*">Luxury 4*</SelectItem>
+                  <SelectItem value="Super Luxury 5*">Super Luxury 5*</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
               <Label>Star Rating</Label>
               <Select value={starRating} onValueChange={setStarRating}>
                 <SelectTrigger><SelectValue placeholder="Stars" /></SelectTrigger>
@@ -216,11 +221,11 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
             />
           </div>
 
-          {/* ── Thumbnail ──────────────────────────────────────────── */}
+          {/* Thumbnail */}
           <div className="space-y-1.5">
             <Label>Thumbnail</Label>
             <p className="text-xs text-muted-foreground">
-              Used in package cards and listing pages · 400×250 recommended · This is different from gallery photos
+              Used in package cards and listing pages · 400×250 recommended
             </p>
             <ImagePicker
               folder="hotels"
@@ -239,22 +244,6 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
             </div>
             <Switch checked={isActive} onCheckedChange={setIsActive} />
           </div>
-        </CardContent>
-      </Card>
-
-      {/* ── Room Pricing ─────────────────────────────────────────── */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <BedDouble className="h-5 w-5 text-primary" />
-            <CardTitle className="text-base">Room Pricing</CardTitle>
-          </div>
-          <CardDescription>
-            Add room types — each room gets its own image gallery after creation
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <RoomPricingSection rooms={rooms} onChange={setRooms} />
         </CardContent>
       </Card>
 
@@ -297,6 +286,11 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
           </div>
         </CardContent>
       </Card>
+
+      {/* ── Notice ───────────────────────────────────────────────── */}
+      <div className="rounded-lg border border-dashed bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+        Rooms and pricing can be added after the hotel is created, from the hotel's edit page.
+      </div>
 
       {/* ── Submit ───────────────────────────────────────────────── */}
       <div className="flex items-center justify-end gap-3 pb-8">

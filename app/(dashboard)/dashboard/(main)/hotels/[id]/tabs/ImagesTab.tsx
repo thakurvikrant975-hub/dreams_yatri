@@ -44,7 +44,7 @@ type DBCategory = {
   is_required:     boolean;
   is_system:       boolean;
   room_pricing_id: number | null;
-  room_pricing:    { id: number; room_type: string } | null;
+  room_pricing:    { id: number } | null;
   images:          DBImage[];
 };
 

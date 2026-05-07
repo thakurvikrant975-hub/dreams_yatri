@@ -50,7 +50,7 @@ async function HotelsData() {
     const hotels = await getHotels();
 
     const activeCount = hotels.filter(h => h.is_active).length;
-    const totalRooms = hotels.reduce((acc, h) => acc + h._count.room_pricing, 0);
+    const totalRooms = hotels.reduce((acc, h) => acc + h._count.hotelRooms, 0);
 
     return (
         <>
@@ -60,7 +60,6 @@ async function HotelsData() {
                     { label: "Total Hotels", value: hotels.length },
                     { label: "Active", value: activeCount, highlight: true },
                     { label: "Total Rooms", value: totalRooms },
-                    { label: "In Packages", value: hotels.reduce((a, h) => a + h._count.packages, 0) },
                 ].map(stat => (
                     <div key={stat.label} className="rounded-xl border bg-card p-4">
                         <p className="text-xs text-muted-foreground uppercase tracking-wider">{stat.label}</p>

@@ -156,6 +156,7 @@ export const packagesRepository = {
                 activity_ids: true,
                 meals: true,
                 route_index: true,
+                route_id: true,
                 hotel_days: true,
                 hotel: {
                   select: {
@@ -196,21 +197,25 @@ export const packagesRepository = {
       if (!currentDuration) return Result.notFound("Duration");
 
       // ── Resolve route + stay ──────────────────────────────────────────────
-      const routes = currentDuration.routes as RouteOption[];
-      const routeIndex =
-        routes.find(r => r.slug === routeSlug)?.id ??
-        routes.find(r => r.is_default)?.id ??
-        0;
+      const routes = (Array.isArray(currentDuration.routes) ? currentDuration.routes : []) as any;
+      const selectedRoute: any =
+        routes.find((r: any) => r.slug === routeSlug) ??
+        routes.find((r: any) => r.is_default) ??
+        routes[0] ??
+        null;
+      const selectedRouteId: number | null = selectedRoute?.id ?? null;
+      const routeIndex = selectedRouteId ?? 0;
 
       const selectedStayCategory =
         pkg.stay_categories.find(s => s.slug === staySlug) ??
         pkg.stay_categories.find(s => s.is_default) ??
         pkg.stay_categories[0];
 
-      // ── Filter itinerary ──────────────────────────────────────────────────
-      const filteredItinerary = currentDuration.itineraries.filter(
-        day => day.route_index === null || day.route_index === routeIndex
-      );
+      // ── Filter itinerary — route_id FK takes priority; route_index is legacy ─
+      const filteredItinerary = currentDuration.itineraries.filter(day => {
+        if (day.route_id !== null) return day.route_id === selectedRouteId;
+        return day.route_index === null || day.route_index === routeIndex;
+      });
 
       // ── Batch fetch activities ─────────────────────────────────────────────────
       const allActivityIds = [
@@ -328,7 +333,7 @@ export const packagesRepository = {
         days: d.days,
         nights: d.nights,
         is_default: d.is_default,
-        routes: d.routes as RouteOption[],
+        routes: (d.routes || []) as any,
         meta_title: d.meta_title,
         meta_desc: d.meta_desc,
         startingPrice: d.pricing[0]?.price ? Number(d.pricing[0].price) : null,

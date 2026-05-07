@@ -145,7 +145,7 @@ export default function PackageHero({
         {/* Hero image — spans 2 rows on left */}
         <div className="col-span-2 row-span-2 relative group cursor-pointer">
           <Image
-            src={`${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${heroImage}`}
+            src={heroImage}
             alt={title}
             fill
             className={[
@@ -162,9 +162,9 @@ export default function PackageHero({
           {/* View Gallery overlay */}
           <button
             onClick={onViewGallery}
-            className="absolute bottom-3 left-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-black/60 backdrop-blur-sm text-white text-xs font-semibold hover:bg-black/75 transition-colors"
+            className="absolute bottom-3 left-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-black/50 backdrop-blur-sm text-white text-xs font-semibold hover:bg-black/75 transition-colors"
           >
-            <ImagesIcon weight="bold" className="size-4" />
+            <ImagesIcon weight="duotone" className="size-5" />
             View Gallery
           </button>
         </div>
@@ -176,7 +176,7 @@ export default function PackageHero({
             <div key={i} className="relative group cursor-pointer overflow-hidden">
               {src ? (
                 <Image
-                  src={`${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${src}`}
+                  src={src}
                   alt={`${title} photo ${i + 2}`}
                   fill
                   className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"

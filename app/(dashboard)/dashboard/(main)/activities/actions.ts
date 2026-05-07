@@ -76,7 +76,7 @@ export async function getActivities(): Promise<ActivityItem[]> {
         orderBy: { sort_order: "asc" },
         select:  { id: true, url: true, thumbnail: true, is_primary: true, sort_order: true },
       },
-      _count: { select: { images: true, packages: true } },
+      _count: { select: { images: true,  } },
     },
   });
 

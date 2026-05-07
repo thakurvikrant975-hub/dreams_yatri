@@ -8,9 +8,15 @@ import {
     BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "../../components/ui/breadcrumb";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
-import { getHotelById, getDestinationsForSelect } from "../actions";
+import {
+    getHotelById,
+    getDestinationsForSelect,
+    getMealTypes,
+    getDietTypes,
+} from "../actions";
 import { DetailsTab } from "./tabs/DetailsTab";
 import { RoomsTab } from "./tabs/RoomsTab";
+import { PricingTab } from "./tabs/PricingTab";
 import { ImagesTab } from "./tabs/ImagesTab";
 
 export default async function HotelEditPage({
@@ -20,10 +26,41 @@ export default async function HotelEditPage({
 }) {
     const { id: idStr } = await params;
     const id = Number(idStr);
-    const hotel = await getHotelById(id);
+
+    const [hotel, destinations, mealTypes, dietTypes] = await Promise.all([
+        getHotelById(id),
+        getDestinationsForSelect(),
+        getMealTypes(),
+        getDietTypes(),
+    ]);
+
     if (!hotel) notFound();
 
-    const serializedCategories = hotel.image_categories.map(cat => ({
+    // Serialize Decimal fields and build tab-safe data
+    const serializedHotel = {
+        ...hotel,
+        latitude: hotel.latitude ? Number(hotel.latitude) : null,
+        longitude: hotel.longitude ? Number(hotel.longitude) : null,
+        hotelRooms: hotel.hotelRooms.map((room) => ({
+            ...room,
+            pricing: room.pricing.map((p) => ({
+                ...p,
+                price_per_night: Number(p.price_per_night),
+                original_price: p.original_price ? Number(p.original_price) : null,
+                extra_bed_rate: p.extra_bed_rate ? Number(p.extra_bed_rate) : null,
+                margin_percentage: Number(p.margin_percentage),
+            })),
+        })),
+        room_pricing: hotel.room_pricing.map((p) => ({
+            ...p,
+            price_per_night: Number(p.price_per_night),
+            original_price: p.original_price ? Number(p.original_price) : null,
+            extra_bed_rate: p.extra_bed_rate ? Number(p.extra_bed_rate) : null,
+            margin_percentage: Number(p.margin_percentage),
+        })),
+    };
+
+    const serializedCategories = hotel.image_categories.map((cat) => ({
         id: cat.id,
         name: cat.name,
         is_required: cat.is_required,
@@ -33,23 +70,12 @@ export default async function HotelEditPage({
         images: cat.images,
     }));
 
-    const serializedHotel = {
-        ...hotel,
-        latitude: hotel.latitude ? Number(hotel.latitude) : null,
-        longitude: hotel.longitude ? Number(hotel.longitude) : null,
-        room_pricing: hotel.room_pricing.map(r => ({
-            ...r,
-            price_per_night: Number(r.price_per_night),
-            original_price: r.original_price ? Number(r.original_price) : null,
-            margin_percentage: Number(r.margin_percentage),
-        })),
-    };
-
-    const destinations = await getDestinationsForSelect();
-
     const totalImages = hotel.image_categories.reduce(
-        (acc, cat) => acc + cat.images.length, 0
+        (acc, cat) => acc + cat.images.length,
+        0
     );
+    const totalRooms = hotel.hotelRooms.length;
+    const totalPlans = hotel.room_pricing.length;
 
     return (
         <div className="space-y-6 w-full">
@@ -63,7 +89,7 @@ export default async function HotelEditPage({
                 </BreadcrumbList>
             </Breadcrumb>
 
-            {/* Hotel header */}
+            {/* Header */}
             <div className="flex items-center gap-3">
                 <Button variant="ghost" size="icon" asChild>
                     <Link href="/dashboard/hotels"><ChevronLeft className="h-4 w-4" /></Link>
@@ -79,20 +105,31 @@ export default async function HotelEditPage({
                         </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                        {hotel.destination.name} · {hotel.room_pricing.length} rooms · {totalImages} images
+                        {hotel.destination.name}
+                        {totalRooms > 0 && ` · ${totalRooms} room${totalRooms !== 1 ? "s" : ""}`}
+                        {totalPlans > 0 && ` · ${totalPlans} plan${totalPlans !== 1 ? "s" : ""}`}
+                        {totalImages > 0 && ` · ${totalImages} image${totalImages !== 1 ? "s" : ""}`}
                     </p>
                 </div>
             </div>
 
             {/* Tabs */}
             <Tabs defaultValue="details">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="details">Details</TabsTrigger>
                     <TabsTrigger value="rooms">
                         Rooms
-                        {hotel.room_pricing.length > 0 && (
+                        {totalRooms > 0 && (
                             <Badge variant="secondary" className="ml-2 text-xs px-1.5 py-0">
-                                {hotel.room_pricing.length}
+                                {totalRooms}
+                            </Badge>
+                        )}
+                    </TabsTrigger>
+                    <TabsTrigger value="pricing">
+                        Pricing
+                        {totalPlans > 0 && (
+                            <Badge variant="secondary" className="ml-2 text-xs px-1.5 py-0">
+                                {totalPlans}
                             </Badge>
                         )}
                     </TabsTrigger>
@@ -111,11 +148,27 @@ export default async function HotelEditPage({
                 </TabsContent>
 
                 <TabsContent value="rooms" className="mt-6">
-                    <RoomsTab hotel_id={serializedHotel.id} rooms={serializedHotel.room_pricing} />
+                    <RoomsTab
+                        hotel_id={id}
+                        rooms={serializedHotel.hotelRooms}
+                    />
+                </TabsContent>
+
+                <TabsContent value="pricing" className="mt-6">
+                    <PricingTab
+                        hotel_id={id}
+                        rooms={serializedHotel.hotelRooms.map((r) => ({
+                            id: r.id,
+                            name: r.name,
+                        }))}
+                        pricing={serializedHotel.room_pricing}
+                        mealTypes={mealTypes}
+                        dietTypes={dietTypes}
+                    />
                 </TabsContent>
 
                 <TabsContent value="images" className="mt-6">
-                    <ImagesTab hotel_id={hotel.id} categories={serializedCategories} />
+                    <ImagesTab hotel_id={id} categories={serializedCategories} />
                 </TabsContent>
             </Tabs>
         </div>

@@ -189,7 +189,6 @@ export function ActivitiesTableClient({
         <StatCard label="Total Activities" value={activities.length} />
         <StatCard label="Active"           value={activeCount} />
         <StatCard label="Inactive"         value={activities.length - activeCount} muted />
-        <StatCard label="In Packages"      value={activities.reduce((acc, a) => acc + a._count.packages, 0)} />
       </div>
 
       {/* Filters */}

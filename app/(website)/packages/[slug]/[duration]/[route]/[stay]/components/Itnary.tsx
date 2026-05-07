@@ -393,7 +393,7 @@ function StayContent({ section }: { section: StaySection }) {
             {section.images.slice(0, 5).map((src, i) => (
               <img
                 key={i}
-                src={`${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${src}`}
+                src={src}
                 alt=""
                 className={cn('w-full h-full object-cover', i === 0 && 'row-span-2')}
               />
@@ -412,17 +412,17 @@ function ActivityContent({ section }: { section: ActivitySection }) {
     <div className="mt-2 flex">
       <div className="w-10"></div>
       <div className='flex-1'>
-        <p className="text-[13px] font-semibold text-primary mb-2">{section.name}</p>
-        <div className="grid grid-cols-2 gap-1.5">
+        <Text size='base' weight='semibold' className=" font-heading text-primary leading-tight mb-3">{section.name}</Text>
+        <div className="grid grid-cols-3 gap-1.5">
           {section.images.map(({ src, label }, i) => (
             <div key={i} className="relative rounded-xl overflow-hidden">
-              <img src={`${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${src}`} alt={label} className="w-full aspect-5/3 object-cover" />
+              <Image src={src} alt={label} width={1000} height={600} className="w-full aspect-5/3 object-cover" />
               <div className="absolute inset-x-0 bottom-0 bg-linear-to-r from-black/60 to-transparent px-2 py-1.5">
                 <p className="text-[10px] text-white font-medium">{label}</p>
               </div>
             </div>
           ))}
-        </div>
+        </div>   
       </div>
     </div>
   );
@@ -586,9 +586,9 @@ export default function ItinerarySection({ days }: ItineraryProps) {
                   {description}
                 </Text>
               )}
-              <div className="flex flex-col divide-y divide-(--border-muted)">
+              <div className="flex flex-col divide-y divide-(--border-muted) ">
                 {sections.map((section, i) => (
-                  <div key={i} className="py-1">
+                  <div key={i} className="py-5">
                     <DaySectionBlock
                       section={section}
                       id={`day-${day}-sec-${i}`}

@@ -1,186 +1,161 @@
-// app/(dashboard)/dashboard/packages/[id]/page.tsx
 import { notFound } from "next/navigation";
-import Link from "next/link";
-import { ChevronLeft, Package as PkgIcon } from "lucide-react";
 import { Badge } from "../../components/ui/badge";
-import { Button } from "../../components/ui/button";
 import {
   Breadcrumb, BreadcrumbItem, BreadcrumbLink,
   BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "../../components/ui/breadcrumb";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import {
-  getPackageById,
-  getDestinationsForSelect,
-  getHotelsForSelect,
-  getActivitiesForSelect,
-  getCategoriesForSelect,
-  getTagsForSelect,
-  getPoliciesForSelect,
-} from "../actions";
-import { BasicTab } from "./tabs/BasicTab";
-import { DurationsTab } from "./tabs/DurationsTab";
-import { StayCategoriesTab } from "./tabs/StayCategoriesTab";
-import { PricingTab } from "./tabs/PricingTab";
-import { ItineraryTab } from "./tabs/ItineraryTab";
-import { PoliciesTab } from "./tabs/PoliciesTab";
-import { ImagesTab } from "./tabs/ImagesTab";
+  Tabs, TabsContent, TabsList, TabsTrigger,
+} from "../../components/ui/tabs";
+import { PackageForm } from "../components/PackageForm";
+import { ImagesTab } from "./ImagesTab";
+import { RouteBuilderTab } from "./RouteBuilderTab";
+import { getPackageForBuilder } from "../actions";
+import {
+  CalendarDays, GalleryHorizontal, Images, Info, Package, Route,
+  ShieldCheck, BadgeDollarSign,
+} from "lucide-react";
 
-export default async function PackageEditPage({
+// ── Tab shell ─────────────────────────────────────────────────────────────
+
+const TABS = [
+  { value: "basic-info",          label: "Basic Info",          icon: Info },
+  { value: "images",              label: "Images",              icon: Images },
+  { value: "route-builder",       label: "Route Builder",       icon: Route },
+  { value: "itinerary-builder",   label: "Itinerary Builder",   icon: CalendarDays },
+  { value: "policies",            label: "Policies",            icon: ShieldCheck },
+  { value: "gallery",             label: "Gallery",             icon: GalleryHorizontal },
+  { value: "pricing-preview",     label: "Pricing Preview",     icon: BadgeDollarSign },
+] as const;
+
+function PlaceholderTab({ label }: { label: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-24 rounded-xl border border-dashed bg-muted/30">
+      <p className="text-sm font-medium text-muted-foreground">{label}</p>
+      <p className="text-xs text-muted-foreground/60 mt-1">Coming soon</p>
+    </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────
+
+export default async function PackageBuilderPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
 }) {
-  const { id: idStr } = await params;
-  const { tab = "basic" } = await searchParams;
-  const id = Number(idStr);
+  const { id: idParam } = await params;
+  const id = parseInt(idParam, 10);
+  if (isNaN(id)) notFound();
 
-  const [pkg, destinations, hotels, activities, categories, tags, policies] = await Promise.all([
-    getPackageById(id),
-    getDestinationsForSelect(),
-    getHotelsForSelect(),
-    getActivitiesForSelect(),
-    getCategoriesForSelect(),
-    getTagsForSelect(),
-    getPoliciesForSelect(),
-  ]);
-
+  const pkg = await getPackageForBuilder(id);
   if (!pkg) notFound();
 
-  const assignedPolicyIds = pkg.policies.map(p => p.policy_id);
-
-  // Serialise Decimal fields
-  const durations = pkg.durations.map(d => ({
-    ...d,
-    pricing: d.pricing.map(p => ({
-      ...p,
-      price: Number(p.price),
-      original_price: p.original_price ? Number(p.original_price) : null,
-    })),
-  }));
-
-  // In [id]/page.tsx — after the Promise.all, add:
-
-  const serializedActivities = activities.map(a => ({
-    ...a,
-    duration_hours: a.duration_hours ? Number(a.duration_hours) : null,
-  }));
-
-  const TABS = [
-    { value: "basic", label: "Basic Info" },
-    { value: "durations", label: `Durations (${durations.length})` },
-    { value: "stay", label: `Stay Types (${pkg.stay_categories.length})` },
-    { value: "pricing", label: "Pricing" },
-    { value: "itinerary", label: "Itinerary" },
-    { value: "policies", label: "Policies" },
-    { value: "images", label: `Images (${pkg.images.length})` },
-  ];
-
-
+  const initialData = {
+    title: pkg.title,
+    slug: pkg.slug,
+    thumbnail: pkg.thumbnail,
+    description: pkg.description ?? "",
+    destination_id: pkg.destination_id,
+    inclusions: pkg.inclusions,
+    exclusions: pkg.exclusions,
+    tags: pkg.tags.map(t => t.tag.name),
+    category: pkg.categories.map(c => c.category.name),
+  };
 
   return (
-    <div className="space-y-6 ">
+    <div className="space-y-6">
+      {/* Breadcrumb */}
       <Breadcrumb>
         <BreadcrumbList>
-          <BreadcrumbItem><BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink></BreadcrumbItem>
+          <BreadcrumbItem>
+            <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
+          </BreadcrumbItem>
           <BreadcrumbSeparator />
-          <BreadcrumbItem><BreadcrumbLink href="/dashboard/packages">Packages</BreadcrumbLink></BreadcrumbItem>
+          <BreadcrumbItem>
+            <BreadcrumbLink href="/dashboard/packages">Packages</BreadcrumbLink>
+          </BreadcrumbItem>
           <BreadcrumbSeparator />
-          <BreadcrumbItem><BreadcrumbPage>{pkg.title}</BreadcrumbPage></BreadcrumbItem>
+          <BreadcrumbItem>
+            <BreadcrumbPage className="max-w-60 truncate">{pkg.title}</BreadcrumbPage>
+          </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
 
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/dashboard/packages"><ChevronLeft className="h-4 w-4" /></Link>
-        </Button>
+      {/* Header */}
+      <div className="flex items-start gap-3">
         <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-          <PkgIcon className="h-5 w-5 text-primary" />
+          <Package className="h-5 w-5 text-primary" />
         </div>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold">{pkg.title}</h1>
-            <Badge variant={pkg.is_active ? "default" : "secondary"} className="text-xs">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-xl font-semibold truncate">{pkg.title}</h1>
+            <Badge
+              variant={pkg.is_active ? "default" : "outline"}
+              className="shrink-0 text-xs"
+            >
               {pkg.is_active ? "Active" : "Inactive"}
             </Badge>
           </div>
-          <p className="text-sm text-muted-foreground">
-            {pkg.destination.name} · {durations.length} duration{durations.length !== 1 ? "s" : ""}
-            {pkg.stay_categories.length > 0 && ` · ${pkg.stay_categories.length} stay type${pkg.stay_categories.length !== 1 ? "s" : ""}`}
-          </p>
+          <p className="text-xs text-muted-foreground mt-0.5 font-mono">{pkg.slug}</p>
         </div>
       </div>
 
-      <Tabs defaultValue={tab}>
-        <TabsList className="flex w-full overflow-x-auto">
-          {TABS.map(t => (
-            <TabsTrigger key={t.value} value={t.value} className="shrink-0">
-              {t.label}
+      {/* Tabs */}
+      <Tabs defaultValue="basic-info">
+        <TabsList variant="line" className="w-full justify-start border-b rounded-none pb-0 h-auto gap-0">
+          {TABS.map(({ value, label, icon: Icon }) => (
+            <TabsTrigger key={value} value={value} className="gap-1.5 px-4 pb-3 rounded-none">
+              <Icon className="h-3.5 w-3.5" />
+              {label}
             </TabsTrigger>
           ))}
         </TabsList>
 
-        <TabsContent value="basic" className="mt-6">
-          <BasicTab
-            pkg={{
-              id: pkg.id,
-              title: pkg.title,
-              slug: pkg.slug,
-              description: pkg.description,
-              meta_title: pkg.meta_title,
-              meta_desc: pkg.meta_desc,
-              thumbnail: pkg.thumbnail,
-              cover_image: pkg.cover_image,
-              inclusions: pkg.inclusions,
-              exclusions: pkg.exclusions,
-              is_active: pkg.is_active,
-              destination: pkg.destination,
-            }}
-            destinations={destinations}
-            categories={categories}
-            tags={tags}
-            assignedTagIds={pkg.tags.map(t => t.tag.id)}
-            assignedCategoryIds={pkg.categories.map(c => c.category.id)}
+        {/* Tab 1 — Basic Info */}
+        <TabsContent value="basic-info" className="pt-6">
+          <div >
+            <PackageForm
+              mode="update"
+              packageId={pkg.id}
+              initialData={initialData}
+              initialDestinationLabel={pkg.destination.name}
+            />
+          </div>
+        </TabsContent>
+
+        {/* Tab 2 — Images (ASSET POOL) */}
+        <TabsContent value="images" className="pt-6">
+          <ImagesTab packageId={pkg.id} initialImages={pkg.images} />
+        </TabsContent>
+
+        {/* Tab 3 — Route Builder */}
+        <TabsContent value="route-builder" className="pt-6">
+          <RouteBuilderTab
+            packageId={pkg.id}
+            initialData={pkg.durations as never}
+            packageImages={pkg.images.map(img => ({ id: img.id, url: img.url, is_primary: img.is_primary }))}
           />
         </TabsContent>
 
-        <TabsContent value="durations" className="mt-6">
-          <DurationsTab package_id={id} durations={durations} />
+        {/* Tab 4 — Itinerary Builder */}
+        <TabsContent value="itinerary-builder" className="pt-6">
+          <PlaceholderTab label="Itinerary Builder — Core Engine" />
         </TabsContent>
 
-        <TabsContent value="stay" className="mt-6">
-          <StayCategoriesTab package_id={id} stayCategories={pkg.stay_categories} />
+        {/* Tab 5 — Policies */}
+        <TabsContent value="policies" className="pt-6">
+          <PlaceholderTab label="Policies" />
         </TabsContent>
 
-        <TabsContent value="pricing" className="mt-6">
-          <PricingTab
-            package_id={id}
-            durations={durations}
-            stayCategories={pkg.stay_categories}
-          />
+        {/* Tab 6 — Gallery (INTRO SECTION) */}
+        <TabsContent value="gallery" className="pt-6">
+          <PlaceholderTab label="Gallery — Intro Section" />
         </TabsContent>
 
-        <TabsContent value="itinerary" className="mt-6">
-          <ItineraryTab
-            package_id={id}
-            durations={durations}
-            hotels={hotels}
-            activities={serializedActivities}
-          />
-        </TabsContent>
-
-        <TabsContent value="policies" className="mt-6">
-          <PoliciesTab
-            package_id={id}
-            allPolicies={policies}
-            assignedPolicyIds={assignedPolicyIds}
-          />
-        </TabsContent>
-
-        <TabsContent value="images" className="mt-6">
-          <ImagesTab package_id={id} images={pkg.images} />
+        {/* Tab 7 — Pricing Preview */}
+        <TabsContent value="pricing-preview" className="pt-6">
+          <PlaceholderTab label="Pricing Preview" />
         </TabsContent>
       </Tabs>
     </div>

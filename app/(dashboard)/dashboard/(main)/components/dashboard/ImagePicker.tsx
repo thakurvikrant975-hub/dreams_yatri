@@ -470,6 +470,23 @@ export function ImagePicker({
             {/* Image grid */}
             {value.length > 0 && (
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+
+                    {/* Add more inline */}
+                    {canAddMore && value.length > 0 && (
+                        <button
+                            type="button"
+                            onClick={() => inputRef.current?.click()}
+                            className={cn(
+                                "aspect-square rounded-xl border-2 border-dashed border-border",
+                                "flex flex-col items-center justify-center gap-1",
+                                "hover:border-primary/50 hover:bg-muted/50 transition-colors",
+                            )}
+                        >
+                            <Upload className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-[10px] text-muted-foreground">Add</span>
+                        </button>
+                    )}
+
                     {value.map((image, index) => (
                         <div
                             key={image.id}
@@ -492,21 +509,6 @@ export function ImagePicker({
                         </div>
                     ))}
 
-                    {/* Add more inline */}
-                    {canAddMore && value.length > 0 && (
-                        <button
-                            type="button"
-                            onClick={() => inputRef.current?.click()}
-                            className={cn(
-                                "aspect-square rounded-xl border-2 border-dashed border-border",
-                                "flex flex-col items-center justify-center gap-1",
-                                "hover:border-primary/50 hover:bg-muted/50 transition-colors",
-                            )}
-                        >
-                            <Upload className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-[10px] text-muted-foreground">Add</span>
-                        </button>
-                    )}
                 </div>
             )}
 
