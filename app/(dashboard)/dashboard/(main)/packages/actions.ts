@@ -26,6 +26,11 @@ export async function getPackageForBuilder(id: number) {
         orderBy: { sort_order: "asc" },
         select: { id: true, url: true, thumbnail: true, sort_order: true, is_primary: true },
       },
+      stay_categories: {
+        where: { is_active: true },
+        orderBy: { sort_order: "asc" },
+        select: { id: true, label: true, slug: true, min_duration_days: true, sort_order: true },
+      },
       durations: {
         orderBy: { days: "asc" },
         include: {

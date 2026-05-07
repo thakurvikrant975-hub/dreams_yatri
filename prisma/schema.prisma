@@ -219,7 +219,6 @@ model Booking {
   @@map("bookings")
 }
 
-
 model TripDocument {
   id         String       @id @default(cuid())
   bookingId  String
@@ -1444,6 +1443,7 @@ enum CustomPackageStatus {
   SENT
   ACCEPTED
   DECLINED
+  just_testing
 }
 
 model custom_packages {

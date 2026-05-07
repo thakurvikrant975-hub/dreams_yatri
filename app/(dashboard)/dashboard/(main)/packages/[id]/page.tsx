@@ -10,6 +10,7 @@ import {
 import { PackageForm } from "../components/PackageForm";
 import { ImagesTab } from "./ImagesTab";
 import { RouteBuilderTab } from "./RouteBuilderTab";
+import { ItineraryBuilderTab } from "./ItineraryBuilderTab";
 import { getPackageForBuilder } from "../actions";
 import {
   CalendarDays, GalleryHorizontal, Images, Info, Package, Route,
@@ -140,7 +141,19 @@ export default async function PackageBuilderPage({
 
         {/* Tab 4 — Itinerary Builder */}
         <TabsContent value="itinerary-builder" className="pt-6">
-          <PlaceholderTab label="Itinerary Builder — Core Engine" />
+          <ItineraryBuilderTab
+            packageId={pkg.id}
+            destinationId={pkg.destination_id}
+            durations={pkg.durations.map((d) => ({
+              id: d.id,
+              label: d.label,
+              days: d.days,
+              nights: d.nights,
+              is_default: d.is_default,
+              routes: d.routes.map((r) => ({ id: r.id, name: r.name })),
+            }))}
+            stayCategories={pkg.stay_categories}
+          />
         </TabsContent>
 
         {/* Tab 5 — Policies */}
