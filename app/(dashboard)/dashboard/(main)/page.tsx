@@ -1,16 +1,44 @@
-import React from 'react'
-import { dashboardAuth } from '@/app/lib/auth-dashboard'
+// app/dashboard/page.tsx
+import { getCurrentMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
+import { SalesDashboard } from "./components/dashboard/Salesdashboard";
+import { MarketingDashboard } from "./components/dashboard/Marketingdashboard";
+import { DefaultDashboard } from "./components/dashboard/Defaultdashboard";
+import DashboardHeader from "./components/dashboard/DashboardHeader";
+import type { Member } from "@/types"; // adjust to your actual type
 
+type DashboardComponent = React.ComponentType<{ member: Member }>;
 
-async function page() {
-    const session = await dashboardAuth();
+const ROLE_DASHBOARD_MAP: Record<string, DashboardComponent> = {
+  sales: SalesDashboard,
+  marketing: MarketingDashboard,
+};
+
+export default async function DashboardPage() {
+  const member = await getCurrentMember();
+
+  if (!member) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
+        <p className="text-lg font-semibold">Account not found</p>
+        <p className="text-sm text-muted-foreground">
+          Your session is valid but no team member record exists for this email.
+          Contact your administrator.
+        </p>
+      </div>
+    );
+  }
+
+  const identifier =
+    member.teamRole?.name?.toLowerCase() ||
+    member.department?.name?.toLowerCase() ||
+    "";
+
+  const Dashboard = ROLE_DASHBOARD_MAP[identifier] ?? DefaultDashboard;
 
   return (
-    <div>
-       Hii <b>{session?.user.name ?? "there"}</b> 👋
-    </div>
-  )
+    <>
+      <DashboardHeader member={member} />
+      <Dashboard member={member} />
+    </>
+  );
 }
-
-export default page;
-  

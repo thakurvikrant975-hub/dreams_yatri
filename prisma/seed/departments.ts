@@ -1,36 +1,60 @@
-import "dotenv/config";
-import { Pool } from "pg";
+// prisma/seed-departments.ts
+// Run with: npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed-departments.ts
+// Or add to package.json scripts: "seed:dept": "ts-node prisma/seed-departments.ts"
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+import { PrismaClient } from "@/app/generated/prisma";
+
+const prisma = new PrismaClient();
 
 const departments = [
-  { name: "Management",        description: "Founders and executive leadership" },
-  { name: "Operations",        description: "Tour operations, logistics, and coordination" },
-  { name: "Sales",             description: "Inbound query handling and conversions" },
-  { name: "Marketing",         description: "Campaigns, ads, and lead generation" },
-  { name: "Content",           description: "Package content, media, and copywriting" },
-  { name: "Finance",           description: "Billing, payments, and accounts" },
-  { name: "Customer Support",  description: "Post-booking support and grievance handling" },
+  {
+    name: "Sales",
+    description: "Convert leads into confirmed bookings and manage client packages.",
+  },
+  {
+    name: "Marketing",
+    description: "Generate and qualify inbound leads via campaigns and digital channels.",
+  },
+  {
+    name: "Operations",
+    description: "Coordinate hotel, cab, and ground logistics for confirmed bookings.",
+  },
+  {
+    name: "Finance",
+    description: "Handle invoicing, payment reconciliation, and vendor settlements.",
+  },
+  {
+    name: "Support",
+    description: "Handle post-booking client queries, complaints, and escalations.",
+  },
+  {
+    name: "Technology",
+    description: "Build and maintain the internal platform, integrations, and tooling.",
+  },
+  {
+    name: "Management",
+    description: "Executive leadership and cross-department oversight.",
+  },
 ];
 
 async function main() {
-  console.log("Seeding Department...");
+  console.log("🌱 Seeding departments...\n");
 
   for (const dept of departments) {
-    await pool.query(
-      `INSERT INTO departments (id, name, description, "createdAt", "updatedAt")
-       VALUES (gen_random_uuid(), $1, $2, NOW(), NOW())
-       ON CONFLICT (name) DO UPDATE
-         SET description = EXCLUDED.description,
-             "updatedAt" = NOW()`,
-      [dept.name, dept.description ?? null]
-    );
-    console.log("  ->", dept.name);
+    const result = await prisma.department.upsert({
+      where: { name: dept.name },
+      update: { description: dept.description },
+      create: dept,
+    });
+    console.log(`✅  ${result.name} — ${result.id}`);
   }
 
-  console.log("✅ Department seeded");
+  console.log("\n✨ Done. All departments seeded.");
 }
 
 main()
-  .catch(console.error)
-  .finally(() => pool.end());
+  .catch((e) => {
+    console.error("❌ Seed failed:", e);
+    process.exit(1);
+  })
+  .finally(() => prisma.$disconnect());

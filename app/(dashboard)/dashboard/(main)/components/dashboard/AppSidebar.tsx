@@ -5,7 +5,9 @@ import {
 } from "../ui/sidebar";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, } from "../ui/accordion";
 
-import { LayoutDashboard, Settings, Users, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound, MessageCircleQuestion, ClockCheck, Mails, Forward, BadgePercent, HandCoins, Banknote, ChartSpline, BanknoteArrowDown, BanknoteX, Car, Bed
+import {
+    LayoutDashboard, Settings, Users, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound, MessageCircleQuestion, ClockCheck, Mails, Forward, BadgePercent, HandCoins, Banknote, ChartSpline, BanknoteArrowDown, BanknoteX, Car, Bed, ChartNoAxesCombined, BellRing, PackagePlus, ChartNoAxesGantt,
+    Star
 } from "lucide-react";
 
 import {
@@ -71,6 +73,18 @@ const navGroups = [
             { title: "Follow ups", href: "/dashboard/follow-ups", icon: <ClockCheck className="size-6 text-muted-foreground" /> },
             { title: "References", href: "/dashboard/references", icon: <Forward className="size-6 text-muted-foreground" /> },
             { title: "Coupons and offers", href: "/dashboard/coupons", icon: <BadgePercent className="size-6 text-muted-foreground" /> },
+            { title: "Reviews", href: "/dashboard/reviews", icon: <Star className="size-6 text-muted-foreground" /> },
+        ],
+    },
+    {
+        id: "sales",
+        label: "Sales",
+        items: [
+            { title: "Dashboard", href: "/sales-dashboard", icon: <LayoutDashboard className="size-6 text-muted-foreground" /> },
+            { title: "Queries Management", href: "/dashboard/sales-query", icon: <ChartNoAxesGantt className="size-6 text-muted-foreground" /> },
+            { title: "Analytics", href: "/dashboard/sale-analytics", icon: <ChartNoAxesCombined className="size-6 text-muted-foreground" /> },
+            { title: "Follow ups", href: "/dashboard/follow-ups", icon: <BellRing className="size-6 text-muted-foreground" /> },
+            { title: "Package Builder", href: "/dashboard/package-builder", icon: <PackagePlus className="size-6 text-muted-foreground" /> },
         ],
     },
     {
@@ -134,7 +148,7 @@ export function AppSidebar() {
                 <Accordion
                     type="multiple"
                     defaultValue={navGroups.map(g => g.id)}
-                    className="px-2 py-2"
+                    className="py-2"
                 >
                     {navGroups.map(group => (
                         <AccordionItem
@@ -142,25 +156,32 @@ export function AppSidebar() {
                             value={group.id}
                             className="border-none"
                         >
-                            <AccordionTrigger className="px-2 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground">
+                            <AccordionTrigger className="px-2 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground cursor-pointer">
                                 {group.label}
                             </AccordionTrigger>
                             <AccordionContent className="pb-1">
                                 <SidebarGroup className="p-0">
                                     <SidebarMenu>
-                                        {group.items.map(item => (
-                                            <SidebarMenuItem key={item.href}>
-                                                <SidebarMenuButton
-                                                    asChild
-                                                    isActive={isActive(item.href)}
-                                                >
-                                                    <Link href={item.href}>
-                                                        {item.icon}
-                                                        <span className="text-sm ml-1.5">{item.title}</span>
-                                                    </Link>
-                                                </SidebarMenuButton>
-                                            </SidebarMenuItem>
-                                        ))}
+                                        {group.items.map(item => {
+                                            const active = isActive(item.href);
+
+                                            return (
+                                                <SidebarMenuItem key={item.href}>
+                                                    <SidebarMenuButton
+                                                        asChild
+                                                        isActive={isActive(item.href)}
+                                                        className="data-[active=true]:bg-violet-100 data-[active=true]:text-violet-600 px-4"
+                                                    >
+                                                        <Link href={item.href} className="flex items-center">
+                                                            <span className="text-inherit [&>svg]:stroke-current [&>svg]:text-inherit">
+                                                                {item.icon}
+                                                            </span>
+                                                            <span className="text-sm ml-1.5">{item.title}</span>
+                                                        </Link>
+                                                    </SidebarMenuButton>
+                                                </SidebarMenuItem>
+                                            );
+                                        })}
                                     </SidebarMenu>
                                 </SidebarGroup>
                             </AccordionContent>

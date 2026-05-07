@@ -1,0 +1,751 @@
+<!doctype html>
+<html lang="en" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Travel Itinerary</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&amp;family=Raleway:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet">
+  <style>
+    .font-display { font-family: 'Playfair Display', Georgia, serif; }
+    .font-body { font-family: 'Raleway', sans-serif; }
+    .gradient-red { background: linear-gradient(135deg, #DC2626 0%, #991B1B 50%, #7F1D1D 100%); }
+    .gradient-hero { background: linear-gradient(180deg, rgba(220,38,38,0.95) 0%, rgba(127,29,29,0.98) 100%); }
+    .card-shadow { box-shadow: 0 10px 40px rgba(220,38,38,0.15), 0 4px 12px rgba(0,0,0,0.08); }
+    .icon-shadow { filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1)); }
+    .pattern-overlay {
+      background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    }
+    .scroll-smooth { scroll-behavior: smooth; }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+    .animate-float { animation: float 3s ease-in-out infinite; }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in { animation: fadeInUp 0.6s ease-out forwards; }
+    .animate-delay-1 { animation-delay: 0.1s; }
+    .animate-delay-2 { animation-delay: 0.2s; }
+    .animate-delay-3 { animation-delay: 0.3s; }
+    .animate-delay-4 { animation-delay: 0.4s; }
+  </style>
+  <style>body { box-sizing: border-box; }</style>
+  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+ </head>
+ <body class="h-full font-body bg-stone-50 text-stone-800">
+  <div id="app-wrapper" class="w-full h-full overflow-auto scroll-smooth"><!-- Hero Header -->
+   <header class="gradient-hero pattern-overlay relative overflow-hidden">
+    <div class="absolute inset-0 opacity-10">
+     <svg class="w-full h-full" viewbox="0 0 100 100" preserveaspectratio="none"><circle cx="80" cy="20" r="40" fill="white" opacity="0.1" /> <circle cx="10" cy="80" r="30" fill="white" opacity="0.08" />
+     </svg>
+    </div>
+    <div class="relative z-10 max-w-6xl mx-auto px-4 py-8 sm:py-12">
+     <div class="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
+      <div class="flex items-center gap-3">
+       <div class="w-12 h-12 sm:w-14 sm:h-14 bg-white rounded-xl flex items-center justify-center shadow-lg">
+        <svg class="w-8 h-8 sm:w-9 sm:h-9 text-red-600" viewbox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+        </svg>
+       </div>
+       <div>
+        <h1 id="company-name" class="font-display text-xl sm:text-2xl font-bold text-white">Wanderlust Travels</h1>
+        <p class="text-red-200 text-xs sm:text-sm font-medium">Your Journey, Our Passion</p>
+       </div>
+      </div>
+      <div class="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
+       <svg class="w-4 h-4 text-red-200" fill="currentColor" viewbox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
+       </svg><span id="header-phone" class="text-white text-sm font-medium">+91 98765 43210</span>
+      </div>
+     </div>
+     <div class="text-center animate-fade-in">
+      <div class="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-4 py-1.5 rounded-full mb-4"><span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span> <span class="text-white text-sm font-medium">Limited Time Offer</span>
+      </div>
+      <h2 id="package-title" class="font-display text-3xl sm:text-5xl lg:text-6xl font-bold text-white mb-3 leading-tight">Magical Rajasthan Explorer</h2>
+      <p id="tagline" class="text-red-100 text-lg sm:text-xl font-light mb-6">Experience the Royal Heritage of India</p>
+      <div class="flex flex-wrap justify-center gap-4 sm:gap-6 text-white">
+       <div class="flex items-center gap-2">
+        <svg class="w-5 h-5 text-red-200" fill="currentColor" viewbox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11zM9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm-8 4H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2z" />
+        </svg><span id="trip-duration" class="font-medium">5 Days / 4 Nights</span>
+       </div>
+       <div class="flex items-center gap-2">
+        <svg class="w-5 h-5 text-red-200" fill="currentColor" viewbox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
+        </svg><span id="destination-display" class="font-medium">Jaipur • Udaipur • Jodhpur</span>
+       </div>
+      </div>
+     </div><!-- Price Badge -->
+     <div class="mt-8 flex justify-center">
+      <div class="bg-white rounded-2xl p-1 shadow-2xl">
+       <div class="bg-gradient-to-r from-red-600 to-red-700 rounded-xl px-8 py-4 text-center">
+        <p class="text-red-100 text-sm font-medium mb-1">Starting From</p>
+        <p id="price-display" class="font-display text-3xl sm:text-4xl font-bold text-white">₹24,999</p>
+        <p class="text-red-200 text-xs mt-1">Per Person (Twin Sharing)</p>
+       </div>
+      </div>
+     </div>
+    </div><!-- Wave Divider -->
+    <div class="absolute bottom-0 left-0 right-0">
+     <svg viewbox="0 0 1440 120" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-full"><path d="M0 120L60 110C120 100 240 80 360 70C480 60 600 60 720 65C840 70 960 80 1080 85C1200 90 1320 90 1380 90L1440 90V120H1380C1320 120 1200 120 1080 120C960 120 840 120 720 120C600 120 480 120 360 120C240 120 120 120 60 120H0Z" fill="#fafaf9" />
+     </svg>
+    </div>
+   </header>
+   <main class="max-w-6xl mx-auto px-4 py-8 sm:py-12"><!-- Destination Highlights -->
+    <section class="mb-12 animate-fade-in animate-delay-1">
+     <div class="text-center mb-8"><span class="inline-block px-4 py-1 bg-red-100 text-red-700 rounded-full text-sm font-semibold mb-3">DESTINATIONS</span>
+      <h3 class="font-display text-2xl sm:text-3xl font-bold text-stone-800">Explore Royal Rajasthan</h3>
+     </div>
+     <div class="grid sm:grid-cols-3 gap-6"><!-- Jaipur -->
+      <div class="group relative bg-white rounded-2xl overflow-hidden card-shadow hover:shadow-xl transition-all duration-300">
+       <div class="h-40 gradient-red relative overflow-hidden">
+        <div class="absolute inset-0 flex items-center justify-center">
+         <svg class="w-20 h-20 text-white/20" viewbox="0 0 24 24" fill="currentColor"><path d="M12 3L4 9v12h16V9l-8-6zm0 2.236L18 10v9H6v-9l6-4.764z" /> <path d="M12 7l-4 3v6h8v-6l-4-3zm0 2.236L14 11v3h-4v-3l2-1.764z" />
+         </svg>
+        </div>
+        <div class="absolute top-3 right-3 bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full"><span class="text-white text-xs font-semibold">Day 1-2</span>
+        </div>
+       </div>
+       <div class="p-5">
+        <h4 class="font-display text-xl font-bold text-stone-800 mb-2">Jaipur</h4>
+        <p class="text-stone-600 text-sm mb-3">The Pink City - Home to majestic palaces and vibrant bazaars</p>
+        <div class="flex flex-wrap gap-2"><span class="px-2 py-1 bg-red-50 text-red-700 rounded-full text-xs font-medium">Amber Fort</span> <span class="px-2 py-1 bg-red-50 text-red-700 rounded-full text-xs font-medium">Hawa Mahal</span> <span class="px-2 py-1 bg-red-50 text-red-700 rounded-full text-xs font-medium">City Palace</span>
+        </div>
+       </div>
+      </div><!-- Udaipur -->
+      <div class="group relative bg-white rounded-2xl overflow-hidden card-shadow hover:shadow-xl transition-all duration-300">
+       <div class="h-40 bg-gradient-to-br from-red-500 to-rose-600 relative overflow-hidden">
+        <div class="absolute inset-0 flex items-center justify-center">
+         <svg class="w-20 h-20 text-white/20" viewbox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" />
+         </svg>
+        </div>
+        <div class="absolute top-3 right-3 bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full"><span class="text-white text-xs font-semibold">Day 3</span>
+        </div>
+       </div>
+       <div class="p-5">
+        <h4 class="font-display text-xl font-bold text-stone-800 mb-2">Udaipur</h4>
+        <p class="text-stone-600 text-sm mb-3">City of Lakes - Romance amidst royal splendor</p>
+        <div class="flex flex-wrap gap-2"><span class="px-2 py-1 bg-red-50 text-red-700 rounded-full text-xs font-medium">Lake Palace</span> <span class="px-2 py-1 bg-red-50 text-red-700 rounded-full text-xs font-medium">Jagdish Temple</span> <span class="px-2 py-1 bg-red-50 text-red-700 rounded-full text-xs font-medium">Boat Ride</span>
+        </div>
+       </div>
+      </div><!-- Jodhpur -->
+      <div class="group relative bg-white rounded-2xl overflow-hidden card-shadow hover:shadow-xl transition-all duration-300">
+       <div class="h-40 bg-gradient-to-br from-rose-600 to-red-700 relative overflow-hidden">
+        <div class="absolute inset-0 flex items-center justify-center">
+         <svg class="w-20 h-20 text-white/20" viewbox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z" /> <path d="M12 6l-4 8h8l-4-8zm0 2.5L14 13h-4l2-4.5z" />
+         </svg>
+        </div>
+        <div class="absolute top-3 right-3 bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full"><span class="text-white text-xs font-semibold">Day 4-5</span>
+        </div>
+       </div>
+       <div class="p-5">
+        <h4 class="font-display text-xl font-bold text-stone-800 mb-2">Jodhpur</h4>
+        <p class="text-stone-600 text-sm mb-3">The Blue City - Majestic forts and desert charm</p>
+        <div class="flex flex-wrap gap-2"><span class="px-2 py-1 bg-red-50 text-red-700 rounded-full text-xs font-medium">Mehrangarh Fort</span> <span class="px-2 py-1 bg-red-50 text-red-700 rounded-full text-xs font-medium">Jaswant Thada</span> <span class="px-2 py-1 bg-red-50 text-red-700 rounded-full text-xs font-medium">Clock Tower</span>
+        </div>
+       </div>
+      </div>
+     </div>
+    </section><!-- Day by Day Itinerary -->
+    <section class="mb-12 animate-fade-in animate-delay-2">
+     <div class="text-center mb-8"><span class="inline-block px-4 py-1 bg-red-100 text-red-700 rounded-full text-sm font-semibold mb-3">ITINERARY</span>
+      <h3 class="font-display text-2xl sm:text-3xl font-bold text-stone-800">Day-by-Day Journey</h3>
+     </div>
+     <div class="relative"><!-- Timeline Line -->
+      <div class="absolute left-4 sm:left-8 top-0 bottom-0 w-0.5 bg-gradient-to-b from-red-500 via-red-600 to-red-700 hidden sm:block"></div>
+      <div class="space-y-6"><!-- Day 1 -->
+       <div class="relative flex gap-4 sm:gap-8">
+        <div class="flex-shrink-0 w-8 sm:w-16 flex flex-col items-center">
+         <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-full gradient-red flex items-center justify-center text-white font-bold text-sm shadow-lg z-10">
+          1
+         </div>
+        </div>
+        <div class="flex-1 bg-white rounded-xl p-5 card-shadow">
+         <div class="flex flex-wrap items-center gap-3 mb-3">
+          <h4 class="font-display text-lg font-bold text-stone-800">Arrival in Jaipur</h4><span class="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">15 Jan 2025</span>
+         </div>
+         <ul class="space-y-2 text-stone-600 text-sm">
+          <li class="flex items-start gap-2">
+           <svg class="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+           </svg><span>Airport/Railway pickup by AC vehicle</span></li>
+          <li class="flex items-start gap-2">
+           <svg class="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+           </svg><span>Check-in at hotel &amp; refreshments</span></li>
+          <li class="flex items-start gap-2">
+           <svg class="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+           </svg><span>Evening visit to Birla Mandir &amp; local market</span></li>
+          <li class="flex items-start gap-2">
+           <svg class="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+           </svg><span>Welcome dinner with traditional Rajasthani cuisine</span></li>
+         </ul>
+        </div>
+       </div><!-- Day 2 -->
+       <div class="relative flex gap-4 sm:gap-8">
+        <div class="flex-shrink-0 w-8 sm:w-16 flex flex-col items-center">
+         <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-full gradient-red flex items-center justify-center text-white font-bold text-sm shadow-lg z-10">
+          2
+         </div>
+        </div>
+        <div class="flex-1 bg-white rounded-xl p-5 card-shadow">
+         <div class="flex flex-wrap items-center gap-3 mb-3">
+          <h4 class="font-display text-lg font-bold text-stone-800">Jaipur Sightseeing</h4><span class="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">16 Jan 2025</span>
+         </div>
+         <ul class="space-y-2 text-stone-600 text-sm">
+          <li class="flex items-start gap-2">
+           <svg class="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+           </svg><span>Amber Fort with elephant ride (optional)</span></li>
+          <li class="flex items-start gap-2">
+           <svg class="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+           </svg><span>Hawa Mahal &amp; City Palace exploration</span></li>
+          <li class="flex items-start gap-2">
+           <svg class="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+           </svg><span>Jantar Mantar astronomical instruments</span></li>
+          <li class="flex items-start gap-2">
+           <svg class="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+           </svg><span>Shopping at Johari Bazaar for gems &amp; textiles</span></li>
+         </ul>
+        </div>
+       </div><!-- Day 3 -->
+       <div class="relative flex gap-4 sm:gap-8">
+        <div class="flex-shrink-0 w-8 sm:w-16 flex flex-col items-center">
+         <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-full gradient-red flex items-center justify-center text-white font-bold text-sm shadow-lg z-10">
+          3
+         </div>
+        </div>
+        <div class="flex-1 bg-white rounded-xl p-5 card-shadow">
+         <div class="flex flex-wrap items-center gap-3 mb-3">
+          <h4 class="font-display text-lg font-bold text-stone-800">Jaipur to Udaipur</h4><span class="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">17 Jan 2025</span>
+         </div>
+         <ul class="space-y-2 text-stone-600 text-sm">
+          <li class="flex items-start gap-2">
+           <svg class="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+           </svg><span>Morning drive to Udaipur (6-7 hours scenic route)</span></li>
+          <li class="flex items-start gap-2">
+           <svg class="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+           </svg><span>En-route visit to Chittorgarh Fort</span></li>
+          <li class="flex items-start gap-2">
+           <svg class="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+           </svg><span>Check-in at lakeside hotel in Udaipur</span></li>
+          <li class="flex items-start gap-2">
+           <svg class="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+           </svg><span>Evening boat ride on Lake Pichola</span></li>
+         </ul>
+        </div>
+       </div><!-- Day 4 -->
+       <div class="relative flex gap-4 sm:gap-8">
+        <div class="flex-shrink-0 w-8 sm:w-16 flex flex-col items-center">
+         <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-full gradient-red flex items-center justify-center text-white font-bold text-sm shadow-lg z-10">
+          4
+         </div>
+        </div>
+        <div class="flex-1 bg-white rounded-xl p-5 card-shadow">
+         <div class="flex flex-wrap items-center gap-3 mb-3">
+          <h4 class="font-display text-lg font-bold text-stone-800">Udaipur to Jodhpur</h4><span class="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">18 Jan 2025</span>
+         </div>
+         <ul class="space-y-2 text-stone-600 text-sm">
+          <li class="flex items-start gap-2">
+           <svg class="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+           </svg><span>Morning visit to City Palace Udaipur</span></li>
+          <li class="flex items-start gap-2">
+           <svg class="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+           </svg><span>Drive to Jodhpur via Ranakpur Jain Temples</span></li>
+          <li class="flex items-start gap-2">
+           <svg class="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+           </svg><span>Check-in at Jodhpur hotel</span></li>
+          <li class="flex items-start gap-2">
+           <svg class="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+           </svg><span>Sunset at Mehrangarh Fort viewpoint</span></li>
+         </ul>
+        </div>
+       </div><!-- Day 5 -->
+       <div class="relative flex gap-4 sm:gap-8">
+        <div class="flex-shrink-0 w-8 sm:w-16 flex flex-col items-center">
+         <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-full gradient-red flex items-center justify-center text-white font-bold text-sm shadow-lg z-10">
+          5
+         </div>
+        </div>
+        <div class="flex-1 bg-white rounded-xl p-5 card-shadow">
+         <div class="flex flex-wrap items-center gap-3 mb-3">
+          <h4 class="font-display text-lg font-bold text-stone-800">Jodhpur &amp; Departure</h4><span class="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">19 Jan 2025</span>
+         </div>
+         <ul class="space-y-2 text-stone-600 text-sm">
+          <li class="flex items-start gap-2">
+           <svg class="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+           </svg><span>Full tour of Mehrangarh Fort &amp; museum</span></li>
+          <li class="flex items-start gap-2">
+           <svg class="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+           </svg><span>Visit Jaswant Thada marble memorial</span></li>
+          <li class="flex items-start gap-2">
+           <svg class="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+           </svg><span>Clock Tower market exploration</span></li>
+          <li class="flex items-start gap-2">
+           <svg class="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+           </svg><span>Transfer to airport/railway for departure</span></li>
+         </ul>
+        </div>
+       </div>
+      </div>
+     </div>
+    </section><!-- Hotel & Transport Details -->
+    <section class="mb-12 grid lg:grid-cols-2 gap-6 animate-fade-in animate-delay-3"><!-- Hotel Details -->
+     <div class="bg-white rounded-2xl p-6 card-shadow">
+      <div class="flex items-center gap-3 mb-5">
+       <div class="w-12 h-12 rounded-xl gradient-red flex items-center justify-center">
+        <svg class="w-6 h-6 text-white" fill="currentColor" viewbox="0 0 24 24"><path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V5H1v15h2v-3h18v3h2v-9c0-2.21-1.79-4-4-4z" />
+        </svg>
+       </div>
+       <div>
+        <h4 class="font-display text-xl font-bold text-stone-800">Hotel Accommodation</h4>
+        <p class="text-stone-500 text-sm">4-Star Premium Properties</p>
+       </div>
+      </div>
+      <div class="space-y-4">
+       <div class="flex items-start gap-3 p-4 bg-stone-50 rounded-xl">
+        <div class="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0"><span class="text-red-600 font-bold text-sm">JP</span>
+        </div>
+        <div>
+         <h5 id="hotel-name-1" class="font-semibold text-stone-800">Hotel Royal Orchid, Jaipur</h5>
+         <p class="text-stone-500 text-sm">MI Road, Near Panch Batti</p>
+         <div class="flex items-center gap-1 mt-1"><span class="text-amber-400">★★★★</span> <span class="text-stone-400 text-xs">| 2 Nights</span>
+         </div>
+        </div>
+       </div>
+       <div class="flex items-start gap-3 p-4 bg-stone-50 rounded-xl">
+        <div class="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0"><span class="text-red-600 font-bold text-sm">UD</span>
+        </div>
+        <div>
+         <h5 class="font-semibold text-stone-800">Lakend Hotel, Udaipur</h5>
+         <p class="text-stone-500 text-sm">Fateh Sagar Lake Road</p>
+         <div class="flex items-center gap-1 mt-1"><span class="text-amber-400">★★★★</span> <span class="text-stone-400 text-xs">| 1 Night</span>
+         </div>
+        </div>
+       </div>
+       <div class="flex items-start gap-3 p-4 bg-stone-50 rounded-xl">
+        <div class="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0"><span class="text-red-600 font-bold text-sm">JD</span>
+        </div>
+        <div>
+         <h5 class="font-semibold text-stone-800">Ratan Vilas, Jodhpur</h5>
+         <p class="text-stone-500 text-sm">Near Clock Tower</p>
+         <div class="flex items-center gap-1 mt-1"><span class="text-amber-400">★★★★</span> <span class="text-stone-400 text-xs">| 1 Night</span>
+         </div>
+        </div>
+       </div>
+      </div>
+     </div><!-- Cab Details -->
+     <div class="bg-white rounded-2xl p-6 card-shadow">
+      <div class="flex items-center gap-3 mb-5">
+       <div class="w-12 h-12 rounded-xl gradient-red flex items-center justify-center">
+        <svg class="w-6 h-6 text-white" fill="currentColor" viewbox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z" />
+        </svg>
+       </div>
+       <div>
+        <h4 class="font-display text-xl font-bold text-stone-800">Transportation</h4>
+        <p class="text-stone-500 text-sm">Private AC Vehicle</p>
+       </div>
+      </div>
+      <div class="space-y-4">
+       <div class="p-4 bg-stone-50 rounded-xl">
+        <div class="flex items-center justify-between mb-3"><span class="font-semibold text-stone-800">Vehicle Type</span> <span id="cab-type-display" class="text-red-600 font-medium">Toyota Innova Crysta</span>
+        </div>
+        <div class="grid grid-cols-2 gap-3 text-sm">
+         <div class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-green-500" fill="currentColor" viewbox="0 0 24 24">
+           <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+          </svg><span class="text-stone-600">AC Vehicle</span>
+         </div>
+         <div class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-green-500" fill="currentColor" viewbox="0 0 24 24">
+           <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+          </svg><span class="text-stone-600">Professional Driver</span>
+         </div>
+         <div class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-green-500" fill="currentColor" viewbox="0 0 24 24">
+           <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+          </svg><span class="text-stone-600">All Permits Included</span>
+         </div>
+         <div class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-green-500" fill="currentColor" viewbox="0 0 24 24">
+           <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+          </svg><span class="text-stone-600">Fuel &amp; Tolls Covered</span>
+         </div>
+        </div>
+       </div>
+       <div class="p-4 border-2 border-dashed border-red-200 rounded-xl bg-red-50/50">
+        <h5 class="font-semibold text-stone-800 mb-2">Driver Contact</h5>
+        <div class="flex items-center gap-3">
+         <div class="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+          <svg class="w-5 h-5 text-red-600" fill="currentColor" viewbox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+          </svg>
+         </div>
+         <div>
+          <p class="font-medium text-stone-800">Mr. Ramesh Singh</p>
+          <p id="driver-contact-display" class="text-red-600 text-sm font-medium">+91 99999 88888</p>
+         </div>
+        </div>
+       </div>
+      </div>
+     </div>
+    </section><!-- Package Inclusions -->
+    <section class="mb-12 animate-fade-in animate-delay-4">
+     <div class="text-center mb-8"><span class="inline-block px-4 py-1 bg-red-100 text-red-700 rounded-full text-sm font-semibold mb-3">PACKAGE DETAILS</span>
+      <h3 class="font-display text-2xl sm:text-3xl font-bold text-stone-800">What's Included</h3>
+     </div>
+     <div class="grid sm:grid-cols-2 gap-6"><!-- Inclusions -->
+      <div class="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-6 border border-green-100">
+       <div class="flex items-center gap-3 mb-5">
+        <div class="w-10 h-10 bg-green-500 rounded-xl flex items-center justify-center">
+         <svg class="w-5 h-5 text-white" fill="currentColor" viewbox="0 0 24 24">
+          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+         </svg>
+        </div>
+        <h4 class="font-display text-lg font-bold text-green-800">Inclusions</h4>
+       </div>
+       <ul class="space-y-3">
+        <li class="flex items-start gap-3">
+         <svg class="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+         </svg><span class="text-stone-700">4 Nights accommodation in 4-star hotels</span></li>
+        <li class="flex items-start gap-3">
+         <svg class="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+         </svg><span class="text-stone-700">Daily breakfast &amp; dinner (MAP plan)</span></li>
+        <li class="flex items-start gap-3">
+         <svg class="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+         </svg><span class="text-stone-700">Private AC transportation throughout</span></li>
+        <li class="flex items-start gap-3">
+         <svg class="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+         </svg><span class="text-stone-700">All sightseeing as per itinerary</span></li>
+        <li class="flex items-start gap-3">
+         <svg class="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+         </svg><span class="text-stone-700">Monument entry fees &amp; boat ride</span></li>
+        <li class="flex items-start gap-3">
+         <svg class="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+         </svg><span class="text-stone-700">All applicable taxes &amp; parking</span></li>
+       </ul>
+      </div><!-- Exclusions -->
+      <div class="bg-gradient-to-br from-red-50 to-rose-50 rounded-2xl p-6 border border-red-100">
+       <div class="flex items-center gap-3 mb-5">
+        <div class="w-10 h-10 bg-red-500 rounded-xl flex items-center justify-center">
+         <svg class="w-5 h-5 text-white" fill="currentColor" viewbox="0 0 24 24">
+          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+         </svg>
+        </div>
+        <h4 class="font-display text-lg font-bold text-red-800">Exclusions</h4>
+       </div>
+       <ul class="space-y-3">
+        <li class="flex items-start gap-3">
+         <svg class="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+         </svg><span class="text-stone-700">Airfare / Train tickets</span></li>
+        <li class="flex items-start gap-3">
+         <svg class="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+         </svg><span class="text-stone-700">Lunch &amp; beverages</span></li>
+        <li class="flex items-start gap-3">
+         <svg class="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+         </svg><span class="text-stone-700">Personal expenses &amp; tips</span></li>
+        <li class="flex items-start gap-3">
+         <svg class="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+         </svg><span class="text-stone-700">Optional activities (elephant ride, etc.)</span></li>
+        <li class="flex items-start gap-3">
+         <svg class="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+         </svg><span class="text-stone-700">Travel insurance</span></li>
+        <li class="flex items-start gap-3">
+         <svg class="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24">
+          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+         </svg><span class="text-stone-700">Anything not mentioned in inclusions</span></li>
+       </ul>
+      </div>
+     </div>
+    </section><!-- Terms & Conditions -->
+    <section class="mb-12">
+     <div class="bg-white rounded-2xl p-6 card-shadow">
+      <div class="flex items-center gap-3 mb-5">
+       <div class="w-10 h-10 rounded-xl gradient-red flex items-center justify-center">
+        <svg class="w-5 h-5 text-white" fill="currentColor" viewbox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
+        </svg>
+       </div>
+       <h4 class="font-display text-xl font-bold text-stone-800">Terms &amp; Conditions</h4>
+      </div>
+      <div class="grid md:grid-cols-2 gap-6 text-sm text-stone-600">
+       <div>
+        <h5 class="font-semibold text-stone-800 mb-3 flex items-center gap-2"><span class="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center text-red-600 text-xs font-bold">1</span> Booking Policy</h5>
+        <ul class="space-y-2 ml-8">
+         <li>• 50% advance at the time of booking</li>
+         <li>• Balance payment 7 days before departure</li>
+         <li>• Booking confirmed only after receipt of advance</li>
+        </ul>
+       </div>
+       <div>
+        <h5 class="font-semibold text-stone-800 mb-3 flex items-center gap-2"><span class="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center text-red-600 text-xs font-bold">2</span> Cancellation Policy</h5>
+        <ul class="space-y-2 ml-8">
+         <li>• 30+ days before: 10% deduction</li>
+         <li>• 15-30 days before: 25% deduction</li>
+         <li>• 7-14 days before: 50% deduction</li>
+         <li>• Less than 7 days: No refund</li>
+        </ul>
+       </div>
+       <div>
+        <h5 class="font-semibold text-stone-800 mb-3 flex items-center gap-2"><span class="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center text-red-600 text-xs font-bold">3</span> Important Notes</h5>
+        <ul class="space-y-2 ml-8">
+         <li>• Valid ID proof mandatory for all travelers</li>
+         <li>• Itinerary subject to change due to weather</li>
+         <li>• Hotel check-in: 2 PM, check-out: 11 AM</li>
+        </ul>
+       </div>
+       <div>
+        <h5 class="font-semibold text-stone-800 mb-3 flex items-center gap-2"><span class="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center text-red-600 text-xs font-bold">4</span> Our Commitment</h5>
+        <ul class="space-y-2 ml-8">
+         <li>• 24/7 customer support during trip</li>
+         <li>• Experienced &amp; verified drivers</li>
+         <li>• Clean &amp; sanitized vehicles</li>
+        </ul>
+       </div>
+      </div>
+     </div>
+    </section><!-- Promotional Banner -->
+    <section class="mb-12">
+     <div class="relative overflow-hidden rounded-2xl gradient-red pattern-overlay">
+      <div class="absolute top-0 right-0 w-64 h-64 opacity-10">
+       <svg viewbox="0 0 200 200" fill="white"><circle cx="100" cy="100" r="80" stroke="currentColor" stroke-width="2" fill="none" /> <circle cx="100" cy="100" r="60" stroke="currentColor" stroke-width="2" fill="none" /> <circle cx="100" cy="100" r="40" stroke="currentColor" stroke-width="2" fill="none" />
+       </svg>
+      </div>
+      <div class="relative z-10 p-8 sm:p-12 text-center">
+       <div class="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full mb-4"><span class="animate-pulse">🔥</span> <span class="text-white font-semibold text-sm">EARLY BIRD SPECIAL</span>
+       </div>
+       <h3 class="font-display text-2xl sm:text-4xl font-bold text-white mb-3">Book Now &amp; Save 15%</h3>
+       <p class="text-red-100 text-lg mb-6 max-w-2xl mx-auto">Limited time offer for bookings made before December 31st, 2024. Experience the magic of Rajasthan at an unbeatable price!</p>
+       <div class="flex flex-wrap justify-center gap-4"><a href="#contact" class="inline-flex items-center gap-2 bg-white text-red-600 font-semibold px-8 py-3 rounded-full hover:bg-red-50 transition-colors shadow-lg">
+         <svg class="w-5 h-5" fill="currentColor" viewbox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
+         </svg> Book Now </a> <a href="https://wa.me/919876543210" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 bg-green-500 text-white font-semibold px-8 py-3 rounded-full hover:bg-green-600 transition-colors shadow-lg">
+         <svg class="w-5 h-5" fill="currentColor" viewbox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+         </svg> WhatsApp Us </a>
+       </div>
+      </div>
+     </div>
+    </section>
+   </main><!-- Footer -->
+   <footer id="contact" class="bg-stone-900 text-white">
+    <div class="max-w-6xl mx-auto px-4 py-12">
+     <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-10"><!-- Company Info -->
+      <div>
+       <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 bg-red-600 rounded-lg flex items-center justify-center">
+         <svg class="w-6 h-6 text-white" viewbox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
+         </svg>
+        </div><span id="footer-company" class="font-display text-xl font-bold">Wanderlust Travels</span>
+       </div>
+       <p class="text-stone-400 text-sm mb-4">Your trusted partner for unforgettable travel experiences across India.</p>
+       <div class="flex gap-3"><a href="https://facebook.com" target="_blank" rel="noopener noreferrer" class="w-9 h-9 bg-stone-800 hover:bg-red-600 rounded-lg flex items-center justify-center transition-colors">
+         <svg class="w-4 h-4" fill="currentColor" viewbox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+         </svg></a> <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" class="w-9 h-9 bg-stone-800 hover:bg-red-600 rounded-lg flex items-center justify-center transition-colors">
+         <svg class="w-4 h-4" fill="currentColor" viewbox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
+         </svg></a> <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" class="w-9 h-9 bg-stone-800 hover:bg-red-600 rounded-lg flex items-center justify-center transition-colors">
+         <svg class="w-4 h-4" fill="currentColor" viewbox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+         </svg></a> <a href="https://youtube.com" target="_blank" rel="noopener noreferrer" class="w-9 h-9 bg-stone-800 hover:bg-red-600 rounded-lg flex items-center justify-center transition-colors">
+         <svg class="w-4 h-4" fill="currentColor" viewbox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+         </svg></a>
+       </div>
+      </div><!-- Contact Info -->
+      <div>
+       <h5 class="font-semibold text-lg mb-4">Contact Us</h5>
+       <ul class="space-y-3 text-sm">
+        <li class="flex items-start gap-3">
+         <svg class="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
+         </svg><span class="text-stone-400">123 Travel Plaza, MG Road, Jaipur, Rajasthan 302001</span></li>
+        <li class="flex items-center gap-3">
+         <svg class="w-5 h-5 text-red-500 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
+         </svg><span id="footer-phone" class="text-stone-400">+91 98765 43210</span></li>
+        <li class="flex items-center gap-3">
+         <svg class="w-5 h-5 text-red-500 flex-shrink-0" fill="currentColor" viewbox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" />
+         </svg><span id="footer-email" class="text-stone-400">info@wanderlusttravels.com</span></li>
+       </ul>
+      </div><!-- Quick Links -->
+      <div>
+       <h5 class="font-semibold text-lg mb-4">Quick Links</h5>
+       <ul class="space-y-2 text-sm">
+        <li><a href="#" class="text-stone-400 hover:text-red-400 transition-colors">About Us</a></li>
+        <li><a href="#" class="text-stone-400 hover:text-red-400 transition-colors">Our Packages</a></li>
+        <li><a href="#" class="text-stone-400 hover:text-red-400 transition-colors">Testimonials</a></li>
+        <li><a href="#" class="text-stone-400 hover:text-red-400 transition-colors">Travel Blog</a></li>
+        <li><a href="#" class="text-stone-400 hover:text-red-400 transition-colors">Privacy Policy</a></li>
+       </ul>
+      </div><!-- Business Hours -->
+      <div>
+       <h5 class="font-semibold text-lg mb-4">Business Hours</h5>
+       <ul class="space-y-2 text-sm text-stone-400">
+        <li class="flex justify-between"><span>Monday - Friday</span> <span>9:00 AM - 7:00 PM</span></li>
+        <li class="flex justify-between"><span>Saturday</span> <span>10:00 AM - 5:00 PM</span></li>
+        <li class="flex justify-between"><span>Sunday</span> <span>Closed</span></li>
+       </ul>
+       <div class="mt-4 p-3 bg-stone-800 rounded-lg">
+        <p class="text-xs text-stone-400">🌟 24/7 Emergency Support for Traveling Guests</p>
+       </div>
+      </div>
+     </div><!-- Bottom Bar -->
+     <div class="pt-8 border-t border-stone-800 flex flex-col sm:flex-row justify-between items-center gap-4">
+      <p class="text-stone-500 text-sm">©️ 2024 Wanderlust Travels. All rights reserved.</p>
+      <div class="flex items-center gap-4 text-sm"><span class="text-stone-500">Follow us:</span> <a href="https://wa.me/919876543210" target="_blank" rel="noopener noreferrer" class="flex items-center gap-1 text-green-400 hover:text-green-300 transition-colors">
+        <svg class="w-4 h-4" fill="currentColor" viewbox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+        </svg> WhatsApp </a>
+      </div>
+     </div>
+    </div>
+   </footer>
+  </div>
+  <script>
+    const defaultConfig = {
+      company_name: 'Wanderlust Travels',
+      package_title: 'Magical Rajasthan Explorer',
+      tagline: 'Experience the Royal Heritage of India',
+      destination_name: 'Jaipur • Udaipur • Jodhpur',
+      trip_duration: '5 Days / 4 Nights',
+      price: '₹24,999',
+      hotel_name: 'Hotel Royal Orchid, Jaipur',
+      hotel_address: 'MI Road, Near Panch Batti',
+      cab_type: 'Toyota Innova Crysta',
+      driver_contact: '+91 99999 88888',
+      phone_number: '+91 98765 43210',
+      email: 'info@wanderlusttravels.com',
+      primary_color: '#DC2626',
+      secondary_color: '#991B1B',
+      accent_color: '#7F1D1D',
+      text_color: '#1c1917',
+      background_color: '#fafaf9'
+    };
+
+    async function onConfigChange(config) {
+      // Update text content
+      document.getElementById('company-name').textContent = config.company_name || defaultConfig.company_name;
+      document.getElementById('package-title').textContent = config.package_title || defaultConfig.package_title;
+      document.getElementById('tagline').textContent = config.tagline || defaultConfig.tagline;
+      document.getElementById('destination-display').textContent = config.destination_name || defaultConfig.destination_name;
+      document.getElementById('trip-duration').textContent = config.trip_duration || defaultConfig.trip_duration;
+      document.getElementById('price-display').textContent = config.price || defaultConfig.price;
+      document.getElementById('cab-type-display').textContent = config.cab_type || defaultConfig.cab_type;
+      document.getElementById('driver-contact-display').textContent = config.driver_contact || defaultConfig.driver_contact;
+      document.getElementById('header-phone').textContent = config.phone_number || defaultConfig.phone_number;
+      document.getElementById('footer-phone').textContent = config.phone_number || defaultConfig.phone_number;
+      document.getElementById('footer-email').textContent = config.email || defaultConfig.email;
+      document.getElementById('footer-company').textContent = config.company_name || defaultConfig.company_name;
+
+      // Update colors
+      const primaryColor = config.primary_color || defaultConfig.primary_color;
+      const secondaryColor = config.secondary_color || defaultConfig.secondary_color;
+      const accentColor = config.accent_color || defaultConfig.accent_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+      const bgColor = config.background_color || defaultConfig.background_color;
+
+      document.body.style.backgroundColor = bgColor;
+      document.body.style.color = textColor;
+
+      // Update gradient elements
+      const gradientElements = document.querySelectorAll('.gradient-red, .gradient-hero');
+      gradientElements.forEach(el => {
+        el.style.background = `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor} 50%, ${accentColor} 100%)`;
+      });
+    }
+
+    function mapToCapabilities(config) {
+      return {
+        recolorables: [
+          {
+            get: () => config.background_color || defaultConfig.background_color,
+            set: (value) => {
+              config.background_color = value;
+              window.elementSdk.setConfig({ background_color: value });
+            }
+          },
+          {
+            get: () => config.primary_color || defaultConfig.primary_color,
+            set: (value) => {
+              config.primary_color = value;
+              window.elementSdk.setConfig({ primary_color: value });
+            }
+          },
+          {
+            get: () => config.secondary_color || defaultConfig.secondary_color,
+            set: (value) => {
+              config.secondary_color = value;
+              window.elementSdk.setConfig({ secondary_color: value });
+            }
+          },
+          {
+            get: () => config.text_color || defaultConfig.text_color,
+            set: (value) => {
+              config.text_color = value;
+              window.elementSdk.setConfig({ text_color: value });
+            }
+          },
+          {
+            get: () => config.accent_color || defaultConfig.accent_color,
+            set: (value) => {
+              config.accent_color = value;
+              window.elementSdk.setConfig({ accent_color: value });
+            }
+          }
+        ],
+        borderables: [],
+        fontEditable: undefined,
+        fontSizeable: undefined
+      };
+    }
+
+    function mapToEditPanelValues(config) {
+      return new Map([
+        ['company_name', config.company_name || defaultConfig.company_name],
+        ['package_title', config.package_title || defaultConfig.package_title],
+        ['tagline', config.tagline || defaultConfig.tagline],
+        ['destination_name', config.destination_name || defaultConfig.destination_name],
+        ['trip_duration', config.trip_duration || defaultConfig.trip_duration],
+        ['price', config.price || defaultConfig.price],
+        ['hotel_name', config.hotel_name || defaultConfig.hotel_name],
+        ['hotel_address', config.hotel_address || defaultConfig.hotel_address],
+        ['cab_type', config.cab_type || defaultConfig.cab_type],
+        ['driver_contact', config.driver_contact || defaultConfig.driver_contact],
+        ['phone_number', config.phone_number || defaultConfig.phone_number],
+        ['email', config.email || defaultConfig.email]
+      ]);
+    }
+
+    // Initialize SDK
+    if (window.elementSdk) {
+      window.elementSdk.init({
+        defaultConfig,
+        onConfigChange,
+        mapToCapabilities,
+        mapToEditPanelValues
+      });
+    }
+  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9cc9ccf45600a784',t:'MTc3MDg3NTM0NC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>

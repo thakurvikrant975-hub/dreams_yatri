@@ -183,7 +183,7 @@ export default function Footer() {
               <Link href="/">
                 <Image
                   alt="Dreams Yatri"
-                  src="/dy_logo.webp"
+                  src="/dy_logo.svg"
                   width={160}
                   height={42}
                   className="h-auto w-46"

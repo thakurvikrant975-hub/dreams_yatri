@@ -1,3 +1,5 @@
+// app/(dashboard)/dashboard/(auth)/login/page.tsx
+
 import { redirect } from "next/navigation";
 import { dashboardAuth } from "@/app/lib/auth-dashboard";
 import LoginForm from "./LoginForm";

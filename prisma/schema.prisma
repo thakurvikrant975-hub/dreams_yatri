@@ -19,6 +19,8 @@ model BookingMeal {
   totalCost      Decimal        @db.Decimal(10, 2)
   bookingHotel   BookingHotel   @relation(fields: [bookingHotelId], references: [id], onDelete: Cascade)
   booking        Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  bookingHotel   BookingHotel   @relation(fields: [bookingHotelId], references: [id], onDelete: Cascade)
+  booking        Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
   @@index([bookingId])
   @@index([bookingHotelId])
@@ -168,6 +170,34 @@ model Booking {
   cancelReason            String?
   createdAt               DateTime              @default(now())
   updatedAt               DateTime              @updatedAt
+  id                      String                @id @default(cuid())
+  bookingNumber           String                @unique
+  userId                  String
+  packageId               Int?
+  destinationId           Int
+  tripType                TripType
+  startDate               DateTime
+  endDate                 DateTime
+  duration                Int
+  travellers              Int                   @default(1)
+  status                  BookingStatus         @default(PENDING_REVIEW)
+  cabType                 CabType               @default(INNOVA)
+  roomSharingType         RoomSharingType       @default(SHARED)
+  mealPlan                MealPlan              @default(MAP)
+  hotelCost               Decimal               @default(0) @db.Decimal(10, 2)
+  cabCost                 Decimal               @default(0) @db.Decimal(10, 2)
+  mealCost                Decimal               @default(0) @db.Decimal(10, 2)
+  subtotal                Decimal               @default(0) @db.Decimal(10, 2)
+  marginAmount            Decimal               @default(0) @db.Decimal(10, 2)
+  gstAmount               Decimal               @default(0) @db.Decimal(10, 2)
+  totalAmount             Decimal               @db.Decimal(10, 2)
+  paidAmount              Decimal               @default(0) @db.Decimal(10, 2)
+  currency                String                @default("INR")
+  notes                   String?
+  cancelledAt             DateTime?
+  cancelReason            String?
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
   currentDepartmentId     String?
   currentAssigneeId       String?
   hotelAssigneeId         String?
@@ -181,6 +211,37 @@ model Booking {
   rejectionReason         String?
   modificationNote        String?
   modificationRequestedBy String?
+  paymentStatus           PaymentStatus         @default(PENDING)
+  advancePaidAmount       Decimal               @default(0) @db.Decimal(10, 2)
+  balanceDueAmount        Decimal               @default(0) @db.Decimal(10, 2)
+  balanceDueDate          DateTime?
+  sourceQueryId           String?               @unique
+  convertedAt             DateTime?
+  salesAgentId            String?
+  salesAgentName          String?
+  referredBy              String?
+  referralSource          ReferralSource?
+  opsAgentName            String?
+  hotelAgentName          String?
+  cabAgentName            String?
+  confirmationEmailSentAt DateTime?
+  confirmationEmailTo     String?
+  cabBookings             BookingCab[]
+  hotelBookings           BookingHotel[]
+  bookingMeals            BookingMeal[]
+  timeline                BookingTimeline[]
+  cabAssignee             TeamMember?           @relation("BookingCabAssignee", fields: [cabAssigneeId], references: [id])
+  currentAssignee         TeamMember?           @relation("BookingCurrentAssignee", fields: [currentAssigneeId], references: [id])
+  currentDepartment       Department?           @relation("BookingCurrentDept", fields: [currentDepartmentId], references: [id])
+  destination             destinations          @relation(fields: [destinationId], references: [id])
+  hotelAssignee           TeamMember?           @relation("BookingHotelAssignee", fields: [hotelAssigneeId], references: [id])
+  opsAssignee             TeamMember?           @relation("BookingOpsAssignee", fields: [opsAssigneeId], references: [id])
+  package                 packages?             @relation(fields: [packageId], references: [id])
+  sourceQuery             package_queries?      @relation(fields: [sourceQueryId], references: [id])
+  user                    User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  packageHotels           PackageBookingHotel[]
+  payments                Payment[]
+  documents               TripDocument[]
   paymentStatus           PaymentStatus         @default(PENDING)
   advancePaidAmount       Decimal               @default(0) @db.Decimal(10, 2)
   balanceDueAmount        Decimal               @default(0) @db.Decimal(10, 2)
@@ -230,8 +291,31 @@ model TripDocument {
 
   @@map("trip_documents")
 }
+model TripDocument {
+  id         String       @id @default(cuid())
+  bookingId  String
+  type       DocumentType
+  fileUrl    String
+  uploadedBy String
+  uploadedAt DateTime     @default(now())
+  booking    Booking      @relation(fields: [bookingId], references: [id])
+
+  @@map("trip_documents")
+}
 
 model BookingHotel {
+  id            String        @id @default(cuid())
+  bookingId     String
+  dayNumber     Int
+  cityName      String
+  checkInDate   DateTime
+  checkOutDate  DateTime
+  hotelId       Int
+  roomType      String
+  roomsCount    Int
+  ratePerRoom   Decimal       @db.Decimal(10, 2)
+  totalCost     Decimal       @db.Decimal(10, 2)
+  isConfirmed   Boolean       @default(false)
   id            String        @id @default(cuid())
   bookingId     String
   dayNumber     Int
@@ -247,6 +331,10 @@ model BookingHotel {
   confirmedAt   DateTime?
   confirmedById String?
   notes         String?
+  booking       Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  confirmedBy   TeamMember?   @relation(fields: [confirmedById], references: [id])
+  hotel         hotels        @relation(fields: [hotelId], references: [id])
+  meals         BookingMeal[]
   booking       Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   confirmedBy   TeamMember?   @relation(fields: [confirmedById], references: [id])
   hotel         hotels        @relation(fields: [hotelId], references: [id])
@@ -271,12 +359,26 @@ model BookingCab {
   ratePerCab    Decimal     @db.Decimal(10, 2)
   totalCost     Decimal     @db.Decimal(10, 2)
   isConfirmed   Boolean     @default(false)
+  id            String      @id @default(cuid())
+  bookingId     String
+  legNumber     Int
+  fromLocation  String
+  toLocation    String
+  transferDate  DateTime
+  cabType       CabType
+  cabCount      Int         @default(1)
+  capacity      Int
+  ratePerCab    Decimal     @db.Decimal(10, 2)
+  totalCost     Decimal     @db.Decimal(10, 2)
+  isConfirmed   Boolean     @default(false)
   confirmedAt   DateTime?
   confirmedById String?
   driverName    String?
   driverPhone   String?
   vehicleNumber String?
   notes         String?
+  booking       Booking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  confirmedBy   TeamMember? @relation(fields: [confirmedById], references: [id])
   booking       Booking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   confirmedBy   TeamMember? @relation(fields: [confirmedById], references: [id])
 
@@ -296,6 +398,8 @@ model PackageBookingHotel {
   rooms        Int      @default(1)
   booking      Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   hotel        hotels   @relation(fields: [hotelId], references: [id])
+  booking      Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  hotel        hotels   @relation(fields: [hotelId], references: [id])
 
   @@index([bookingId])
   @@map("package_booking_hotel")
@@ -312,6 +416,9 @@ model BookingTimeline {
   performedByName String
   departmentId    String?
   createdAt       DateTime       @default(now())
+  booking         Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  department      Department?    @relation("TimelineDepartment", fields: [departmentId], references: [id])
+  performedBy     TeamMember     @relation("TimelinePerformedBy", fields: [performedById], references: [id])
   booking         Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   department      Department?    @relation("TimelineDepartment", fields: [departmentId], references: [id])
   performedBy     TeamMember     @relation("TimelinePerformedBy", fields: [performedById], references: [id])
@@ -439,7 +546,14 @@ model Department {
   description     String?           @db.VarChar(500)
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
+  id              String            @id @default(cuid())
+  name            String            @unique @db.VarChar(100)
+  description     String?           @db.VarChar(500)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
   timelineEntries BookingTimeline[] @relation("TimelineDepartment")
+  currentBookings Booking[]         @relation("BookingCurrentDept")
+  members         TeamMember[]
   currentBookings Booking[]         @relation("BookingCurrentDept")
   members         TeamMember[]
 
@@ -450,6 +564,7 @@ model TeamRole {
   id          String       @id @default(cuid())
   name        String       @unique @db.VarChar(100)
   description String?      @db.VarChar(500)
+  permissions Json         @default("[]")
   permissions Json         @default("[]")
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -471,7 +586,27 @@ model TeamMember {
   createdById            String?
   createdAt              DateTime          @default(now())
   updatedAt              DateTime          @updatedAt
+  id                     String            @id @default(cuid())
+  name                   String            @db.VarChar(255)
+  email                  String            @unique
+  password               String?
+  departmentId           String?
+  teamRoleId             String?
+  isActive               Boolean           @default(true)
+  joiningDate            DateTime?
+  lastLoginAt            DateTime?
+  createdById            String?
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
   confirmedCabBookings   BookingCab[]
+  confirmedHotelBookings BookingHotel[]
+  timelineEntries        BookingTimeline[] @relation("TimelinePerformedBy")
+  cabBookings            Booking[]         @relation("BookingCabAssignee")
+  currentBookings        Booking[]         @relation("BookingCurrentAssignee")
+  hotelBookings          Booking[]         @relation("BookingHotelAssignee")
+  opsBookings            Booking[]         @relation("BookingOpsAssignee")
+  department             Department?       @relation(fields: [departmentId], references: [id])
+  teamRole               TeamRole?         @relation(fields: [teamRoleId], references: [id])
   confirmedHotelBookings BookingHotel[]
   timelineEntries        BookingTimeline[] @relation("TimelinePerformedBy")
   cabBookings            Booking[]         @relation("BookingCabAssignee")
@@ -1184,6 +1319,18 @@ model package_queries {
   lead_profiles     LeadProfile?     @relation(fields: [leadProfileId], references: [id])
   rejection_reasons RejectionReason? @relation(fields: [rejectionReasonId], references: [id])
   custom_packages   custom_packages? // ← add this line
+  leadProfileId     String?
+  assignedToName    String?
+  closeReasonId     String?
+  closeReasonOther  String?
+  closedAt          DateTime?
+  closedBy          String?
+  requirements      Json?
+  queryFollowUps    QueryFollowUp[]
+  booking           Booking?
+  lead_profiles     LeadProfile?     @relation(fields: [leadProfileId], references: [id])
+  rejection_reasons RejectionReason? @relation(fields: [rejectionReasonId], references: [id])
+  custom_packages   custom_packages? // ← add this line
   notes             QueryNote[]
   timeline          QueryTimeline[]
 
@@ -1341,8 +1488,8 @@ enum BookingStatus {
 
 enum PaymentStatus {
   PENDING
-  SUCCESS
-  FAILED
+  ADVANCE_PAID
+  FULLY_PAID
   REFUNDED
   PARTIALLY_REFUNDED
 }
@@ -1395,6 +1542,14 @@ enum QueryStatus {
   SUBMITTED
   VERIFIED
   REJECTED
+  ASSIGNED
+  IN_PROGRESS
+  PACKAGE_SENT
+  CLIENT_ACCEPTED
+  CLIENT_DECLINED
+  PAYMENT_INITIATED
+  CONVERTED
+  CLOSED
   ASSIGNED
   IN_PROGRESS
   PACKAGE_SENT

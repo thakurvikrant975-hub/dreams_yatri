@@ -1,11 +1,11 @@
 "use client";
 
-import {useTransition, useRef } from "react";
+import { useTransition, useRef } from "react";
 import { formatDistanceToNow, format } from "date-fns";
 import {
-    Phone, Mail, MapPin, Users, Calendar, MessageSquare,
+    Phone, Mail, MapPin, Users, Calendar,
     CheckCircle2, XCircle, StickyNote,
-    ExternalLink, Globe, PhoneCall,
+    ExternalLink, Globe, PhoneCall, UserCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
@@ -16,13 +16,16 @@ import {
     SheetTitle, SheetDescription,
 } from "../../components/ui/sheet";
 import { ScrollArea } from "../../components/ui/scroll-area";
-import { QueryStatusBadge, QuerySourceBadge, CallAttemptsDots } from "./QueryBadges";
+import { QueryStatusBadge, QuerySourceBadge, CallAttemptsDots } from "../../components/dashboard/CustomBadges";
 import { verifyQuery, addNote } from "./actions";
 import { RejectQueryDialog } from "./Rejectquerydialog";
 import { CallAttemptDialog } from "./Callattemptdialog";
 import type { PackageQuery, RejectionReason } from "./actions";
 import { Pencil } from "lucide-react";
 import { EditQueryDialog } from "./Editquerydialog";
+import { AssignQueryDropdown } from "./Assignquerydropdown";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type QueryWithDetails = PackageQuery & {
     notes:    Array<{ id: string; authorId: string; authorName?: string; content: string; createdAt: Date }>;
@@ -37,7 +40,17 @@ type Props = {
     onRefresh?:   () => void;
 };
 
-function InfoRow({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: React.ReactNode }) {
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function InfoRow({
+    icon: Icon,
+    label,
+    value,
+}: {
+    icon: React.ElementType;
+    label: string;
+    value: React.ReactNode;
+}) {
     if (!value) return null;
     return (
         <div className="flex items-start gap-3 py-2">
@@ -57,9 +70,12 @@ function timelineDot(event: string) {
     if (event.includes("❌") || event.includes("Rejected"))    return "bg-destructive";
     if (event.includes("📞") || event.includes("Call"))        return "bg-amber-500";
     if (event.includes("📝") || event.includes("Note"))        return "bg-blue-500";
+    if (event.includes("👤") || event.includes("Assigned"))    return "bg-violet-500";
     if (event.includes("created") || event.includes("manual")) return "bg-primary";
     return "bg-muted-foreground/40";
 }
+
+// ── Main Component ────────────────────────────────────────────────────────────
 
 export function QueryDetailSheet({ query, reasons, open, onOpenChange, onRefresh }: Props) {
     const [isPendingVerify, startVerify] = useTransition();
@@ -92,7 +108,11 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange, onRefresh
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent className="w-full sm:max-w-xl p-0 flex flex-col overflow-auto">
+
+                {/* ── Header ─────────────────────────────────────────────── */}
                 <SheetHeader className="px-6 pt-6 pb-4 border-b">
+
+                    {/* Name + Status row */}
                     <div className="flex items-start justify-between gap-4">
                         <div>
                             <SheetTitle className="text-lg">{query.name}</SheetTitle>
@@ -104,20 +124,30 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange, onRefresh
                                 </span>
                             </SheetDescription>
                         </div>
-                        <QueryStatusBadge status={query.status} /> 
+                        <QueryStatusBadge status={query.status} />
                     </div>
 
+                    {/* Action buttons — non-terminal queries */}
                     {!isTerminal && (
-    <div className="flex gap-2 pt-3 flex-wrap">
+                        <div className="flex gap-2 pt-3 flex-wrap">
 
-        {/* Edit Details — always first */}
-        <EditQueryDialog query={query} onDone={onRefresh}>
-            <Button size="sm" variant="outline" className="gap-1.5">
-                <Pencil className="h-3.5 w-3.5" /> Edit Details
-            </Button>
-        </EditQueryDialog>
+                            {/* Assign to sales */}
+                            <AssignQueryDropdown
+                                queryId={query.id}
+                                assignedTo={query.assignedTo}
+                                assignedAt={query.assignedAt}
+                                onDone={onRefresh}
+                            />
 
-        <CallAttemptDialog
+                            {/* Edit Details */}
+                            <EditQueryDialog query={query} onDone={onRefresh}>
+                                <Button size="sm" variant="outline" className="gap-1.5">
+                                    <Pencil className="h-3.5 w-3.5" /> Edit Details
+                                </Button>
+                            </EditQueryDialog>
+
+                            {/* Log Call */}
+                            <CallAttemptDialog
                                 queryId={query.id}
                                 leadName={query.name}
                                 phone={query.phone}
@@ -131,6 +161,7 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange, onRefresh
                                 </Button>
                             </CallAttemptDialog>
 
+                            {/* Verify Lead */}
                             {canVerify && (
                                 <Button size="sm" onClick={handleVerify} disabled={isPendingVerify}
                                     className="gap-1.5 bg-green-600 hover:bg-green-700 text-white">
@@ -139,6 +170,7 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange, onRefresh
                                 </Button>
                             )}
 
+                            {/* Reject */}
                             <RejectQueryDialog queryId={query.id} leadName={query.name} reasons={reasons}>
                                 <Button size="sm" variant="outline"
                                     className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10">
@@ -148,6 +180,7 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange, onRefresh
                         </div>
                     )}
 
+                    {/* Rejected banner */}
                     {query.status === "REJECTED" && query.rejectionReason && (
                         <div className="mt-3 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2">
                             <p className="text-xs font-semibold text-destructive uppercase tracking-wide mb-1">Rejected</p>
@@ -158,29 +191,62 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange, onRefresh
                         </div>
                     )}
 
+                    {/* Verified banner */}
                     {query.verified && (
                         <div className="mt-3 rounded-lg border border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-900 px-3 py-2">
-                            <p className="text-xs font-semibold text-green-700 dark:text-green-400 uppercase tracking-wide mb-1">✓ Verified Lead</p>
+                            <p className="text-xs font-semibold text-green-700 dark:text-green-400 uppercase tracking-wide mb-1">
+                                ✓ Verified Lead
+                            </p>
                             {query.verifiedAt && (
-                                <p className="text-xs text-muted-foreground">{format(new Date(query.verifiedAt), "dd MMM yyyy, hh:mm a")}</p>
+                                <p className="text-xs text-muted-foreground">
+                                    {format(new Date(query.verifiedAt), "dd MMM yyyy, hh:mm a")}
+                                </p>
                             )}
                         </div>
                     )}
-                    {query.verified && (
-                        <div className="mt-3 rounded-lg border border-green-200 bg-green-50 ...">
-                            <p className="text-xs font-semibold ...">✓ Verified Lead</p>
-                            {query.verifiedAt && (
-                                <p className="text-xs text-muted-foreground">...</p>
-                            )}
+
+                    {/* Assigned To banner — shows always when assigned (terminal or not) */}
+                    {query.assignedTo && (
+                        <div className="mt-2 flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                                    <UserCheck className="h-3.5 w-3.5 text-primary" />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                                        Assigned To
+                                    </p>
+                                    <p className="text-sm font-medium truncate">
+                                        {(query as any).assignedToName ?? query.assignedTo}
+                                    </p>
+                                    {query.assignedAt && (
+                                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                                            {formatDistanceToNow(new Date(query.assignedAt), { addSuffix: true })}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                            {/* Always allow reassignment */}
+                            <AssignQueryDropdown
+                                queryId={query.id}
+                                assignedTo={query.assignedTo}
+                                onDone={onRefresh}
+                                compact
+                            />
                         </div>
                     )}
+
                 </SheetHeader>
 
+                {/* ── Scrollable Body ─────────────────────────────────────── */}
                 <ScrollArea className="flex-1">
                     <div className="px-6 py-4 space-y-6">
 
+                        {/* Lead Information */}
                         <section>
-                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2">Lead Information</h3>
+                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2">
+                                Lead Information
+                            </h3>
                             <div className="divide-y divide-border/50">
                                 <InfoRow icon={Phone}    label="Phone"       value={query.phone} />
                                 <InfoRow icon={Mail}     label="Email"       value={query.email} />
@@ -199,8 +265,11 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange, onRefresh
 
                         <Separator />
 
+                        {/* Call Tracking */}
                         <section>
-                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">Call Tracking</h3>
+                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">
+                                Call Tracking
+                            </h3>
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm font-medium">{query.callAttempts} Attempt(s)</p>
@@ -237,31 +306,43 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange, onRefresh
 
                         <Separator />
 
-                        {(query.utmSource || query.utmCampaign || query.gclid) && (
+                        {/* UTM / Source Tracking — only if data exists */}
+                        {((query as any).utmSource || (query as any).utmCampaign || (query as any).gclid) && (
                             <>
                                 <section>
-                                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2">Source Tracking</h3>
+                                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2">
+                                        Source Tracking
+                                    </h3>
                                     <div className="space-y-1.5 text-xs">
-                                        {query.utmSource   && <div className="flex gap-2"><span className="text-muted-foreground w-24">UTM Source</span><span className="font-mono">{query.utmSource}</span></div>}
-                                        {query.utmMedium   && <div className="flex gap-2"><span className="text-muted-foreground w-24">UTM Medium</span><span className="font-mono">{query.utmMedium}</span></div>}
-                                        {query.utmCampaign && <div className="flex gap-2"><span className="text-muted-foreground w-24">Campaign</span><span className="font-mono">{query.utmCampaign}</span></div>}
-                                        {query.gclid       && <div className="flex gap-2"><span className="text-muted-foreground w-24">GCLID</span><span className="font-mono truncate max-w-[200px]">{query.gclid}</span></div>}
-                                        {query.pageUrl     && <div className="flex gap-2"><span className="text-muted-foreground w-24">Page URL</span><a href={query.pageUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline flex items-center gap-0.5">{query.pageUrl.slice(0,40)}… <ExternalLink className="h-2.5 w-2.5" /></a></div>}
+                                        {(query as any).utmSource   && <div className="flex gap-2"><span className="text-muted-foreground w-24">UTM Source</span><span className="font-mono">{(query as any).utmSource}</span></div>}
+                                        {(query as any).utmMedium   && <div className="flex gap-2"><span className="text-muted-foreground w-24">UTM Medium</span><span className="font-mono">{(query as any).utmMedium}</span></div>}
+                                        {(query as any).utmCampaign && <div className="flex gap-2"><span className="text-muted-foreground w-24">Campaign</span><span className="font-mono">{(query as any).utmCampaign}</span></div>}
+                                        {(query as any).gclid       && <div className="flex gap-2"><span className="text-muted-foreground w-24">GCLID</span><span className="font-mono truncate max-w-[200px]">{(query as any).gclid}</span></div>}
+                                        {(query as any).pageUrl     && (
+                                            <div className="flex gap-2">
+                                                <span className="text-muted-foreground w-24">Page URL</span>
+                                                <a href={(query as any).pageUrl} target="_blank" rel="noreferrer"
+                                                    className="text-primary hover:underline flex items-center gap-0.5">
+                                                    {(query as any).pageUrl.slice(0, 40)}…
+                                                    <ExternalLink className="h-2.5 w-2.5" />
+                                                </a>
+                                            </div>
+                                        )}
                                     </div>
                                 </section>
                                 <Separator />
                             </>
                         )}
 
+                        {/* Internal Notes */}
                         <section>
                             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">
                                 Internal Notes ({query.notes?.length ?? 0})
                             </h3>
                             <div className="space-y-2 mb-3">
-                                {(query.notes ?? []).map(note => (
+                                {(query.notes ?? []).map((note) => (
                                     <div key={note.id} className="rounded-lg border bg-card p-3">
                                         <p className="text-sm leading-relaxed">{note.content}</p>
-                                        {/* Fix #3 — "X ago by Username" */}
                                         <p className="text-[10px] text-muted-foreground mt-1.5">
                                             {formatDistanceToNow(new Date(note.createdAt), { addSuffix: true })}
                                             {note.authorName && <span className="ml-1 font-medium">by {note.authorName}</span>}
@@ -273,7 +354,12 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange, onRefresh
                                 )}
                             </div>
                             <form ref={formRef} onSubmit={handleAddNote} className="space-y-2">
-                                <Textarea name="content" placeholder="Add an internal note..." rows={2} className="resize-none text-sm" />
+                                <Textarea
+                                    name="content"
+                                    placeholder="Add an internal note..."
+                                    rows={2}
+                                    className="resize-none text-sm"
+                                />
                                 <Button type="submit" size="sm" variant="outline" disabled={isPendingNote} className="gap-1.5">
                                     <StickyNote className="h-3.5 w-3.5" />
                                     {isPendingNote ? "Adding..." : "Add Note"}
@@ -283,8 +369,11 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange, onRefresh
 
                         <Separator />
 
+                        {/* Activity Timeline */}
                         <section className="pb-6">
-                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">Activity Timeline</h3>
+                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">
+                                Activity Timeline
+                            </h3>
                             <div className="relative pl-4 space-y-4">
                                 <div className="absolute left-1.5 top-1 bottom-1 w-px bg-border" />
                                 {(query.timeline ?? []).map((t) => (
@@ -292,7 +381,6 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange, onRefresh
                                         <div className={`absolute -left-3 top-1.5 h-2.5 w-2.5 rounded-full border-2 border-background shrink-0 ${timelineDot(t.event)}`} />
                                         <div className="min-w-0 pl-1 space-y-0.5">
                                             <p className="text-sm leading-snug">{t.event}</p>
-                                            {/* Fix #3 + #5 — actor name in timeline */}
                                             <p className="text-[10px] text-muted-foreground">
                                                 {formatDistanceToNow(new Date(t.createdAt), { addSuffix: true })}
                                                 {t.actorName && <span className="ml-1 font-medium">by {t.actorName}</span>}

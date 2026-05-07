@@ -8,10 +8,10 @@ async function main() {
   console.log("Seeding TeamMember...");
 
   // Fetch role IDs via raw SQL to avoid adapter deserialization bug
-  const { rows: roles } = await pool.query(
-    `SELECT id, name FROM team_roles WHERE name = ANY($1)`,
-    [["Super Admin", "Operations Manager", "Sales Executive", "Marketing Manager"]]
-  );
+ const { rows: roles } = await pool.query(
+  `SELECT id, name FROM team_roles WHERE name = ANY($1)`,
+  [["Super Admin", "Operations Manager", "Sales Executive", "Marketing Manager", "sales"]]
+);
 
   const roleMap: Record<string, string> = {};
   for (const r of roles) roleMap[r.name] = r.id;
@@ -26,21 +26,36 @@ async function main() {
       name:       "Vikrant Thakur",
       email:      "vikrant@dreamsyatri.com",
       password:   await hash("Admin@123", 12),
-      roleId:     roleMap["Super Admin"],
+      roleId:     roleMap["sales"],
       joiningDate: "2022-01-01",
     },
     {
       name:       "Ravi Kant",
       email:      "ravi@dreamsyatri.com",
       password:   await hash("Ops@1234", 12),
-      roleId:     roleMap["Operations Manager"] ?? null,
+      roleId:     roleMap["sales"] ?? null,
       joiningDate: "2022-06-01",
     },
     {
       name:       "Karan",
       email:      "karan@dreamsyatri.com",
       password:   await hash("Mkt@1234", 12),
-      roleId:     roleMap["Marketing Manager"] ?? null,
+      roleId:     roleMap["sales"] ?? null,
+      joiningDate: "2023-03-01",
+    },
+    {
+      name:       "Trisha",
+      email:      "trisha@dreamsyatri.com",
+      password:   await hash("Mkt@1234", 12),
+      roleId:     roleMap["sales"] ?? null,
+      joiningDate: "2023-03-01",
+    },
+
+    {
+      name:       "Karuna",
+      email:      "karuna@dreamsyatri.com",
+      password:   await hash("Mkt@1234", 12),
+      roleId:     roleMap["sales"] ?? null,
       joiningDate: "2023-03-01",
     },
   ];

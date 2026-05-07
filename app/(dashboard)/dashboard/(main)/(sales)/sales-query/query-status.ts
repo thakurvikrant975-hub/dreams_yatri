@@ -1,0 +1,45 @@
+// Shared pure helpers for QueryStatus — no "use server", safe to import anywhere
+
+export type QueryStatus =
+    | "SUBMITTED"
+    | "VERIFIED"
+    | "REJECTED"
+    | "ASSIGNED"
+    | "IN_PROGRESS"
+    | "PACKAGE_SENT"
+    | "CLIENT_ACCEPTED"
+    | "CLIENT_DECLINED"
+    | "PAYMENT_INITIATED"
+    | "CONVERTED"
+    | "CLOSED";
+
+export type SalesQueryStatus =
+  | "SUBMITTED"
+  | "VERIFIED"
+  | "REJECTED"
+  | "ASSIGNED"
+  | "IN_PROGRESS"
+  | "PACKAGE_SENT"
+  | "CLIENT_ACCEPTED"
+  | "CLIENT_DECLINED"
+  | "PAYMENT_INITIATED"
+  | "CONVERTED"
+  | "CLOSED";
+
+// Still actionable by a sales exec
+function isActiveStatus(status: SalesQueryStatus) {
+  return (
+    status === "VERIFIED" ||
+    status === "ASSIGNED" ||
+    status === "IN_PROGRESS" ||
+    status === "PACKAGE_SENT" ||
+    status === "CLIENT_ACCEPTED" ||
+    status === "CLIENT_DECLINED" ||
+    status === "PAYMENT_INITIATED"
+  );
+}
+
+// Terminal — no further action needed
+function isClosedStatus(status: SalesQueryStatus) {
+  return status === "CLOSED" || status === "CONVERTED" || status === "REJECTED";
+}
