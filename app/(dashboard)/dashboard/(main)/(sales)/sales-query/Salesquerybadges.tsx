@@ -23,7 +23,7 @@ const STATUS_CONFIG: Record<QueryStatus, StatusConfig> = {
     VERIFIED: {
         label: "Verified",
         icon: UserCheck,
-        className: "bg-blue-500/10 text-blue-600 border-blue-200 dark:border-blue-800",
+        className: "bg-green-500/10 text-green-600 border-green-200 dark:border-green-800",
     },
     REJECTED: {
         label: "Rejected",
@@ -33,12 +33,12 @@ const STATUS_CONFIG: Record<QueryStatus, StatusConfig> = {
     ASSIGNED: {
         label: "New / Assigned",
         icon: Inbox,
-        className: "bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-800",
+        className: "bg-sky-500/10 text-sky-600 border-sky-200 dark:border-sky-800",
     },
     IN_PROGRESS: {
         label: "In Progress",
         icon: PhoneCall,
-        className: "bg-violet-500/10 text-violet-600 border-violet-200 dark:border-violet-800",
+        className: "bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-800",
     },
     PACKAGE_SENT: {
         label: "Package Sent",
