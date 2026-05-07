@@ -4,9 +4,10 @@ import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
+import { StayTiersSection } from "./StayTiersSection";
 import { ItineraryDaySidebar } from "./ItineraryDaySidebar";
 import { handleGetItineraryData } from "@/app/actions/packages/itinerary-builder.actions";
-import type { DayData } from "@/app/services/itinerary-builder.service";
+import type { DayData, StayCategoryFull } from "@/app/services/itinerary-builder.service";
 import {
   CalendarDays,
   Loader2,
@@ -32,19 +33,11 @@ type Duration = {
   routes: RouteRow[];
 };
 
-type StayCategory = {
-  id: number;
-  label: string;
-  slug: string;
-  min_duration_days: number | null;
-  sort_order: number;
-};
-
 type Props = {
   packageId: number;
   destinationId: number;
   durations: Duration[];
-  stayCategories: StayCategory[];
+  stayCategories: StayCategoryFull[];
 };
 
 // ── Day Card ───────────────────────────────────────────────────────────────
@@ -52,7 +45,7 @@ type Props = {
 function DayCard({ day, onClick }: { day: DayData; onClick: () => void }) {
   const hasAny =
     day.id !== null &&
-    (day.activities.length + day.transfers.length + day.notes.length + day.stays.length > 0);
+    day.activities.length + day.transfers.length + day.notes.length + day.stays.length > 0;
 
   return (
     <button
@@ -70,34 +63,28 @@ function DayCard({ day, onClick }: { day: DayData; onClick: () => void }) {
         <ChevronRight className="h-3 w-3 text-muted-foreground/40 group-hover:text-primary transition-colors" />
       </div>
 
-      <p className="text-xs font-medium line-clamp-2 mb-2 text-foreground">
-        {day.title}
-      </p>
+      <p className="text-xs font-medium line-clamp-2 mb-2">{day.title}</p>
 
       {hasAny ? (
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-1.5">
           {day.transfers.length > 0 && (
             <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
-              <Car className="h-2.5 w-2.5" />
-              {day.transfers.length}
+              <Car className="h-2.5 w-2.5" />{day.transfers.length}
             </span>
           )}
           {day.activities.length > 0 && (
             <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
-              <Activity className="h-2.5 w-2.5" />
-              {day.activities.length}
+              <Activity className="h-2.5 w-2.5" />{day.activities.length}
             </span>
           )}
           {day.stays.length > 0 && (
             <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
-              <Bed className="h-2.5 w-2.5" />
-              {day.stays.length}
+              <Bed className="h-2.5 w-2.5" />{day.stays.length}
             </span>
           )}
           {day.notes.length > 0 && (
             <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
-              <StickyNote className="h-2.5 w-2.5" />
-              {day.notes.length}
+              <StickyNote className="h-2.5 w-2.5" />{day.notes.length}
             </span>
           )}
         </div>
@@ -110,12 +97,13 @@ function DayCard({ day, onClick }: { day: DayData; onClick: () => void }) {
 
 // ── Main Tab ───────────────────────────────────────────────────────────────
 
-export function ItineraryBuilderTab({ packageId, destinationId, durations, stayCategories }: Props) {
+export function ItineraryBuilderTab({ packageId, destinationId, durations, stayCategories: initialStayCategories }: Props) {
   const defaultDuration = durations.find((d) => d.is_default) ?? durations[0] ?? null;
   const [selectedDurationId, setSelectedDurationId] = useState<number | null>(defaultDuration?.id ?? null);
   const [selectedRouteId, setSelectedRouteId] = useState<number | null>(
     defaultDuration?.routes[0]?.id ?? null,
   );
+  const [stayCategories, setStayCategories] = useState<StayCategoryFull[]>(initialStayCategories);
   const [days, setDays] = useState<DayData[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -159,31 +147,40 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
     setSidebarOpen(false);
   }
 
-  function openDaySidebar(day: DayData) {
-    setOpenDay(day);
-    setSidebarOpen(true);
-  }
-
   function handleDaySaved(updatedDay: DayData) {
     setDays((prev) => (prev ? prev.map((d) => (d.day === updatedDay.day ? updatedDay : d)) : prev));
   }
 
   if (durations.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 rounded-xl border border-dashed bg-muted/30">
-        <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
-          <CalendarDays className="h-5 w-5 text-primary" />
+      <div className="space-y-5">
+        <StayTiersSection
+          packageId={packageId}
+          initialCategories={stayCategories}
+          onCategoriesChange={setStayCategories}
+        />
+        <div className="flex flex-col items-center justify-center py-16 rounded-xl border border-dashed bg-muted/30">
+          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
+            <CalendarDays className="h-5 w-5 text-primary" />
+          </div>
+          <p className="text-sm font-medium text-muted-foreground">No durations yet</p>
+          <p className="text-xs text-muted-foreground/60 mt-1">
+            Create route variants first in the Route Builder tab
+          </p>
         </div>
-        <p className="text-sm font-medium text-muted-foreground">No durations yet</p>
-        <p className="text-xs text-muted-foreground/60 mt-1">
-          Create route variants first in the Route Builder tab
-        </p>
       </div>
     );
   }
 
   return (
     <div className="space-y-5">
+      {/* Stay Tiers setup section */}
+      <StayTiersSection
+        packageId={packageId}
+        initialCategories={stayCategories}
+        onCategoriesChange={setStayCategories}
+      />
+
       {/* Duration chips */}
       <div>
         <p className="text-xs font-medium text-muted-foreground mb-2">Duration</p>
@@ -262,14 +259,21 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
           ) : days ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {days.map((day) => (
-                <DayCard key={day.day} day={day} onClick={() => openDaySidebar(day)} />
+                <DayCard
+                  key={day.day}
+                  day={day}
+                  onClick={() => {
+                    setOpenDay(day);
+                    setSidebarOpen(true);
+                  }}
+                />
               ))}
             </div>
           ) : null}
         </div>
       )}
 
-      {/* Sidebar */}
+      {/* Day sidebar */}
       {openDay && selectedDurationId && selectedRouteId && (
         <ItineraryDaySidebar
           key={`${selectedDurationId}-${selectedRouteId}-${openDay.day}`}

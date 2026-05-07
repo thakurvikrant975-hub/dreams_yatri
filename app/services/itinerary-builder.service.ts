@@ -375,3 +375,118 @@ export async function searchRoomPricings(destinationId: number, query: string) {
     price_per_night: Number(p.price_per_night),
   }));
 }
+
+// ── Stay categories ────────────────────────────────────────────────────────
+
+export type StayCategoryInput = {
+  label: string;
+  description?: string | null;
+  min_duration_days?: number | null;
+  is_default?: boolean;
+  sort_order?: number;
+  is_active?: boolean;
+};
+
+export type StayCategoryFull = {
+  id: number;
+  label: string;
+  slug: string;
+  description: string | null;
+  min_duration_days: number | null;
+  is_default: boolean;
+  sort_order: number;
+  is_active: boolean;
+};
+
+function slugifyTier(str: string): string {
+  return str.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "tier";
+}
+
+async function uniqueTierSlug(packageId: number, label: string, excludeId?: number): Promise<string> {
+  const base = slugifyTier(label);
+  const cond = excludeId ? { NOT: { id: excludeId } } : {};
+  const exists = await db.package_stay_categories.findFirst({ where: { package_id: packageId, slug: base, ...cond } });
+  if (!exists) return base;
+  let i = 2;
+  while (true) {
+    const cand = `${base}-${i}`;
+    const conflict = await db.package_stay_categories.findFirst({ where: { package_id: packageId, slug: cand, ...cond } });
+    if (!conflict) return cand;
+    i++;
+  }
+}
+
+const TIER_SELECT = {
+  id: true, label: true, slug: true, description: true,
+  min_duration_days: true, is_default: true, sort_order: true, is_active: true,
+} as const;
+
+export async function getStayCategories(packageId: number): Promise<StayCategoryFull[]> {
+  return db.package_stay_categories.findMany({
+    where: { package_id: packageId },
+    orderBy: { sort_order: "asc" },
+    select: TIER_SELECT,
+  });
+}
+
+export async function createStayCategory(packageId: number, data: StayCategoryInput): Promise<StayCategoryFull> {
+  const slug = await uniqueTierSlug(packageId, data.label);
+  const count = await db.package_stay_categories.count({ where: { package_id: packageId } });
+  if (data.is_default) {
+    await db.package_stay_categories.updateMany({ where: { package_id: packageId }, data: { is_default: false } });
+  }
+  return db.package_stay_categories.create({
+    data: {
+      package_id: packageId,
+      label: data.label,
+      slug,
+      description: data.description ?? null,
+      min_duration_days: data.min_duration_days ?? null,
+      is_default: data.is_default ?? false,
+      sort_order: data.sort_order ?? count,
+      is_active: data.is_active ?? true,
+    },
+    select: TIER_SELECT,
+  });
+}
+
+export async function updateStayCategory(id: number, data: StayCategoryInput): Promise<StayCategoryFull> {
+  const existing = await db.package_stay_categories.findUnique({ where: { id }, select: { label: true, package_id: true } });
+  if (!existing) throw new Error("Stay category not found");
+
+  const slug =
+    existing.label !== data.label
+      ? await uniqueTierSlug(existing.package_id, data.label, id)
+      : undefined;
+
+  if (data.is_default) {
+    await db.package_stay_categories.updateMany({
+      where: { package_id: existing.package_id, NOT: { id } },
+      data: { is_default: false },
+    });
+  }
+
+  return db.package_stay_categories.update({
+    where: { id },
+    data: {
+      label: data.label,
+      ...(slug ? { slug } : {}),
+      description: data.description ?? null,
+      min_duration_days: data.min_duration_days ?? null,
+      is_default: data.is_default ?? false,
+      ...(data.sort_order !== undefined ? { sort_order: data.sort_order } : {}),
+      ...(data.is_active !== undefined ? { is_active: data.is_active } : {}),
+    },
+    select: TIER_SELECT,
+  });
+}
+
+export async function deleteStayCategory(id: number): Promise<void> {
+  await db.package_stay_categories.delete({ where: { id } });
+}
+
+export async function reorderStayCategories(updates: { id: number; sort_order: number }[]): Promise<void> {
+  await db.$transaction(
+    updates.map((u) => db.package_stay_categories.update({ where: { id: u.id }, data: { sort_order: u.sort_order } })),
+  );
+}

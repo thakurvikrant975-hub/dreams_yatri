@@ -18,9 +18,15 @@ import {
   reorderDayItems,
   searchActivities,
   searchRoomPricings,
+  getStayCategories,
+  createStayCategory,
+  updateStayCategory,
+  deleteStayCategory,
+  reorderStayCategories,
   type TransferInput,
   type NoteInput,
   type ReorderItem,
+  type StayCategoryInput,
 } from "@/app/services/itinerary-builder.service";
 
 function p(packageId: number) {
@@ -202,5 +208,59 @@ export async function handleSearchRoomPricings(destinationId: number, query: str
     return { success: true as const, data };
   } catch {
     return { success: false as const, data: [] as Awaited<ReturnType<typeof searchRoomPricings>>, message: "Search failed" };
+  }
+}
+
+// ── Stay category CRUD ─────────────────────────────────────────────────────
+
+export async function handleGetStayCategories(packageId: number) {
+  try {
+    const data = await getStayCategories(packageId);
+    return { success: true as const, data };
+  } catch {
+    return { success: false as const, message: "Failed to load stay categories" };
+  }
+}
+
+export async function handleCreateStayCategory(packageId: number, data: StayCategoryInput) {
+  try {
+    const result = await createStayCategory(packageId, data);
+    revalidatePath(p(packageId));
+    return { success: true as const, data: result };
+  } catch {
+    return { success: false as const, message: "Failed to create tier" };
+  }
+}
+
+export async function handleUpdateStayCategory(id: number, data: StayCategoryInput, packageId: number) {
+  try {
+    const result = await updateStayCategory(id, data);
+    revalidatePath(p(packageId));
+    return { success: true as const, data: result };
+  } catch {
+    return { success: false as const, message: "Failed to update tier" };
+  }
+}
+
+export async function handleDeleteStayCategory(id: number, packageId: number) {
+  try {
+    await deleteStayCategory(id);
+    revalidatePath(p(packageId));
+    return { success: true as const };
+  } catch {
+    return { success: false as const, message: "Cannot delete — this tier is in use by an itinerary" };
+  }
+}
+
+export async function handleReorderStayCategories(
+  updates: { id: number; sort_order: number }[],
+  packageId: number,
+) {
+  try {
+    await reorderStayCategories(updates);
+    revalidatePath(p(packageId));
+    return { success: true as const };
+  } catch {
+    return { success: false as const, message: "Failed to reorder" };
   }
 }

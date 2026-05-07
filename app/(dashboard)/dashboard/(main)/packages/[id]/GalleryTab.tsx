@@ -1,0 +1,382 @@
+"use client";
+
+import { useState, useCallback } from "react";
+import { toast } from "sonner";
+import { cn } from "@/app/lib/utils";
+
+const R2 = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
+function r2(path: string | null | undefined) {
+  if (!path) return "";
+  if (path.startsWith("http")) return path;
+  return `${R2}/${path}`;
+}
+import {
+  handleGetSourceImages,
+  handleUpsertGallerySlot,
+  handleClearGallerySlot,
+} from "@/app/actions/packages/gallery.actions";
+import type { GallerySlot, GallerySourceImages, SourceImage } from "@/app/services/gallery.service";
+import {
+  ImageIcon,
+  X,
+  Loader2,
+  Package,
+  Hotel,
+  Zap,
+  BedDouble,
+  ChevronLeft,
+  Star,
+} from "lucide-react";
+import { Button } from "../../components/ui/button";
+
+// ── Types ──────────────────────────────────────────────────────────────────
+
+type SlotData = GallerySlot | null;
+
+type Props = {
+  packageId: number;
+  initialGallery: SlotData[];
+};
+
+type SourceKey = "PACKAGE" | "HOTEL" | "ACTIVITY" | "ROOM";
+
+// ── Constants ──────────────────────────────────────────────────────────────
+
+const SOURCE_TABS: { key: SourceKey; label: string; icon: React.ElementType }[] = [
+  { key: "PACKAGE", label: "Package", icon: Package },
+  { key: "HOTEL",   label: "Hotel",   icon: Hotel },
+  { key: "ACTIVITY", label: "Activity", icon: Zap },
+  { key: "ROOM",    label: "Room",    icon: BedDouble },
+];
+
+const SLOT_LABELS: Record<number, string> = {
+  1: "Cover Photo",
+  2: "Image 2",
+  3: "Image 3",
+  4: "Image 4",
+  5: "Image 5",
+};
+
+// ── Gallery Slot Card ──────────────────────────────────────────────────────
+
+function SlotCard({
+  position,
+  slot,
+  active,
+  saving,
+  onSelect,
+  onClear,
+}: {
+  position: number;
+  slot: SlotData;
+  active: boolean;
+  saving: boolean;
+  onSelect: () => void;
+  onClear: () => void;
+}) {
+  const isCover = position === 1;
+
+  return (
+    <div
+      className={cn(
+        "relative rounded-xl border-2 overflow-hidden transition-all cursor-pointer group",
+        isCover ? "col-span-2 row-span-2 aspect-[4/3]" : "aspect-square",
+        active ? "border-primary ring-2 ring-primary/30" : "border-border hover:border-primary/50",
+        !slot && "bg-muted/20 border-dashed",
+      )}
+      onClick={onSelect}
+    >
+      {slot ? (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={r2(slot.image_url)}
+            alt={slot.label ?? SLOT_LABELS[position]}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+          {/* Position badge */}
+          <div className="absolute top-2 left-2">
+            <span className={cn(
+              "text-[10px] font-bold px-1.5 py-0.5 rounded-md",
+              isCover ? "bg-primary text-primary-foreground" : "bg-black/60 text-white",
+            )}>
+              {isCover && <Star className="inline h-2.5 w-2.5 mb-0.5 mr-0.5" />}
+              {SLOT_LABELS[position]}
+            </span>
+          </div>
+          {/* Clear button */}
+          {!saving && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onClear(); }}
+              className="absolute top-2 right-2 h-6 w-6 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+          {saving && (
+            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+              <Loader2 className="h-5 w-5 text-white animate-spin" />
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5">
+          {saving ? (
+            <Loader2 className="h-5 w-5 text-muted-foreground animate-spin" />
+          ) : (
+            <>
+              <ImageIcon className="h-5 w-5 text-muted-foreground/40" />
+              <span className="text-[10px] text-muted-foreground/50 font-medium">
+                {SLOT_LABELS[position]}
+              </span>
+              {isCover && (
+                <span className="text-[9px] text-muted-foreground/40">Cover</span>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Image Picker Panel ─────────────────────────────────────────────────────
+
+function ImagePickerPanel({
+  activeSlot,
+  sourceImages,
+  loading,
+  savingSlot,
+  onPick,
+  onClose,
+}: {
+  activeSlot: number;
+  sourceImages: GallerySourceImages | null;
+  loading: boolean;
+  savingSlot: number | null;
+  onPick: (img: SourceImage, sourceType: SourceKey) => void;
+  onClose: () => void;
+}) {
+  const [activeSource, setActiveSource] = useState<SourceKey>("PACKAGE");
+
+  const images = sourceImages?.[activeSource] ?? [];
+
+  // Group by group_label
+  const grouped = images.reduce<Record<string, SourceImage[]>>((acc, img) => {
+    (acc[img.group_label] ??= []).push(img);
+    return acc;
+  }, {});
+
+  return (
+    <div className="rounded-xl border bg-background flex flex-col" style={{ minHeight: 420 }}>
+      {/* Panel header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b">
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <p className="text-sm font-semibold">
+            Pick image for <span className="text-primary">{SLOT_LABELS[activeSlot]}</span>
+          </p>
+        </div>
+      </div>
+
+      {/* Source tabs */}
+      <div className="flex border-b px-4">
+        {SOURCE_TABS.map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setActiveSource(key)}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors",
+              activeSource === key
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Icon className="h-3.5 w-3.5" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Image grid */}
+      <div className="flex-1 overflow-y-auto p-4">
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-5 w-5 text-muted-foreground animate-spin" />
+          </div>
+        ) : images.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <ImageIcon className="h-8 w-8 text-muted-foreground/30 mb-2" />
+            <p className="text-sm text-muted-foreground">No images available</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">
+              {activeSource === "PACKAGE"
+                ? "Upload images in the Images tab"
+                : `Add ${activeSource.toLowerCase()} items to the itinerary first`}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-5">
+            {Object.entries(grouped).map(([groupLabel, imgs]) => (
+              <div key={groupLabel}>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                  {groupLabel}
+                </p>
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                  {imgs.map((img) => (
+                    <button
+                      key={img.id}
+                      type="button"
+                      disabled={savingSlot !== null}
+                      onClick={() => onPick(img, activeSource)}
+                      className="relative aspect-square rounded-lg overflow-hidden border-2 border-transparent hover:border-primary transition-all group"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={r2(img.thumbnail ?? img.url)}
+                        alt=""
+                        className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform"
+                      />
+                      {savingSlot !== null && (
+                        <div className="absolute inset-0 bg-black/20" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Main Tab ───────────────────────────────────────────────────────────────
+
+export function GalleryTab({ packageId, initialGallery }: Props) {
+  const [gallery, setGallery] = useState<SlotData[]>(initialGallery);
+  const [activeSlot, setActiveSlot] = useState<number | null>(null);
+  const [sourceImages, setSourceImages] = useState<GallerySourceImages | null>(null);
+  const [pickerLoading, setPickerLoading] = useState(false);
+  const [savingSlot, setSavingSlot] = useState<number | null>(null);
+
+  const openPicker = useCallback(
+    async (position: number) => {
+      setActiveSlot(position);
+      if (!sourceImages) {
+        setPickerLoading(true);
+        const res = await handleGetSourceImages(packageId);
+        setPickerLoading(false);
+        if (res.success) {
+          setSourceImages(res.data);
+        } else {
+          toast.error(res.message ?? "Failed to load images");
+        }
+      }
+    },
+    [packageId, sourceImages],
+  );
+
+  async function handlePick(img: SourceImage, sourceType: SourceKey) {
+    if (!activeSlot) return;
+    setSavingSlot(activeSlot);
+    const res = await handleUpsertGallerySlot(packageId, activeSlot, img.url, sourceType, img.source_id);
+    setSavingSlot(null);
+    if (!res.success) { toast.error(res.message); return; }
+    setGallery((prev) => {
+      const next = [...prev];
+      next[activeSlot - 1] = {
+        id: 0,
+        position: activeSlot,
+        image_url: img.url,
+        source_type: sourceType,
+        source_id: img.source_id,
+        label: null,
+      };
+      return next;
+    });
+    setActiveSlot(null);
+    toast.success(`${SLOT_LABELS[activeSlot]} updated`);
+  }
+
+  async function handleClear(position: number) {
+    setSavingSlot(position);
+    const res = await handleClearGallerySlot(packageId, position);
+    setSavingSlot(null);
+    if (!res.success) { toast.error(res.message); return; }
+    setGallery((prev) => {
+      const next = [...prev];
+      next[position - 1] = null;
+      return next;
+    });
+    if (activeSlot === position) setActiveSlot(null);
+    toast.success(`${SLOT_LABELS[position]} cleared`);
+  }
+
+  const filledCount = gallery.filter(Boolean).length;
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div>
+        <h3 className="text-sm font-semibold">Gallery — Intro Section</h3>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Choose up to 5 images for the package gallery. Position 1 is the large cover photo.{" "}
+          <span className="text-muted-foreground/70">{filledCount}/5 filled</span>
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Slot grid */}
+        <div>
+          <div className="grid grid-cols-4 grid-rows-2 gap-2" style={{ minHeight: 280 }}>
+            {Array.from({ length: 5 }, (_, i) => i + 1).map((pos) => (
+              <SlotCard
+                key={pos}
+                position={pos}
+                slot={gallery[pos - 1]}
+                active={activeSlot === pos}
+                saving={savingSlot === pos}
+                onSelect={() => openPicker(pos)}
+                onClear={() => handleClear(pos)}
+              />
+            ))}
+          </div>
+
+          {filledCount === 0 && (
+            <p className="text-xs text-muted-foreground/60 mt-3 text-center">
+              Click a slot to pick an image
+            </p>
+          )}
+        </div>
+
+        {/* Image picker */}
+        <div>
+          {activeSlot ? (
+            <ImagePickerPanel
+              activeSlot={activeSlot}
+              sourceImages={sourceImages}
+              loading={pickerLoading}
+              savingSlot={savingSlot}
+              onPick={handlePick}
+              onClose={() => setActiveSlot(null)}
+            />
+          ) : (
+            <div className="rounded-xl border border-dashed bg-muted/20 flex flex-col items-center justify-center" style={{ minHeight: 280 }}>
+              <ImageIcon className="h-8 w-8 text-muted-foreground/30 mb-2" />
+              <p className="text-sm text-muted-foreground">Select a slot to pick an image</p>
+              <p className="text-xs text-muted-foreground/50 mt-1">
+                Images are sourced from the package, hotels, activities, and rooms in the itinerary
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

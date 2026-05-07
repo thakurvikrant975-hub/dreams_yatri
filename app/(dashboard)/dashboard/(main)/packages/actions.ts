@@ -27,9 +27,20 @@ export async function getPackageForBuilder(id: number) {
         select: { id: true, url: true, thumbnail: true, sort_order: true, is_primary: true },
       },
       stay_categories: {
-        where: { is_active: true },
         orderBy: { sort_order: "asc" },
-        select: { id: true, label: true, slug: true, min_duration_days: true, sort_order: true },
+        select: {
+          id: true, label: true, slug: true, description: true,
+          min_duration_days: true, is_default: true, sort_order: true, is_active: true,
+        },
+      },
+      policies: {
+        include: {
+          policy: { select: { id: true, type: true, title: true } },
+        },
+      },
+      gallery: {
+        orderBy: { position: "asc" },
+        select: { id: true, position: true, image_url: true, source_type: true, source_id: true, label: true },
       },
       durations: {
         orderBy: { days: "asc" },

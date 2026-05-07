@@ -11,6 +11,9 @@ import { PackageForm } from "../components/PackageForm";
 import { ImagesTab } from "./ImagesTab";
 import { RouteBuilderTab } from "./RouteBuilderTab";
 import { ItineraryBuilderTab } from "./ItineraryBuilderTab";
+import { PoliciesTab } from "./PoliciesTab";
+import { GalleryTab } from "./GalleryTab";
+import { POLICY_TYPES, type PolicyType } from "../../policies/constants";
 import { getPackageForBuilder } from "../actions";
 import {
   CalendarDays, GalleryHorizontal, Images, Info, Package, Route,
@@ -158,12 +161,37 @@ export default async function PackageBuilderPage({
 
         {/* Tab 5 — Policies */}
         <TabsContent value="policies" className="pt-6">
-          <PlaceholderTab label="Policies" />
+          <PoliciesTab
+            packageId={pkg.id}
+            initialPolicies={Object.fromEntries(
+              POLICY_TYPES.map((type) => {
+                const match = pkg.policies.find((p) => p.policy.type === type);
+                return [type, match ? { id: match.policy.id, title: match.policy.title } : null];
+              }),
+            ) as Record<PolicyType, { id: number; title: string } | null>}
+          />
         </TabsContent>
 
         {/* Tab 6 — Gallery (INTRO SECTION) */}
         <TabsContent value="gallery" className="pt-6">
-          <PlaceholderTab label="Gallery — Intro Section" />
+          <GalleryTab
+            packageId={pkg.id}
+            initialGallery={(() => {
+              const map = new Map(pkg.gallery.map((g) => [g.position, g]));
+              return Array.from({ length: 5 }, (_, i) => {
+                const g = map.get(i + 1);
+                if (!g) return null;
+                return {
+                  id: g.id,
+                  position: g.position,
+                  image_url: g.image_url,
+                  source_type: g.source_type as "PACKAGE" | "HOTEL" | "ACTIVITY" | "ROOM",
+                  source_id: g.source_id,
+                  label: g.label,
+                };
+              });
+            })()}
+          />
         </TabsContent>
 
         {/* Tab 7 — Pricing Preview */}
