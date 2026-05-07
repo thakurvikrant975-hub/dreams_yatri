@@ -181,6 +181,21 @@ model Booking {
   rejectionReason         String?
   modificationNote        String?
   modificationRequestedBy String?
+  paymentStatus           PaymentStatus         @default(PENDING)
+  advancePaidAmount       Decimal               @default(0) @db.Decimal(10, 2)
+  balanceDueAmount        Decimal               @default(0) @db.Decimal(10, 2)
+  balanceDueDate          DateTime?
+  sourceQueryId           String?               @unique
+  convertedAt             DateTime?
+  salesAgentId            String?
+  salesAgentName          String?
+  referredBy              String?
+  referralSource          ReferralSource?
+  opsAgentName            String?
+  hotelAgentName          String?
+  cabAgentName            String?
+  confirmationEmailSentAt DateTime?
+  confirmationEmailTo     String?
   cabBookings             BookingCab[]
   hotelBookings           BookingHotel[]
   bookingMeals            BookingMeal[]
@@ -192,14 +207,28 @@ model Booking {
   hotelAssignee           TeamMember?           @relation("BookingHotelAssignee", fields: [hotelAssigneeId], references: [id])
   opsAssignee             TeamMember?           @relation("BookingOpsAssignee", fields: [opsAssigneeId], references: [id])
   package                 packages?             @relation(fields: [packageId], references: [id])
+  sourceQuery             package_queries?      @relation(fields: [sourceQueryId], references: [id])
   user                    User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   packageHotels           PackageBookingHotel[]
   payments                Payment[]
+  documents               TripDocument[]
 
   @@index([userId])
   @@index([packageId])
   @@index([status])
   @@map("bookings")
+}
+
+model TripDocument {
+  id         String       @id @default(cuid())
+  bookingId  String
+  type       DocumentType
+  fileUrl    String
+  uploadedBy String
+  uploadedAt DateTime     @default(now())
+  booking    Booking      @relation(fields: [bookingId], references: [id])
+
+  @@map("trip_documents")
 }
 
 model BookingHotel {
@@ -503,106 +532,56 @@ model ActivityLog {
   @@map("activity_logs")
 }
 
-model PackageQuery {
-  id                String           @id @default(cuid())
-  name              String
-  email             String?
-  phone             String
-  countryCode       String           @default("IN")
-  message           String?
-  packageName       String?
-  destination       String?
-  travelDate        DateTime?
-  groupSize         Int?
-  source            QuerySource      @default(WEBSITE_FORM)
-  gclid             String?
-  utmSource         String?
-  utmMedium         String?
-  utmCampaign       String?
-  pageUrl           String?
-  status            QueryStatus      @default(SUBMITTED)
-  verified          Boolean          @default(false)
-  verifiedAt        DateTime?
-  verifiedBy        String?
-  rejectionReasonId String?
-  rejectionNote     String?
-  callAttempts      Int              @default(0)
-  lastAttemptAt     DateTime?
-  nextFollowUpAt    DateTime?
-  assignedTo        String?
-  assignedAt        DateTime?
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  leadProfileId     String?
-  assignedToName    String?
-  closeReasonId     String?
-  closeReasonOther  String?
-  closedAt          DateTime?
-  closedBy          String?
-  QueryFollowUp     QueryFollowUp[]
-  leadProfile       LeadProfile?     @relation(fields: [leadProfileId], references: [id])
-  rejectionReason   RejectionReason? @relation(fields: [rejectionReasonId], references: [id])
-  notes             QueryNote[]
-  timeline          QueryTimeline[]
-
-  @@index([status])
-  @@index([verified])
-  @@index([destination])
-  @@index([assignedTo])
-  @@index([createdAt])
-  @@map("package_queries")
-}
-
 model RejectionReason {
-  id          String         @id @default(cuid())
-  label       String
-  description String?
-  isSystem    Boolean        @default(false)
-  isActive    Boolean        @default(true)
-  sortOrder   Int            @default(0)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-  queries     PackageQuery[]
+  id              String            @id @default(cuid())
+  label           String
+  description     String?
+  isSystem        Boolean           @default(false)
+  isActive        Boolean           @default(true)
+  sortOrder       Int               @default(0)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  package_queries package_queries[]
 
   @@map("rejection_reasons")
 }
 
 model QueryNote {
-  id        String       @id @default(cuid())
+  id        String          @id @default(cuid())
   queryId   String
   authorId  String
   content   String
-  createdAt DateTime     @default(now())
-  query     PackageQuery @relation(fields: [queryId], references: [id], onDelete: Cascade)
+  createdAt DateTime        @default(now())
+  query     package_queries @relation(fields: [queryId], references: [id], onDelete: Cascade)
 
   @@index([queryId])
   @@map("query_notes")
 }
 
 model QueryTimeline {
-  id        String       @id @default(cuid())
+  id        String          @id @default(cuid())
   queryId   String
   actorId   String?
   actorName String?
   event     String
   meta      Json?
-  createdAt DateTime     @default(now())
-  query     PackageQuery @relation(fields: [queryId], references: [id], onDelete: Cascade)
+  createdAt DateTime        @default(now())
+  query     package_queries @relation(fields: [queryId], references: [id], onDelete: Cascade)
 
   @@index([queryId])
   @@map("query_timeline")
 }
 
 model LeadProfile {
-  id           String         @id @default(cuid())
-  phone        String         @unique
-  name         String
-  email        String?
-  totalQueries Int            @default(0)
-  lastSeenAt   DateTime       @default(now())
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-  queries      PackageQuery[]
+  id              String            @id @default(cuid())
+  phone           String            @unique
+  name            String
+  email           String?
+  totalQueries    Int               @default(0)
+  lastSeenAt      DateTime          @default(now())
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  package_queries package_queries[]
 
   @@map("lead_profiles")
 }
@@ -1150,14 +1129,69 @@ model package_gallery {
 }
 
 model QueryFollowUp {
-  id              String       @id
-  packageQueryId  String
-  note            String
-  followUpAt      DateTime?
-  createdAt       DateTime     @default(now())
-  package_queries PackageQuery @relation(fields: [packageQueryId], references: [id], onDelete: Cascade)
+  id             String          @id @default(cuid())
+  packageQueryId String
+  note           String
+  followUpAt     DateTime?
+  createdAt      DateTime        @default(now())
+  createdById    String?
+  createdByName  String?
+  packageQuery   package_queries @relation(fields: [packageQueryId], references: [id], onDelete: Cascade)
 
   @@index([packageQueryId])
+  @@index([createdById])
+}
+
+model package_queries {
+  id                String           @id @default(cuid())
+  name              String
+  email             String?
+  phone             String
+  countryCode       String           @default("IN")
+  message           String?
+  packageName       String?
+  destination       String?
+  travelDate        DateTime?
+  groupSize         Int?
+  source            QuerySource      @default(WEBSITE_FORM)
+  gclid             String?
+  utmSource         String?
+  utmMedium         String?
+  utmCampaign       String?
+  pageUrl           String?
+  status            QueryStatus      @default(SUBMITTED)
+  verified          Boolean          @default(false)
+  verifiedAt        DateTime?
+  verifiedBy        String?
+  rejectionReasonId String?
+  rejectionNote     String?
+  callAttempts      Int              @default(0)
+  lastAttemptAt     DateTime?
+  nextFollowUpAt    DateTime?
+  assignedTo        String?
+  assignedAt        DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  leadProfileId     String?
+  assignedToName    String?
+  closeReasonId     String?
+  closeReasonOther  String?
+  closedAt          DateTime?
+  closedBy          String?
+  requirements      Json?
+  queryFollowUps    QueryFollowUp[]
+  booking           Booking?
+  lead_profiles     LeadProfile?     @relation(fields: [leadProfileId], references: [id])
+  rejection_reasons RejectionReason? @relation(fields: [rejectionReasonId], references: [id])
+  custom_packages   custom_packages? // ← add this line
+  notes             QueryNote[]
+  timeline          QueryTimeline[]
+
+  @@index([assignedTo])
+  @@index([createdAt])
+  @@index([destination])
+  @@index([status])
+  @@index([verified])
 }
 
 enum CabType {
@@ -1359,9 +1393,16 @@ enum LogSeverity {
 
 enum QueryStatus {
   SUBMITTED
-  IN_PROGRESS
   VERIFIED
   REJECTED
+  ASSIGNED
+  IN_PROGRESS
+  PACKAGE_SENT
+  CLIENT_ACCEPTED
+  CLIENT_DECLINED
+  PAYMENT_INITIATED
+  CONVERTED
+  CLOSED
 }
 
 enum QuerySource {
@@ -1378,4 +1419,82 @@ enum GallerySourceType {
   HOTEL
   ACTIVITY
   ROOM
+}
+
+enum ReferralSource {
+  AGENT
+  CLIENT
+  PARTNER
+  ORGANIC
+}
+
+enum DocumentType {
+  HOTEL_VOUCHER
+  CAB_CONFIRMATION
+  ITINERARY
+  INVOICE
+  FLIGHT_TICKET
+  OTHER
+}
+
+enum CustomPackageStatus {
+  DRAFT
+  READY
+  SENT
+  ACCEPTED
+  DECLINED
+}
+
+model custom_packages {
+  id             String              @id @default(cuid())
+  queryId        String              @unique
+  title          String
+  destination    String
+  startingPoint  String?
+  totalDays      Int
+  totalNights    Int
+  travelDate     DateTime?
+  adults         Int                 @default(1)
+  children       Int                 @default(0)
+  infants        Int                 @default(0)
+  pricePerPerson Float?
+  totalPrice     Float?
+  currency       String              @default("INR")
+  inclusions     String[]
+  exclusions     String[]
+  termsNotes     String?
+  status         CustomPackageStatus @default(DRAFT)
+  builtBy        String
+  builtByName    String?
+  sentAt         DateTime?
+  pdfUrl         String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  query       package_queries      @relation(fields: [queryId], references: [id])
+  itineraries custom_itineraries[]
+
+  @@index([queryId])
+  @@index([builtBy])
+  @@index([status])
+}
+
+model custom_itineraries {
+  id              String   @id @default(cuid())
+  customPackageId String
+  day             Int
+  title           String
+  description     String?
+  activities      String[]
+  meals           String[]
+  accommodation   String?
+  transport       String?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  package custom_packages @relation(fields: [customPackageId], references: [id], onDelete: Cascade)
+
+  @@index([customPackageId])
+  @@index([day])
 }

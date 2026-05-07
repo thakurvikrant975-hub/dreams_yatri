@@ -68,13 +68,22 @@ CREATE TYPE "LogStatus" AS ENUM ('SUCCESS', 'FAILED', 'REJECTED', 'PENDING');
 CREATE TYPE "LogSeverity" AS ENUM ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL');
 
 -- CreateEnum
-CREATE TYPE "QueryStatus" AS ENUM ('SUBMITTED', 'IN_PROGRESS', 'VERIFIED', 'REJECTED');
+CREATE TYPE "QueryStatus" AS ENUM ('SUBMITTED', 'VERIFIED', 'REJECTED', 'ASSIGNED', 'IN_PROGRESS', 'PACKAGE_SENT', 'CLIENT_ACCEPTED', 'CLIENT_DECLINED', 'PAYMENT_INITIATED', 'CONVERTED', 'CLOSED');
 
 -- CreateEnum
 CREATE TYPE "QuerySource" AS ENUM ('WEBSITE_FORM', 'LANDING_PAGE', 'WHATSAPP', 'PHONE_CALL', 'REFERRAL', 'OTHER');
 
 -- CreateEnum
-CREATE TYPE "GallerySourceType" AS ENUM ('PACKAGE', 'HOTEL', 'ACTIVITY');
+CREATE TYPE "GallerySourceType" AS ENUM ('PACKAGE', 'HOTEL', 'ACTIVITY', 'ROOM');
+
+-- CreateEnum
+CREATE TYPE "ReferralSource" AS ENUM ('AGENT', 'CLIENT', 'PARTNER', 'ORGANIC');
+
+-- CreateEnum
+CREATE TYPE "DocumentType" AS ENUM ('HOTEL_VOUCHER', 'CAB_CONFIRMATION', 'ITINERARY', 'INVOICE', 'FLIGHT_TICKET', 'OTHER');
+
+-- CreateEnum
+CREATE TYPE "CustomPackageStatus" AS ENUM ('DRAFT', 'READY', 'SENT', 'ACCEPTED', 'DECLINED');
 
 -- CreateTable
 CREATE TABLE "booking_meals" (
@@ -251,8 +260,35 @@ CREATE TABLE "bookings" (
     "rejectionReason" TEXT,
     "modificationNote" TEXT,
     "modificationRequestedBy" TEXT,
+    "paymentStatus" "PaymentStatus" NOT NULL DEFAULT 'PENDING',
+    "advancePaidAmount" DECIMAL(10,2) NOT NULL DEFAULT 0,
+    "balanceDueAmount" DECIMAL(10,2) NOT NULL DEFAULT 0,
+    "balanceDueDate" TIMESTAMP(3),
+    "sourceQueryId" TEXT,
+    "convertedAt" TIMESTAMP(3),
+    "salesAgentId" TEXT,
+    "salesAgentName" TEXT,
+    "referredBy" TEXT,
+    "referralSource" "ReferralSource",
+    "opsAgentName" TEXT,
+    "hotelAgentName" TEXT,
+    "cabAgentName" TEXT,
+    "confirmationEmailSentAt" TIMESTAMP(3),
+    "confirmationEmailTo" TEXT,
 
     CONSTRAINT "bookings_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "trip_documents" (
+    "id" TEXT NOT NULL,
+    "bookingId" TEXT NOT NULL,
+    "type" "DocumentType" NOT NULL,
+    "fileUrl" TEXT NOT NULL,
+    "uploadedBy" TEXT NOT NULL,
+    "uploadedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "trip_documents_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -505,42 +541,6 @@ CREATE TABLE "activity_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "package_queries" (
-    "id" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
-    "email" TEXT,
-    "phone" TEXT NOT NULL,
-    "countryCode" TEXT NOT NULL DEFAULT 'IN',
-    "message" TEXT,
-    "packageName" TEXT,
-    "destination" TEXT,
-    "travelDate" TIMESTAMP(3),
-    "groupSize" INTEGER,
-    "source" "QuerySource" NOT NULL DEFAULT 'WEBSITE_FORM',
-    "gclid" TEXT,
-    "utmSource" TEXT,
-    "utmMedium" TEXT,
-    "utmCampaign" TEXT,
-    "pageUrl" TEXT,
-    "status" "QueryStatus" NOT NULL DEFAULT 'SUBMITTED',
-    "verified" BOOLEAN NOT NULL DEFAULT false,
-    "verifiedAt" TIMESTAMP(3),
-    "verifiedBy" TEXT,
-    "rejectionReasonId" TEXT,
-    "rejectionNote" TEXT,
-    "callAttempts" INTEGER NOT NULL DEFAULT 0,
-    "lastAttemptAt" TIMESTAMP(3),
-    "nextFollowUpAt" TIMESTAMP(3),
-    "assignedTo" TEXT,
-    "assignedAt" TIMESTAMP(3),
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-    "leadProfileId" TEXT,
-
-    CONSTRAINT "package_queries_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "rejection_reasons" (
     "id" TEXT NOT NULL,
     "label" TEXT NOT NULL,
@@ -625,6 +625,9 @@ CREATE TABLE "destinations" (
     "updated_at" TIMESTAMP(3) NOT NULL,
     "cover_image" TEXT,
     "thumbnail" TEXT,
+    "latitude" DECIMAL(10,8),
+    "longitude" DECIMAL(11,8),
+    "place_id" TEXT,
 
     CONSTRAINT "destinations_pkey" PRIMARY KEY ("id")
 );
@@ -683,7 +686,6 @@ CREATE TABLE "hotels" (
     "star_rating" INTEGER,
     "category" TEXT,
     "stay_type" TEXT,
-    "amenities" JSONB,
     "check_in_time" TEXT,
     "check_out_time" TEXT,
     "is_active" BOOLEAN NOT NULL DEFAULT true,
@@ -717,6 +719,7 @@ CREATE TABLE "hotel_images" (
     "sort_order" INTEGER NOT NULL DEFAULT 0,
     "is_primary" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "url" TEXT,
 
     CONSTRAINT "hotel_images_pkey" PRIMARY KEY ("id")
 );
@@ -877,6 +880,7 @@ CREATE TABLE "package_durations" (
     "is_active" BOOLEAN NOT NULL DEFAULT true,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
+    "thumbnail_url" TEXT,
 
     CONSTRAINT "package_durations_pkey" PRIMARY KEY ("id")
 );
@@ -887,11 +891,14 @@ CREATE TABLE "package_routes" (
     "duration_id" INTEGER NOT NULL,
     "name" TEXT NOT NULL,
     "slug" TEXT NOT NULL,
-    "package_id" INTEGER,
     "meta_title" TEXT,
     "meta_desc" TEXT,
     "sort_order" INTEGER NOT NULL DEFAULT 0,
     "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "polyline" JSONB,
+    "total_distance_km" DOUBLE PRECISION,
+    "total_duration_min" INTEGER,
+    "packagesId" INTEGER,
 
     CONSTRAINT "package_routes_pkey" PRIMARY KEY ("id")
 );
@@ -900,9 +907,13 @@ CREATE TABLE "package_routes" (
 CREATE TABLE "route_stops" (
     "id" SERIAL NOT NULL,
     "route_id" INTEGER NOT NULL,
-    "location" TEXT NOT NULL,
+    "place_name" TEXT NOT NULL,
+    "place_id" TEXT,
+    "address" TEXT,
     "stay_days" INTEGER NOT NULL,
     "sort_order" INTEGER NOT NULL DEFAULT 0,
+    "latitude" DECIMAL(10,8),
+    "longitude" DECIMAL(11,8),
 
     CONSTRAINT "route_stops_pkey" PRIMARY KEY ("id")
 );
@@ -932,21 +943,19 @@ CREATE TABLE "package_itineraries" (
     "day" INTEGER NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT,
-    "meals" JSONB,
 
     CONSTRAINT "package_itineraries_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "itinerary_hotels" (
+CREATE TABLE "itinerary_stays" (
     "id" SERIAL NOT NULL,
     "itinerary_id" INTEGER NOT NULL,
     "stay_category_id" INTEGER NOT NULL,
-    "hotel_id" INTEGER NOT NULL,
-    "hotel_days" INTEGER,
+    "room_pricing_id" INTEGER NOT NULL,
     "sort_order" INTEGER NOT NULL DEFAULT 0,
 
-    CONSTRAINT "itinerary_hotels_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "itinerary_stays_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -988,18 +997,6 @@ CREATE TABLE "itinerary_notes" (
 );
 
 -- CreateTable
-CREATE TABLE "package_hotels" (
-    "id" SERIAL NOT NULL,
-    "package_id" INTEGER NOT NULL,
-    "hotel_id" INTEGER NOT NULL,
-    "stay_category_id" INTEGER NOT NULL,
-    "night_number" INTEGER,
-    "is_recommended" BOOLEAN NOT NULL DEFAULT false,
-
-    CONSTRAINT "package_hotels_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "package_stay_categories" (
     "id" SERIAL NOT NULL,
     "package_id" INTEGER NOT NULL,
@@ -1020,14 +1017,8 @@ CREATE TABLE "package_pricing" (
     "package_id" INTEGER NOT NULL,
     "duration_id" INTEGER NOT NULL,
     "stay_category_id" INTEGER NOT NULL,
-    "meal_rate_cp" DECIMAL(10,2) NOT NULL,
-    "meal_rate_map" DECIMAL(10,2) NOT NULL,
-    "meal_rate_ap" DECIMAL(10,2) NOT NULL,
-    "margin_pct" DECIMAL(5,2) NOT NULL DEFAULT 22,
-    "gst_pct" DECIMAL(5,2) NOT NULL DEFAULT 5,
-    "is_active" BOOLEAN NOT NULL DEFAULT true,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "gst_percentage" DECIMAL(5,2) NOT NULL DEFAULT 5,
+    "margin_percentage" DECIMAL(5,2) NOT NULL DEFAULT 10,
 
     CONSTRAINT "package_pricing_pkey" PRIMARY KEY ("id")
 );
@@ -1038,9 +1029,9 @@ CREATE TABLE "package_cab_options" (
     "package_id" INTEGER NOT NULL,
     "cab_type" "CabType" NOT NULL,
     "capacity" INTEGER NOT NULL,
-    "rate_per_day" DECIMAL(10,2) NOT NULL,
     "is_default" BOOLEAN NOT NULL DEFAULT false,
     "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "rate_per_cab" DECIMAL(10,2) NOT NULL,
 
     CONSTRAINT "package_cab_options_pkey" PRIMARY KEY ("id")
 );
@@ -1058,15 +1049,116 @@ CREATE TABLE "package_gallery" (
     "id" SERIAL NOT NULL,
     "package_id" INTEGER NOT NULL,
     "image_url" TEXT NOT NULL,
-    "thumbnail" TEXT,
-    "alt" TEXT,
     "source_type" "GallerySourceType" NOT NULL,
     "source_id" INTEGER,
     "position" INTEGER NOT NULL,
-    "is_active" BOOLEAN NOT NULL DEFAULT true,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "label" TEXT,
 
     CONSTRAINT "package_gallery_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "QueryFollowUp" (
+    "id" TEXT NOT NULL,
+    "packageQueryId" TEXT NOT NULL,
+    "note" TEXT NOT NULL,
+    "followUpAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdById" TEXT,
+    "createdByName" TEXT,
+
+    CONSTRAINT "QueryFollowUp_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "package_queries" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "email" TEXT,
+    "phone" TEXT NOT NULL,
+    "countryCode" TEXT NOT NULL DEFAULT 'IN',
+    "message" TEXT,
+    "packageName" TEXT,
+    "destination" TEXT,
+    "travelDate" TIMESTAMP(3),
+    "groupSize" INTEGER,
+    "source" "QuerySource" NOT NULL DEFAULT 'WEBSITE_FORM',
+    "gclid" TEXT,
+    "utmSource" TEXT,
+    "utmMedium" TEXT,
+    "utmCampaign" TEXT,
+    "pageUrl" TEXT,
+    "status" "QueryStatus" NOT NULL DEFAULT 'SUBMITTED',
+    "verified" BOOLEAN NOT NULL DEFAULT false,
+    "verifiedAt" TIMESTAMP(3),
+    "verifiedBy" TEXT,
+    "rejectionReasonId" TEXT,
+    "rejectionNote" TEXT,
+    "callAttempts" INTEGER NOT NULL DEFAULT 0,
+    "lastAttemptAt" TIMESTAMP(3),
+    "nextFollowUpAt" TIMESTAMP(3),
+    "assignedTo" TEXT,
+    "assignedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "leadProfileId" TEXT,
+    "assignedToName" TEXT,
+    "closeReasonId" TEXT,
+    "closeReasonOther" TEXT,
+    "closedAt" TIMESTAMP(3),
+    "closedBy" TEXT,
+    "requirements" JSONB,
+
+    CONSTRAINT "package_queries_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "custom_packages" (
+    "id" TEXT NOT NULL,
+    "queryId" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "destination" TEXT NOT NULL,
+    "startingPoint" TEXT,
+    "totalDays" INTEGER NOT NULL,
+    "totalNights" INTEGER NOT NULL,
+    "travelDate" TIMESTAMP(3),
+    "adults" INTEGER NOT NULL DEFAULT 1,
+    "children" INTEGER NOT NULL DEFAULT 0,
+    "infants" INTEGER NOT NULL DEFAULT 0,
+    "pricePerPerson" DOUBLE PRECISION,
+    "totalPrice" DOUBLE PRECISION,
+    "currency" TEXT NOT NULL DEFAULT 'INR',
+    "inclusions" TEXT[],
+    "exclusions" TEXT[],
+    "termsNotes" TEXT,
+    "status" "CustomPackageStatus" NOT NULL DEFAULT 'DRAFT',
+    "builtBy" TEXT NOT NULL,
+    "builtByName" TEXT,
+    "sentAt" TIMESTAMP(3),
+    "pdfUrl" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "custom_packages_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "custom_itineraries" (
+    "id" TEXT NOT NULL,
+    "customPackageId" TEXT NOT NULL,
+    "day" INTEGER NOT NULL,
+    "title" TEXT NOT NULL,
+    "description" TEXT,
+    "activities" TEXT[],
+    "meals" TEXT[],
+    "accommodation" TEXT,
+    "transport" TEXT,
+    "notes" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "custom_itineraries_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -1116,6 +1208,9 @@ CREATE UNIQUE INDEX "travel_preferences_userId_key" ON "travel_preferences"("use
 
 -- CreateIndex
 CREATE UNIQUE INDEX "bookings_bookingNumber_key" ON "bookings"("bookingNumber");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "bookings_sourceQueryId_key" ON "bookings"("sourceQueryId");
 
 -- CreateIndex
 CREATE INDEX "bookings_userId_idx" ON "bookings"("userId");
@@ -1221,21 +1316,6 @@ CREATE INDEX "activity_logs_actionAt_idx" ON "activity_logs"("actionAt");
 
 -- CreateIndex
 CREATE INDEX "activity_logs_ipAddress_idx" ON "activity_logs"("ipAddress");
-
--- CreateIndex
-CREATE INDEX "package_queries_status_idx" ON "package_queries"("status");
-
--- CreateIndex
-CREATE INDEX "package_queries_verified_idx" ON "package_queries"("verified");
-
--- CreateIndex
-CREATE INDEX "package_queries_destination_idx" ON "package_queries"("destination");
-
--- CreateIndex
-CREATE INDEX "package_queries_assignedTo_idx" ON "package_queries"("assignedTo");
-
--- CreateIndex
-CREATE INDEX "package_queries_createdAt_idx" ON "package_queries"("createdAt");
 
 -- CreateIndex
 CREATE INDEX "query_notes_queryId_idx" ON "query_notes"("queryId");
@@ -1373,7 +1453,7 @@ CREATE UNIQUE INDEX "package_routes_duration_id_slug_key" ON "package_routes"("d
 CREATE INDEX "route_stops_route_id_idx" ON "route_stops"("route_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "route_stops_route_id_location_key" ON "route_stops"("route_id", "location");
+CREATE UNIQUE INDEX "route_stops_route_id_sort_order_key" ON "route_stops"("route_id", "sort_order");
 
 -- CreateIndex
 CREATE INDEX "package_tags_tag_id_idx" ON "package_tags"("tag_id");
@@ -1385,37 +1465,28 @@ CREATE INDEX "package_categories_category_id_idx" ON "package_categories"("categ
 CREATE INDEX "package_itineraries_route_id_duration_id_idx" ON "package_itineraries"("route_id", "duration_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "package_itineraries_route_id_day_key" ON "package_itineraries"("route_id", "day");
+CREATE UNIQUE INDEX "package_itineraries_package_id_duration_id_route_id_day_key" ON "package_itineraries"("package_id", "duration_id", "route_id", "day");
 
 -- CreateIndex
-CREATE INDEX "itinerary_hotels_itinerary_id_idx" ON "itinerary_hotels"("itinerary_id");
+CREATE UNIQUE INDEX "itinerary_stays_itinerary_id_stay_category_id_key" ON "itinerary_stays"("itinerary_id", "stay_category_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "itinerary_hotels_itinerary_id_stay_category_id_hotel_id_key" ON "itinerary_hotels"("itinerary_id", "stay_category_id", "hotel_id");
+CREATE INDEX "itinerary_activities_itinerary_id_sort_order_idx" ON "itinerary_activities"("itinerary_id", "sort_order");
 
 -- CreateIndex
-CREATE INDEX "itinerary_activities_itinerary_id_idx" ON "itinerary_activities"("itinerary_id");
+CREATE INDEX "itinerary_transfers_itinerary_id_sort_order_idx" ON "itinerary_transfers"("itinerary_id", "sort_order");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "itinerary_activities_itinerary_id_activity_id_key" ON "itinerary_activities"("itinerary_id", "activity_id");
-
--- CreateIndex
-CREATE INDEX "itinerary_transfers_itinerary_id_idx" ON "itinerary_transfers"("itinerary_id");
-
--- CreateIndex
-CREATE INDEX "itinerary_notes_itinerary_id_idx" ON "itinerary_notes"("itinerary_id");
-
--- CreateIndex
-CREATE INDEX "package_hotels_package_id_stay_category_id_idx" ON "package_hotels"("package_id", "stay_category_id");
-
--- CreateIndex
-CREATE INDEX "package_hotels_hotel_id_idx" ON "package_hotels"("hotel_id");
+CREATE INDEX "itinerary_notes_itinerary_id_sort_order_idx" ON "itinerary_notes"("itinerary_id", "sort_order");
 
 -- CreateIndex
 CREATE INDEX "package_stay_categories_package_id_is_active_idx" ON "package_stay_categories"("package_id", "is_active");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "package_stay_categories_package_id_slug_key" ON "package_stay_categories"("package_id", "slug");
+
+-- CreateIndex
+CREATE INDEX "package_pricing_package_id_idx" ON "package_pricing"("package_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "package_pricing_package_id_duration_id_stay_category_id_key" ON "package_pricing"("package_id", "duration_id", "stay_category_id");
@@ -1432,11 +1503,50 @@ CREATE INDEX "package_gallery_package_id_idx" ON "package_gallery"("package_id")
 -- CreateIndex
 CREATE UNIQUE INDEX "package_gallery_package_id_position_key" ON "package_gallery"("package_id", "position");
 
--- AddForeignKey
-ALTER TABLE "booking_meals" ADD CONSTRAINT "booking_meals_bookingId_fkey" FOREIGN KEY ("bookingId") REFERENCES "bookings"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+-- CreateIndex
+CREATE INDEX "QueryFollowUp_packageQueryId_idx" ON "QueryFollowUp"("packageQueryId");
+
+-- CreateIndex
+CREATE INDEX "QueryFollowUp_createdById_idx" ON "QueryFollowUp"("createdById");
+
+-- CreateIndex
+CREATE INDEX "package_queries_assignedTo_idx" ON "package_queries"("assignedTo");
+
+-- CreateIndex
+CREATE INDEX "package_queries_createdAt_idx" ON "package_queries"("createdAt");
+
+-- CreateIndex
+CREATE INDEX "package_queries_destination_idx" ON "package_queries"("destination");
+
+-- CreateIndex
+CREATE INDEX "package_queries_status_idx" ON "package_queries"("status");
+
+-- CreateIndex
+CREATE INDEX "package_queries_verified_idx" ON "package_queries"("verified");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "custom_packages_queryId_key" ON "custom_packages"("queryId");
+
+-- CreateIndex
+CREATE INDEX "custom_packages_queryId_idx" ON "custom_packages"("queryId");
+
+-- CreateIndex
+CREATE INDEX "custom_packages_builtBy_idx" ON "custom_packages"("builtBy");
+
+-- CreateIndex
+CREATE INDEX "custom_packages_status_idx" ON "custom_packages"("status");
+
+-- CreateIndex
+CREATE INDEX "custom_itineraries_customPackageId_idx" ON "custom_itineraries"("customPackageId");
+
+-- CreateIndex
+CREATE INDEX "custom_itineraries_day_idx" ON "custom_itineraries"("day");
 
 -- AddForeignKey
 ALTER TABLE "booking_meals" ADD CONSTRAINT "booking_meals_bookingHotelId_fkey" FOREIGN KEY ("bookingHotelId") REFERENCES "booking_hotels"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "booking_meals" ADD CONSTRAINT "booking_meals_bookingId_fkey" FOREIGN KEY ("bookingId") REFERENCES "bookings"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Account" ADD CONSTRAINT "Account_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1448,37 +1558,43 @@ ALTER TABLE "Session" ADD CONSTRAINT "Session_userId_fkey" FOREIGN KEY ("userId"
 ALTER TABLE "travel_preferences" ADD CONSTRAINT "travel_preferences_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "bookings" ADD CONSTRAINT "bookings_destinationId_fkey" FOREIGN KEY ("destinationId") REFERENCES "destinations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "bookings" ADD CONSTRAINT "bookings_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "bookings" ADD CONSTRAINT "bookings_packageId_fkey" FOREIGN KEY ("packageId") REFERENCES "packages"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "bookings" ADD CONSTRAINT "bookings_currentDepartmentId_fkey" FOREIGN KEY ("currentDepartmentId") REFERENCES "departments"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "bookings" ADD CONSTRAINT "bookings_cabAssigneeId_fkey" FOREIGN KEY ("cabAssigneeId") REFERENCES "team_members"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "bookings" ADD CONSTRAINT "bookings_currentAssigneeId_fkey" FOREIGN KEY ("currentAssigneeId") REFERENCES "team_members"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "bookings" ADD CONSTRAINT "bookings_hotelAssigneeId_fkey" FOREIGN KEY ("hotelAssigneeId") REFERENCES "team_members"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "bookings" ADD CONSTRAINT "bookings_currentDepartmentId_fkey" FOREIGN KEY ("currentDepartmentId") REFERENCES "departments"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "bookings" ADD CONSTRAINT "bookings_cabAssigneeId_fkey" FOREIGN KEY ("cabAssigneeId") REFERENCES "team_members"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "bookings" ADD CONSTRAINT "bookings_destinationId_fkey" FOREIGN KEY ("destinationId") REFERENCES "destinations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "bookings" ADD CONSTRAINT "bookings_hotelAssigneeId_fkey" FOREIGN KEY ("hotelAssigneeId") REFERENCES "team_members"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "bookings" ADD CONSTRAINT "bookings_opsAssigneeId_fkey" FOREIGN KEY ("opsAssigneeId") REFERENCES "team_members"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "bookings" ADD CONSTRAINT "bookings_packageId_fkey" FOREIGN KEY ("packageId") REFERENCES "packages"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "bookings" ADD CONSTRAINT "bookings_sourceQueryId_fkey" FOREIGN KEY ("sourceQueryId") REFERENCES "package_queries"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "bookings" ADD CONSTRAINT "bookings_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "trip_documents" ADD CONSTRAINT "trip_documents_bookingId_fkey" FOREIGN KEY ("bookingId") REFERENCES "bookings"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "booking_hotels" ADD CONSTRAINT "booking_hotels_bookingId_fkey" FOREIGN KEY ("bookingId") REFERENCES "bookings"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "booking_hotels" ADD CONSTRAINT "booking_hotels_hotelId_fkey" FOREIGN KEY ("hotelId") REFERENCES "hotels"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "booking_hotels" ADD CONSTRAINT "booking_hotels_confirmedById_fkey" FOREIGN KEY ("confirmedById") REFERENCES "team_members"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "booking_hotels" ADD CONSTRAINT "booking_hotels_confirmedById_fkey" FOREIGN KEY ("confirmedById") REFERENCES "team_members"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "booking_hotels" ADD CONSTRAINT "booking_hotels_hotelId_fkey" FOREIGN KEY ("hotelId") REFERENCES "hotels"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "booking_cabs" ADD CONSTRAINT "booking_cabs_bookingId_fkey" FOREIGN KEY ("bookingId") REFERENCES "bookings"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1496,10 +1612,10 @@ ALTER TABLE "package_booking_hotel" ADD CONSTRAINT "package_booking_hotel_hotelI
 ALTER TABLE "booking_timeline" ADD CONSTRAINT "booking_timeline_bookingId_fkey" FOREIGN KEY ("bookingId") REFERENCES "bookings"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "booking_timeline" ADD CONSTRAINT "booking_timeline_performedById_fkey" FOREIGN KEY ("performedById") REFERENCES "team_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "booking_timeline" ADD CONSTRAINT "booking_timeline_departmentId_fkey" FOREIGN KEY ("departmentId") REFERENCES "departments"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "booking_timeline" ADD CONSTRAINT "booking_timeline_departmentId_fkey" FOREIGN KEY ("departmentId") REFERENCES "departments"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "booking_timeline" ADD CONSTRAINT "booking_timeline_performedById_fkey" FOREIGN KEY ("performedById") REFERENCES "team_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "payments" ADD CONSTRAINT "payments_bookingId_fkey" FOREIGN KEY ("bookingId") REFERENCES "bookings"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -1530,12 +1646,6 @@ ALTER TABLE "team_members" ADD CONSTRAINT "team_members_departmentId_fkey" FOREI
 
 -- AddForeignKey
 ALTER TABLE "team_members" ADD CONSTRAINT "team_members_teamRoleId_fkey" FOREIGN KEY ("teamRoleId") REFERENCES "team_roles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "package_queries" ADD CONSTRAINT "package_queries_rejectionReasonId_fkey" FOREIGN KEY ("rejectionReasonId") REFERENCES "rejection_reasons"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "package_queries" ADD CONSTRAINT "package_queries_leadProfileId_fkey" FOREIGN KEY ("leadProfileId") REFERENCES "lead_profiles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "query_notes" ADD CONSTRAINT "query_notes_queryId_fkey" FOREIGN KEY ("queryId") REFERENCES "package_queries"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1571,16 +1681,16 @@ ALTER TABLE "hotel_rooms" ADD CONSTRAINT "hotel_rooms_hotel_id_fkey" FOREIGN KEY
 ALTER TABLE "hotel_room_images" ADD CONSTRAINT "hotel_room_images_room_id_fkey" FOREIGN KEY ("room_id") REFERENCES "hotel_rooms"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "hotel_room_pricing" ADD CONSTRAINT "hotel_room_pricing_hotel_id_fkey" FOREIGN KEY ("hotel_id") REFERENCES "hotels"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "hotel_room_pricing" ADD CONSTRAINT "hotel_room_pricing_diet_type_id_fkey" FOREIGN KEY ("diet_type_id") REFERENCES "diet_types"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "hotel_room_pricing" ADD CONSTRAINT "hotel_room_pricing_room_id_fkey" FOREIGN KEY ("room_id") REFERENCES "hotel_rooms"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "hotel_room_pricing" ADD CONSTRAINT "hotel_room_pricing_hotel_id_fkey" FOREIGN KEY ("hotel_id") REFERENCES "hotels"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "hotel_room_pricing" ADD CONSTRAINT "hotel_room_pricing_meal_type_id_fkey" FOREIGN KEY ("meal_type_id") REFERENCES "meal_types"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "hotel_room_pricing" ADD CONSTRAINT "hotel_room_pricing_diet_type_id_fkey" FOREIGN KEY ("diet_type_id") REFERENCES "diet_types"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "hotel_room_pricing" ADD CONSTRAINT "hotel_room_pricing_room_id_fkey" FOREIGN KEY ("room_id") REFERENCES "hotel_rooms"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "activities" ADD CONSTRAINT "activities_destination_id_fkey" FOREIGN KEY ("destination_id") REFERENCES "destinations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -1601,7 +1711,7 @@ ALTER TABLE "package_durations" ADD CONSTRAINT "package_durations_package_id_fke
 ALTER TABLE "package_routes" ADD CONSTRAINT "package_routes_duration_id_fkey" FOREIGN KEY ("duration_id") REFERENCES "package_durations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "package_routes" ADD CONSTRAINT "package_routes_package_id_fkey" FOREIGN KEY ("package_id") REFERENCES "packages"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "package_routes" ADD CONSTRAINT "package_routes_packagesId_fkey" FOREIGN KEY ("packagesId") REFERENCES "packages"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "route_stops" ADD CONSTRAINT "route_stops_route_id_fkey" FOREIGN KEY ("route_id") REFERENCES "package_routes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1619,28 +1729,28 @@ ALTER TABLE "package_categories" ADD CONSTRAINT "package_categories_category_id_
 ALTER TABLE "package_categories" ADD CONSTRAINT "package_categories_package_id_fkey" FOREIGN KEY ("package_id") REFERENCES "packages"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "package_itineraries" ADD CONSTRAINT "package_itineraries_package_id_fkey" FOREIGN KEY ("package_id") REFERENCES "packages"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "package_itineraries" ADD CONSTRAINT "package_itineraries_duration_id_fkey" FOREIGN KEY ("duration_id") REFERENCES "package_durations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "package_itineraries" ADD CONSTRAINT "package_itineraries_duration_id_fkey" FOREIGN KEY ("duration_id") REFERENCES "package_durations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "package_itineraries" ADD CONSTRAINT "package_itineraries_package_id_fkey" FOREIGN KEY ("package_id") REFERENCES "packages"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "package_itineraries" ADD CONSTRAINT "package_itineraries_route_id_fkey" FOREIGN KEY ("route_id") REFERENCES "package_routes"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "itinerary_hotels" ADD CONSTRAINT "itinerary_hotels_itinerary_id_fkey" FOREIGN KEY ("itinerary_id") REFERENCES "package_itineraries"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "itinerary_stays" ADD CONSTRAINT "itinerary_stays_itinerary_id_fkey" FOREIGN KEY ("itinerary_id") REFERENCES "package_itineraries"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "itinerary_hotels" ADD CONSTRAINT "itinerary_hotels_stay_category_id_fkey" FOREIGN KEY ("stay_category_id") REFERENCES "package_stay_categories"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "itinerary_stays" ADD CONSTRAINT "itinerary_stays_room_pricing_id_fkey" FOREIGN KEY ("room_pricing_id") REFERENCES "hotel_room_pricing"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "itinerary_hotels" ADD CONSTRAINT "itinerary_hotels_hotel_id_fkey" FOREIGN KEY ("hotel_id") REFERENCES "hotels"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "itinerary_activities" ADD CONSTRAINT "itinerary_activities_itinerary_id_fkey" FOREIGN KEY ("itinerary_id") REFERENCES "package_itineraries"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "itinerary_stays" ADD CONSTRAINT "itinerary_stays_stay_category_id_fkey" FOREIGN KEY ("stay_category_id") REFERENCES "package_stay_categories"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "itinerary_activities" ADD CONSTRAINT "itinerary_activities_activity_id_fkey" FOREIGN KEY ("activity_id") REFERENCES "activities"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "itinerary_activities" ADD CONSTRAINT "itinerary_activities_itinerary_id_fkey" FOREIGN KEY ("itinerary_id") REFERENCES "package_itineraries"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "itinerary_transfers" ADD CONSTRAINT "itinerary_transfers_itinerary_id_fkey" FOREIGN KEY ("itinerary_id") REFERENCES "package_itineraries"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1649,22 +1759,13 @@ ALTER TABLE "itinerary_transfers" ADD CONSTRAINT "itinerary_transfers_itinerary_
 ALTER TABLE "itinerary_notes" ADD CONSTRAINT "itinerary_notes_itinerary_id_fkey" FOREIGN KEY ("itinerary_id") REFERENCES "package_itineraries"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "package_hotels" ADD CONSTRAINT "package_hotels_hotel_id_fkey" FOREIGN KEY ("hotel_id") REFERENCES "hotels"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "package_hotels" ADD CONSTRAINT "package_hotels_package_id_fkey" FOREIGN KEY ("package_id") REFERENCES "packages"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "package_hotels" ADD CONSTRAINT "package_hotels_stay_category_id_fkey" FOREIGN KEY ("stay_category_id") REFERENCES "package_stay_categories"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "package_stay_categories" ADD CONSTRAINT "package_stay_categories_package_id_fkey" FOREIGN KEY ("package_id") REFERENCES "packages"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "package_pricing" ADD CONSTRAINT "package_pricing_package_id_fkey" FOREIGN KEY ("package_id") REFERENCES "packages"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "package_pricing" ADD CONSTRAINT "package_pricing_duration_id_fkey" FOREIGN KEY ("duration_id") REFERENCES "package_durations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "package_pricing" ADD CONSTRAINT "package_pricing_duration_id_fkey" FOREIGN KEY ("duration_id") REFERENCES "package_durations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "package_pricing" ADD CONSTRAINT "package_pricing_package_id_fkey" FOREIGN KEY ("package_id") REFERENCES "packages"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "package_pricing" ADD CONSTRAINT "package_pricing_stay_category_id_fkey" FOREIGN KEY ("stay_category_id") REFERENCES "package_stay_categories"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -1680,3 +1781,18 @@ ALTER TABLE "package_policy_map" ADD CONSTRAINT "package_policy_map_policy_id_fk
 
 -- AddForeignKey
 ALTER TABLE "package_gallery" ADD CONSTRAINT "package_gallery_package_id_fkey" FOREIGN KEY ("package_id") REFERENCES "packages"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "QueryFollowUp" ADD CONSTRAINT "QueryFollowUp_packageQueryId_fkey" FOREIGN KEY ("packageQueryId") REFERENCES "package_queries"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "package_queries" ADD CONSTRAINT "package_queries_leadProfileId_fkey" FOREIGN KEY ("leadProfileId") REFERENCES "lead_profiles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "package_queries" ADD CONSTRAINT "package_queries_rejectionReasonId_fkey" FOREIGN KEY ("rejectionReasonId") REFERENCES "rejection_reasons"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "custom_packages" ADD CONSTRAINT "custom_packages_queryId_fkey" FOREIGN KEY ("queryId") REFERENCES "package_queries"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "custom_itineraries" ADD CONSTRAINT "custom_itineraries_customPackageId_fkey" FOREIGN KEY ("customPackageId") REFERENCES "custom_packages"("id") ON DELETE CASCADE ON UPDATE CASCADE;
