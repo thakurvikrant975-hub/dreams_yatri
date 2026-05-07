@@ -12,12 +12,8 @@ import {
 import { Separator } from "../../../components/ui/separator";
 import { Badge } from "../../../components/ui/badge";
 import { getBookingById, getTeamMembersForAssign } from "../actions";
-<<<<<<< HEAD
-import { BookingStatusBadge, BookingTimeline } from "../BookingShared";
-=======
 import { BookingTimeline } from "../Bookingshared";
 import { BookingStatusBadge } from "../Bookingshared";
->>>>>>> origin/website-pages
 import {
   HotelDayPanel, CabLegPanel,
   OpsActionPanel, AssignMemberPanel, AddNotePanel,

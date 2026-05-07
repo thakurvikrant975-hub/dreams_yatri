@@ -375,11 +375,7 @@ export async function getHotelsByCity(cityName: string, destinationId: number) {
       address: true,
       room_pricing: {
         where: { is_active: true },
-<<<<<<< HEAD
-        select: { id: true, room_type: true,  max_occupancy: true },
-=======
         select: { id: true, room_type: true, rate_per_night: true, max_occupancy: true },
->>>>>>> origin/website-pages
       },
     },
     orderBy: { star_rating: "desc" },
