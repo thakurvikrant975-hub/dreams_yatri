@@ -60,8 +60,8 @@ function TablePagination({
     }
 
     return (
-        <div className="border-t px-4 py-3 flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">
+        <div className="border-t border-dashboard-base-300 px-4 py-3 flex items-center justify-between">
+            <p className="text-xs text-dashboard-base-content/45">
                 Page {currentPage} of {totalPages}
             </p>
             <Pagination>
@@ -71,34 +71,45 @@ function TablePagination({
                             href={href(currentPage - 1)}
                             onClick={(e) => handleClick(e, currentPage - 1)}
                             aria-disabled={currentPage === 1}
-                            className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+                            className={[
+                                "text-dashboard-base-content hover:bg-dashboard-base-200 hover:text-dashboard-base-content",
+                                currentPage === 1 ? "pointer-events-none opacity-50" : "",
+                            ].join(" ")}
                         />
                     </PaginationItem>
 
-                    {getPageNumbers().map((p, i) =>
-                        p === "ellipsis" ? (
-                            <PaginationItem key={`e-${i}`}>
-                                <PaginationEllipsis />
-                            </PaginationItem>
-                        ) : (
-                            <PaginationItem key={p}>
-                                <PaginationLink
-                                    href={href(p)}
-                                    onClick={(e) => handleClick(e, p)}
-                                    isActive={p === currentPage}
-                                >
-                                    {p}
-                                </PaginationLink>
-                            </PaginationItem>
-                        ),
-                    )}
+  {getPageNumbers().map((p, i) =>
+    p === "ellipsis" ? (
+        <PaginationItem key={`e-${i}`}>
+            <PaginationEllipsis className="text-dashboard-base-content/45" />
+        </PaginationItem>
+    ) : (
+        <PaginationItem key={p}>
+            <PaginationLink
+                href={href(p)}
+                onClick={(e) => handleClick(e, p)}
+                isActive={p === currentPage}
+                className={
+                    p === currentPage
+                        ? "bg-dashboard-neutral text-dashboard-neutral-content border-dashboard-neutral"
+                        : "text-dashboard-base-content hover:bg-dashboard-neutral/5 border-transparent"
+                }
+            >
+                {p}
+            </PaginationLink>
+        </PaginationItem>
+    ),
+)}
 
                     <PaginationItem>
                         <PaginationNext
                             href={href(currentPage + 1)}
                             onClick={(e) => handleClick(e, currentPage + 1)}
                             aria-disabled={currentPage === totalPages}
-                            className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+                            className={[
+                                "text-dashboard-base-content hover:bg-dashboard-neutral/5 hover:text-dashboard-base-content",
+                                currentPage === totalPages ? "pointer-events-none opacity-50" : "",
+                            ].join(" ")}
                         />
                     </PaginationItem>
                 </PaginationContent>
@@ -141,14 +152,18 @@ export function DataTable<T>({
     };
 
     return (
-        <div className="rounded-xl border bg-card overflow-hidden">
+        <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 overflow-hidden">
             <Table>
                 <TableHeader>
-                    <TableRow className="bg-muted/50">
+                    <TableRow className="bg-dashboard-base-200 border-b border-dashboard-base-300 hover:bg-dashboard-base-200">
                         {columns.map((col, i) => (
                             <TableHead
                                 key={i}
-                                className={[col.width ?? "", col.align ? alignClass[col.align] : ""].join(" ")}
+                                className={[
+                                    "text-xs font-semibold uppercase tracking-wide text-dashboard-neutral-content bg-dashboard-neutral",
+                                    col.width ?? "",
+                                    col.align ? alignClass[col.align] : "",
+                                ].join(" ")}
                             >
                                 {col.header}
                             </TableHead>
@@ -158,10 +173,12 @@ export function DataTable<T>({
 
                 <TableBody>
                     {data.length === 0 ? (
-                        <TableRow>
+                        <TableRow className="hover:bg-transparent">
                             <TableCell colSpan={columns.length} className="py-16 text-center">
                                 {emptyState ?? (
-                                    <p className="text-sm text-muted-foreground">No records found</p>
+                                    <p className="text-sm text-dashboard-base-content/45">
+                                        No records found
+                                    </p>
                                 )}
                             </TableCell>
                         </TableRow>
@@ -170,17 +187,21 @@ export function DataTable<T>({
                             <React.Fragment key={rowKey(row)}>
                                 <TableRow
                                     className={[
+                                        "border-b border-dashboard-base-300 transition-colors",
                                         onRowClick ? "cursor-pointer" : "",
                                         rowClassName
                                             ? rowClassName(row)
-                                            : "hover:bg-muted/30",
+                                            : "hover:bg-dashboard-base-200",
                                     ].join(" ")}
                                     onClick={onRowClick ? () => onRowClick(row) : undefined}
                                 >
                                     {columns.map((col, i) => (
                                         <TableCell
                                             key={i}
-                                            className={col.align ? alignClass[col.align] : ""}
+                                            className={[
+                                                "text-sm text-dashboard-base-content",
+                                                col.align ? alignClass[col.align] : "",
+                                            ].join(" ")}
                                         >
                                             {col.cell(row)}
                                         </TableCell>
@@ -204,4 +225,3 @@ export function DataTable<T>({
         </div>
     );
 }
-
