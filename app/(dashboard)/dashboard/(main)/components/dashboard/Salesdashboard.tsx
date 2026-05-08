@@ -18,7 +18,6 @@ import type { CurrentMember } from "@/app/types/members";
 import { GreetingBanner } from "./Greetingbanner";
 import { FunNotification } from "./Funnotification";
 import { StatCard, StatGrid } from "./Statcard";
-import { SalesStatusToggle } from "./Salesstatustoggle";
 import { getSalesDashboardData } from "../../actions/sales-dashboard-actions.ts";
 import { cn } from "@/app/lib/utils";
 

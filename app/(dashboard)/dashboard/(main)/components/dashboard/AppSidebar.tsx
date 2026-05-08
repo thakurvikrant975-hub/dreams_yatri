@@ -3,23 +3,18 @@ import {
     Sidebar, SidebarContent, SidebarGroup,
     SidebarMenu, SidebarMenuItem, SidebarMenuButton,
 } from "../ui/sidebar";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, } from "../ui/accordion";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../ui/accordion";
 
 import {
-    LayoutDashboard, Settings, Users, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound, MessageCircleQuestion, ClockCheck, Mails, Forward, BadgePercent, HandCoins, Banknote, ChartSpline, BanknoteArrowDown, BanknoteX, Car, Bed, ChartNoAxesCombined, BellRing, PackagePlus, ChartNoAxesGantt,
-    Star
+    LayoutDashboard, Settings, Users, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound,
+    MessageCircleQuestion, ClockCheck, Mails, Forward, BadgePercent, HandCoins, Banknote,
+    ChartSpline, BanknoteArrowDown, BanknoteX, Car, Bed, ChartNoAxesCombined, BellRing,
+    PackagePlus, ChartNoAxesGantt, Star
 } from "lucide-react";
 
 import {
-    GlobeHemisphereEastIcon,
-    MapPinIcon,
-    BuildingIcon,
-    PlusIcon,
-    TagIcon,
-    ParachuteIcon,
-    FileTextIcon,
-    PackageIcon,
-    SteeringWheelIcon,
+    GlobeHemisphereEastIcon, MapPinIcon, BuildingIcon, PlusIcon, TagIcon,
+    ParachuteIcon, FileTextIcon, PackageIcon, SteeringWheelIcon,
 } from "@phosphor-icons/react";
 
 import Link from "next/link";
@@ -31,97 +26,96 @@ const navGroups = [
         id: "overview",
         label: "Overview",
         items: [
-            { title: "Dashboard", href: "/dashboard", icon: <LayoutDashboard className="size-6 text-muted-foreground" /> },
-            { title: "Analytics", href: "/dashboard/analytics", icon: <BarChart3 className="size-6 text-muted-foreground" /> },
+            { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+            { title: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
         ],
     },
     {
         id: "content",
         label: "Content Management",
         items: [
-            { title: "Regions", href: "/dashboard/regions", icon: <GlobeHemisphereEastIcon weight="duotone" className="size-6 scale-110 text-muted-foreground" /> },
-            { title: "Destinations", href: "/dashboard/destinations", icon: <MapPinIcon weight="duotone" className="size-6 scale-110 text-muted-foreground" /> },
-            { title: "Categories", href: "/dashboard/categories", icon: <TagIcon weight="duotone" className="size-6 text-muted-foreground" /> },
-            { title: "Activities", href: "/dashboard/activities", icon: <ParachuteIcon weight="duotone" className="size-6 scale-110 text-muted-foreground" /> },
-            { title: "Policies", href: "/dashboard/policies", icon: <FileTextIcon weight="duotone" className="size-6 scale-110 text-muted-foreground" /> },
+            { title: "Regions", href: "/dashboard/regions", icon: GlobeHemisphereEastIcon, phosphor: true },
+            { title: "Destinations", href: "/dashboard/destinations", icon: MapPinIcon, phosphor: true },
+            { title: "Categories", href: "/dashboard/categories", icon: TagIcon, phosphor: true },
+            { title: "Activities", href: "/dashboard/activities", icon: ParachuteIcon, phosphor: true },
+            { title: "Policies", href: "/dashboard/policies", icon: FileTextIcon, phosphor: true },
         ],
     },
     {
         id: "hotels",
         label: "Hotels",
         items: [
-            { title: "All Hotels", href: "/dashboard/hotels", icon: <BuildingIcon weight="duotone" className="size-6 scale-110 text-muted-foreground" /> },
-            { title: "Add New", href: "/dashboard/hotels/new", icon: <PlusIcon weight="duotone" className="size-6 scale-110 text-muted-foreground" /> },
-            { title: "Meal Types", href: "/dashboard/hotels/meal-types", icon: <KeyRound className="size-6 text-muted-foreground" /> },
-            { title: "Diet Types", href: "/dashboard/hotels/diet-types", icon: <IdCardLanyard className="size-6 text-muted-foreground" /> },
+            { title: "All Hotels", href: "/dashboard/hotels", icon: BuildingIcon, phosphor: true },
+            { title: "Add New", href: "/dashboard/hotels/new", icon: PlusIcon, phosphor: true },
+            { title: "Meal Types", href: "/dashboard/hotels/meal-types", icon: KeyRound },
+            { title: "Diet Types", href: "/dashboard/hotels/diet-types", icon: IdCardLanyard },
         ],
     },
     {
         id: "packages",
         label: "Packages",
         items: [
-            { title: "All Packages", href: "/dashboard/packages", icon: <PackageIcon weight="duotone" className="size-6 scale-110 text-muted-foreground" /> },
-            { title: "New Package", href: "/dashboard/packages/new", icon: <PlusIcon weight="duotone" className="size-6 scale-110 text-muted-foreground" /> },
+            { title: "All Packages", href: "/dashboard/packages", icon: PackageIcon, phosphor: true },
+            { title: "New Package", href: "/dashboard/packages/new", icon: PlusIcon, phosphor: true },
         ],
     },
     {
         id: "marketing",
         label: "Marketing",
         items: [
-            { title: "Queries", href: "/dashboard/queries", icon: <MessageCircleQuestion className="size-6 text-muted-foreground" /> },
-            { title: "Email Marketing", href: "/dashboard/email-marketing", icon: <Mails className="size-6 text-muted-foreground" /> },
-            { title: "Follow ups", href: "/dashboard/follow-ups", icon: <ClockCheck className="size-6 text-muted-foreground" /> },
-            { title: "References", href: "/dashboard/references", icon: <Forward className="size-6 text-muted-foreground" /> },
-            { title: "Coupons and offers", href: "/dashboard/coupons", icon: <BadgePercent className="size-6 text-muted-foreground" /> },
-            { title: "Reviews", href: "/dashboard/reviews", icon: <Star className="size-6 text-muted-foreground" /> },
+            { title: "Queries", href: "/dashboard/queries", icon: MessageCircleQuestion },
+            { title: "Email Marketing", href: "/dashboard/email-marketing", icon: Mails },
+            { title: "Follow ups", href: "/dashboard/follow-ups", icon: ClockCheck },
+            { title: "References", href: "/dashboard/references", icon: Forward },
+            { title: "Coupons and offers", href: "/dashboard/coupons", icon: BadgePercent },
+            { title: "Reviews", href: "/dashboard/reviews", icon: Star },
         ],
     },
     {
         id: "sales",
         label: "Sales",
         items: [
-            { title: "Dashboard", href: "/sales-dashboard", icon: <LayoutDashboard className="size-6 text-muted-foreground" /> },
-            { title: "Queries Management", href: "/dashboard/sales-query", icon: <ChartNoAxesGantt className="size-6 text-muted-foreground" /> },
-            { title: "Analytics", href: "/dashboard/sale-analytics", icon: <ChartNoAxesCombined className="size-6 text-muted-foreground" /> },
-            { title: "Follow ups", href: "/dashboard/follow-ups", icon: <BellRing className="size-6 text-muted-foreground" /> },
-            { title: "Package Builder", href: "/dashboard/package-builder", icon: <PackagePlus className="size-6 text-muted-foreground" /> },
+            { title: "Dashboard", href: "/sales-dashboard", icon: LayoutDashboard },
+            { title: "Queries Management", href: "/dashboard/sales-query", icon: ChartNoAxesGantt },
+            { title: "Analytics", href: "/dashboard/sale-analytics", icon: ChartNoAxesCombined },
+            { title: "Follow ups", href: "/dashboard/follow-ups", icon: BellRing },
+            { title: "Package Builder", href: "/dashboard/package-builder", icon: PackagePlus },
         ],
     },
     {
         id: "Transactions",
         label: "Transactions",
         items: [
-            { title: "Transactions", href: "/dashboard/transactions", icon: <Banknote className="size-6 text-muted-foreground" /> },
-            { title: "Failed Transactions", href: "/dashboard/failed-transactions", icon: <BanknoteX className="size-6 text-muted-foreground" /> },
-            { title: "Refunds", href: "/dashboard/refunds", icon: <BanknoteArrowDown className="size-6 text-muted-foreground" /> },
-            { title: "Analytics", href: "/dashboard/analytics", icon: <ChartSpline className="size-6 text-muted-foreground" /> },
-
+            { title: "Transactions", href: "/dashboard/transactions", icon: Banknote },
+            { title: "Failed Transactions", href: "/dashboard/failed-transactions", icon: BanknoteX },
+            { title: "Refunds", href: "/dashboard/refunds", icon: BanknoteArrowDown },
+            { title: "Analytics", href: "/dashboard/analytics", icon: ChartSpline },
         ],
     },
     {
         id: "team",
-        label: "Out team",
+        label: "Our Team",
         items: [
-            { title: "Team Members", href: "/dashboard/team-members", icon: <IdCardLanyard className="size-6 text-muted-foreground" /> },
-            { title: "Activity Logs", href: "/dashboard/activity-logs", icon: <Activity className="size-6 text-muted-foreground" /> },
-            { title: "Roles and Permissions", href: "/dashboard/roles-and-permissions", icon: <KeyRound className="size-6 text-muted-foreground" /> },
+            { title: "Team Members", href: "/dashboard/team-members", icon: IdCardLanyard },
+            { title: "Activity Logs", href: "/dashboard/activity-logs", icon: Activity },
+            { title: "Roles and Permissions", href: "/dashboard/roles-and-permissions", icon: KeyRound },
         ],
     },
     {
         id: "bookings",
-        label: "Booking management",
+        label: "Booking Management",
         items: [
-            { title: "Package Bookings", href: "/dashboard/package-bookings", icon: <BookOpen className="size-6 text-muted-foreground" /> },
-            { title: "Verify Hotels", href: "/dashboard/verify-hotels", icon: <Bed className="size-6 text-muted-foreground" /> },
-            { title: "Verify Cabs", href: "/dashboard/verify-cabs", icon: <Car className="size-6 text-muted-foreground" /> },
-            { title: "Assign Cab Driver", href: "/dashboard/assign-driver", icon: <SteeringWheelIcon className="size-6 text-muted-foreground" /> },
+            { title: "Package Bookings", href: "/dashboard/package-bookings", icon: BookOpen },
+            { title: "Verify Hotels", href: "/dashboard/verify-hotels", icon: Bed },
+            { title: "Verify Cabs", href: "/dashboard/verify-cabs", icon: Car },
+            { title: "Assign Cab Driver", href: "/dashboard/assign-driver", icon: SteeringWheelIcon, phosphor: true },
         ],
     },
     {
         id: "settings",
         label: "Settings",
         items: [
-            { title: "General", href: "/dashboard/settings", icon: <Settings className="size-6 text-muted-foreground" /> },
+            { title: "General", href: "/dashboard/settings", icon: Settings },
         ],
     },
 ];
@@ -129,7 +123,6 @@ const navGroups = [
 export function AppSidebar() {
     const pathname = usePathname();
 
-    // Mark packages section active for any /dashboard/packages/* route
     function isActive(href: string) {
         if (href === "/dashboard/packages/new") return pathname === href;
         if (href === "/dashboard/packages") return pathname === href || (pathname.startsWith("/dashboard/packages") && pathname !== "/dashboard/packages/new");
@@ -137,18 +130,30 @@ export function AppSidebar() {
     }
 
     return (
-        <Sidebar>
-            <SidebarContent>
+        <Sidebar className="border-r-0">
+            <SidebarContent
+                className="scrollbar-none"
+                style={{ backgroundColor: "var(--dashboard-base-100)" }}
+            >
                 {/* Logo */}
-                <div className="px-4 py-5 font-bold text-lg border-b flex items-center">
-                    <Image src="/dy_logo.svg" alt="Dreams Yatri Logo" width={1267} height={461} className="mr-2 h-8 aspect-1267/461" />
+                <div
+                    className="px-5 py-4 flex items-center"
+                    style={{ borderBottom: "1px solid var(--dashboard-base-300)" }}
+                >
+                    <Image
+                        src="/dy_logo.svg"
+                        alt="Dreams Yatri Logo"
+                        width={1267}
+                        height={461}
+                        className="h-8 w-auto"
+                    />
                 </div>
 
-                {/* Accordion Nav */}
+                {/* Nav */}
                 <Accordion
                     type="multiple"
                     defaultValue={navGroups.map(g => g.id)}
-                    className="py-2"
+                    className="py-3 px-2"
                 >
                     {navGroups.map(group => (
                         <AccordionItem
@@ -156,27 +161,59 @@ export function AppSidebar() {
                             value={group.id}
                             className="border-none"
                         >
-                            <AccordionTrigger className="px-2 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground cursor-pointer">
+                            {/* Group Label */}
+                            <AccordionTrigger
+                                className="px-2 py-1.5 mb-0.5 text-[11px] font-semibold uppercase tracking-widest hover:no-underline cursor-pointer hover:bg-transparent"
+                                style={{ color: "var(--dashboard-base-content)"}}
+                            >
                                 {group.label}
                             </AccordionTrigger>
-                            <AccordionContent className="pb-1">
+
+                            <AccordionContent className="pb-2">
                                 <SidebarGroup className="p-0">
-                                    <SidebarMenu>
+                                    <SidebarMenu className="gap-0.5">
                                         {group.items.map(item => {
                                             const active = isActive(item.href);
+                                            const IconComponent = item.icon;
 
                                             return (
                                                 <SidebarMenuItem key={item.href}>
                                                     <SidebarMenuButton
                                                         asChild
-                                                        isActive={isActive(item.href)}
-                                                        className="data-[active=true]:bg-violet-100 data-[active=true]:text-violet-600 px-4"
+                                                        isActive={active}
+                                                        className="h-9 px-3 rounded-lg transition-all duration-150 hover:bg-transparent"
+                                                        style={
+                                                            active
+                                                                ? {
+                                                                    backgroundColor: "var(--dashboard-base-300)",
+                                                                    color: "var(--dashboard-base-content)",
+                                                                    fontWeight: 500,
+                                                                }
+                                                                : {
+                                                                    color: "var(--dashboard-base-content)",
+                                                                }
+                                                        }
+                                                        onMouseEnter={e => {
+                                                            if (!active) {
+                                                                (e.currentTarget as HTMLElement).style.backgroundColor = "var(--dashboard-base-200)";
+                                                                (e.currentTarget as HTMLElement).style.opacity = "1";
+                                                            }
+                                                        }}
+                                                        onMouseLeave={e => {
+                                                            if (!active) {
+                                                                (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
+                                                                (e.currentTarget as HTMLElement).style.opacity = "1";
+                                                            }
+                                                        }}
                                                     >
-                                                        <Link href={item.href} className="flex items-center">
-                                                            <span className="text-inherit [&>svg]:stroke-current [&>svg]:text-inherit">
-                                                                {item.icon}
-                                                            </span>
-                                                            <span className="text-sm ml-1.5">{item.title}</span>
+                                                        <Link href={item.href} className="flex items-center gap-2.5">
+                                                            <IconComponent
+                                                                // @ts-ignore — phosphor icons use weight, lucide don't
+                                                                weight={item.phosphor ? "duotone" : undefined}
+                                                                className="size-[18px] shrink-0"
+                                                                style={{ color: "inherit" }}
+                                                            />
+                                                            <span className="text-[13px] leading-none">{item.title}</span>
                                                         </Link>
                                                     </SidebarMenuButton>
                                                 </SidebarMenuItem>
@@ -191,4 +228,4 @@ export function AppSidebar() {
             </SidebarContent>
         </Sidebar>
     );
-} 
+}

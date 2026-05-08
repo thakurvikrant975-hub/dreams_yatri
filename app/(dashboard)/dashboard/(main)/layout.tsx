@@ -18,25 +18,31 @@ export default async function DashboardLayout({
   if (!session) redirect("/dashboard/login");
 
   const member = await getCurrentMember();
-  if (!member) redirect("/dashboard/login"); // safety
+  if (!member) redirect("/dashboard/login");
 
-  const isSales =
-    member?.teamRole?.name?.toLowerCase() === "sales";
+  const isSales = member?.teamRole?.name?.toLowerCase() === "sales";
 
   return (
     <SidebarProvider>
       <AppSidebar />
 
-      <main className="flex-1 overflow-y-auto" data-layout="dashboard">
+      <main
+        className="flex-1 overflow-y-auto min-h-screen"
+        data-layout="dashboard"
+        style={{ backgroundColor: "var(--dashboard-base-200)" }}
+      >
         {/* Header */}
-        <div className="flex justify-between items-center gap-4 border-b px-6 py-3">
+        <div
+          className="flex justify-between items-center gap-4 px-6 py-3 sticky top-0 z-10"
+          style={{
+            backgroundColor: "var(--dashboard-base-100)",
+            borderBottom: "1px solid var(--dashboard-base-300)",
+          }}
+        >
           <SidebarTrigger />
 
           <div className="flex items-center gap-3 ml-auto">
-            {/* Sales-only badge */}
-            {isSales && (
-              <SalesTargetBadge memberId={member.id} />
-            )}
+            {isSales && <SalesTargetBadge memberId={member.id} />}
 
             <SalesStatusToggle
               memberId={member.id}
