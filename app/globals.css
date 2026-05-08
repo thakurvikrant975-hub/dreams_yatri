@@ -87,6 +87,41 @@
 
     --spacing-header-height: 70px;
 
+
+
+
+    
+    /* Dashboard tokens exposed to Tailwind */
+    --color-dashboard-base-100:     oklch(100% 0 0);
+    --color-dashboard-base-200:     oklch(95.5% 0.01 265);
+    --color-dashboard-base-300:     oklch(90% 0.015 265);
+    --color-dashboard-base-content: oklch(20% 0.018 270);
+
+    --color-dashboard-primary:         oklch(52% 0.268 278);
+    --color-dashboard-primary-content: oklch(98% 0.004 278);
+
+    --color-dashboard-secondary:         oklch(56% 0.16 248);
+    --color-dashboard-secondary-content: oklch(98% 0.003 248);
+
+    --color-dashboard-accent:         oklch(68% 0.18 194);
+    --color-dashboard-accent-content: oklch(100% 0 0);
+
+    --color-dashboard-neutral:         oklch(25% 0.045 265);
+    --color-dashboard-neutral-content: oklch(97% 0.003 265);
+
+    --color-dashboard-info:         oklch(88.127% 0.085 214.515);
+    --color-dashboard-info-content: oklch(0% 0 0);
+
+    --color-dashboard-success:         oklch(60% 0.18 155);
+    --color-dashboard-success-content: oklch(98% 0.003 155);
+
+    --color-dashboard-warning:         oklch(76% 0.17 63);
+    --color-dashboard-warning-content: oklch(20% 0.045 63);
+
+    --color-dashboard-error:         oklch(57% 0.21 22);
+    --color-dashboard-error-content: oklch(98% 0.003 22);
+
+
 }
 
 @layer base {
@@ -516,60 +551,6 @@ body {
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
-
-    /* ── Dashboard Theme: Winter ── */
-
-    /* Base */
-    --dashboard-base-100: oklch(100% 0 0);
-    --dashboard-base-200: oklch(95.5% 0.01 265);
-    --dashboard-base-300: oklch(90% 0.015 265);
-    --dashboard-base-content: oklch(20% 0.018 270);
-
-    /* Primary */
-    --dashboard-primary: oklch(52% 0.268 278);
-    --dashboard-primary-content: oklch(98% 0.004 278);
-
-    /* Secondary */
-    --dashboard-secondary: oklch(56% 0.16 248);
-    --dashboard-secondary-content: oklch(98% 0.003 248);
-
-    /* Accent */
-    --dashboard-accent: oklch(68% 0.18 194);
-    --dashboard-accent-content: oklch(100% 0 0);
-
-    /* Neutral */
-    --dashboard-neutral: oklch(25% 0.045 265);
-    --dashboard-neutral-content: oklch(97% 0.003 265);
-
-    /* Info */
-    --dashboard-info: oklch(88.127% 0.085 214.515);
-    --dashboard-info-content: oklch(0% 0 0);
-
-    /* Success */
-    --dashboard-success: oklch(60% 0.18 155);
-    --dashboard-success-content: oklch(98% 0.003 155);
-
-    /* Warning */
-    --dashboard-warning: oklch(76% 0.17 63);
-    --dashboard-warning-content: oklch(20% 0.045 63);
-
-    /* Error */
-    --dashboard-error: oklch(57% 0.21 22);
-    --dashboard-error-content: oklch(98% 0.003 22);
-
-    /* Radius */
-    --dashboard-radius-selector: 1rem;
-    --dashboard-radius-field: 0.5rem;
-    --dashboard-radius-box: 1rem;
-
-    /* Sizing */
-    --dashboard-size-selector: 0.25rem;
-    --dashboard-size-field: 0.25rem;
-
-    /* Misc */
-    --dashboard-border: 1px;
-    --dashboard-depth: 1;
-    --dashboard-noise: 0;
 }
 
 .dark {
