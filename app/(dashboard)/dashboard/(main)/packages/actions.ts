@@ -42,6 +42,15 @@ export async function getPackageForBuilder(id: number) {
         orderBy: { position: "asc" },
         select: { id: true, position: true, image_url: true, source_type: true, source_id: true, label: true },
       },
+      packagePricings: {
+        select: {
+          id: true,
+          duration_id: true,
+          stay_category_id: true,
+          margin_percentage: true,
+          gst_percentage: true,
+        },
+      },
       durations: {
         orderBy: { days: "asc" },
         include: {
@@ -56,9 +65,16 @@ export async function getPackageForBuilder(id: number) {
 
   if (!pkg) return null;
 
-  // Prisma returns Decimal for lat/lng — serialize to plain numbers for RSC boundary
+  // Prisma returns Decimal — serialize to plain numbers for RSC boundary
   return {
     ...pkg,
+    packagePricings: pkg.packagePricings.map((p) => ({
+      id: p.id,
+      duration_id: p.duration_id,
+      stay_category_id: p.stay_category_id,
+      margin_percentage: Number(p.margin_percentage),
+      gst_percentage: Number(p.gst_percentage),
+    })),
     durations: pkg.durations.map((d) => ({
       ...d,
       routes: d.routes.map((r) => ({

@@ -61,6 +61,7 @@ export async function getHotelById(id: number) {
             include: {
               meal_type: { select: { id: true, name: true } },
               diet_type: { select: { id: true, name: true } },
+              occupancy_prices: { orderBy: { occupancy: "asc" } },
             },
           },
         },
@@ -71,7 +72,11 @@ export async function getHotelById(id: number) {
           room: { select: { id: true, name: true } },
           meal_type: { select: { id: true, name: true } },
           diet_type: { select: { id: true, name: true } },
+          occupancy_prices: { orderBy: { occupancy: "asc" } },
         },
+      },
+      childPolicies: {
+        orderBy: { sort_order: "asc" },
       },
       image_categories: {
         orderBy: { sort_order: "asc" },
@@ -469,14 +474,19 @@ export async function createRoomPricing(
   formData: FormData,
 ): Promise<HotelFormState> {
   try {
+    const room_id = Number(formData.get("room_id"));
+    if (!room_id) return { success: false, message: "Room is required." };
     const price = Number(formData.get("price_per_night"));
-    if (!price || price <= 0) return { success: false, message: "Valid price is required." };
+    if (!price || price <= 0) return { success: false, message: "Valid base price is required." };
 
+    const validFrom = formData.get("valid_from") as string;
+    const validTo = formData.get("valid_to") as string;
     const count = await db.hotel_room_pricing.count({ where: { hotel_id } });
+
     await db.hotel_room_pricing.create({
       data: {
         hotel_id,
-        room_id: formData.get("room_id") ? Number(formData.get("room_id")) : null,
+        room_id,
         plan_name: (formData.get("plan_name") as string) || null,
         meal_type_id: formData.get("meal_type_id") ? Number(formData.get("meal_type_id")) : null,
         diet_type_id: formData.get("diet_type_id") ? Number(formData.get("diet_type_id")) : null,
@@ -484,6 +494,9 @@ export async function createRoomPricing(
         original_price: formData.get("original_price") ? Number(formData.get("original_price")) : null,
         extra_bed_rate: formData.get("extra_bed_rate") ? Number(formData.get("extra_bed_rate")) : null,
         margin_percentage: Number(formData.get("margin_percentage")) || 10,
+        gst_percentage: Number(formData.get("gst_percentage")) || 18,
+        valid_from: validFrom ? new Date(validFrom) : null,
+        valid_to: validTo ? new Date(validTo) : null,
         is_active: formData.get("is_active") === "true",
         sort_order: count,
       },
@@ -502,13 +515,18 @@ export async function updateRoomPricing(
   formData: FormData,
 ): Promise<HotelFormState> {
   try {
+    const room_id = Number(formData.get("room_id"));
+    if (!room_id) return { success: false, message: "Room is required." };
     const price = Number(formData.get("price_per_night"));
-    if (!price || price <= 0) return { success: false, message: "Valid price is required." };
+    if (!price || price <= 0) return { success: false, message: "Valid base price is required." };
+
+    const validFrom = formData.get("valid_from") as string;
+    const validTo = formData.get("valid_to") as string;
 
     await db.hotel_room_pricing.update({
       where: { id },
       data: {
-        room_id: formData.get("room_id") ? Number(formData.get("room_id")) : null,
+        room_id,
         plan_name: (formData.get("plan_name") as string) || null,
         meal_type_id: formData.get("meal_type_id") ? Number(formData.get("meal_type_id")) : null,
         diet_type_id: formData.get("diet_type_id") ? Number(formData.get("diet_type_id")) : null,
@@ -516,6 +534,9 @@ export async function updateRoomPricing(
         original_price: formData.get("original_price") ? Number(formData.get("original_price")) : null,
         extra_bed_rate: formData.get("extra_bed_rate") ? Number(formData.get("extra_bed_rate")) : null,
         margin_percentage: Number(formData.get("margin_percentage")) || 10,
+        gst_percentage: Number(formData.get("gst_percentage")) || 18,
+        valid_from: validFrom ? new Date(validFrom) : null,
+        valid_to: validTo ? new Date(validTo) : null,
         is_active: formData.get("is_active") === "true",
       },
     });
@@ -532,6 +553,101 @@ export async function deleteRoomPricing(id: number, hotel_id: number): Promise<H
     await db.hotel_room_pricing.delete({ where: { id } });
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Pricing plan deleted" };
+  } catch {
+    return { success: false, message: "Database error." };
+  }
+}
+
+// ── Occupancy Prices ──────────────────────────────────────────────────────
+
+export async function upsertOccupancyPrice(
+  pricing_id: number,
+  hotel_id: number,
+  occupancy: number,
+  price_per_night: number,
+  original_price?: number | null,
+): Promise<HotelFormState> {
+  try {
+    await db.hotel_room_occupancy_prices.upsert({
+      where: { pricing_id_occupancy: { pricing_id, occupancy } },
+      create: { pricing_id, occupancy, price_per_night, original_price: original_price ?? null },
+      update: { price_per_night, original_price: original_price ?? null },
+    });
+    revalidatePath(`/dashboard/hotels/${hotel_id}`);
+    return { success: true, message: "Occupancy price saved" };
+  } catch {
+    return { success: false, message: "Database error." };
+  }
+}
+
+export async function deleteOccupancyPrice(id: number, hotel_id: number): Promise<HotelFormState> {
+  try {
+    await db.hotel_room_occupancy_prices.delete({ where: { id } });
+    revalidatePath(`/dashboard/hotels/${hotel_id}`);
+    return { success: true, message: "Occupancy price removed" };
+  } catch {
+    return { success: false, message: "Database error." };
+  }
+}
+
+// ── Child Policies ────────────────────────────────────────────────────────
+
+export async function getChildPolicies(hotel_id: number) {
+  return db.hotel_child_policies.findMany({
+    where: { hotel_id },
+    orderBy: { sort_order: "asc" },
+  });
+}
+
+export async function createChildPolicy(
+  hotel_id: number,
+  data: {
+    age_from: number;
+    age_to: number;
+    charge_type: string;
+    price?: number | null;
+    description?: string | null;
+    is_active: boolean;
+  },
+): Promise<HotelFormState> {
+  try {
+    const count = await db.hotel_child_policies.count({ where: { hotel_id } });
+    await db.hotel_child_policies.create({
+      data: { hotel_id, ...data, sort_order: count },
+    });
+    revalidatePath(`/dashboard/hotels/${hotel_id}`);
+    return { success: true, message: "Child policy added" };
+  } catch {
+    return { success: false, message: "Database error." };
+  }
+}
+
+export async function updateChildPolicy(
+  id: number,
+  hotel_id: number,
+  data: {
+    age_from: number;
+    age_to: number;
+    charge_type: string;
+    price?: number | null;
+    description?: string | null;
+    is_active: boolean;
+  },
+): Promise<HotelFormState> {
+  try {
+    await db.hotel_child_policies.update({ where: { id }, data });
+    revalidatePath(`/dashboard/hotels/${hotel_id}`);
+    return { success: true, message: "Child policy updated" };
+  } catch {
+    return { success: false, message: "Database error." };
+  }
+}
+
+export async function deleteChildPolicy(id: number, hotel_id: number): Promise<HotelFormState> {
+  try {
+    await db.hotel_child_policies.delete({ where: { id } });
+    revalidatePath(`/dashboard/hotels/${hotel_id}`);
+    return { success: true, message: "Child policy deleted" };
   } catch {
     return { success: false, message: "Database error." };
   }

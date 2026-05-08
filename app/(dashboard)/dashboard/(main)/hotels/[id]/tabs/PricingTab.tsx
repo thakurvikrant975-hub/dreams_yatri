@@ -12,18 +12,21 @@ import {
   SelectTrigger, SelectValue,
 } from "../../../components/ui/select";
 import {
-  Table, TableBody, TableCell,
-  TableHead, TableHeader, TableRow,
-} from "../../../components/ui/table";
-import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
 } from "../../../components/ui/alert-dialog";
-import { Plus, Pencil, Trash2, Loader2, Check, X } from "lucide-react";
+import {
+  Plus, Pencil, Trash2, Loader2, Check, X,
+  ChevronDown, ChevronRight, Users,
+} from "lucide-react";
 import { toast } from "sonner";
-import { createRoomPricing, updateRoomPricing, deleteRoomPricing } from "../../actions";
+import { cn } from "@/app/lib/utils";
+import {
+  createRoomPricing, updateRoomPricing, deleteRoomPricing,
+  upsertOccupancyPrice, deleteOccupancyPrice,
+} from "../../actions";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -31,10 +34,18 @@ type RoomOption = { id: number; name: string };
 type MealType  = { id: number; name: string };
 type DietType  = { id: number; name: string };
 
+type OccupancyPrice = {
+  id: number;
+  pricing_id: number;
+  occupancy: number;
+  price_per_night: number;
+  original_price: number | null;
+};
+
 type PricingPlan = {
   id: number;
   hotel_id: number;
-  room_id: number | null;
+  room_id: number;
   plan_name: string | null;
   meal_type_id: number | null;
   diet_type_id: number | null;
@@ -42,11 +53,15 @@ type PricingPlan = {
   original_price: number | null;
   extra_bed_rate: number | null;
   margin_percentage: number;
+  gst_percentage: number;
+  valid_from: Date | string | null;
+  valid_to: Date | string | null;
   is_active: boolean;
   sort_order: number;
   room: { id: number; name: string } | null;
   meal_type: { id: number; name: string } | null;
   diet_type: { id: number; name: string } | null;
+  occupancy_prices: OccupancyPrice[];
 };
 
 type PricingFormState = {
@@ -58,6 +73,9 @@ type PricingFormState = {
   original_price: string;
   extra_bed_rate: string;
   margin_percentage: string;
+  gst_percentage: string;
+  valid_from: string;
+  valid_to: string;
   is_active: boolean;
 };
 
@@ -70,14 +88,30 @@ const EMPTY_FORM: PricingFormState = {
   original_price: "",
   extra_bed_rate: "",
   margin_percentage: "10",
+  gst_percentage: "18",
+  valid_from: "",
+  valid_to: "",
   is_active: true,
+};
+
+const OCCUPANCY_LABELS: Record<number, string> = {
+  1: "Single (1P)",
+  2: "Double (2P)",
+  3: "Triple (3P)",
+  4: "Quad (4P)",
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
+function toISODate(val: Date | string | null): string {
+  if (!val) return "";
+  const d = typeof val === "string" ? new Date(val) : val;
+  return d.toISOString().split("T")[0];
+}
+
 function toFormState(p: PricingPlan): PricingFormState {
   return {
-    room_id: p.room_id ? String(p.room_id) : "",
+    room_id: String(p.room_id),
     plan_name: p.plan_name ?? "",
     meal_type_id: p.meal_type_id ? String(p.meal_type_id) : "",
     diet_type_id: p.diet_type_id ? String(p.diet_type_id) : "",
@@ -85,6 +119,9 @@ function toFormState(p: PricingPlan): PricingFormState {
     original_price: p.original_price ? String(p.original_price) : "",
     extra_bed_rate: p.extra_bed_rate ? String(p.extra_bed_rate) : "",
     margin_percentage: String(p.margin_percentage),
+    gst_percentage: String(p.gst_percentage),
+    valid_from: toISODate(p.valid_from),
+    valid_to: toISODate(p.valid_to),
     is_active: p.is_active,
   };
 }
@@ -99,6 +136,9 @@ function buildFormData(form: PricingFormState): FormData {
   fd.append("original_price",    form.original_price);
   fd.append("extra_bed_rate",    form.extra_bed_rate);
   fd.append("margin_percentage", form.margin_percentage);
+  fd.append("gst_percentage",    form.gst_percentage);
+  fd.append("valid_from",        form.valid_from);
+  fd.append("valid_to",          form.valid_to);
   fd.append("is_active",         String(form.is_active));
   return fd;
 }
@@ -127,18 +167,17 @@ function PricingForm({
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  const isValid = !!form.price_per_night && Number(form.price_per_night) > 0;
+  const isValid = !!form.room_id && !!form.price_per_night && Number(form.price_per_night) > 0;
 
   return (
     <div className="border rounded-xl p-4 space-y-4 bg-muted/20">
       {/* Row 1: Room + Plan name */}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label>Room</Label>
+          <Label>Room <span className="text-destructive">*</span></Label>
           <Select value={form.room_id} onValueChange={(v) => update("room_id", v)}>
-            <SelectTrigger><SelectValue placeholder="Select room (optional)" /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder="Select room" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">— No specific room —</SelectItem>
               {rooms.map((r) => (
                 <SelectItem key={r.id} value={String(r.id)}>{r.name}</SelectItem>
               ))}
@@ -148,7 +187,7 @@ function PricingForm({
         <div className="space-y-1.5">
           <Label>Plan Name</Label>
           <Input
-            placeholder="e.g. With Breakfast, Non-Veg Plan"
+            placeholder="e.g. Luxury Queen Room Riverside"
             value={form.plan_name}
             onChange={(e) => update("plan_name", e.target.value)}
           />
@@ -160,9 +199,9 @@ function PricingForm({
         <div className="space-y-1.5">
           <Label>Meal Type</Label>
           <Select value={form.meal_type_id} onValueChange={(v) => update("meal_type_id", v)}>
-            <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder="None (EP)" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">None</SelectItem>
+              <SelectItem value="none">None (EP — Room Only)</SelectItem>
               {mealTypes.map((m) => (
                 <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
               ))}
@@ -172,9 +211,9 @@ function PricingForm({
         <div className="space-y-1.5">
           <Label>Diet Type</Label>
           <Select value={form.diet_type_id} onValueChange={(v) => update("diet_type_id", v)}>
-            <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder="Any" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">None</SelectItem>
+              <SelectItem value="none">Any</SelectItem>
               {dietTypes.map((d) => (
                 <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
               ))}
@@ -183,23 +222,24 @@ function PricingForm({
         </div>
       </div>
 
-      {/* Row 3: Prices */}
-      <div className="grid grid-cols-4 gap-3">
+      {/* Row 3: Base price + Extra bed + Margin */}
+      <div className="grid grid-cols-3 gap-3">
         <div className="space-y-1.5">
-          <Label>Price / Night (₹) <span className="text-destructive">*</span></Label>
+          <Label>Base Price / Night (₹) <span className="text-destructive">*</span></Label>
           <Input
             type="number"
-            placeholder="3500"
+            placeholder="4500"
             value={form.price_per_night}
             onChange={(e) => update("price_per_night", e.target.value)}
             autoFocus
           />
+          <p className="text-[10px] text-muted-foreground">Used when no occupancy price set</p>
         </div>
         <div className="space-y-1.5">
           <Label>Original Price (₹)</Label>
           <Input
             type="number"
-            placeholder="4500"
+            placeholder="6000"
             value={form.original_price}
             onChange={(e) => update("original_price", e.target.value)}
           />
@@ -208,9 +248,29 @@ function PricingForm({
           <Label>Extra Bed Rate (₹)</Label>
           <Input
             type="number"
-            placeholder="800"
+            placeholder="1200"
             value={form.extra_bed_rate}
             onChange={(e) => update("extra_bed_rate", e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Row 4: Seasonal dates + Margin + GST */}
+      <div className="grid grid-cols-4 gap-3">
+        <div className="space-y-1.5">
+          <Label>Valid From</Label>
+          <Input
+            type="date"
+            value={form.valid_from}
+            onChange={(e) => update("valid_from", e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Valid To</Label>
+          <Input
+            type="date"
+            value={form.valid_to}
+            onChange={(e) => update("valid_to", e.target.value)}
           />
         </div>
         <div className="space-y-1.5">
@@ -223,9 +283,20 @@ function PricingForm({
             onChange={(e) => update("margin_percentage", e.target.value)}
           />
         </div>
+        <div className="space-y-1.5">
+          <Label>GST %</Label>
+          <Input
+            type="number"
+            min={0}
+            max={28}
+            value={form.gst_percentage}
+            onChange={(e) => update("gst_percentage", e.target.value)}
+          />
+          <p className="text-[10px] text-muted-foreground">12% (&lt;₹7500) / 18% (≥₹7500)</p>
+        </div>
       </div>
 
-      {/* Row 4: Active + Buttons */}
+      {/* Row 5: Active + Buttons */}
       <div className="flex items-center justify-between pt-1">
         <div className="flex items-center gap-2">
           <Switch checked={form.is_active} onCheckedChange={(v) => update("is_active", v)} />
@@ -248,6 +319,335 @@ function PricingForm({
           </Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Occupancy Prices ──────────────────────────────────────────────────────
+
+function OccupancyPricesPanel({
+  plan,
+  hotelId,
+  onUpdated,
+}: {
+  plan: PricingPlan;
+  hotelId: number;
+  onUpdated: (prices: OccupancyPrice[]) => void;
+}) {
+  const [saving, setSaving] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState<number | null>(null);
+  const [editOccupancy, setEditOccupancy] = useState<number | null>(null);
+  const [addOccupancy, setAddOccupancy] = useState<string>("");
+  const [addPrice, setAddPrice] = useState("");
+  const [addOriginal, setAddOriginal] = useState("");
+  const [editPrice, setEditPrice] = useState("");
+  const [editOriginal, setEditOriginal] = useState("");
+
+  const existingOccupancies = new Set(plan.occupancy_prices.map((p) => p.occupancy));
+  const availableOccupancies = [1, 2, 3, 4].filter((o) => !existingOccupancies.has(o));
+
+  async function handleUpsert(occupancy: number, price: string, original: string, existingId?: number) {
+    const p = Number(price);
+    if (!p || p <= 0) { toast.error("Valid price required"); return; }
+    setSaving(occupancy);
+    const res = await upsertOccupancyPrice(
+      plan.id, hotelId, occupancy, p,
+      original ? Number(original) : null,
+    );
+    setSaving(null);
+    if (!res.success) { toast.error(res.message); return; }
+    const newEntry: OccupancyPrice = {
+      id: existingId ?? Date.now(),
+      pricing_id: plan.id,
+      occupancy,
+      price_per_night: p,
+      original_price: original ? Number(original) : null,
+    };
+    onUpdated(
+      existingId
+        ? plan.occupancy_prices.map((op) => (op.occupancy === occupancy ? newEntry : op))
+        : [...plan.occupancy_prices, newEntry].sort((a, b) => a.occupancy - b.occupancy),
+    );
+    setEditOccupancy(null);
+    setAddOccupancy("");
+    setAddPrice("");
+    setAddOriginal("");
+    toast.success("Occupancy price saved");
+  }
+
+  async function handleDelete(entry: OccupancyPrice) {
+    setDeleting(entry.id);
+    const res = await deleteOccupancyPrice(entry.id, hotelId);
+    setDeleting(null);
+    if (!res.success) { toast.error(res.message); return; }
+    onUpdated(plan.occupancy_prices.filter((op) => op.id !== entry.id));
+    toast.success("Removed");
+  }
+
+  return (
+    <div className="px-4 pb-4 pt-1 space-y-2">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+        <Users className="h-3 w-3" /> Occupancy Prices
+      </p>
+
+      {/* Existing rows */}
+      {plan.occupancy_prices.map((op) => (
+        <div key={op.occupancy} className="flex items-center gap-2 rounded-lg bg-muted/30 px-3 py-1.5">
+          <span className="text-xs font-medium w-24 shrink-0">{OCCUPANCY_LABELS[op.occupancy] ?? `${op.occupancy}P`}</span>
+
+          {editOccupancy === op.occupancy ? (
+            <>
+              <Input
+                type="number"
+                className="h-7 text-xs w-28"
+                placeholder="Price"
+                value={editPrice}
+                onChange={(e) => setEditPrice(e.target.value)}
+                autoFocus
+              />
+              <Input
+                type="number"
+                className="h-7 text-xs w-28"
+                placeholder="MRP (optional)"
+                value={editOriginal}
+                onChange={(e) => setEditOriginal(e.target.value)}
+              />
+              <Button
+                type="button" size="sm" variant="ghost" className="h-7 px-2"
+                disabled={saving === op.occupancy}
+                onClick={() => handleUpsert(op.occupancy, editPrice, editOriginal, op.id)}
+              >
+                {saving === op.occupancy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+              </Button>
+              <Button type="button" size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditOccupancy(null)}>
+                <X className="h-3 w-3" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <span className="text-sm font-semibold flex-1">₹{op.price_per_night.toLocaleString()}</span>
+              {op.original_price && (
+                <span className="text-xs text-muted-foreground line-through">₹{op.original_price.toLocaleString()}</span>
+              )}
+              <Button
+                type="button" size="icon" variant="ghost" className="h-6 w-6 ml-auto"
+                onClick={() => { setEditOccupancy(op.occupancy); setEditPrice(String(op.price_per_night)); setEditOriginal(op.original_price ? String(op.original_price) : ""); }}
+              >
+                <Pencil className="h-3 w-3" />
+              </Button>
+              <Button
+                type="button" size="icon" variant="ghost" className="h-6 w-6 text-destructive hover:text-destructive"
+                disabled={deleting === op.id}
+                onClick={() => handleDelete(op)}
+              >
+                {deleting === op.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+              </Button>
+            </>
+          )}
+        </div>
+      ))}
+
+      {/* Add new occupancy row */}
+      {availableOccupancies.length > 0 && (
+        <div className="flex items-center gap-2">
+          <Select value={addOccupancy} onValueChange={setAddOccupancy}>
+            <SelectTrigger className="h-7 text-xs w-32">
+              <SelectValue placeholder="Add…" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableOccupancies.map((o) => (
+                <SelectItem key={o} value={String(o)}>{OCCUPANCY_LABELS[o] ?? `${o}P`}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {addOccupancy && (
+            <>
+              <Input
+                type="number"
+                className="h-7 text-xs w-28"
+                placeholder="Price / night"
+                value={addPrice}
+                onChange={(e) => setAddPrice(e.target.value)}
+                autoFocus
+              />
+              <Input
+                type="number"
+                className="h-7 text-xs w-28"
+                placeholder="MRP (optional)"
+                value={addOriginal}
+                onChange={(e) => setAddOriginal(e.target.value)}
+              />
+              <Button
+                type="button" size="sm" variant="outline" className="h-7 px-2 text-xs"
+                disabled={saving === Number(addOccupancy)}
+                onClick={() => handleUpsert(Number(addOccupancy), addPrice, addOriginal)}
+              >
+                {saving === Number(addOccupancy) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+
+      {plan.occupancy_prices.length === 0 && !addOccupancy && (
+        <p className="text-[10px] text-muted-foreground/60 italic">
+          No occupancy prices yet — base price will be used. Add occupancy prices for single/double/triple rates.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── Plan Row ──────────────────────────────────────────────────────────────
+
+function PlanRow({
+  plan,
+  hotelId,
+  editId,
+  rooms,
+  mealTypes,
+  dietTypes,
+  isPending,
+  onEdit,
+  onSaveEdit,
+  onCancelEdit,
+  onDelete,
+  onOccupancyUpdated,
+}: {
+  plan: PricingPlan;
+  hotelId: number;
+  editId: number | null;
+  rooms: RoomOption[];
+  mealTypes: MealType[];
+  dietTypes: DietType[];
+  isPending: boolean;
+  onEdit: (id: number) => void;
+  onSaveEdit: (id: number, form: PricingFormState) => void;
+  onCancelEdit: () => void;
+  onDelete: (id: number) => void;
+  onOccupancyUpdated: (planId: number, prices: OccupancyPrice[]) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (editId === plan.id) {
+    return (
+      <div className="p-3 border rounded-lg">
+        <PricingForm
+          initial={toFormState(plan)}
+          rooms={rooms}
+          mealTypes={mealTypes}
+          dietTypes={dietTypes}
+          onSave={(form) => onSaveEdit(plan.id, form)}
+          onCancel={onCancelEdit}
+          isSaving={isPending}
+        />
+      </div>
+    );
+  }
+
+  const hasSeason = plan.valid_from || plan.valid_to;
+  const occupancySummary = plan.occupancy_prices
+    .map((op) => `${op.occupancy}P: ₹${op.price_per_night.toLocaleString()}`)
+    .join(" · ");
+
+  return (
+    <div className={cn("border rounded-lg overflow-hidden", !plan.is_active && "opacity-60")}>
+      {/* Plan header row */}
+      <div className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/20">
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground transition-colors"
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        </button>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-medium">
+              {plan.plan_name || <span className="text-muted-foreground italic text-xs">Unnamed plan</span>}
+            </p>
+            {plan.meal_type && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0">{plan.meal_type.name}</Badge>
+            )}
+            {plan.diet_type && (
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{plan.diet_type.name}</Badge>
+            )}
+            {!plan.is_active && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground">Inactive</Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+            <p className="text-xs text-muted-foreground">
+              Base: <span className="font-semibold text-foreground">₹{plan.price_per_night.toLocaleString()}</span>/night
+              {plan.original_price && (
+                <span className="line-through ml-1 text-muted-foreground/70">₹{plan.original_price.toLocaleString()}</span>
+              )}
+            </p>
+            {plan.extra_bed_rate && (
+              <p className="text-xs text-muted-foreground">Extra bed: ₹{plan.extra_bed_rate.toLocaleString()}</p>
+            )}
+            {occupancySummary && (
+              <p className="text-[10px] text-primary/80">{occupancySummary}</p>
+            )}
+            {hasSeason && (
+              <p className="text-[10px] text-orange-600/80">
+                {plan.valid_from ? toISODate(plan.valid_from) : "∞"} – {plan.valid_to ? toISODate(plan.valid_to) : "∞"}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-col items-end shrink-0 gap-0.5">
+          <p className="text-xs text-muted-foreground">{plan.margin_percentage}% margin</p>
+          <p className="text-[10px] text-muted-foreground/70">GST {plan.gst_percentage}%</p>
+        </div>
+
+        <div className="flex gap-1 shrink-0">
+          <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(plan.id)}>
+            <Pencil className="h-3 w-3" />
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                type="button" variant="ghost" size="icon"
+                className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                disabled={isPending}
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Plan</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Delete <span className="font-semibold">{plan.plan_name || "this pricing plan"}</span>? All occupancy prices will also be deleted. This cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => onDelete(plan.id)}
+                  className="bg-destructive text-white hover:bg-destructive/90"
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </div>
+
+      {/* Expanded: occupancy prices */}
+      {expanded && (
+        <div className="border-t bg-muted/10">
+          <OccupancyPricesPanel
+            plan={plan}
+            hotelId={hotelId}
+            onUpdated={(prices) => onOccupancyUpdated(plan.id, prices)}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -278,7 +678,7 @@ export function PricingTab({
       if (result.success) {
         toast.success(result.message);
         setAdding(false);
-        const roomId = form.room_id && form.room_id !== "none" ? Number(form.room_id) : null;
+        const roomId = Number(form.room_id);
         const mealId = form.meal_type_id && form.meal_type_id !== "none" ? Number(form.meal_type_id) : null;
         const dietId = form.diet_type_id && form.diet_type_id !== "none" ? Number(form.diet_type_id) : null;
         setPricing((prev) => [
@@ -294,11 +694,15 @@ export function PricingTab({
             original_price: form.original_price ? Number(form.original_price) : null,
             extra_bed_rate: form.extra_bed_rate ? Number(form.extra_bed_rate) : null,
             margin_percentage: Number(form.margin_percentage),
+            gst_percentage: Number(form.gst_percentage),
+            valid_from: form.valid_from || null,
+            valid_to: form.valid_to || null,
             is_active: form.is_active,
             sort_order: prev.length,
             room: rooms.find((r) => r.id === roomId) ?? null,
             meal_type: mealTypes.find((m) => m.id === mealId) ?? null,
             diet_type: dietTypes.find((d) => d.id === dietId) ?? null,
+            occupancy_prices: [],
           },
         ]);
       } else {
@@ -313,7 +717,7 @@ export function PricingTab({
       if (result.success) {
         toast.success(result.message);
         setEditId(null);
-        const roomId = form.room_id && form.room_id !== "none" ? Number(form.room_id) : null;
+        const roomId = Number(form.room_id);
         const mealId = form.meal_type_id && form.meal_type_id !== "none" ? Number(form.meal_type_id) : null;
         const dietId = form.diet_type_id && form.diet_type_id !== "none" ? Number(form.diet_type_id) : null;
         setPricing((prev) =>
@@ -329,6 +733,9 @@ export function PricingTab({
                   original_price: form.original_price ? Number(form.original_price) : null,
                   extra_bed_rate: form.extra_bed_rate ? Number(form.extra_bed_rate) : null,
                   margin_percentage: Number(form.margin_percentage),
+                  gst_percentage: Number(form.gst_percentage),
+                  valid_from: form.valid_from || null,
+                  valid_to: form.valid_to || null,
                   is_active: form.is_active,
                   room: rooms.find((r) => r.id === roomId) ?? null,
                   meal_type: mealTypes.find((m) => m.id === mealId) ?? null,
@@ -355,8 +762,12 @@ export function PricingTab({
     });
   }
 
-  // Group pricing by room for display
-  const unassigned = pricing.filter((p) => !p.room_id);
+  function handleOccupancyUpdated(planId: number, prices: OccupancyPrice[]) {
+    setPricing((prev) =>
+      prev.map((p) => (p.id === planId ? { ...p, occupancy_prices: prices } : p))
+    );
+  }
+
   const byRoom = rooms.map((room) => ({
     room,
     plans: pricing.filter((p) => p.room_id === room.id),
@@ -369,7 +780,7 @@ export function PricingTab({
           <div>
             <CardTitle className="text-base">Pricing Plans</CardTitle>
             <CardDescription>
-              {pricing.length} plan{pricing.length !== 1 ? "s" : ""} · Each plan links to a room, meal and diet type
+              {pricing.length} plan{pricing.length !== 1 ? "s" : ""} · Room required · Expand a plan to set occupancy prices
             </CardDescription>
           </div>
           {!adding && editId === null && (
@@ -380,7 +791,6 @@ export function PricingTab({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Add form */}
         {adding && (
           <PricingForm
             initial={EMPTY_FORM}
@@ -393,49 +803,34 @@ export function PricingTab({
           />
         )}
 
-        {pricing.length > 0 ? (
+        {byRoom.length > 0 ? (
           <div className="space-y-6">
-            {/* Plans per room */}
             {byRoom.map(({ room, plans }) => (
               <div key={room.id} className="space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
                   {room.name}
                 </p>
-                <PricingTable
-                  plans={plans}
-                  editId={editId}
-                  rooms={rooms}
-                  mealTypes={mealTypes}
-                  dietTypes={dietTypes}
-                  isPending={isPending}
-                  onEdit={setEditId}
-                  onSaveEdit={handleEdit}
-                  onCancelEdit={() => setEditId(null)}
-                  onDelete={handleDelete}
-                />
+                <div className="space-y-2">
+                  {plans.map((plan) => (
+                    <PlanRow
+                      key={plan.id}
+                      plan={plan}
+                      hotelId={hotel_id}
+                      editId={editId}
+                      rooms={rooms}
+                      mealTypes={mealTypes}
+                      dietTypes={dietTypes}
+                      isPending={isPending}
+                      onEdit={setEditId}
+                      onSaveEdit={handleEdit}
+                      onCancelEdit={() => setEditId(null)}
+                      onDelete={handleDelete}
+                      onOccupancyUpdated={handleOccupancyUpdated}
+                    />
+                  ))}
+                </div>
               </div>
             ))}
-
-            {/* Unassigned plans */}
-            {unassigned.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
-                  Unassigned
-                </p>
-                <PricingTable
-                  plans={unassigned}
-                  editId={editId}
-                  rooms={rooms}
-                  mealTypes={mealTypes}
-                  dietTypes={dietTypes}
-                  isPending={isPending}
-                  onEdit={setEditId}
-                  onSaveEdit={handleEdit}
-                  onCancelEdit={() => setEditId(null)}
-                  onDelete={handleDelete}
-                />
-              </div>
-            )}
           </div>
         ) : !adding && (
           <div className="text-center py-10 text-muted-foreground">
@@ -445,162 +840,5 @@ export function PricingTab({
         )}
       </CardContent>
     </Card>
-  );
-}
-
-// ── Pricing Table ─────────────────────────────────────────────────────────
-
-function PricingTable({
-  plans,
-  editId,
-  rooms,
-  mealTypes,
-  dietTypes,
-  isPending,
-  onEdit,
-  onSaveEdit,
-  onCancelEdit,
-  onDelete,
-}: {
-  plans: PricingPlan[];
-  editId: number | null;
-  rooms: RoomOption[];
-  mealTypes: MealType[];
-  dietTypes: DietType[];
-  isPending: boolean;
-  onEdit: (id: number) => void;
-  onSaveEdit: (id: number, form: PricingFormState) => void;
-  onCancelEdit: () => void;
-  onDelete: (id: number) => void;
-}) {
-  return (
-    <div className="rounded-lg border overflow-hidden">
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-muted/50">
-            <TableHead>Plan</TableHead>
-            <TableHead>Meal</TableHead>
-            <TableHead>Diet</TableHead>
-            <TableHead className="text-right">Price / Night</TableHead>
-            <TableHead className="text-right">Margin</TableHead>
-            <TableHead className="text-center">Active</TableHead>
-            <TableHead className="w-20" />
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {plans.map((plan) =>
-            editId === plan.id ? (
-              <TableRow key={plan.id}>
-                <TableCell colSpan={7} className="p-0">
-                  <div className="p-3">
-                    <PricingForm
-                      initial={toFormState(plan)}
-                      rooms={rooms}
-                      mealTypes={mealTypes}
-                      dietTypes={dietTypes}
-                      onSave={(form) => onSaveEdit(plan.id, form)}
-                      onCancel={onCancelEdit}
-                      isSaving={isPending}
-                    />
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : (
-              <TableRow key={plan.id} className="hover:bg-muted/30">
-                <TableCell>
-                  <div>
-                    <p className="font-medium text-sm">
-                      {plan.plan_name || <span className="text-muted-foreground italic text-xs">No name</span>}
-                    </p>
-                    {plan.extra_bed_rate && (
-                      <p className="text-xs text-muted-foreground">
-                        Extra bed: ₹{plan.extra_bed_rate.toLocaleString()}
-                      </p>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  {plan.meal_type ? (
-                    <Badge variant="outline" className="text-xs">{plan.meal_type.name}</Badge>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">—</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {plan.diet_type ? (
-                    <Badge variant="secondary" className="text-xs">{plan.diet_type.name}</Badge>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">—</span>
-                  )}
-                </TableCell>
-                <TableCell className="text-right">
-                  <p className="font-semibold text-sm">₹{plan.price_per_night.toLocaleString()}</p>
-                  {plan.original_price && (
-                    <p className="text-xs text-muted-foreground line-through">
-                      ₹{plan.original_price.toLocaleString()}
-                    </p>
-                  )}
-                </TableCell>
-                <TableCell className="text-right text-sm text-muted-foreground">
-                  {plan.margin_percentage}%
-                </TableCell>
-                <TableCell className="text-center">
-                  <div
-                    className={`h-2 w-2 rounded-full mx-auto ${plan.is_active ? "bg-green-500" : "bg-muted-foreground"}`}
-                  />
-                </TableCell>
-                <TableCell>
-                  <div className="flex gap-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => onEdit(plan.id)}
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          disabled={isPending}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete Plan</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Delete{" "}
-                            <span className="font-semibold">
-                              {plan.plan_name || "this pricing plan"}
-                            </span>
-                            ? This cannot be undone.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => onDelete(plan.id)}
-                            className="bg-destructive text-white hover:bg-destructive/90"
-                          >
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                </TableCell>
-              </TableRow>
-            )
-          )}
-        </TableBody>
-      </Table>
-    </div>
   );
 }

@@ -158,9 +158,13 @@ export type ActivityCostLine = {
 export type TransferCostLine = {
   day: number;
   transfer_id: number;
-  cab_type: string | null;
-  pickup_point: string | null;
-  drop_point: string | null;
+  pickup_name: string | null;
+  drop_name: string | null;
+  vehicle_name: string | null;
+  num_vehicles: number;
+  distance_km: number | null;
+  cost_price: number | null;
+  sell_price: number | null;
 };
 
 export type PackagePriceBreakdown = {

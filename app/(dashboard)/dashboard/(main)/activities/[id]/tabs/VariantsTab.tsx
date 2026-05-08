@@ -1,0 +1,752 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { Button } from "../../../components/ui/button";
+import { Input } from "../../../components/ui/input";
+import { Label } from "../../../components/ui/label";
+import { Switch } from "../../../components/ui/switch";
+import { Badge } from "../../../components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../../components/ui/card";
+import {
+    Select, SelectContent, SelectItem,
+    SelectTrigger, SelectValue,
+} from "../../../components/ui/select";
+import {
+    AlertDialog, AlertDialogAction, AlertDialogCancel,
+    AlertDialogContent, AlertDialogDescription,
+    AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+    AlertDialogTrigger,
+} from "../../../components/ui/alert-dialog";
+import {
+    Plus, Pencil, Trash2, Loader2, Check, X,
+    ChevronDown, ChevronRight, Zap,
+} from "lucide-react";
+import { toast } from "sonner";
+import { cn } from "@/app/lib/utils";
+import {
+    createVariant, updateVariant, deleteVariant,
+    upsertVariantPricing, deleteVariantPricing,
+    type ActivityVariant, type ActivityVariantPricing,
+} from "../../actions";
+
+// ── Types ─────────────────────────────────────────────────────────────────
+
+type VariantFormState = {
+    name: string;
+    booking_mode: string;
+    pricing_type: string;
+    min_persons: string;
+    max_persons: string;
+    cost_price: string;
+    gst_percentage: string;
+    valid_from: string;
+    valid_to: string;
+    is_active: boolean;
+};
+
+type PricingFormState = {
+    label: string;
+    age_from: string;
+    age_to: string;
+    price: string;
+    original_price: string;
+    margin_percentage: string;
+    is_active: boolean;
+};
+
+// ── Constants ─────────────────────────────────────────────────────────────
+
+const BOOKING_MODES = [
+    { value: "PRIVATE",  label: "Private",  description: "Exclusive group, no mixing" },
+    { value: "GROUP",    label: "Group",     description: "Fixed group departure" },
+    { value: "SHARED",   label: "Shared",    description: "Shared with others" },
+];
+
+const PRICING_TYPES = [
+    { value: "PER_PERSON",  label: "Per Person" },
+    { value: "FLAT_RATE",   label: "Flat Rate" },
+    { value: "PER_VEHICLE", label: "Per Vehicle" },
+];
+
+const EMPTY_VARIANT_FORM: VariantFormState = {
+    name: "",
+    booking_mode: "",
+    pricing_type: "",
+    min_persons: "",
+    max_persons: "",
+    cost_price: "",
+    gst_percentage: "5",
+    valid_from: "",
+    valid_to: "",
+    is_active: true,
+};
+
+const EMPTY_PRICING_FORM: PricingFormState = {
+    label: "",
+    age_from: "",
+    age_to: "",
+    price: "",
+    original_price: "",
+    margin_percentage: "0",
+    is_active: true,
+};
+
+const DEFAULT_PRICING_LABELS = ["Adult", "Child", "Infant", "Senior"];
+
+// ── Variant Form ──────────────────────────────────────────────────────────
+
+function VariantForm({
+    initial,
+    onSave,
+    onCancel,
+    isSaving,
+}: {
+    initial: VariantFormState;
+    onSave: (form: VariantFormState) => void;
+    onCancel: () => void;
+    isSaving: boolean;
+}) {
+    const [form, setForm] = useState<VariantFormState>(initial);
+    function update<K extends keyof VariantFormState>(key: K, value: VariantFormState[K]) {
+        setForm(prev => ({ ...prev, [key]: value }));
+    }
+
+    const isValid = !!form.name && !!form.booking_mode && !!form.pricing_type;
+
+    return (
+        <div className="border rounded-xl p-4 space-y-4 bg-muted/20">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="space-y-1.5 col-span-2 sm:col-span-1">
+                    <Label>Variant Name <span className="text-destructive">*</span></Label>
+                    <Input
+                        placeholder="e.g. Private Rafting (6 pax)"
+                        value={form.name}
+                        onChange={e => update("name", e.target.value)}
+                        autoFocus
+                    />
+                </div>
+                <div className="space-y-1.5">
+                    <Label>Booking Mode <span className="text-destructive">*</span></Label>
+                    <Select value={form.booking_mode} onValueChange={v => update("booking_mode", v)}>
+                        <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                        <SelectContent>
+                            {BOOKING_MODES.map(m => (
+                                <SelectItem key={m.value} value={m.value}>
+                                    {m.label}
+                                    <span className="text-xs text-muted-foreground ml-1">— {m.description}</span>
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="space-y-1.5">
+                    <Label>Pricing Type <span className="text-destructive">*</span></Label>
+                    <Select value={form.pricing_type} onValueChange={v => update("pricing_type", v)}>
+                        <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                        <SelectContent>
+                            {PRICING_TYPES.map(t => (
+                                <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="space-y-1.5">
+                    <Label>Min Persons</Label>
+                    <Input
+                        type="number" min={1} placeholder="1"
+                        value={form.min_persons}
+                        onChange={e => update("min_persons", e.target.value)}
+                    />
+                </div>
+                <div className="space-y-1.5">
+                    <Label>Max Persons</Label>
+                    <Input
+                        type="number" min={1} placeholder="20"
+                        value={form.max_persons}
+                        onChange={e => update("max_persons", e.target.value)}
+                    />
+                </div>
+                <div className="space-y-1.5">
+                    <Label>Cost Price (₹)</Label>
+                    <Input
+                        type="number" min={0} placeholder="1200"
+                        value={form.cost_price}
+                        onChange={e => update("cost_price", e.target.value)}
+                    />
+                </div>
+                <div className="space-y-1.5">
+                    <Label>GST %</Label>
+                    <Input
+                        type="number" min={0} max={28} placeholder="5"
+                        value={form.gst_percentage}
+                        onChange={e => update("gst_percentage", e.target.value)}
+                    />
+                </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                    <Label>Valid From</Label>
+                    <Input type="date" value={form.valid_from} onChange={e => update("valid_from", e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                    <Label>Valid To</Label>
+                    <Input type="date" value={form.valid_to} onChange={e => update("valid_to", e.target.value)} />
+                </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+                <div className="flex items-center gap-2">
+                    <Switch checked={form.is_active} onCheckedChange={v => update("is_active", v)} />
+                    <span className="text-sm text-muted-foreground">Active</span>
+                </div>
+                <div className="flex gap-2">
+                    <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={isSaving}>
+                        <X className="mr-1 h-3.5 w-3.5" /> Cancel
+                    </Button>
+                    <Button type="button" size="sm" disabled={!isValid || isSaving} onClick={() => onSave(form)}>
+                        {isSaving
+                            ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Saving…</>
+                            : <><Check className="mr-1.5 h-3.5 w-3.5" />Save Variant</>
+                        }
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ── Pricing Row Panel ─────────────────────────────────────────────────────
+
+function PricingPanel({
+    variant,
+    activityId,
+    onUpdated,
+}: {
+    variant: ActivityVariant;
+    activityId: number;
+    onUpdated: (variantId: number, pricing: ActivityVariantPricing[]) => void;
+}) {
+    const [saving, setSaving] = useState<number | "new" | null>(null);
+    const [deleting, setDeleting] = useState<number | null>(null);
+    const [editId, setEditId] = useState<number | null>(null);
+    const [editForm, setEditForm] = useState<PricingFormState>(EMPTY_PRICING_FORM);
+    const [addForm, setAddForm] = useState<PricingFormState>(EMPTY_PRICING_FORM);
+    const [showAdd, setShowAdd] = useState(false);
+
+    async function handleSave(form: PricingFormState, existingId?: number) {
+        const price = Number(form.price);
+        if (!form.label || !price || price <= 0) {
+            toast.error("Label and valid price are required");
+            return;
+        }
+        setSaving(existingId ?? "new");
+        const res = await upsertVariantPricing(variant.id, activityId, {
+            id: existingId,
+            label: form.label,
+            age_from: form.age_from ? Number(form.age_from) : null,
+            age_to: form.age_to ? Number(form.age_to) : null,
+            price,
+            original_price: form.original_price ? Number(form.original_price) : null,
+            margin_percentage: Number(form.margin_percentage) || 0,
+            is_active: form.is_active,
+        });
+        setSaving(null);
+        if (!res.success) { toast.error(res.message); return; }
+        toast.success(res.message);
+
+        if (existingId) {
+            onUpdated(variant.id, variant.pricing.map(p =>
+                p.id === existingId
+                    ? { ...p, label: form.label, age_from: form.age_from ? Number(form.age_from) : null, age_to: form.age_to ? Number(form.age_to) : null, price, original_price: form.original_price ? Number(form.original_price) : null, margin_percentage: Number(form.margin_percentage) || 0, is_active: form.is_active }
+                    : p
+            ));
+            setEditId(null);
+        } else {
+            onUpdated(variant.id, [
+                ...variant.pricing,
+                { id: Date.now(), variant_id: variant.id, label: form.label, age_from: form.age_from ? Number(form.age_from) : null, age_to: form.age_to ? Number(form.age_to) : null, price, original_price: form.original_price ? Number(form.original_price) : null, margin_percentage: Number(form.margin_percentage) || 0, is_active: form.is_active, sort_order: variant.pricing.length },
+            ]);
+            setAddForm(EMPTY_PRICING_FORM);
+            setShowAdd(false);
+        }
+    }
+
+    async function handleDelete(id: number) {
+        setDeleting(id);
+        const res = await deleteVariantPricing(id, activityId);
+        setDeleting(null);
+        if (!res.success) { toast.error(res.message); return; }
+        onUpdated(variant.id, variant.pricing.filter(p => p.id !== id));
+        toast.success(res.message);
+    }
+
+    function startEdit(p: ActivityVariantPricing) {
+        setEditId(p.id);
+        setEditForm({
+            label: p.label,
+            age_from: p.age_from != null ? String(p.age_from) : "",
+            age_to: p.age_to != null ? String(p.age_to) : "",
+            price: String(p.price),
+            original_price: p.original_price ? String(p.original_price) : "",
+            margin_percentage: String(p.margin_percentage),
+            is_active: p.is_active,
+        });
+    }
+
+    return (
+        <div className="px-4 pb-4 pt-1 space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Pricing Categories
+            </p>
+
+            {variant.pricing.map(p => (
+                editId === p.id ? (
+                    <PricingRowForm
+                        key={p.id}
+                        form={editForm}
+                        onChange={setEditForm}
+                        onSave={() => handleSave(editForm, p.id)}
+                        onCancel={() => setEditId(null)}
+                        isSaving={saving === p.id}
+                    />
+                ) : (
+                    <div key={p.id} className={cn("flex items-center gap-3 rounded-lg bg-muted/30 px-3 py-1.5", !p.is_active && "opacity-50")}>
+                        <span className="text-xs font-medium w-20 shrink-0">{p.label}</span>
+                        {(p.age_from != null || p.age_to != null) && (
+                            <span className="text-[10px] text-muted-foreground w-20 shrink-0">
+                                {p.age_from ?? 0}–{p.age_to ?? "∞"} yrs
+                            </span>
+                        )}
+                        <span className="text-sm font-semibold flex-1">₹{p.price.toLocaleString()}</span>
+                        {p.original_price && (
+                            <span className="text-xs text-muted-foreground line-through">₹{p.original_price.toLocaleString()}</span>
+                        )}
+                        <span className="text-[10px] text-muted-foreground shrink-0">{p.margin_percentage}% margin</span>
+                        <Button type="button" size="icon" variant="ghost" className="h-6 w-6" onClick={() => startEdit(p)}>
+                            <Pencil className="h-3 w-3" />
+                        </Button>
+                        <Button
+                            type="button" size="icon" variant="ghost"
+                            className="h-6 w-6 text-destructive hover:text-destructive"
+                            disabled={deleting === p.id}
+                            onClick={() => handleDelete(p.id)}
+                        >
+                            {deleting === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                        </Button>
+                    </div>
+                )
+            ))}
+
+            {showAdd ? (
+                <PricingRowForm
+                    form={addForm}
+                    onChange={setAddForm}
+                    onSave={() => handleSave(addForm)}
+                    onCancel={() => { setShowAdd(false); setAddForm(EMPTY_PRICING_FORM); }}
+                    isSaving={saving === "new"}
+                    suggestedLabels={DEFAULT_PRICING_LABELS.filter(l => !variant.pricing.some(p => p.label === l))}
+                />
+            ) : (
+                <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => setShowAdd(true)}>
+                    <Plus className="h-3 w-3 mr-1" /> Add Price Category
+                </Button>
+            )}
+
+            {variant.pricing.length === 0 && !showAdd && (
+                <p className="text-[10px] text-muted-foreground/60 italic">
+                    No pricing yet — add Adult, Child, Infant categories.
+                </p>
+            )}
+        </div>
+    );
+}
+
+function PricingRowForm({
+    form,
+    onChange,
+    onSave,
+    onCancel,
+    isSaving,
+    suggestedLabels,
+}: {
+    form: PricingFormState;
+    onChange: (f: PricingFormState) => void;
+    onSave: () => void;
+    onCancel: () => void;
+    isSaving: boolean;
+    suggestedLabels?: string[];
+}) {
+    function update<K extends keyof PricingFormState>(key: K, value: PricingFormState[K]) {
+        onChange({ ...form, [key]: value });
+    }
+
+    return (
+        <div className="border rounded-lg p-3 space-y-2 bg-muted/10">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="space-y-1">
+                    <Label className="text-[11px]">Label <span className="text-destructive">*</span></Label>
+                    {suggestedLabels && suggestedLabels.length > 0 ? (
+                        <Select value={form.label} onValueChange={v => update("label", v)}>
+                            <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Select…" /></SelectTrigger>
+                            <SelectContent>
+                                {suggestedLabels.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                                <SelectItem value="__custom">Custom…</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    ) : (
+                        <Input className="h-7 text-xs" placeholder="Adult" value={form.label} onChange={e => update("label", e.target.value)} autoFocus />
+                    )}
+                    {form.label === "__custom" && (
+                        <Input className="h-7 text-xs mt-1" placeholder="Custom label" autoFocus onChange={e => update("label", e.target.value)} />
+                    )}
+                </div>
+                <div className="space-y-1">
+                    <Label className="text-[11px]">Price (₹) <span className="text-destructive">*</span></Label>
+                    <Input className="h-7 text-xs" type="number" min={0} placeholder="2500" value={form.price} onChange={e => update("price", e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                    <Label className="text-[11px]">MRP (₹)</Label>
+                    <Input className="h-7 text-xs" type="number" min={0} placeholder="3000" value={form.original_price} onChange={e => update("original_price", e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                    <Label className="text-[11px]">Margin %</Label>
+                    <Input className="h-7 text-xs" type="number" min={0} max={100} placeholder="0" value={form.margin_percentage} onChange={e => update("margin_percentage", e.target.value)} />
+                </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                    <Label className="text-[11px]">Age From (yrs)</Label>
+                    <Input className="h-7 text-xs" type="number" min={0} placeholder="Optional" value={form.age_from} onChange={e => update("age_from", e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                    <Label className="text-[11px]">Age To (yrs)</Label>
+                    <Input className="h-7 text-xs" type="number" min={0} placeholder="Optional" value={form.age_to} onChange={e => update("age_to", e.target.value)} />
+                </div>
+            </div>
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <Switch checked={form.is_active} onCheckedChange={v => update("is_active", v)} className="scale-75" />
+                    <span className="text-xs text-muted-foreground">Active</span>
+                </div>
+                <div className="flex gap-1.5">
+                    <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={onCancel} disabled={isSaving}>
+                        <X className="h-3 w-3 mr-1" /> Cancel
+                    </Button>
+                    <Button type="button" size="sm" className="h-7 text-xs" onClick={onSave} disabled={isSaving}>
+                        {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
+                        Save
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ── Variant Row ───────────────────────────────────────────────────────────
+
+function VariantRow({
+    variant,
+    activityId,
+    editId,
+    isPending,
+    onEdit,
+    onSaveEdit,
+    onCancelEdit,
+    onDelete,
+    onPricingUpdated,
+}: {
+    variant: ActivityVariant;
+    activityId: number;
+    editId: number | null;
+    isPending: boolean;
+    onEdit: (id: number) => void;
+    onSaveEdit: (id: number, form: VariantFormState) => void;
+    onCancelEdit: () => void;
+    onDelete: (id: number) => void;
+    onPricingUpdated: (variantId: number, pricing: ActivityVariantPricing[]) => void;
+}) {
+    const [expanded, setExpanded] = useState(false);
+
+    if (editId === variant.id) {
+        return (
+            <div className="p-3 border rounded-lg">
+                <VariantForm
+                    initial={{
+                        name: variant.name,
+                        booking_mode: variant.booking_mode,
+                        pricing_type: variant.pricing_type,
+                        min_persons: variant.min_persons != null ? String(variant.min_persons) : "",
+                        max_persons: variant.max_persons != null ? String(variant.max_persons) : "",
+                        cost_price: variant.cost_price != null ? String(variant.cost_price) : "",
+                        gst_percentage: String(variant.gst_percentage),
+                        valid_from: variant.valid_from ? new Date(variant.valid_from).toISOString().split("T")[0] : "",
+                        valid_to: variant.valid_to ? new Date(variant.valid_to).toISOString().split("T")[0] : "",
+                        is_active: variant.is_active,
+                    }}
+                    onSave={form => onSaveEdit(variant.id, form)}
+                    onCancel={onCancelEdit}
+                    isSaving={isPending}
+                />
+            </div>
+        );
+    }
+
+    const pricingSummary = variant.pricing
+        .filter(p => p.is_active)
+        .map(p => `${p.label}: ₹${p.price.toLocaleString()}`)
+        .join(" · ");
+
+    return (
+        <div className={cn("border rounded-lg overflow-hidden", !variant.is_active && "opacity-60")}>
+            <div className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/20">
+                <button type="button" className="text-muted-foreground hover:text-foreground transition-colors" onClick={() => setExpanded(v => !v)}>
+                    {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                </button>
+
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium">{variant.name}</p>
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">{variant.booking_mode}</Badge>
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{variant.pricing_type.replace("_", " ")}</Badge>
+                        {!variant.is_active && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground">Inactive</Badge>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                        {pricingSummary && <p className="text-[10px] text-primary/80">{pricingSummary}</p>}
+                        {(variant.min_persons || variant.max_persons) && (
+                            <p className="text-[10px] text-muted-foreground">
+                                {variant.min_persons ?? 1}–{variant.max_persons ?? "∞"} pax
+                            </p>
+                        )}
+                        {variant.valid_from || variant.valid_to ? (
+                            <p className="text-[10px] text-orange-600/80">
+                                {variant.valid_from ? new Date(variant.valid_from).toISOString().split("T")[0] : "∞"}
+                                {" – "}
+                                {variant.valid_to ? new Date(variant.valid_to).toISOString().split("T")[0] : "∞"}
+                            </p>
+                        ) : null}
+                    </div>
+                </div>
+
+                <div className="flex flex-col items-end shrink-0 gap-0.5">
+                    <p className="text-[10px] text-muted-foreground">GST {variant.gst_percentage}%</p>
+                    {variant.cost_price && (
+                        <p className="text-[10px] text-muted-foreground">Cost ₹{variant.cost_price.toLocaleString()}</p>
+                    )}
+                </div>
+
+                <div className="flex gap-1 shrink-0">
+                    <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(variant.id)}>
+                        <Pencil className="h-3 w-3" />
+                    </Button>
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button
+                                type="button" variant="ghost" size="icon"
+                                className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                disabled={isPending}
+                            >
+                                <Trash2 className="h-3 w-3" />
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Variant</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    Delete <span className="font-semibold">{variant.name}</span>? All pricing categories will also be deleted.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                    onClick={() => onDelete(variant.id)}
+                                    className="bg-destructive text-white hover:bg-destructive/90"
+                                >
+                                    Delete
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </div>
+            </div>
+
+            {expanded && (
+                <div className="border-t bg-muted/10">
+                    <PricingPanel
+                        variant={variant}
+                        activityId={activityId}
+                        onUpdated={onPricingUpdated}
+                    />
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ── Main Tab ──────────────────────────────────────────────────────────────
+
+export function VariantsTab({
+    activity_id,
+    initialVariants,
+}: {
+    activity_id: number;
+    initialVariants: ActivityVariant[];
+}) {
+    const [variants, setVariants] = useState<ActivityVariant[]>(initialVariants);
+    const [adding, setAdding] = useState(false);
+    const [editId, setEditId] = useState<number | null>(null);
+    const [isPending, startTransition] = useTransition();
+
+    function handleAdd(form: VariantFormState) {
+        startTransition(async () => {
+            const res = await createVariant(activity_id, {
+                name: form.name,
+                booking_mode: form.booking_mode,
+                pricing_type: form.pricing_type,
+                min_persons: form.min_persons ? Number(form.min_persons) : null,
+                max_persons: form.max_persons ? Number(form.max_persons) : null,
+                cost_price: form.cost_price ? Number(form.cost_price) : null,
+                gst_percentage: Number(form.gst_percentage) || 5,
+                valid_from: form.valid_from ? new Date(form.valid_from) : null,
+                valid_to: form.valid_to ? new Date(form.valid_to) : null,
+                is_active: form.is_active,
+            });
+            if (res.success) {
+                toast.success(res.message);
+                setAdding(false);
+                setVariants(prev => [...prev, {
+                    id: res.id ?? Date.now(),
+                    activity_id,
+                    name: form.name,
+                    booking_mode: form.booking_mode,
+                    pricing_type: form.pricing_type,
+                    min_persons: form.min_persons ? Number(form.min_persons) : null,
+                    max_persons: form.max_persons ? Number(form.max_persons) : null,
+                    cost_price: form.cost_price ? Number(form.cost_price) : null,
+                    gst_percentage: Number(form.gst_percentage) || 5,
+                    valid_from: form.valid_from ? new Date(form.valid_from) : null,
+                    valid_to: form.valid_to ? new Date(form.valid_to) : null,
+                    is_active: form.is_active,
+                    sort_order: prev.length,
+                    pricing: [],
+                }]);
+            } else {
+                toast.error(res.message);
+            }
+        });
+    }
+
+    function handleEdit(id: number, form: VariantFormState) {
+        startTransition(async () => {
+            const res = await updateVariant(id, activity_id, {
+                name: form.name,
+                booking_mode: form.booking_mode,
+                pricing_type: form.pricing_type,
+                min_persons: form.min_persons ? Number(form.min_persons) : null,
+                max_persons: form.max_persons ? Number(form.max_persons) : null,
+                cost_price: form.cost_price ? Number(form.cost_price) : null,
+                gst_percentage: Number(form.gst_percentage) || 5,
+                valid_from: form.valid_from ? new Date(form.valid_from) : null,
+                valid_to: form.valid_to ? new Date(form.valid_to) : null,
+                is_active: form.is_active,
+            });
+            if (res.success) {
+                toast.success(res.message);
+                setEditId(null);
+                setVariants(prev => prev.map(v => v.id === id ? {
+                    ...v,
+                    name: form.name,
+                    booking_mode: form.booking_mode,
+                    pricing_type: form.pricing_type,
+                    min_persons: form.min_persons ? Number(form.min_persons) : null,
+                    max_persons: form.max_persons ? Number(form.max_persons) : null,
+                    cost_price: form.cost_price ? Number(form.cost_price) : null,
+                    gst_percentage: Number(form.gst_percentage) || 5,
+                    valid_from: form.valid_from ? new Date(form.valid_from) : null,
+                    valid_to: form.valid_to ? new Date(form.valid_to) : null,
+                    is_active: form.is_active,
+                } : v));
+            } else {
+                toast.error(res.message);
+            }
+        });
+    }
+
+    function handleDelete(id: number) {
+        startTransition(async () => {
+            const res = await deleteVariant(id, activity_id);
+            if (res.success) {
+                toast.success(res.message);
+                setVariants(prev => prev.filter(v => v.id !== id));
+            } else {
+                toast.error(res.message);
+            }
+        });
+    }
+
+    function handlePricingUpdated(variantId: number, pricing: ActivityVariantPricing[]) {
+        setVariants(prev => prev.map(v => v.id === variantId ? { ...v, pricing } : v));
+    }
+
+    return (
+        <Card className="rounded-2xl">
+            <CardHeader>
+                <div className="flex items-center justify-between">
+                    <div>
+                        <CardTitle className="text-base flex items-center gap-2">
+                            <Zap className="h-4 w-4" /> Variants & Pricing
+                        </CardTitle>
+                        <CardDescription>
+                            Each variant defines a booking mode, capacity, and per-category pricing (Adult / Child / Infant).
+                        </CardDescription>
+                    </div>
+                    {!adding && editId === null && (
+                        <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
+                            <Plus className="mr-1.5 h-3.5 w-3.5" /> Add Variant
+                        </Button>
+                    )}
+                </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+                {adding && (
+                    <VariantForm
+                        initial={EMPTY_VARIANT_FORM}
+                        onSave={handleAdd}
+                        onCancel={() => setAdding(false)}
+                        isSaving={isPending}
+                    />
+                )}
+
+                {variants.length > 0 ? (
+                    <div className="space-y-2">
+                        {variants.map(variant => (
+                            <VariantRow
+                                key={variant.id}
+                                variant={variant}
+                                activityId={activity_id}
+                                editId={editId}
+                                isPending={isPending}
+                                onEdit={setEditId}
+                                onSaveEdit={handleEdit}
+                                onCancelEdit={() => setEditId(null)}
+                                onDelete={handleDelete}
+                                onPricingUpdated={handlePricingUpdated}
+                            />
+                        ))}
+                    </div>
+                ) : !adding && (
+                    <div className="text-center py-10 text-muted-foreground">
+                        <Zap className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                        <p className="text-sm">No variants yet</p>
+                        <p className="text-xs mt-1">Add a variant to define pricing categories like Adult, Child, Infant</p>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+}

@@ -182,3 +182,10 @@ export async function upsertGallerySlot(
 export async function clearGallerySlot(packageId: number, position: number) {
   await db.package_gallery.deleteMany({ where: { package_id: packageId, position } });
 }
+
+export async function updateGallerySlotLabel(packageId: number, position: number, label: string) {
+  await db.package_gallery.updateMany({
+    where: { package_id: packageId, position },
+    data: { label: label.trim() || null },
+  });
+}

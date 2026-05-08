@@ -695,6 +695,7 @@ model hotels {
   updated_at       DateTime                 @updatedAt
   thumbnail        String?
   bookingHotels    BookingHotel[]
+  childPolicies    hotel_child_policies[]
   image_categories hotel_image_categories[]
   images           hotel_images[]
   room_pricing     hotel_room_pricing[]
@@ -779,29 +780,60 @@ model hotel_room_images {
 }
 
 model hotel_room_pricing {
-  id                   Int                      @id @default(autoincrement())
+  id                   Int                           @id @default(autoincrement())
   hotel_id             Int
-  room_id              Int?
+  room_id              Int
   plan_name            String?
   meal_type_id         Int?
   diet_type_id         Int?
-  price_per_night      Decimal                  @db.Decimal(10, 2)
-  original_price       Decimal?                 @db.Decimal(10, 2)
-  extra_bed_rate       Decimal?                 @db.Decimal(10, 2)
-  margin_percentage    Decimal                  @default(10) @db.Decimal(5, 2)
-  is_active            Boolean                  @default(true)
-  sort_order           Int                      @default(0)
-  created_at           DateTime                 @default(now())
-  updated_at           DateTime                 @updatedAt
+  price_per_night      Decimal                       @db.Decimal(10, 2)
+  original_price       Decimal?                      @db.Decimal(10, 2)
+  extra_bed_rate       Decimal?                      @db.Decimal(10, 2)
+  margin_percentage    Decimal                       @default(10) @db.Decimal(5, 2)
+  gst_percentage       Decimal                       @default(18) @db.Decimal(5, 2)
+  valid_from           DateTime?
+  valid_to             DateTime?
+  is_active            Boolean                       @default(true)
+  sort_order           Int                           @default(0)
+  created_at           DateTime                      @default(now())
+  updated_at           DateTime                      @updatedAt
   hotelImageCategories hotel_image_categories[]
-  diet_type            diet_types?              @relation(fields: [diet_type_id], references: [id])
-  hotel                hotels                   @relation(fields: [hotel_id], references: [id])
-  meal_type            meal_types?              @relation(fields: [meal_type_id], references: [id])
-  room                 hotel_rooms?             @relation(fields: [room_id], references: [id])
+  occupancy_prices     hotel_room_occupancy_prices[]
+  diet_type            diet_types?                   @relation(fields: [diet_type_id], references: [id])
+  hotel                hotels                        @relation(fields: [hotel_id], references: [id])
+  meal_type            meal_types?                   @relation(fields: [meal_type_id], references: [id])
+  room                 hotel_rooms                   @relation(fields: [room_id], references: [id])
   itineraryStays       itinerary_stays[]
 
   @@index([hotel_id])
   @@index([room_id])
+}
+
+model hotel_room_occupancy_prices {
+  id              Int                @id @default(autoincrement())
+  pricing_id      Int
+  occupancy       Int
+  price_per_night Decimal            @db.Decimal(10, 2)
+  original_price  Decimal?           @db.Decimal(10, 2)
+  pricing         hotel_room_pricing @relation(fields: [pricing_id], references: [id], onDelete: Cascade)
+
+  @@unique([pricing_id, occupancy])
+  @@index([pricing_id])
+}
+
+model hotel_child_policies {
+  id          Int      @id @default(autoincrement())
+  hotel_id    Int
+  age_from    Int
+  age_to      Int
+  charge_type String
+  price       Decimal? @db.Decimal(10, 2)
+  description String?
+  is_active   Boolean  @default(true)
+  sort_order  Int      @default(0)
+  hotel       hotels   @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
+
+  @@index([hotel_id])
 }
 
 model meal_types {
@@ -827,18 +859,14 @@ model activities {
   duration_hours       Decimal?               @db.Decimal(4, 1)
   difficulty           String?
   category             String?
-  price                Decimal?               @db.Decimal(10, 2)
   is_active            Boolean                @default(true)
   created_at           DateTime               @default(now())
   updated_at           DateTime               @updatedAt
-  margin_percentage    Decimal                @default(0) @db.Decimal(5, 2)
-  max_persons          Int?
-  min_persons          Int?
-  original_price       Decimal?               @db.Decimal(10, 2)
-  pricing_type         String?
   destination          destinations           @relation(fields: [destination_id], references: [id])
   images               activity_images[]
   itinerary_activities itinerary_activities[]
+  variants             activity_variants[]
+  addons               activity_addons[]
 
   @@index([destination_id, is_active])
   @@index([category])
@@ -856,6 +884,59 @@ model activity_images {
   is_primary  Boolean    @default(false)
   created_at  DateTime   @default(now())
   activity    activities @relation(fields: [activity_id], references: [id])
+
+  @@index([activity_id])
+}
+
+model activity_variants {
+  id                   Int                      @id @default(autoincrement())
+  activity_id          Int
+  name                 String
+  booking_mode         String
+  pricing_type         String
+  min_persons          Int?
+  max_persons          Int?
+  cost_price           Decimal?                 @db.Decimal(10, 2)
+  gst_percentage       Decimal                  @default(5) @db.Decimal(5, 2)
+  valid_from           DateTime?
+  valid_to             DateTime?
+  is_active            Boolean                  @default(true)
+  sort_order           Int                      @default(0)
+  activity             activities               @relation(fields: [activity_id], references: [id], onDelete: Cascade)
+  pricing              activity_variant_pricing[]
+  itinerary_activities itinerary_activities[]
+
+  @@index([activity_id])
+}
+
+model activity_variant_pricing {
+  id                Int               @id @default(autoincrement())
+  variant_id        Int
+  label             String
+  age_from          Int?
+  age_to            Int?
+  price             Decimal           @db.Decimal(10, 2)
+  original_price    Decimal?          @db.Decimal(10, 2)
+  margin_percentage Decimal           @default(0) @db.Decimal(5, 2)
+  is_active         Boolean           @default(true)
+  sort_order        Int               @default(0)
+  variant           activity_variants @relation(fields: [variant_id], references: [id], onDelete: Cascade)
+
+  @@index([variant_id])
+}
+
+model activity_addons {
+  id           Int        @id @default(autoincrement())
+  activity_id  Int
+  title        String
+  description  String?
+  pricing_type String
+  price        Decimal    @db.Decimal(10, 2)
+  cost_price   Decimal?   @db.Decimal(10, 2)
+  is_optional  Boolean    @default(true)
+  is_active    Boolean    @default(true)
+  sort_order   Int        @default(0)
+  activity     activities @relation(fields: [activity_id], references: [id], onDelete: Cascade)
 
   @@index([activity_id])
 }
@@ -1009,6 +1090,8 @@ model itinerary_stays {
   itinerary_id     Int
   stay_category_id Int
   room_pricing_id  Int
+  occupancy        Int                     @default(2)
+  rooms_count      Int                     @default(1)
   sort_order       Int                     @default(0)
   itinerary        package_itineraries     @relation(fields: [itinerary_id], references: [id])
   room_pricing     hotel_room_pricing      @relation(fields: [room_pricing_id], references: [id])
@@ -1018,26 +1101,76 @@ model itinerary_stays {
 }
 
 model itinerary_activities {
-  id           Int                 @id @default(autoincrement())
+  id           Int                @id @default(autoincrement())
   itinerary_id Int
   activity_id  Int
-  sort_order   Int                 @default(0)
-  is_optional  Boolean             @default(false)
-  activity     activities          @relation(fields: [activity_id], references: [id])
+  variant_id   Int?
+  sort_order   Int                @default(0)
+  is_optional  Boolean            @default(false)
+  activity     activities         @relation(fields: [activity_id], references: [id])
+  variant      activity_variants? @relation(fields: [variant_id], references: [id])
   itinerary    package_itineraries @relation(fields: [itinerary_id], references: [id], onDelete: Cascade)
 
   @@index([itinerary_id, sort_order])
 }
 
+model vehicles {
+  id                 Int                   @id @default(autoincrement())
+  name               String
+  type               VehicleType
+  passenger_capacity Int
+  luggage_bags       Int                   @default(0)
+  description        String?
+  is_active          Boolean               @default(true)
+  created_at         DateTime              @default(now())
+  rates              vehicle_rates[]
+  transfers          itinerary_transfers[]
+}
+
+model vehicle_rates {
+  id         Int             @id @default(autoincrement())
+  vehicle_id Int
+  label      String
+  rate_type  VehicleRateType
+  price      Decimal         @db.Decimal(10, 2)
+  cost_price Decimal?        @db.Decimal(10, 2)
+  is_active  Boolean         @default(true)
+  vehicle    vehicles        @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
+
+  @@index([vehicle_id, is_active])
+}
+
+model transfer_routes {
+  id              Int                   @id @default(autoincrement())
+  pickup_name     String
+  pickup_place_id String?
+  pickup_lat      Decimal?              @db.Decimal(10, 7)
+  pickup_lng      Decimal?              @db.Decimal(10, 7)
+  drop_name       String
+  drop_place_id   String?
+  drop_lat        Decimal?              @db.Decimal(10, 7)
+  drop_lng        Decimal?              @db.Decimal(10, 7)
+  distance_km     Decimal?              @db.Decimal(8, 2)
+  duration_min    Int?
+  created_at      DateTime              @default(now())
+  transfers       itinerary_transfers[]
+
+  @@index([pickup_name, drop_name])
+}
+
 model itinerary_transfers {
-  id            Int                 @id @default(autoincrement())
-  itinerary_id  Int
-  cab_type      String?
-  pickup_point  String?
-  drop_point    String?
-  duration_text String?
-  sort_order    Int                 @default(0)
-  itinerary     package_itineraries @relation(fields: [itinerary_id], references: [id], onDelete: Cascade)
+  id           Int                 @id @default(autoincrement())
+  itinerary_id Int
+  route_id     Int?
+  vehicle_id   Int?
+  num_vehicles Int                 @default(1)
+  cost_price   Decimal?            @db.Decimal(10, 2)
+  sell_price   Decimal?            @db.Decimal(10, 2)
+  notes        String?
+  sort_order   Int                 @default(0)
+  itinerary    package_itineraries @relation(fields: [itinerary_id], references: [id], onDelete: Cascade)
+  route        transfer_routes?    @relation(fields: [route_id], references: [id])
+  vehicle      vehicles?           @relation(fields: [vehicle_id], references: [id])
 
   @@index([itinerary_id, sort_order])
 }
@@ -1496,4 +1629,22 @@ enum CustomPackageStatus {
   SENT
   ACCEPTED
   DECLINED
+}
+
+
+enum VehicleType {
+  HATCHBACK
+  SEDAN
+  SUV
+  LUXURY_SEDAN
+  LUXURY_SUV
+  TEMPO_TRAVELLER
+  MINI_BUS
+  BUS
+}
+
+enum VehicleRateType {
+  PER_KM
+  FLAT_TRIP
+  PER_DAY
 }

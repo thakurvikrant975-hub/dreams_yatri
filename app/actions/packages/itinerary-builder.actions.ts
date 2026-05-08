@@ -23,6 +23,7 @@ import {
   updateStayCategory,
   deleteStayCategory,
   reorderStayCategories,
+  getVehicles,
   type TransferInput,
   type NoteInput,
   type ReorderItem,
@@ -190,6 +191,15 @@ export async function handleReorderItems(updates: ReorderItem[], packageId: numb
     return { success: true as const };
   } catch {
     return { success: false as const, message: "Failed to reorder" };
+  }
+}
+
+export async function handleGetVehicles() {
+  try {
+    const data = await getVehicles();
+    return { success: true as const, data };
+  } catch {
+    return { success: false as const, data: [] as Awaited<ReturnType<typeof getVehicles>>, message: "Failed to load vehicles" };
   }
 }
 

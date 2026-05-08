@@ -62,6 +62,7 @@ const navGroups = [
         items: [
             { title: "All Packages", href: "/dashboard/packages", icon: <PackageIcon weight="duotone" className="size-6 scale-110 text-muted-foreground" /> },
             { title: "New Package", href: "/dashboard/packages/new", icon: <PlusIcon weight="duotone" className="size-6 scale-110 text-muted-foreground" /> },
+            { title: "Vehicles", href: "/dashboard/vehicles", icon: <Car className="size-6 text-muted-foreground" /> },
         ],
     },
     {

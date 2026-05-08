@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import {
-  MapPin, Tag, DollarSign, Search, Plus, Pencil,
+  MapPin, Tag, Search, Plus, Pencil,
   ImageIcon, Star, Trash2, Loader2,
 } from "lucide-react";
 import { Button }   from "../components/ui/button";
@@ -45,16 +45,11 @@ type Destination = { id: number; name: string; region: { name: string } };
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
-export const DIFFICULTIES  = ["Easy", "Moderate", "Challenging", "Difficult", "Expert"];
-export const CATEGORIES    = [
+export const DIFFICULTIES = ["Easy", "Moderate", "Challenging", "Difficult", "Expert"];
+export const CATEGORIES   = [
   "Adventure", "Cultural", "Wildlife", "Water Sports",
   "Trekking", "Sightseeing", "Food & Culinary",
   "Shopping", "Spiritual", "Photography", "Other",
-];
-export const PRICING_TYPES = [
-  { value: "per_person",  label: "Per Person" },
-  { value: "flat",        label: "Flat Rate" },
-  { value: "per_vehicle", label: "Per Vehicle" },
 ];
 
 const BASE = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
@@ -76,12 +71,6 @@ function makeSteps(isEdit: boolean): Step[] {
         if (!data.destination_id) return "Please select a destination";
         return null;
       },
-    },
-    {
-      id:          "pricing",
-      title:       "Pricing",
-      description: "Price, type and capacity",
-      icon:        <DollarSign className="h-4 w-4" />,
     },
     {
       id:          "details",
@@ -121,23 +110,14 @@ function buildInitialData(
       duration_hours: activity.duration_hours != null ? String(activity.duration_hours) : "",
       is_active:      activity.is_active,
     },
-    pricing: {
-      pricing_type:      activity.pricing_type      ?? "",
-      price:             activity.price             != null ? String(activity.price)             : "",
-      original_price:    activity.original_price    != null ? String(activity.original_price)    : "",
-      margin_percentage: String(activity.margin_percentage),
-      min_persons:       activity.min_persons != null ? String(activity.min_persons) : "",
-      max_persons:       activity.max_persons != null ? String(activity.max_persons) : "",
-    },
     details: { description: activity.description ?? "" },
     seo:     { meta_title: activity.meta_title ?? "", meta_desc: activity.meta_desc ?? "" },
-    images:  {},  // managed via state inside the step component
+    images:  {},
   };
 }
 
 const EMPTY_DATA: Record<string, Record<string, unknown>> = {
   basic:   { name: "", slug: "", destination_id: "", category: "", difficulty: "", duration_hours: "", is_active: true },
-  pricing: { pricing_type: "", price: "", original_price: "", margin_percentage: "0", min_persons: "", max_persons: "" },
   details: { description: "" },
   seo:     { meta_title: "", meta_desc: "" },
   images:  {},
@@ -268,83 +248,7 @@ function BasicStep({
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// STEP 2 — Pricing
-// ─────────────────────────────────────────────────────────────────────────
-
-function PricingStep() {
-  const { stepData, setStepData } = useMultiStep();
-  const data              = stepData["pricing"] ?? {};
-  const pricing_type      = (data.pricing_type      as string) ?? "";
-  const price             = (data.price             as string) ?? "";
-  const original_price    = (data.original_price    as string) ?? "";
-  const margin_percentage = (data.margin_percentage as string) ?? "0";
-  const min_persons       = (data.min_persons       as string) ?? "";
-  const max_persons       = (data.max_persons       as string) ?? "";
-
-  const discount = price && original_price && Number(original_price) > Number(price)
-    ? Math.round((1 - Number(price) / Number(original_price)) * 100)
-    : null;
-
-  return (
-    <div className="space-y-4">
-      <div className="space-y-1.5">
-        <Label>Pricing Type</Label>
-        <div className="grid grid-cols-3 gap-2">
-          {PRICING_TYPES.map(pt => (
-            <button
-              key={pt.value}
-              type="button"
-              onClick={() => setStepData("pricing", { ...data, pricing_type: pt.value })}
-              className={cn(
-                "rounded-xl border-2 p-3 text-sm text-center transition-all",
-                pricing_type === pt.value
-                  ? "border-primary bg-primary/5 font-medium"
-                  : "border-border hover:border-muted-foreground/40",
-              )}
-            >
-              {pt.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-4">
-        <div className="space-y-1.5">
-          <Label>Price (₹)</Label>
-          <Input type="number" min="0" step="0.01" placeholder="2500"
-            value={price} onChange={e => setStepData("pricing", { ...data, price: e.target.value })} />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Original Price (₹)</Label>
-          <Input type="number" min="0" step="0.01" placeholder="3000"
-            value={original_price} onChange={e => setStepData("pricing", { ...data, original_price: e.target.value })} />
-          {discount && <p className="text-xs text-green-600 font-medium">{discount}% off</p>}
-        </div>
-        <div className="space-y-1.5">
-          <Label>Margin %</Label>
-          <Input type="number" min="0" max="100" step="0.01" placeholder="0"
-            value={margin_percentage} onChange={e => setStepData("pricing", { ...data, margin_percentage: e.target.value })} />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <Label>Min Persons</Label>
-          <Input type="number" min="1" placeholder="1"
-            value={min_persons} onChange={e => setStepData("pricing", { ...data, min_persons: e.target.value })} />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Max Persons</Label>
-          <Input type="number" min="1" placeholder="20"
-            value={max_persons} onChange={e => setStepData("pricing", { ...data, max_persons: e.target.value })} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// STEP 3 — Details
+// STEP 2 — Details
 // ─────────────────────────────────────────────────────────────────────────
 
 function DetailsStep() {
@@ -633,22 +537,16 @@ function ImagesEditStep({ activity_id, initialImages }: { activity_id: number; i
 
 function buildFormData(data: Record<string, unknown>): FormData {
   const fd = new FormData();
-  fd.append("name",              (data.name              as string) ?? "");
-  fd.append("slug",              (data.slug              as string) ?? "");
-  fd.append("destination_id",    (data.destination_id    as string) ?? "");
-  fd.append("category",          (data.category          as string) ?? "");
-  fd.append("difficulty",        (data.difficulty        as string) ?? "");
-  fd.append("duration_hours",    (data.duration_hours    as string) ?? "");
-  fd.append("is_active",         String(data.is_active ?? true));
-  fd.append("pricing_type",      (data.pricing_type      as string) ?? "");
-  fd.append("price",             (data.price             as string) ?? "");
-  fd.append("original_price",    (data.original_price    as string) ?? "");
-  fd.append("margin_percentage", (data.margin_percentage as string) ?? "0");
-  fd.append("min_persons",       (data.min_persons       as string) ?? "");
-  fd.append("max_persons",       (data.max_persons       as string) ?? "");
-  fd.append("description",       (data.description       as string) ?? "");
-  fd.append("meta_title",        (data.meta_title        as string) ?? "");
-  fd.append("meta_desc",         (data.meta_desc         as string) ?? "");
+  fd.append("name",           (data.name           as string) ?? "");
+  fd.append("slug",           (data.slug           as string) ?? "");
+  fd.append("destination_id", (data.destination_id as string) ?? "");
+  fd.append("category",       (data.category       as string) ?? "");
+  fd.append("difficulty",     (data.difficulty     as string) ?? "");
+  fd.append("duration_hours", (data.duration_hours as string) ?? "");
+  fd.append("is_active",      String(data.is_active ?? true));
+  fd.append("description",    (data.description    as string) ?? "");
+  fd.append("meta_title",     (data.meta_title     as string) ?? "");
+  fd.append("meta_desc",      (data.meta_desc      as string) ?? "");
   return fd;
 }
 
@@ -722,11 +620,9 @@ export function CreateActivityDialog({
         submitLabel="Create Activity"
         initialStepData={EMPTY_DATA}
       >
-        <BasicStep   destinations={destinations} isEdit={false} />
-        <PricingStep />
+        <BasicStep destinations={destinations} isEdit={false} />
         <DetailsStep />
         <SeoStep />
-        {/* Pass imagePicks via closure so they survive step navigation */}
         <ImagesCreateStep picks={imagePicks} onChange={setImagePicks} />
       </MultiStepModal>
     </>
@@ -784,15 +680,10 @@ export function EditActivityDialog({
       submitLabel="Save Changes"
       initialStepData={initialData}
     >
-      <BasicStep   destinations={destinations} isEdit={true} />
-      <PricingStep />
+      <BasicStep destinations={destinations} isEdit={true} />
       <DetailsStep />
       <SeoStep />
-      {/* Edit mode: full image management inline */}
-      <ImagesEditStep
-        activity_id={activity.id}
-        initialImages={activity.images}
-      />
+      <ImagesEditStep activity_id={activity.id} initialImages={activity.images} />
     </MultiStepModal>
   );
 }

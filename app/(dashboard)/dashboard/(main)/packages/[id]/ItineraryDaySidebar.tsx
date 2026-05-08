@@ -47,6 +47,7 @@ import {
   handleReorderItems,
   handleSearchActivities,
   handleSearchRoomPricings,
+  handleGetVehicles,
 } from "@/app/actions/packages/itinerary-builder.actions";
 import type {
   DayData,
@@ -55,7 +56,9 @@ import type {
   NoteItem,
   StayItem,
   ReorderItem,
+  VehicleOption,
 } from "@/app/services/itinerary-builder.service";
+import { LocationSearchInput, type LocationResult } from "../../components/dashboard/LocationSearchInput";
 import {
   GripVertical,
   Loader2,
@@ -147,10 +150,41 @@ function SortableRow({
   );
 }
 
+// ── Transfer helpers ───────────────────────────────────────────────────────
+
+type TransferFormData = {
+  pickup: LocationResult | null;
+  drop: LocationResult | null;
+  vehicle_id: number | null;
+  num_vehicles: string;
+  cost_price: string;
+  sell_price: string;
+  notes: string;
+};
+
+function transferFormToInput(data: TransferFormData) {
+  return {
+    pickup_name: data.pickup?.place_name ?? "",
+    pickup_place_id: data.pickup?.place_id ?? null,
+    pickup_lat: data.pickup?.latitude ?? null,
+    pickup_lng: data.pickup?.longitude ?? null,
+    drop_name: data.drop?.place_name ?? "",
+    drop_place_id: data.drop?.place_id ?? null,
+    drop_lat: data.drop?.latitude ?? null,
+    drop_lng: data.drop?.longitude ?? null,
+    vehicle_id: data.vehicle_id,
+    num_vehicles: Number(data.num_vehicles) || 1,
+    cost_price: data.cost_price ? Number(data.cost_price) : null,
+    sell_price: data.sell_price ? Number(data.sell_price) : null,
+    notes: data.notes || null,
+  };
+}
+
 // ── Transfer card ──────────────────────────────────────────────────────────
 
 function TransferCard({
   item,
+  vehicles,
   editing,
   pending,
   onEdit,
@@ -159,29 +193,43 @@ function TransferCard({
   onDelete,
 }: {
   item: TransferItem;
+  vehicles: VehicleOption[];
   editing: boolean;
   pending: boolean;
   onEdit: () => void;
-  onSave: (data: { cab_type: string; pickup_point: string; drop_point: string; duration_text: string }) => void;
+  onSave: (data: TransferFormData) => void;
   onCancel: () => void;
   onDelete: () => void;
 }) {
-  const [cabType, setCabType] = useState(item.cab_type ?? "");
-  const [pickup, setPickup] = useState(item.pickup_point ?? "");
-  const [drop, setDrop] = useState(item.drop_point ?? "");
-  const [duration, setDuration] = useState(item.duration_text ?? "");
+  const [form, setForm] = useState<TransferFormData>({
+    pickup: item.route ? { place_name: item.route.pickup_name, place_id: "", address: item.route.pickup_name, latitude: 0, longitude: 0 } : null,
+    drop: item.route ? { place_name: item.route.drop_name, place_id: "", address: item.route.drop_name, latitude: 0, longitude: 0 } : null,
+    vehicle_id: item.vehicle_id,
+    num_vehicles: String(item.num_vehicles),
+    cost_price: item.cost_price != null ? String(item.cost_price) : "",
+    sell_price: item.sell_price != null ? String(item.sell_price) : "",
+    notes: item.notes ?? "",
+  });
 
   useEffect(() => {
     if (editing) {
-      setCabType(item.cab_type ?? "");
-      setPickup(item.pickup_point ?? "");
-      setDrop(item.drop_point ?? "");
-      setDuration(item.duration_text ?? "");
+      setForm({
+        pickup: item.route ? { place_name: item.route.pickup_name, place_id: "", address: item.route.pickup_name, latitude: 0, longitude: 0 } : null,
+        drop: item.route ? { place_name: item.route.drop_name, place_id: "", address: item.route.drop_name, latitude: 0, longitude: 0 } : null,
+        vehicle_id: item.vehicle_id,
+        num_vehicles: String(item.num_vehicles),
+        cost_price: item.cost_price != null ? String(item.cost_price) : "",
+        sell_price: item.sell_price != null ? String(item.sell_price) : "",
+        notes: item.notes ?? "",
+      });
     }
   }, [editing, item]);
 
-  const preview = [item.pickup_point, item.drop_point].filter(Boolean).join(" → ") ||
-    item.cab_type || "No details";
+  const routeLabel = item.route
+    ? `${item.route.pickup_name} → ${item.route.drop_name}`
+    : "No route set";
+
+  const isValid = !!form.pickup && !!form.drop;
 
   return (
     <div className={cn("rounded-lg border bg-background p-3", editing && "border-primary/40 bg-primary/5")}>
@@ -189,9 +237,12 @@ function TransferCard({
         <div className="flex items-start gap-2">
           <Car className="h-3.5 w-3.5 text-blue-500 mt-0.5 shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium">Transfer</p>
-            <p className="text-[11px] text-muted-foreground truncate">{preview}</p>
-            {item.cab_type && <p className="text-[10px] text-muted-foreground/60">{item.cab_type}{item.duration_text ? ` · ${item.duration_text}` : ""}</p>}
+            <p className="text-xs font-medium truncate">{routeLabel}</p>
+            <p className="text-[10px] text-muted-foreground/70 flex items-center gap-1 flex-wrap">
+              {item.vehicle && <span>{item.vehicle.name} · {item.num_vehicles > 1 ? `${item.num_vehicles}×` : ""}{item.vehicle.passenger_capacity} pax</span>}
+              {item.route?.distance_km != null && <span>· {item.route.distance_km} km{item.route.duration_min ? ` · ~${item.route.duration_min} min` : ""}</span>}
+              {item.sell_price != null && <span>· ₹{item.sell_price.toLocaleString("en-IN")}</span>}
+            </p>
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={onEdit}>
@@ -203,31 +254,83 @@ function TransferCard({
           </div>
         </div>
       ) : (
-        <div className="space-y-2">
-          <div className="flex items-center gap-1.5 mb-2">
+        <div className="space-y-2.5">
+          <div className="flex items-center gap-1.5">
             <Car className="h-3.5 w-3.5 text-blue-500" />
             <p className="text-xs font-semibold">Edit Transfer</p>
           </div>
+          <div className="space-y-1.5">
+            <Label className="text-[10px]">Pickup Location <span className="text-destructive">*</span></Label>
+            <LocationSearchInput
+              value={form.pickup}
+              onChange={(v) => setForm(f => ({ ...f, pickup: v }))}
+              placeholder="Search pickup point…"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[10px]">Drop Location <span className="text-destructive">*</span></Label>
+            <LocationSearchInput
+              value={form.drop}
+              onChange={(v) => setForm(f => ({ ...f, drop: v }))}
+              placeholder="Search drop point…"
+            />
+          </div>
           <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label className="text-[10px]">Pickup Point</Label>
-              <Input value={pickup} onChange={(e) => setPickup(e.target.value)} className="h-7 text-xs mt-0.5" placeholder="Delhi Airport" />
+            <div className="space-y-1">
+              <Label className="text-[10px]">Vehicle</Label>
+              <Select
+                value={form.vehicle_id ? String(form.vehicle_id) : "none"}
+                onValueChange={(v) => setForm(f => ({ ...f, vehicle_id: v === "none" ? null : Number(v) }))}
+              >
+                <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Select vehicle…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No vehicle</SelectItem>
+                  {vehicles.map((v) => (
+                    <SelectItem key={v.id} value={String(v.id)}>
+                      {v.name} ({v.passenger_capacity} pax)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div>
-              <Label className="text-[10px]">Drop Point</Label>
-              <Input value={drop} onChange={(e) => setDrop(e.target.value)} className="h-7 text-xs mt-0.5" placeholder="Hotel XYZ" />
+            <div className="space-y-1">
+              <Label className="text-[10px]">No. of Vehicles</Label>
+              <Input
+                type="number" min={1} value={form.num_vehicles}
+                onChange={(e) => setForm(f => ({ ...f, num_vehicles: e.target.value }))}
+                className="h-7 text-xs"
+              />
             </div>
-            <div>
-              <Label className="text-[10px]">Cab Type</Label>
-              <Input value={cabType} onChange={(e) => setCabType(e.target.value)} className="h-7 text-xs mt-0.5" placeholder="Tempo Traveller" />
+            <div className="space-y-1">
+              <Label className="text-[10px]">Cost Price (₹)</Label>
+              <Input
+                type="number" min={0} placeholder="0"
+                value={form.cost_price}
+                onChange={(e) => setForm(f => ({ ...f, cost_price: e.target.value }))}
+                className="h-7 text-xs"
+              />
             </div>
-            <div>
-              <Label className="text-[10px]">Duration</Label>
-              <Input value={duration} onChange={(e) => setDuration(e.target.value)} className="h-7 text-xs mt-0.5" placeholder="~4 hrs" />
+            <div className="space-y-1">
+              <Label className="text-[10px]">Sell Price (₹)</Label>
+              <Input
+                type="number" min={0} placeholder="0"
+                value={form.sell_price}
+                onChange={(e) => setForm(f => ({ ...f, sell_price: e.target.value }))}
+                className="h-7 text-xs"
+              />
             </div>
           </div>
+          <div className="space-y-1">
+            <Label className="text-[10px]">Notes</Label>
+            <Input
+              value={form.notes}
+              onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))}
+              className="h-7 text-xs"
+              placeholder="Optional note…"
+            />
+          </div>
           <div className="flex gap-2 pt-1">
-            <Button size="sm" className="h-7 text-xs gap-1" onClick={() => onSave({ cab_type: cabType, pickup_point: pickup, drop_point: drop, duration_text: duration })} disabled={pending}>
+            <Button size="sm" className="h-7 text-xs gap-1" onClick={() => onSave(form)} disabled={pending || !isValid}>
               {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
               Save
             </Button>
@@ -593,45 +696,101 @@ function StayBlock({
 // ── Add forms ──────────────────────────────────────────────────────────────
 
 function AddTransferForm({
+  vehicles,
   onSave,
   onCancel,
   pending,
 }: {
-  onSave: (data: { cab_type: string; pickup_point: string; drop_point: string; duration_text: string }) => void;
+  vehicles: VehicleOption[];
+  onSave: (data: TransferFormData) => void;
   onCancel: () => void;
   pending: boolean;
 }) {
-  const [cabType, setCabType] = useState("");
-  const [pickup, setPickup] = useState("");
-  const [drop, setDrop] = useState("");
-  const [duration, setDuration] = useState("");
+  const [form, setForm] = useState<TransferFormData>({
+    pickup: null, drop: null, vehicle_id: null,
+    num_vehicles: "1", cost_price: "", sell_price: "", notes: "",
+  });
+
+  const isValid = !!form.pickup && !!form.drop;
 
   return (
-    <div className="rounded-lg border border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 p-3 space-y-2">
-      <div className="flex items-center gap-1.5 mb-2">
+    <div className="rounded-lg border border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 p-3 space-y-2.5">
+      <div className="flex items-center gap-1.5">
         <Car className="h-3.5 w-3.5 text-blue-500" />
         <p className="text-xs font-semibold">Add Transfer</p>
       </div>
+      <div className="space-y-1.5">
+        <Label className="text-[10px]">Pickup Location <span className="text-destructive">*</span></Label>
+        <LocationSearchInput
+          value={form.pickup}
+          onChange={(v) => setForm(f => ({ ...f, pickup: v }))}
+          placeholder="Search pickup point…"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-[10px]">Drop Location <span className="text-destructive">*</span></Label>
+        <LocationSearchInput
+          value={form.drop}
+          onChange={(v) => setForm(f => ({ ...f, drop: v }))}
+          placeholder="Search drop point…"
+        />
+      </div>
       <div className="grid grid-cols-2 gap-2">
-        <div>
-          <Label className="text-[10px]">Pickup Point</Label>
-          <Input value={pickup} onChange={(e) => setPickup(e.target.value)} className="h-7 text-xs mt-0.5" placeholder="Delhi Airport" />
+        <div className="space-y-1">
+          <Label className="text-[10px]">Vehicle</Label>
+          <Select
+            value={form.vehicle_id ? String(form.vehicle_id) : "none"}
+            onValueChange={(v) => setForm(f => ({ ...f, vehicle_id: v === "none" ? null : Number(v) }))}
+          >
+            <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Select vehicle…" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No vehicle</SelectItem>
+              {vehicles.map((v) => (
+                <SelectItem key={v.id} value={String(v.id)}>
+                  {v.name} ({v.passenger_capacity} pax)
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        <div>
-          <Label className="text-[10px]">Drop Point</Label>
-          <Input value={drop} onChange={(e) => setDrop(e.target.value)} className="h-7 text-xs mt-0.5" placeholder="Hotel XYZ" />
+        <div className="space-y-1">
+          <Label className="text-[10px]">No. of Vehicles</Label>
+          <Input
+            type="number" min={1} value={form.num_vehicles}
+            onChange={(e) => setForm(f => ({ ...f, num_vehicles: e.target.value }))}
+            className="h-7 text-xs"
+          />
         </div>
-        <div>
-          <Label className="text-[10px]">Cab Type</Label>
-          <Input value={cabType} onChange={(e) => setCabType(e.target.value)} className="h-7 text-xs mt-0.5" placeholder="Tempo Traveller" />
+        <div className="space-y-1">
+          <Label className="text-[10px]">Cost Price (₹)</Label>
+          <Input
+            type="number" min={0} placeholder="0"
+            value={form.cost_price}
+            onChange={(e) => setForm(f => ({ ...f, cost_price: e.target.value }))}
+            className="h-7 text-xs"
+          />
         </div>
-        <div>
-          <Label className="text-[10px]">Duration</Label>
-          <Input value={duration} onChange={(e) => setDuration(e.target.value)} className="h-7 text-xs mt-0.5" placeholder="~4 hrs" />
+        <div className="space-y-1">
+          <Label className="text-[10px]">Sell Price (₹)</Label>
+          <Input
+            type="number" min={0} placeholder="0"
+            value={form.sell_price}
+            onChange={(e) => setForm(f => ({ ...f, sell_price: e.target.value }))}
+            className="h-7 text-xs"
+          />
         </div>
       </div>
+      <div className="space-y-1">
+        <Label className="text-[10px]">Notes</Label>
+        <Input
+          value={form.notes}
+          onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))}
+          className="h-7 text-xs"
+          placeholder="Optional note…"
+        />
+      </div>
       <div className="flex gap-2 pt-1">
-        <Button size="sm" className="h-7 text-xs gap-1" onClick={() => onSave({ cab_type: cabType, pickup_point: pickup, drop_point: drop, duration_text: duration })} disabled={pending || (!pickup && !drop && !cabType)}>
+        <Button size="sm" className="h-7 text-xs gap-1" onClick={() => onSave(form)} disabled={pending || !isValid}>
           {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
           Add
         </Button>
@@ -797,6 +956,12 @@ export function ItineraryDaySidebar({
   const [addMode, setAddMode] = useState<AddMode>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [vehicles, setVehicles] = useState<VehicleOption[]>([]);
+
+  // Load vehicles once
+  useEffect(() => {
+    handleGetVehicles().then((res) => { if (res.success) setVehicles(res.data); });
+  }, []);
 
   const timeline = useMemo(
     () => buildTimeline(transfers, activities, notes, stays, stayBlockOrder),
@@ -879,26 +1044,26 @@ export function ItineraryDaySidebar({
 
   // ── Transfer CRUD ────────────────────────────────────────────────────────
 
-  async function addTransfer(data: { cab_type: string; pickup_point: string; drop_point: string; duration_text: string }) {
+  async function addTransfer(data: TransferFormData) {
     if (!itineraryId) return;
     setPending(true);
-    const res = await handleAddTransfer(itineraryId, data, packageId);
+    const res = await handleAddTransfer(itineraryId, transferFormToInput(data), packageId);
     setPending(false);
     if (!res.success) { toast.error(res.message); return; }
     setAddMode(null);
-    // Refetch to get the new transfer with its id and sort_order
     const refreshed = await handleGetItinerary();
     if (refreshed) setTransfers(refreshed.transfers);
     toast.success("Transfer added");
     onSaved(currentDayData());
   }
 
-  async function saveTransfer(id: number, data: { cab_type: string; pickup_point: string; drop_point: string; duration_text: string }) {
+  async function saveTransfer(id: number, data: TransferFormData) {
     setPending(true);
-    const res = await handleUpdateTransfer(id, data, packageId);
+    const res = await handleUpdateTransfer(id, transferFormToInput(data), packageId);
     setPending(false);
     if (!res.success) { toast.error(res.message); return; }
-    setTransfers((prev) => prev.map((t) => t.id === id ? { ...t, ...data } : t));
+    const refreshed = await handleGetItinerary();
+    if (refreshed) setTransfers(refreshed.transfers);
     setEditingId(null);
     toast.success("Transfer updated");
   }
@@ -1077,7 +1242,7 @@ export function ItineraryDaySidebar({
             {/* Add form panels */}
             {addMode === "transfer" && (
               <div className="mt-3">
-                <AddTransferForm onSave={addTransfer} onCancel={() => setAddMode(null)} pending={pending} />
+                <AddTransferForm vehicles={vehicles} onSave={addTransfer} onCancel={() => setAddMode(null)} pending={pending} />
               </div>
             )}
             {addMode === "activity" && (
@@ -1123,6 +1288,7 @@ export function ItineraryDaySidebar({
                               {item.kind === "transfer" && (
                                 <TransferCard
                                   item={item.data}
+                                  vehicles={vehicles}
                                   editing={editingId === item.dndId}
                                   pending={deletingId === item.dndId}
                                   onEdit={() => setEditingId(editingId === item.dndId ? null : item.dndId)}

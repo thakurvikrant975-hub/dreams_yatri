@@ -14,6 +14,7 @@ import {
   handleGetSourceImages,
   handleUpsertGallerySlot,
   handleClearGallerySlot,
+  handleUpdateGallerySlotLabel,
 } from "@/app/actions/packages/gallery.actions";
 import type { GallerySlot, GallerySourceImages, SourceImage } from "@/app/services/gallery.service";
 import {
@@ -64,15 +65,23 @@ function SlotCard({
   slot,
   active,
   saving,
+  label,
+  savingLabel,
   onSelect,
   onClear,
+  onLabelChange,
+  onLabelBlur,
 }: {
   position: number;
   slot: SlotData;
   active: boolean;
   saving: boolean;
+  label: string;
+  savingLabel: boolean;
   onSelect: () => void;
   onClear: () => void;
+  onLabelChange: (val: string) => void;
+  onLabelBlur: () => void;
 }) {
   const isCover = position === 1;
 
@@ -91,7 +100,7 @@ function SlotCard({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={r2(slot.image_url)}
-            alt={slot.label ?? SLOT_LABELS[position]}
+            alt={label || SLOT_LABELS[position]}
             className="absolute inset-0 w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
@@ -118,6 +127,23 @@ function SlotCard({
           {saving && (
             <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
               <Loader2 className="h-5 w-5 text-white animate-spin" />
+            </div>
+          )}
+          {/* Label input — non-cover slots only */}
+          {!isCover && (
+            <div className="absolute bottom-0 left-0 right-0" onClick={(e) => e.stopPropagation()}>
+              <input
+                type="text"
+                value={label}
+                onChange={(e) => onLabelChange(e.target.value)}
+                onBlur={onLabelBlur}
+                placeholder="Add label…"
+                maxLength={60}
+                className="w-full bg-black/55 text-white text-[10px] px-2 py-1.5 placeholder:text-white/40 focus:outline-none focus:bg-black/75 transition-colors"
+              />
+              {savingLabel && (
+                <Loader2 className="absolute right-1.5 top-1/2 -translate-y-1/2 h-2.5 w-2.5 text-white/60 animate-spin pointer-events-none" />
+              )}
             </div>
           )}
         </>
@@ -264,6 +290,12 @@ export function GalleryTab({ packageId, initialGallery }: Props) {
   const [sourceImages, setSourceImages] = useState<GallerySourceImages | null>(null);
   const [pickerLoading, setPickerLoading] = useState(false);
   const [savingSlot, setSavingSlot] = useState<number | null>(null);
+  const [labels, setLabels] = useState<Record<number, string>>(() =>
+    Object.fromEntries(
+      initialGallery.map((s, i) => [i + 1, s?.label ?? ""]),
+    ),
+  );
+  const [savingLabel, setSavingLabel] = useState<number | null>(null);
 
   const openPicker = useCallback(
     async (position: number) => {
@@ -314,8 +346,25 @@ export function GalleryTab({ packageId, initialGallery }: Props) {
       next[position - 1] = null;
       return next;
     });
+    setLabels((prev) => ({ ...prev, [position]: "" }));
     if (activeSlot === position) setActiveSlot(null);
     toast.success(`${SLOT_LABELS[position]} cleared`);
+  }
+
+  async function handleSaveLabel(position: number) {
+    if (!gallery[position - 1]) return;
+    const current = labels[position] ?? "";
+    const saved = gallery[position - 1]?.label ?? "";
+    if (current === saved) return;
+    setSavingLabel(position);
+    const res = await handleUpdateGallerySlotLabel(packageId, position, current);
+    setSavingLabel(null);
+    if (!res.success) { toast.error(res.message); return; }
+    setGallery((prev) => {
+      const next = [...prev];
+      if (next[position - 1]) next[position - 1] = { ...next[position - 1]!, label: current || null };
+      return next;
+    });
   }
 
   const filledCount = gallery.filter(Boolean).length;
@@ -342,8 +391,12 @@ export function GalleryTab({ packageId, initialGallery }: Props) {
                 slot={gallery[pos - 1]}
                 active={activeSlot === pos}
                 saving={savingSlot === pos}
+                label={labels[pos] ?? ""}
+                savingLabel={savingLabel === pos}
                 onSelect={() => openPicker(pos)}
                 onClear={() => handleClear(pos)}
+                onLabelChange={(val) => setLabels((prev) => ({ ...prev, [pos]: val }))}
+                onLabelBlur={() => handleSaveLabel(pos)}
               />
             ))}
           </div>

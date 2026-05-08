@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import {
   Activity, Search, Pencil, Trash2, Tag,
-  Clock, Users, ImageIcon,
+  Clock, ImageIcon, ExternalLink,
 } from "lucide-react";
 import { Badge }   from "../components/ui/badge";
 import { Button }  from "../components/ui/button";
@@ -51,8 +52,6 @@ function DeleteActivityDialog({
     onDelete: (id: number) => void;
     isPending: boolean;
 }) {
-    const isBlocked = activity._count.packages > 0;
-
     return (
         <AlertDialog>
             <AlertDialogTrigger asChild>
@@ -68,19 +67,14 @@ function DeleteActivityDialog({
                     <AlertDialogTitle>Delete Activity</AlertDialogTitle>
                     <AlertDialogDescription>
                         Delete <span className="font-semibold">{activity.name}</span>?
-                        This also removes all its images.
-                        {isBlocked && (
-                            <span className="block mt-2 font-medium text-destructive">
-                                ⚠ Used in {activity._count.packages} package(s). Remove from packages first.
-                            </span>
-                        )}
+                        All images and variants will be removed.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                     <AlertDialogAction
                         onClick={() => onDelete(activity.id)}
-                        disabled={isBlocked || isPending}
+                        disabled={isPending}
                         className="bg-destructive text-white hover:bg-destructive/90"
                     >
                         Delete
@@ -248,15 +242,14 @@ export function ActivitiesTableClient({
                 <TableHead>Category</TableHead>
                 <TableHead>Difficulty</TableHead>
                 <TableHead>Duration</TableHead>
-                <TableHead>Price</TableHead>
+                <TableHead className="text-center">Variants</TableHead>
                 <TableHead className="text-center">Images</TableHead>
                 <TableHead className="text-center">Status</TableHead>
-                <TableHead className="text-right w-[100px]">Actions</TableHead>
+                <TableHead className="text-right w-30">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.map(activity => {
-                const price    = activity.price ? `₹${activity.price.toLocaleString()}` : null;
                 const duration = activity.duration_hours ? `${activity.duration_hours}h` : null;
 
                 return (
@@ -307,17 +300,10 @@ export function ActivitiesTableClient({
                       ) : <span className="text-xs text-muted-foreground">—</span>}
                     </TableCell>
 
-                    <TableCell>
-                      {price ? (
-                        <div>
-                          <p className="text-sm font-medium">{price}</p>
-                          {activity.pricing_type && (
-                            <p className="text-[11px] text-muted-foreground capitalize">
-                              {activity.pricing_type.replace("_", " ")}
-                            </p>
-                          )}
-                        </div>
-                      ) : <span className="text-xs text-muted-foreground">—</span>}
+                    <TableCell className="text-center">
+                      {activity._count.variants > 0
+                        ? <span className="text-xs font-medium">{activity._count.variants}</span>
+                        : <span className="text-xs text-muted-foreground">—</span>}
                     </TableCell>
 
                     {/* Images — clickable to open sheet */}
@@ -343,6 +329,11 @@ export function ActivitiesTableClient({
 
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                          <Link href={`/dashboard/activities/${activity.id}`}>
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </Link>
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -351,42 +342,11 @@ export function ActivitiesTableClient({
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
-
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete Activity</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Delete <span className="font-semibold">{activity.name}</span>?
-                                All images will be removed from R2.
-                                {activity._count.packages > 0 && (
-                                  <span className="block mt-2 text-destructive font-medium">
-                                    ⚠ Used in {activity._count.packages} package(s). Remove from packages first.
-                                  </span>
-                                )}
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDelete(activity.id)}
-                                disabled={activity._count.packages > 0 || isPending}
-                                className="bg-destructive text-white hover:bg-destructive/90"
-                              >
-                                Delete
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                        <DeleteActivityDialog
+                          activity={activity}
+                          onDelete={handleDelete}
+                          isPending={isPending}
+                        />
                       </div>
                     </TableCell>
                   </TableRow>

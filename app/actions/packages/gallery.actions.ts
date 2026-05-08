@@ -6,6 +6,7 @@ import {
   getPackageSourceImages,
   upsertGallerySlot,
   clearGallerySlot,
+  updateGallerySlotLabel,
   type GallerySlot,
   type GallerySourceImages,
 } from "@/app/services/gallery.service";
@@ -51,5 +52,15 @@ export async function handleClearGallerySlot(packageId: number, position: number
     return { success: true as const };
   } catch {
     return { success: false as const, message: "Failed to clear gallery slot" };
+  }
+}
+
+export async function handleUpdateGallerySlotLabel(packageId: number, position: number, label: string) {
+  try {
+    await updateGallerySlotLabel(packageId, position, label);
+    revalidatePath(`/dashboard/packages/${packageId}`);
+    return { success: true as const };
+  } catch {
+    return { success: false as const, message: "Failed to update label" };
   }
 }

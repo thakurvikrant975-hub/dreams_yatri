@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { CabTypeSchema } from "./package.validator";
 
 // ── Stay ───────────────────────────────────────────────────────────────────────
 
@@ -32,11 +31,19 @@ export type AddActivityDTO = z.infer<typeof AddActivitySchema>;
 
 export const AddTransferSchema = z.object({
   itinerary_id: z.number().int().positive(),
-  // stored as String? in schema but validated against enum
-  cab_type: CabTypeSchema.optional(),
-  pickup_point: z.string().max(255).optional(),
-  drop_point: z.string().max(255).optional(),
-  duration_text: z.string().max(100).optional(),
+  pickup_name: z.string().min(1).max(255),
+  pickup_place_id: z.string().max(255).optional().nullable(),
+  pickup_lat: z.number().optional().nullable(),
+  pickup_lng: z.number().optional().nullable(),
+  drop_name: z.string().min(1).max(255),
+  drop_place_id: z.string().max(255).optional().nullable(),
+  drop_lat: z.number().optional().nullable(),
+  drop_lng: z.number().optional().nullable(),
+  vehicle_id: z.number().int().positive().optional().nullable(),
+  num_vehicles: z.number().int().min(1).default(1),
+  cost_price: z.number().min(0).optional().nullable(),
+  sell_price: z.number().min(0).optional().nullable(),
+  notes: z.string().max(1000).optional().nullable(),
   sort_order: z.number().int().min(0).default(0),
 });
 

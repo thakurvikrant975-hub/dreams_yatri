@@ -13,11 +13,13 @@ import { RouteBuilderTab } from "./RouteBuilderTab";
 import { ItineraryBuilderTab } from "./ItineraryBuilderTab";
 import { PoliciesTab } from "./PoliciesTab";
 import { GalleryTab } from "./GalleryTab";
+import { PricingTab } from "./PricingTab";
+import { PricingPreviewTab } from "./PricingPreviewTab";
 import { POLICY_TYPES, type PolicyType } from "../../policies/constants";
 import { getPackageForBuilder } from "../actions";
 import {
   CalendarDays, GalleryHorizontal, Images, Info, Package, Route,
-  ShieldCheck, BadgeDollarSign,
+  ShieldCheck, BadgeDollarSign, Settings2,
 } from "lucide-react";
 
 // ── Tab shell ─────────────────────────────────────────────────────────────
@@ -29,6 +31,7 @@ const TABS = [
   { value: "itinerary-builder",   label: "Itinerary Builder",   icon: CalendarDays },
   { value: "policies",            label: "Policies",            icon: ShieldCheck },
   { value: "gallery",             label: "Gallery",             icon: GalleryHorizontal },
+  { value: "pricing",             label: "Pricing",             icon: Settings2 },
   { value: "pricing-preview",     label: "Pricing Preview",     icon: BadgeDollarSign },
 ] as const;
 
@@ -194,9 +197,42 @@ export default async function PackageBuilderPage({
           />
         </TabsContent>
 
-        {/* Tab 7 — Pricing Preview */}
+        {/* Tab 7 — Pricing (margin / GST config) */}
+        <TabsContent value="pricing" className="pt-6">
+          <PricingTab
+            packageId={pkg.id}
+            durations={pkg.durations.map((d) => ({
+              id: d.id,
+              label: d.label,
+              days: d.days,
+              nights: d.nights,
+            }))}
+            stayCategories={pkg.stay_categories.map((c) => ({
+              id: c.id,
+              label: c.label,
+              slug: c.slug,
+            }))}
+            initialPricings={pkg.packagePricings}
+          />
+        </TabsContent>
+
+        {/* Tab 8 — Pricing Preview (interactive calculator) */}
         <TabsContent value="pricing-preview" className="pt-6">
-          <PlaceholderTab label="Pricing Preview" />
+          <PricingPreviewTab
+            packageId={pkg.id}
+            durations={pkg.durations.map((d) => ({
+              id: d.id,
+              label: d.label,
+              days: d.days,
+              nights: d.nights,
+              routes: d.routes.map((r) => ({ id: r.id, name: r.name })),
+            }))}
+            stayCategories={pkg.stay_categories.map((c) => ({
+              id: c.id,
+              label: c.label,
+              slug: c.slug,
+            }))}
+          />
         </TabsContent>
       </Tabs>
     </div>

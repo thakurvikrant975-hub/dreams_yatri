@@ -5,10 +5,19 @@ import { db } from "../lib/db";
 // ── Exported types ─────────────────────────────────────────────────────────
 
 export type TransferInput = {
-  cab_type?: string | null;
-  pickup_point?: string | null;
-  drop_point?: string | null;
-  duration_text?: string | null;
+  pickup_name: string;
+  pickup_place_id?: string | null;
+  pickup_lat?: number | null;
+  pickup_lng?: number | null;
+  drop_name: string;
+  drop_place_id?: string | null;
+  drop_lat?: number | null;
+  drop_lng?: number | null;
+  vehicle_id?: number | null;
+  num_vehicles?: number;
+  cost_price?: number | null;
+  sell_price?: number | null;
+  notes?: string | null;
 };
 
 export type NoteInput = {
@@ -33,11 +42,34 @@ export type ActivityItem = {
 export type TransferItem = {
   id: number;
   itinerary_id: number;
-  cab_type: string | null;
-  pickup_point: string | null;
-  drop_point: string | null;
-  duration_text: string | null;
+  route_id: number | null;
+  vehicle_id: number | null;
+  num_vehicles: number;
+  cost_price: number | null;
+  sell_price: number | null;
+  notes: string | null;
   sort_order: number;
+  route: {
+    id: number;
+    pickup_name: string;
+    drop_name: string;
+    distance_km: number | null;
+    duration_min: number | null;
+  } | null;
+  vehicle: {
+    id: number;
+    name: string;
+    type: string;
+    passenger_capacity: number;
+  } | null;
+};
+
+export type VehicleOption = {
+  id: number;
+  name: string;
+  type: string;
+  passenger_capacity: number;
+  luggage_bags: number;
 };
 
 export type NoteItem = {
@@ -110,7 +142,13 @@ export async function getItineraryData(
           activity: { select: { id: true, name: true, duration_hours: true, category: true } },
         },
       },
-      itinerary_transfers: { orderBy: { sort_order: "asc" } },
+      itinerary_transfers: {
+          orderBy: { sort_order: "asc" },
+          include: {
+            route: { select: { id: true, pickup_name: true, drop_name: true, distance_km: true, duration_min: true } },
+            vehicle: { select: { id: true, name: true, type: true, passenger_capacity: true } },
+          },
+        },
       itinerary_notes: { orderBy: { sort_order: "asc" } },
       itineraryStays: {
         include: {
@@ -151,7 +189,30 @@ export async function getItineraryData(
           duration_hours: ia.activity.duration_hours != null ? Number(ia.activity.duration_hours) : null,
         },
       })),
-      transfers: rec.itinerary_transfers,
+      transfers: rec.itinerary_transfers.map((t) => ({
+          id: t.id,
+          itinerary_id: t.itinerary_id,
+          route_id: t.route_id,
+          vehicle_id: t.vehicle_id,
+          num_vehicles: t.num_vehicles,
+          cost_price: t.cost_price != null ? Number(t.cost_price) : null,
+          sell_price: t.sell_price != null ? Number(t.sell_price) : null,
+          notes: t.notes,
+          sort_order: t.sort_order,
+          route: t.route ? {
+            id: t.route.id,
+            pickup_name: t.route.pickup_name,
+            drop_name: t.route.drop_name,
+            distance_km: t.route.distance_km != null ? Number(t.route.distance_km) : null,
+            duration_min: t.route.duration_min,
+          } : null,
+          vehicle: t.vehicle ? {
+            id: t.vehicle.id,
+            name: t.vehicle.name,
+            type: t.vehicle.type,
+            passenger_capacity: t.vehicle.passenger_capacity,
+          } : null,
+        })),
       notes: rec.itinerary_notes,
       stays: rec.itineraryStays.map((s) => ({
         id: s.id,
@@ -220,29 +281,98 @@ export async function deleteItineraryActivity(id: number) {
 
 // ── Transfers ──────────────────────────────────────────────────────────────
 
+async function findOrCreateRoute(data: TransferInput): Promise<number | null> {
+  if (!data.pickup_name || !data.drop_name) return null;
+
+  // Try to find existing route by place IDs first
+  if (data.pickup_place_id && data.drop_place_id) {
+    const existing = await db.transfer_routes.findFirst({
+      where: { pickup_place_id: data.pickup_place_id, drop_place_id: data.drop_place_id },
+      select: { id: true },
+    });
+    if (existing) return existing.id;
+  }
+
+  // Compute road distance from Mapbox Directions API
+  let distance_km: number | null = null;
+  let duration_min: number | null = null;
+  if (data.pickup_lat && data.pickup_lng && data.drop_lat && data.drop_lng) {
+    try {
+      const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+      if (token) {
+        const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${data.pickup_lng},${data.pickup_lat};${data.drop_lng},${data.drop_lat}?access_token=${token}&overview=false`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const json = await res.json();
+          const route = json.routes?.[0];
+          if (route) {
+            distance_km = Math.round((route.distance / 1000) * 10) / 10;
+            duration_min = Math.round(route.duration / 60);
+          }
+        }
+      }
+    } catch {
+      // distance will be null if Mapbox call fails
+    }
+  }
+
+  const route = await db.transfer_routes.create({
+    data: {
+      pickup_name: data.pickup_name,
+      pickup_place_id: data.pickup_place_id ?? null,
+      pickup_lat: data.pickup_lat ?? null,
+      pickup_lng: data.pickup_lng ?? null,
+      drop_name: data.drop_name,
+      drop_place_id: data.drop_place_id ?? null,
+      drop_lat: data.drop_lat ?? null,
+      drop_lng: data.drop_lng ?? null,
+      distance_km,
+      duration_min,
+    },
+    select: { id: true },
+  });
+  return route.id;
+}
+
 export async function addItineraryTransfer(itineraryId: number, data: TransferInput) {
-  const order = await nextSortOrder(itineraryId);
+  const [order, routeId] = await Promise.all([
+    nextSortOrder(itineraryId),
+    findOrCreateRoute(data),
+  ]);
   return db.itinerary_transfers.create({
     data: {
       itinerary_id: itineraryId,
-      cab_type: data.cab_type ?? null,
-      pickup_point: data.pickup_point ?? null,
-      drop_point: data.drop_point ?? null,
-      duration_text: data.duration_text ?? null,
+      route_id: routeId,
+      vehicle_id: data.vehicle_id ?? null,
+      num_vehicles: data.num_vehicles ?? 1,
+      cost_price: data.cost_price ?? null,
+      sell_price: data.sell_price ?? null,
+      notes: data.notes ?? null,
       sort_order: order,
     },
   });
 }
 
 export async function updateItineraryTransfer(id: number, data: TransferInput) {
+  const routeId = await findOrCreateRoute(data);
   return db.itinerary_transfers.update({
     where: { id },
     data: {
-      cab_type: data.cab_type ?? null,
-      pickup_point: data.pickup_point ?? null,
-      drop_point: data.drop_point ?? null,
-      duration_text: data.duration_text ?? null,
+      route_id: routeId,
+      vehicle_id: data.vehicle_id ?? null,
+      num_vehicles: data.num_vehicles ?? 1,
+      cost_price: data.cost_price ?? null,
+      sell_price: data.sell_price ?? null,
+      notes: data.notes ?? null,
     },
+  });
+}
+
+export async function getVehicles(): Promise<VehicleOption[]> {
+  return db.vehicles.findMany({
+    where: { is_active: true },
+    orderBy: [{ type: "asc" }, { name: "asc" }],
+    select: { id: true, name: true, type: true, passenger_capacity: true, luggage_bags: true },
   });
 }
 

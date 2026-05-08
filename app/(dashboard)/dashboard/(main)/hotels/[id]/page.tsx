@@ -17,6 +17,7 @@ import {
 import { DetailsTab } from "./tabs/DetailsTab";
 import { RoomsTab } from "./tabs/RoomsTab";
 import { PricingTab } from "./tabs/PricingTab";
+import { ChildPoliciesTab } from "./tabs/ChildPoliciesTab";
 import { ImagesTab } from "./tabs/ImagesTab";
 
 export default async function HotelEditPage({
@@ -49,6 +50,12 @@ export default async function HotelEditPage({
                 original_price: p.original_price ? Number(p.original_price) : null,
                 extra_bed_rate: p.extra_bed_rate ? Number(p.extra_bed_rate) : null,
                 margin_percentage: Number(p.margin_percentage),
+                gst_percentage: Number(p.gst_percentage),
+                occupancy_prices: p.occupancy_prices.map((op) => ({
+                    ...op,
+                    price_per_night: Number(op.price_per_night),
+                    original_price: op.original_price ? Number(op.original_price) : null,
+                })),
             })),
         })),
         room_pricing: hotel.room_pricing.map((p) => ({
@@ -57,6 +64,12 @@ export default async function HotelEditPage({
             original_price: p.original_price ? Number(p.original_price) : null,
             extra_bed_rate: p.extra_bed_rate ? Number(p.extra_bed_rate) : null,
             margin_percentage: Number(p.margin_percentage),
+            gst_percentage: Number(p.gst_percentage),
+            occupancy_prices: p.occupancy_prices.map((op) => ({
+                ...op,
+                price_per_night: Number(op.price_per_night),
+                original_price: op.original_price ? Number(op.original_price) : null,
+            })),
         })),
     };
 
@@ -76,6 +89,7 @@ export default async function HotelEditPage({
     );
     const totalRooms = hotel.hotelRooms.length;
     const totalPlans = hotel.room_pricing.length;
+    const totalChildPolicies = hotel.childPolicies.length;
 
     return (
         <div className="space-y-6 w-full">
@@ -115,7 +129,7 @@ export default async function HotelEditPage({
 
             {/* Tabs */}
             <Tabs defaultValue="details">
-                <TabsList className="grid w-full grid-cols-4">
+                <TabsList className="grid w-full grid-cols-5">
                     <TabsTrigger value="details">Details</TabsTrigger>
                     <TabsTrigger value="rooms">
                         Rooms
@@ -130,6 +144,14 @@ export default async function HotelEditPage({
                         {totalPlans > 0 && (
                             <Badge variant="secondary" className="ml-2 text-xs px-1.5 py-0">
                                 {totalPlans}
+                            </Badge>
+                        )}
+                    </TabsTrigger>
+                    <TabsTrigger value="child-policies">
+                        Child Policies
+                        {totalChildPolicies > 0 && (
+                            <Badge variant="secondary" className="ml-2 text-xs px-1.5 py-0">
+                                {totalChildPolicies}
                             </Badge>
                         )}
                     </TabsTrigger>
@@ -164,6 +186,16 @@ export default async function HotelEditPage({
                         pricing={serializedHotel.room_pricing}
                         mealTypes={mealTypes}
                         dietTypes={dietTypes}
+                    />
+                </TabsContent>
+
+                <TabsContent value="child-policies" className="mt-6">
+                    <ChildPoliciesTab
+                        hotel_id={id}
+                        initialPolicies={hotel.childPolicies.map((p) => ({
+                            ...p,
+                            price: p.price ? Number(p.price) : null,
+                        }))}
                     />
                 </TabsContent>
 
