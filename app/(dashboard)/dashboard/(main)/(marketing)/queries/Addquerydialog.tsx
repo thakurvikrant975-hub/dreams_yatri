@@ -114,7 +114,7 @@ export function AddQueryDialog() {
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
+            <DialogTrigger asChild className="bg-dashboard-primary text-dashboard-accent-content rounded-md p-5">
                 <Button size="sm" className="gap-2">
                     <Plus className="h-4 w-4" /> Add Query
                 </Button>

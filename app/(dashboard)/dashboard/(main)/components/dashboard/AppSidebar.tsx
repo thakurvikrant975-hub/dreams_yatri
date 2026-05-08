@@ -145,21 +145,20 @@ export function AppSidebar() {
                         <SidebarMenuItem key={item.href}>
                           <SidebarMenuButton
                             asChild
-                            isActive={active}
                             className={cn(
-                              "h-9 px-3 rounded-lg transition-all duration-150",
+                              "h-8 px-3 rounded-md transition-all duration-150",
                               active
-                                ? "bg-dashboard-base-content text-dashboard-base-content font-medium"
-                                : "text-dashboard-base-content hover:bg-dashboard-base-300 hover:text-dashboard-base-content"
+                                ? "bg-dashboard-primary/10 text-dashboard-primary font-medium"
+                                : "text-dashboard-neutral hover:bg-dashboard-primary/10 hover:text-dashboard- "
                             )}
                           >
-                            <Link href={item.href} className="flex items-center gap-2.5">
+                            <Link href={item.href} className="flex items-center gap-2.5 cursor-pointer">
                               <IconComponent
                                 weight={item.phosphor ? "duotone" : undefined}
-                                className="size-[18px] shrink-0"
+                                className="size-[20px] shrink-0"
                                 style={{ color: "inherit" }}
                               />
-                              <span className="text-[13px] leading-none">{item.title}</span>
+                              <span className="text-[15px] leading-none">{item.title}</span>
                             </Link>
                           </SidebarMenuButton>
                         </SidebarMenuItem>

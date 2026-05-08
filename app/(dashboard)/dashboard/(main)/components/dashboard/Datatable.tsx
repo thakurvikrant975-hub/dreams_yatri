@@ -26,9 +26,9 @@ function TablePagination({
     buildHref,
     onPageChange,
 }: {
-    currentPage:   number;
-    totalPages:    number;
-    buildHref?:    (page: number) => string;
+    currentPage: number;
+    totalPages: number;
+    buildHref?: (page: number) => string;
     onPageChange?: (page: number) => void;
 }) {
     if (totalPages <= 1) return null;
@@ -51,7 +51,7 @@ function TablePagination({
         if (currentPage > 3) pages.push("ellipsis");
 
         const start = Math.max(2, currentPage - 1);
-        const end   = Math.min(totalPages - 1, currentPage + 1);
+        const end = Math.min(totalPages - 1, currentPage + 1);
         for (let i = start; i <= end; i++) pages.push(i);
 
         if (currentPage < totalPages - 2) pages.push("ellipsis");
@@ -78,28 +78,28 @@ function TablePagination({
                         />
                     </PaginationItem>
 
-  {getPageNumbers().map((p, i) =>
-    p === "ellipsis" ? (
-        <PaginationItem key={`e-${i}`}>
-            <PaginationEllipsis className="text-dashboard-base-content/45" />
-        </PaginationItem>
-    ) : (
-        <PaginationItem key={p}>
-            <PaginationLink
-                href={href(p)}
-                onClick={(e) => handleClick(e, p)}
-                isActive={p === currentPage}
-                className={
-                    p === currentPage
-                        ? "bg-dashboard-neutral text-dashboard-neutral-content border-dashboard-neutral"
-                        : "text-dashboard-base-content hover:bg-dashboard-neutral/5 border-transparent"
-                }
-            >
-                {p}
-            </PaginationLink>
-        </PaginationItem>
-    ),
-)}
+                    {getPageNumbers().map((p, i) =>
+                        p === "ellipsis" ? (
+                            <PaginationItem key={`e-${i}`}>
+                                <PaginationEllipsis className="text-dashboard-base-content/45" />
+                            </PaginationItem>
+                        ) : (
+                            <PaginationItem key={p}>
+                                <PaginationLink
+                                    href={href(p)}
+                                    onClick={(e) => handleClick(e, p)}
+                                    isActive={p === currentPage}
+                                    className={
+                                        p === currentPage
+                                            ? "bg-dashboard-neutral text-dashboard-neutral-content border-dashboard-neutral"
+                                            : "text-dashboard-base-content hover:bg-dashboard-neutral/5 border-transparent"
+                                    }
+                                >
+                                    {p}
+                                </PaginationLink>
+                            </PaginationItem>
+                        ),
+                    )}
 
                     <PaginationItem>
                         <PaginationNext
@@ -120,17 +120,17 @@ function TablePagination({
 
 // ── DataTable ─────────────────────────────────────────────────────────────────
 interface DataTableProps<T> {
-    data:           T[];
-    columns:        ColumnDef<T>[];
-    rowKey:         (row: T) => string | number;
-    onRowClick?:    (row: T) => void;
-    rowClassName?:  (row: T) => string;
+    data: T[];
+    columns: ColumnDef<T>[];
+    rowKey: (row: T) => string | number;
+    onRowClick?: (row: T) => void;
+    rowClassName?: (row: T) => string;
     renderSubRows?: (row: T) => React.ReactNode;
-    emptyState?:    React.ReactNode;
+    emptyState?: React.ReactNode;
     pagination?: {
-        currentPage:   number;
-        totalPages:    number;
-        buildHref?:    (page: number) => string;
+        currentPage: number;
+        totalPages: number;
+        buildHref?: (page: number) => string;
         onPageChange?: (page: number) => void;
     };
 }
@@ -146,9 +146,9 @@ export function DataTable<T>({
     pagination,
 }: DataTableProps<T>) {
     const alignClass = {
-        left:   "text-left",
+        left: "text-left",
         center: "text-center",
-        right:  "text-right",
+        right: "text-right",
     };
 
     return (

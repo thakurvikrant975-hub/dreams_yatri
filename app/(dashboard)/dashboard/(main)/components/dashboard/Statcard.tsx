@@ -29,10 +29,7 @@ export function StatCard({
   return (
     <div
       className={cn(
-        "rounded-xl px-4 py-3.5 space-y-3 border",
-        highlight
-          ? "bg-dashboard-primary border-dashboard-primary"
-          : "bg-dashboard-base-100 border-dashboard-base-300",
+        "rounded-xl px-4 py-3.5 space-y-3 border bg-dashboard-base-100 border-dashboard-base-300",
         className
       )}
     >
@@ -42,8 +39,8 @@ export function StatCard({
           {label}
         </p>
         {Icon && (
-          <div className={cn("h-12 w-12 rounded-lg flex items-center justify-center", iconColor)}>
-            <Icon className={cn("h-4.5 w-4.5", iconText)} />
+          <div className={cn("h-12 w-12 rounded-lg flex items-center justify-center bg-dashboard-primary/6")}>
+            <Icon className={cn("h-4.5 w-4.5 text-dashboard-primary")} />
           </div>
         )}
       </div>
@@ -76,13 +73,14 @@ export function StatCard({
   );
 }
 
+// In Statcard.tsx — update StatGrid
 export function StatGrid({
   children,
   cols = 4,
   className,
 }: {
   children: React.ReactNode;
-  cols?: 2 | 3 | 4 | 5;
+  cols?: 2 | 3 | 4 | 5 | 6;   // ← add 6
   className?: string;
 }) {
   const colClass = {
@@ -90,6 +88,7 @@ export function StatGrid({
     3: "grid-cols-1 sm:grid-cols-3",
     4: "grid-cols-2 sm:grid-cols-4",
     5: "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5",
+    6: "grid-cols-2 sm:grid-cols-3 lg:grid-cols-6",  // ← add this
   }[cols];
 
   return (
