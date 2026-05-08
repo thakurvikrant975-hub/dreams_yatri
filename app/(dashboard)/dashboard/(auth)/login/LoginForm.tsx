@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { loginAction, type LoginState } from "./actions";
+import Image from "next/image";
 
 import {
   EnvelopeSimple,
@@ -23,8 +24,12 @@ import {
 } from "../../(main)/components/ui/dialog";
 const initialState: LoginState = {};
 
+type ForgotPasswordDialogProps = {
+  open: boolean;
+  setOpen: React.Dispatch<React.SetStateAction<boolean>>;
+};
 
-export function ForgotPasswordDialog({ open, setOpen }) {
+export function ForgotPasswordDialog({ open, setOpen }: ForgotPasswordDialogProps) {
   return (
     <>
 
@@ -34,9 +39,13 @@ export function ForgotPasswordDialog({ open, setOpen }) {
           {/* Playful Icon */}
           <div className="flex justify-center mb-2">
             <div className="relative">
-              <div className="w-20 h-20 rounded-full bg-red-50 flex items-center justify-center text-4xl shadow-inner">
-                🔐
-              </div>
+              <Image
+                src="/dashboard/login-security3.jpg"
+                alt="Login security"
+                width={80}
+                height={80}
+                className="rounded-full bg-red-50 shadow-inner object-cover"
+              />
             </div>
           </div>
 
@@ -63,9 +72,9 @@ export function ForgotPasswordDialog({ open, setOpen }) {
 
           {/* Contact Hint */}
           <div className="mt-3 flex items-center justify-center gap-2 text-xs text-gray-400">
-            <span>💬</span>
+            <span>🚨</span>
             <span>
-              Just walk over — they don&apos;t bite.
+              No stress — security doing its job.
             </span>
           </div>
 
@@ -236,7 +245,7 @@ export default function LoginForm() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors duration-200"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors duration-200 cursor-pointer"
                 aria-label={showPassword ? "Hide password" : "Show password"}
               >
                 {showPassword ? (
@@ -252,16 +261,16 @@ export default function LoginForm() {
           </div>
 
           {/* Forgot password */}
-      {/* Forgot Password Trigger */}
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="text-xs font-medium text-red-500 hover:text-red-600 transition-colors duration-200"
-        >
-          Forgot password?
-        </button>
-      </div>
+          {/* Forgot Password Trigger */}
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="text-xs font-medium text-red-500 hover:text-red-600 transition-colors duration-200 cursor-pointer"
+            >
+              Forgot password?
+            </button>
+          </div>
 
           {/* Submit */}
           <button
@@ -323,7 +332,7 @@ export default function LoginForm() {
         <div className="flex items-center gap-3 my-6">
           <div className="flex-1 h-px bg-gray-200" />
           <span className="text-xs text-gray-400">
-            DreamsYatri © {new Date().getFullYear()}
+            DreamsYatri © {new Date().getFullYear()} — The Journey to a Billion-Dollar Vision
           </span>
           <div className="flex-1 h-px bg-gray-200" />
         </div>
