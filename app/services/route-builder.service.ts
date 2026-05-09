@@ -46,10 +46,15 @@ async function findOrCreateDuration(packageId: number, days: number, nights: num
   if (existing) return existing;
 
   const base = `${days}d-${nights}n`;
-  const count = await db.package_durations.count({
-    where: { package_id: packageId, slug: { startsWith: base } },
-  });
-  const slug = count === 0 ? base : `${base}-${count}`;
+  const [slugCount, hasDefault] = await Promise.all([
+    db.package_durations.count({
+      where: { package_id: packageId, slug: { startsWith: base } },
+    }),
+    db.package_durations.count({
+      where: { package_id: packageId, is_default: true },
+    }),
+  ]);
+  const slug = slugCount === 0 ? base : `${base}-${slugCount}`;
 
   return db.package_durations.create({
     data: {
@@ -58,7 +63,7 @@ async function findOrCreateDuration(packageId: number, days: number, nights: num
       label: `${days}D / ${nights}N`,
       days,
       nights,
-      is_default: false,
+      is_default: hasDefault === 0,
       sort_order: 0,
     },
   });

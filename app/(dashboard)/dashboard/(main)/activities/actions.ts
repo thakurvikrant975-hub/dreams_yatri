@@ -32,6 +32,8 @@ export type ActivityItem = {
   category:       string | null;
   difficulty:     string | null;
   duration_hours: number | null;
+  latitude:       number | null;
+  longitude:      number | null;
   is_active:      boolean;
   created_at:     Date;
   destination:    { id: number; name: string };
@@ -94,6 +96,8 @@ const ActivitySchema = z.object({
   difficulty:     z.string().optional(),
   duration_hours: z.coerce.number().min(0).optional(),
   is_active:      z.boolean().default(true),
+  latitude:       z.coerce.number().nullable().optional(),
+  longitude:      z.coerce.number().nullable().optional(),
 });
 
 // ── Read ──────────────────────────────────────────────────────────────────
@@ -114,6 +118,8 @@ export async function getActivities(): Promise<ActivityItem[]> {
   return rows.map(a => ({
     ...a,
     duration_hours: a.duration_hours ? Number(a.duration_hours) : null,
+    latitude:       a.latitude  ? Number(a.latitude)  : null,
+    longitude:      a.longitude ? Number(a.longitude) : null,
   }));
 }
 
@@ -197,6 +203,8 @@ export async function createActivity(
     difficulty:     formData.get("difficulty")     || undefined,
     duration_hours: formData.get("duration_hours") || undefined,
     is_active:      formData.get("is_active") === "true",
+    latitude:       formData.get("latitude")  || undefined,
+    longitude:      formData.get("longitude") || undefined,
   };
 
   const parsed = ActivitySchema.safeParse(raw);
@@ -236,6 +244,8 @@ export async function updateActivity(
     difficulty:     formData.get("difficulty")     || undefined,
     duration_hours: formData.get("duration_hours") || undefined,
     is_active:      formData.get("is_active") === "true",
+    latitude:       formData.get("latitude")  || undefined,
+    longitude:      formData.get("longitude") || undefined,
   };
 
   const parsed = ActivitySchema.safeParse(raw);

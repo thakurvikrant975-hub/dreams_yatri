@@ -42,6 +42,10 @@ export default async function HotelEditPage({
         ...hotel,
         latitude: hotel.latitude ? Number(hotel.latitude) : null,
         longitude: hotel.longitude ? Number(hotel.longitude) : null,
+        childPolicies: hotel.childPolicies.map((p) => ({
+            ...p,
+            price: p.price ? Number(p.price) : null,
+        })),
         hotelRooms: hotel.hotelRooms.map((room) => ({
             ...room,
             pricing: room.pricing.map((p) => ({
@@ -192,10 +196,7 @@ export default async function HotelEditPage({
                 <TabsContent value="child-policies" className="mt-6">
                     <ChildPoliciesTab
                         hotel_id={id}
-                        initialPolicies={hotel.childPolicies.map((p) => ({
-                            ...p,
-                            price: p.price ? Number(p.price) : null,
-                        }))}
+                        initialPolicies={serializedHotel.childPolicies}
                     />
                 </TabsContent>
 

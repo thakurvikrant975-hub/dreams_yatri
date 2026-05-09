@@ -18,6 +18,7 @@ import {
   reorderDayItems,
   searchActivities,
   searchRoomPricings,
+  getActivityVariants,
   getStayCategories,
   createStayCategory,
   updateStayCategory,
@@ -59,14 +60,24 @@ export async function handleUpsertDayMeta(
   }
 }
 
+export async function handleGetActivityVariants(activityId: number) {
+  try {
+    const data = await getActivityVariants(activityId);
+    return { success: true as const, data };
+  } catch {
+    return { success: false as const, data: [] as Awaited<ReturnType<typeof getActivityVariants>>, message: "Failed to load variants" };
+  }
+}
+
 export async function handleAddActivity(
   itineraryId: number,
   activityId: number,
   isOptional: boolean,
   packageId: number,
+  variantId?: number | null,
 ) {
   try {
-    await addItineraryActivity(itineraryId, activityId, isOptional);
+    await addItineraryActivity(itineraryId, activityId, isOptional, variantId);
     revalidatePath(p(packageId));
     return { success: true as const };
   } catch {
@@ -76,7 +87,7 @@ export async function handleAddActivity(
 
 export async function handleUpdateActivity(
   id: number,
-  data: { is_optional?: boolean; sort_order?: number },
+  data: { is_optional?: boolean; sort_order?: number; variant_id?: number | null },
   packageId: number,
 ) {
   try {

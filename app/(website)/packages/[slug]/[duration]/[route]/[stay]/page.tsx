@@ -1,8 +1,8 @@
-// things to do - 
+// things to do -
 // 1. .room_pricing?.[0] to actual option in original and discounted price calculation
 
 import { notFound } from "next/navigation";
-import { packagesRepository } from "@/app/repositories/packages.repository";
+import { fetchPackagePageData, getActivePackageParams } from "@/app/actions/packages/fetch-page-data";
 import PackageHero from "./components/hero";
 import PackageTab from "./components/PackageTab";
 import TripDuration from "./components/inputs/TripDuration";
@@ -11,9 +11,13 @@ import PricingCard from "./components/SidebarCards/PricingCard";
 import CoupenCard from "./components/SidebarCards/CoupenCard";
 import EnquiryForm from "./components/SidebarCards/EnquiryForm";
 import ItinerarySection, { ItineraryDay, DaySection } from "./components/Itnary";
-import { RouteOption } from "@/app/types/package-page.types";
 import DestinationRoutes from "./components/inputs/DestinationRoutes";
 
+export const revalidate = 3600;
+
+export async function generateStaticParams() {
+    return getActivePackageParams();
+}
 
 export async function generateMetadata({
     params,
@@ -21,14 +25,11 @@ export async function generateMetadata({
     params: Promise<{ slug: string; duration: string; route: string; stay: string }>;
 }) {
     const { slug, duration, route, stay } = await params;
-
-    const result = await packagesRepository.findPageData(slug, duration, route, stay);
-    if (!result.success) return {};
-
-    const data = result.data;
+    const data = await fetchPackagePageData(slug, duration, route, stay);
+    if (!data) return {};
     return {
-        title: data.currentDuration.meta_title ?? `${data.title} | Dreams Yatri`,
-        description: data.currentDuration.meta_desc ?? data.description,
+        title: data.selectedRoute?.meta_title ?? `${data.title} | Dreams Yatri`,
+        description: data.selectedRoute?.meta_desc ?? data.description,
     };
 }
 
@@ -37,19 +38,14 @@ export default async function PackagePage({
 }: {
     params: Promise<{ slug: string; duration: string; route: string; stay: string }>;
 }) {
-    // const { slug, duration, route, stay } = await params;
+    const { slug: _slug, duration: _duration, route: _route, stay: _stay } = await params;
 
-    // const result = await packagesRepository.findPageData(slug, duration, route, stay);
+    const pageData = await fetchPackagePageData(_slug, _duration, _route, _stay);
+    if (!pageData) notFound();
 
-    // if (!result.success) {
-    //     if (result.error.code === "NOT_FOUND") notFound();
-    //     throw new Error(result.error.message);
-    // }
+    console.log("[PackagePage] data:", pageData);
 
-    // const data = result.data;
-
-    // console.log(data);
-
+    // UI still uses mock data — integration pending
     const slug = "kashmir-great-lakes-trek";
     const duration = "7d-6n";
     const route = "srinagar-sonamarg";
@@ -465,7 +461,6 @@ export default async function PackagePage({
         ] as DaySection[]
     }))
 
-    console.log(itinerary);
 
 
 

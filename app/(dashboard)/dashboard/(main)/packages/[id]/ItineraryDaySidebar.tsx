@@ -48,6 +48,7 @@ import {
   handleSearchActivities,
   handleSearchRoomPricings,
   handleGetVehicles,
+  handleGetActivityVariants,
 } from "@/app/actions/packages/itinerary-builder.actions";
 import type {
   DayData,
@@ -57,8 +58,10 @@ import type {
   StayItem,
   ReorderItem,
   VehicleOption,
+  ActivityVariantOption,
 } from "@/app/services/itinerary-builder.service";
-import { LocationSearchInput, type LocationResult } from "../../components/dashboard/LocationSearchInput";
+import { LocationPickerField } from "../../components/dashboard/LocationPickerField";
+import type { LocationResult } from "../../components/dashboard/LocationSearchInput";
 import {
   GripVertical,
   Loader2,
@@ -261,7 +264,7 @@ function TransferCard({
           </div>
           <div className="space-y-1.5">
             <Label className="text-[10px]">Pickup Location <span className="text-destructive">*</span></Label>
-            <LocationSearchInput
+            <LocationPickerField
               value={form.pickup}
               onChange={(v) => setForm(f => ({ ...f, pickup: v }))}
               placeholder="Search pickup point…"
@@ -269,7 +272,7 @@ function TransferCard({
           </div>
           <div className="space-y-1.5">
             <Label className="text-[10px]">Drop Location <span className="text-destructive">*</span></Label>
-            <LocationSearchInput
+            <LocationPickerField
               value={form.drop}
               onChange={(v) => setForm(f => ({ ...f, drop: v }))}
               placeholder="Search drop point…"
@@ -350,6 +353,7 @@ function ActivityCard({
   pending,
   onEdit,
   onToggleOptional,
+  onChangeVariant,
   onCancel,
   onDelete,
 }: {
@@ -358,9 +362,22 @@ function ActivityCard({
   pending: boolean;
   onEdit: () => void;
   onToggleOptional: (val: boolean) => void;
+  onChangeVariant: (variantId: number | null) => void;
   onCancel: () => void;
   onDelete: () => void;
 }) {
+  const [variants, setVariants] = useState<ActivityVariantOption[]>([]);
+  const [loadingVariants, setLoadingVariants] = useState(false);
+
+  useEffect(() => {
+    if (!editing) return;
+    setLoadingVariants(true);
+    handleGetActivityVariants(item.activity.id).then((res) => {
+      setLoadingVariants(false);
+      if (res.success) setVariants(res.data);
+    });
+  }, [editing, item.activity.id]);
+
   return (
     <div className={cn("rounded-lg border bg-background p-3", editing && "border-primary/40 bg-primary/5")}>
       {!editing ? (
@@ -374,7 +391,11 @@ function ActivityCard({
               )}
             </div>
             <p className="text-[10px] text-muted-foreground/60">
-              {[item.activity.category, item.activity.duration_hours != null ? `${item.activity.duration_hours}h` : null].filter(Boolean).join(" · ")}
+              {[
+                item.activity.category,
+                item.activity.duration_hours != null ? `${item.activity.duration_hours}h` : null,
+                item.variant ? item.variant.name : "No variant",
+              ].filter(Boolean).join(" · ")}
             </p>
           </div>
           <div className="flex items-center gap-1 shrink-0">
@@ -392,6 +413,40 @@ function ActivityCard({
             <Activity className="h-3.5 w-3.5 text-green-500" />
             <p className="text-xs font-semibold">{item.activity.name}</p>
           </div>
+
+          {/* Variant selector */}
+          <div>
+            <Label className="text-[10px]">Pricing Variant</Label>
+            {loadingVariants ? (
+              <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-1">
+                <Loader2 className="h-2.5 w-2.5 animate-spin" /> Loading…
+              </p>
+            ) : variants.length === 0 ? (
+              <p className="text-[10px] text-muted-foreground/60 italic mt-1">No variants — activity will price at ₹0</p>
+            ) : (
+              <Select
+                value={item.variant_id ? String(item.variant_id) : "none"}
+                onValueChange={(v) => onChangeVariant(v === "none" ? null : Number(v))}
+                disabled={pending}
+              >
+                <SelectTrigger className="h-7 text-xs mt-0.5">
+                  <SelectValue placeholder="Select variant…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No variant (₹0)</SelectItem>
+                  {variants.map((v) => {
+                    const adultTier = v.pricingTiers.find((t) => t.label.toLowerCase().includes("adult")) ?? v.pricingTiers[0];
+                    return (
+                      <SelectItem key={v.id} value={String(v.id)}>
+                        {v.name}{adultTier ? ` · ₹${adultTier.price}` : ""}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
           <div className="flex items-center gap-3">
             <Switch
               id={`optional-${item.id}`}
@@ -721,7 +776,7 @@ function AddTransferForm({
       </div>
       <div className="space-y-1.5">
         <Label className="text-[10px]">Pickup Location <span className="text-destructive">*</span></Label>
-        <LocationSearchInput
+        <LocationPickerField
           value={form.pickup}
           onChange={(v) => setForm(f => ({ ...f, pickup: v }))}
           placeholder="Search pickup point…"
@@ -729,7 +784,7 @@ function AddTransferForm({
       </div>
       <div className="space-y-1.5">
         <Label className="text-[10px]">Drop Location <span className="text-destructive">*</span></Label>
-        <LocationSearchInput
+        <LocationPickerField
           value={form.drop}
           onChange={(v) => setForm(f => ({ ...f, drop: v }))}
           placeholder="Search drop point…"
@@ -807,12 +862,15 @@ function AddActivityForm({
   pending,
 }: {
   destinationId: number;
-  onSave: (activityId: number, isOptional: boolean) => void;
+  onSave: (activityId: number, isOptional: boolean, variantId: number | null) => void;
   onCancel: () => void;
   pending: boolean;
 }) {
   const [activityId, setActivityId] = useState<number | null>(null);
   const [isOptional, setIsOptional] = useState(false);
+  const [variants, setVariants] = useState<ActivityVariantOption[]>([]);
+  const [variantId, setVariantId] = useState<number | null>(null);
+  const [loadingVariants, setLoadingVariants] = useState(false);
 
   const fetchActivities = useCallback(
     async (query: string): Promise<Option[]> => {
@@ -827,6 +885,19 @@ function AddActivityForm({
     [destinationId],
   );
 
+  async function handleActivitySelect(id: number | null) {
+    setActivityId(id);
+    setVariants([]);
+    setVariantId(null);
+    if (!id) return;
+    setLoadingVariants(true);
+    const res = await handleGetActivityVariants(id);
+    setLoadingVariants(false);
+    if (!res.success) return;
+    setVariants(res.data);
+    if (res.data.length === 1) setVariantId(res.data[0].id);
+  }
+
   return (
     <div className="rounded-lg border border-green-200 bg-green-50/50 dark:bg-green-950/20 p-3 space-y-2">
       <div className="flex items-center gap-1.5 mb-2">
@@ -838,18 +909,58 @@ function AddActivityForm({
         <div className="mt-0.5">
           <SearchSelect
             value={activityId}
-            onChange={(val) => setActivityId(val)}
+            onChange={handleActivitySelect}
             fetchOptions={fetchActivities}
             placeholder="Search activities…"
           />
         </div>
       </div>
+
+      {/* Variant picker — shows after activity is selected */}
+      {activityId && (
+        <div>
+          <Label className="text-[10px]">Pricing Variant</Label>
+          {loadingVariants ? (
+            <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-1">
+              <Loader2 className="h-2.5 w-2.5 animate-spin" /> Loading variants…
+            </p>
+          ) : variants.length === 0 ? (
+            <p className="text-[10px] text-muted-foreground/60 italic mt-1">No variants configured — activity will price at ₹0</p>
+          ) : (
+            <Select
+              value={variantId ? String(variantId) : "none"}
+              onValueChange={(v) => setVariantId(v === "none" ? null : Number(v))}
+            >
+              <SelectTrigger className="h-7 text-xs mt-0.5">
+                <SelectValue placeholder="Select variant…" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No variant (₹0)</SelectItem>
+                {variants.map((v) => {
+                  const adultTier = v.pricingTiers.find((t) => t.label.toLowerCase().includes("adult")) ?? v.pricingTiers[0];
+                  return (
+                    <SelectItem key={v.id} value={String(v.id)}>
+                      {v.name}{adultTier ? ` · ₹${adultTier.price}` : ""}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center gap-2">
         <Switch id="add-optional" checked={isOptional} onCheckedChange={setIsOptional} />
         <Label htmlFor="add-optional" className="text-xs">Optional activity</Label>
       </div>
       <div className="flex gap-2 pt-1">
-        <Button size="sm" className="h-7 text-xs gap-1" onClick={() => activityId && onSave(activityId, isOptional)} disabled={pending || !activityId}>
+        <Button
+          size="sm"
+          className="h-7 text-xs gap-1"
+          onClick={() => activityId && onSave(activityId, isOptional, variantId)}
+          disabled={pending || !activityId}
+        >
           {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
           Add
         </Button>
@@ -1081,10 +1192,10 @@ export function ItineraryDaySidebar({
 
   // ── Activity CRUD ────────────────────────────────────────────────────────
 
-  async function addActivity(activityId: number, isOptional: boolean) {
+  async function addActivity(activityId: number, isOptional: boolean, variantId: number | null) {
     if (!itineraryId) return;
     setPending(true);
-    const res = await handleAddActivity(itineraryId, activityId, isOptional, packageId);
+    const res = await handleAddActivity(itineraryId, activityId, isOptional, packageId, variantId);
     setPending(false);
     if (!res.success) { toast.error(res.message); return; }
     setAddMode(null);
@@ -1100,6 +1211,18 @@ export function ItineraryDaySidebar({
     setPending(false);
     if (!res.success) { toast.error(res.message); return; }
     setActivities((prev) => prev.map((a) => a.id === id ? { ...a, is_optional: isOptional } : a));
+  }
+
+  async function changeVariant(id: number, variantId: number | null) {
+    setPending(true);
+    const res = await handleUpdateActivity(id, { variant_id: variantId }, packageId);
+    setPending(false);
+    if (!res.success) { toast.error(res.message); return; }
+    setActivities((prev) =>
+      prev.map((a) =>
+        a.id === id ? { ...a, variant_id: variantId, variant: null } : a,
+      ),
+    );
   }
 
   async function deleteActivity(id: number) {
@@ -1247,7 +1370,12 @@ export function ItineraryDaySidebar({
             )}
             {addMode === "activity" && (
               <div className="mt-3">
-                <AddActivityForm destinationId={destinationId} onSave={addActivity} onCancel={() => setAddMode(null)} pending={pending} />
+                <AddActivityForm
+                  destinationId={destinationId}
+                  onSave={addActivity}
+                  onCancel={() => setAddMode(null)}
+                  pending={pending}
+                />
               </div>
             )}
             {addMode === "note" && (
@@ -1304,6 +1432,7 @@ export function ItineraryDaySidebar({
                                   pending={deletingId === item.dndId || pending}
                                   onEdit={() => setEditingId(editingId === item.dndId ? null : item.dndId)}
                                   onToggleOptional={(val) => toggleOptional(item.data.id, val)}
+                                  onChangeVariant={(variantId) => changeVariant(item.data.id, variantId)}
                                   onCancel={() => setEditingId(null)}
                                   onDelete={() => deleteActivity(item.data.id)}
                                 />

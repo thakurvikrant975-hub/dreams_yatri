@@ -217,7 +217,7 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
             </p>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {selectedDuration.routes.map((r) => (
+              {selectedDuration.routes.map((r, idx) => (
                 <button
                   key={r.id}
                   type="button"
@@ -231,6 +231,9 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
                 >
                   <Route className="h-3 w-3" />
                   {r.name}
+                  {idx === 0 && (
+                    <Badge className="h-3.5 text-[9px] px-1 py-0 ml-0.5">Default</Badge>
+                  )}
                 </button>
               ))}
             </div>

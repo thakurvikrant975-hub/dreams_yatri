@@ -13,7 +13,7 @@ import { Badge } from "../../components/ui/badge";
 import { Separator } from "../../components/ui/separator";
 import {
   Loader2, Bed, Car, Zap, ChevronDown, ChevronRight,
-  Calculator, IndianRupee, Users, MapPin,
+  Calculator, IndianRupee, Users, MapPin, Baby,
 } from "lucide-react";
 import { toast } from "sonner";
 import { handleComputePackagePrice } from "@/app/actions/packages/pricing.actions";
@@ -32,9 +32,10 @@ type Duration = {
   label: string;
   days: number;
   nights: number;
+  is_default?: boolean;
   routes: { id: number; name: string }[];
 };
-type StayCategory = { id: number; label: string; slug: string };
+type StayCategory = { id: number; label: string; slug: string; is_default?: boolean };
 
 type PricingPreviewTabProps = {
   packageId: number;
@@ -140,13 +141,37 @@ function DayCard({ day }: { day: DayPricingBreakdown }) {
 
           {/* Hotel */}
           {day.hotel ? (
-            <LineItem
-              icon={<Bed className="h-3.5 w-3.5" />}
-              label={`${day.hotel.hotel_name}${day.hotel.room_name ? ` · ${day.hotel.room_name}` : ""}`}
-              detail={`${day.hotel.rooms_count} room${day.hotel.rooms_count !== 1 ? "s" : ""} × ₹${fmt(day.hotel.price_per_night)}/night${day.hotel.plan_name ? ` (${day.hotel.plan_name})` : ""}`}
-              amount={day.hotel.total}
-              variant="hotel"
-            />
+            <>
+              <LineItem
+                icon={<Bed className="h-3.5 w-3.5" />}
+                label={`${day.hotel.hotel_name}${day.hotel.room_name ? ` · ${day.hotel.room_name}` : ""}`}
+                detail={[
+                  `${day.hotel.rooms_count} room${day.hotel.rooms_count !== 1 ? "s" : ""} × ₹${fmt(day.hotel.price_per_room)}/night`,
+                  `max ${day.hotel.max_occupancy} pax/room`,
+                  day.hotel.plan_name ?? null,
+                ].filter(Boolean).join(" · ")}
+                amount={day.hotel.rooms_count * day.hotel.price_per_room}
+                variant="hotel"
+              />
+              {day.hotel.child_charge > 0 && (
+                <LineItem
+                  icon={<Users className="h-3.5 w-3.5" />}
+                  label="Child charges"
+                  detail="Hotel child policy per night"
+                  amount={day.hotel.child_charge}
+                  variant="hotel"
+                />
+              )}
+              {day.hotel.infant_charge > 0 && (
+                <LineItem
+                  icon={<Baby className="h-3.5 w-3.5" />}
+                  label="Infant charges"
+                  detail="Hotel infant policy per night"
+                  amount={day.hotel.infant_charge}
+                  variant="hotel"
+                />
+              )}
+            </>
           ) : (
             <p className="text-xs text-muted-foreground/70 italic py-1 pl-8">
               No stay mapped for this category
@@ -159,18 +184,27 @@ function DayCard({ day }: { day: DayPricingBreakdown }) {
               key={a.id}
               icon={<Zap className="h-3.5 w-3.5" />}
               label={a.name}
-              detail={
-                a.adult_price > 0 || a.child_price > 0
-                  ? [
-                      `${a.adult_count} adult${a.adult_count !== 1 ? "s" : ""} × ₹${fmt(a.adult_price)}`,
-                      a.child_count > 0
-                        ? `${a.child_count} child${a.child_count !== 1 ? "ren" : ""} × ₹${fmt(a.child_price)}`
-                        : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" + ")
-                  : "No pricing variant configured"
-              }
+              detail={(() => {
+                if (a.pricing_type === "PER_GROUP") {
+                  return `Group rate (flat) · ₹${fmt(a.adult_price)}`;
+                }
+                if (a.adult_price === 0 && a.child_price === 0) {
+                  return "No pricing variant configured";
+                }
+                return [
+                  `${a.adult_count} adult${a.adult_count !== 1 ? "s" : ""} × ₹${fmt(a.adult_price)}`,
+                  a.child_count > 0
+                    ? `${a.child_count} child${a.child_count !== 1 ? "ren" : ""} × ₹${fmt(a.child_price)}`
+                    : null,
+                  a.infant_count > 0 && a.infant_price > 0
+                    ? `${a.infant_count} infant${a.infant_count !== 1 ? "s" : ""} × ₹${fmt(a.infant_price)}`
+                    : a.infant_count > 0
+                    ? `${a.infant_count} infant${a.infant_count !== 1 ? "s" : ""} free`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" + ");
+              })()}
               amount={a.total}
               variant="activity"
             />
@@ -183,7 +217,9 @@ function DayCard({ day }: { day: DayPricingBreakdown }) {
               icon={<Zap className="h-3.5 w-3.5" />}
               label={a.name}
               detail={
-                a.adult_price > 0
+                a.pricing_type === "PER_GROUP"
+                  ? `Group rate ₹${fmt(a.adult_price)} · optional`
+                  : a.adult_price > 0
                   ? `₹${fmt(a.adult_price)}/adult · not included in base`
                   : "Optional · pricing not configured"
               }
@@ -204,12 +240,14 @@ function DayCard({ day }: { day: DayPricingBreakdown }) {
               }
               detail={[
                 t.vehicle_name,
-                `${t.num_vehicles} vehicle${t.num_vehicles !== 1 ? "s" : ""}`,
+                t.vehicle_capacity
+                  ? `${t.actual_vehicles} vehicle${t.actual_vehicles !== 1 ? "s" : ""} × ₹${fmt(t.per_vehicle_price)} (${t.vehicle_capacity} pax/vehicle)`
+                  : `${t.actual_vehicles} vehicle${t.actual_vehicles !== 1 ? "s" : ""}`,
                 t.distance_km ? `${t.distance_km} km` : null,
               ]
                 .filter(Boolean)
                 .join(" · ")}
-              amount={t.sell_price ?? 0}
+              amount={t.total}
               variant="transfer"
             />
           ))}
@@ -221,15 +259,8 @@ function DayCard({ day }: { day: DayPricingBreakdown }) {
 
 // ── Summary card ───────────────────────────────────────────────────────────
 
-function SummaryCard({
-  breakdown,
-  adults,
-  children,
-}: {
-  breakdown: FullPricingBreakdown;
-  adults: number;
-  children: number;
-}) {
+function SummaryCard({ breakdown }: { breakdown: FullPricingBreakdown }) {
+  const { adults, children, infants } = breakdown;
   const rows = [
     { label: "Hotels", value: breakdown.hotel_subtotal, icon: <Bed className="h-3.5 w-3.5 text-blue-500" /> },
     { label: "Activities", value: breakdown.activity_subtotal, icon: <Zap className="h-3.5 w-3.5 text-green-500" /> },
@@ -237,7 +268,7 @@ function SummaryCard({
   ];
 
   return (
-    <Card className="border-violet-200 bg-gradient-to-b from-violet-50/40 to-background sticky top-4">
+    <Card className="border-violet-200 bg-linear-to-b from-violet-50/40 to-background sticky top-4">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-semibold flex items-center gap-2">
           <IndianRupee className="h-4 w-4 text-violet-600" />
@@ -250,6 +281,7 @@ function SummaryCard({
           <Users className="h-3 w-3" />
           {adults} adult{adults !== 1 ? "s" : ""}
           {children > 0 ? `, ${children} child${children !== 1 ? "ren" : ""}` : ""}
+          {infants > 0 ? `, ${infants} infant${infants !== 1 ? "s" : ""}` : ""}
         </p>
       </CardHeader>
 
@@ -314,29 +346,49 @@ export function PricingPreviewTab({
   durations,
   stayCategories,
 }: PricingPreviewTabProps) {
-  const defaultDuration = durations[0];
-  const defaultCategory = stayCategories[0];
+  const defaultDuration = durations.find((d) => d.is_default) ?? durations[0];
+  const defaultCategory = stayCategories.find((c) => c.is_default) ?? stayCategories[0];
 
-  const [durationId, setDurationId] = useState<string>(
-    defaultDuration?.id.toString() ?? ""
-  );
-  const [routeId, setRouteId] = useState<string>("");
-  const [categoryId, setCategoryId] = useState<string>(
-    defaultCategory?.id.toString() ?? ""
-  );
-  const [adults, setAdults] = useState("2");
+  // Stable initial values used for auto-calculation on mount
+  const initDurationId = defaultDuration?.id.toString() ?? "";
+  const initRouteId = defaultDuration?.routes[0]?.id.toString() ?? "";
+  const initCategoryId = defaultCategory?.id.toString() ?? "";
+
+  const [durationId, setDurationId] = useState(initDurationId);
+  const [routeId, setRouteId] = useState(initRouteId);
+  const [categoryId, setCategoryId] = useState(initCategoryId);
+  const [adults, setAdults] = useState("1");
   const [children, setChildren] = useState("0");
+  const [infants, setInfants] = useState("0");
   const [breakdown, setBreakdown] = useState<FullPricingBreakdown | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const selectedDuration = durations.find((d) => d.id.toString() === durationId);
   const routes = selectedDuration?.routes ?? [];
 
-  // Reset route when duration changes
+  // Reset route to first when duration changes
   useEffect(() => {
     setRouteId(routes[0]?.id.toString() ?? "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [durationId]);
+
+  // Auto-calculate on mount with defaults (1 adult, 0 children)
+  useEffect(() => {
+    if (!initDurationId || !initRouteId || !initCategoryId) return;
+    startTransition(async () => {
+      const result = await handleComputePackagePrice({
+        package_id: packageId,
+        duration_id: parseInt(initDurationId),
+        route_id: parseInt(initRouteId),
+        stay_category_id: parseInt(initCategoryId),
+        adults: 1,
+        children: 0,
+        infants: 0,
+      });
+      if (result.success) setBreakdown(result.data);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const canCalculate = !!(durationId && routeId && categoryId);
 
@@ -350,6 +402,7 @@ export function PricingPreviewTab({
         stay_category_id: parseInt(categoryId),
         adults: Math.max(1, parseInt(adults) || 1),
         children: Math.max(0, parseInt(children) || 0),
+        infants: Math.max(0, parseInt(infants) || 0),
       });
       if (result.success) {
         setBreakdown(result.data);
@@ -365,7 +418,7 @@ export function PricingPreviewTab({
       {/* ── Controls ───────────────────────────────────────────────────────── */}
       <Card>
         <CardContent className="pt-5 pb-4">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 items-end">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 items-end">
             {/* Duration */}
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Duration</label>
@@ -449,6 +502,19 @@ export function PricingPreviewTab({
               />
             </div>
 
+            {/* Infants */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Infants</label>
+              <Input
+                type="number"
+                min="0"
+                max="10"
+                value={infants}
+                onChange={(e) => setInfants(e.target.value)}
+                className="text-sm h-9"
+              />
+            </div>
+
             {/* Calculate */}
             <Button
               onClick={handleCalculate}
@@ -496,11 +562,7 @@ export function PricingPreviewTab({
 
           {/* Summary */}
           <div className="lg:col-span-1">
-            <SummaryCard
-              breakdown={breakdown}
-              adults={parseInt(adults) || 1}
-              children={parseInt(children) || 0}
-            />
+            <SummaryCard breakdown={breakdown} />
           </div>
         </div>
       )}
@@ -510,10 +572,10 @@ export function PricingPreviewTab({
         <div className="flex flex-col items-center justify-center py-20 rounded-xl border border-dashed bg-muted/20">
           <Calculator className="h-10 w-10 text-muted-foreground/30 mb-4" />
           <p className="text-sm font-medium text-muted-foreground">
-            Select options above and click Calculate
+            No defaults configured yet
           </p>
           <p className="text-xs text-muted-foreground/60 mt-1">
-            The full day-by-day price breakdown will appear here.
+            Select a duration, route, and stay category above, then click Calculate.
           </p>
         </div>
       )}

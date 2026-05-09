@@ -13,6 +13,8 @@ import {
 } from "../../../components/ui/select";
 import { Loader2 } from "lucide-react";
 import { ImagePicker, type PickedImage } from "../../../components/dashboard/ImagePicker";
+import { LocationPickerField } from "../../../components/dashboard/LocationPickerField";
+import type { LocationResult } from "../../../components/dashboard/LocationSearchInput";
 import { updateHotelDetails } from "../../actions";
 
 const CATEGORIES = [
@@ -58,6 +60,19 @@ export function DetailsTab({
     boundAction,
     { success: false, message: "" }
   );
+
+  const [location, setLocation] = useState<LocationResult | null>(
+    hotel.latitude != null && hotel.longitude != null
+      ? {
+          place_name: hotel.address ?? `${hotel.latitude}, ${hotel.longitude}`,
+          place_id: "",
+          address: hotel.address ?? `${hotel.latitude}, ${hotel.longitude}`,
+          latitude: Number(hotel.latitude),
+          longitude: Number(hotel.longitude),
+        }
+      : null,
+  );
+  const [address, setAddress] = useState(hotel.address ?? "");
 
   // Thumbnail state — managed separately so we can preview and pass key via hidden input
   const [thumbnail, setThumbnail] = useState<PickedImage[]>(
@@ -159,9 +174,29 @@ export function DetailsTab({
           </div>
 
           <div className="space-y-1.5">
-            <Label>Address</Label>
-            <Input name="address" defaultValue={hotel.address ?? ""} placeholder="Dal Lake, Srinagar..." />
+            <Label>Location</Label>
+            <LocationPickerField
+              value={location}
+              onChange={(v) => {
+                setLocation(v);
+                if (v) setAddress(v.address);
+              }}
+              placeholder="Search hotel address or pin on map…"
+            />
           </div>
+
+          <div className="space-y-1.5">
+            <Label>Address <span className="text-xs text-muted-foreground">(editable)</span></Label>
+            <Input
+              name="address"
+              value={address}
+              onChange={e => setAddress(e.target.value)}
+              placeholder="Dal Lake, Srinagar..."
+            />
+          </div>
+
+          <input type="hidden" name="latitude"  value={location?.latitude  ?? ""} />
+          <input type="hidden" name="longitude" value={location?.longitude ?? ""} />
 
           <div className="space-y-1.5">
             <Label>Description</Label>

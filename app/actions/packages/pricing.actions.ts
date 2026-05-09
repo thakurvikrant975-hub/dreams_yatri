@@ -67,7 +67,8 @@ export async function handleComputePackagePrice(input: PricingInput) {
   try {
     const data = await computePackagePrice(input);
     return { success: true as const, data };
-  } catch {
+  } catch (err) {
+    console.error("[computePackagePrice]", err);
     return { success: false as const, error: "Failed to compute package price" };
   }
 }

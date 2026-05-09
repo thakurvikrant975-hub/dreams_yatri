@@ -660,7 +660,7 @@ export function RoomsTab({
         setRooms((prev) => [
           ...prev,
           {
-            id: Date.now(),
+            id: result.id!,
             hotel_id,
             name: form.name,
             slug: form.slug,

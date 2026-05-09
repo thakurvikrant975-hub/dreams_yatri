@@ -13,6 +13,8 @@ import {
   SelectTrigger, SelectValue,
 } from "../../components/ui/select";
 import { ImagePicker, type PickedImage } from "../../components/dashboard/ImagePicker";
+import { LocationPickerField } from "../../components/dashboard/LocationPickerField";
+import type { LocationResult } from "../../components/dashboard/LocationSearchInput";
 import { createHotel } from "../actions";
 import { toast }    from "sonner";
 import { Hotel, Search, Loader2 } from "lucide-react";
@@ -44,6 +46,7 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
   const [checkIn,       setCheckIn]       = useState("14:00");
   const [checkOut,      setCheckOut]      = useState("11:00");
   const [address,       setAddress]       = useState("");
+  const [location,      setLocation]      = useState<LocationResult | null>(null);
   const [description,   setDescription]   = useState("");
   const [isActive,      setIsActive]      = useState(true);
   const [thumbnail,     setThumbnail]     = useState<PickedImage[]>([]);
@@ -87,6 +90,8 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
       formData.append("check_in_time",  checkIn);
       formData.append("check_out_time", checkOut);
       formData.append("address",        address);
+      formData.append("latitude",       location?.latitude  != null ? String(location.latitude)  : "");
+      formData.append("longitude",      location?.longitude != null ? String(location.longitude) : "");
       formData.append("description",    description);
       formData.append("is_active",      String(isActive));
       formData.append("meta_title",     metaTitle);
@@ -203,7 +208,19 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
           </div>
 
           <div className="space-y-1.5">
-            <Label>Address</Label>
+            <Label>Location</Label>
+            <LocationPickerField
+              value={location}
+              onChange={(v) => {
+                setLocation(v);
+                if (v) setAddress(v.address);
+              }}
+              placeholder="Search hotel address or pin on map…"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Address <span className="text-xs text-muted-foreground">(editable)</span></Label>
             <Input
               placeholder="Boulevard Road, Dal Lake, Srinagar, J&K"
               value={address}

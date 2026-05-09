@@ -4,7 +4,7 @@ import { db } from "@/app/lib/db";
 import { deleteFromR2 } from "@/app/lib/r2/r2delete";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { ALL_SYSTEM_HOTEL_CATEGORIES } from "@/app/lib/hotelImageCategories";
+import { ALL_SYSTEM_HOTEL_CATEGORIES, REQUIRED_HOTEL_CATEGORIES } from "@/app/lib/hotelImageCategories";
 
 // ── Schemas ───────────────────────────────────────────────────────────────
 
@@ -22,11 +22,14 @@ const HotelSchema = z.object({
   meta_title: z.string().optional(),
   meta_desc: z.string().optional(),
   is_active: z.boolean().default(true),
+  latitude: z.coerce.number().nullable().optional(),
+  longitude: z.coerce.number().nullable().optional(),
 });
 
 export type HotelFormState = {
   success: boolean;
   message: string;
+  id?: number;
   errors?: Record<string, string[]>;
 };
 
@@ -48,6 +51,25 @@ export async function getHotels() {
 }
 
 export async function getHotelById(id: number) {
+  // Guarantee required system categories exist (handles hotels created via seed or
+  // before this feature was added — idempotent: only inserts what is missing).
+  const existingSystemNames = await db.hotel_image_categories
+    .findMany({ where: { hotel_id: id, is_system: true }, select: { name: true } })
+    .then((rows) => new Set(rows.map((r) => r.name)));
+
+  const missing = REQUIRED_HOTEL_CATEGORIES.filter((c) => !existingSystemNames.has(c.name));
+  if (missing.length > 0) {
+    await db.hotel_image_categories.createMany({
+      data: missing.map((cat) => ({
+        hotel_id: id,
+        name: cat.name,
+        is_required: cat.is_required,
+        is_system: cat.is_system,
+        sort_order: cat.sort_order,
+      })),
+    });
+  }
+
   return db.hotels.findUnique({
     where: { id },
     include: {
@@ -201,6 +223,8 @@ export async function createHotel(
     meta_title: formData.get("meta_title") || undefined,
     meta_desc: formData.get("meta_desc") || undefined,
     is_active: formData.get("is_active") === "true",
+    latitude: formData.get("latitude") || undefined,
+    longitude: formData.get("longitude") || undefined,
   };
 
   const parsed = HotelSchema.safeParse(raw);
@@ -262,6 +286,8 @@ export async function updateHotelDetails(
     meta_title: formData.get("meta_title") || undefined,
     meta_desc: formData.get("meta_desc") || undefined,
     is_active: formData.get("is_active") === "true",
+    latitude: formData.get("latitude") || undefined,
+    longitude: formData.get("longitude") || undefined,
   };
 
   const parsed = HotelSchema.safeParse(raw);
@@ -380,7 +406,7 @@ export async function createRoom(hotel_id: number, formData: FormData): Promise<
     if (exists) return { success: false, message: "A room with this slug already exists." };
 
     const count = await db.hotel_rooms.count({ where: { hotel_id } });
-    await db.hotel_rooms.create({
+    const room = await db.hotel_rooms.create({
       data: {
         hotel_id,
         name,
@@ -397,10 +423,11 @@ export async function createRoom(hotel_id: number, formData: FormData): Promise<
         is_active: formData.get("is_active") === "true",
         sort_order: count,
       },
+      select: { id: true },
     });
 
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
-    return { success: true, message: "Room added" };
+    return { success: true, message: "Room added", id: room.id };
   } catch {
     return { success: false, message: "Database error." };
   }

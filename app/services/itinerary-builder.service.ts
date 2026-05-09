@@ -36,7 +36,15 @@ export type ActivityItem = {
   id: number;
   sort_order: number;
   is_optional: boolean;
+  variant_id: number | null;
+  variant: { id: number; name: string } | null;
   activity: { id: number; name: string; category: string | null; duration_hours: number | null };
+};
+
+export type ActivityVariantOption = {
+  id: number;
+  name: string;
+  pricingTiers: { id: number; label: string; price: number }[];
 };
 
 export type TransferItem = {
@@ -140,6 +148,7 @@ export async function getItineraryData(
         orderBy: { sort_order: "asc" },
         include: {
           activity: { select: { id: true, name: true, duration_hours: true, category: true } },
+          variant: { select: { id: true, name: true } },
         },
       },
       itinerary_transfers: {
@@ -182,6 +191,8 @@ export async function getItineraryData(
         id: ia.id,
         sort_order: ia.sort_order,
         is_optional: ia.is_optional,
+        variant_id: ia.variant_id,
+        variant: ia.variant ?? null,
         activity: {
           id: ia.activity.id,
           name: ia.activity.name,
@@ -264,14 +275,47 @@ export async function upsertDayMeta(
 
 // ── Activities ─────────────────────────────────────────────────────────────
 
-export async function addItineraryActivity(itineraryId: number, activityId: number, isOptional = false) {
+export async function getActivityVariants(activityId: number): Promise<ActivityVariantOption[]> {
+  const variants = await db.activity_variants.findMany({
+    where: { activity_id: activityId, is_active: true },
+    orderBy: { sort_order: "asc" },
+    include: {
+      pricing: {
+        where: { is_active: true },
+        orderBy: { sort_order: "asc" },
+        select: { id: true, label: true, price: true },
+      },
+    },
+  });
+  return variants.map((v) => ({
+    id: v.id,
+    name: v.name,
+    pricingTiers: v.pricing.map((p) => ({ id: p.id, label: p.label, price: Number(p.price) })),
+  }));
+}
+
+export async function addItineraryActivity(
+  itineraryId: number,
+  activityId: number,
+  isOptional = false,
+  variantId?: number | null,
+) {
   const order = await nextSortOrder(itineraryId);
   return db.itinerary_activities.create({
-    data: { itinerary_id: itineraryId, activity_id: activityId, is_optional: isOptional, sort_order: order },
+    data: {
+      itinerary_id: itineraryId,
+      activity_id: activityId,
+      variant_id: variantId ?? null,
+      is_optional: isOptional,
+      sort_order: order,
+    },
   });
 }
 
-export async function updateItineraryActivity(id: number, data: { is_optional?: boolean; sort_order?: number }) {
+export async function updateItineraryActivity(
+  id: number,
+  data: { is_optional?: boolean; sort_order?: number; variant_id?: number | null },
+) {
   return db.itinerary_activities.update({ where: { id }, data });
 }
 
@@ -480,12 +524,11 @@ export async function searchActivities(destinationId: number, query: string) {
   }));
 }
 
-export async function searchRoomPricings(destinationId: number, query: string) {
+export async function searchRoomPricings(_destinationId: number, query: string) {
   const list = await db.hotel_room_pricing.findMany({
     where: {
       is_active: true,
       hotel: {
-        destination_id: destinationId,
         is_active: true,
         ...(query ? { name: { contains: query, mode: "insensitive" as const } } : {}),
       },
@@ -497,7 +540,7 @@ export async function searchRoomPricings(destinationId: number, query: string) {
       hotel: { select: { id: true, name: true } },
       room: { select: { id: true, name: true } },
     },
-    take: 30,
+    take: 50,
     orderBy: [{ hotel: { name: "asc" } }, { sort_order: "asc" }],
   });
   return list.map((p) => ({
@@ -562,7 +605,9 @@ export async function getStayCategories(packageId: number): Promise<StayCategory
 export async function createStayCategory(packageId: number, data: StayCategoryInput): Promise<StayCategoryFull> {
   const slug = await uniqueTierSlug(packageId, data.label);
   const count = await db.package_stay_categories.count({ where: { package_id: packageId } });
-  if (data.is_default) {
+  // Auto-default when this is the first category, or when explicitly requested
+  const shouldBeDefault = data.is_default || count === 0;
+  if (shouldBeDefault) {
     await db.package_stay_categories.updateMany({ where: { package_id: packageId }, data: { is_default: false } });
   }
   return db.package_stay_categories.create({
@@ -572,7 +617,7 @@ export async function createStayCategory(packageId: number, data: StayCategoryIn
       slug,
       description: data.description ?? null,
       min_duration_days: data.min_duration_days ?? null,
-      is_default: data.is_default ?? false,
+      is_default: shouldBeDefault,
       sort_order: data.sort_order ?? count,
       is_active: data.is_active ?? true,
     },

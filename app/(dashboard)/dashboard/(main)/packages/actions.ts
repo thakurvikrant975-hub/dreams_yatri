@@ -107,15 +107,67 @@ export async function getPackages() {
           gallery: true,
         },
       },
+      durations: {
+        where: { is_default: true },
+        take: 1,
+        select: {
+          slug: true,
+          routes: {
+            orderBy: { sort_order: "asc" },
+            take: 1,
+            select: { slug: true },
+          },
+        },
+      },
+      stay_categories: {
+        where: { is_default: true },
+        take: 1,
+        select: { slug: true },
+      },
     },
   });
 }
 
 // ── Toggle Active ─────────────────────────────────────────────────────────
 
-export async function togglePackageActive(id: number, is_active: boolean) {
+export async function togglePackageActive(
+  id: number,
+  is_active: boolean,
+): Promise<{ success: boolean; message?: string }> {
+  if (is_active) {
+    const pkg = await db.packages.findUnique({
+      where: { id },
+      select: {
+        durations: {
+          where: { is_default: true },
+          take: 1,
+          select: {
+            id: true,
+            routes: { take: 1, select: { id: true } },
+          },
+        },
+        stay_categories: {
+          where: { is_default: true },
+          take: 1,
+          select: { id: true },
+        },
+      },
+    });
+
+    if (!pkg?.durations.length) {
+      return { success: false, message: "Set a default duration before activating" };
+    }
+    if (!pkg.durations[0].routes.length) {
+      return { success: false, message: "Add at least one route to the default duration" };
+    }
+    if (!pkg?.stay_categories.length) {
+      return { success: false, message: "Set a default stay category before activating" };
+    }
+  }
+
   await db.packages.update({ where: { id }, data: { is_active } });
   revalidatePath("/dashboard/packages");
+  return { success: true };
 }
 
 // ── Delete Package ────────────────────────────────────────────────────────

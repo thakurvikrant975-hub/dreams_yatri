@@ -17,7 +17,7 @@ import {
 } from "../../components/ui/alert-dialog";
 import {
   ChevronLeft, ChevronRight,
-  ImageIcon, MapPin, Pencil, Package, Route, Timer, Trash2,
+  ExternalLink, ImageIcon, MapPin, Pencil, Package, Route, Timer, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { togglePackageActive, deletePackage } from "../actions";
@@ -40,7 +40,17 @@ type PackageItem = {
     packageRoutes: number;
     gallery: number;
   };
+  durations: { slug: string; routes: { slug: string }[] }[];
+  stay_categories: { slug: string }[];
 };
+
+function getWebsiteUrl(pkg: PackageItem): string | null {
+  const dur = pkg.durations[0];
+  const stay = pkg.stay_categories[0];
+  const route = dur?.routes[0];
+  if (!dur || !route || !stay) return null;
+  return `/packages/${pkg.slug}/${dur.slug}/${route.slug}/${stay.slug}`;
+}
 
 const ROWS_PER_PAGE = 20;
 const base = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
@@ -56,8 +66,12 @@ export function PackagesTableClient({ packages }: { packages: PackageItem[] }) {
 
   function handleToggle(id: number, current: boolean) {
     startTransition(async () => {
-      await togglePackageActive(id, !current);
-      toast.success(`Package ${!current ? "activated" : "deactivated"}`);
+      const result = await togglePackageActive(id, !current);
+      if (!result.success) {
+        toast.error(result.message ?? "Failed to update package status");
+      } else {
+        toast.success(`Package ${!current ? "activated" : "deactivated"}`);
+      }
     });
   }
 
@@ -91,6 +105,7 @@ export function PackagesTableClient({ packages }: { packages: PackageItem[] }) {
               <TableHead className="text-center w-[100px]">Routes</TableHead>
               <TableHead className="text-center w-[100px]">Images</TableHead>
               <TableHead className="text-center w-[90px]">Status</TableHead>
+              <TableHead className="w-[180px]">Website URL</TableHead>
               <TableHead className="text-right w-[100px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -164,6 +179,27 @@ export function PackagesTableClient({ packages }: { packages: PackageItem[] }) {
                     disabled={isPending}
                     onCheckedChange={() => handleToggle(pkg.id, pkg.is_active)}
                   />
+                </TableCell>
+
+                {/* Website URL */}
+                <TableCell>
+                  {pkg.is_active ? (() => {
+                    const url = getWebsiteUrl(pkg);
+                    return url ? (
+                      <Link
+                        href={url}
+                        target="_blank"
+                        className="flex items-center gap-1 text-xs text-primary hover:underline truncate max-w-[160px]"
+                      >
+                        <ExternalLink className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{url}</span>
+                      </Link>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    );
+                  })() : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
                 </TableCell>
 
                 {/* Actions */}

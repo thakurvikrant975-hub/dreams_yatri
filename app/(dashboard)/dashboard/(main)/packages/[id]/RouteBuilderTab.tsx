@@ -19,6 +19,7 @@ import { type SelectableImage } from "../../components/dashboard/DBImageSelector
 import {
   handleDeleteRouteVariant,
   handleGetRouteData,
+  handleUpdateDurationMeta,
 } from "@/app/actions/packages/route-builder.actions";
 import {
   Plus,
@@ -82,42 +83,64 @@ function DurationCard({
   duration,
   onEdit,
   onDelete,
+  onSetDefault,
   deleting,
+  settingDefault,
 }: {
   duration: Duration;
   onEdit: (route: EditingRoute) => void;
   onDelete: (routeId: number) => void;
+  onSetDefault: (durationId: number) => void;
   deleting: number | null;
+  settingDefault: number | null;
 }) {
   const [expanded, setExpanded] = useState(true);
 
   return (
     <div className="rounded-xl border overflow-hidden">
       {/* Duration header */}
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-muted/40 hover:bg-muted/60 transition-colors"
-      >
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between px-4 py-3 bg-muted/40">
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="flex items-center gap-2 flex-1 min-w-0 hover:opacity-80 transition-opacity"
+        >
           {expanded ? (
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
           ) : (
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
           )}
-          <CalendarDays className="h-4 w-4 text-primary" />
+          <CalendarDays className="h-4 w-4 text-primary shrink-0" />
           <span className="font-semibold text-sm">{duration.label}</span>
           {duration.is_default && (
-            <Badge className="gap-1 text-[10px] px-1.5 py-0 h-4">
+            <Badge className="gap-1 text-[10px] px-1.5 py-0 h-4 shrink-0">
               <Star className="h-2.5 w-2.5" />
               Default
             </Badge>
           )}
+        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {!duration.is_default && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-6 text-[11px] px-2 py-0 gap-1"
+              disabled={settingDefault === duration.id}
+              onClick={() => onSetDefault(duration.id)}
+            >
+              {settingDefault === duration.id ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Star className="h-3 w-3" />
+              )}
+              Set default
+            </Button>
+          )}
+          <span className="text-xs text-muted-foreground">
+            {duration.routes.length} variant{duration.routes.length !== 1 ? "s" : ""}
+          </span>
         </div>
-        <span className="text-xs text-muted-foreground">
-          {duration.routes.length} variant{duration.routes.length !== 1 ? "s" : ""}
-        </span>
-      </button>
+      </div>
 
       {/* Route rows */}
       {expanded && (
@@ -198,7 +221,9 @@ export function RouteBuilderTab({ packageId, initialData, packageImages }: Props
   const [editingRoute, setEditingRoute] = useState<EditingRoute | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
-  const [isDeleting, startDeleting] = useTransition();
+  const [settingDefaultId, setSettingDefaultId] = useState<number | null>(null);
+  const [, startDeleting] = useTransition();
+  const [, startSettingDefault] = useTransition();
 
   async function refresh() {
     const res = await handleGetRouteData(packageId);
@@ -213,6 +238,19 @@ export function RouteBuilderTab({ packageId, initialData, packageImages }: Props
   function openEdit(route: EditingRoute) {
     setEditingRoute(route);
     setSidebarOpen(true);
+  }
+
+  function handleSetDefault(durationId: number) {
+    setSettingDefaultId(durationId);
+    startSettingDefault(async () => {
+      const res = await handleUpdateDurationMeta(durationId, { is_default: true }, packageId);
+      setSettingDefaultId(null);
+      if (!res.success) { toast.error(res.message ?? "Failed to set default"); return; }
+      setData((prev) =>
+        prev.map((d) => ({ ...d, is_default: d.id === durationId })),
+      );
+      toast.success("Default duration updated");
+    });
   }
 
   function handleDeleteClick(routeId: number) {
@@ -262,7 +300,9 @@ export function RouteBuilderTab({ packageId, initialData, packageImages }: Props
               duration={duration}
               onEdit={openEdit}
               onDelete={handleDeleteClick}
+              onSetDefault={handleSetDefault}
               deleting={deletingId}
+              settingDefault={settingDefaultId}
             />
           ))}
         </div>

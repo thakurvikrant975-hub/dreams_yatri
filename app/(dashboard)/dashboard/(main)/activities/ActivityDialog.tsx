@@ -29,6 +29,8 @@ import {
   useMultiStep,
   type Step,
 } from "../components/dashboard/MultiStepModel";
+import { LocationPickerField } from "../components/dashboard/LocationPickerField";
+import type { LocationResult } from "../components/dashboard/LocationSearchInput";
 import {
   createActivity,
   updateActivity,
@@ -100,6 +102,16 @@ function makeSteps(isEdit: boolean): Step[] {
 function buildInitialData(
   activity: ActivityItem,
 ): Record<string, Record<string, unknown>> {
+  const location: LocationResult | null =
+    activity.latitude != null && activity.longitude != null
+      ? {
+          place_name: `${activity.latitude.toFixed(5)}, ${activity.longitude.toFixed(5)}`,
+          place_id: "",
+          address: `${activity.latitude.toFixed(5)}, ${activity.longitude.toFixed(5)}`,
+          latitude: activity.latitude,
+          longitude: activity.longitude,
+        }
+      : null;
   return {
     basic: {
       name:           activity.name,
@@ -109,6 +121,7 @@ function buildInitialData(
       difficulty:     activity.difficulty     ?? "",
       duration_hours: activity.duration_hours != null ? String(activity.duration_hours) : "",
       is_active:      activity.is_active,
+      location,
     },
     details: { description: activity.description ?? "" },
     seo:     { meta_title: activity.meta_title ?? "", meta_desc: activity.meta_desc ?? "" },
@@ -117,7 +130,7 @@ function buildInitialData(
 }
 
 const EMPTY_DATA: Record<string, Record<string, unknown>> = {
-  basic:   { name: "", slug: "", destination_id: "", category: "", difficulty: "", duration_hours: "", is_active: true },
+  basic:   { name: "", slug: "", destination_id: "", category: "", difficulty: "", duration_hours: "", is_active: true, location: null },
   details: { description: "" },
   seo:     { meta_title: "", meta_desc: "" },
   images:  {},
@@ -136,13 +149,14 @@ function BasicStep({
 }) {
   const { stepData, setStepData } = useMultiStep();
   const data           = stepData["basic"] ?? {};
-  const name           = (data.name           as string)  ?? "";
-  const slug           = (data.slug           as string)  ?? "";
-  const destination_id = (data.destination_id as string)  ?? "";
-  const category       = (data.category       as string)  ?? "";
-  const difficulty     = (data.difficulty     as string)  ?? "";
-  const duration_hours = (data.duration_hours as string)  ?? "";
-  const is_active      = (data.is_active      as boolean) ?? true;
+  const name           = (data.name           as string)         ?? "";
+  const slug           = (data.slug           as string)         ?? "";
+  const destination_id = (data.destination_id as string)         ?? "";
+  const category       = (data.category       as string)         ?? "";
+  const difficulty     = (data.difficulty     as string)         ?? "";
+  const duration_hours = (data.duration_hours as string)         ?? "";
+  const is_active      = (data.is_active      as boolean)        ?? true;
+  const location       = (data.location       as LocationResult | null) ?? null;
 
   function handleNameChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val     = e.target.value;
@@ -231,6 +245,15 @@ function BasicStep({
             onChange={e => setStepData("basic", { ...data, duration_hours: e.target.value })}
           />
         </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>Location <span className="text-xs text-muted-foreground">(optional)</span></Label>
+        <LocationPickerField
+          value={location}
+          onChange={v => setStepData("basic", { ...data, location: v })}
+          placeholder="Search activity location or pin on map…"
+        />
       </div>
 
       <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/30">
@@ -547,6 +570,9 @@ function buildFormData(data: Record<string, unknown>): FormData {
   fd.append("description",    (data.description    as string) ?? "");
   fd.append("meta_title",     (data.meta_title     as string) ?? "");
   fd.append("meta_desc",      (data.meta_desc      as string) ?? "");
+  const loc = data.location as LocationResult | null;
+  fd.append("latitude",  loc?.latitude  != null ? String(loc.latitude)  : "");
+  fd.append("longitude", loc?.longitude != null ? String(loc.longitude) : "");
   return fd;
 }
 

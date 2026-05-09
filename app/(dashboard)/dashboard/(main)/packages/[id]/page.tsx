@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { Badge } from "../../components/ui/badge";
 import {
   Breadcrumb, BreadcrumbItem, BreadcrumbLink,
@@ -18,7 +19,7 @@ import { PricingPreviewTab } from "./PricingPreviewTab";
 import { POLICY_TYPES, type PolicyType } from "../../policies/constants";
 import { getPackageForBuilder } from "../actions";
 import {
-  CalendarDays, GalleryHorizontal, Images, Info, Package, Route,
+  CalendarDays, ExternalLink, GalleryHorizontal, Images, Info, Package, Route,
   ShieldCheck, BadgeDollarSign, Settings2,
 } from "lucide-react";
 
@@ -70,6 +71,14 @@ export default async function PackageBuilderPage({
     category: pkg.categories.map(c => c.category.name),
   };
 
+  const defaultDuration = pkg.durations.find(d => d.is_default);
+  const defaultStay = pkg.stay_categories.find(s => s.is_default);
+  const defaultRoute = defaultDuration?.routes[0];
+  const websiteUrl =
+    pkg.is_active && defaultDuration && defaultRoute && defaultStay
+      ? `/packages/${pkg.slug}/${defaultDuration.slug}/${defaultRoute.slug}/${defaultStay.slug}`
+      : null;
+
   return (
     <div className="space-y-6">
       {/* Breadcrumb */}
@@ -103,6 +112,16 @@ export default async function PackageBuilderPage({
             >
               {pkg.is_active ? "Active" : "Inactive"}
             </Badge>
+            {websiteUrl && (
+              <Link
+                href={websiteUrl}
+                target="_blank"
+                className="flex items-center gap-1 text-xs text-primary hover:underline"
+              >
+                <ExternalLink className="h-3 w-3" />
+                View on website
+              </Link>
+            )}
           </div>
           <p className="text-xs text-muted-foreground mt-0.5 font-mono">{pkg.slug}</p>
         </div>
