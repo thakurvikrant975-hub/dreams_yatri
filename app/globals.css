@@ -589,8 +589,8 @@ body {
 }
 
 
-/* timeline here */
-/* This lets Tailwind respond to the JS-added class */
+/* timeline classes here*/
+
 .tl-item .tl-dot {
   @apply bg-gray-300 transition-all duration-500 ease-in-out;
 }
