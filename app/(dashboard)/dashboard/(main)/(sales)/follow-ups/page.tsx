@@ -101,7 +101,7 @@ export default function MyFollowUpsPage() {
 
             <PageHeader
                 title="My Follow-Ups"
-                description="All follow-ups logged by you — only visible to you"
+                description="All follow-ups logged by you"
                 icon={CalendarClock}
             />
 
