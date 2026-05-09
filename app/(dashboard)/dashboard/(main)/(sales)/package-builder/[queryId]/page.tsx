@@ -28,11 +28,11 @@ import {
 const MEAL_OPTIONS = ["Breakfast", "Lunch", "Dinner", "Tea & Snacks"];
 
 const ACTIVITY_LABELS: Record<string, string> = {
-  PARAGLIDING:   "Paragliding",
+  PARAGLIDING: "Paragliding",
   RIVER_RAFTING: "River Rafting",
-  TREKKING:      "Trekking",
-  SKIING:        "Skiing",
-  CAMPING:       "Camping",
+  TREKKING: "Trekking",
+  SKIING: "Skiing",
+  CAMPING: "Camping",
 };
 
 const STAY_LABELS: Record<string, string> = {
@@ -64,10 +64,10 @@ const DEFAULT_EXCLUSIONS = [
 // ─────────────────────────────────────────────────────────────────────────────
 function Pill({ label, color = "default" }: { label: string; color?: string }) {
   const map: Record<string, string> = {
-    blue:    "bg-dashboard-secondary/10 text-dashboard-secondary border-dashboard-secondary/30",
-    green:   "bg-dashboard-success/10 text-dashboard-success border-dashboard-success/30",
-    amber:   "bg-dashboard-warning/10 text-dashboard-warning-content border-dashboard-warning/30",
-    violet:  "bg-dashboard-primary/10 text-dashboard-primary border-dashboard-primary/30",
+    blue: "bg-dashboard-secondary/10 text-dashboard-secondary border-dashboard-secondary/30",
+    green: "bg-dashboard-success/10 text-dashboard-success border-dashboard-success/30",
+    amber: "bg-dashboard-warning/10 text-dashboard-warning-content border-dashboard-warning/30",
+    violet: "bg-dashboard-primary/10 text-dashboard-primary border-dashboard-primary/30",
     default: "bg-dashboard-base-200 text-dashboard-base-content/60 border-dashboard-base-300",
   };
   return (
@@ -92,8 +92,8 @@ function SectionCard({
           {title}
         </div>
         {open
-          ? <ChevronUp size={14} className="text-dashboard-base-content/50" />
-          : <ChevronDown size={14} className="text-dashboard-base-content/50" />}
+          ? <ChevronUp size={14} className="text-dashboard-neutral-content  cursor-pointer" />
+          : <ChevronDown size={14} className="text-dashboard-neutral-content  cursor-pointer" />}
       </button>
       {open && (
         <div className="px-4 pb-4 pt-1 space-y-2 border-t border-r border-l border-b border-dashboard-base-300">
@@ -108,8 +108,8 @@ function InfoRow({ label, value }: { label: string; value?: React.ReactNode }) {
   if (!value && value !== 0) return null;
   return (
     <div className="flex items-start gap-2 text-xs">
-      <span className="text-dashboard-base-content/50 w-24 shrink-0 pt-0.5">{label}</span>
-      <span className="font-medium text-dashboard-base-content flex-1">{value}</span>
+      <span className="text-dashboard-base-content/75 w-24 shrink-0 pt-0.5">{label}</span>
+      <span className="font-semibold text-dashboard-base-content flex-1">{value}</span>
     </div>
   );
 }
@@ -137,22 +137,22 @@ function EditableList({ label, items, onChange, placeholder }: {
   }
   return (
     <div>
-      <label className="text-xs font-medium text-dashboard-base-content/50 mb-2 block">{label}</label>
+      <label className="text-xs font-medium text-dashboard-base-content/90 mb-2 block">{label}</label>
       <div className="flex gap-2 mb-2">
         <Input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), add())}
           placeholder={placeholder ?? "Add item…"}
-          className="text-sm h-9 flex-1 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary"
+          className="text-sm h-9 flex-1 border-dashboard-neutral-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
         />
         <Button
           variant="outline"
           size="sm"
           onClick={add}
-          className="h-9 px-3 border-dashboard-base-300 hover:bg-dashboard-base-200"
+          className="h-9 px-3 border-dashboard-base-300 rounded-md bg-dashboard-primary text-dashboard-accent-content"
         >
-          <Plus size={14} />
+          <Plus size={16} />
         </Button>
       </div>
       <div className="flex flex-wrap gap-1.5">
@@ -202,15 +202,15 @@ function DayCard({ day, data, onChange, onRemove }: {
           <div className="flex-1 min-w-0">
             {open
               ? <Input
-                  value={data.title}
-                  onChange={(e) => onChange({ ...data, title: e.target.value })}
-                  placeholder={`Day ${day} title…`}
-                  className="h-7 text-sm font-semibold border-0 p-0 shadow-none bg-transparent focus-visible:ring-0 text-dashboard-base-content"
-                  onClick={(e) => e.stopPropagation()}
-                />
+                value={data.title}
+                onChange={(e) => onChange({ ...data, title: e.target.value })}
+                placeholder={`Day ${day} title…`}
+                className="h-7 text-sm font-semibold border-0 p-0 shadow-none bg-transparent focus-visible:ring-0 text-dashboard-base-content"
+                onClick={(e) => e.stopPropagation()}
+              />
               : <span className="text-sm font-semibold truncate text-dashboard-base-content">
-                  {data.title || `Day ${day}`}
-                </span>
+                {data.title || `Day ${day}`}
+              </span>
             }
           </div>
         </button>
@@ -234,45 +234,45 @@ function DayCard({ day, data, onChange, onRemove }: {
         <div className="p-4 space-y-4">
           {/* Description */}
           <div>
-            <label className="text-xs font-medium text-dashboard-base-content/50 mb-1.5 block">Day Description</label>
+            <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block rounded-md">Day Description</label>
             <Textarea
               value={data.description}
               onChange={(e) => onChange({ ...data, description: e.target.value })}
               placeholder="Describe the day's plan, sightseeing, transfers…"
               rows={3}
-              className="text-sm resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary"
+              className="text-sm resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
             />
           </div>
 
           {/* Accommodation + Transport */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-dashboard-base-content/50 mb-1.5 flex items-center gap-1 block">
+              <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 flex items-center gap-1 block">
                 <Hotel size={11} /> Accommodation
               </label>
               <Input
                 value={data.accommodation}
                 onChange={(e) => onChange({ ...data, accommodation: e.target.value })}
                 placeholder="Hotel name / type"
-                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary"
+                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-dashboard-base-content/50 mb-1.5 flex items-center gap-1 block">
+              <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 flex items-center gap-1 block">
                 <Car size={11} /> Transport
               </label>
               <Input
                 value={data.transport}
                 onChange={(e) => onChange({ ...data, transport: e.target.value })}
                 placeholder="Cab type / route"
-                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary"
+                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
               />
             </div>
           </div>
 
           {/* Meals */}
           <div>
-            <label className="text-xs font-medium text-dashboard-base-content/50 mb-1.5 flex items-center gap-1 block">
+            <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 flex items-center gap-1 block">
               <Utensils size={11} /> Meals Included
             </label>
             <div className="flex flex-wrap gap-2">
@@ -295,7 +295,7 @@ function DayCard({ day, data, onChange, onRemove }: {
 
           {/* Activities */}
           <div>
-            <label className="text-xs font-medium text-dashboard-base-content/50 mb-1.5 flex items-center gap-1 block">
+            <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 flex items-center gap-1 block">
               <Zap size={11} /> Activities
             </label>
             <Input
@@ -307,18 +307,18 @@ function DayCard({ day, data, onChange, onRemove }: {
                 })
               }
               placeholder="Paragliding, River Rafting, Trekking… (comma separated)"
-              className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary"
+              className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
             />
           </div>
 
           {/* Notes */}
           <div>
-            <label className="text-xs font-medium text-dashboard-base-content/50 mb-1.5 block">Notes</label>
+            <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">Notes</label>
             <Input
               value={data.notes}
               onChange={(e) => onChange({ ...data, notes: e.target.value })}
               placeholder="Any additional note for this day…"
-              className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary"
+              className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
             />
           </div>
         </div>
@@ -331,22 +331,22 @@ function DayCard({ day, data, onChange, onRemove }: {
 // Form State Type
 // ─────────────────────────────────────────────────────────────────────────────
 interface PackageForm {
-  title:          string;
-  destination:    string;
-  startingPoint:  string;
-  totalDays:      number;
-  totalNights:    number;
-  travelDate:     string;
-  adults:         number;
-  children:       number;
-  infants:        number;
+  title: string;
+  destination: string;
+  startingPoint: string;
+  totalDays: number;
+  totalNights: number;
+  travelDate: string;
+  adults: number;
+  children: number;
+  infants: number;
   pricePerPerson: string;
-  totalPrice:     string;
-  currency:       string;
-  inclusions:     string[];
-  exclusions:     string[];
-  termsNotes:     string;
-  itineraries:    DayItinerary[];
+  totalPrice: string;
+  currency: string;
+  inclusions: string[];
+  exclusions: string[];
+  termsNotes: string;
+  itineraries: DayItinerary[];
 }
 
 const emptyDay = (day: number): DayItinerary => ({
@@ -358,16 +358,16 @@ const emptyDay = (day: number): DayItinerary => ({
 // Main Page
 // ─────────────────────────────────────────────────────────────────────────────
 export default function PackageBuilderDetailPage() {
-  const params  = useParams<{ queryId: string }>();
+  const params = useParams<{ queryId: string }>();
   const queryId = params.queryId;
 
-  const [query,     setQuery]     = useState<QueryDetail | null>(null);
-  const [loading,   setLoading]   = useState(true);
-  const [sideOpen,  setSideOpen]  = useState(false);
+  const [query, setQuery] = useState<QueryDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [sideOpen, setSideOpen] = useState(false);
   const [packageId, setPackageId] = useState<string | null>(null);
-  const [savedOk,   setSavedOk]   = useState(false);
+  const [savedOk, setSavedOk] = useState(false);
 
-  const [isSaving,  startSave] = useTransition();
+  const [isSaving, startSave] = useTransition();
   const [isSending, startSend] = useTransition();
 
   const [form, setForm] = useState<PackageForm>({
@@ -376,9 +376,9 @@ export default function PackageBuilderDetailPage() {
     adults: 1, children: 0, infants: 0,
     pricePerPerson: "", totalPrice: "",
     currency: "INR",
-    inclusions:  DEFAULT_INCLUSIONS,
-    exclusions:  DEFAULT_EXCLUSIONS,
-    termsNotes:  "Package price is subject to availability. 50% advance required to confirm booking.",
+    inclusions: DEFAULT_INCLUSIONS,
+    exclusions: DEFAULT_EXCLUSIONS,
+    termsNotes: "Package price is subject to availability. 50% advance required to confirm booking.",
     itineraries: [emptyDay(1), emptyDay(2), emptyDay(3)],
   });
 
@@ -395,16 +395,16 @@ export default function PackageBuilderDetailPage() {
 
       setForm((f) => ({
         ...f,
-        title:         `${j?.destinations?.[0] ?? data.destination ?? "Custom"} Tour Package`,
-        destination:   j?.destinations?.join(", ") ?? data.destination ?? "",
+        title: `${j?.destinations?.[0] ?? data.destination ?? "Custom"} Tour Package`,
+        destination: j?.destinations?.join(", ") ?? data.destination ?? "",
         startingPoint: j?.startingPoint ?? "",
-        totalDays:     j?.noOfDays ?? 3,
-        totalNights:   j?.noOfNights ?? 2,
-        travelDate:    j?.travelDate ?? (data.travelDate ? new Date(data.travelDate).toISOString().split("T")[0] : ""),
-        adults:        t?.adults ?? 1,
-        children:      t?.children ?? 0,
-        infants:       t?.infants ?? 0,
-        itineraries:   Array.from({ length: j?.noOfDays ?? 3 }, (_, i) => emptyDay(i + 1)),
+        totalDays: j?.noOfDays ?? 3,
+        totalNights: j?.noOfNights ?? 2,
+        travelDate: j?.travelDate ?? (data.travelDate ? new Date(data.travelDate).toISOString().split("T")[0] : ""),
+        adults: t?.adults ?? 1,
+        children: t?.children ?? 0,
+        infants: t?.infants ?? 0,
+        itineraries: Array.from({ length: j?.noOfDays ?? 3 }, (_, i) => emptyDay(i + 1)),
       }));
 
       if (data.customPackage) {
@@ -412,10 +412,10 @@ export default function PackageBuilderDetailPage() {
         setPackageId(cp.id);
         setForm((f) => ({
           ...f,
-          title:          cp.title,
+          title: cp.title,
           pricePerPerson: cp.pricePerPerson?.toString() ?? "",
-          totalPrice:     cp.totalPrice?.toString() ?? "",
-          itineraries:    cp.itineraries.length > 0 ? cp.itineraries : f.itineraries,
+          totalPrice: cp.totalPrice?.toString() ?? "",
+          itineraries: cp.itineraries.length > 0 ? cp.itineraries : f.itineraries,
         }));
       }
 
@@ -438,9 +438,9 @@ export default function PackageBuilderDetailPage() {
         queryId,
         ...form,
         pricePerPerson: form.pricePerPerson ? parseFloat(form.pricePerPerson) : null,
-        totalPrice:     form.totalPrice     ? parseFloat(form.totalPrice)     : null,
+        totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
         status,
-        builtBy:     "current-user-id",
+        builtBy: "current-user-id",
         builtByName: "Sales Executive",
       });
       if (result.success) {
@@ -460,9 +460,9 @@ export default function PackageBuilderDetailPage() {
           queryId,
           ...form,
           pricePerPerson: form.pricePerPerson ? parseFloat(form.pricePerPerson) : null,
-          totalPrice:     form.totalPrice     ? parseFloat(form.totalPrice)     : null,
-          status:      "READY",
-          builtBy:     "current-user-id",
+          totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
+          status: "READY",
+          builtBy: "current-user-id",
           builtByName: "Sales Executive",
         });
         if (!result.success) return;
@@ -483,7 +483,7 @@ export default function PackageBuilderDetailPage() {
       return {
         ...f,
         itineraries: [...f.itineraries, emptyDay(next)],
-        totalDays:   next,
+        totalDays: next,
         totalNights: next - 1,
       };
     });
@@ -501,7 +501,7 @@ export default function PackageBuilderDetailPage() {
   function updateDay(idx: number, day: DayItinerary) {
     setForm((f) => {
       const its = [...f.itineraries];
-      its[idx]  = day;
+      its[idx] = day;
       return { ...f, itineraries: its };
     });
   }
@@ -527,11 +527,11 @@ export default function PackageBuilderDetailPage() {
     );
   }
 
-  const r  = query.requirements;
-  const j  = r?.journey;
-  const t  = r?.travellers;
-  const b  = r?.budget;
-  const s  = r?.stay;
+  const r = query.requirements;
+  const j = r?.journey;
+  const t = r?.travellers;
+  const b = r?.budget;
+  const s = r?.stay;
   const tr = r?.transport;
   const ac = r?.activities;
 
@@ -548,7 +548,7 @@ export default function PackageBuilderDetailPage() {
           <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={() => window.close()}
-              className="text-dashboard-base-content/50 hover:text-dashboard-base-content transition-colors shrink-0"
+              className="text-dashboard-base-content/50 hover:text-dashboard-base-content transition-colors shrink-0 cursor-pointer"
             >
               <ArrowLeft size={18} />
             </button>
@@ -556,7 +556,7 @@ export default function PackageBuilderDetailPage() {
               <h1 className="text-sm font-bold truncate leading-tight text-dashboard-base-content">
                 {query.name}
               </h1>
-              <p className="text-xs text-dashboard-base-content/50 truncate">
+              <p className="text-xs text-dashboard-base-content/75 truncate">
                 {j?.destinations?.join(" › ") ?? query.destination ?? "—"}
               </p>
             </div>
@@ -584,8 +584,8 @@ export default function PackageBuilderDetailPage() {
               {isSaving
                 ? <Loader2 size={13} className="animate-spin" />
                 : savedOk
-                ? <CheckCircle size={13} className="text-dashboard-success" />
-                : <Save size={13} />
+                  ? <CheckCircle size={13} className="text-dashboard-success" />
+                  : <Save size={13} />
               }
               <span className="hidden sm:inline text-xs">
                 {savedOk ? "Saved!" : "Save Draft"}
@@ -618,11 +618,11 @@ export default function PackageBuilderDetailPage() {
       </header>
 
       {/* ── Body ──────────────────────────────────────────────────────────────── */}
-<div className="flex relative h-[calc(100vh-3.5rem)]">
+      <div className="flex relative h-[calc(100vh-2.5rem)]">
 
 
         {/* ── LEFT SIDEBAR ────────────────────────────────────────────────────── */}
-<aside className="w-80 lg:w-96 shrink-0 hidden sm:block overflow-y-auto h-full">
+        <aside className="w-80 lg:w-96 shrink-0 hidden sm:block overflow-y-auto h-full">
           <div className="px-4 pb-4 space-y-3">
             <ClientDetailsSidebar query={query} j={j} t={t} b={b} s={s} tr={tr} ac={ac} />
           </div>
@@ -653,7 +653,7 @@ export default function PackageBuilderDetailPage() {
         )}
 
         {/* ── RIGHT: Package Builder ─────────────────────────────────────────── */}
-<main className="flex-1 overflow-y-auto h-full">
+        <main className="flex-1 overflow-y-auto h-full">
           <div className="max-w-5xl mx-auto px-4 pb-4 space-y-6">
 
             {/* Package Overview */}
@@ -663,43 +663,43 @@ export default function PackageBuilderDetailPage() {
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="sm:col-span-2">
-                  <label className="text-xs font-medium text-dashboard-base-content/50 mb-1.5 block">Package Title *</label>
+                  <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block ">Package Title *</label>
                   <Input
                     value={form.title}
                     onChange={field("title")}
                     placeholder="e.g. Manali Adventure Package"
-                    className="text-sm border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary"
+                    className="text-sm border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-dashboard-base-content/50 mb-1.5 block">Destination(s)</label>
+                  <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">Destination(s)</label>
                   <Input
                     value={form.destination}
                     onChange={field("destination")}
                     placeholder="Manali, Bhuntar, Kullu"
-                    className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary"
+                    className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-dashboard-base-content/50 mb-1.5 block">Starting Point</label>
+                  <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">Starting Point</label>
                   <Input
                     value={form.startingPoint}
                     onChange={field("startingPoint")}
                     placeholder="Delhi"
-                    className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary"
+                    className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-dashboard-base-content/50 mb-1.5 block">Travel Date</label>
+                  <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">Travel Date</label>
                   <Input
                     type="date"
                     value={form.travelDate}
                     onChange={field("travelDate")}
-                    className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary"
+                    className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-dashboard-base-content/50 mb-1.5 block">Duration</label>
+                  <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">Duration</label>
                   <div className="flex gap-2">
                     <div className="flex-1">
                       <Input
@@ -707,10 +707,10 @@ export default function PackageBuilderDetailPage() {
                         value={form.totalDays}
                         onChange={(e) => setForm((f) => ({
                           ...f,
-                          totalDays:   +e.target.value,
+                          totalDays: +e.target.value,
                           totalNights: Math.max(0, +e.target.value - 1),
                         }))}
-                        className="text-sm h-9 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary"
+                        className="text-sm h-9 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
                       />
                       <p className="text-xs text-dashboard-base-content/50 mt-0.5 text-center">Days</p>
                     </div>
@@ -719,7 +719,7 @@ export default function PackageBuilderDetailPage() {
                         type="number" min={0}
                         value={form.totalNights}
                         onChange={(e) => setForm((f) => ({ ...f, totalNights: +e.target.value }))}
-                        className="text-sm h-9 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary"
+                        className="text-sm h-9 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
                       />
                       <p className="text-xs text-dashboard-base-content/50 mt-0.5 text-center">Nights</p>
                     </div>
@@ -736,33 +736,33 @@ export default function PackageBuilderDetailPage() {
               <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
                 {(["adults", "children", "infants"] as const).map((key) => (
                   <div key={key}>
-                    <label className="text-xs font-medium text-dashboard-base-content/50 mb-1.5 block capitalize">{key}</label>
+                    <label className="text-xs font-medium text-dashboard-base-content/75 mb-1.5 block capitalize">{key}</label>
                     <Input
                       type="number" min={0}
                       value={form[key]}
                       onChange={(e) => setForm((f) => ({ ...f, [key]: +e.target.value }))}
-                      className="text-sm h-9 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary"
+                      className="text-sm h-9 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
                     />
                   </div>
                 ))}
                 <div>
-                  <label className="text-xs font-medium text-dashboard-base-content/50 mb-1.5 block">₹ / Person</label>
+                  <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">₹ / Person</label>
                   <Input
                     type="number" min={0}
                     value={form.pricePerPerson}
                     onChange={field("pricePerPerson")}
                     placeholder="0"
-                    className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary"
+                    className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-dashboard-base-content/50 mb-1.5 block">Total ₹</label>
+                  <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">Total ₹</label>
                   <Input
                     type="number" min={0}
                     value={form.totalPrice}
                     onChange={field("totalPrice")}
                     placeholder="Auto"
-                    className="text-sm h-9 bg-dashboard-base-200 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary"
+                    className="text-sm h-9 bg-dashboard-base-200 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
                   />
                 </div>
               </div>
@@ -805,13 +805,13 @@ export default function PackageBuilderDetailPage() {
                 <CheckCircle size={15} className="text-dashboard-primary" /> Inclusions & Exclusions
               </h2>
               <EditableList
-                label="✅ Inclusions"
+                label="Inclusions"
                 items={form.inclusions}
                 onChange={(v) => setForm((f) => ({ ...f, inclusions: v }))}
                 placeholder="Add inclusion…"
               />
               <EditableList
-                label="❌ Exclusions"
+                label="Exclusions"
                 items={form.exclusions}
                 onChange={(v) => setForm((f) => ({ ...f, exclusions: v }))}
                 placeholder="Add exclusion…"
@@ -828,7 +828,7 @@ export default function PackageBuilderDetailPage() {
                 onChange={field("termsNotes")}
                 rows={4}
                 placeholder="Payment terms, cancellation policy, important notes…"
-                className="text-sm resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary"
+                className="text-sm resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
               />
             </div>
 
@@ -924,13 +924,13 @@ function ClientDetailsSidebar({ query, j, t, b, s, tr, ac }: {
               </div>
             } />
           )}
-          <InfoRow label="From"      value={j.startingPoint} />
-          <InfoRow label="Date"      value={
+          <InfoRow label="From" value={j.startingPoint} />
+          <InfoRow label="Date" value={
             j.travelDate
               ? new Date(j.travelDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
               : undefined
           } />
-          <InfoRow label="Duration"  value={`${j.noOfDays} Days / ${j.noOfNights} Nights`} />
+          <InfoRow label="Duration" value={`${j.noOfDays} Days / ${j.noOfNights} Nights`} />
           <InfoRow label="Date Type" value={j.dateType} />
           <SpecialNote text={j.specialDemands} />
         </SectionCard>
@@ -938,18 +938,18 @@ function ClientDetailsSidebar({ query, j, t, b, s, tr, ac }: {
 
       {t && (
         <SectionCard title="Travellers" icon={<Users size={14} />}>
-          <InfoRow label="Lead"     value={t.leadName} />
-          <InfoRow label="Adults"   value={t.adults} />
+          <InfoRow label="Lead" value={t.leadName} />
+          <InfoRow label="Adults" value={t.adults} />
           {(t.children ?? 0) > 0 && <InfoRow label="Children" value={t.children} />}
-          {(t.infants  ?? 0) > 0 && <InfoRow label="Infants"  value={t.infants} />}
+          {(t.infants ?? 0) > 0 && <InfoRow label="Infants" value={t.infants} />}
           <SpecialNote text={t.specialDemands} />
         </SectionCard>
       )}
 
       {b && (
         <SectionCard title="Budget" icon={<IndianRupee size={14} />}>
-          <InfoRow label="Range"    value={`₹${b.min?.toLocaleString("en-IN")} – ₹${b.max?.toLocaleString("en-IN")}`} />
-          <InfoRow label="Type"     value={b.type} />
+          <InfoRow label="Range" value={`₹${b.min?.toLocaleString("en-IN")} – ₹${b.max?.toLocaleString("en-IN")}`} />
+          <InfoRow label="Type" value={b.type} />
           <InfoRow label="Currency" value={b.currency} />
           <SpecialNote text={b.specialDemands} />
         </SectionCard>
