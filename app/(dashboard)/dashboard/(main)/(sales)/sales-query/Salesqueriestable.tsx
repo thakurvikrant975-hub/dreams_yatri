@@ -239,7 +239,7 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
 
     const bookedCount = queries.filter(q => q.status === "CONVERTED").length;
     // Conversation % = closed queries that converted (booked) / total closed
-    const convRate = closedCount > 0 ? Math.round((bookedCount / closedCount) * 100) : 0;
+    const convRate = closedCount > 0 ? Math.round((bookedCount / totalCount) * 100) : 0;
 
     // ── Columns ───────────────────────────────────────────────────────────────
     const columns: ColumnDef<PackageQueryType>[] = [

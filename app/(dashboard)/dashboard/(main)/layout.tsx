@@ -8,6 +8,7 @@ import { getCurrentMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-cur
 import { redirect } from "next/navigation";
 import { Toaster } from "sonner";
 import { SalesStatusToggle } from "./components/dashboard/Salesstatustoggle";
+import Image from "next/image";
 
 export default async function DashboardLayout({
   children,
@@ -52,7 +53,31 @@ export default async function DashboardLayout({
         </div>
 
         {/* Page Content */}
-        <div className="p-6">{children}</div>
+            <div className="relative p-6">
+      {/* Web thread */}
+
+      {/* Spider-Man PNG */}
+      <Image
+      width={120}
+      height={120}
+        src="/dashboard/spiderman.png" // 👈 replace with your image path
+        alt="Spider-Man"
+        className="absolute -top-2 right-4 w-20"
+        style={{
+          animation: "swing 4s ease-in-out infinite",
+          transformOrigin: "top center",
+        }}
+      />
+
+      <style>{`
+        @keyframes swing {
+          0%, 100% { transform: rotate(-12deg); }
+          50%       { transform: rotate(12deg); }
+        }
+      `}</style>
+
+      {children}
+    </div>
       </main>
 
       <Toaster position="top-center" />
