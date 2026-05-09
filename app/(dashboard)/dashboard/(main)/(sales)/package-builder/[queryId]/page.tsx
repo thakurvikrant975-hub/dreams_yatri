@@ -284,7 +284,7 @@ function DayCard({ day, data, onChange, onRemove }: {
                     "text-xs px-3 py-1 rounded-full border font-medium transition-all",
                     data.meals.includes(m)
                       ? "bg-dashboard-primary text-dashboard-primary-content border-dashboard-primary"
-                      : "bg-dashboard-base-200 text-dashboard-base-content/50 border-dashboard-base-300 hover:border-dashboard-primary/50 hover:text-dashboard-primary"
+                      : "bg-dashboard-base-200 text-dashboard-base-content/50 border-dashboard-base-300 hover:border-dashboard-primary/50 hover:text-dashboard-primary cursor-pointer"
                   )}
                 >
                   {m}

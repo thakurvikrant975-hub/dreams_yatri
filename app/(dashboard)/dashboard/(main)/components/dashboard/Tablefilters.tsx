@@ -6,13 +6,14 @@ import {
     SelectTrigger, SelectValue,
 } from "../ui/select";
 
+
 export interface FilterOption  { label: string; value: string }
 export interface FilterConfig {
     value:       string;
     onChange:    (value: string) => void;
     options:     FilterOption[];
     placeholder: string;
-    width?:      string;
+    width?:      string; 
     allValue?:   string;
 }
 export interface TableFiltersProps {

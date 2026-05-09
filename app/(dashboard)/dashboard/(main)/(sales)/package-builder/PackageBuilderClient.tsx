@@ -13,6 +13,8 @@ import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable"
 import { getPackageBuilderQueries, type QueryRow, type PaginatedQueries } from "./action";
 import type { Metadata } from "next";
 import { StatCard, StatGrid } from "../../components/dashboard/Statcard";
+import { TableFilters } from "../../components/dashboard/Tablefilters";
+import { TableEmptyState } from "../../components/dashboard/TableEmptyState";
 
 
 export const metadata: Metadata = {
@@ -234,15 +236,12 @@ export default function PackageBuilderClientPage() {
             </StatGrid>
 
             {/* Search */}
-            <div className="relative max-w-sm">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                    placeholder="Search by name, destination, phone…"
-                    className="pl-9 h-9 text-sm"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                />
-            </div>
+
+            <TableFilters
+                search={search}
+                onSearchChange={setSearch}
+                searchPlaceholder="Search by name, destination, phone…"
+            />
 
             {/* Table */}
             <DataTable
@@ -256,8 +255,10 @@ export default function PackageBuilderClientPage() {
                         <p className="text-sm text-muted-foreground animate-pulse">Loading queries…</p>
                     ) : (
                         <div className="flex flex-col items-center gap-2 py-6">
-                            <Package className="h-10 w-10 text-muted-foreground/30" />
-                            <p className="text-sm text-muted-foreground">No queries pending package creation</p>
+                            <TableEmptyState
+                                description="No Package builder query found."
+                                title="No Package"
+                            />
                         </div>
                     )
                 }
