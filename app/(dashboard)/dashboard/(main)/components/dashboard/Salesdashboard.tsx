@@ -6,7 +6,7 @@ import {
 import { Skeleton } from "../ui/skeleton";
 import type { CurrentMember } from "@/app/types/members";
 import { FunNotification } from "./Funnotification";
-import { StatCard, StatGrid } from "./Statcard";
+import { StatCard, StatGrid } from "./Statcard"; 
 import { getSalesDashboardData } from "../../actions/sales-dashboard-actions.ts";
 import { cn } from "@/app/lib/utils";
 

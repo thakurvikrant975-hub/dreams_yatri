@@ -188,7 +188,7 @@ export function QueryStatusBadge({ status }: { status: QueryStatus }) {
   return (
     <Badge
       variant="outline"
-      className={`gap-1.5 text-[11px] font-medium py-0.5 px-2 ${cfg.className}`}
+      className={`gap-1.5 text-[11px] font-medium py-0.5 px-2 rounded-md ${cfg.className}`}
     >
       <Icon className="h-3 w-3 shrink-0" />
       {cfg.label}
@@ -215,7 +215,7 @@ export function QuerySourceBadge({ source }: { source: QuerySource }) {
   return (
     <Badge
       variant="outline"
-      className={`gap-1.5 text-[11px] font-medium py-0.5 px-2 ${cfg.className}`}
+      className={`gap-1.5 text-[11px] font-medium py-0.5 px-2 rounded-md ${cfg.className}`}
     >
       <Icon className="h-3 w-3 shrink-0" />
       {cfg.label}
