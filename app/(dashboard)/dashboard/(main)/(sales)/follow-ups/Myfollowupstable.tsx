@@ -102,17 +102,17 @@ export function MyFollowUpsTable({ followUps: initialFollowUps }: Props) {
     // ── Status badge ──────────────────────────────────────────────────────────
     function getStatusBadge(status: FollowUpStatus) {
         if (status === "overdue") return (
-            <Badge variant="outline" className="text-[10px] gap-1 border-dashboard-error/30 bg-dashboard-error/5 text-dashboard-error">
+            <Badge variant="outline" className="text-[10px] gap-1 border-dashboard-error bg-dashboard-error text-dashboard-neutral rounded-md">
                 <AlertCircle className="h-2.5 w-2.5" /> Overdue
             </Badge>
         );
         if (status === "today") return (
-            <Badge variant="outline" className="text-[10px] gap-1 border-dashboard-warning/40 bg-dashboard-warning/10 text-dashboard-warning">
+            <Badge variant="outline" className="text-[10px] gap-1 border-dashboard-warning bg-dashboard-warning text-dashboard-neutral rounded-md">
                 <Clock className="h-2.5 w-2.5" /> Due Today
             </Badge>
         );
         if (status === "upcoming") return (
-            <Badge variant="outline" className="text-[10px] gap-1 border-dashboard-primary/30 bg-dashboard-primary/5 text-dashboard-primary">
+            <Badge variant="outline" className="text-[10px] gap-1 border-dashboard-primary bg-dashboard-primary text-dashboard-neutral rounded-md">
                 <CalendarClock className="h-2.5 w-2.5" /> Upcoming
             </Badge>
         );
@@ -151,10 +151,10 @@ export function MyFollowUpsTable({ followUps: initialFollowUps }: Props) {
 
     // ── Date pill per status ──────────────────────────────────────────────────
     const datePill: Record<FollowUpStatus, string> = {
-        overdue: "text-dashboard-error bg-dashboard-error/5 border-dashboard-error/20",
-        today: "text-dashboard-warning bg-dashboard-warning/10 border-dashboard-warning/30",
-        upcoming: "text-dashboard-primary bg-dashboard-primary/5 border-dashboard-primary/20",
-        "no-date": "text-dashboard-base-content/45 bg-dashboard-base-200 border-dashboard-base-300",
+        overdue: "text-dashboard-error bg-dashboard-error border-dashboard-error",
+        today: "text-dashboard-neutral bg-dashboard-warning border-dashboard-warning",
+        upcoming: "text-dashboard-neutral bg-dashboard-primary border-dashboard-primary",
+        "no-date": "text-dashboard-neutral bg-dashboard-base-200 border-dashboard-base-300",
     };
 
     return (
@@ -164,13 +164,13 @@ export function MyFollowUpsTable({ followUps: initialFollowUps }: Props) {
             {(overdueCount > 0 || todayCount > 0) && (
                 <div className="flex gap-2 flex-wrap">
                     {overdueCount > 0 && (
-                        <div className="flex items-center gap-1.5 text-xs text-dashboard-error bg-dashboard-error/5 border border-dashboard-error/20 rounded-lg px-3 py-1.5">
+                        <div className="flex items-center gap-1.5 text-xs text-dashboard-neutral bg-dashboard-error border border-dashboard-error rounded-lg px-3 py-1.5">
                             <AlertCircle className="h-3.5 w-3.5" />
                             {overdueCount} overdue follow-up{overdueCount > 1 ? "s" : ""}
                         </div>
                     )}
                     {todayCount > 0 && (
-                        <div className="flex items-center gap-1.5 text-xs text-dashboard-warning bg-dashboard-warning/10 border border-dashboard-warning/30 rounded-lg px-3 py-1.5">
+                        <div className="flex items-center gap-1.5 text-xs text-dashboard-neutral bg-dashboard-warning border border-dashboard-warning rounded-lg px-3 py-1.5">
                             <Clock className="h-3.5 w-3.5" />
                             {todayCount} due today
                         </div>
@@ -209,8 +209,7 @@ export function MyFollowUpsTable({ followUps: initialFollowUps }: Props) {
                                 className={cn(
                                     "group rounded-xl border p-4 transition-all duration-150",
                                     "bg-dashboard-base-100",
-                                    cardStyle[status],
-                                    isDeleting && "opacity-50 pointer-events-none"
+                                    isDeleting && " pointer-events-none"
                                 )}
                             >
                                 <div className="flex items-start gap-3">
@@ -249,7 +248,7 @@ export function MyFollowUpsTable({ followUps: initialFollowUps }: Props) {
                                                         <Button
                                                             variant="ghost"
                                                             size="icon"
-                                                            className="h-7 w-7 group-hover:opacity-100 transition-opacity text-dashboard-base-content/85 hover:text-dashboard-error hover:bg-dashboard-error/10"
+                                                            className="h-7 w-7 group-hover:opacity-100 transition-opacity text-dashboard-error hover:text-dashboard-error bg-dashboard-error/10 hover:bg-dashboard-error/20"
                                                         >
                                                             {isDeleting
                                                                 ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
