@@ -52,30 +52,7 @@ export default async function DashboardLayout({
           </div>
         </div>
 
-        {/* Page Content */}
             <div className="relative p-6">
-      {/* Web thread */}
-
-      {/* Spider-Man PNG */}
-      <Image
-      width={120}
-      height={120}
-        src="/dashboard/spiderman.png" // 👈 replace with your image path
-        alt="Spider-Man"
-        className="absolute -top-2 right-4 w-20"
-        style={{
-          animation: "swing 4s ease-in-out infinite",
-          transformOrigin: "top center",
-        }}
-      />
-
-      <style>{`
-        @keyframes swing {
-          0%, 100% { transform: rotate(-12deg); }
-          50%       { transform: rotate(12deg); }
-        }
-      `}</style>
-
       {children}
     </div>
       </main>

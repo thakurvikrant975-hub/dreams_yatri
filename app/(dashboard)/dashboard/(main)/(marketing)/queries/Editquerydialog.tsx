@@ -46,12 +46,12 @@ function SectionLabel({ icon: Icon, label }: { icon: React.ElementType; label: s
 }
 
 const SOURCES = [
-    { label: "Phone Call", value: "PHONE_CALL" },
-    { label: "WhatsApp", value: "WHATSAPP" },
-    { label: "Website Form", value: "WEBSITE_FORM" },
-    { label: "Landing Page", value: "LANDING_PAGE" },
-    { label: "Referral", value: "REFERRAL" },
-    { label: "Other", value: "OTHER" },
+    { label: "Phone Call",    value: "PHONE_CALL" },
+    { label: "WhatsApp",      value: "WHATSAPP" },
+    { label: "Website Form",  value: "WEBSITE_FORM" },
+    { label: "Landing Page",  value: "LANDING_PAGE" },
+    { label: "Referral",      value: "REFERRAL" },
+    { label: "Other",         value: "OTHER" },
 ];
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -63,90 +63,114 @@ type Props = {
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
+
 export function EditQueryDialog({ query, children, onDone }: Props) {
-    const [open, setOpen] = useState(false);
-    const [isPending, startTransition] = useTransition();
-    const [errors, setErrors] = useState<Record<string, string[]>>({});
-    const [source, setSource] = useState(query.source);
+    const [open, setOpen]               = useState(false);
+    const [isPending, startTransition]  = useTransition();
+    const [errors, setErrors]           = useState<Record<string, string[]>>({});
+    const [source, setSource]           = useState(query.source);
+
     const [destinations, setDestinations] = useState<DestinationOption[]>([]);
-    const [packages, setPackages] = useState<PackageOption[]>([]);
+    const [packages, setPackages]         = useState<PackageOption[]>([]);
     const [loadingDests, setLoadingDests] = useState(false);
-    const [loadingPkgs, setLoadingPkgs] = useState(false);
-    const [selectedDestId, setSelectedDestId] = useState<number | null>(null);
-    const [selectedDestName, setSelectedDestName] = useState(query.destination ?? "");
-    const [selectedPkgTitle, setSelectedPkgTitle] = useState(query.packageName ?? "");
+    const [loadingPkgs, setLoadingPkgs]   = useState(false);
 
-    // Load destinations and auto-match on open
-useEffect(() => {
-    if (!open) return;
+    /**
+     * FIX: Track destination as a single composite string "id::name".
+     * Using "" means "not selected yet / loading".
+     * This avoids the bug where selectedDestId was null during the async load,
+     * causing the Select to show the placeholder instead of the saved value.
+     */
+    const [destValue, setDestValue]      = useState<string>("");   // "id::name"
+    const [selectedPkgTitle, setSelectedPkgTitle] = useState<string>("");
 
-    // Reset state fresh every time dialog opens
-    setSelectedDestId(null);
-    setSelectedDestName(query.destination ?? "");
-    setSelectedPkgTitle(query.packageName ?? "");
-    setPackages([]);
-    setDestinations([]);
+    // ── Reset & pre-populate on open ─────────────────────────────────────────
+    useEffect(() => {
+        if (!open) return;
 
-    setLoadingDests(true);
-    getDestinationsForQuery().then(dests => {
-        setDestinations(dests);
-        setLoadingDests(false);
+        // Reset to saved values immediately (before async)
+        // We keep the text visible while destinations are loading.
+        setDestValue("");            // cleared until we confirm the ID from DB
+        setSelectedPkgTitle(query.packageName ?? "");
+        setPackages([]);
+        setErrors({});
+        setSource(query.source);
 
-        if (!query.destination) return;
+        setLoadingDests(true);
+        getDestinationsForQuery().then((dests) => {
+            setDestinations(dests);
+            setLoadingDests(false);
 
-        const match = dests.find(d => d.name === query.destination);
-        if (!match) return;
+            if (!query.destination) return;
 
-        setSelectedDestId(match.id);
-        setSelectedDestName(match.name);
+            // Match the saved destination name to get its numeric id
+            const match = dests.find((d) => d.name === query.destination);
+            if (!match) {
+                // Destination no longer exists in DB — show it as plain text fallback
+                // (the Select won't be able to select it, but we still send the name on submit)
+                return;
+            }
 
-        // Only load packages if there's a saved package to auto-select
-        setLoadingPkgs(true);
-        getPackagesByDestination(match.id).then(pkgs => {
-            setPackages(pkgs);
-            setLoadingPkgs(false);
+            // FIX: Set the composite value so the Select immediately shows the right item
+            setDestValue(`${match.id}::${match.name}`);
 
             if (!query.packageName) return;
 
-            // Trim both sides to avoid whitespace mismatch
-            const pkgMatch = pkgs.find(
-                p => p.title.trim() === query.packageName!.trim()
-            );
-            if (pkgMatch) {
-                setSelectedPkgTitle(pkgMatch.title);
-            }
+            // Load packages for this destination
+            setLoadingPkgs(true);
+            getPackagesByDestination(match.id).then((pkgs) => {
+                setPackages(pkgs);
+                setLoadingPkgs(false);
+
+                // FIX: Match on trimmed title to avoid whitespace issues
+                const pkgMatch = pkgs.find(
+                    (p) => p.title.trim() === query.packageName!.trim(),
+                );
+                if (pkgMatch) {
+                    setSelectedPkgTitle(pkgMatch.title);
+                }
+                // If no match, keep the original saved title so it stays visible below the select
+            });
         });
-    });
-}, [open, query.id]);
+    }, [open, query.id]); // query.id as dep so re-opening for a different query resets properly
 
-    // Load packages when destination changes manually
-    useEffect(() => {
-        if (!selectedDestId || !open) return;
-        // Skip on initial load — handled above
-    }, [selectedDestId]);
+    // ── Helpers derived from destValue ────────────────────────────────────────
 
+    function parseDestValue(val: string): { id: number; name: string } | null {
+        if (!val) return null;
+        const [idStr, ...rest] = val.split("::");
+        const id = parseInt(idStr, 10);
+        if (isNaN(id)) return null;
+        return { id, name: rest.join("::") };
+    }
 
+    const parsedDest = parseDestValue(destValue);
 
-function handleDestChange(value: string) {
-    const [idStr, ...rest] = value.split("::");
-    const id = parseInt(idStr, 10);  // add radix 10
-    const name = rest.join("::");
-    setSelectedDestId(id);
-    setSelectedDestName(name);
-    setSelectedPkgTitle("");
+    // ── Destination change by user interaction ────────────────────────────────
 
-    setLoadingPkgs(true);
-    getPackagesByDestination(id).then(pkgs => {
-        setPackages(pkgs);
-        setLoadingPkgs(false);
-    });
-}
+    function handleDestChange(value: string) {
+        setDestValue(value);
+        setSelectedPkgTitle("");   // clear package selection when dest changes
+        setPackages([]);
+
+        const parsed = parseDestValue(value);
+        if (!parsed) return;
+
+        setLoadingPkgs(true);
+        getPackagesByDestination(parsed.id).then((pkgs) => {
+            setPackages(pkgs);
+            setLoadingPkgs(false);
+        });
+    }
+
+    // ── Submit ────────────────────────────────────────────────────────────────
 
     function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
         formData.set("source", source);
-        formData.set("destination", selectedDestName);
+        // Send the destination name (not the composite id::name value)
+        formData.set("destination", parsedDest?.name ?? query.destination ?? "");
         formData.set("packageName", selectedPkgTitle);
 
         startTransition(async () => {
@@ -168,6 +192,8 @@ function handleDestChange(value: string) {
     const travelDateValue = query.travelDate
         ? new Date(query.travelDate).toISOString().split("T")[0]
         : "";
+
+    // ── Render ────────────────────────────────────────────────────────────────
 
     return (
         <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setErrors({}); }}>
@@ -198,10 +224,7 @@ function handleDestChange(value: string) {
                         </div>
                         <div className="col-span-2 space-y-1.5">
                             <Label>Phone <span className="text-destructive">*</span></Label>
-                            <PhoneInput
-                                name="phone"
-                                defaultValue={query.phone}
-                            />
+                            <PhoneInput name="phone" defaultValue={query.phone} />
                             <FieldError errors={errors} field="phone" />
                         </div>
                         <div className="col-span-2 space-y-1.5">
@@ -214,77 +237,123 @@ function handleDestChange(value: string) {
                     <SectionLabel icon={MapPin} label="Package Details" />
 
                     <div className="grid grid-cols-2 gap-3">
+
+                        {/* ── Destination ── */}
                         <div className="space-y-1.5">
-                            <Label>Destination<span className="text-destructive">*</span></Label>
+                            <Label>
+                                Destination <span className="text-destructive">*</span>
+                            </Label>
                             <Select
-                                value={
-    selectedDestId
-        ? `${selectedDestId}::${selectedDestName}`
-        : destinations.find(d => d.name === selectedDestName)
-            ? `${destinations.find(d => d.name === selectedDestName)!.id}::${selectedDestName}`
-            : ""
-}
+                                value={destValue}
                                 onValueChange={handleDestChange}
                                 disabled={loadingDests}
                             >
                                 <SelectTrigger>
-                                    {loadingDests
-                                        ? <span className="flex items-center gap-1.5 text-muted-foreground text-sm"><Loader2 className="h-3 w-3 animate-spin" /> Loading...</span>
-                                        : <SelectValue placeholder="Select destination" />
-                                    }
+                                    {loadingDests ? (
+                                        <span className="flex items-center gap-1.5 text-muted-foreground text-sm">
+                                            <Loader2 className="h-3 w-3 animate-spin" /> Loading…
+                                        </span>
+                                    ) : (
+                                        <SelectValue placeholder="Select destination" />
+                                    )}
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {destinations.map(d => (
-                                        <SelectItem key={d.id} value={`${d.id}::${d.name}`}>{d.name}</SelectItem>
+                                    {destinations.map((d) => (
+                                        <SelectItem key={d.id} value={`${d.id}::${d.name}`}>
+                                            {d.name}
+                                        </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
                             <FieldError errors={errors} field="destination" />
-                            {!selectedDestId && selectedDestName && (
-                                <p className="text-xs text-muted-foreground">Current: {selectedDestName}</p>
+                            {/*
+                             * FIX: Show fallback text ONLY when destinations have loaded
+                             * but the saved destination didn't match any option (e.g. deleted dest).
+                             * Previously this showed even when the select was pre-populated correctly.
+                             */}
+                            {!loadingDests && !destValue && query.destination && (
+                                <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                    <span>⚠</span> Current: <span className="font-medium">{query.destination}</span> (not found in active list)
+                                </p>
                             )}
                         </div>
 
+                        {/* ── Package ── */}
                         <div className="space-y-1.5">
                             <Label>Package</Label>
                             <Select
-    value={selectedPkgTitle}
-    onValueChange={setSelectedPkgTitle}
-    disabled={!selectedDestId || loadingPkgs}
->
+                                value={selectedPkgTitle}
+                                onValueChange={setSelectedPkgTitle}
+                                disabled={!parsedDest || loadingPkgs}
+                            >
                                 <SelectTrigger>
-                                    {loadingPkgs
-                                        ? <span className="flex items-center gap-1.5 text-muted-foreground text-sm"><Loader2 className="h-3 w-3 animate-spin" /> Loading...</span>
-                                        : <SelectValue placeholder={!selectedDestId ? "Select destination first" : "Select package"} />
-                                    }
+                                    {loadingPkgs ? (
+                                        <span className="flex items-center gap-1.5 text-muted-foreground text-sm">
+                                            <Loader2 className="h-3 w-3 animate-spin" /> Loading…
+                                        </span>
+                                    ) : (
+                                        <SelectValue
+                                            placeholder={
+                                                !parsedDest
+                                                    ? "Select destination first"
+                                                    : "Select package"
+                                            }
+                                        />
+                                    )}
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {packages.map(p => (
-                                        <SelectItem key={p.id} value={p.title}>{p.title}</SelectItem>
+                                    {packages.map((p) => (
+                                        <SelectItem key={p.id} value={p.title}>
+                                            {p.title}
+                                        </SelectItem>
                                     ))}
-                                    {!loadingPkgs && selectedDestId && packages.length === 0 && (
-                                        <SelectItem value="__none__" disabled>No packages for this destination</SelectItem>
+                                    {!loadingPkgs && parsedDest && packages.length === 0 && (
+                                        <SelectItem value="__none__" disabled>
+                                            No packages for this destination
+                                        </SelectItem>
                                     )}
                                 </SelectContent>
                             </Select>
-                            {!selectedPkgTitle && query.packageName && (
-                                <p className="text-xs text-muted-foreground">Current: {query.packageName}</p>
+                            {/*
+                             * FIX: Show fallback only when packages loaded but title unmatched.
+                             * Previously showed on every open because selectedPkgTitle was briefly "".
+                             */}
+                            {!loadingPkgs && parsedDest && !selectedPkgTitle && query.packageName && (
+                                <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                    <span>⚠</span> Current: <span className="font-medium">{query.packageName}</span> (not in list)
+                                </p>
                             )}
                         </div>
 
                         <div className="space-y-1.5">
                             <Label htmlFor="edit-groupSize">
-                                <span className="flex items-center gap-1"><Users className="h-3 w-3" /> No of travellers</span>
+                                <span className="flex items-center gap-1">
+                                    <Users className="h-3 w-3" /> No of travellers
+                                </span>
                             </Label>
-                            <Input id="edit-groupSize" name="groupSize" type="number" min="1" max="100"
-                                defaultValue={query.groupSize ?? ""} placeholder="e.g. 4" />
+                            <Input
+                                id="edit-groupSize"
+                                name="groupSize"
+                                type="number"
+                                min="1"
+                                max="100"
+                                defaultValue={query.groupSize ?? ""}
+                                placeholder="e.g. 4"
+                            />
                         </div>
 
                         <div className="space-y-1.5">
                             <Label htmlFor="edit-travelDate">
-                                <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Travel Date</span>
+                                <span className="flex items-center gap-1">
+                                    <Calendar className="h-3 w-3" /> Travel Date
+                                </span>
                             </Label>
-                            <Input id="edit-travelDate" name="travelDate" type="date" defaultValue={travelDateValue} />
+                            <Input
+                                id="edit-travelDate"
+                                name="travelDate"
+                                type="date"
+                                defaultValue={travelDateValue}
+                            />
                         </div>
                     </div>
 
@@ -293,8 +362,10 @@ function handleDestChange(value: string) {
                     <div className="space-y-1.5">
                         <Label>How did they reach us?</Label>
                         <div className="flex flex-wrap gap-2">
-                            {SOURCES.map(s => (
-                                <button key={s.value} type="button"
+                            {SOURCES.map((s) => (
+                                <button
+                                    key={s.value}
+                                    type="button"
                                     onClick={() => setSource(s.value as PackageQuery["source"])}
                                     className={[
                                         "px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors",
@@ -302,7 +373,9 @@ function handleDestChange(value: string) {
                                             ? "bg-primary text-primary-foreground border-primary"
                                             : "bg-background hover:bg-muted border-border text-muted-foreground",
                                     ].join(" ")}
-                                >{s.label}</button>
+                                >
+                                    {s.label}
+                                </button>
                             ))}
                         </div>
                     </div>
@@ -311,15 +384,23 @@ function handleDestChange(value: string) {
 
                     <div className="space-y-1.5">
                         <Label htmlFor="edit-message">Enquiry Details</Label>
-                        <Textarea id="edit-message" name="message" defaultValue={query.message ?? ""}
-                            placeholder="What did they enquire about?" rows={3} className="resize-none text-sm" />
+                        <Textarea
+                            id="edit-message"
+                            name="message"
+                            defaultValue={query.message ?? ""}
+                            placeholder="What did they enquire about?"
+                            rows={3}
+                            className="resize-none text-sm"
+                        />
                     </div>
 
                     <div className="flex justify-end gap-2 pt-3 border-t">
-                        <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+                        <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                            Cancel
+                        </Button>
                         <Button type="submit" disabled={isPending} className="gap-2">
                             <Pencil className="h-3.5 w-3.5" />
-                            {isPending ? "Saving..." : "Save Changes"}
+                            {isPending ? "Saving…" : "Save Changes"}
                         </Button>
                     </div>
                 </form>

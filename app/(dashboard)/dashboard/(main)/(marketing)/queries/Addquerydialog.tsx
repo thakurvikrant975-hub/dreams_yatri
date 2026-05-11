@@ -118,7 +118,7 @@ export function AddQueryDialog() {
             <DialogTrigger asChild>
                 <Button
                     size="lg"
-                    className="gap-2 bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90 rounded-xl transition-all duration-200 hover:scale-[1.02] shadow-sm"
+                    className="gap-2 bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90 rounded-md transition-all duration-200 hover:scale-[1.02] shadow-sm"
                 >
                     <Plus className="h-4 w-4" />
                     Add Query

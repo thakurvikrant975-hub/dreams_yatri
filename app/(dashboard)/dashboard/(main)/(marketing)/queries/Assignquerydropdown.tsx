@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { UserCheck, UserX, ChevronsUpDown, Loader2, Search } from "lucide-react";
+import { UserCheck, UserX, ChevronsUpDown, Loader2, Search, TrendingUp, Briefcase, BarChart2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
@@ -26,8 +26,13 @@ function memberInitials(name: string) {
         .join("");
 }
 
+/**
+ * FIX: Color badge based on active pipeline load only.
+ * Previously counted SUBMITTED/IN_PROGRESS — now counts the correct active statuses
+ * (ASSIGNED, IN_PROGRESS, PACKAGE_SENT, etc.) as returned by the updated action.
+ */
 function loadBadge(count: number) {
-    if (count === 0)  return { label: "Free",         className: "bg-green-100 text-green-700 border-green-200 dark:bg-green-950/40 dark:text-green-400" };
+    if (count === 0)  return { label: "Free",           className: "bg-green-100 text-green-700 border-green-200 dark:bg-green-950/40 dark:text-green-400" };
     if (count <= 5)   return { label: `${count} active`, className: "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400" };
     if (count <= 10)  return { label: `${count} active`, className: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400" };
     return             { label: `${count} active`, className: "bg-red-100 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400" };
@@ -44,6 +49,12 @@ function avatarColor(name: string) {
     return colors[name.charCodeAt(0) % colors.length];
 }
 
+/** Derived conversion rate rounded to 1 decimal, or "—" if no history. */
+function convRate(member: SalesMember): string {
+    if (!member.totalQueries) return "—";
+    return `${((member.convertedQueries / member.totalQueries) * 100).toFixed(1)}%`;
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type Props = {
@@ -51,16 +62,16 @@ type Props = {
     assignedTo: string | null;
     assignedAt?: Date | null;
     onDone?:    () => void;
-    compact?:   boolean; // icon-only trigger for table rows
+    compact?:   boolean;
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function AssignQueryDropdown({ queryId, assignedTo, assignedAt, onDone, compact = false }: Props) {
-    const [open, setOpen]         = useState(false);
-    const [search, setSearch]     = useState("");
-    const [members, setMembers]   = useState<SalesMember[]>([]);
-    const [loading, setLoading]   = useState(false);
+    const [open, setOpen]          = useState(false);
+    const [search, setSearch]      = useState("");
+    const [members, setMembers]    = useState<SalesMember[]>([]);
+    const [loading, setLoading]    = useState(false);
     const [isPending, startAssign] = useTransition();
 
     // Lazy-fetch when popover opens
@@ -136,12 +147,14 @@ export function AssignQueryDropdown({ queryId, assignedTo, assignedAt, onDone, c
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>{trigger}</PopoverTrigger>
 
-            <PopoverContent className="w-80 p-0 shadow-lg" align="start" sideOffset={6}>
+            <PopoverContent className="w-[340px] p-0 shadow-lg rounded-lg" align="start" sideOffset={6}>
 
                 {/* Header */}
                 <div className="px-3 py-2.5 border-b">
                     <p className="text-xs font-semibold text-foreground">Assign to Sales Team</p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">Active queries shown per member</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                        Active pipeline · total leads · conversion rate shown per member
+                    </p>
                 </div>
 
                 {/* Search */}
@@ -149,7 +162,7 @@ export function AssignQueryDropdown({ queryId, assignedTo, assignedAt, onDone, c
                     <div className="relative">
                         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
                         <Input
-                            placeholder="Search by name or email..."
+                            placeholder="Search by name or email…"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             className="pl-8 h-8 text-sm"
@@ -159,11 +172,11 @@ export function AssignQueryDropdown({ queryId, assignedTo, assignedAt, onDone, c
                 </div>
 
                 {/* Member List */}
-                <div className="max-h-64 overflow-y-auto">
+                <div className="max-h-[320px] overflow-y-auto">
                     {loading ? (
                         <div className="flex items-center justify-center py-8 gap-2 text-muted-foreground">
                             <Loader2 className="h-4 w-4 animate-spin" />
-                            <span className="text-xs">Loading team...</span>
+                            <span className="text-xs">Loading team…</span>
                         </div>
                     ) : filtered.length === 0 ? (
                         <div className="text-center py-8">
@@ -176,6 +189,7 @@ export function AssignQueryDropdown({ queryId, assignedTo, assignedAt, onDone, c
                             {filtered.map((member) => {
                                 const isSelected = member.id === assignedTo;
                                 const load       = loadBadge(member.activeQueries);
+                                const rate       = convRate(member);
 
                                 return (
                                     <button
@@ -184,20 +198,28 @@ export function AssignQueryDropdown({ queryId, assignedTo, assignedAt, onDone, c
                                         disabled={isPending}
                                         onClick={() => handleAssign(isSelected ? null : member.id)}
                                         className={cn(
-                                            "w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors",
+                                            "w-full flex items-start gap-3 px-3 py-2.5 text-left transition-colors",
                                             "hover:bg-muted/60 disabled:opacity-50",
                                             isSelected && "bg-primary/5",
                                         )}
                                     >
                                         {/* Avatar */}
-                                        <div className={cn("h-8 w-8 rounded-full text-xs font-bold flex items-center justify-center shrink-0", avatarColor(member.name))}>
+                                        <div className={cn(
+                                            "h-9 w-9 rounded-full text-xs font-bold flex items-center justify-center shrink-0 mt-0.5",
+                                            avatarColor(member.name),
+                                        )}>
                                             {memberInitials(member.name)}
                                         </div>
 
                                         {/* Info */}
                                         <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2">
-                                                <p className={cn("text-sm font-medium leading-tight truncate", isSelected && "text-primary")}>
+
+                                            {/* Name row */}
+                                            <div className="flex items-center gap-2 mb-0.5">
+                                                <p className={cn(
+                                                    "text-sm font-medium leading-tight truncate",
+                                                    isSelected && "text-primary",
+                                                )}>
                                                     {member.name}
                                                 </p>
                                                 {isSelected && (
@@ -205,14 +227,54 @@ export function AssignQueryDropdown({ queryId, assignedTo, assignedAt, onDone, c
                                                         Assigned
                                                     </span>
                                                 )}
+                                                {/* Active load badge — top-right */}
+                                                <Badge
+                                                    variant="outline"
+                                                    className={cn(
+                                                        "ml-auto text-[10px] shrink-0 font-medium border",
+                                                        load.className,
+                                                    )}
+                                                >
+                                                    {load.label}
+                                                </Badge>
                                             </div>
-                                            <p className="text-[11px] text-muted-foreground truncate mt-0.5">{member.email}</p>
-                                        </div>
 
-                                        {/* Load Badge */}
-                                        <Badge variant="outline" className={cn("text-[10px] shrink-0 font-medium border", load.className)}>
-                                            {load.label}
-                                        </Badge>
+                                            {/* Email */}
+                                            <p className="text-[11px] text-muted-foreground truncate mb-1.5">
+                                                {member.email}
+                                            </p>
+
+                                            {/* ── FIX: Richer stats row ── */}
+                                            <div className="flex items-center gap-3">
+                                                {/* Total leads */}
+                                                <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                                    <Briefcase className="h-2.5 w-2.5 shrink-0" />
+                                                    <span className="font-medium text-foreground">{member.totalQueries}</span>
+                                                    <span>total</span>
+                                                </span>
+
+                                                {/* Active */}
+                                                <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                                    <BarChart2 className="h-2.5 w-2.5 shrink-0" />
+                                                    <span className="font-medium text-foreground">{member.activeQueries}</span>
+                                                    <span>active</span>
+                                                </span>
+
+                                                {/* Conversion rate */}
+                                                <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                                    <TrendingUp className="h-2.5 w-2.5 shrink-0" />
+                                                    <span className={cn(
+                                                        "font-medium",
+                                                        rate !== "—" && parseFloat(rate) >= 20
+                                                            ? "text-green-600 dark:text-green-400"
+                                                            : "text-foreground",
+                                                    )}>
+                                                        {rate}
+                                                    </span>
+                                                    <span>conv.</span>
+                                                </span>
+                                            </div>
+                                        </div>
                                     </button>
                                 );
                             })}

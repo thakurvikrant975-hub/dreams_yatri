@@ -143,7 +143,7 @@ export type RejectionReason = {
     sortOrder: number;
     createdAt: Date;
     updatedAt: Date;
-    _count: { queries: number };  // ← this is correct, leave it
+    _count: { queries: number };
 };
 
 export type CloseReason = {
@@ -162,11 +162,17 @@ export type FollowUp = {
     createdByName: string | null;
 };
 
+// ── FIX: Extended SalesMember with richer stats ───────────────────────────────
 export type SalesMember = {
     id: string;
     name: string;
     email: string;
+    /** Queries in active pipeline (ASSIGNED / IN_PROGRESS / PACKAGE_SENT / CLIENT_ACCEPTED / CLIENT_DECLINED / PAYMENT_INITIATED) */
     activeQueries: number;
+    /** All queries ever assigned to this member */
+    totalQueries: number;
+    /** Queries that ended as CONVERTED */
+    convertedQueries: number;
 };
 
 export type DestinationOption = { id: number; name: string; slug: string };
@@ -251,25 +257,30 @@ export async function getCloseReasons(): Promise<CloseReason[]> {
 }
 
 export async function getRejectionReasons(): Promise<RejectionReason[]> {
-  const data = await db.rejectionReason.findMany({
-    where: { isActive: true },
-    include: {
-      _count: { select: { package_queries: true } },
-    },
-    orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
-  });
+    const data = await db.rejectionReason.findMany({
+        where: { isActive: true },
+        include: {
+            _count: { select: { package_queries: true } },
+        },
+        orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+    });
 
-  return data.map((item) => ({
-    ...item,
-    _count: {
-      queries: item._count.package_queries, // ✅ map here
-    },
-  }));
+    return data.map((item) => ({
+        ...item,
+        _count: {
+            queries: item._count.package_queries,
+        },
+    }));
 }
 
+// ── FIX: getSalesMembers — active-only, correct counts, richer stats ──────────
 export async function getSalesMembers(): Promise<SalesMember[]> {
+    // FIX 1: Only active sales team members
     const members = await db.teamMember.findMany({
-        where: { teamRole: { name: { equals: "Sales", mode: "insensitive" } } },
+        where: {
+            teamRole: { name: { equals: "Sales", mode: "insensitive" } },
+            isActive: true, // ← was missing; was returning inactive members too
+        },
         select: { id: true, name: true, email: true },
         orderBy: { name: "asc" },
     });
@@ -277,14 +288,52 @@ export async function getSalesMembers(): Promise<SalesMember[]> {
     if (members.length === 0) return [];
 
     const ids = members.map((m) => m.id);
-    const counts = await db.package_queries.groupBy({
-        by: ["assignedTo"],
-        where: { assignedTo: { in: ids }, status: { in: ["SUBMITTED", "IN_PROGRESS"] } },
-        _count: { id: true },
-    });
 
-    const countMap = Object.fromEntries(counts.map((c) => [c.assignedTo!, c._count.id]));
-    return members.map((m) => ({ ...m, activeQueries: countMap[m.id] ?? 0 }));
+    // FIX 2: Active query count = queries currently in the sales pipeline
+    // (ASSIGNED, IN_PROGRESS, PACKAGE_SENT, CLIENT_ACCEPTED, CLIENT_DECLINED, PAYMENT_INITIATED)
+    // Previously only counted SUBMITTED / IN_PROGRESS which was wrong.
+    const [activeCounts, totalCounts, convertedCounts] = await Promise.all([
+        db.package_queries.groupBy({
+            by: ["assignedTo"],
+            where: {
+                assignedTo: { in: ids },
+                status: {
+                    in: [
+                        "ASSIGNED",
+                        "IN_PROGRESS",
+                        "PACKAGE_SENT",
+                        "CLIENT_ACCEPTED",
+                        "CLIENT_DECLINED",
+                        "PAYMENT_INITIATED",
+                    ],
+                },
+            },
+            _count: { id: true },
+        }),
+        // FIX 3: Total queries ever assigned — for conversion rate display
+        db.package_queries.groupBy({
+            by: ["assignedTo"],
+            where: { assignedTo: { in: ids } },
+            _count: { id: true },
+        }),
+        // FIX 3: Converted queries count
+        db.package_queries.groupBy({
+            by: ["assignedTo"],
+            where: { assignedTo: { in: ids }, status: "CONVERTED" },
+            _count: { id: true },
+        }),
+    ]);
+
+    const activeMap    = Object.fromEntries(activeCounts.map((c)    => [c.assignedTo!, c._count.id]));
+    const totalMap     = Object.fromEntries(totalCounts.map((c)     => [c.assignedTo!, c._count.id]));
+    const convertedMap = Object.fromEntries(convertedCounts.map((c) => [c.assignedTo!, c._count.id]));
+
+    return members.map((m) => ({
+        ...m,
+        activeQueries:    activeMap[m.id]    ?? 0,
+        totalQueries:     totalMap[m.id]     ?? 0,
+        convertedQueries: convertedMap[m.id] ?? 0,
+    }));
 }
 
 export async function getDestinationsForQuery(): Promise<DestinationOption[]> {
