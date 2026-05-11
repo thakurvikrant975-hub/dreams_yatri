@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Users, MoreHorizontal, Trash2, Power, Pencil, Mail, Clipboard, Key } from "lucide-react";
+import { Users, MoreHorizontal, Trash2, Power, Pencil, Mail, Clipboard, Key, UsersRound, MonitorCheck, MonitorDot, Building, Building2 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import {
@@ -295,22 +295,22 @@ export function TeamMembersTable({
         <StatCard
           label="Total Members"
           value={totalStats.total}
-          icon={Key}
+          icon={UsersRound}
         />
         <StatCard
           label="Active Members"
           value={totalStats.active}
-          icon={Key}
+          icon={MonitorCheck}
         />
         <StatCard
           label="Inactive Members"
           value={totalStats.inactive}
-          icon={Key}
+          icon={MonitorDot}
         />
         <StatCard
           label="Departments"
           value={totalStats.departments}
-          icon={Key}
+          icon={Building2}
         />
       </StatGrid>
 

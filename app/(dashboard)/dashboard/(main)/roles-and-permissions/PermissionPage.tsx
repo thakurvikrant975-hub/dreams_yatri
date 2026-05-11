@@ -6,7 +6,7 @@ import {
     ArrowLeft, Check, ChevronDown, ChevronUp,
     ShieldCheck, ShieldOff, Save, Users,
 } from "lucide-react";
-import { toast }   from "sonner";
+import { toast } from "sonner";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { updateRolePermissions } from "./actions";
@@ -16,11 +16,11 @@ import type { PermissionSet, Action, ResourcePermission } from "@/app/types/rbac
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type Role = {
-    id:          string;
-    name:        string;
+    id: string;
+    name: string;
     description: string | null;
     permissions: unknown;
-    _count:      { members: number };
+    _count: { members: number };
 };
 
 // ── Safe parser ───────────────────────────────────────────────────────────────
@@ -41,18 +41,18 @@ const RESOURCES = Object.keys(FIELD_REGISTRY);
 
 const RESOURCE_LABELS: Record<string, string> = {
     destinations: "Destinations",
-    hotels:       "Hotels",
+    hotels: "Hotels",
     team_members: "Team Members",
-    packages:     "Packages",
-    regions:      "Regions",
-    activities:   "Activities",
-    categories:   "Categories",
-    analytics:    "Analytics",
-    dashboard:    "Dashboard",
+    packages: "Packages",
+    regions: "Regions",
+    activities: "Activities",
+    categories: "Categories",
+    analytics: "Analytics",
+    dashboard: "Dashboard",
 };
 
 const ACTIONS: { key: Action; label: string; shortLabel: string; activeClass: string }[] = [
-    { key: "read",   label: "Read",   shortLabel: "R", activeClass: "bg-blue-500/10 text-blue-600 border-blue-200 dark:border-blue-800 dark:text-blue-400" },
+    { key: "read", label: "Read", shortLabel: "R", activeClass: "bg-blue-500/10 text-blue-600 border-blue-200 dark:border-blue-800 dark:text-blue-400" },
     { key: "create", label: "Create", shortLabel: "C", activeClass: "bg-green-500/10 text-green-600 border-green-200 dark:border-green-800 dark:text-green-400" },
     { key: "update", label: "Update", shortLabel: "U", activeClass: "bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-800 dark:text-amber-400" },
     { key: "delete", label: "Delete", shortLabel: "D", activeClass: "bg-destructive/10 text-destructive border-destructive/20" },
@@ -83,8 +83,8 @@ function Checkbox({
                 {indeterminate && !checked
                     ? <span className="block h-0.5 w-2 bg-current rounded" />
                     : checked
-                    ? <Check className="h-2.5 w-2.5" strokeWidth={3} />
-                    : null}
+                        ? <Check className="h-2.5 w-2.5" strokeWidth={3} />
+                        : null}
             </button>
             {label && <span className="text-sm">{label}</span>}
         </label>
@@ -98,17 +98,17 @@ function ResourceBlock({
     permission,
     onChange,
 }: {
-    resource:   string;
+    resource: string;
     permission: ResourcePermission | null;
-    onChange:   (p: ResourcePermission | null) => void;
+    onChange: (p: ResourcePermission | null) => void;
 }) {
     const [expanded, setExpanded] = useState(!!permission);
 
-    const fields   = FIELD_REGISTRY[resource] ?? [];
-    const actions  = permission?.actions ?? [];
-    const visible  = permission?.fields?.visible  ?? [];
+    const fields = FIELD_REGISTRY[resource] ?? [];
+    const actions = permission?.actions ?? [];
+    const visible = permission?.fields?.visible ?? [];
     const editable = permission?.fields?.editable ?? [];
-    const hasRead  = actions.includes("read");
+    const hasRead = actions.includes("read");
 
     // ── Action select-all ──────────────────────────────────────────────────────
     const allActionsSelected = ACTIONS.every(a => actions.includes(a.key));
@@ -120,8 +120,8 @@ function ResourceBlock({
         } else {
             onChange({
                 resource,
-                actions:  ACTIONS.map(a => a.key),
-                fields:   { visible: fields.map(f => f.key), editable: fields.map(f => f.key) },
+                actions: ACTIONS.map(a => a.key),
+                fields: { visible: fields.map(f => f.key), editable: fields.map(f => f.key) },
             });
             setExpanded(true);
         }
@@ -136,15 +136,18 @@ function ResourceBlock({
 
         onChange({
             resource,
-            actions: newActions,
-            fields: { visible, editable: editable.filter(f => visible.includes(f)) },
+            actions: newActions as Action[],
+            fields: {
+                visible,
+                editable: editable.filter(f => visible.includes(f)),
+            },
         });
         if (on) setExpanded(true);
     }
 
     // ── Visible select-all ─────────────────────────────────────────────────────
-    const allVisible     = fields.every(f => visible.includes(f.key));
-    const someVisible    = fields.some(f => visible.includes(f.key));
+    const allVisible = fields.every(f => visible.includes(f.key));
+    const someVisible = fields.some(f => visible.includes(f.key));
 
     function toggleAllVisible() {
         const newVisible = allVisible ? [] : fields.map(f => f.key);
@@ -165,9 +168,9 @@ function ResourceBlock({
     }
 
     // ── Editable select-all (subset of visible) ────────────────────────────────
-    const visibleFields  = fields.filter(f => visible.includes(f.key));
-    const allEditable    = visibleFields.length > 0 && visibleFields.every(f => editable.includes(f.key));
-    const someEditable   = visibleFields.some(f => editable.includes(f.key));
+    const visibleFields = fields.filter(f => visible.includes(f.key));
+    const allEditable = visibleFields.length > 0 && visibleFields.every(f => editable.includes(f.key));
+    const someEditable = visibleFields.some(f => editable.includes(f.key));
 
     function toggleAllEditable() {
         const newEditable = allEditable ? [] : visibleFields.map(f => f.key);
@@ -320,8 +323,8 @@ export function PermissionPage({ role }: { role: Role }) {
     );
 
     // Select-all resources
-    const allEnabled    = RESOURCES.every(r => localPerms.some(p => p.resource === r && p.actions.includes("read")));
-    const someEnabled   = RESOURCES.some(r => localPerms.some(p => p.resource === r && p.actions.includes("read")));
+    const allEnabled = RESOURCES.every(r => localPerms.some(p => p.resource === r && p.actions.includes("read")));
+    const someEnabled = RESOURCES.some(r => localPerms.some(p => p.resource === r && p.actions.includes("read")));
 
     function toggleAllResources() {
         if (allEnabled) {
@@ -331,7 +334,7 @@ export function PermissionPage({ role }: { role: Role }) {
                 resource,
                 actions: ["read", "create", "update", "delete"] as Action[],
                 fields: {
-                    visible:  (FIELD_REGISTRY[resource] ?? []).map(f => f.key),
+                    visible: (FIELD_REGISTRY[resource] ?? []).map(f => f.key),
                     editable: (FIELD_REGISTRY[resource] ?? []).map(f => f.key),
                 },
             })));
