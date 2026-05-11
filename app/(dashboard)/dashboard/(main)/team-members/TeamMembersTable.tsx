@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Users, MoreHorizontal, Trash2, Power, Pencil, Mail, Clipboard } from "lucide-react";
+import { Users, MoreHorizontal, Trash2, Power, Pencil, Mail, Clipboard, Key } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import {
@@ -25,6 +25,8 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Copy, Check, RefreshCw, Eye, EyeOff } from "lucide-react";
 import { resetMemberPassword, updateMemberPassword } from "./actions";
+import { StatCard, StatGrid } from "../components/dashboard/Statcard";
+
 
 
 type SelectOption = { id: string; name: string };
@@ -133,10 +135,10 @@ export function TeamMembersTable({
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
 
   const [passwordDialog, setPasswordDialog] = useState<{
-  open: boolean;
-  memberId: string;
-  memberName: string;
-} | null>(null);
+    open: boolean;
+    memberId: string;
+    memberName: string;
+  } | null>(null);
 
 
   // ── Client-side filter (within current page) ──────────────────────────────
@@ -159,8 +161,8 @@ export function TeamMembersTable({
   };
 
   const handlePasswordDialog = (id: string, name: string) => {
-  setPasswordDialog({ open: true, memberId: id, memberName: name,  });
-};
+    setPasswordDialog({ open: true, memberId: id, memberName: name, });
+  };
 
 
   const handleDelete = (id: string, name: string) => {
@@ -193,10 +195,10 @@ export function TeamMembersTable({
       width: "w-64",
       cell: (m) => (
         <div className="flex items-center gap-2 min-w-0">
- <div className="h-[34px] w-[34px] rounded-full shrink-0 flex items-center justify-center text-[13px] font-semibold text-purple-100"
-  style={{ background: "linear-gradient(135deg, #7F77DD, #534AB7)" }}>
-  {m.name.charAt(0).toUpperCase()}
-</div>
+          <div className="h-[34px] w-[34px] rounded-full shrink-0 flex items-center justify-center text-[13px] font-semibold text-purple-100"
+            style={{ background: "linear-gradient(135deg, #7F77DD, #534AB7)" }}>
+            {m.name.charAt(0).toUpperCase()}
+          </div>
 
           <div className="min-w-0">
             <p className="font-medium truncate">{m.name}</p>
@@ -231,14 +233,13 @@ export function TeamMembersTable({
     {
       header: "Status",
       cell: (m) => (
-<Badge className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium border ${
-  m.isActive
-    ? "bg-green-50 text-green-800 border-green-200"
-    : "bg-red-50 text-red-800 border-red-200"
-}`}>
-  <span className={`w-2 h-2 rounded-full ${m.isActive ? "bg-green-600" : "bg-red-500"}`} />
-  {m.isActive ? "Active" : "Inactive"}
-</Badge>
+        <Badge className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium border ${m.isActive
+            ? "bg-green-50 text-green-800 border-green-200"
+            : "bg-red-50 text-red-800 border-red-200"
+          }`}>
+          <span className={`w-2 h-2 rounded-full ${m.isActive ? "bg-green-600" : "bg-red-500"}`} />
+          {m.isActive ? "Active" : "Inactive"}
+        </Badge>
       ),
     },
     {
@@ -290,15 +291,28 @@ export function TeamMembersTable({
 
   return (
     <div className="space-y-4">
-      {/* Stats — whole dataset counts, not current page */}
-      <Stats
-        rows={[
-          { label: "Total Members", value: totalStats.total },
-          { label: "Active", value: totalStats.active },
-          { label: "Inactive", value: totalStats.inactive, muted: true },
-          { label: "Departments", value: totalStats.departments },
-        ]}
-      />
+      <StatGrid cols={4}>
+        <StatCard
+          label="Total Members"
+          value={totalStats.total}
+          icon={Key}
+        />
+        <StatCard
+          label="Active Members"
+          value={totalStats.active}
+          icon={Key}
+        />
+        <StatCard
+          label="Inactive Members"
+          value={totalStats.inactive}
+          icon={Key}
+        />
+        <StatCard
+          label="Departments"
+          value={totalStats.departments}
+          icon={Key}
+        />
+      </StatGrid>
 
       {/* Filters */}
       <TableFilters
@@ -343,24 +357,24 @@ export function TeamMembersTable({
       />
 
       {/* Edit dialog */}
-    {editingMember && (
-      <EditTeamMemberDialog
-        member={editingMember}
-        departments={departments}
-        roles={roles}
-        open={!!editingMember}
-        onClose={() => setEditingMember(null)}
-      />
-    )}
-        {/* ← THIS WAS MISSING */}
-        {passwordDialog && (
-          <PasswordDialog
-            open={passwordDialog.open}
-            onClose={() => setPasswordDialog(null)}
-            memberId={passwordDialog.memberId}
-            memberName={passwordDialog.memberName}
-          />
-        )}
+      {editingMember && (
+        <EditTeamMemberDialog
+          member={editingMember}
+          departments={departments}
+          roles={roles}
+          open={!!editingMember}
+          onClose={() => setEditingMember(null)}
+        />
+      )}
+      {/* ← THIS WAS MISSING */}
+      {passwordDialog && (
+        <PasswordDialog
+          open={passwordDialog.open}
+          onClose={() => setPasswordDialog(null)}
+          memberId={passwordDialog.memberId}
+          memberName={passwordDialog.memberName}
+        />
+      )}
     </div>
   );
 }

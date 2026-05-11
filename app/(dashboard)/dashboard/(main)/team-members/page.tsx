@@ -14,6 +14,7 @@ import {
 import { TeamMembersTable } from "./TeamMembersTable";
 import { CreateTeamMemberDialog } from "./TeamMemberDialog";
 import { db } from "@/app/lib/db";
+import { PageHeader } from "../components/dashboard/PageHeader";
 
 function TableSkeleton() {
   return (
@@ -74,28 +75,21 @@ async function PageContent({ searchParams }: PageProps) {
 
   return (
     <>
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <IdCardLanyard className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold">Team members</h1>
-            <p className="text-xs text-muted-foreground">
-              Manage your team, roles, and access
-            </p>
-          </div>
-        </div>
-        <CreateTeamMemberDialog departments={departments} roles={roles} />
-      </div>
+      <PageHeader
+        title="Team Members"
+        description="Manage your team, roles, and access"
+        icon={IdCardLanyard}
+        actions={<CreateTeamMemberDialog departments={departments} roles={roles} />}
 
-   <TeamMembersTable
-      paginated={paginated}
-      totalStats={totalStats}
-      departments={departments}
-      roles={roles}
-      currentPage={page}
-    />
+      />
+
+      <TeamMembersTable
+        paginated={paginated}
+        totalStats={totalStats}
+        departments={departments}
+        roles={roles}
+        currentPage={page}
+      />
     </>
   );
 }
