@@ -128,7 +128,7 @@ export function CreateTeamMemberDialog({ departments, roles }: Props) {
   return (
     <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
       <DialogTrigger asChild>
-        <Button className="">
+        <Button className="bg-dashboard-primary hover:scale-105 duration-300 transition-transform shadow-md">
           <Plus className="h-4 w-4 mr-2" />
           Add team member
         </Button>

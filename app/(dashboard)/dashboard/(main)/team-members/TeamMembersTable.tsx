@@ -26,6 +26,7 @@ import { Label } from "../components/ui/label";
 import { Copy, Check, RefreshCw, Eye, EyeOff } from "lucide-react";
 import { resetMemberPassword, updateMemberPassword } from "./actions";
 import { StatCard, StatGrid } from "../components/dashboard/Statcard";
+import { TableEmptyState } from "../components/dashboard/TableEmptyState";
 
 
 
@@ -234,8 +235,8 @@ export function TeamMembersTable({
       header: "Status",
       cell: (m) => (
         <Badge className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium border ${m.isActive
-            ? "bg-green-50 text-green-800 border-green-200"
-            : "bg-red-50 text-red-800 border-red-200"
+          ? "bg-green-50 text-green-800 border-green-200"
+          : "bg-red-50 text-red-800 border-red-200"
           }`}>
           <span className={`w-2 h-2 rounded-full ${m.isActive ? "bg-green-600" : "bg-red-500"}`} />
           {m.isActive ? "Active" : "Inactive"}
@@ -343,11 +344,9 @@ export function TeamMembersTable({
         columns={columns}
         rowKey={(m) => m.id}
         emptyState={
-          <div className="flex flex-col items-center gap-2">
-            <Users className="h-10 w-10 text-muted-foreground" />
-            <p className="text-sm font-medium text-muted-foreground">No team members found</p>
-            <p className="text-xs text-muted-foreground">Try adjusting your filters</p>
-          </div>
+          <TableEmptyState
+            title="No team members found"
+            description="Try adjusting your filters" />
         }
         pagination={{
           currentPage,
