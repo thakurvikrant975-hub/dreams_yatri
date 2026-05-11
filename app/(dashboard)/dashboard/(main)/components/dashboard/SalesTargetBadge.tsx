@@ -40,7 +40,7 @@ function getTier(pct: number): Tier {
     pillBg:      "color-mix(in oklch, var(--color-dashboard-success) 12%, transparent)",
     pillBorder:  "color-mix(in oklch, var(--color-dashboard-success) 32%, transparent)",
     orbBg:       "color-mix(in oklch, var(--color-dashboard-success) 16%, transparent)",
-    image: "/dashboard/done.jpg",
+    image: "/dashboard/achieved-target.jpg",
     alt:   "Champion",
     label: "Champion",
   };
@@ -52,7 +52,7 @@ function getTier(pct: number): Tier {
     pillBg:      "color-mix(in oklch, var(--color-dashboard-secondary) 10%, transparent)",
     pillBorder:  "color-mix(in oklch, var(--color-dashboard-secondary) 25%, transparent)",
     orbBg:       "color-mix(in oklch, var(--color-dashboard-secondary) 14%, transparent)",
-    image: "/dashboard/good.jpg",
+    image: "/dashboard/good-target.jpg",
     alt:   "On track",
     label: "On Track",
   };
@@ -64,7 +64,7 @@ function getTier(pct: number): Tier {
     pillBg:      "color-mix(in oklch, var(--color-dashboard-warning) 10%, transparent)",
     pillBorder:  "color-mix(in oklch, var(--color-dashboard-warning) 25%, transparent)",
     orbBg:       "color-mix(in oklch, var(--color-dashboard-warning) 14%, transparent)",
-    image: "/dashboard/medium.jpg",
+    image: "/dashboard/medium-target.jpg",
     alt:   "Keep going",
     label: "Keep Going",
   };
@@ -76,7 +76,7 @@ function getTier(pct: number): Tier {
     pillBg:      "color-mix(in oklch, var(--color-dashboard-error) 10%, transparent)",
     pillBorder:  "color-mix(in oklch, var(--color-dashboard-error) 22%, transparent)",
     orbBg:       "color-mix(in oklch, var(--color-dashboard-error) 14%, transparent)",
-    image: "/dashboard/low.jpg",
+    image: "/dashboard/low-target.jpg",
     alt:   "Needs push",
     label: "Needs Push",
   };
@@ -116,11 +116,9 @@ function Sparks({ color }: { color: string }) {
 
 async function SalesTargetContent({ memberId }: { memberId: string }) {
   const data = await getSalesDashboardData(memberId);
-  // const tempData = 21;
 
   const pct = Math.min(100, Math.round(
     (data.confirmedThisMonth / Math.max(1, data.monthlyTarget)) * 100
-    // (tempData / Math.max(1, data.monthlyTarget)) * 100
   ));
   const totalRevenue = 0;
 
