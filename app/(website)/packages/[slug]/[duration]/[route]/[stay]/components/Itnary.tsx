@@ -12,7 +12,11 @@ import {
   ArrowLeftStartOnRectangleIcon,
   BuildingOffice2Icon,
   CalendarDateRangeIcon,
-  XMarkIcon
+  XMarkIcon,
+  ExclamationTriangleIcon,
+  InformationCircleIcon,
+  CheckCircleIcon,
+  XCircleIcon,
 } from '@heroicons/react/24/solid';
 import {
   CarIcon,
@@ -25,9 +29,11 @@ import {
   StarAndCrescentIcon,
   CoffeeIcon,
   BowlSteamIcon,
-  CheersIcon
+  CheersIcon,
+  ArrowDownIcon,
+  SealWarningIcon,
+  NotePencilIcon,
 } from '@phosphor-icons/react';
-import { div } from 'motion/react-client';
 import { CheckInIcon, CheckOutIcon } from '@/app/components/icons/cusomIcon';
 import Image from 'next/image';
 
@@ -36,6 +42,7 @@ import Image from 'next/image';
 type MealType = 'breakfast' | 'lunch' | 'dinner';
 type InclusionStatus = 'included' | 'excluded';
 type NoteVariant = 'error' | 'success' | 'brand' | 'neutral' | 'warning' | 'info';
+type NoteType = 'warning' | 'info' | 'error' | 'success' | 'neutral';
 
 interface RouteStop {
   label: string;
@@ -50,18 +57,36 @@ interface RouteStop {
 }
 
 interface FlightSection { type: 'flight'; from: RouteStop; to: RouteStop }
-interface CabSection { type: 'cab'; subtitle?: string; from: RouteStop; to: RouteStop }
+interface CabSection {
+  type: 'cab';
+  subtitle?: string;
+  from: RouteStop;
+  to: RouteStop;
+  distance_km?: number | null;
+  vehicle_name?: string | null;
+  vehicle_type?: string | null;
+  vehicle_capacity?: number | null;
+  num_vehicles?: number;
+  transfer_notes?: string | null;
+}
 interface StaySection { type: 'stay'; nights: number; hotelName: string; stars: number; checkIn: string; checkOut: string; inclusions: { label: string; status: InclusionStatus }[]; images: string[] }
 interface ActivitySection { type: 'activity'; startTime?: string; duration?: string; name: string; images: { src: string; label: string }[] }
 interface FoodSection { type: 'food'; meals: { meal: MealType; restaurant: string; items: string }[] }
 
 export type DaySection = FlightSection | CabSection | StaySection | ActivitySection | FoodSection;
 
+export interface ItineraryNote {
+  message: string;
+  type: string;
+  position: string;
+}
+
 export interface ItineraryDay {
   day: number;
   title: string;
   description?: string | null;
   sections: DaySection[];
+  notes?: ItineraryNote[];
 }
 
 interface ItineraryProps {
@@ -89,12 +114,115 @@ const noteColorMap: Record<NoteVariant, string> = {
   info: 'text-info-700'
 };
 
+const NOTE_STYLES: Record<NoteType, { bg: string; border: string; text: string; iconClass: string }> = {
+  warning: { bg: 'bg-warning-50',  border: 'border-warning-200',  text: 'text-warning-800',  iconClass: 'text-warning-500'  },
+  info:    { bg: 'bg-blue-50',     border: 'border-blue-200',     text: 'text-blue-800',     iconClass: 'text-blue-500'     },
+  error:   { bg: 'bg-error-50',    border: 'border-error-200',    text: 'text-error-800',    iconClass: 'text-error-500'    },
+  success: { bg: 'bg-success-50',  border: 'border-success-200',  text: 'text-success-800',  iconClass: 'text-success-500'  },
+  neutral: { bg: 'bg-neutral-50',  border: 'border-neutral-200',  text: 'text-secondary',    iconClass: 'text-muted'        },
+};
+
+const NOTE_ICONS: Record<NoteType, React.ElementType> = {
+  warning: ExclamationTriangleIcon,
+  info:    InformationCircleIcon,
+  error:   XCircleIcon,
+  success: CheckCircleIcon,
+  neutral: NotePencilIcon,
+};
+
 const mealLabel: Record<MealType, string> = {
   breakfast: 'Breakfast',
   lunch: 'Lunch',
   dinner: 'Dinner',
 };
 
+// ─── Note Block ───────────────────────────────────────────────────────────────
+
+function NoteBlock({
+  notes,
+  position,
+}: {
+  notes: ItineraryNote[];
+  position: 'top' | 'bottom';
+}) {
+  const filtered = notes.filter(n => {
+    if (position === 'top')    return ['top', 'before', 'start'].includes(n.position);
+    if (position === 'bottom') return ['bottom', 'after', 'end'].includes(n.position);
+    return false;
+  });
+
+  if (filtered.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      {filtered.map((note, i) => {
+        const type = (note.type as NoteType) in NOTE_STYLES ? (note.type as NoteType) : 'neutral';
+        const style = NOTE_STYLES[type];
+        const Icon  = NOTE_ICONS[type];
+        return (
+          <div
+            key={i}
+            className={cn(
+              'flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl border',
+              style.bg, style.border
+            )}
+          >
+            <Icon className={cn('size-4 shrink-0 mt-0.5', style.iconClass)} />
+            <Text size="xs" className={style.text}>{note.message}</Text>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Cab Route Display ────────────────────────────────────────────────────────
+
+function CabRoute({
+  from,
+  to,
+  distance_km,
+}: {
+  from: string;
+  to: string;
+  distance_km?: number | null;
+}) {
+  return (
+    <div className="flex items-stretch gap-3.5">
+      {/* Timeline spine */}
+      <div className="flex flex-col items-center w-4 shrink-0 pt-1.5">
+        <div className="size-2.5 rounded-full bg-primary-500 shrink-0" />
+        <div className="w-px flex-1 bg-gradient-to-b from-primary-400 to-primary-200 min-h-6 my-1" />
+        {distance_km && (
+          <ArrowDownIcon weight="bold" className="size-3 text-primary-300 mb-1" />
+        )}
+        <div className="w-px flex-1 bg-gradient-to-b from-primary-200 to-primary-400 min-h-6 my-1" />
+        <div className="size-2.5 rounded-full border-2 border-primary-500 bg-white shrink-0" />
+      </div>
+
+      {/* Labels */}
+      <div className="flex-1 flex flex-col justify-between gap-2">
+        <div>
+          <Text size="xs" intent="secondary" className="font-heading leading-none mb-0.5">Pickup</Text>
+          <Text size="sm" weight="semibold" intent="primary" className="font-heading">{from}</Text>
+        </div>
+
+        {distance_km && (
+          <span className="self-start text-[11px] text-secondary bg-neutral-100 px-2 py-0.5 rounded-full font-medium">
+            {distance_km} km
+          </span>
+        )}
+
+        <div>
+          <Text size="xs" intent="secondary" className="font-heading leading-none mb-0.5">Drop</Text>
+          <Text size="sm" weight="semibold" intent="primary" className="font-heading">{to}</Text>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Travel Stop (existing) ───────────────────────────────────────────────────
 
 function TravelStop({ stop }: { stop: RouteStop }) {
   return (
@@ -159,22 +287,10 @@ function TravelStop({ stop }: { stop: RouteStop }) {
   )
 }
 
-
-// ─── Route Stop ───────────────────────────────────────────────────────────────
-
-function TravelTransfer({
-  stopFrom,
-  stopTo,
-}: {
-  stopFrom: RouteStop,
-  stopTo: RouteStop
-}
-) {
-
+function TravelTransfer({ stopFrom, stopTo }: { stopFrom: RouteStop; stopTo: RouteStop }) {
   return (
     <div className="flex">
-      <div className="w-10">
-      </div>
+      <div className="w-10" />
       <div className='w-full border-l-[0.12em] border-l-(--border-default) flex-1 py-2 flex flex-col gap-7 mb-3'>
         <TravelStop stop={stopFrom} />
         <TravelStop stop={stopTo} />
@@ -192,9 +308,6 @@ function RouteStop({
 }) {
   return (
     <div className="flex items-stretch gap-3 ml-8">
-
-
-      {/* Pin + vertical red line */}
       <div className="flex flex-col items-center w-8 shrink-0">
         <div className="size-8 flex items-center justify-center">
           <MapPinIcon className="size-5 text-neutral-300" />
@@ -203,20 +316,16 @@ function RouteStop({
           <div className="w-0.5 flex-1 min-h-3 bg-primary-500" />
         )}
       </div>
-
-      {/* Content */}
       <div className="flex-1 py-1">
         <div className='flex gap-3 items-center'>
           <Text size='sm' intent='secondary' className=" mb-0.5 font-heading">{stop.label}</Text>
           <Text size='sm' intent='primary' weight='semibold' className='font-heading'>{stop.value}</Text>
         </div>
-
         {stop.note && (
           <Text size='sm' className={cn(noteColorMap[stop.noteVariant ?? 'neutral'])}>
             {stop.note}
           </Text>
         )}
-
         {stop.notePill && (
           <div className={cn(
             'mt-1.5 rounded-lg px-3 py-2 text-[12.5px] border ',
@@ -242,7 +351,7 @@ function RouteStop({
   );
 }
 
-// ─── Section Header (shared trigger layout) ───────────────────────────────────
+// ─── Section Header ───────────────────────────────────────────────────────────
 
 function SectionTrigger({
   icon: Icon,
@@ -277,15 +386,87 @@ function FlightContent({ section }: { section: FlightSection }) {
   );
 }
 
+// Dummy placeholder image shown until a real vehicle photo is attached
+const CAB_PLACEHOLDER = "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&q=70";
+
 function CabContent({ section }: { section: CabSection }) {
+  const hasVehicleInfo = section.vehicle_name || section.vehicle_type || section.vehicle_capacity;
+
   return (
-    <div className="mt-3">
-      <TravelTransfer stopFrom={section.from} stopTo={section.to} />
+    <div className="mt-2 flex">
+      <div className="w-10 shrink-0" />
+      <div className="flex-1 space-y-3">
+
+        {/* Vehicle image */}
+        <div className="relative h-36 rounded-2xl overflow-hidden bg-neutral-100">
+          <img
+            src={CAB_PLACEHOLDER}
+            alt={section.vehicle_name ?? "Vehicle"}
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+          <span className="absolute bottom-2 right-3 text-[10px] text-white/60 font-medium tracking-wide">
+            photo · placeholder
+          </span>
+          {section.vehicle_name && (
+            <span className="absolute bottom-2 left-3 text-sm font-semibold text-white drop-shadow-sm">
+              {section.vehicle_name}
+            </span>
+          )}
+        </div>
+
+        {/* Vehicle details pill */}
+        {hasVehicleInfo && (
+          <div className="flex items-center gap-2.5 bg-neutral-50 ring-1 ring-inset ring-neutral-150 shadow-sm rounded-xl px-3.5 py-2.5">
+            <CarIcon weight="duotone" className="size-5 text-brand shrink-0" />
+            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+              {section.vehicle_name && (
+                <Text size="sm" weight="semibold" intent="primary" className="font-heading">
+                  {section.vehicle_name}
+                </Text>
+              )}
+              {section.vehicle_type && (
+                <>
+                  <span className="text-neutral-300 text-xs">·</span>
+                  <Text size="sm" intent="secondary">{section.vehicle_type}</Text>
+                </>
+              )}
+              {section.vehicle_capacity && (
+                <>
+                  <span className="text-neutral-300 text-xs">·</span>
+                  <Text size="sm" intent="secondary">{section.vehicle_capacity} Seats</Text>
+                </>
+              )}
+              {section.num_vehicles && section.num_vehicles > 1 && (
+                <>
+                  <span className="text-neutral-300 text-xs">·</span>
+                  <Text size="sm" intent="secondary">×{section.num_vehicles} Vehicles</Text>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Route: pickup → drop */}
+        <CabRoute
+          from={section.from.value}
+          to={section.to.value}
+          distance_km={section.distance_km}
+        />
+
+        {/* Transfer-level note */}
+        {section.transfer_notes && (
+          <div className="flex items-start gap-2.5 bg-warning-50 border border-warning-200 rounded-xl px-3.5 py-2.5">
+            <ExclamationTriangleIcon className="size-4 text-warning-500 shrink-0 mt-0.5" />
+            <Text size="xs" className="text-warning-800">{section.transfer_notes}</Text>
+          </div>
+        )}
+
+      </div>
     </div>
   );
 }
 
-// here
 function StayContent({ section }: { section: StaySection }) {
   return (
     <div className="mt-2 space-y-0 flex">
@@ -302,25 +483,17 @@ function StayContent({ section }: { section: StaySection }) {
           </div>
         </div>
 
-        {/* Check In + Check Out — same TravelTransfer pattern */}
         <div className="flex">
           <div className="w-full border-l-[0.2em] border-l-(--border-default) flex-1 flex flex-col gap-2 mb-3">
-
             {/* Check In */}
             <div className="relative after:absolute after:w-[0.2em] after:h-full after:max-h-8 after:left-0 after:top-0 after:bg-primary-400 after:-translate-x-[0.2em]">
               <div className="flex  gap-3">
                 <div className="size-7 flex items-center justify-center ml-3 shrink-0">
-                  <span className='text-muted size-7'>
-                    <CheckInIcon />
-                  </span>
+                  <span className='text-muted size-7'><CheckInIcon /></span>
                 </div>
                 <div className="flex gap-3 w-full mt-0.5">
-                  <Text size="sm" intent="primary" className="w-max mb-0.5 font-heading shrink-0">
-                    Check In:
-                  </Text>
-                  <Text size="sm" intent="primary" weight="semibold" className="font-heading">
-                    {section.checkIn}
-                  </Text>
+                  <Text size="sm" intent="primary" className="w-max mb-0.5 font-heading shrink-0">Check In:</Text>
+                  <Text size="sm" intent="primary" weight="semibold" className="font-heading">{section.checkIn}</Text>
                 </div>
               </div>
             </div>
@@ -339,70 +512,60 @@ function StayContent({ section }: { section: StaySection }) {
             <div className="relative after:absolute after:w-[0.2em] after:h-full after:max-h-8 after:left-0 after:top-0 after:bg-primary-400 after:-translate-x-[0.2em]">
               <div className="flex gap-3">
                 <div className="size-7 flex items-center justify-center ml-3 shrink-0">
-                  <span className='text-muted size-7'>
-                    <CheckOutIcon />
-                  </span>
+                  <span className='text-muted size-7'><CheckOutIcon /></span>
                 </div>
                 <div className="flex gap-3 w-full">
-                  <Text size="sm" intent="primary" className="w-max mb-0.5 font-heading shrink-0">
-                    Check Out:
-                  </Text>
+                  <Text size="sm" intent="primary" className="w-max mb-0.5 font-heading shrink-0">Check Out:</Text>
                   <div className="flex-1">
-                    <Text size="sm" intent="primary" weight="semibold" className="font-heading">
-                      {section.checkOut}
-                    </Text>
+                    <Text size="sm" intent="primary" weight="semibold" className="font-heading">{section.checkOut}</Text>
                   </div>
                 </div>
               </div>
             </div>
-
           </div>
         </div>
 
         {/* Inclusions */}
-        <div className="flex items-center gap-x-4 gap-y-2 flex-wrap bg-neutral-50 ring-1 ring-inset ring-neutral-100 shadow-lg shadow-neutral-200/70 rounded-xl px-3.5 py-2.5 ">
-          <Text size="xs" intent="primary" weight="semibold" className="font-heading">
-            Inclusion :
-          </Text>
-          <div className='grid grid-cols-3 flex-1'>
-            {section.inclusions.map(({ label, status }) => (
-              <div key={label} className="flex items-center gap-2 justify-between border-r border-r-(--border-default) px-3">
-                <div className='flex gap-1.5 items-center'>
-                  {
-                    label === 'Breakfast' ? <CoffeeIcon weight='fill' className='text-muted size-6' /> : label === 'Lunch' ? <BowlSteamIcon weight='fill' className='text-muted size-6' /> : label === 'Dinner' ? <CheersIcon weight='fill' className='text-muted size-6' /> : null
-                  }
-                  <Text size="sm" intent="primary">{label}</Text>
+        {section.inclusions.length > 0 && (
+          <div className="flex items-center gap-x-4 gap-y-2 flex-wrap bg-neutral-50 ring-1 ring-inset ring-neutral-100 shadow-lg shadow-neutral-200/70 rounded-xl px-3.5 py-2.5 ">
+            <Text size="xs" intent="primary" weight="semibold" className="font-heading">Inclusion :</Text>
+            <div className='grid grid-cols-3 flex-1'>
+              {section.inclusions.map(({ label, status }) => (
+                <div key={label} className="flex items-center gap-2 justify-between border-r border-r-(--border-default) px-3">
+                  <div className='flex gap-1.5 items-center'>
+                    {label === 'Breakfast'
+                      ? <CoffeeIcon weight='fill' className='text-muted size-6' />
+                      : label === 'Lunch'
+                        ? <BowlSteamIcon weight='fill' className='text-muted size-6' />
+                        : label === 'Dinner'
+                          ? <CheersIcon weight='fill' className='text-muted size-6' />
+                          : null
+                    }
+                    <Text size="sm" intent="primary">{label}</Text>
+                  </div>
+                  <span className={cn(
+                    'size-4 rounded-full flex items-center justify-center shrink-0',
+                    status === 'included' ? 'bg-success-100' : 'bg-error-100'
+                  )}>
+                    {status === 'included'
+                      ? <CheckIcon className="size-2.5 text-success-600" />
+                      : <XMarkIcon className="size-2.5 text-error-500" />}
+                  </span>
                 </div>
-                <span className={cn(
-                  'size-4 rounded-full flex items-center justify-center shrink-0',
-                  status === 'included' ? 'bg-success-100' : 'bg-error-100'
-                )}>
-                  {status === 'included'
-                    ? <CheckIcon className="size-2.5 text-success-600" />
-                    : <XMarkIcon className="size-2.5 text-error-500" />}
-                </span>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-
-        </div>
+        )}
 
         {/* Image grid */}
         {section.images.length > 0 && (
           <div className="grid grid-cols-[1.6fr_1fr_1fr] grid-rows-2 gap-0.5 rounded-2xl overflow-hidden mt-3 h-52">
             {section.images.slice(0, 5).map((src, i) => (
-              <img
-                key={i}
-                src={src}
-                alt=""
-                className={cn('w-full h-full object-cover', i === 0 && 'row-span-2')}
-              />
+              <img key={i} src={src} alt="" className={cn('w-full h-full object-cover', i === 0 && 'row-span-2')} />
             ))}
           </div>
         )}
       </div>
-      {/* Hotel name + stars */}
-
     </div>
   );
 }
@@ -422,7 +585,7 @@ function ActivityContent({ section }: { section: ActivitySection }) {
               </div>
             </div>
           ))}
-        </div>   
+        </div>
       </div>
     </div>
   );
@@ -471,22 +634,28 @@ const SECTION_CONFIG: {
   },
   cab: {
     icon: CarIcon,
-    title: 'Cab',
-    subtitle: (s) => s.subtitle ? `• ${s.subtitle}` : undefined,
+    title: 'Transfer',
+    subtitle: (s) => {
+      const parts = [
+        s.vehicle_name,
+        s.distance_km ? `${s.distance_km} km` : null,
+      ].filter(Boolean);
+      return parts.length ? `· ${parts.join(' · ')}` : s.subtitle ? `· ${s.subtitle}` : undefined;
+    },
     content: (s) => <CabContent section={s} />,
   },
   stay: {
     icon: BedIcon,
     title: 'Stay At',
-    subtitle: (s) => `• ${s.nights} days • ${s.hotelName}`,
+    subtitle: (s) => `· ${s.nights} night${s.nights !== 1 ? 's' : ''} · ${s.hotelName}`,
     content: (s) => <StayContent section={s} />,
   },
   activity: {
     icon: ClockIcon,
     title: 'Activity',
     subtitle: (s) => [
-      s.startTime && `• Start At ${s.startTime}`,
-      s.duration && `• For ${s.duration}`,
+      s.startTime && `· Start At ${s.startTime}`,
+      s.duration && `· For ${s.duration}`,
     ].filter(Boolean).join(' ') || undefined,
     content: (s) => <ActivityContent section={s} />,
   },
@@ -496,8 +665,6 @@ const SECTION_CONFIG: {
     content: (s) => <FoodContent section={s} />,
   },
 };
-
-
 
 function DaySectionBlock({ section, id }: { section: DaySection; id: string }) {
   const config = SECTION_CONFIG[section.type] as {
@@ -555,21 +722,17 @@ export default function ItinerarySection({ days }: ItineraryProps) {
 
       {/* Day Accordions */}
       <Accordion variant="ghost" multiple defaultOpen={days.map(d => `day-${d.day}`)}>
-        {days.map(({ day, title, description, sections }) => (
-          <Accordion.Item
-            key={day}
-            id={`day-${day}`}
-            className=" mb-2"
-          >
+        {days.map(({ day, title, description, sections, notes }) => (
+          <Accordion.Item key={day} id={`day-${day}`} className="mb-2">
+
             {/* Day Trigger */}
             <div className="px-4">
               <Accordion.Trigger className="py-3.5 border-b border-(--border-muted) rounded-none">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <span className="shrink-0 bg-brand  px-3 py-1 rounded-pill">
+                  <span className="shrink-0 bg-brand px-3 py-1 rounded-pill">
                     <Text intent='inverse' size='xs' weight='semibold' className='font-heading'>
                       Day {day}
                     </Text>
-
                   </span>
                   <Text as='span' intent='primary' weight='semibold' size='base' truncate={true} className='font-heading'>
                     {title}
@@ -581,21 +744,35 @@ export default function ItinerarySection({ days }: ItineraryProps) {
 
             {/* Day Content */}
             <Accordion.Content className="px-4 pb-2 pt-0">
+
+              {/* Top notes */}
+              {notes && notes.length > 0 && (
+                <div className="pt-3">
+                  <NoteBlock notes={notes} position="top" />
+                </div>
+              )}
+
               {description && (
                 <Text size='sm' intent='secondary' className="py-3 border-b border-(--border-muted)">
                   {description}
                 </Text>
               )}
-              <div className="flex flex-col divide-y divide-(--border-muted) ">
+
+              <div className="flex flex-col divide-y divide-(--border-muted)">
                 {sections.map((section, i) => (
                   <div key={i} className="py-5">
-                    <DaySectionBlock
-                      section={section}
-                      id={`day-${day}-sec-${i}`}
-                    />
+                    <DaySectionBlock section={section} id={`day-${day}-sec-${i}`} />
                   </div>
                 ))}
               </div>
+
+              {/* Bottom notes */}
+              {notes && notes.length > 0 && (
+                <div className="pb-2">
+                  <NoteBlock notes={notes} position="bottom" />
+                </div>
+              )}
+
             </Accordion.Content>
           </Accordion.Item>
         ))}
