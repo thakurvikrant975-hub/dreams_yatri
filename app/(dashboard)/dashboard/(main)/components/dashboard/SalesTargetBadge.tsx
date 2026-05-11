@@ -162,7 +162,7 @@ async function SalesTargetContent({ memberId }: { memberId: string }) {
 
       <BadgeShell
         ariaLabel={`Sales target: ${pct}% — ${data.confirmedThisMonth} of ${data.monthlyTarget} bookings`}
-        className={`inline-flex items-center gap-2.5 pl-2.5 pr-3.5 py-[7px] rounded-full border relative overflow-hidden select-none transition-transform duration-200 ease-out ${tier.badgeBorder} ${tier.badgeBg}`}
+        className={`inline-flex items-center gap-2.5 pl-2.5 pr-3.5 py-[6px] rounded-full border relative overflow-hidden select-none transition-transform duration-200 ease-out ${tier.badgeBorder} ${tier.badgeBg}`}
       >
         {/* Champion sparkles */}
         {isChampion && <Sparks color={tier.color} />}

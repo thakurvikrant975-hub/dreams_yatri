@@ -4,8 +4,8 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
-import { Trash2, ShieldCheck, Users, ShieldOff, Settings2, Pencil } from "lucide-react";
-import { toast }   from "sonner";
+import { Trash2, ShieldCheck, Users, ShieldOff, Settings2, Pencil, UserRoundKey, SlidersHorizontal } from "lucide-react";
+import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import {
     AlertDialog, AlertDialogAction, AlertDialogCancel,
@@ -13,23 +13,24 @@ import {
     AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
     AlertDialogTrigger,
 } from "../components/ui/alert-dialog";
-import { EditRoleDialog } from "./RoleDialog";
-import { deleteRole }                 from "./actions";
+import { EditRoleDialog } from "./Roledialog";
+import { deleteRole } from "./actions";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { TableFilters } from "../components/dashboard/Tablefilters";
-import { Stats } from "../components/dashboard/Stats";
+import { StatCard, StatGrid } from "../components/dashboard/Statcard";
 import type { PermissionSet, ResourcePermission } from "@/app/types/rbac";
+
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type Role = {
-    id:          string;
-    name:        string;
+    id: string;
+    name: string;
     description: string | null;
     permissions: unknown;
-    createdAt:   Date;
-    updatedAt:   Date;
-    _count:      { members: number };
+    createdAt: Date;
+    updatedAt: Date;
+    _count: { members: number };
 };
 
 // ── Safe parser ───────────────────────────────────────────────────────────────
@@ -60,8 +61,11 @@ function DeleteRoleDialog({ id, name, memberCount }: { id: string; name: string;
     return (
         <AlertDialog>
             <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="icon"
-                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10">
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-dashboard-error hover:text-dashboard-error hover:bg-dashboard-error/10"
+                >
                     <Trash2 className="h-3.5 w-3.5" />
                 </Button>
             </AlertDialogTrigger>
@@ -71,7 +75,7 @@ function DeleteRoleDialog({ id, name, memberCount }: { id: string; name: string;
                     <AlertDialogDescription>
                         Are you sure you want to delete <span className="font-semibold">{name}</span>?
                         {memberCount > 0 && (
-                            <span className="block mt-2 text-destructive font-medium">
+                            <span className="block mt-2 text-dashboard-error font-medium">
                                 ⚠ {memberCount} team member(s) assigned. Reassign them first.
                             </span>
                         )}
@@ -82,7 +86,7 @@ function DeleteRoleDialog({ id, name, memberCount }: { id: string; name: string;
                     <AlertDialogAction
                         onClick={handleDelete}
                         disabled={isPending || memberCount > 0}
-                        className="bg-destructive text-white hover:bg-destructive/90"
+                        className="bg-dashboard-error text-dashboard-error-content hover:bg-dashboard-error/90"
                     >
                         Delete
                     </AlertDialogAction>
@@ -100,7 +104,7 @@ function PermissionSummary({ permissions: raw }: { permissions: unknown }) {
 
     if (active.length === 0) {
         return (
-            <span className="flex items-center gap-1 text-xs text-muted-foreground italic">
+            <span className="flex items-center gap-1 text-xs text-dashboard-base-content/50 italic">
                 <ShieldOff className="h-3 w-3" /> No access configured
             </span>
         );
@@ -112,14 +116,19 @@ function PermissionSummary({ permissions: raw }: { permissions: unknown }) {
     return (
         <div className="flex items-center gap-1 flex-wrap">
             {shown.map(p => (
-                <Badge key={p.resource} variant="secondary" className="text-[10px] py-0 capitalize">
+                <span
+                    key={p.resource}
+                    className="text-[10px] font-medium px-2 py-0.5 rounded-full
+                               bg-dashboard-primary/10 text-dashboard-primary border border-dashboard-primary/20 capitalize"
+                >
                     {p.resource.replace("_", " ")}
-                </Badge>
+                </span>
             ))}
             {rest > 0 && (
-                <Badge variant="outline" className="text-[10px] py-0 text-muted-foreground">
+                <span className="text-[10px] px-2 py-0.5 rounded-full
+                                 bg-dashboard-base-200 text-dashboard-base-content/50 border border-dashboard-base-300">
                     +{rest} more
-                </Badge>
+                </span>
             )}
         </div>
     );
@@ -132,19 +141,25 @@ function ActionDots({ permissions: raw }: { permissions: unknown }) {
     const allActions  = new Set(permissions.flatMap(p => p.actions));
 
     const DOT_CONFIG = [
-        { key: "read",   label: "R", color: "bg-blue-500",    inactive: "bg-muted" },
-        { key: "create", label: "C", color: "bg-green-500",   inactive: "bg-muted" },
-        { key: "update", label: "U", color: "bg-amber-500",   inactive: "bg-muted" },
-        { key: "delete", label: "D", color: "bg-destructive", inactive: "bg-muted" },
+        { key: "read",   label: "R", active: "bg-dashboard-secondary text-dashboard-secondary-content" },
+        { key: "create", label: "C", active: "bg-dashboard-accent    text-dashboard-accent-content"    },
+        { key: "update", label: "U", active: "bg-dashboard-warning   text-dashboard-warning-content"   },
+        { key: "delete", label: "D", active: "bg-dashboard-error     text-dashboard-error-content"     },
     ] as const;
 
     return (
         <div className="flex items-center gap-1">
-            {DOT_CONFIG.map(({ key, label, color, inactive }) => (
-                <span key={key} title={key} className={[
-                    "h-5 w-5 rounded text-[10px] font-bold flex items-center justify-center text-white",
-                    allActions.has(key) ? color : inactive + " text-muted-foreground",
-                ].join(" ")}>
+            {DOT_CONFIG.map(({ key, label, active }) => (
+                <span
+                    key={key}
+                    title={key}
+                    className={[
+                        "h-5 w-5 rounded text-[10px] font-bold flex items-center justify-center",
+                        allActions.has(key)
+                            ? active
+                            : "bg-dashboard-base-200 text-dashboard-base-content/60",
+                    ].join(" ")}
+                >
                     {label}
                 </span>
             ))}
@@ -162,13 +177,16 @@ export function RolesTable({ roles }: { roles: Role[] }) {
     const [page,         setPage]         = useState(1);
 
     const filtered = roles.filter(r => {
-        const matchSearch = !search
+        const matchSearch =
+            !search
             || r.name.toLowerCase().includes(search.toLowerCase())
             || (r.description ?? "").toLowerCase().includes(search.toLowerCase());
+
         const matchAccess =
             filterAccess === "all"
             || (filterAccess === "configured" && parsePermissions(r.permissions).length > 0)
             || (filterAccess === "empty"      && parsePermissions(r.permissions).length === 0);
+
         return matchSearch && matchAccess;
     });
 
@@ -183,15 +201,15 @@ export function RolesTable({ roles }: { roles: Role[] }) {
     const columns: ColumnDef<Role>[] = [
         {
             header: "Role",
-            width:  "w-[240px]",
+            width: "w-[240px]",
             cell: (role) => (
                 <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                        <ShieldCheck className="h-4 w-4 text-primary" />
+                    <div className="h-9 w-9 rounded-lg bg-dashboard-primary/10 flex items-center justify-center shrink-0">
+                        <ShieldCheck className="h-4 w-4 text-dashboard-primary" />
                     </div>
                     <div>
-                        <p className="font-medium text-sm">{role.name}</p>
-                        <p className="text-xs text-muted-foreground truncate max-w-[170px]">
+                        <p className="font-medium text-sm text-dashboard-base-content">{role.name}</p>
+                        <p className="text-xs text-dashboard-base-content/60 truncate max-w-[170px]">
                             {role.description ?? "No description"}
                         </p>
                     </div>
@@ -208,9 +226,9 @@ export function RolesTable({ roles }: { roles: Role[] }) {
         },
         {
             header: "Members",
-            align:  "center",
+            align: "center",
             cell: (role) => (
-                <span className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
+                <span className="flex items-center justify-center gap-1.5 text-sm text-dashboard-base-content/75">
                     <Users className="h-3.5 w-3.5" /> {role._count.members}
                 </span>
             ),
@@ -218,27 +236,35 @@ export function RolesTable({ roles }: { roles: Role[] }) {
         {
             header: "Last Updated",
             cell: (role) => (
-                <span className="text-xs text-muted-foreground">
+                <span className="text-xs text-dashboard-base-content/75">
                     {formatDistanceToNow(new Date(role.updatedAt), { addSuffix: true })}
                 </span>
             ),
         },
         {
             header: "Actions",
-            align:  "right",
-            width:  "w-[130px]",
+            align: "right",
+            width: "w-[130px]",
             cell: (role) => (
                 <div className="flex items-center justify-end gap-1">
-                    {/* Opens full permissions page */}
                     <Link href={`/dashboard/roles-and-permissions/${role.id}/permissions`}>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" title="Configure permissions">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-dashboard-base-content/60 hover:text-dashboard-base-content hover:bg-dashboard-base-200"
+                            title="Configure permissions"
+                        >
                             <Settings2 className="h-3.5 w-3.5" />
                         </Button>
                     </Link>
 
-                    {/* Edit name/description dialog */}
                     <EditRoleDialog role={role}>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" title="Edit role">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-dashboard-base-content/60 hover:text-dashboard-base-content hover:bg-dashboard-base-200"
+                            title="Edit role"
+                        >
                             <Pencil className="h-3.5 w-3.5" />
                         </Button>
                     </EditRoleDialog>
@@ -255,14 +281,26 @@ export function RolesTable({ roles }: { roles: Role[] }) {
 
     return (
         <div className="space-y-4">
-            <Stats
-                rows={[
-                    { label: "Total Roles",   value: roles.length },
-                    { label: "Configured",    value: configuredRoles },
-                    { label: "Unconfigured",  value: roles.length - configuredRoles, muted: true },
-                    { label: "Total Members", value: totalMembers },
-                ]}
-            />
+            <StatGrid cols={3}>
+                <StatCard
+                    label="Total Roles"
+                    value={roles.length}
+                    icon={UserRoundKey}
+                    iconClassName="bg-dashboard-primary/10 text-dashboard-primary"
+                />
+                <StatCard
+                    label="Configured"
+                    value={configuredRoles}
+                    icon={SlidersHorizontal}
+                    iconClassName="bg-dashboard-accent/10 text-dashboard-accent"
+                />
+                <StatCard
+                    label="Total Members"
+                    value={totalMembers}
+                    icon={Users}
+                    iconClassName="bg-dashboard-secondary/10 text-dashboard-secondary"
+                />
+            </StatGrid>
 
             <TableFilters
                 search={search}
@@ -272,13 +310,13 @@ export function RolesTable({ roles }: { roles: Role[] }) {
                 totalCount={isFiltering ? roles.length : undefined}
                 filters={[
                     {
-                        value:       filterAccess,
-                        onChange:    (v) => { setFilterAccess(v); setPage(1); },
+                        value: filterAccess,
+                        onChange: (v) => { setFilterAccess(v); setPage(1); },
                         placeholder: "All Roles",
-                        width:       "w-40",
+                        width: "w-40",
                         options: [
                             { label: "Configured",   value: "configured" },
-                            { label: "Unconfigured", value: "empty" },
+                            { label: "Unconfigured", value: "empty"      },
                         ],
                     },
                 ]}
@@ -290,9 +328,11 @@ export function RolesTable({ roles }: { roles: Role[] }) {
                 rowKey={(r) => r.id}
                 emptyState={
                     <div className="flex flex-col items-center gap-2">
-                        <ShieldCheck className="h-10 w-10 text-muted-foreground" />
-                        <p className="text-sm font-medium text-muted-foreground">No roles found</p>
-                        <p className="text-xs text-muted-foreground">Try adjusting your filters or create a new role</p>
+                        <ShieldCheck className="h-10 w-10 text-dashboard-base-content/30" />
+                        <p className="text-sm font-medium text-dashboard-base-content/60">No roles found</p>
+                        <p className="text-xs text-dashboard-base-content/40">
+                            Try adjusting your filters or create a new role
+                        </p>
                     </div>
                 }
                 pagination={{ currentPage: safePage, totalPages, onPageChange: setPage }}

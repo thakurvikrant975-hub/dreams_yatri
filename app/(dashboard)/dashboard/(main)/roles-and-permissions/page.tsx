@@ -6,8 +6,9 @@ import {
     BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "../components/ui/breadcrumb";
 import { getRoles } from "./actions";
-import { RolesTable } from "./RolesTable";
-import { CreateRoleDialog } from "./RoleDialog";
+import { RolesTable } from "./Rolestable";
+import { CreateRoleDialog } from "./Roledialog";
+import { PageHeader } from "../components/dashboard/PageHeader";
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 
@@ -70,22 +71,12 @@ export default function RolesAndPermissionsPage() {
                 </BreadcrumbList>
             </Breadcrumb>
 
-            {/* Header */}
-            <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                        <ShieldCheck className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                        <h1 className="text-xl font-semibold">Roles & Permissions</h1>
-                        <p className="text-sm text-muted-foreground">
-                            Manage access control for your team members
-                        </p>
-                    </div>
-                </div>
-
-                <CreateRoleDialog />
-            </div>
+            <PageHeader
+                title="Roles & Permissions"
+                description="Manage access control for your team members"
+                icon={ShieldCheck}
+                actions={<CreateRoleDialog />}
+            />
 
             {/* Data */}
             <Suspense fallback={

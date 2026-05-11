@@ -41,8 +41,11 @@ export function CreateRoleDialog() {
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-                <Button size="sm" className="gap-2">
+            <DialogTrigger asChild className="">
+                <Button
+                    size="lg"
+                    className="gap-2 bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90 rounded-md transition-all duration-200 hover:scale-[1.02] shadow-sm"
+                >                    
                     <Plus className="h-4 w-4" /> Add Role
                 </Button>
             </DialogTrigger>
