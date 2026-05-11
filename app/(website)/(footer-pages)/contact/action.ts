@@ -96,14 +96,14 @@ export async function submitContactForm(
 
     // 4. Write to DB
     try {
-        await db.packageQuery.create({
+        await db.package_queries.create({
             data: {
                 name,
                 email: email || null,
                 phone: fullPhone,
                 countryCode,
                 message: message || null,
-                source: "WEBSITE_FORM",
+                source: "CONTACT_FORM",
                 status: "SUBMITTED",
                 pageUrl: pageUrl ?? null,
             },

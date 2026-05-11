@@ -237,9 +237,10 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
 
     const closedCount = queries.filter(q => isClosedStatus(q.status as SalesQueryStatus)).length;
 
-    const bookedCount = queries.filter(q => q.status === "CONVERTED").length;
+    const bookedCount = queries.filter((q) => q.status === "PAYMENT_INITIATED" || q.status === "CONVERTED").length;
+
     // Conversation % = closed queries that converted (booked) / total closed
-    const convRate = closedCount > 0 ? Math.round((bookedCount / totalCount) * 100) : 0;
+    const convRate = totalCount > 0 ? Math.round((bookedCount / totalCount) * 100) : 0;
 
     // ── Columns ───────────────────────────────────────────────────────────────
     const columns: ColumnDef<PackageQueryType>[] = [

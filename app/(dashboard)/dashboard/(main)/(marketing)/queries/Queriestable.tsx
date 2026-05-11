@@ -27,7 +27,7 @@ import { TableEmptyState } from "../../components/dashboard/TableEmptyState";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type QueryWithDetails = PackageQuery & {
-    notes:    Array<{ id: string; authorId: string; content: string; createdAt: Date }>;
+    notes: Array<{ id: string; authorId: string; content: string; createdAt: Date }>;
     timeline: Array<{ id: string; actorName: string | null; event: string; createdAt: Date }>;
 };
 
@@ -36,26 +36,26 @@ type Props = { queries: PackageQuery[]; reasons: RejectionReason[] };
 const PAGE_SIZE = 10;
 
 const STATUS_FILTER_OPTIONS = [
-    { label: "Submitted",         value: "SUBMITTED" },
-    { label: "Verified",          value: "VERIFIED" },
-    { label: "Rejected",          value: "REJECTED" },
-    { label: "Assigned",          value: "ASSIGNED" },
-    { label: "In Progress",       value: "IN_PROGRESS" },
-    { label: "Package Sent",      value: "PACKAGE_SENT" },
-    { label: "Client Accepted",   value: "CLIENT_ACCEPTED" },
-    { label: "Client Declined",   value: "CLIENT_DECLINED" },
+    { label: "Submitted", value: "SUBMITTED" },
+    { label: "Verified", value: "VERIFIED" },
+    { label: "Rejected", value: "REJECTED" },
+    { label: "Assigned", value: "ASSIGNED" },
+    { label: "In Progress", value: "IN_PROGRESS" },
+    { label: "Package Sent", value: "PACKAGE_SENT" },
+    { label: "Client Accepted", value: "CLIENT_ACCEPTED" },
+    { label: "Client Declined", value: "CLIENT_DECLINED" },
     { label: "Payment Initiated", value: "PAYMENT_INITIATED" },
-    { label: "Converted",         value: "CONVERTED" },
-    { label: "Closed",            value: "CLOSED" },
+    { label: "Converted", value: "CONVERTED" },
+    { label: "Closed", value: "CLOSED" },
 ];
 
 const SOURCE_FILTER_OPTIONS = [
-    { label: "Website Form",  value: "WEBSITE_FORM" },
-    { label: "Landing Page",  value: "LANDING_PAGE" },
-    { label: "WhatsApp",      value: "WHATSAPP" },
-    { label: "Phone Call",    value: "PHONE_CALL" },
-    { label: "Referral",      value: "REFERRAL" },
-    { label: "Other",         value: "OTHER" },
+    { label: "Website Form", value: "WEBSITE_FORM" },
+    { label: "Landing Page", value: "LANDING_PAGE" },
+    { label: "WhatsApp", value: "WHATSAPP" },
+    { label: "Phone Call", value: "PHONE_CALL" },
+    { label: "Referral", value: "REFERRAL" },
+    { label: "Other", value: "OTHER" },
 ];
 
 // ── Action Cell ───────────────────────────────────────────────────────────────
@@ -63,11 +63,11 @@ const SOURCE_FILTER_OPTIONS = [
 function ActionCell({
     query, reasons, onView,
 }: { query: PackageQuery; reasons: RejectionReason[]; onView: () => void }) {
-    const [isPendingV, startVerify]   = useTransition();
+    const [isPendingV, startVerify] = useTransition();
     const [isPendingP, startProgress] = useTransition();
 
-    const isTerminal = query.status === "VERIFIED" || query.status === "REJECTED";
-    const canVerify  = !query.verified && query.status !== "REJECTED";
+    const isTerminal = query.status === "SUBMITTED";
+    const canVerify = query.status === "SUBMITTED";
 
     function handleVerify(e: React.MouseEvent) {
         e.stopPropagation();
@@ -84,6 +84,7 @@ function ActionCell({
 
                 {/* Verify */}
                 {canVerify && (
+                    <>
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <Button
@@ -96,43 +97,7 @@ function ActionCell({
                         </TooltipTrigger>
                         <TooltipContent>Verify Lead</TooltipContent>
                     </Tooltip>
-                )}
 
-                {/* Edit */}
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <span onClick={(e) => e.stopPropagation()}>
-                            <EditQueryDialog query={query} onDone={() => {}}>
-                                <Button
-                                    variant="ghost" size="icon"
-                                    className="h-8 w-8 text-dashboard-base-content/75 hover:text-dashboard-base-content hover:bg-dashboard-base-content/10"
-                                >
-                                    <Pencil className="h-3.5 w-3.5" />
-                                </Button>
-                            </EditQueryDialog>
-                        </span>
-                    </TooltipTrigger>
-                    <TooltipContent>Edit Query</TooltipContent>
-                </Tooltip>
-
-                {/* Assign */}
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <span onClick={(e) => e.stopPropagation()}>
-                            <AssignQueryDropdown
-                                queryId={query.id}
-                                assignedTo={query.assignedTo}
-                                compact
-                            />
-                        </span>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                        {query.assignedTo ? "Reassign" : "Assign to Sales"}
-                    </TooltipContent>
-                </Tooltip>
-
-                {/* Reject */}
-                {!isTerminal && (
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <span onClick={(e) => e.stopPropagation()}>
@@ -148,7 +113,45 @@ function ActionCell({
                         </TooltipTrigger>
                         <TooltipContent>Reject Query</TooltipContent>
                     </Tooltip>
+                    </>
                 )}
+
+                {/* Edit */}
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <span onClick={(e) => e.stopPropagation()}>
+                            <EditQueryDialog query={query} onDone={() => { }}>
+                                <Button
+                                    variant="ghost" size="icon"
+                                    className="h-8 w-8 text-dashboard-base-content/75 hover:text-dashboard-base-content hover:bg-dashboard-base-content/10"
+                                >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                            </EditQueryDialog>
+                        </span>
+                    </TooltipTrigger>
+                    <TooltipContent>Edit Query</TooltipContent>
+                </Tooltip>
+
+                {/* Assign */}
+                {!query.assignedTo && (
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <span onClick={(e) => e.stopPropagation()}>
+                                <AssignQueryDropdown
+                                    queryId={query.id}
+                                    assignedTo={query.assignedTo}
+                                    compact
+                                />
+                            </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            {query.assignedTo ? "Reassign" : "Assign to Sales"}
+                        </TooltipContent>
+                    </Tooltip>
+                )}
+
+
             </div>
         </TooltipProvider>
     );
@@ -157,15 +160,15 @@ function ActionCell({
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export function QueriesTable({ queries, reasons }: Props) {
-    const [search,         setSearch]         = useState("");
-    const [filterStatus,   setFilterStatus]   = useState("all");
-    const [filterSource,   setFilterSource]   = useState("all");
+    const [search, setSearch] = useState("");
+    const [filterStatus, setFilterStatus] = useState("all");
+    const [filterSource, setFilterSource] = useState("all");
     const [filterVerified, setFilterVerified] = useState("all");
     const [filterAssigned, setFilterAssigned] = useState("all");
-    const [page,           setPage]           = useState(1);
+    const [page, setPage] = useState(1);
 
-    const [sheetOpen,     setSheetOpen]     = useState(false);
-    const [detailQuery,   setDetailQuery]   = useState<QueryWithDetails | null>(null);
+    const [sheetOpen, setSheetOpen] = useState(false);
+    const [detailQuery, setDetailQuery] = useState<QueryWithDetails | null>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
 
     async function openDetail(query: PackageQuery) {
@@ -191,30 +194,32 @@ export function QueriesTable({ queries, reasons }: Props) {
             || (q.packageName ?? "").toLowerCase().includes(s)
             || ((q as any).assignedToName ?? "").toLowerCase().includes(s);
 
-        const matchStatus   = filterStatus   === "all" || q.status === filterStatus;
-        const matchSource   = filterSource   === "all" || q.source === filterSource;
+        const matchStatus = filterStatus === "all" || q.status === filterStatus;
+        const matchSource = filterSource === "all" || q.source === filterSource;
         const matchVerified = filterVerified === "all"
-            || (filterVerified === "verified"   && q.verified)
+            || (filterVerified === "verified" && q.verified)
             || (filterVerified === "unverified" && !q.verified);
         const matchAssigned = filterAssigned === "all"
-            || (filterAssigned === "assigned"   && !!q.assignedTo)
+            || (filterAssigned === "assigned" && !!q.assignedTo)
             || (filterAssigned === "unassigned" && !q.assignedTo);
 
         return matchSearch && matchStatus && matchSource && matchVerified && matchAssigned;
     });
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-    const safePage   = Math.min(page, totalPages);
-    const paginated  = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+    const safePage = Math.min(page, totalPages);
+    const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
     const isFiltering = search !== "" || filterStatus !== "all" || filterSource !== "all"
         || filterVerified !== "all" || filterAssigned !== "all";
 
     // ── Stats ─────────────────────────────────────────────────────────────────
-    const submitted  = queries.filter((q) => q.status === "SUBMITTED").length;
+    const submitted = queries.filter((q) => q.status === "SUBMITTED").length;
     const inProgress = queries.filter((q) => q.status === "IN_PROGRESS").length;
-    const verified   = queries.filter((q) => q.verified).length;
-    const assigned   = queries.filter((q) => !!q.assignedTo).length;
-    const convRate   = queries.length > 0 ? Math.round((verified / queries.length) * 100) : 0;
+    const booked = queries.filter((q) => q.status === "PAYMENT_INITIATED" || q.status === "CONVERTED").length;
+    const verified = queries.filter((q) => q.verified).length;
+    const assigned = queries.filter((q) => !!q.assignedTo).length;
+    const convRate = queries.length > 0 ? Math.round((booked / queries.length) * 100) : 0;
+    
 
     // ── Columns ───────────────────────────────────────────────────────────────
     const columns: ColumnDef<PackageQuery>[] = [
@@ -283,9 +288,6 @@ export function QueriesTable({ queries, reasons }: Props) {
             cell: (q) => (
                 <div className="space-y-1.5">
                     <QueryStatusBadge status={q.status} />
-                    {q.status === "IN_PROGRESS" && q.callAttempts > 0 && (
-                        <CallAttemptsDots count={q.callAttempts} />
-                    )}
                     {q.status === "REJECTED" && q.rejectionReason && (
                         <p className="text-[10px] text-dashboard-base-content/35 max-w-[120px] truncate">
                             {q.rejectionReason.label}
@@ -302,7 +304,7 @@ export function QueriesTable({ queries, reasons }: Props) {
             header: "Group / Date",
             cell: (q) => (
                 <div className="space-y-0.5 text-xs text-dashboard-base-content/75">
-                    {q.groupSize  && <p>{q.groupSize} pax</p>}
+                    {q.groupSize && <p>{q.groupSize} pax</p>}
                     {q.travelDate && <p>{format(new Date(q.travelDate), "dd MMM yy")}</p>}
                     {!q.groupSize && !q.travelDate && (
                         <span className="italic text-dashboard-base-content/75">—</span>
@@ -360,6 +362,13 @@ export function QueriesTable({ queries, reasons }: Props) {
                         muted={submitted === 0}
                     />
                     <StatCard
+                        label="Assigned"
+                        value={assigned}
+                        icon={UserCheck}
+                        iconColor="bg-dashboard-secondary/10"
+                        iconText="text-dashboard-secondary"
+                    />
+                    <StatCard
                         label="In Progress"
                         value={inProgress}
                         icon={Clock}
@@ -367,19 +376,12 @@ export function QueriesTable({ queries, reasons }: Props) {
                         iconText="text-dashboard-warning"
                     />
                     <StatCard
-                        label="Verified"
-                        value={verified}
+                        label="Converted"
+                        value={booked}
                         icon={CheckCircle2}
                         iconColor="bg-dashboard-success/10"
                         iconText="text-dashboard-success"
                         highlight={verified > 0}
-                    />
-                    <StatCard
-                        label="Assigned"
-                        value={assigned}
-                        icon={UserCheck}
-                        iconColor="bg-dashboard-secondary/10"
-                        iconText="text-dashboard-secondary"
                     />
                     <StatCard
                         label="Conv. Rate"
@@ -419,7 +421,7 @@ export function QueriesTable({ queries, reasons }: Props) {
                             placeholder: "Verification",
                             width: "w-36",
                             options: [
-                                { label: "Verified Only",   value: "verified" },
+                                { label: "Verified Only", value: "verified" },
                                 { label: "Unverified Only", value: "unverified" },
                             ],
                         },
@@ -429,7 +431,7 @@ export function QueriesTable({ queries, reasons }: Props) {
                             placeholder: "Assignment",
                             width: "w-36",
                             options: [
-                                { label: "Assigned",   value: "assigned" },
+                                { label: "Assigned", value: "assigned" },
                                 { label: "Unassigned", value: "unassigned" },
                             ],
                         },
@@ -461,21 +463,21 @@ export function QueriesTable({ queries, reasons }: Props) {
                     columns={columns}
                     rowKey={(q) => q.id}
                     onRowClick={(q) => openDetail(q)}
-                    rowClassName={(q) =>
-                        q.status === "IN_PROGRESS"
-                            ? "bg-dashboard-warning/5 hover:bg-dashboard-warning/10"
-                            : "hover:bg-dashboard-base-200"
-                    }
+                    rowClassName={(q) => {
+                        return q.status === "IN_PROGRESS" || q.status === "ASSIGNED"
+                            ? "bg-dashboard-warning/20 hover:bg-dashboard-warning/25"
+                            : "hover:bg-dashboard-base-200/50";
+                    }}
                     emptyState={
                         <TableEmptyState
                             description={
                                 filterStatus === "CLOSED" || filterStatus === "CONVERTED" || filterStatus === "REJECTED"
                                     ? "No queries found"
                                     : filterStatus === "IN_PROGRESS"
-                                    ? "No active queries — you're all caught up!"
-                                    : filterStatus === "SUBMITTED"
-                                    ? "Try adjusting your filters"
-                                    : "Queries from your website will appear here"
+                                        ? "No active queries — you're all caught up!"
+                                        : filterStatus === "SUBMITTED"
+                                            ? "Try adjusting your filters"
+                                            : "Queries from your website will appear here"
                             }
                         />
                     }
