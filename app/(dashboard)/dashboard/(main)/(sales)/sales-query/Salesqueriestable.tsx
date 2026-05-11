@@ -5,7 +5,7 @@ import { format, formatDistanceToNow, isToday } from "date-fns";
 import {
     CalendarClock, XCircle, Eye, Phone, Mail,
     MapPin, Users, Calendar, StickyNote, TrendingUp,
-    RotateCcw, ClipboardList, Inbox,
+    RotateCcw, ClipboardList, Inbox, Send, Clock, UserCheck, CheckCircle2
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
@@ -24,6 +24,9 @@ import { SalesQueryDetailSheet } from "./Salesquerydetailsheet";
 import { reopenSalesQuery, getSalesQueryById } from "./actions";
 import type { PackageQueryType, CloseReason, PackageRequirements } from "../../(marketing)/queries/actions";
 import { SalesQueryStatus } from "./query-status";
+import { StatCard, StatGrid } from "../../components/dashboard/Statcard";
+import Image from "next/image";
+import { TableEmptyState } from "../../components/dashboard/TableEmptyState";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -51,7 +54,7 @@ const PAGE_SIZE = 10;
 // ── Status helpers ────────────────────────────────────────────────────────────
 
 function isActiveStatus(status: SalesQueryStatus) {
-    return status === "ASSIGNED" || status === "IN_PROGRESS";
+    return status === "IN_PROGRESS";
 }
 
 function isClosedStatus(status: SalesQueryStatus) {
@@ -112,7 +115,7 @@ function ActionCell({
                                     <AddFollowUpDialog salesQueryId={query.id} leadName={query.name}>
                                         <Button
                                             variant="ghost" size="icon"
-                                            className="h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                                            className="h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-100 dark:hover:bg-amber-950/30"
                                         >
                                             <CalendarClock className="h-3.5 w-3.5" />
                                         </Button>
@@ -234,9 +237,10 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
 
     const closedCount = queries.filter(q => isClosedStatus(q.status as SalesQueryStatus)).length;
 
-    const bookedCount = queries.filter(q => q.status === "CONVERTED").length;
+    const bookedCount = queries.filter((q) => q.status === "PAYMENT_INITIATED" || q.status === "CONVERTED").length;
+
     // Conversation % = closed queries that converted (booked) / total closed
-    const convRate = closedCount > 0 ? Math.round((bookedCount / closedCount) * 100) : 0;
+    const convRate = totalCount > 0 ? Math.round((bookedCount / totalCount) * 100) : 0;
 
     // ── Columns ───────────────────────────────────────────────────────────────
     const columns: ColumnDef<PackageQueryType>[] = [
@@ -336,8 +340,8 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
                 <div className="text-xs">
                     {q.nextFollowUpAt ? (
                         <span className={`font-medium ${new Date(q.nextFollowUpAt) < new Date()
-                                ? "text-destructive"
-                                : "text-amber-600"
+                            ? "text-destructive"
+                            : "text-amber-600"
                             }`}>
                             {format(new Date(q.nextFollowUpAt), "dd MMM, hh:mm a")}
                         </span>
@@ -382,16 +386,46 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
         <>
             <div className="space-y-4">
                 {/* Stats — matches requested: total, new today, in progress, closed, booked, conv% */}
-                <Stats
-                    rows={[
-                        { label: "Total Queries", value: totalCount },
-                        { label: "New Today", value: newToday },
-                        { label: "In Progress", value: inProgress + submitted },
-                        { label: "Closed", value: closedCount, muted: closedCount === 0 },
-                        { label: "Booked", value: bookedCount },
-                        { label: "Conv. %", value: `${convRate}%` },
-                    ]}
-                />
+                <StatGrid cols={6}>
+                    <StatCard
+                        label="Total Queries"
+                        value={totalCount}
+                        icon={Inbox}
+                        iconText="text-dashboard-primary"
+                    />
+                    <StatCard
+                        label="New Today"
+                        value={newToday}
+                        icon={Send}
+                        iconText="text-dashboard-info"
+                        muted={submitted === 0}
+                    />
+                    <StatCard
+                        label="In Progress"
+                        value={inProgress}
+                        icon={Clock}
+                        iconText="text-dashboard-warning"
+                    />
+                    <StatCard
+                        label="Closed"
+                        value={closedCount}
+                        icon={CheckCircle2}
+                        iconText="text-dashboard-success"
+                    />
+                    <StatCard
+                        label="Booked"
+                        value={bookedCount}
+                        icon={UserCheck}
+                        iconText="text-dashboard-secondary"
+                    />
+                    <StatCard
+                        label="Conv. Rate"
+                        value={`${convRate}%`}
+                        icon={TrendingUp}
+                        iconText="text-dashboard-accent"
+                        trend={convRate > 0 ? { value: `${convRate}%`, positive: true } : undefined}
+                    />
+                </StatGrid>
 
                 {/* Filters */}
                 <TableFilters
@@ -452,19 +486,17 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
                         return "";
                     }}
                     emptyState={
-                        <div className="flex flex-col items-center gap-2">
-                            <TrendingUp className="h-10 w-10 text-muted-foreground" />
-                            <p className="text-sm font-medium text-muted-foreground">No queries found</p>
-                            <p className="text-xs text-muted-foreground">
-                                {filterStatus === "CLOSED" || filterStatus === "CONVERTED" || filterStatus === "REJECTED"
+                        <TableEmptyState
+                            description={
+                                filterStatus === "CLOSED" || filterStatus === "CONVERTED" || filterStatus === "REJECTED"
                                     ? "No closed queries yet"
                                     : filterStatus === "IN_PROGRESS"
                                         ? "No active queries — you're all caught up!"
                                         : filterStatus === "SUBMITTED"
                                             ? "No new queries awaiting action"
-                                            : "No queries match your search"}
-                            </p>
-                        </div>
+                                            : "No queries found — go scroll some reels 😄"
+                            }
+                        />
                     }
                     pagination={{ currentPage: safePage, totalPages, onPageChange: setPage }}
                 />

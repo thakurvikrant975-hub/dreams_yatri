@@ -1,7 +1,6 @@
 'use client'
 import * as React from "react"
 import { Slot } from "radix-ui"
-
 import { cn } from "@/app/lib/utils"
 import { CaretRightIcon, DotsThreeIcon } from "@phosphor-icons/react"
 
@@ -21,7 +20,7 @@ function BreadcrumbList({ className, ...props }: React.ComponentProps<"ol">) {
     <ol
       data-slot="breadcrumb-list"
       className={cn(
-        "flex flex-wrap items-center gap-1.5 text-xs wrap-break-word text-muted-foreground",
+        "flex flex-wrap items-center gap-1.5 text-xs wrap-break-word text-dashboard-base-content/75",
         className
       )}
       {...props}
@@ -51,7 +50,10 @@ function BreadcrumbLink({
   return (
     <Comp
       data-slot="breadcrumb-link"
-      className={cn("transition-colors hover:text-foreground", className)}
+      className={cn(
+        "transition-colors text-dashboard-base-content/75 hover:text-dashboard-base-content",
+        className
+      )}
       {...props}
     />
   )
@@ -64,7 +66,10 @@ function BreadcrumbPage({ className, ...props }: React.ComponentProps<"span">) {
       role="link"
       aria-disabled="true"
       aria-current="page"
-      className={cn("font-normal text-foreground", className)}
+      className={cn(
+        "font-semibold text-dashboard-base-content",
+        className
+      )}
       {...props}
     />
   )
@@ -80,12 +85,13 @@ function BreadcrumbSeparator({
       data-slot="breadcrumb-separator"
       role="presentation"
       aria-hidden="true"
-      className={cn("[&>svg]:size-3.5", className)}
+      className={cn(
+        "text-dashboard-base-content/50 [&>svg]:size-3",
+        className
+      )}
       {...props}
     >
-      {children ?? (
-        <CaretRightIcon />
-      )}
+      {children ?? <CaretRightIcon />}
     </li>
   )
 }
@@ -100,13 +106,12 @@ function BreadcrumbEllipsis({
       role="presentation"
       aria-hidden="true"
       className={cn(
-        "flex size-5 items-center justify-center [&>svg]:size-4",
+        "flex size-5 items-center justify-center text-dashboard-base-content/75 hover:text-dashboard-base-content transition-colors [&>svg]:size-4",
         className
       )}
       {...props}
     >
-      <DotsThreeIcon
-      />
+      <DotsThreeIcon />
       <span className="sr-only">More</span>
     </span>
   )

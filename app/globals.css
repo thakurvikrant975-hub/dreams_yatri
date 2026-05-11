@@ -87,6 +87,41 @@
 
     --spacing-header-height: 70px;
 
+
+
+
+    
+    /* Dashboard tokens exposed to Tailwind */
+    --color-dashboard-base-100:     oklch(100% 0 0);
+    --color-dashboard-base-200:     oklch(95.5% 0.01 265);
+    --color-dashboard-base-300:     oklch(90% 0.015 265);
+    --color-dashboard-base-content: oklch(20% 0.018 270);
+
+    --color-dashboard-primary:         oklch(52% 0.268 278);
+    --color-dashboard-primary-content: oklch(98% 0.004 278);
+
+    --color-dashboard-secondary:         oklch(56% 0.16 248);
+    --color-dashboard-secondary-content: oklch(98% 0.003 248);
+
+    --color-dashboard-accent:         oklch(68% 0.18 194);
+    --color-dashboard-accent-content: oklch(100% 0 0);
+
+    --color-dashboard-neutral:         oklch(25% 0.045 265);
+    --color-dashboard-neutral-content: oklch(97% 0.003 265);
+
+    --color-dashboard-info:         oklch(88.127% 0.085 214.515);
+    --color-dashboard-info-content: oklch(0% 0 0);
+
+    --color-dashboard-success:         oklch(60% 0.18 155);
+    --color-dashboard-success-content: oklch(98% 0.003 155);
+
+    --color-dashboard-warning:         oklch(76% 0.17 63);
+    --color-dashboard-warning-content: oklch(20% 0.045 63);
+
+    --color-dashboard-error:         oklch(57% 0.21 22);
+    --color-dashboard-error-content: oklch(98% 0.003 22);
+
+
 }
 
 @layer base {
@@ -483,6 +518,7 @@ body {
 }
 
 :root {
+    /* ── Shadcn UI Variables ── */
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
     --card: oklch(1 0 0);
@@ -515,7 +551,6 @@ body {
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
-
 }
 
 .dark {
@@ -554,8 +589,8 @@ body {
 }
 
 
-/* timeline here */
-/* This lets Tailwind respond to the JS-added class */
+/* timeline classes here*/
+
 .tl-item .tl-dot {
   @apply bg-gray-300 transition-all duration-500 ease-in-out;
 }
@@ -583,4 +618,6 @@ body {
 .scrollbar-none::-webkit-scrollbar {
   display: none;             /* Chrome, Safari */
 }
+
+
 

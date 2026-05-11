@@ -1,4 +1,3 @@
-// app/dashboard/components/shared/StatCard.tsx
 import { cn } from "@/app/lib/utils";
 import type { LucideIcon } from "lucide-react";
 
@@ -7,13 +6,10 @@ interface StatCardProps {
   value: number | string;
   sub?: string;
   icon?: LucideIcon;
-  iconColor?: string;   // tailwind bg class e.g. "bg-blue-500/10"
-  iconText?: string;    // tailwind text class e.g. "text-blue-600"
-  trend?: {
-    value: string;      // e.g. "+12%" or "-3"
-    positive?: boolean;
-  };
-  highlight?: boolean;  // primary-tinted card
+  iconColor?: string;
+  iconText?: string;
+  trend?: { value: string; positive?: boolean };
+  highlight?: boolean;
   muted?: boolean;
   className?: string;
 }
@@ -23,70 +19,68 @@ export function StatCard({
   value,
   sub,
   icon: Icon,
-  iconColor = "bg-primary/10",
-  iconText = "text-primary",
+  iconColor = "bg-dashboard-primary/10",
+  iconText  = "text-dashboard-primary",
   trend,
   highlight = false,
-  muted = false,
+  muted     = false,
   className,
 }: StatCardProps) {
   return (
     <div
       className={cn(
-        "rounded-xl border bg-card px-4 py-3.5 space-y-3",
-        highlight && "border-primary/30 bg-primary/5",
+        "rounded-xl px-4 py-3.5 space-y-3 border bg-dashboard-base-100 border-dashboard-base-300",
         className
       )}
     >
+      {/* Label + Icon */}
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+        <p className="text-xs font-semibold uppercase tracking-wide text-dashboard-base-content">
           {label}
         </p>
         {Icon && (
-          <div className={cn("h-7 w-7 rounded-lg flex items-center justify-center", iconColor)}>
-            <Icon className={cn("h-3.5 w-3.5", iconText)} />
+          <div className={cn("h-12 w-12 rounded-lg flex items-center justify-center bg-dashboard-primary/6")}>
+            <Icon className={cn("h-4.5 w-4.5 text-dashboard-primary")} />
           </div>
         )}
       </div>
 
+      {/* Value + Trend */}
       <div className="flex items-end justify-between gap-2">
-        <p
-          className={cn(
-            "text-2xl font-semibold leading-none",
-            muted && "text-muted-foreground"
-          )}
-        >
+        <p className={cn(
+          "text-2xl font-semibold leading-none text-dashboard-base-content")}>
           {value}
         </p>
         {trend && (
           <span
-            className={cn(
-              "text-xs font-medium px-1.5 py-0.5 rounded-full",
+            className="text-xs font-medium px-1.5 py-0.5 rounded-full"
+            style={
               trend.positive
-                ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-            )}
+                ? { backgroundColor: "color-mix(in oklch, var(--color-dashboard-success) 15%, transparent)", color: "var(--color-dashboard-success)" }
+                : { backgroundColor: "color-mix(in oklch, var(--color-dashboard-error) 15%, transparent)",   color: "var(--color-dashboard-error)" }
+            }
           >
             {trend.value}
           </span>
         )}
       </div>
 
+      {/* Sub */}
       {sub && (
-        <p className="text-xs text-muted-foreground leading-snug">{sub}</p>
+        <p className="text-xs leading-snug text-dashboard-base-content/45">{sub}</p>
       )}
     </div>
   );
 }
 
-/** Convenience grid wrapper */
+// In Statcard.tsx — update StatGrid
 export function StatGrid({
   children,
   cols = 4,
   className,
 }: {
   children: React.ReactNode;
-  cols?: 2 | 3 | 4 | 5;
+  cols?: 2 | 3 | 4 | 5 | 6;   // ← add 6
   className?: string;
 }) {
   const colClass = {
@@ -94,6 +88,7 @@ export function StatGrid({
     3: "grid-cols-1 sm:grid-cols-3",
     4: "grid-cols-2 sm:grid-cols-4",
     5: "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5",
+    6: "grid-cols-2 sm:grid-cols-3 lg:grid-cols-6",  // ← add this
   }[cols];
 
   return (

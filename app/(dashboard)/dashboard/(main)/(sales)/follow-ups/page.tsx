@@ -11,6 +11,9 @@ import { MyFollowUpsTable } from "./Myfollowupstable";
 import { Stats } from "../../components/dashboard/Stats";
 import { isPast, isToday } from "date-fns";
 import type { Metadata } from "next";
+import { StatCard, StatGrid } from "../../components/dashboard/Statcard";
+import { PageHeader } from "../../components/dashboard/PageHeader";
+
 
 export const metadata: Metadata = {
     title: "Follow ups - Dashboard",
@@ -26,10 +29,10 @@ export const metadata: Metadata = {
 async function MyFollowUpsContent() {
     const followUps = await getMyFollowUps();
 
-    const overdueCount  = followUps.filter(fu =>
+    const overdueCount = followUps.filter(fu =>
         fu.followUpAt && isPast(new Date(fu.followUpAt)) && !isToday(new Date(fu.followUpAt))
     ).length;
-    const todayCount    = followUps.filter(fu =>
+    const todayCount = followUps.filter(fu =>
         fu.followUpAt && isToday(new Date(fu.followUpAt))
     ).length;
     const upcomingCount = followUps.filter(fu => {
@@ -43,40 +46,35 @@ async function MyFollowUpsContent() {
             <Stats
                 cols={4}
                 rows={[
-                    {
-                        label: "Total Follow-Ups",
-                        value: followUps.length,
-                        icon: CalendarDays,
-                        iconColor: "text-primary",
-                        iconBg: "bg-primary/10",
-                        accent: "primary",
-                    },
-                    {
-                        label: "Overdue",
-                        value: overdueCount,
-                        icon: AlertCircle,
-                        iconColor: "text-destructive",
-                        iconBg: "bg-destructive/10",
-                        accent: overdueCount > 0 ? "destructive" : "default",
-                    },
-                    {
-                        label: "Due Today",
-                        value: todayCount,
-                        icon: Clock,
-                        iconColor: "text-amber-600",
-                        iconBg: "bg-amber-500/10",
-                        accent: todayCount > 0 ? "warning" : "default",
-                    },
-                    {
-                        label: "Upcoming",
-                        value: upcomingCount,
-                        icon: CalendarClock,
-                        iconColor: "text-emerald-600",
-                        iconBg: "bg-emerald-500/10",
-                        accent: "success",
-                    },
+
                 ]}
             />
+            <StatGrid cols={4}>
+                <StatCard
+                    label="Total Follow-Ups"
+                    value={followUps.length}
+                    icon={CalendarDays}
+                    iconText="text-dashboard-primary"
+                />
+                <StatCard
+                    label="Overdue"
+                    value={overdueCount}
+                    icon={AlertCircle}
+                    iconText="text-dashboard-info"
+                />
+                <StatCard
+                    label="Due Today"
+                    value={todayCount}
+                    icon={Clock}
+                    iconText="text-dashboard-warning"
+                />
+                <StatCard
+                    label="Upcoming"
+                    value={upcomingCount}
+                    icon={CalendarClock}
+                    iconText="text-dashboard-success"
+                />
+            </StatGrid>
             <MyFollowUpsTable followUps={followUps} />
         </>
     );
@@ -101,17 +99,11 @@ export default function MyFollowUpsPage() {
                 </BreadcrumbList>
             </Breadcrumb>
 
-            <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
-                    <CalendarClock className="h-5 w-5 text-amber-600" />
-                </div>
-                <div>
-                    <h1 className="text-xl font-semibold">My Follow-Ups</h1>
-                    <p className="text-sm text-muted-foreground">
-                        All follow-ups logged by you — only visible to you
-                    </p>
-                </div>
-            </div>
+            <PageHeader
+                title="My Follow-Ups"
+                description="All follow-ups logged by you"
+                icon={CalendarClock}
+            />
 
             <Suspense
                 fallback={

@@ -12,6 +12,7 @@ import { getQueries, getRejectionReasons } from "./actions";
 import { QueriesTable } from "./Queriestable";
 import { AddQueryDialog } from "./Addquerydialog";
 import type { Metadata } from "next";
+import { PageHeader } from "../../components/dashboard/PageHeader";
 
 export const metadata: Metadata = {
     title: "All Queries - Dashboard",
@@ -88,21 +89,12 @@ export default function QueriesPage() {
                 </BreadcrumbList>
             </Breadcrumb>
 
-            {/* Header */}
-            <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                        <Inbox className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                        <h1 className="text-xl font-semibold">Lead Queries</h1>
-                        <p className="text-sm text-muted-foreground">
-                            Manage, verify, and action all incoming enquiries
-                        </p>
-                    </div>
-                </div>
-                <AddQueryDialog />
-            </div>
+            <PageHeader
+                title="Lead Queries"
+                description="Manage, verify, and action all incoming enquiries"
+                icon={Inbox}
+                actions={<AddQueryDialog />}
+            />
 
             {/* Data */}
             <Suspense fallback={

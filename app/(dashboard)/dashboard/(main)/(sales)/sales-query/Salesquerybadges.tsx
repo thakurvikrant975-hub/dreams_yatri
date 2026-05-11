@@ -77,7 +77,7 @@ export function SalesQueryStatusBadge({ status }: { status: QueryStatus | string
 
     if (!cfg) {
         return (
-            <Badge variant="outline" className="text-xs gap-1">
+            <Badge variant="outline" className="text-xs gap-1 rounded-md">
                 {status ?? "Unknown"}
             </Badge>
         );
@@ -88,7 +88,7 @@ export function SalesQueryStatusBadge({ status }: { status: QueryStatus | string
     return (
         <Badge
             variant="outline"
-            className={`gap-1 text-[11px] font-medium py-0.5 ${cfg.className}`}
+            className={`gap-1 text-[11px] font-medium py-0.5 rounded-md ${cfg.className}`}
         >
             <Icon className="h-3 w-3" />
             {cfg.label}

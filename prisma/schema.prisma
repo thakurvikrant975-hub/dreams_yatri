@@ -1634,20 +1634,3 @@ enum CustomPackageStatus {
   ACCEPTED
   DECLINED
 }
-
-enum VehicleType {
-  HATCHBACK
-  SEDAN
-  SUV
-  LUXURY_SEDAN
-  LUXURY_SUV
-  TEMPO_TRAVELLER
-  MINI_BUS
-  BUS
-}
-
-enum VehicleRateType {
-  PER_KM
-  FLAT_TRIP
-  PER_DAY
-}

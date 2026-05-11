@@ -11,6 +11,7 @@ import { getSalesQueries, getCloseReasons } from "./actions";
 import { PackageQueryType } from "../../(marketing)/queries/actions";
 import { SalesQueriesTable } from "./Salesqueriestable";
 import type { Metadata } from "next";
+import { PageHeader } from "../../components/dashboard/PageHeader";
 
 export const metadata: Metadata = {
     title: "Sales Queries - Dashboard",
@@ -79,19 +80,11 @@ export default function SalesQueryPage() {
                 </BreadcrumbList>
             </Breadcrumb>
 
-            <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                        <TrendingUp className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                        <h1 className="text-xl font-semibold">My Assigned Queries</h1>
-                        <p className="text-sm text-muted-foreground">
-                            Manage and follow up on queries assigned to you
-                        </p>
-                    </div>
-                </div>
-            </div>
+            <PageHeader
+                title="My Queries"
+                description="All queries assigned to you"
+                icon={TrendingUp}
+            />
 
             <Suspense fallback={
                 <div className="space-y-4">

@@ -8,6 +8,7 @@ import { getCurrentMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-cur
 import { redirect } from "next/navigation";
 import { Toaster } from "sonner";
 import { SalesStatusToggle } from "./components/dashboard/Salesstatustoggle";
+import Image from "next/image";
 
 export default async function DashboardLayout({
   children,
@@ -18,25 +19,25 @@ export default async function DashboardLayout({
   if (!session) redirect("/dashboard/login");
 
   const member = await getCurrentMember();
-  if (!member) redirect("/dashboard/login"); // safety
+  if (!member) redirect("/dashboard/login");
 
-  const isSales =
-    member?.teamRole?.name?.toLowerCase() === "sales";
+  const isSales = member?.teamRole?.name?.toLowerCase() === "sales";
 
   return (
     <SidebarProvider>
       <AppSidebar />
 
-      <main className="flex-1 overflow-y-auto" data-layout="dashboard">
+      <main
+        className="flex-1 overflow-y-auto min-h-screen bg-dashboard-base-200"
+        data-layout="dashboard"
+      >
         {/* Header */}
-        <div className="flex justify-between items-center gap-4 border-b px-6 py-3">
+        <div
+          className="flex justify-between items-center gap-4 px-6 py-3 sticky top-0 z-10 bg-dashboard-base-100 border-b border-dashboard-base-300">
           <SidebarTrigger />
 
           <div className="flex items-center gap-3 ml-auto">
-            {/* Sales-only badge */}
-            {isSales && (
-              <SalesTargetBadge memberId={member.id} />
-            )}
+            {isSales && <SalesTargetBadge memberId={member.id} />}
 
             <SalesStatusToggle
               memberId={member.id}
@@ -51,8 +52,9 @@ export default async function DashboardLayout({
           </div>
         </div>
 
-        {/* Page Content */}
-        <div className="p-6">{children}</div>
+            <div className="relative p-6">
+      {children}
+    </div>
       </main>
 
       <Toaster position="top-center" />

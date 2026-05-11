@@ -1,29 +1,20 @@
-// /(marketing)/queries/Queriestable.tsx
-
-
 "use client";
 
 import { useState, useTransition } from "react";
 import { formatDistanceToNow, format } from "date-fns";
 import {
-    CheckCircle2, XCircle, PhoneCall, Eye,
+    CheckCircle2, XCircle, Eye,
     Phone, MapPin, StickyNote,
-    Inbox, UserCheck,
+    Inbox, UserCheck, Send, Clock, TrendingUp
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
-import {
-    Tooltip, TooltipContent, TooltipTrigger, TooltipProvider,
-} from "../../components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "../../components/ui/tooltip";
 import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable";
 import { TableFilters } from "../../components/dashboard/Tablefilters";
-import { Stats } from "../../components/dashboard/Stats";
-import {
-  QueryStatusBadge,
-  QuerySourceBadge,
-  CallAttemptsDots,
-} from "../../components/dashboard/CustomBadges";
+import { StatCard, StatGrid } from "../../components/dashboard/Statcard";
+import { QueryStatusBadge, QuerySourceBadge, CallAttemptsDots } from "../../components/dashboard/CustomBadges";
 import { RejectQueryDialog } from "./Rejectquerydialog";
 import { QueryDetailSheet } from "./Querydetailsheet";
 import { verifyQuery, markInProgress, getQueryById } from "./actions";
@@ -31,60 +22,52 @@ import type { PackageQuery, RejectionReason } from "./actions";
 import { Pencil } from "lucide-react";
 import { EditQueryDialog } from "./Editquerydialog";
 import { AssignQueryDropdown } from "./Assignquerydropdown";
+import { TableEmptyState } from "../../components/dashboard/TableEmptyState";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type QueryWithDetails = PackageQuery & {
-    notes:    Array<{ id: string; authorId: string; content: string; createdAt: Date }>;
+    notes: Array<{ id: string; authorId: string; content: string; createdAt: Date }>;
     timeline: Array<{ id: string; actorName: string | null; event: string; createdAt: Date }>;
 };
 
-type Props = {
-    queries: PackageQuery[];
-    reasons: RejectionReason[];
-};
+type Props = { queries: PackageQuery[]; reasons: RejectionReason[] };
 
 const PAGE_SIZE = 10;
 
 const STATUS_FILTER_OPTIONS = [
-  { label: "Submitted",         value: "SUBMITTED" },
-  { label: "Verified",          value: "VERIFIED" },
-  { label: "Rejected",          value: "REJECTED" },
-  { label: "Assigned",          value: "ASSIGNED" },
-  { label: "In Progress",       value: "IN_PROGRESS" },
-  { label: "Package Sent",      value: "PACKAGE_SENT" },
-  { label: "Client Accepted",   value: "CLIENT_ACCEPTED" },
-  { label: "Client Declined",   value: "CLIENT_DECLINED" },
-  { label: "Payment Initiated", value: "PAYMENT_INITIATED" },
-  { label: "Converted",         value: "CONVERTED" },
-  { label: "Closed",            value: "CLOSED" },
+    { label: "Submitted", value: "SUBMITTED" },
+    { label: "Verified", value: "VERIFIED" },
+    { label: "Rejected", value: "REJECTED" },
+    { label: "Assigned", value: "ASSIGNED" },
+    { label: "In Progress", value: "IN_PROGRESS" },
+    { label: "Package Sent", value: "PACKAGE_SENT" },
+    { label: "Client Accepted", value: "CLIENT_ACCEPTED" },
+    { label: "Client Declined", value: "CLIENT_DECLINED" },
+    { label: "Payment Initiated", value: "PAYMENT_INITIATED" },
+    { label: "Converted", value: "CONVERTED" },
+    { label: "Closed", value: "CLOSED" },
 ];
 
 const SOURCE_FILTER_OPTIONS = [
     { label: "Website Form", value: "WEBSITE_FORM" },
     { label: "Landing Page", value: "LANDING_PAGE" },
-    { label: "WhatsApp",     value: "WHATSAPP" },
-    { label: "Phone Call",   value: "PHONE_CALL" },
-    { label: "Referral",     value: "REFERRAL" },
-    { label: "Other",        value: "OTHER" },
+    { label: "WhatsApp", value: "WHATSAPP" },
+    { label: "Phone Call", value: "PHONE_CALL" },
+    { label: "Referral", value: "REFERRAL" },
+    { label: "Other", value: "OTHER" },
 ];
 
 // ── Action Cell ───────────────────────────────────────────────────────────────
 
 function ActionCell({
-    query,
-    reasons,
-    onView,
-}: {
-    query:   PackageQuery;
-    reasons: RejectionReason[];
-    onView:  () => void;
-}) {
-    const [isPendingV, startVerify]   = useTransition();
+    query, reasons, onView,
+}: { query: PackageQuery; reasons: RejectionReason[]; onView: () => void }) {
+    const [isPendingV, startVerify] = useTransition();
     const [isPendingP, startProgress] = useTransition();
 
-    const isTerminal = query.status === "VERIFIED" || query.status === "REJECTED";
-    const canVerify  = !query.verified && query.status !== "REJECTED";
+    const isTerminal = query.status === "SUBMITTED";
+    const canVerify = query.status === "SUBMITTED";
 
     function handleVerify(e: React.MouseEvent) {
         e.stopPropagation();
@@ -95,38 +78,53 @@ function ActionCell({
         });
     }
 
-    function handleProgress(e: React.MouseEvent) {
-        e.stopPropagation();
-        startProgress(async () => {
-            const r = await markInProgress(query.id);
-            if (r.success) toast.success(r.message);
-            else toast.error(r.message);
-        });
-    }
-
     return (
         <TooltipProvider delayDuration={300}>
             <div className="flex items-center justify-end gap-1">
+
                 {/* Verify */}
                 {canVerify && (
+                    <>
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon"
-                                className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30"
-                                onClick={handleVerify} disabled={isPendingV}>
+                            <Button
+                                variant="ghost" size="icon"
+                                className="h-8 w-8 text-dashboard-success hover:text-dashboard-success hover:bg-dashboard-success/10"
+                                onClick={handleVerify} disabled={isPendingV}
+                            >
                                 <CheckCircle2 className="h-3.5 w-3.5" />
                             </Button>
                         </TooltipTrigger>
                         <TooltipContent>Verify Lead</TooltipContent>
                     </Tooltip>
+
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <span onClick={(e) => e.stopPropagation()}>
+                                <RejectQueryDialog queryId={query.id} leadName={query.name} reasons={reasons}>
+                                    <Button
+                                        variant="ghost" size="icon"
+                                        className="h-8 w-8 text-dashboard-error hover:text-dashboard-error hover:bg-dashboard-error/10"
+                                    >
+                                        <XCircle className="h-3.5 w-3.5" />
+                                    </Button>
+                                </RejectQueryDialog>
+                            </span>
+                        </TooltipTrigger>
+                        <TooltipContent>Reject Query</TooltipContent>
+                    </Tooltip>
+                    </>
                 )}
 
-                {/* Edit Query */}
+                {/* Edit */}
                 <Tooltip>
                     <TooltipTrigger asChild>
                         <span onClick={(e) => e.stopPropagation()}>
-                            <EditQueryDialog query={query} onDone={() => {}}>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <EditQueryDialog query={query} onDone={() => { }}>
+                                <Button
+                                    variant="ghost" size="icon"
+                                    className="h-8 w-8 text-dashboard-base-content/75 hover:text-dashboard-base-content hover:bg-dashboard-base-content/10"
+                                >
                                     <Pencil className="h-3.5 w-3.5" />
                                 </Button>
                             </EditQueryDialog>
@@ -135,38 +133,24 @@ function ActionCell({
                     <TooltipContent>Edit Query</TooltipContent>
                 </Tooltip>
 
-                {/* Assign to Sales */}
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <span onClick={(e) => e.stopPropagation()}>
-                            <AssignQueryDropdown
-                                queryId={query.id}
-                                assignedTo={query.assignedTo}
-                                compact
-                            />
-                        </span>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                        {query.assignedTo ? "Reassign" : "Assign to Sales"}
-                    </TooltipContent>
-                </Tooltip>
-
-                {/* Reject */}
-                {!isTerminal && (
+                {/* Assign */}
+                {!query.assignedTo && (
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <span onClick={(e) => e.stopPropagation()}>
-                                <RejectQueryDialog queryId={query.id} leadName={query.name} reasons={reasons}>
-                                    <Button variant="ghost" size="icon"
-                                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10">
-                                        <XCircle className="h-3.5 w-3.5" />
-                                    </Button>
-                                </RejectQueryDialog>
+                                <AssignQueryDropdown
+                                    queryId={query.id}
+                                    assignedTo={query.assignedTo}
+                                    compact
+                                />
                             </span>
                         </TooltipTrigger>
-                        <TooltipContent>Reject Query</TooltipContent>
+                        <TooltipContent>
+                            {query.assignedTo ? "Reassign" : "Assign to Sales"}
+                        </TooltipContent>
                     </Tooltip>
                 )}
+
 
             </div>
         </TooltipProvider>
@@ -176,16 +160,15 @@ function ActionCell({
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export function QueriesTable({ queries, reasons }: Props) {
-    const [search, setSearch]               = useState("");
-    const [filterStatus, setFilterStatus]   = useState("all");
-    const [filterSource, setFilterSource]   = useState("all");
+    const [search, setSearch] = useState("");
+    const [filterStatus, setFilterStatus] = useState("all");
+    const [filterSource, setFilterSource] = useState("all");
     const [filterVerified, setFilterVerified] = useState("all");
     const [filterAssigned, setFilterAssigned] = useState("all");
-    const [page, setPage]                   = useState(1);
+    const [page, setPage] = useState(1);
 
-    // Detail sheet state
-    const [sheetOpen, setSheetOpen]         = useState(false);
-    const [detailQuery, setDetailQuery]     = useState<QueryWithDetails | null>(null);
+    const [sheetOpen, setSheetOpen] = useState(false);
+    const [detailQuery, setDetailQuery] = useState<QueryWithDetails | null>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
 
     async function openDetail(query: PackageQuery) {
@@ -200,10 +183,10 @@ export function QueriesTable({ queries, reasons }: Props) {
     }
 
     // ── Filtering ─────────────────────────────────────────────────────────────
-
     const filtered = queries.filter((q) => {
         const s = search.toLowerCase();
-        const matchSearch = !search
+        const matchSearch =
+            !search
             || q.name.toLowerCase().includes(s)
             || q.phone.includes(s)
             || (q.email ?? "").toLowerCase().includes(s)
@@ -211,36 +194,34 @@ export function QueriesTable({ queries, reasons }: Props) {
             || (q.packageName ?? "").toLowerCase().includes(s)
             || ((q as any).assignedToName ?? "").toLowerCase().includes(s);
 
-        const matchStatus   = filterStatus === "all"   || q.status === filterStatus;
-        const matchSource   = filterSource === "all"   || q.source === filterSource;
-        const matchVerified =
-            filterVerified === "all"
-            || (filterVerified === "verified"   && q.verified)
+        const matchStatus = filterStatus === "all" || q.status === filterStatus;
+        const matchSource = filterSource === "all" || q.source === filterSource;
+        const matchVerified = filterVerified === "all"
+            || (filterVerified === "verified" && q.verified)
             || (filterVerified === "unverified" && !q.verified);
-        const matchAssigned =
-            filterAssigned === "all"
-            || (filterAssigned === "assigned"   && !!q.assignedTo)
+        const matchAssigned = filterAssigned === "all"
+            || (filterAssigned === "assigned" && !!q.assignedTo)
             || (filterAssigned === "unassigned" && !q.assignedTo);
 
         return matchSearch && matchStatus && matchSource && matchVerified && matchAssigned;
     });
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-    const safePage   = Math.min(page, totalPages);
-    const paginated  = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
-    const isFiltering = search !== "" || filterStatus !== "all" || filterSource !== "all" || filterVerified !== "all" || filterAssigned !== "all";
+    const safePage = Math.min(page, totalPages);
+    const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+    const isFiltering = search !== "" || filterStatus !== "all" || filterSource !== "all"
+        || filterVerified !== "all" || filterAssigned !== "all";
 
     // ── Stats ─────────────────────────────────────────────────────────────────
-
-    const submitted  = queries.filter((q) => q.status === "SUBMITTED").length;
+    const submitted = queries.filter((q) => q.status === "SUBMITTED").length;
     const inProgress = queries.filter((q) => q.status === "IN_PROGRESS").length;
-    const verified   = queries.filter((q) => q.verified).length;
-    const rejected   = queries.filter((q) => q.status === "REJECTED").length;
-    const assigned   = queries.filter((q) => !!q.assignedTo).length;
-    const convRate   = queries.length > 0 ? Math.round((verified / queries.length) * 100) : 0;
+    const booked = queries.filter((q) => q.status === "PAYMENT_INITIATED" || q.status === "CONVERTED").length;
+    const verified = queries.filter((q) => q.verified).length;
+    const assigned = queries.filter((q) => !!q.assignedTo).length;
+    const convRate = queries.length > 0 ? Math.round((booked / queries.length) * 100) : 0;
+    
 
     // ── Columns ───────────────────────────────────────────────────────────────
-
     const columns: ColumnDef<PackageQuery>[] = [
         {
             header: "Lead",
@@ -248,27 +229,30 @@ export function QueriesTable({ queries, reasons }: Props) {
             cell: (q) => (
                 <div className="space-y-0.5">
                     <div className="flex items-center gap-1.5">
-                        <p className="font-medium text-sm leading-tight">{q.name}</p>
+                        <p className="font-medium text-sm leading-tight text-dashboard-base-content">
+                            {q.name}
+                        </p>
                         {q.totalLeadQueries > 1 && (
                             <Badge
                                 variant="outline"
-                                className="text-[10px] text-amber-600 border-amber-300 py-0 cursor-pointer hover:bg-amber-50"
+                                className="text-[10px] px-1.5 py-0 cursor-pointer border-dashboard-warning/40 text-dashboard-warning hover:bg-dashboard-warning/10"
                                 onClick={(e) => { e.stopPropagation(); setSearch(q.phone); setPage(1); }}
                             >
                                 {q.totalLeadQueries} queries
                             </Badge>
                         )}
                     </div>
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Phone className="h-3 w-3" />
+                    <div className="flex items-center gap-1 text-xs text-dashboard-base-content/80">
+                        <Phone className="h-3 w-3 text-dashboard-success" />
                         <span>{q.phone}</span>
                     </div>
                     {q.email && (
-                        <p className="text-[11px] text-muted-foreground truncate max-w-[180px]">{q.email}</p>
+                        <p className="text-[11px] text-dashboard-base-content/80 truncate max-w-[180px]">
+                            {q.email}
+                        </p>
                     )}
-                    {/* Assigned To indicator */}
                     {q.assignedTo && (
-                        <div className="flex items-center gap-1 text-[10px] text-primary mt-0.5">
+                        <div className="flex items-center gap-1 text-[10px] text-dashboard-primary mt-0.5">
                             <UserCheck className="h-2.5 w-2.5 shrink-0" />
                             <span className="font-medium truncate max-w-[130px]">
                                 {(q as any).assignedToName ?? "Assigned"}
@@ -283,16 +267,18 @@ export function QueriesTable({ queries, reasons }: Props) {
             cell: (q) => (
                 <div className="space-y-0.5">
                     {q.destination && (
-                        <div className="flex items-center gap-1 text-sm font-medium">
-                            <MapPin className="h-3 w-3 text-muted-foreground" />
+                        <div className="flex items-center gap-1 text-sm font-medium text-dashboard-base-content">
+                            <MapPin className="h-3 w-3 text-dashboard-secondary" />
                             {q.destination}
                         </div>
                     )}
                     {q.packageName && (
-                        <p className="text-xs text-muted-foreground truncate max-w-[160px]">{q.packageName}</p>
+                        <p className="text-xs text-dashboard-base-content/75 truncate max-w-[160px]">
+                            {q.packageName}
+                        </p>
                     )}
                     {!q.destination && !q.packageName && (
-                        <span className="text-xs text-muted-foreground italic">—</span>
+                        <span className="text-xs text-dashboard-base-content/25 italic">—</span>
                     )}
                 </div>
             ),
@@ -302,11 +288,8 @@ export function QueriesTable({ queries, reasons }: Props) {
             cell: (q) => (
                 <div className="space-y-1.5">
                     <QueryStatusBadge status={q.status} />
-                    {q.status === "IN_PROGRESS" && q.callAttempts > 0 && (
-                        <CallAttemptsDots count={q.callAttempts} />
-                    )}
                     {q.status === "REJECTED" && q.rejectionReason && (
-                        <p className="text-[10px] text-muted-foreground max-w-[120px] truncate">
+                        <p className="text-[10px] text-dashboard-base-content/35 max-w-[120px] truncate">
                             {q.rejectionReason.label}
                         </p>
                     )}
@@ -320,10 +303,12 @@ export function QueriesTable({ queries, reasons }: Props) {
         {
             header: "Group / Date",
             cell: (q) => (
-                <div className="space-y-0.5 text-xs text-muted-foreground">
+                <div className="space-y-0.5 text-xs text-dashboard-base-content/75">
                     {q.groupSize && <p>{q.groupSize} pax</p>}
                     {q.travelDate && <p>{format(new Date(q.travelDate), "dd MMM yy")}</p>}
-                    {!q.groupSize && !q.travelDate && <span className="italic">—</span>}
+                    {!q.groupSize && !q.travelDate && (
+                        <span className="italic text-dashboard-base-content/75">—</span>
+                    )}
                 </div>
             ),
         },
@@ -331,7 +316,7 @@ export function QueriesTable({ queries, reasons }: Props) {
             header: "Notes",
             align: "center",
             cell: (q) => (
-                <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
+                <div className="flex items-center justify-center gap-1 text-xs text-dashboard-base-content/75">
                     <StickyNote className="h-3 w-3" />
                     {q._count.notes}
                 </div>
@@ -340,7 +325,7 @@ export function QueriesTable({ queries, reasons }: Props) {
         {
             header: "Received",
             cell: (q) => (
-                <span className="text-xs text-muted-foreground">
+                <span className="text-xs text-dashboard-base-content/75">
                     {formatDistanceToNow(new Date(q.createdAt), { addSuffix: true })}
                 </span>
             ),
@@ -350,32 +335,65 @@ export function QueriesTable({ queries, reasons }: Props) {
             align: "right",
             width: "w-[160px]",
             cell: (q) => (
-                <ActionCell
-                    query={q}
-                    reasons={reasons}
-                    onView={() => openDetail(q)}
-                />
+                <ActionCell query={q} reasons={reasons} onView={() => openDetail(q)} />
             ),
         },
     ];
 
     return (
         <>
-            <div className="space-y-4">
+            <div className="space-y-5">
 
-                {/* Stats */}
-                <Stats
-                    rows={[
-                        { label: "Total Queries", value: queries.length },
-                        { label: "Submitted",     value: submitted,  muted: submitted === 0 },
-                        { label: "In Progress",   value: inProgress },
-                        { label: "Verified",      value: verified },
-                        { label: "Assigned",      value: assigned },
-                        { label: "Conv. Rate",    value: `${convRate}%` },
-                    ]}
-                />
+                {/* ── Stats ── */}
+                <StatGrid cols={6}>
+                    <StatCard
+                        label="Total Queries"
+                        value={queries.length}
+                        icon={Inbox}
+                        iconColor="bg-dashboard-primary/10"
+                        iconText="text-dashboard-primary"
+                    />
+                    <StatCard
+                        label="Submitted"
+                        value={submitted}
+                        icon={Send}
+                        iconColor="bg-dashboard-info/10"
+                        iconText="text-dashboard-info"
+                        muted={submitted === 0}
+                    />
+                    <StatCard
+                        label="Assigned"
+                        value={assigned}
+                        icon={UserCheck}
+                        iconColor="bg-dashboard-secondary/10"
+                        iconText="text-dashboard-secondary"
+                    />
+                    <StatCard
+                        label="In Progress"
+                        value={inProgress}
+                        icon={Clock}
+                        iconColor="bg-dashboard-warning/10"
+                        iconText="text-dashboard-warning"
+                    />
+                    <StatCard
+                        label="Converted"
+                        value={booked}
+                        icon={CheckCircle2}
+                        iconColor="bg-dashboard-success/10"
+                        iconText="text-dashboard-success"
+                        highlight={verified > 0}
+                    />
+                    <StatCard
+                        label="Conv. Rate"
+                        value={`${convRate}%`}
+                        icon={TrendingUp}
+                        iconColor="bg-dashboard-accent/10"
+                        iconText="text-dashboard-accent"
+                        trend={convRate > 0 ? { value: `${convRate}%`, positive: true } : undefined}
+                    />
+                </StatGrid>
 
-                {/* Filters */}
+                {/* ── Filters ── */}
                 <TableFilters
                     search={search}
                     onSearchChange={(v) => { setSearch(v); setPage(1); }}
@@ -394,16 +412,16 @@ export function QueriesTable({ queries, reasons }: Props) {
                             value: filterSource,
                             onChange: (v) => { setFilterSource(v); setPage(1); },
                             placeholder: "All Sources",
-                            width: "w-44",
+                            width: "w-40",
                             options: SOURCE_FILTER_OPTIONS,
                         },
                         {
                             value: filterVerified,
                             onChange: (v) => { setFilterVerified(v); setPage(1); },
                             placeholder: "Verification",
-                            width: "w-40",
+                            width: "w-36",
                             options: [
-                                { label: "Verified Only",   value: "verified" },
+                                { label: "Verified Only", value: "verified" },
                                 { label: "Unverified Only", value: "unverified" },
                             ],
                         },
@@ -411,57 +429,67 @@ export function QueriesTable({ queries, reasons }: Props) {
                             value: filterAssigned,
                             onChange: (v) => { setFilterAssigned(v); setPage(1); },
                             placeholder: "Assignment",
-                            width: "w-40",
+                            width: "w-36",
                             options: [
-                                { label: "Assigned",   value: "assigned" },
+                                { label: "Assigned", value: "assigned" },
                                 { label: "Unassigned", value: "unassigned" },
                             ],
                         },
                     ]}
                 />
 
+                {/* ── Active search hint ── */}
                 {search && (
                     <div className="flex items-center gap-2 px-1">
-                        <p className="text-xs text-muted-foreground">
-                            Showing queries for <span className="font-medium text-foreground">{search}</span>
+                        <p className="text-xs text-dashboard-base-content/45">
+                            Showing results for{" "}
+                            <span className="font-medium text-dashboard-base-content">
+                                {search}
+                            </span>
                         </p>
                         <button
                             type="button"
                             onClick={() => { setSearch(""); setPage(1); }}
-                            className="text-xs text-primary hover:underline"
+                            className="text-xs text-dashboard-primary hover:underline"
                         >
-                            Clear filter
+                            Clear
                         </button>
                     </div>
                 )}
 
-                {/* Table */}
+                {/* ── Table ── */}
                 <DataTable
                     data={paginated}
                     columns={columns}
                     rowKey={(q) => q.id}
                     onRowClick={(q) => openDetail(q)}
-                    rowClassName={(q) =>
-                        q.status === "IN_PROGRESS"
-                            ? "bg-amber-50 dark:bg-amber-950/20 hover:bg-amber-100 dark:hover:bg-amber-950/30"
-                            : ""
-                    }
+                    rowClassName={(q) => {
+                        return q.status === "IN_PROGRESS" || q.status === "ASSIGNED"
+                            ? "bg-dashboard-warning/20 hover:bg-dashboard-warning/25"
+                            : "hover:bg-dashboard-base-200/50";
+                    }}
                     emptyState={
-                        <div className="flex flex-col items-center gap-2">
-                            <Inbox className="h-10 w-10 text-muted-foreground" />
-                            <p className="text-sm font-medium text-muted-foreground">No queries found</p>
-                            <p className="text-xs text-muted-foreground">
-                                {isFiltering
-                                    ? "Try adjusting your filters"
-                                    : "Queries from your website will appear here"}
-                            </p>
-                        </div>
+                        <TableEmptyState
+                            description={
+                                filterStatus === "CLOSED" || filterStatus === "CONVERTED" || filterStatus === "REJECTED"
+                                    ? "No queries found"
+                                    : filterStatus === "IN_PROGRESS"
+                                        ? "No active queries — you're all caught up!"
+                                        : filterStatus === "SUBMITTED"
+                                            ? "Try adjusting your filters"
+                                            : "Queries from your website will appear here"
+                            }
+                        />
                     }
-                    pagination={{ currentPage: safePage, totalPages, onPageChange: setPage }}
+                    pagination={{
+                        currentPage: safePage,
+                        totalPages,
+                        onPageChange: setPage,
+                    }}
                 />
             </div>
 
-            {/* Detail Sheet */}
+            {/* ── Detail Sheet ── */}
             <QueryDetailSheet
                 query={loadingDetail ? null : detailQuery}
                 reasons={reasons}
