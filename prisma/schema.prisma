@@ -1460,6 +1460,8 @@ enum QueryStatus {
 
 enum QuerySource {
   WEBSITE_FORM
+  CONTACT_FORM
+  PACKAGE_FORM
   LANDING_PAGE
   WHATSAPP
   PHONE_CALL
