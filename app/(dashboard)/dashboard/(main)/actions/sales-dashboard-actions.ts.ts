@@ -31,7 +31,7 @@ export interface SalesDashboardData {
 
 export async function getSalesDashboardData(
   memberId: string
-): Promise<SalesDashboardData> {
+): Promise<SalesDashboardData> { 
   const now = new Date();
 
   const todayStart = new Date(now);
@@ -87,13 +87,18 @@ export async function getSalesDashboardData(
       },
     }),
 
-    db.package_queries.count({
-      where: {
-        assignedTo: memberId,
-        verified: true,
-        verifiedAt: { gte: monthStart, lte: monthEnd },
-      },
-    }),
+db.package_queries.count({
+  where: {
+    assignedTo: memberId,
+    status: {
+      in: ["PAYMENT_INITIATED", "CONVERTED"],
+    },
+    verifiedAt: {
+      gte: monthStart,
+      lte: monthEnd,
+    },
+  },
+}),
 
     db.package_queries.findMany({
       where: { assignedTo: memberId },

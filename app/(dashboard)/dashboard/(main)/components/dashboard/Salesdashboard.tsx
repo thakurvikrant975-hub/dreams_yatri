@@ -94,7 +94,7 @@ async function SalesDashboardContent({ member }: { member: CurrentMember }) {
           label="New this week" value={data.newThisWeek} sub="Assigned since Monday"
           icon={Zap} iconColor="bg-dashboard-warning/10" iconText="text-dashboard-warning"
           trend={data.newThisWeek > 0 ? { value: `+${data.newThisWeek}`, positive: true } : undefined}
-        />
+        /> 
         <StatCard
           label="Follow-ups overdue" value={data.followUpsOverdue} sub="Should've called already"
           icon={AlertCircle}
