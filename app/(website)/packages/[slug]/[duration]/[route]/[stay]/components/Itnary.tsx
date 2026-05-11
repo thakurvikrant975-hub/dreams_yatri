@@ -115,17 +115,17 @@ const noteColorMap: Record<NoteVariant, string> = {
 };
 
 const NOTE_STYLES: Record<NoteType, { bg: string; border: string; text: string; iconClass: string }> = {
-  warning: { bg: 'bg-warning-50',  border: 'border-warning-200',  text: 'text-warning-800',  iconClass: 'text-warning-500'  },
-  info:    { bg: 'bg-blue-50',     border: 'border-blue-200',     text: 'text-blue-800',     iconClass: 'text-blue-500'     },
-  error:   { bg: 'bg-error-50',    border: 'border-error-200',    text: 'text-error-800',    iconClass: 'text-error-500'    },
-  success: { bg: 'bg-success-50',  border: 'border-success-200',  text: 'text-success-800',  iconClass: 'text-success-500'  },
-  neutral: { bg: 'bg-neutral-50',  border: 'border-neutral-200',  text: 'text-secondary',    iconClass: 'text-muted'        },
+  warning: { bg: 'bg-warning-50', border: 'border-warning-200', text: 'text-warning-800', iconClass: 'text-warning-500' },
+  info: { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-800', iconClass: 'text-blue-500' },
+  error: { bg: 'bg-error-50', border: 'border-error-200', text: 'text-error-800', iconClass: 'text-error-500' },
+  success: { bg: 'bg-success-50', border: 'border-success-200', text: 'text-success-800', iconClass: 'text-success-500' },
+  neutral: { bg: 'bg-neutral-50', border: 'border-neutral-200', text: 'text-secondary', iconClass: 'text-muted' },
 };
 
 const NOTE_ICONS: Record<NoteType, React.ElementType> = {
   warning: ExclamationTriangleIcon,
-  info:    InformationCircleIcon,
-  error:   XCircleIcon,
+  info: InformationCircleIcon,
+  error: XCircleIcon,
   success: CheckCircleIcon,
   neutral: NotePencilIcon,
 };
@@ -146,7 +146,7 @@ function NoteBlock({
   position: 'top' | 'bottom';
 }) {
   const filtered = notes.filter(n => {
-    if (position === 'top')    return ['top', 'before', 'start'].includes(n.position);
+    if (position === 'top') return ['top', 'before', 'start'].includes(n.position);
     if (position === 'bottom') return ['bottom', 'after', 'end'].includes(n.position);
     return false;
   });
@@ -158,7 +158,7 @@ function NoteBlock({
       {filtered.map((note, i) => {
         const type = (note.type as NoteType) in NOTE_STYLES ? (note.type as NoteType) : 'neutral';
         const style = NOTE_STYLES[type];
-        const Icon  = NOTE_ICONS[type];
+        const Icon = NOTE_ICONS[type];
         return (
           <div
             key={i}
@@ -395,7 +395,56 @@ function CabContent({ section }: { section: CabSection }) {
   return (
     <div className="mt-2 flex">
       <div className="w-10 shrink-0" />
-      <div className="flex-1 space-y-3">
+      <div className="flex-1 flex gap-3">
+
+        <div className='flex-1'>
+          {/* Vehicle details pill */}
+          {hasVehicleInfo && (
+            <div className="flex items-center gap-2.5 bg-neutral-50 ring-1 ring-inset ring-neutral-150 shadow-sm rounded-xl px-3.5 py-2.5">
+              <CarIcon weight="duotone" className="size-5 text-brand shrink-0" />
+              <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                {section.vehicle_name && (
+                  <Text size="sm" weight="semibold" intent="primary" className="font-heading">
+                    {section.vehicle_name}
+                  </Text>
+                )}
+                {section.vehicle_type && (
+                  <>
+                    <span className="text-neutral-300 text-xs">·</span>
+                    <Text size="sm" intent="secondary">{section.vehicle_type}</Text>
+                  </>
+                )}
+                {section.vehicle_capacity && (
+                  <>
+                    <span className="text-neutral-300 text-xs">·</span>
+                    <Text size="sm" intent="secondary">{section.vehicle_capacity} Seats</Text>
+                  </>
+                )}
+                {section.num_vehicles && section.num_vehicles > 1 && (
+                  <>
+                    <span className="text-neutral-300 text-xs">·</span>
+                    <Text size="sm" intent="secondary">×{section.num_vehicles} Vehicles</Text>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Route: pickup → drop */}
+          <CabRoute
+            from={section.from.value}
+            to={section.to.value}
+            distance_km={section.distance_km}
+          />
+
+          {/* Transfer-level note */}
+          {section.transfer_notes && (
+            <div className="flex items-start gap-2.5 bg-warning-50 border border-warning-200 rounded-xl px-3.5 py-2.5">
+              <ExclamationTriangleIcon className="size-4 text-warning-500 shrink-0 mt-0.5" />
+              <Text size="xs" className="text-warning-800">{section.transfer_notes}</Text>
+            </div>
+          )}
+        </div>
 
         {/* Vehicle image */}
         <div className="relative h-36 rounded-2xl overflow-hidden bg-neutral-100">
@@ -414,53 +463,6 @@ function CabContent({ section }: { section: CabSection }) {
             </span>
           )}
         </div>
-
-        {/* Vehicle details pill */}
-        {hasVehicleInfo && (
-          <div className="flex items-center gap-2.5 bg-neutral-50 ring-1 ring-inset ring-neutral-150 shadow-sm rounded-xl px-3.5 py-2.5">
-            <CarIcon weight="duotone" className="size-5 text-brand shrink-0" />
-            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-              {section.vehicle_name && (
-                <Text size="sm" weight="semibold" intent="primary" className="font-heading">
-                  {section.vehicle_name}
-                </Text>
-              )}
-              {section.vehicle_type && (
-                <>
-                  <span className="text-neutral-300 text-xs">·</span>
-                  <Text size="sm" intent="secondary">{section.vehicle_type}</Text>
-                </>
-              )}
-              {section.vehicle_capacity && (
-                <>
-                  <span className="text-neutral-300 text-xs">·</span>
-                  <Text size="sm" intent="secondary">{section.vehicle_capacity} Seats</Text>
-                </>
-              )}
-              {section.num_vehicles && section.num_vehicles > 1 && (
-                <>
-                  <span className="text-neutral-300 text-xs">·</span>
-                  <Text size="sm" intent="secondary">×{section.num_vehicles} Vehicles</Text>
-                </>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Route: pickup → drop */}
-        <CabRoute
-          from={section.from.value}
-          to={section.to.value}
-          distance_km={section.distance_km}
-        />
-
-        {/* Transfer-level note */}
-        {section.transfer_notes && (
-          <div className="flex items-start gap-2.5 bg-warning-50 border border-warning-200 rounded-xl px-3.5 py-2.5">
-            <ExclamationTriangleIcon className="size-4 text-warning-500 shrink-0 mt-0.5" />
-            <Text size="xs" className="text-warning-800">{section.transfer_notes}</Text>
-          </div>
-        )}
 
       </div>
     </div>
