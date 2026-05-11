@@ -1,5 +1,5 @@
 // app/(dashboard)/components/dashboard/SalesTargetBadge.tsx
-import { getSalesTargetData } from "../../actions/sales-target-actions";
+import { getSalesDashboardData } from "../../actions/sales-dashboard-actions.ts";
 import { Suspense } from "react";
 import Image from "next/image";
 import { BadgeShell } from "./Salestargetbadgeshell";
@@ -13,65 +13,72 @@ type Tier = {
   badgeBorder: string;
   badgeBg:     string;
   textColor:   string;
-  // Arbitrary values that Tailwind can't express as static classes
-  color:      string; // hex  – progress bar fill, pill text
-  pillBg:     string; // rgba – pill background
-  pillBorder: string; // rgba – pill border
-  orbBg:      string; // rgba – orb tint
+  // Inline style values (CSS variables resolved at runtime)
+  color:       string; // progress bar fill, pill text, sparks
+  pillBg:      string; // pill background
+  pillBorder:  string; // pill border
+  orbBg:       string; // orb tint
   // Content
   image: string;
   alt:   string;
   label: string;
 };
 
+// ─── Map each tier to dashboard theme tokens ──────────────────────────────────
+//
+// Tailwind classes  → direct dashboard-* utility names (no var() in class strings)
+// Inline style vals → var(--color-dashboard-*) so the browser resolves the OKLCH
+//                     value at runtime; this is correct — var() belongs in styles,
+//                     not in Tailwind class attribute strings.
+//
 function getTier(pct: number): Tier {
   if (pct >= 100) return {
-    badgeBorder: "border-green-500/30",
-    badgeBg:     "bg-green-500/10",
-    textColor:   "text-green-600 dark:text-green-400",
-    color:       "#16a34a",
-    pillBg:      "rgba(22,163,74,0.09)",
-    pillBorder:  "rgba(22,163,74,0.28)",
-    orbBg:       "rgba(22,163,74,0.14)",
-    image:       "/dashboard/done.jpg",
-    alt:         "Champion",
-    label:       "Champion",
+    badgeBorder: "border-dashboard-success/30",
+    badgeBg:     "bg-dashboard-success/10",
+    textColor:   "text-dashboard-success",
+    color:       "var(--color-dashboard-success)",
+    pillBg:      "color-mix(in oklch, var(--color-dashboard-success) 12%, transparent)",
+    pillBorder:  "color-mix(in oklch, var(--color-dashboard-success) 32%, transparent)",
+    orbBg:       "color-mix(in oklch, var(--color-dashboard-success) 16%, transparent)",
+    image: "/dashboard/done.jpg",
+    alt:   "Champion",
+    label: "Champion",
   };
   if (pct >= 70) return {
-    badgeBorder: "border-blue-500/25",
-    badgeBg:     "bg-blue-500/[.08]",
-    textColor:   "text-blue-600 dark:text-blue-400",
-    color:       "#2563eb",
-    pillBg:      "rgba(37,99,235,0.08)",
-    pillBorder:  "rgba(37,99,235,0.22)",
-    orbBg:       "rgba(37,99,235,0.12)",
-    image:       "/dashboard/good.jpg",
-    alt:         "On track",
-    label:       "On Track",
+    badgeBorder: "border-dashboard-secondary/25",
+    badgeBg:     "bg-dashboard-secondary/[.08]",
+    textColor:   "text-dashboard-secondary",
+    color:       "var(--color-dashboard-secondary)",
+    pillBg:      "color-mix(in oklch, var(--color-dashboard-secondary) 10%, transparent)",
+    pillBorder:  "color-mix(in oklch, var(--color-dashboard-secondary) 25%, transparent)",
+    orbBg:       "color-mix(in oklch, var(--color-dashboard-secondary) 14%, transparent)",
+    image: "/dashboard/good.jpg",
+    alt:   "On track",
+    label: "On Track",
   };
   if (pct >= 40) return {
-    badgeBorder: "border-amber-500/25",
-    badgeBg:     "bg-amber-500/[.08]",
-    textColor:   "text-amber-600 dark:text-amber-400",
-    color:       "#d97706",
-    pillBg:      "rgba(217,119,6,0.08)",
-    pillBorder:  "rgba(217,119,6,0.22)",
-    orbBg:       "rgba(217,119,6,0.12)",
-    image:       "/dashboard/medium.jpg",
-    alt:         "Keep going",
-    label:       "Keep Going",
+    badgeBorder: "border-dashboard-warning/25",
+    badgeBg:     "bg-dashboard-warning/[.08]",
+    textColor:   "text-dashboard-warning-content",
+    color:       "var(--color-dashboard-warning)",
+    pillBg:      "color-mix(in oklch, var(--color-dashboard-warning) 10%, transparent)",
+    pillBorder:  "color-mix(in oklch, var(--color-dashboard-warning) 25%, transparent)",
+    orbBg:       "color-mix(in oklch, var(--color-dashboard-warning) 14%, transparent)",
+    image: "/dashboard/medium.jpg",
+    alt:   "Keep going",
+    label: "Keep Going",
   };
   return {
-    badgeBorder: "border-red-500/25",
-    badgeBg:     "bg-red-500/[.08]",
-    textColor:   "text-red-600 dark:text-red-400",
-    color:       "#dc2626",
-    pillBg:      "rgba(220,38,38,0.08)",
-    pillBorder:  "rgba(220,38,38,0.2)",
-    orbBg:       "rgba(220,38,38,0.12)",
-    image:       "/dashboard/low.jpg",
-    alt:         "Needs push",
-    label:       "Needs Push",
+    badgeBorder: "border-dashboard-error/25",
+    badgeBg:     "bg-dashboard-error/[.08]",
+    textColor:   "text-dashboard-error",
+    color:       "var(--color-dashboard-error)",
+    pillBg:      "color-mix(in oklch, var(--color-dashboard-error) 10%, transparent)",
+    pillBorder:  "color-mix(in oklch, var(--color-dashboard-error) 22%, transparent)",
+    orbBg:       "color-mix(in oklch, var(--color-dashboard-error) 14%, transparent)",
+    image: "/dashboard/low.jpg",
+    alt:   "Needs push",
+    label: "Needs Push",
   };
 }
 
@@ -96,7 +103,11 @@ function Sparks({ color }: { color: string }) {
           key={i}
           aria-hidden="true"
           className="absolute size-[5px] rounded-full pointer-events-none"
-          style={{ backgroundColor: color, top: p.top, left: p.left, animation: `stb-sparkle 1.6s ${p.delay} ease-in-out infinite` }}
+          style={{
+            backgroundColor: color,
+            top: p.top, left: p.left,
+            animation: `stb-sparkle 1.6s ${p.delay} ease-in-out infinite`,
+          }}
         />
       ))}
     </>
@@ -104,16 +115,20 @@ function Sparks({ color }: { color: string }) {
 }
 
 async function SalesTargetContent({ memberId }: { memberId: string }) {
-  const data = await getSalesTargetData(memberId);
-  const pct  = Math.min(100, Math.round(
+  const data = await getSalesDashboardData(memberId);
+  // const tempData = 21;
+
+  const pct = Math.min(100, Math.round(
     (data.confirmedThisMonth / Math.max(1, data.monthlyTarget)) * 100
+    // (tempData / Math.max(1, data.monthlyTarget)) * 100
   ));
+  const totalRevenue = 0;
+
   const tier       = getTier(pct);
   const isChampion = pct >= 100;
 
   return (
     <>
-      {/* Named keyframes can't be expressed in Tailwind — one small <style> block is the right call */}
       <style>{`
         @keyframes stb-fill {
           from { width: 0% } to { width: ${pct}% }
@@ -178,17 +193,17 @@ async function SalesTargetContent({ memberId }: { memberId: string }) {
               {data.confirmedThisMonth}
             </span>
 
-            <span className="text-xs text-muted-foreground">/</span>
+            <span className="text-xs text-dashboard-base-content/50">/</span>
 
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-dashboard-base-content/50">
               {data.monthlyTarget} bookings
             </span>
 
-            {data.totalRevenue > 0 && (
+            {totalRevenue > 0 && (
               <>
-                <span className="text-xs text-muted-foreground/60">·</span>
+                <span className="text-xs text-dashboard-base-content/30">·</span>
                 <span className={`text-xs font-bold tracking-tight ${tier.textColor}`}>
-                  {formatRevenue(data.totalRevenue)}
+                  {formatRevenue(totalRevenue)}
                 </span>
               </>
             )}
@@ -197,7 +212,7 @@ async function SalesTargetContent({ memberId }: { memberId: string }) {
           {/* Progress bar */}
           <div
             aria-hidden="true"
-            className="w-[130px] h-1.5 rounded-full bg-white rounded-full overflow-hidden relative"
+            className="w-[130px] h-1.5 rounded-full bg-dashboard-base-300 overflow-hidden relative"
           >
             <div
               className="stb-fill h-full rounded-full relative overflow-hidden"
@@ -229,11 +244,11 @@ function SalesTargetSkeleton() {
     <div
       aria-busy="true"
       aria-label="Loading sales target…"
-      className="inline-flex items-center gap-2.5 pl-2.5 pr-3.5 py-[7px] rounded-full border border-border bg-muted"
+      className="inline-flex items-center gap-2.5 pl-2.5 pr-3.5 py-[7px] rounded-full border border-dashboard-base-300 bg-dashboard-base-200"
     >
       <style>{`
         @keyframes stb-pulse { 0%,100%{opacity:1} 50%{opacity:.45} }
-        .stb-skel { background:var(--muted-foreground,#d1d5db); border-radius:9999px; animation:stb-pulse 1.4s ease-in-out infinite; }
+        .stb-skel { background: var(--color-dashboard-base-300); border-radius:9999px; animation:stb-pulse 1.4s ease-in-out infinite; }
       `}</style>
       <div className="stb-skel shrink-0 size-9 rounded-full" />
       <div className="flex flex-col gap-1.5">
