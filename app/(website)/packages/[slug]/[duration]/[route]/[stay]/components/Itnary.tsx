@@ -36,6 +36,7 @@ import {
 } from '@phosphor-icons/react';
 import { CheckInIcon, CheckOutIcon } from '@/app/components/icons/cusomIcon';
 import Image from 'next/image';
+import { Carousel } from '@/app/components/ui/Carousel';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -69,7 +70,21 @@ interface CabSection {
   num_vehicles?: number;
   transfer_notes?: string | null;
 }
-interface StaySection { type: 'stay'; nights: number; hotelName: string; stars: number; checkIn: string; checkOut: string; inclusions: { label: string; status: InclusionStatus }[]; images: string[] }
+interface StaySection {
+  type: 'stay';
+  nights: number;
+  hotelName: string;
+  stars: number;
+  checkIn: string;
+  checkOut: string;
+  address: string | null;
+  inclusions: { label: string; status: InclusionStatus }[];
+  images: string[];
+  roomName: string | null;
+  roomCapacity: number | null;
+  mealType: string | null;
+  planName: string | null;
+}
 interface ActivitySection { type: 'activity'; startTime?: string; duration?: string; name: string; images: { src: string; label: string }[] }
 interface FoodSection { type: 'food'; meals: { meal: MealType; restaurant: string; items: string }[] }
 
@@ -188,34 +203,73 @@ function CabRoute({
   distance_km?: number | null;
 }) {
   return (
-    <div className="flex items-stretch gap-3.5">
-      {/* Timeline spine */}
-      <div className="flex flex-col items-center w-4 shrink-0 pt-1.5">
-        <div className="size-2.5 rounded-full bg-primary-500 shrink-0" />
-        <div className="w-px flex-1 bg-gradient-to-b from-primary-400 to-primary-200 min-h-6 my-1" />
-        {distance_km && (
-          <ArrowDownIcon weight="bold" className="size-3 text-primary-300 mb-1" />
-        )}
-        <div className="w-px flex-1 bg-gradient-to-b from-primary-200 to-primary-400 min-h-6 my-1" />
-        <div className="size-2.5 rounded-full border-2 border-primary-500 bg-white shrink-0" />
+    // <div className="flex items-stretch gap-3.5">
+    //   {/* Timeline spine */}
+    //   <div className="flex flex-col items-center w-4 shrink-0 pt-1.5">
+    //     <div className="size-2.5 rounded-full bg-primary-500 shrink-0" />
+    //     <div className="w-px flex-1 bg-gradient-to-b from-primary-400 to-primary-200 min-h-6 my-1" />
+    //     {distance_km && (
+    //       <ArrowDownIcon weight="bold" className="size-3 text-primary-300 mb-1" />
+    //     )}
+    //     <div className="w-px flex-1 bg-gradient-to-b from-primary-200 to-primary-400 min-h-6 my-1" />
+    //     <div className="size-2.5 rounded-full border-2 border-primary-500 bg-white shrink-0" />
+    //   </div>
+
+    //   {/* Labels */}
+    //   <div className="flex-1 flex flex-col justify-between gap-2">
+    //     <div>
+    //       <Text size="xs" intent="secondary" className="font-heading leading-none mb-0.5">Pickup</Text>
+    //       <Text size="sm" weight="semibold" intent="primary" className="font-heading">{from}</Text>
+    //     </div>
+
+    //     {distance_km && (
+    //       <span className="self-start text-[11px] text-secondary bg-neutral-100 px-2 py-0.5 rounded-full font-medium">
+    //         {distance_km} km
+    //       </span>
+    //     )}
+
+    //     <div>
+    //       <Text size="xs" intent="secondary" className="font-heading leading-none mb-0.5">Drop</Text>
+    //       <Text size="sm" weight="semibold" intent="primary" className="font-heading">{to}</Text>
+    //     </div>
+    //   </div>
+    // </div>
+    <div className="w-full border-l-[0.2em] border-l-(--border-default) flex-1 flex flex-col gap-2 mb-3">
+      {/* Check In */}
+      <div className="relative after:absolute after:w-[0.2em] after:h-full after:max-h-8 after:left-0 after:top-0 after:bg-primary-400 after:-translate-x-[0.2em]">
+        <div className="flex items-center  gap-3">
+           <div className="size-7 flex items-center justify-center ml-3 shrink-0">
+            <span className='text-muted '><MapPinIcon weight='duotone' className='size-5.5' /></span>
+          </div>
+          <div className="flex gap-3 w-full mt-0.5">
+            <Text size="sm" intent="primary" className="w-max mb-0.5 font-heading shrink-0">Pickup Point:</Text>
+            <Text size="sm" intent="primary" weight="semibold" className="font-heading">{from}</Text>
+          </div>
+        </div>
       </div>
 
-      {/* Labels */}
-      <div className="flex-1 flex flex-col justify-between gap-2">
-        <div>
-          <Text size="xs" intent="secondary" className="font-heading leading-none mb-0.5">Pickup</Text>
-          <Text size="sm" weight="semibold" intent="primary" className="font-heading">{from}</Text>
+      <div className="h-8 w-full flex items-stretch">
+        <div className="w-18" />
+        <div className="h-full flex-1 border-l-[0.2em] border-l-(--border-default) px-3 flex items-center gap-0.5">
+          <Text as='span' size="sm" weight='medium' intent='secondary'>
+            {distance_km ? `${distance_km} km` : 'In-city transfer'}
+          </Text>
+          <ArrowDownIcon weight='duotone' className="size-5 text-muted ml-2" />
         </div>
+      </div>
 
-        {distance_km && (
-          <span className="self-start text-[11px] text-secondary bg-neutral-100 px-2 py-0.5 rounded-full font-medium">
-            {distance_km} km
-          </span>
-        )}
-
-        <div>
-          <Text size="xs" intent="secondary" className="font-heading leading-none mb-0.5">Drop</Text>
-          <Text size="sm" weight="semibold" intent="primary" className="font-heading">{to}</Text>
+      {/* Check Out */}
+      <div className="relative after:absolute after:w-[0.2em] after:h-full after:max-h-8 after:left-0 after:top-0 after:bg-primary-400 after:-translate-x-[0.2em]">
+        <div className="flex gap-3 items-center">
+          <div className="size-7 flex items-center justify-center ml-3 shrink-0">
+            <span className='text-muted '><MapPinIcon weight='duotone' className='size-5.5' /></span>
+          </div>
+          <div className="flex gap-3 w-full">
+            <Text size="sm" intent="primary" className="w-max mb-0.5 font-heading shrink-0">Drop Point:</Text>
+            <div className="flex-1">
+              <Text size="sm" intent="primary" weight="semibold" className="font-heading">{to}</Text>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -400,7 +454,7 @@ function CabContent({ section }: { section: CabSection }) {
         <div className='flex-1'>
           {/* Vehicle details pill */}
           {hasVehicleInfo && (
-            <div className="flex items-center gap-2.5 bg-neutral-50 ring-1 ring-inset ring-neutral-150 shadow-sm rounded-xl px-3.5 py-2.5">
+            <div className="flex items-center gap-2.5 bg-neutral-50 ring-1 ring-inset ring-neutral-100 shadow-sm rounded-xl px-3.5 py-2.5 mb-2">
               <CarIcon weight="duotone" className="size-5 text-brand shrink-0" />
               <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                 {section.vehicle_name && (
@@ -469,32 +523,100 @@ function CabContent({ section }: { section: CabSection }) {
   );
 }
 
-function StayContent({ section }: { section: StaySection }) {
+function MealBadge({ name }: { name: string }) {
+  const lower = name.toLowerCase();
+  const icon =
+    lower.includes('breakfast') ? <CoffeeIcon weight="duotone" className="size-3.5 shrink-0" />
+    : lower.includes('lunch')   ? <BowlSteamIcon weight="duotone" className="size-3.5 shrink-0" />
+    : lower.includes('dinner')  ? <CheersIcon weight="duotone" className="size-3.5 shrink-0" />
+    : <ForkKnifeIcon weight="duotone" className="size-3.5 shrink-0" />;
   return (
-    <div className="mt-2 space-y-0 flex">
+    <span className="inline-flex items-center gap-1 bg-success-50 text-success-700 ring-1 ring-inset ring-success-200 rounded-full px-2 py-0.5 text-[11px] font-semibold">
+      {icon}{name}
+    </span>
+  );
+}
+
+function parseMealTypes(mealType: string | null, planName: string | null): string[] {
+  const source = mealType ?? planName ?? '';
+  if (!source) return [];
+  const lower = source.toLowerCase();
+  // Named plan codes → expand to individual meal names
+  if (lower === 'ap' || lower === 'full board') return ['Breakfast', 'Lunch', 'Dinner'];
+  if (lower === 'map' || lower === 'half board') return ['Breakfast', 'Dinner'];
+  if (lower === 'cp' || lower === 'bb' || lower === 'bed & breakfast') return ['Breakfast'];
+  if (lower === 'ep' || lower === 'room only') return [];
+  // Free-text: split by comma/plus and trim
+  return source.split(/[,+&]/).map(s => s.trim()).filter(Boolean);
+}
+
+function StayContent({ section }: { section: StaySection }) {
+  const meals = parseMealTypes(section.mealType, section.planName);
+
+  return (
+    <div className="mt-2 flex">
       <div className="w-10 shrink-0" />
-      <div className='flex-1'>
-        <div className="flex items-start justify-between mb-3">
-          <div className='flex gap-3 items-center '>
-            <Text size='base' weight='semibold' className=" font-heading text-primary leading-tight">
+      <div className="flex-1 space-y-3">
+
+        {/* Hotel name + stars */}
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-2.5">
+            <Text size="base" weight="semibold" className="font-heading text-primary leading-tight">
               {section.hotelName}
             </Text>
-            <p className="text-warning-500 text-sm tracking-widest mt-0.5">
-              {'★'.repeat(section.stars)}
-            </p>
+            {section.stars > 0 && (
+              <p className="text-warning-500 text-sm tracking-widest leading-none">
+                {'★'.repeat(section.stars)}
+              </p>
+            )}
           </div>
+          {section.address && (
+            <div className="flex items-start gap-1.5 mt-0.5">
+              <MapPinIcon weight="duotone" className="size-3.5 text-muted shrink-0 mt-0.5" />
+              <Text size="xs" intent="secondary" className="leading-snug">{section.address}</Text>
+            </div>
+          )}
         </div>
 
+        {/* Room details card */}
+        <div className="bg-neutral-50 ring-1 ring-inset ring-neutral-100 rounded-xl px-3.5 py-2.5 flex flex-col gap-2">
+          {/* Room name + capacity */}
+          <div className="flex items-center justify-between">
+            {section.roomName && (
+              <div className="flex items-center gap-1.5">
+                <BedIcon weight="duotone" className="size-4 text-brand shrink-0" />
+                <Text size="sm" weight="semibold" intent="primary">{section.roomName}</Text>
+              </div>
+            )}
+            {section.roomCapacity && (
+              <div className="flex items-center gap-1 text-muted">
+                <svg className="size-3.5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
+                </svg>
+                <Text size="xs" intent="secondary">Up to {section.roomCapacity} guests</Text>
+              </div>
+            )}
+          </div>
+
+          {/* Meal highlights */}
+          {meals.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-(--border-default)">
+              <Text size="xs" intent="secondary" weight="medium">Meals:</Text>
+              {meals.map(m => <MealBadge key={m} name={m} />)}
+            </div>
+          )}
+        </div>
+
+        {/* Check-in / Check-out timeline */}
         <div className="flex">
-          <div className="w-full border-l-[0.2em] border-l-(--border-default) flex-1 flex flex-col gap-2 mb-3">
-            {/* Check In */}
+          <div className="w-full border-l-[0.2em] border-l-(--border-default) flex-1 flex flex-col gap-2">
             <div className="relative after:absolute after:w-[0.2em] after:h-full after:max-h-8 after:left-0 after:top-0 after:bg-primary-400 after:-translate-x-[0.2em]">
-              <div className="flex  gap-3">
+              <div className="flex gap-3">
                 <div className="size-7 flex items-center justify-center ml-3 shrink-0">
-                  <span className='text-muted size-7'><CheckInIcon /></span>
+                  <span className="text-muted size-7"><CheckInIcon /></span>
                 </div>
                 <div className="flex gap-3 w-full mt-0.5">
-                  <Text size="sm" intent="primary" className="w-max mb-0.5 font-heading shrink-0">Check In:</Text>
+                  <Text size="sm" intent="primary" className="w-max font-heading shrink-0">Check In:</Text>
                   <Text size="sm" intent="primary" weight="semibold" className="font-heading">{section.checkIn}</Text>
                 </div>
               </div>
@@ -503,70 +625,36 @@ function StayContent({ section }: { section: StaySection }) {
             <div className="h-8 w-full flex items-stretch">
               <div className="w-18" />
               <div className="h-full flex-1 border-l-[0.2em] border-l-(--border-default) px-3 flex items-center gap-0.5">
-                <Text as='span' size="sm" weight='medium' intent='secondary'>
+                <Text as="span" size="sm" weight="medium" intent="secondary">
                   {section.nights} Night{section.nights !== 1 ? 's' : ''}
                 </Text>
-                <StarAndCrescentIcon weight='duotone' className="size-5 text-muted ml-2" />
+                <StarAndCrescentIcon weight="duotone" className="size-5 text-muted ml-2" />
               </div>
             </div>
 
-            {/* Check Out */}
             <div className="relative after:absolute after:w-[0.2em] after:h-full after:max-h-8 after:left-0 after:top-0 after:bg-primary-400 after:-translate-x-[0.2em]">
               <div className="flex gap-3">
                 <div className="size-7 flex items-center justify-center ml-3 shrink-0">
-                  <span className='text-muted size-7'><CheckOutIcon /></span>
+                  <span className="text-muted size-7"><CheckOutIcon /></span>
                 </div>
                 <div className="flex gap-3 w-full">
-                  <Text size="sm" intent="primary" className="w-max mb-0.5 font-heading shrink-0">Check Out:</Text>
-                  <div className="flex-1">
-                    <Text size="sm" intent="primary" weight="semibold" className="font-heading">{section.checkOut}</Text>
-                  </div>
+                  <Text size="sm" intent="primary" className="w-max font-heading shrink-0">Check Out:</Text>
+                  <Text size="sm" intent="primary" weight="semibold" className="font-heading">{section.checkOut}</Text>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Inclusions */}
-        {section.inclusions.length > 0 && (
-          <div className="flex items-center gap-x-4 gap-y-2 flex-wrap bg-neutral-50 ring-1 ring-inset ring-neutral-100 shadow-lg shadow-neutral-200/70 rounded-xl px-3.5 py-2.5 ">
-            <Text size="xs" intent="primary" weight="semibold" className="font-heading">Inclusion :</Text>
-            <div className='grid grid-cols-3 flex-1'>
-              {section.inclusions.map(({ label, status }) => (
-                <div key={label} className="flex items-center gap-2 justify-between border-r border-r-(--border-default) px-3">
-                  <div className='flex gap-1.5 items-center'>
-                    {label === 'Breakfast'
-                      ? <CoffeeIcon weight='fill' className='text-muted size-6' />
-                      : label === 'Lunch'
-                        ? <BowlSteamIcon weight='fill' className='text-muted size-6' />
-                        : label === 'Dinner'
-                          ? <CheersIcon weight='fill' className='text-muted size-6' />
-                          : null
-                    }
-                    <Text size="sm" intent="primary">{label}</Text>
-                  </div>
-                  <span className={cn(
-                    'size-4 rounded-full flex items-center justify-center shrink-0',
-                    status === 'included' ? 'bg-success-100' : 'bg-error-100'
-                  )}>
-                    {status === 'included'
-                      ? <CheckIcon className="size-2.5 text-success-600" />
-                      : <XMarkIcon className="size-2.5 text-error-500" />}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Image grid */}
+        {/* Image grid — pos 0 = primary hotel, pos 1-2 = room, pos 3-4 = hotel */}
         {section.images.length > 0 && (
-          <div className="grid grid-cols-[1.6fr_1fr_1fr] grid-rows-2 gap-0.5 rounded-2xl overflow-hidden mt-3 h-52">
+          <div className="grid grid-cols-[1.6fr_1fr_1fr] grid-rows-2 gap-0.5 rounded-2xl overflow-hidden h-52">
             {section.images.slice(0, 5).map((src, i) => (
               <img key={i} src={src} alt="" className={cn('w-full h-full object-cover', i === 0 && 'row-span-2')} />
             ))}
           </div>
         )}
+
       </div>
     </div>
   );
@@ -577,17 +665,20 @@ function ActivityContent({ section }: { section: ActivitySection }) {
     <div className="mt-2 flex">
       <div className="w-10"></div>
       <div className='flex-1'>
-        <Text size='base' weight='semibold' className=" font-heading text-primary leading-tight mb-3">{section.name}</Text>
-        <div className="grid grid-cols-3 gap-1.5">
-          {section.images.map(({ src, label }, i) => (
-            <div key={i} className="relative rounded-xl overflow-hidden">
+        <Text size='base' weight='semibold' className="font-heading text-primary leading-tight mb-3">{section.name}</Text>
+        <Carousel
+          items={section.images}
+          perView={3}
+          gap={6}
+          renderItem={({ src, label }) => (
+            <div className="relative rounded-xl overflow-hidden">
               <Image src={src} alt={label} width={1000} height={600} className="w-full aspect-5/3 object-cover" />
               <div className="absolute inset-x-0 bottom-0 bg-linear-to-r from-black/60 to-transparent px-2 py-1.5">
                 <p className="text-[10px] text-white font-medium">{label}</p>
               </div>
             </div>
-          ))}
-        </div>
+          )}
+        />
       </div>
     </div>
   );

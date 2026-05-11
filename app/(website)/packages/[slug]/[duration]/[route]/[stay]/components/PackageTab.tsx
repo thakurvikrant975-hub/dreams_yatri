@@ -1,36 +1,37 @@
 'use client';
 
-import { useRouter, usePathname } from 'next/navigation';
+import { useState } from 'react';
 import {
     CalendarDateRangeIcon,
     DocumentTextIcon,
-    ShieldCheckIcon
+    ShieldCheckIcon,
 } from '@heroicons/react/24/solid';
-
 import Tabs from '@/app/components/ui/Tabs';
 
-export default function PackageTab({ slug, duration, route, stay }: { slug: string, duration: string, route: string, stay: string }) {
-    const router = useRouter();
-    const pathname = usePathname();
+const TABS = [
+    { id: 'itinerary',  label: 'Itinerary',          icon: CalendarDateRangeIcon },
+    { id: 'highlights', label: 'Highlights',          icon: ShieldCheckIcon },
+    { id: 'policies',   label: 'Policies',            icon: DocumentTextIcon },
+];
 
-    const tabs = [
-        { id: 'Itinary', label: 'Itinary', icon: CalendarDateRangeIcon, path: `/packages/${slug}/${duration}/${route}/${stay}` },
-        { id: 'Policies', label: 'Policies', icon: DocumentTextIcon, path: `/packages/${slug}/${duration}/${route}/${stay}/policy` },
-        { id: 'Highlights', label: 'Highlights And Summary', icon: ShieldCheckIcon, path: `/packages/${slug}/${duration}/${route}/${stay}/summary` },
-    ];
+interface Props {
+    itinerary:  React.ReactNode;
+    highlights: React.ReactNode;
+    policies:   React.ReactNode;
+}
 
-    const activeTab =
-        tabs.find(tab => tab.path === pathname)?.id ?? 'Profile';
+export default function PackageTab({ itinerary, highlights, policies }: Props) {
+    const [activeTab, setActiveTab] = useState('itinerary');
 
     return (
+        <>
+            <Tabs tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab} />
 
-        <Tabs
-            tabs={tabs}
-            activeTab={activeTab}
-            onTabChange={(tabId) => {
-                const tab = tabs.find(t => t.id === tabId);
-                if (tab) router.push(tab.path);
-            }}
-        />
+            <div className="py-6">
+                {activeTab === 'itinerary'  && itinerary}
+                {activeTab === 'highlights' && highlights}
+                {activeTab === 'policies'   && policies}
+            </div>
+        </>
     );
 }

@@ -50,10 +50,13 @@ export type HotelDay = {
   check_out_time: string | null;
   address: string | null;
   plan_name: string | null;
+  meal_type: string | null;
   room_name: string | null;
+  room_capacity: number | null;
   price_per_night: number;
   original_price: number | null;
-  images: { url: string; thumbnail: string | null; alt: string | null }[];
+  images: { url: string | null; thumbnail: string | null; alt: string | null }[];
+  room_images: { url: string; thumbnail: string | null; alt: string | null }[];
 };
 
 export type ActivityDay = {
@@ -301,6 +304,7 @@ export async function fetchPackagePageData(
                 plan_name: true,
                 price_per_night: true,
                 original_price: true,
+                meal_type: { select: { name: true } },
                 hotel: {
                   select: {
                     id: true,
@@ -311,13 +315,24 @@ export async function fetchPackagePageData(
                     check_out_time: true,
                     address: true,
                     images: {
+                      where: { category: { room_pricing_id: null } },
                       orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
-                      take: 6,
+                      take: 5,
                       select: { url: true, thumbnail: true, alt: true },
                     },
                   },
                 },
-                room: { select: { name: true } },
+                room: {
+                  select: {
+                    name: true,
+                    max_occupancy: true,
+                    images: {
+                      orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
+                      take: 2,
+                      select: { url: true, thumbnail: true, alt: true },
+                    },
+                  },
+                },
               },
             },
           },
@@ -410,10 +425,13 @@ export async function fetchPackagePageData(
           check_out_time: rp.hotel.check_out_time,
           address: rp.hotel.address,
           plan_name: rp.plan_name,
+          meal_type: rp.meal_type?.name ?? null,
           room_name: rp.room?.name ?? null,
+          room_capacity: rp.room?.max_occupancy ?? null,
           price_per_night: Number(rp.price_per_night),
           original_price: rp.original_price ? Number(rp.original_price) : null,
           images: rp.hotel.images,
+          room_images: rp.room?.images ?? [],
         }
       : null;
 

@@ -40,6 +40,8 @@ export default async function PackagePage({
     const pageData = await fetchPackagePageData(_slug, _duration, _route, _stay);
     if (!pageData) notFound();
 
+    console.log(pageData);
+
     const R2 = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? "";
     const imgUrl = (key: string | null | undefined): string =>
         !key ? "" : key.startsWith("http") ? key : `${R2}/${key}`;
@@ -136,8 +138,18 @@ export default async function PackagePage({
                 stars: d.hotel.star_rating ?? 0,
                 checkIn: d.hotel.check_in_time ?? "",
                 checkOut: d.hotel.check_out_time ?? "",
+                address: d.hotel.address,
                 inclusions: [],
-                images: d.hotel.images.map(img => imgUrl(img.url)),
+                roomName: d.hotel.room_name,
+                roomCapacity: d.hotel.room_capacity,
+                mealType: d.hotel.meal_type,
+                planName: d.hotel.plan_name,
+                images: [
+                    d.hotel.images[0],
+                    d.hotel.room_images[0], d.hotel.room_images[1],
+                    d.hotel.images[1], d.hotel.images[2],
+                    d.hotel.images[3], d.hotel.images[4],
+                ].filter(img => img?.url).map(img => imgUrl(img!.url)).slice(0, 5),
             }] : []),
             // Activities
             ...d.activities.map(a => ({
