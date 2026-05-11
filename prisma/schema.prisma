@@ -891,20 +891,20 @@ model activity_images {
 }
 
 model activity_variants {
-  id                   Int                      @id @default(autoincrement())
+  id                   Int                        @id @default(autoincrement())
   activity_id          Int
   name                 String
   booking_mode         String
   pricing_type         String
   min_persons          Int?
   max_persons          Int?
-  cost_price           Decimal?                 @db.Decimal(10, 2)
-  gst_percentage       Decimal                  @default(5) @db.Decimal(5, 2)
+  cost_price           Decimal?                   @db.Decimal(10, 2)
+  gst_percentage       Decimal                    @default(5) @db.Decimal(5, 2)
   valid_from           DateTime?
   valid_to             DateTime?
-  is_active            Boolean                  @default(true)
-  sort_order           Int                      @default(0)
-  activity             activities               @relation(fields: [activity_id], references: [id], onDelete: Cascade)
+  is_active            Boolean                    @default(true)
+  sort_order           Int                        @default(0)
+  activity             activities                 @relation(fields: [activity_id], references: [id], onDelete: Cascade)
   pricing              activity_variant_pricing[]
   itinerary_activities itinerary_activities[]
 
@@ -1103,14 +1103,14 @@ model itinerary_stays {
 }
 
 model itinerary_activities {
-  id           Int                @id @default(autoincrement())
+  id           Int                 @id @default(autoincrement())
   itinerary_id Int
   activity_id  Int
   variant_id   Int?
-  sort_order   Int                @default(0)
-  is_optional  Boolean            @default(false)
-  activity     activities         @relation(fields: [activity_id], references: [id])
-  variant      activity_variants? @relation(fields: [variant_id], references: [id])
+  sort_order   Int                 @default(0)
+  is_optional  Boolean             @default(false)
+  activity     activities          @relation(fields: [activity_id], references: [id])
+  variant      activity_variants?  @relation(fields: [variant_id], references: [id])
   itinerary    package_itineraries @relation(fields: [itinerary_id], references: [id], onDelete: Cascade)
 
   @@index([itinerary_id, sort_order])
@@ -1634,7 +1634,6 @@ enum CustomPackageStatus {
   ACCEPTED
   DECLINED
 }
-
 
 enum VehicleType {
   HATCHBACK
