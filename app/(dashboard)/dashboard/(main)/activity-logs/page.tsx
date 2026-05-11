@@ -7,6 +7,7 @@ import {
 } from "../components/ui/breadcrumb";
 import { getLogsPaginated, getLogStats } from "./actions";
 import { ActivityLogsTable } from "./ActivityLogsTable";
+import { PageHeader } from "../components/dashboard/PageHeader";
 
 function TableSkeleton() {
   return (
@@ -47,19 +48,12 @@ async function PageContent({ searchParams }: PageProps) {
 
   return (
     <>
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <Activity className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold">Activity Logs</h1>
-            <p className="text-sm text-muted-foreground">
-              Full audit trail all actions, actors, and outcomes
-            </p>
-          </div>
-        </div>
-      </div>
+
+      <PageHeader
+        title="Activity Logs"
+        description="Full audit trail all actions, actors, and outcomes"
+        icon={Activity}
+      />
 
       <ActivityLogsTable
         paginated={paginated}

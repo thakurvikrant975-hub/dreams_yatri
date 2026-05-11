@@ -26,18 +26,26 @@ export default async function RolePermissionsPage({ params }: Props) {
             <Breadcrumb>
                 <BreadcrumbList>
                     <BreadcrumbItem>
-                        <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
+                        <BreadcrumbLink
+                            href="/dashboard"
+                            className="text-dashboard-base-content/50 hover:text-dashboard-primary transition-colors"
+                        >
+                            Dashboard
+                        </BreadcrumbLink>
                     </BreadcrumbItem>
-                    <BreadcrumbSeparator />
+                    <BreadcrumbSeparator className="text-dashboard-base-content/30" />
                     <BreadcrumbItem>
-                        <BreadcrumbLink href="/dashboard/roles-and-permissions">
+                        <BreadcrumbLink
+                            href="/dashboard/roles-and-permissions"
+                            className="text-dashboard-base-content/50 hover:text-dashboard-primary transition-colors"
+                        >
                             Roles & Permissions
                         </BreadcrumbLink>
                     </BreadcrumbItem>
-                    <BreadcrumbSeparator />
+                    <BreadcrumbSeparator className="text-dashboard-base-content/30" />
                     <BreadcrumbItem>
-                        <BreadcrumbPage className="flex items-center gap-1.5">
-                            <ShieldCheck className="h-3.5 w-3.5" />
+                        <BreadcrumbPage className="flex items-center gap-1.5 text-dashboard-base-content font-medium">
+                            <ShieldCheck className="h-3.5 w-3.5 text-dashboard-primary" />
                             {role.name}
                         </BreadcrumbPage>
                     </BreadcrumbItem>

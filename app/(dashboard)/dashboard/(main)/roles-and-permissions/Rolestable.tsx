@@ -286,19 +286,16 @@ export function RolesTable({ roles }: { roles: Role[] }) {
                     label="Total Roles"
                     value={roles.length}
                     icon={UserRoundKey}
-                    iconClassName="bg-dashboard-primary/10 text-dashboard-primary"
                 />
                 <StatCard
                     label="Configured"
                     value={configuredRoles}
                     icon={SlidersHorizontal}
-                    iconClassName="bg-dashboard-accent/10 text-dashboard-accent"
                 />
                 <StatCard
                     label="Total Members"
                     value={totalMembers}
                     icon={Users}
-                    iconClassName="bg-dashboard-secondary/10 text-dashboard-secondary"
                 />
             </StatGrid>
 

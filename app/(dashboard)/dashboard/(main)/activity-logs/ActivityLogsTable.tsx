@@ -2,13 +2,15 @@
 
 import { useState, useMemo, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ShieldAlert, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
+import { ShieldAlert, AlertTriangle, CheckCircle2, XCircle, LogIn, CalendarHeart, Ban, CircleAlert, Skull, Logs } from "lucide-react";
 import { Badge } from "../components/ui/badge";
 import { format } from "date-fns";
 import { Stats } from "../components/dashboard/Stats";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { TableFilters } from "../components/dashboard/Tablefilters";
 import type { PaginatedLogs, ActivityLogRow, LogStats } from "./actions";
+import { StatGrid, StatCard } from "../components/dashboard/Statcard";
+import { TableEmptyState } from "../components/dashboard/TableEmptyState";
 
 // ── Badge helpers ─────────────────────────────────────────────────────────────
 function ActionBadge({ action }: { action: string }) {
@@ -30,8 +32,8 @@ function ActionBadge({ action }: { action: string }) {
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { cls: string; icon: React.ReactNode }> = {
-    SUCCESS:  { cls: "bg-green-50 text-green-800 border-green-200", icon: <CheckCircle2 className="h-3 w-3" /> },
-    FAILED:   { cls: "bg-red-50 text-red-800 border-red-200",       icon: <XCircle className="h-3 w-3" /> },
+    SUCCESS: { cls: "bg-green-50 text-green-800 border-green-200", icon: <CheckCircle2 className="h-3 w-3" /> },
+    FAILED: { cls: "bg-red-50 text-red-800 border-red-200", icon: <XCircle className="h-3 w-3" /> },
     REJECTED: { cls: "bg-orange-50 text-orange-800 border-orange-200", icon: <AlertTriangle className="h-3 w-3" /> },
   };
   const s = map[status] ?? map.SUCCESS;
@@ -44,9 +46,9 @@ function StatusBadge({ status }: { status: string }) {
 
 function SeverityBadge({ severity, isSuspicious }: { severity: string; isSuspicious: boolean }) {
   const map: Record<string, string> = {
-    LOW:      "bg-slate-50 text-slate-600 border-slate-200",
-    MEDIUM:   "bg-yellow-50 text-yellow-700 border-yellow-200",
-    HIGH:     "bg-orange-50 text-orange-700 border-orange-200",
+    LOW: "bg-slate-50 text-slate-600 border-slate-200",
+    MEDIUM: "bg-yellow-50 text-yellow-700 border-yellow-200",
+    HIGH: "bg-orange-50 text-orange-700 border-orange-200",
     CRITICAL: "bg-red-50 text-red-700 border-red-200",
   };
   return (
@@ -55,7 +57,7 @@ function SeverityBadge({ severity, isSuspicious }: { severity: string; isSuspici
         {severity}
       </Badge>
       {isSuspicious && (
-        <ShieldAlert className="h-3.5 w-3.5 text-red-500"  />
+        <ShieldAlert className="h-3.5 w-3.5 text-red-500" />
       )}
     </div>
   );
@@ -69,15 +71,15 @@ interface Props {
 }
 
 const ACTION_OPTIONS = [
-  "CREATE","UPDATE","DELETE","LOGIN","LOGOUT",
-  "LOGIN_FAILED","PERMISSION_CHANGE","EXPORT","BULK_ACTION","VIEW_SENSITIVE",
+  "CREATE", "UPDATE", "DELETE", "LOGIN", "LOGOUT",
+  "LOGIN_FAILED", "PERMISSION_CHANGE", "EXPORT", "BULK_ACTION", "VIEW_SENSITIVE",
 ].map((a) => ({ label: a.replace("_", " "), value: a }));
 
-const STATUS_OPTIONS = ["SUCCESS","FAILED","REJECTED","PENDING"].map((s) => ({
+const STATUS_OPTIONS = ["SUCCESS", "FAILED", "REJECTED", "PENDING"].map((s) => ({
   label: s, value: s,
 }));
 
-const SEVERITY_OPTIONS = ["LOW","MEDIUM","HIGH","CRITICAL"].map((s) => ({
+const SEVERITY_OPTIONS = ["LOW", "MEDIUM", "HIGH", "CRITICAL"].map((s) => ({
   label: s, value: s,
 }));
 
@@ -87,9 +89,9 @@ export function ActivityLogsTable({ paginated, stats, currentPage }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [search, setSearch]         = useState("");
-  const [actionFilter, setAction]   = useState("all");
-  const [statusFilter, setStatus]   = useState("all");
+  const [search, setSearch] = useState("");
+  const [actionFilter, setAction] = useState("all");
+  const [statusFilter, setStatus] = useState("all");
   const [severityFilter, setSeverity] = useState("all");
 
   // Client-side filter within current page
@@ -100,8 +102,8 @@ export function ActivityLogsTable({ paginated, stats, currentPage }: Props) {
         l.userEmail?.toLowerCase().includes(search.toLowerCase()) ||
         l.entity?.toLowerCase().includes(search.toLowerCase()) ||
         l.ipAddress?.includes(search);
-      const matchAction   = actionFilter === "all"   || l.action === actionFilter;
-      const matchStatus   = statusFilter === "all"   || l.status === statusFilter;
+      const matchAction = actionFilter === "all" || l.action === actionFilter;
+      const matchStatus = statusFilter === "all" || l.status === statusFilter;
       const matchSeverity = severityFilter === "all" || l.severity === severityFilter;
       return matchSearch && matchAction && matchStatus && matchSeverity;
     });
@@ -179,15 +181,33 @@ export function ActivityLogsTable({ paginated, stats, currentPage }: Props) {
 
   return (
     <div className="space-y-4">
-      <Stats
-        rows={[
-          { label: "Total Logs",  value: stats.total },
-          { label: "Today",       value: stats.today },
-          { label: "Failed",      value: stats.failed,      muted: true },
-          { label: "Critical",    value: stats.critical,    muted: true },
-          { label: "Suspicious",  value: stats.suspicious,  muted: true },
-        ]}
-      />
+      <StatGrid cols={5}>
+        <StatCard
+          label="Total Logs"
+          value={stats.total}
+          icon={Logs}
+        />
+        <StatCard
+          label="Today"
+          value={stats.today}
+          icon={CalendarHeart}
+        />
+        <StatCard
+          label="Failed"
+          value={stats.failed}
+          icon={Ban}
+        />
+        <StatCard
+          label="Critical"
+          value={stats.critical}
+          icon={Skull}
+        />
+        <StatCard
+          label="Suspicious"
+          value={stats.suspicious}
+          icon={CircleAlert}
+        />
+      </StatGrid>
 
       <TableFilters
         search={search}
@@ -196,8 +216,8 @@ export function ActivityLogsTable({ paginated, stats, currentPage }: Props) {
         filteredCount={filtered.length}
         totalCount={logs.length}
         filters={[
-          { value: actionFilter,   onChange: setAction,   placeholder: "All Actions",   options: ACTION_OPTIONS },
-          { value: statusFilter,   onChange: setStatus,   placeholder: "All Statuses",  options: STATUS_OPTIONS },
+          { value: actionFilter, onChange: setAction, placeholder: "All Actions", options: ACTION_OPTIONS },
+          { value: statusFilter, onChange: setStatus, placeholder: "All Statuses", options: STATUS_OPTIONS },
           { value: severityFilter, onChange: setSeverity, placeholder: "All Severities", options: SEVERITY_OPTIONS },
         ]}
       />
@@ -207,11 +227,10 @@ export function ActivityLogsTable({ paginated, stats, currentPage }: Props) {
         columns={columns}
         rowKey={(l) => l.id}
         emptyState={
-          <div className="flex flex-col items-center gap-2 py-8">
-            <ShieldAlert className="h-10 w-10 text-muted-foreground" />
-            <p className="text-sm font-medium text-muted-foreground">No logs found</p>
-            <p className="text-xs text-muted-foreground">Try adjusting your filters</p>
-          </div>
+          <TableEmptyState
+            title={"No logs found"}
+            description={"No logs. No traces. Like Heisenberg was never here. 🧪"}
+          />
         }
         pagination={{
           currentPage,

@@ -186,7 +186,7 @@ function ResourceBlock({
         ].join(" ")}>
 
             {/* ── Header row ─────────────────────────────────────────────────── */}
-            <div className="flex items-center gap-3 px-4 py-3 bg-muted/30">
+            <div className="flex items-center gap-3 px-4 py-3 bg-dashboard-base-100">
 
                 {/* Select-all actions checkbox */}
                 <Checkbox
@@ -363,7 +363,7 @@ export function PermissionPage({ role }: { role: Role }) {
         <div className="space-y-6">
 
             {/* ── Sticky save bar ──────────────────────────────────────────── */}
-            <div className="sticky top-0 z-10 -mx-6 px-6 py-3 bg-background/95 backdrop-blur border-b flex items-center justify-between">
+            <div className="sticky top-0 z-10 rounded-lg px-6 py-3 bg-dashboard-base-100 backdrop-blur border-b flex items-center justify-between ">
                 <div className="flex items-center gap-3">
                     <button
                         type="button"
@@ -391,10 +391,10 @@ export function PermissionPage({ role }: { role: Role }) {
                         <Users className="h-3.5 w-3.5" />
                         {role._count.members} member{role._count.members !== 1 ? "s" : ""}
                     </div>
-                    <Badge variant="outline" className="text-xs">
+                    <Badge variant="outline" className="text-xs text-dashboard-warning border rounded-md border-dashboard-warning">
                         {activeCount}/{RESOURCES.length} resources
                     </Badge>
-                    <Button size="sm" onClick={handleSave} disabled={isPending} className="gap-2">
+                    <Button size="sm" onClick={handleSave} disabled={isPending} className="gap-2 bg-dashboard-primary rounded-md">
                         <Save className="h-3.5 w-3.5" />
                         {isPending ? "Saving..." : "Save Permissions"}
                     </Button>
@@ -402,7 +402,7 @@ export function PermissionPage({ role }: { role: Role }) {
             </div>
 
             {/* ── Select-all header ─────────────────────────────────────────── */}
-            <div className="flex items-center justify-between rounded-xl border bg-muted/30 px-4 py-3">
+            <div className="flex items-center justify-between rounded-xl border bg-dashboard-base-100 px-4 py-3">
                 <div className="flex items-center gap-3">
                     <Checkbox
                         checked={allEnabled}
@@ -442,7 +442,7 @@ export function PermissionPage({ role }: { role: Role }) {
 
             {/* ── Bottom save ───────────────────────────────────────────────── */}
             <div className="flex justify-end pt-2 border-t">
-                <Button onClick={handleSave} disabled={isPending} className="gap-2">
+                <Button onClick={handleSave} disabled={isPending} className="gap-2 bg-dashboard-primary rounded-md">
                     <Save className="h-3.5 w-3.5" />
                     {isPending ? "Saving..." : "Save Permissions"}
                 </Button>
