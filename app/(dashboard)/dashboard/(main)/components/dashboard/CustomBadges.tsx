@@ -41,6 +41,8 @@ export type QuerySource =
   | "LANDING_PAGE"
   | "WHATSAPP"
   | "PHONE_CALL"
+  | "PACKAGE_FORM"
+  | "CONTACT_FORM"
   | "REFERRAL"
   | "OTHER";
 
@@ -140,9 +142,22 @@ const SOURCE_CONFIG: Record<
   },
   LANDING_PAGE: {
     label: "Landing Page",
-    icon: Globe,
+    icon: FileText,
     className:
       "bg-cyan-50 text-cyan-700 border-cyan-300 dark:bg-cyan-900/30 dark:text-cyan-400 dark:border-cyan-700",
+  },
+  PACKAGE_FORM: {
+    label: "Package Form",
+    icon: FileText,
+    className:
+      "bg-red-50 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-700",
+  },
+
+  CONTACT_FORM: {
+    label: "Contact Form",
+    icon: FileText,
+    className:
+      "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-cyan-700",
   },
   WHATSAPP: {
     label: "WhatsApp",

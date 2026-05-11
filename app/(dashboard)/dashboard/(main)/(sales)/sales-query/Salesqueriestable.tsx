@@ -5,7 +5,8 @@ import { format, formatDistanceToNow, isToday } from "date-fns";
 import {
     CalendarClock, XCircle, Eye, Phone, Mail,
     MapPin, Users, Calendar, StickyNote, TrendingUp,
-    RotateCcw, ClipboardList, Inbox, Send, Clock, UserCheck, CheckCircle2
+    RotateCcw, ClipboardList, Inbox, Send, Clock, UserCheck, CheckCircle2,
+    CircleX
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
@@ -60,6 +61,9 @@ function isActiveStatus(status: SalesQueryStatus) {
 function isClosedStatus(status: SalesQueryStatus) {
     return status === "CLOSED";
 }
+function isConvertedStatus(status: SalesQueryStatus) {
+    return status === "CONVERTED";
+}
 
 // ── Action Cell ───────────────────────────────────────────────────────────────
 
@@ -74,6 +78,7 @@ function ActionCell({
 }) {
     const [isPendingReopen, startReopen] = useTransition();
     const closed = isClosedStatus(query.status as SalesQueryStatus);
+    const converted = isConvertedStatus(query.status as SalesQueryStatus);
     function handleReopen(e: React.MouseEvent) {
         e.stopPropagation();
         startReopen(async () => {
@@ -86,66 +91,67 @@ function ActionCell({
     return (
         <TooltipProvider delayDuration={300}>
             <div className="flex items-center justify-end gap-1">
-                {!closed && (
+                {!closed && !converted && (
                     <>
-                        {/* Package Requirements */}
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <span onClick={(e) => e.stopPropagation()}>
-                                    <PackageDetailsDialog
-                                        query={query}
-                                        initialRequirements={query.requirements as PackageRequirements | null}
-                                    >
-                                        <Button
-                                            variant="ghost" size="icon"
-                                            className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
-                                        >
-                                            <ClipboardList className="h-3.5 w-3.5" />
-                                        </Button>
-                                    </PackageDetailsDialog>
-                                </span>
-                            </TooltipTrigger>
-                            <TooltipContent>Fill Package Requirements</TooltipContent>
-                        </Tooltip>
 
-                        {/* Add Follow-Up */}
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <span onClick={(e) => e.stopPropagation()}>
-                                    <AddFollowUpDialog salesQueryId={query.id} leadName={query.name}>
-                                        <Button
-                                            variant="ghost" size="icon"
-                                            className="h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-100 dark:hover:bg-amber-950/30"
-                                        >
-                                            <CalendarClock className="h-3.5 w-3.5" />
-                                        </Button>
-                                    </AddFollowUpDialog>
-                                </span>
-                            </TooltipTrigger>
-                            <TooltipContent>Add Follow-Up</TooltipContent>
-                        </Tooltip>
+                                {/* Package Requirements */}
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <span onClick={(e) => e.stopPropagation()}>
+                                            <PackageDetailsDialog
+                                                query={query}
+                                                initialRequirements={query.requirements as PackageRequirements | null}
+                                            >
+                                                <Button
+                                                    variant="ghost" size="icon"
+                                                    className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
+                                                >
+                                                    <ClipboardList className="h-3.5 w-3.5" />
+                                                </Button>
+                                            </PackageDetailsDialog>
+                                        </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Fill Package Requirements</TooltipContent>
+                                </Tooltip>
 
-                        {/* Close Query */}
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <span onClick={(e) => e.stopPropagation()}>
-                                    <CloseQueryDialog
-                                        salesQueryId={query.id}
-                                        leadName={query.name}
-                                        closeReasons={closeReasons}
-                                    >
-                                        <Button
-                                            variant="ghost" size="icon"
-                                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                        >
-                                            <XCircle className="h-3.5 w-3.5" />
-                                        </Button>
-                                    </CloseQueryDialog>
-                                </span>
-                            </TooltipTrigger>
-                            <TooltipContent>Close Query</TooltipContent>
-                        </Tooltip>
-                    </>
+                                {/* Add Follow-Up */}
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <span onClick={(e) => e.stopPropagation()}>
+                                            <AddFollowUpDialog salesQueryId={query.id} leadName={query.name}>
+                                                <Button
+                                                    variant="ghost" size="icon"
+                                                    className="h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-100 dark:hover:bg-amber-950/30"
+                                                >
+                                                    <CalendarClock className="h-3.5 w-3.5" />
+                                                </Button>
+                                            </AddFollowUpDialog>
+                                        </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Add Follow-Up</TooltipContent>
+                                </Tooltip>
+
+                                {/* Close Query */}
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <span onClick={(e) => e.stopPropagation()}>
+                                            <CloseQueryDialog
+                                                salesQueryId={query.id}
+                                                leadName={query.name}
+                                                closeReasons={closeReasons}
+                                            >
+                                                <Button
+                                                    variant="ghost" size="icon"
+                                                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                >
+                                                    <XCircle className="h-3.5 w-3.5" />
+                                                </Button>
+                                            </CloseQueryDialog>
+                                        </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Close Query</TooltipContent>
+                                </Tooltip>
+                            </>
                 )}
 
                 {/* Reopen — closed only */}
@@ -409,11 +415,11 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
                     <StatCard
                         label="Closed"
                         value={closedCount}
-                        icon={CheckCircle2}
+                        icon={CircleX}
                         iconText="text-dashboard-success"
                     />
                     <StatCard
-                        label="Booked"
+                        label="Converted"
                         value={bookedCount}
                         icon={UserCheck}
                         iconText="text-dashboard-secondary"

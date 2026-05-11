@@ -322,14 +322,24 @@ export function QueriesTable({ queries, reasons }: Props) {
                 </div>
             ),
         },
-        {
-            header: "Received",
-            cell: (q) => (
-                <span className="text-xs text-dashboard-base-content/75">
-                    {formatDistanceToNow(new Date(q.createdAt), { addSuffix: true })}
-                </span>
-            ),
-        },
+{
+    header: "Received",
+    cell: (q) => (
+        <div className="flex flex-col">
+            <span className="text-xs text-dashboard-base-content/75">
+                {formatDistanceToNow(new Date(q.createdAt), { addSuffix: true })}
+            </span>
+            <span className="text-xs text-dashboard-base-content/75">
+                {new Date(q.createdAt).toLocaleDateString()}
+                {" "}
+                {new Date(q.createdAt).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                })}
+            </span>
+        </div>
+    ),
+},
         {
             header: "Actions",
             align: "right",
