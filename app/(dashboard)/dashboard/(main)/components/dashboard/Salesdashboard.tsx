@@ -110,44 +110,6 @@ async function SalesDashboardContent({ member }: { member: CurrentMember }) {
         />
       </StatGrid>
 
-      {/* Monthly target progress */}
-      <DashCard className="px-5 py-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Target className="h-4 w-4 text-dashboard-primary" />
-            <p className="text-sm font-semibold text-dashboard-base-content">Monthly target</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-dashboard-base-content">
-              {data.confirmedThisMonth}
-              <span className="font-normal text-dashboard-base-content/45"> / {data.monthlyTarget}</span>
-            </span>
-            <span
-              className="text-xs font-semibold px-2 py-0.5 rounded-full"
-              style={
-                targetPct >= 100
-                  ? { backgroundColor: "color-mix(in oklch, var(--color-dashboard-success) 15%, transparent)", color: "var(--color-dashboard-success)" }
-                  : targetPct >= 50
-                  ? { backgroundColor: "color-mix(in oklch, var(--color-dashboard-warning) 15%, transparent)", color: "var(--color-dashboard-warning)" }
-                  : { backgroundColor: "color-mix(in oklch, var(--color-dashboard-error) 15%, transparent)",   color: "var(--color-dashboard-error)" }
-              }
-            >
-              {targetPct}%
-            </span>
-          </div>
-        </div>
-
-        <div className="h-2 w-full rounded-full overflow-hidden bg-dashboard-base-300">
-          <div
-            className={cn("h-full rounded-full transition-all duration-700", progressColor)}
-            style={{ width: progressWidth(data.confirmedThisMonth, data.monthlyTarget) }}
-          />
-        </div>
-
-        <p className="text-xs italic text-dashboard-base-content/45">
-          {getMotivationLine(data.confirmedThisMonth, data.monthlyTarget)}
-        </p>
-      </DashCard>
 
       {/* Two columns */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
