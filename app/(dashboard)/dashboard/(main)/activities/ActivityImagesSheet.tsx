@@ -21,6 +21,7 @@ import {
   addActivityImages,
   deleteActivityImage,
   setPrimaryActivityImage,
+  updateActivityImageLabel,
   type ActivityImage,
   type ActivityItem,
 } from "./actions";
@@ -41,76 +42,103 @@ function ImageThumb({
   onSetPrimary: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
+  const [label, setLabel] = useState(image.label ?? "");
+  const [labelSaving, setLabelSaving] = useState(false);
+
+  function saveLabel() {
+    if (label === (image.label ?? "")) return;
+    setLabelSaving(true);
+    startTransition(async () => {
+      const r = await updateActivityImageLabel(image.id, label);
+      if (r.success) toast.success("Label saved");
+      else toast.error(r.message);
+      setLabelSaving(false);
+    });
+  }
 
   return (
-    <div className={cn(
-      "group relative aspect-square rounded-xl overflow-hidden border-2 bg-muted",
-      image.is_primary ? "border-primary" : "border-border hover:border-muted-foreground/40",
-    )}>
-      <img
-        src={`${BASE}/${image.url}`}
-        alt="Activity image"
-        className="w-full h-full object-cover"
-      />
+    <div className="flex flex-col gap-1.5">
+      <div className={cn(
+        "group relative aspect-square rounded-xl overflow-hidden border-2 bg-muted",
+        image.is_primary ? "border-primary" : "border-border hover:border-muted-foreground/40",
+      )}>
+        <img
+          src={`${BASE}/${image.url}`}
+          alt={label || "Activity image"}
+          className="w-full h-full object-cover"
+        />
 
-      {image.is_primary && (
-        <Badge className="absolute bottom-1 left-1 text-[9px] px-1.5 py-0 pointer-events-none bg-primary">
-          <Star className="h-2.5 w-2.5 mr-0.5" />
-          Primary
-        </Badge>
-      )}
-
-      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5">
-        {!image.is_primary && (
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            className="text-[10px] h-6 px-2"
-            disabled={isPending}
-            onClick={() => startTransition(async () => {
-              const r = await setPrimaryActivityImage(image.id, activity_id);
-              if (r.success) { toast.success(r.message); onSetPrimary(); }
-              else toast.error(r.message);
-            })}
-          >
-            <Star className="h-2.5 w-2.5 mr-1" />
-            Set Primary
-          </Button>
+        {image.is_primary && (
+          <Badge className="absolute bottom-1 left-1 text-[9px] px-1.5 py-0 pointer-events-none bg-primary">
+            <Star className="h-2.5 w-2.5 mr-0.5" />
+            Primary
+          </Badge>
         )}
 
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button type="button" size="sm" variant="destructive" className="text-[10px] h-6 px-2">
-              <Trash2 className="h-2.5 w-2.5 mr-1" />
-              Delete
+        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5">
+          {!image.is_primary && (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="text-[10px] h-6 px-2"
+              disabled={isPending}
+              onClick={() => startTransition(async () => {
+                const r = await setPrimaryActivityImage(image.id, activity_id);
+                if (r.success) { toast.success(r.message); onSetPrimary(); }
+                else toast.error(r.message);
+              })}
+            >
+              <Star className="h-2.5 w-2.5 mr-1" />
+              Set Primary
             </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete Image</AlertDialogTitle>
-              <AlertDialogDescription>
-                Permanently deletes from R2 storage too.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => startTransition(async () => {
-                  const r = await deleteActivityImage(
-                    image.id, activity_id, image.url, image.thumbnail ?? undefined
-                  );
-                  if (r.success) { toast.success(r.message); onDelete(); }
-                  else toast.error(r.message);
-                })}
-                className="bg-destructive text-white hover:bg-destructive/90"
-              >
+          )}
+
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button type="button" size="sm" variant="destructive" className="text-[10px] h-6 px-2">
+                <Trash2 className="h-2.5 w-2.5 mr-1" />
                 Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Image</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Permanently deletes from R2 storage too.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => startTransition(async () => {
+                    const r = await deleteActivityImage(
+                      image.id, activity_id, image.url, image.thumbnail ?? undefined
+                    );
+                    if (r.success) { toast.success(r.message); onDelete(); }
+                    else toast.error(r.message);
+                  })}
+                  className="bg-destructive text-white hover:bg-destructive/90"
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </div>
+
+      {/* Label input */}
+      <input
+        type="text"
+        value={label}
+        onChange={e => setLabel(e.target.value)}
+        onBlur={saveLabel}
+        onKeyDown={e => e.key === "Enter" && saveLabel()}
+        placeholder="Add label…"
+        disabled={labelSaving}
+        className="w-full text-[11px] border border-border rounded-md px-2 py-1 bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+      />
     </div>
   );
 }
@@ -161,6 +189,7 @@ export function ActivityImagesSheet({
           thumbnail:  p.key ?? null,
           is_primary: images.length === 0 && i === 0,
           sort_order: images.length + i,
+          label:      null,
         }));
         setImages(prev => [...prev, ...added]);
       } else {

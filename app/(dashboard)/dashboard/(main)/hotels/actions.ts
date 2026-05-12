@@ -36,7 +36,7 @@ export type HotelFormState = {
 // ── Read ──────────────────────────────────────────────────────────────────
 
 export async function getHotels() {
-  return db.hotels.findMany({
+  const rows = await db.hotels.findMany({
     orderBy: { created_at: "desc" },
     include: {
       destination: { select: { id: true, name: true } },
@@ -48,6 +48,11 @@ export async function getHotels() {
       },
     },
   });
+  return rows.map(h => ({
+    ...h,
+    latitude:  h.latitude  != null ? Number(h.latitude)  : null,
+    longitude: h.longitude != null ? Number(h.longitude) : null,
+  }));
 }
 
 export async function getHotelById(id: number) {
@@ -70,7 +75,7 @@ export async function getHotelById(id: number) {
     });
   }
 
-  return db.hotels.findUnique({
+  const hotel = await db.hotels.findUnique({
     where: { id },
     include: {
       destination: { select: { id: true, name: true } },
@@ -109,6 +114,12 @@ export async function getHotelById(id: number) {
       },
     },
   });
+  if (!hotel) return null;
+  return {
+    ...hotel,
+    latitude:  hotel.latitude  != null ? Number(hotel.latitude)  : null,
+    longitude: hotel.longitude != null ? Number(hotel.longitude) : null,
+  };
 }
 
 export async function getRoomsByHotel(hotel_id: number) {

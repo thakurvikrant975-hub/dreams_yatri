@@ -147,7 +147,7 @@ export default async function PackagePage({
                 name: a.name,
                 images: a.images.map(img => ({
                     src: imgUrl(img.url),
-                    label: img.alt ?? a.name,
+                    label: img.label ?? img.alt ?? a.category ?? a.name,
                 })),
             })),
         ] as DaySection[],
@@ -159,6 +159,7 @@ export default async function PackagePage({
         : { label: pageData.destination.name, slug: pageData.destination.slug };
 
     return (
+        
         <div>
             <PackageHero
                 title={pageData.title}
@@ -181,7 +182,6 @@ export default async function PackagePage({
                 stayCategoryId={pageData.selectedStay!.id}
                 packageName={pageData.title}
             >
-                <TravelerInputBar startingFrom={startingFrom} />
 
                 <PackageTab
                     pricing={<PricingCard />}
