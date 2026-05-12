@@ -5,7 +5,6 @@ import RootSkelton from "./[duration]/[route]/[stay]/skelton/rootSkelton"
 import StaySkelton from "./[duration]/[route]/[stay]/skelton/staySkelton"
 import ItinaryHeaderSkelton from "./[duration]/[route]/[stay]/skelton/itinaryHeaderSkelton"
 import PricingCardSkelton from "./[duration]/[route]/[stay]/skelton/pricingCardSkelton"
-import CoupenCardSkelton from "./[duration]/[route]/[stay]/skelton/coupenCardSkelton"
 import EnquiryFormSkeleton from "./[duration]/[route]/[stay]/skelton/enquiryFormSkelton"
 import { Heading } from "@/app/components/ui/Typography"
 
@@ -34,7 +33,7 @@ function loading() {
         highlights={<></>}
         policies={<></>}
         pricing={<PricingCardSkelton />}
-        coupon={<CoupenCardSkelton />}
+        coupon={null}
         enquiry={<EnquiryFormSkeleton />}
       />
     </div>

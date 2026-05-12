@@ -5,10 +5,11 @@ import PackageTab from "./components/PackageTab";
 import TripDuration from "./components/inputs/TripDuration";
 import StayCategory from "./components/inputs/StayCategory";
 import PricingCard from "./components/SidebarCards/PricingCard";
-import CoupenCard from "./components/SidebarCards/CoupenCard";
 import EnquiryForm from "./components/SidebarCards/EnquiryForm";
 import ItinerarySection, { ItineraryDay, DaySection } from "./components/Itnary";
 import DestinationRoutes from "./components/inputs/DestinationRoutes";
+import { PackageBookingProvider } from "./components/PackageBookingProvider";
+import TravelerInputBar from "./components/TravelerInputBar";
 import { CheckIcon, XMarkIcon } from "@heroicons/react/24/solid";
 import { Card, CardBody } from "@/app/components/ui/Card";
 
@@ -95,23 +96,10 @@ export default async function PackagePage({
         label: s.label,
     }));
 
-    // ── Pricing ────────────────────────────────────────────────────────────────
-    const discountedPrice = Math.ceil(
-        pageData.itinerary.reduce((acc, d) => {
-            const hotelCost = d.hotel?.price_per_night ?? 0;
-            const activityCost = d.activities.reduce((s, a) => s + (a.pricingTiers[0]?.price ?? 0), 0);
-            return acc + hotelCost + activityCost;
-        }, 0)
-    );
-    const originalPrice = Math.ceil(
-        pageData.itinerary.reduce((acc, d) => {
-            const hotelCost = d.hotel
-                ? (d.hotel.original_price ?? d.hotel.price_per_night)
-                : 0;
-            const activityCost = d.activities.reduce((s, a) => s + (a.pricingTiers[0]?.price ?? 0), 0);
-            return acc + hotelCost + activityCost;
-        }, 0)
-    );
+    // ── Starting point (first route stop or destination) ──────────────────────
+    const startingFrom =
+        pageData.selectedRoute?.stops[0]?.place_name ??
+        pageData.destination.name;
 
     // ── Itinerary ──────────────────────────────────────────────────────────────
     const itinerary: ItineraryDay[] = pageData.itinerary.map(d => ({
@@ -177,39 +165,28 @@ export default async function PackagePage({
                 duration={`${pageData.currentDuration.days}D/${pageData.currentDuration.nights}N`}
                 itinerary={routeStops}
                 inclusions={[
-                    { key: "transfer", label: "Transfer" },
-                    { key: "stay", label: "Stay" },
-                    { key: "breakfast", label: "Meal" },
+                    { key: "transfer",    label: "Transfer" },
+                    { key: "stay",        label: "Stay" },
+                    { key: "breakfast",   label: "Meal" },
                     { key: "sightseeing", label: "Activity" },
                 ]}
                 region={region}
                 images={image_gallery}
             />
 
-            <PackageTab
-                pricing={
-                            <PricingCard
-                                originalPrice={originalPrice}
-                                discountedPrice={discountedPrice}
-                                savings={originalPrice - discountedPrice}
-                                packageName={pageData.title}
-                            />
-                        }
-                        coupon={
-                            <CoupenCard
-                                coupons={[
-                                    { code: "MH45DREAM", discount: 2000, description: "Coupon applied successfully", applied: true },
-                                    { code: "TH43MK982", discount: 2000, description: "Get Discount Before it disappears", applied: false },
-                                ]}
-                            />
-                        }
-                        enquiry={
-                            <EnquiryForm
-                                discountedPrice={discountedPrice}
-                                savings={originalPrice - discountedPrice}
-                                packageName={pageData.title}
-                            />
-                        }
+            <PackageBookingProvider
+                packageId={pageData.id}
+                durationId={pageData.currentDuration.id}
+                routeId={pageData.selectedRoute!.id}
+                stayCategoryId={pageData.selectedStay!.id}
+                packageName={pageData.title}
+            >
+                <TravelerInputBar startingFrom={startingFrom} />
+
+                <PackageTab
+                    pricing={<PricingCard />}
+                    coupon={null}
+                    enquiry={<EnquiryForm packageName={pageData.title} />}
                         itinerary={
                             <div className="flex flex-col gap-8">
                                 <TripDuration
@@ -351,6 +328,7 @@ export default async function PackagePage({
                             </div>
                         }
                     />
+            </PackageBookingProvider>
         </div>
     );
 }

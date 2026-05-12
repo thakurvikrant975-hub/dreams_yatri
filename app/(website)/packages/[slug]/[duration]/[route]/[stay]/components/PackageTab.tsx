@@ -6,7 +6,9 @@ import {
     DocumentTextIcon,
     ShieldCheckIcon,
 } from '@heroicons/react/24/solid';
+import { ShareNetworkIcon } from '@phosphor-icons/react';
 import Tabs from '@/app/components/ui/Tabs';
+import Button from '@/app/components/ui/Button';
 
 const TABS = [
     { id: 'itinerary',  label: 'Itinerary',  icon: CalendarDateRangeIcon },
@@ -15,12 +17,9 @@ const TABS = [
 ];
 
 interface Props {
-    // Sidebar slots
     pricing:    ReactNode;
     coupon:     ReactNode;
     enquiry:    ReactNode;
-
-    // Tab content slots
     itinerary:  ReactNode;
     highlights: ReactNode;
     policies:   ReactNode;
@@ -33,10 +32,14 @@ export default function PackageTab({
     const [activeTab, setActiveTab] = useState('itinerary');
     const [stuck, setStuck]         = useState(false);
 
+    // Heights measured directly — no cross-component CSS custom properties
+    const [infoHeight, setInfoHeight] = useState(160); // fallback until measured
+    const [tabHeight,  setTabHeight]  = useState(50);  // fallback until measured
+
     const sentinelRef = useRef<HTMLDivElement>(null);
     const barRef      = useRef<HTMLDivElement>(null);
 
-    // Shadow: appears exactly when bar snaps sticky
+    // Shadow: appears when tab bar snaps sticky (sentinel exits viewport)
     useEffect(() => {
         const el = sentinelRef.current;
         if (!el) return;
@@ -48,35 +51,52 @@ export default function PackageTab({
         return () => ob.disconnect();
     }, []);
 
-    // Publish tab-bar height so sidebar can position itself below it
+    // Measure both the hero info band (by id) and the tab bar (by ref)
     useLayoutEffect(() => {
-        const el = barRef.current;
-        if (!el) return;
-        const update = () =>
-            document.documentElement.style.setProperty(
-                '--tab-bar-height',
-                `${el.offsetHeight}px`,
-            );
-        const ro = new ResizeObserver(update);
-        ro.observe(el);
-        update();
-        return () => ro.disconnect();
+        const infoEl = document.getElementById('package-info-band');
+        const tabEl  = barRef.current;
+
+        const measureInfo = () => {
+            const h = infoEl?.offsetHeight ?? 0;
+            if (h > 0) setInfoHeight(h);
+        };
+        const measureTab = () => {
+            const h = tabEl?.offsetHeight ?? 0;
+            if (h > 0) setTabHeight(h);
+        };
+
+        const infoRo = infoEl ? new ResizeObserver(measureInfo) : null;
+        const tabRo  = tabEl  ? new ResizeObserver(measureTab)  : null;
+
+        infoRo?.observe(infoEl!);
+        tabRo?.observe(tabEl!);
+
+        // Delay first measurement by one frame so layout is fully settled
+        const raf = requestAnimationFrame(() => {
+            measureInfo();
+            measureTab();
+        });
+
+        return () => {
+            infoRo?.disconnect();
+            tabRo?.disconnect();
+            cancelAnimationFrame(raf);
+        };
     }, []);
+
+    const sidebarTop = infoHeight + tabHeight + 16;
 
     return (
         <>
-            {/* Sentinel: exits viewport top exactly when the tab bar snaps sticky */}
+            {/* Sentinel: exits viewport top when the tab bar is about to snap sticky */}
             <div ref={sentinelRef} className="h-0" aria-hidden="true" />
 
-            {/*
-             * Full-viewport-width sticky tab bar.
-             * Sits below the hero info band via --package-info-height.
-             */}
+            {/* Sticky tab bar — positioned directly below the hero info band */}
             <div
                 ref={barRef}
                 className="sticky z-210 bg-white"
                 style={{
-                    top:         'var(--package-info-height, 160px)',
+                    top:         infoHeight,
                     marginLeft:  'calc(50% - 50vw)',
                     marginRight: 'calc(50% - 50vw)',
                     boxShadow:   stuck ? '0 1px 3px 0 rgba(163,163,163,0.2)' : 'none',
@@ -87,7 +107,27 @@ export default function PackageTab({
                     className="mx-auto px-4 sm:px-6 lg:px-8"
                     style={{ maxWidth: 'var(--max-width-container, 1400px)' }}
                 >
-                    <Tabs tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab} />
+                    <Tabs
+                        tabs={TABS}
+                        activeTab={activeTab}
+                        onTabChange={setActiveTab}
+                        trailing={
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                    if (navigator.share) {
+                                        navigator.share({ url: window.location.href });
+                                    } else {
+                                        navigator.clipboard.writeText(window.location.href);
+                                    }
+                                }}
+                            >
+                                Share
+                                <ShareNetworkIcon weight="bold" className="size-4 text-muted" />
+                            </Button>
+                        }
+                    />
                 </div>
             </div>
 
@@ -105,10 +145,8 @@ export default function PackageTab({
                 <aside className="w-[27%] flex flex-col gap-3">
                     {/* Pricing + enquiry: sticky below both info band and tab bar */}
                     <div
-                        className="sticky z-220 flex flex-col gap-3 bg-white"
-                        style={{
-                            top: 'calc(var(--package-info-height, 160px) + var(--tab-bar-height, 50px) - 72px)',
-                        }}
+                        className="sticky z-200 flex flex-col gap-3 bg-white"
+                        style={{ top: sidebarTop }}
                     >
                         {pricing}
                         {enquiry}
