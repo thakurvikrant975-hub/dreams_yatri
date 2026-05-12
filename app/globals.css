@@ -127,6 +127,7 @@
 @layer base {
     [data-layout="website"] {
         --max-width-container: 1400px;
+        --header-height: var(--spacing-header-height, 70px);
 
         --z-base: 1;
         --z-dropdown: 100;
@@ -366,7 +367,7 @@ body {
     width: 100%;
     margin: 0;
     padding: 0;
-    overflow-x: hidden;
+    overflow-x: clip;
 }
 
 @layer components {

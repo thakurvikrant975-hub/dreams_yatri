@@ -9,6 +9,8 @@ import CoupenCard from "./components/SidebarCards/CoupenCard";
 import EnquiryForm from "./components/SidebarCards/EnquiryForm";
 import ItinerarySection, { ItineraryDay, DaySection } from "./components/Itnary";
 import DestinationRoutes from "./components/inputs/DestinationRoutes";
+import { CheckIcon, XMarkIcon } from "@heroicons/react/24/solid";
+import { Card, CardBody } from "@/app/components/ui/Card";
 
 export const revalidate = 3600;
 
@@ -184,61 +186,171 @@ export default async function PackagePage({
                 images={image_gallery}
             />
 
-            <div className="flex gap-10 py-section-sm">
-                <div className="flex-1">
-                    <PackageTab slug={slug} duration={duration} route={route} stay={stay} />
+            <PackageTab
+                pricing={
+                            <PricingCard
+                                originalPrice={originalPrice}
+                                discountedPrice={discountedPrice}
+                                savings={originalPrice - discountedPrice}
+                                packageName={pageData.title}
+                            />
+                        }
+                        coupon={
+                            <CoupenCard
+                                coupons={[
+                                    { code: "MH45DREAM", discount: 2000, description: "Coupon applied successfully", applied: true },
+                                    { code: "TH43MK982", discount: 2000, description: "Get Discount Before it disappears", applied: false },
+                                ]}
+                            />
+                        }
+                        enquiry={
+                            <EnquiryForm
+                                discountedPrice={discountedPrice}
+                                savings={originalPrice - discountedPrice}
+                                packageName={pageData.title}
+                            />
+                        }
+                        itinerary={
+                            <div className="flex flex-col gap-8">
+                                <TripDuration
+                                    durationOptions={durationOptions}
+                                    baseURL={`/packages/${slug}`}
+                                    durationSlug={duration}
+                                    routeSlug={route}
+                                    staySlug={stay}
+                                />
+                                <DestinationRoutes
+                                    routeSlug={route}
+                                    routesOption={routesOption}
+                                    baseUrl={`/packages/${slug}`}
+                                    durationSlug={duration}
+                                    staySlug={stay}
+                                />
+                                <StayCategory
+                                    stayOptions={stayOptions}
+                                    baseURL={`/packages/${slug}`}
+                                    durationSlug={duration}
+                                    routeSlug={route}
+                                    staySlug={stay}
+                                />
+                                <ItinerarySection days={itinerary} />
+                            </div>
+                        }
+                        highlights={
+                            <div className="flex flex-col gap-8">
+                                {pageData.description && (
+                                    <p className="text-sm text-secondary leading-relaxed">{pageData.description}</p>
+                                )}
 
-                    <div className="py-6 flex flex-col gap-8">
-                        <TripDuration
-                            durationOptions={durationOptions}
-                            baseURL={`/packages/${slug}`}
-                            durationSlug={duration}
-                            routeSlug={route}
-                            staySlug={stay}
-                        />
+                                {/* Inclusions / Exclusions */}
+                                <div className="grid grid-cols-2 gap-6">
+                                    {pageData.inclusions.length > 0 && (
+                                        <div>
+                                            <p className="text-xs font-bold text-muted uppercase tracking-widest mb-3">What&apos;s Included</p>
+                                            <ul className="flex flex-col gap-2">
+                                                {pageData.inclusions.map((item, i) => (
+                                                    <li key={i} className="flex items-start gap-2">
+                                                        <CheckIcon className="size-4 text-success-600 shrink-0 mt-0.5" />
+                                                        <span className="text-sm text-secondary">{item}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+                                    {pageData.exclusions.length > 0 && (
+                                        <div>
+                                            <p className="text-xs font-bold text-muted uppercase tracking-widest mb-3">Not Included</p>
+                                            <ul className="flex flex-col gap-2">
+                                                {pageData.exclusions.map((item, i) => (
+                                                    <li key={i} className="flex items-start gap-2">
+                                                        <XMarkIcon className="size-4 text-error-500 shrink-0 mt-0.5" />
+                                                        <span className="text-sm text-secondary">{item}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+                                </div>
 
-                        <DestinationRoutes
-                            routeSlug={route}
-                            routesOption={routesOption}
-                            baseUrl={`/packages/${slug}`}
-                            durationSlug={duration}
-                            staySlug={stay}
-                        />
-
-                        <StayCategory
-                            stayOptions={stayOptions}
-                            baseURL={`/packages/${slug}`}
-                            durationSlug={duration}
-                            routeSlug={route}
-                            staySlug={stay}
-                        />
-
-                        <ItinerarySection days={itinerary} />
-                    </div>
-                </div>
-
-                <aside className="sticky top-(--header-height) w-[27%]">
-                    <div className="flex flex-col gap-3">
-                        <PricingCard
-                            originalPrice={originalPrice}
-                            discountedPrice={discountedPrice}
-                            savings={originalPrice - discountedPrice}
-                            packageName={pageData.title}
-                        />
-                        <CoupenCard
-                            coupons={[
-                                { code: "MH45DREAM", discount: 2000, description: "Coupon applied successfully", applied: true },
-                                { code: "TH43MK982", discount: 2000, description: "Get Discount Before it disappears", applied: false },
-                            ]}
-                        />
-                        <EnquiryForm
-                            discountedPrice={discountedPrice}
-                            savings={originalPrice - discountedPrice}
-                            packageName={pageData.title}
-                        />
-                    </div>
-                </aside>
-            </div>
+                                {/* Day-by-day summary table */}
+                                {pageData.itinerary.length > 0 && (
+                                    <div>
+                                        <p className="text-xs font-bold text-muted uppercase tracking-widest mb-3">Day-by-Day Summary</p>
+                                        <div className="rounded-xl overflow-hidden border border-neutral-200">
+                                            <table className="w-full text-sm border-collapse">
+                                                <thead>
+                                                    <tr className="bg-neutral-50 border-b border-neutral-200 text-left">
+                                                        <th className="px-3 py-2.5 text-[11px] font-semibold text-muted w-14">Day</th>
+                                                        <th className="px-3 py-2.5 text-[11px] font-semibold text-muted">Title</th>
+                                                        <th className="px-3 py-2.5 text-[11px] font-semibold text-muted">Hotel</th>
+                                                        <th className="px-3 py-2.5 text-[11px] font-semibold text-muted">Meals</th>
+                                                        <th className="px-3 py-2.5 text-[11px] font-semibold text-muted">Activities</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {pageData.itinerary.map((d) => (
+                                                        <tr key={d.day} className="border-b border-neutral-100 last:border-none">
+                                                            <td className="px-3 py-2.5 text-xs font-bold text-brand">Day {d.day}</td>
+                                                            <td className="px-3 py-2.5 text-sm font-medium text-primary">{d.title}</td>
+                                                            <td className="px-3 py-2.5 text-sm text-secondary">
+                                                                {d.hotel ? (
+                                                                    <span>{d.hotel.name}{d.hotel.star_rating ? ` ${'★'.repeat(d.hotel.star_rating)}` : ''}</span>
+                                                                ) : '–'}
+                                                            </td>
+                                                            <td className="px-3 py-2.5 text-sm text-secondary">
+                                                                {d.hotel?.meal_type ?? d.hotel?.plan_name ?? '–'}
+                                                            </td>
+                                                            <td className="px-3 py-2.5 text-sm text-secondary">
+                                                                {d.activities.length > 0
+                                                                    ? d.activities.map(a => a.name).join(', ')
+                                                                    : '–'}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        }
+                        policies={
+                            <div className="flex flex-col gap-8">
+                                {pageData.policies.length === 0 ? (
+                                    <p className="text-sm text-secondary">No policies have been assigned to this package.</p>
+                                ) : (
+                                    pageData.policies.map((policy, i) => {
+                                        const label =
+                                            policy.type === 'CANCELLATION'           ? 'Cancellation Policy'
+                                            : policy.type === 'DATE_CHANGE'          ? 'Date Change Policy'
+                                            : policy.type === 'REFUND'               ? 'Refund Policy'
+                                            : policy.type === 'TERMS_AND_CONDITIONS' ? 'Terms & Conditions'
+                                            : policy.title;
+                                        return (
+                                            <Card key={i} variant="default" padding="none">
+                                                <CardBody className="p-4 flex flex-col gap-3">
+                                                    <div>
+                                                        <p className="text-sm font-bold text-primary">{label}</p>
+                                                        {policy.title !== label && (
+                                                            <p className="text-xs text-muted mt-0.5">{policy.title}</p>
+                                                        )}
+                                                    </div>
+                                                    <ul className="flex flex-col gap-1.5">
+                                                        {policy.points.map((point, j) => (
+                                                            <li key={j} className="flex items-start gap-2">
+                                                                <span className="size-1.5 rounded-full bg-neutral-400 shrink-0 mt-1.75" />
+                                                                <span className="text-sm text-secondary leading-relaxed">{point}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </CardBody>
+                                            </Card>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        }
+                    />
         </div>
     );
 }

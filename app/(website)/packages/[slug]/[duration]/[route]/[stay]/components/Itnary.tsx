@@ -111,14 +111,19 @@ interface ItineraryProps {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const TABS = [
-  { id: 'Plan', label: 'Plan', icon: CalendarDateRangeIcon },
+  { id: 'Plan',     label: 'Plan',     icon: CalendarDateRangeIcon },
   { id: 'Transfer', label: 'Transfer', icon: CarIcon },
-  { id: 'Hotels', label: 'Hotels', icon: BuildingOffice2Icon },
-  { id: 'Food', label: 'Food', icon: ForkKnifeIcon },
+  { id: 'Hotels',   label: 'Hotels',   icon: BuildingOffice2Icon },
   { id: 'Activity', label: 'Activity', icon: ParachuteIcon },
 ] as const;
 
 type Tab = typeof TABS[number]['id'];
+
+const TAB_SECTION_TYPE: Partial<Record<Tab, DaySection['type']>> = {
+  Transfer: 'cab',
+  Hotels:   'stay',
+  Activity: 'activity',
+};
 
 const noteColorMap: Record<NoteVariant, string> = {
   error: 'text-error-700',
@@ -790,6 +795,13 @@ function DaySectionBlock({ section, id }: { section: DaySection; id: string }) {
 export default function ItinerarySection({ days }: ItineraryProps) {
   const [activeTab, setActiveTab] = useState<Tab>('Plan');
 
+  const sectionType = TAB_SECTION_TYPE[activeTab];
+  const visibleDays = sectionType
+    ? days
+        .map(d => ({ ...d, sections: d.sections.filter(s => s.type === sectionType) }))
+        .filter(d => d.sections.length > 0)
+    : days;
+
   return (
     <div className='bg-white rounded-2xl ring-1 ring-(--border-default)'>
 
@@ -807,69 +819,75 @@ export default function ItinerarySection({ days }: ItineraryProps) {
                 : 'bg-surface ring-(--border-strong)/40 text-secondary shadow-md shadow-neutral-400/35 hover:bg-neutral-50 cursor-pointer'
             )}
           >
-            <Icon weight='fill' className={cn("shrink-0 size-4 ", activeTab === id ? 'text-primary-50' : 'text-muted')} />
+            <Icon weight='fill' className={cn("shrink-0 size-4", activeTab === id ? 'text-primary-50' : 'text-muted')} />
             {label}
           </button>
         ))}
       </div>
 
       {/* Day Accordions */}
-      <Accordion variant="ghost" multiple defaultOpen={days.map(d => `day-${d.day}`)}>
-        {days.map(({ day, title, description, sections, notes }) => (
-          <Accordion.Item key={day} id={`day-${day}`} className="mb-2">
+      {visibleDays.length === 0 ? (
+        <div className="px-6 py-10 text-center">
+          <Text size="sm" intent="secondary">No {activeTab.toLowerCase()} details available for this package.</Text>
+        </div>
+      ) : (
+        <Accordion variant="ghost" multiple defaultOpen={visibleDays.map(d => `day-${d.day}-${activeTab}`)}>
+          {visibleDays.map(({ day, title, description, sections, notes }) => (
+            <Accordion.Item key={`${day}-${activeTab}`} id={`day-${day}-${activeTab}`} className="mb-2">
 
-            {/* Day Trigger */}
-            <div className="px-4">
-              <Accordion.Trigger className="py-3.5 border-b border-(--border-muted) rounded-none">
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <span className="shrink-0 bg-brand px-3 py-1 rounded-pill">
-                    <Text intent='inverse' size='xs' weight='semibold' className='font-heading'>
-                      Day {day}
+              {/* Day Trigger */}
+              <div className="px-4">
+                <Accordion.Trigger className="py-3.5 border-b border-(--border-muted) rounded-none">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <span className="shrink-0 bg-brand px-3 py-1 rounded-pill">
+                      <Text intent='inverse' size='xs' weight='semibold' className='font-heading'>
+                        Day {day}
+                      </Text>
+                    </span>
+                    <Text as='span' intent='primary' weight='semibold' size='base' truncate={true} className='font-heading'>
+                      {title}
                     </Text>
-                  </span>
-                  <Text as='span' intent='primary' weight='semibold' size='base' truncate={true} className='font-heading'>
-                    {title}
-                  </Text>
-                </div>
-                <Accordion.Chevron className="size-5 text-neutral-400 shrink-0" />
-              </Accordion.Trigger>
-            </div>
-
-            {/* Day Content */}
-            <Accordion.Content className="px-4 pb-2 pt-0">
-
-              {/* Top notes */}
-              {notes && notes.length > 0 && (
-                <div className="pt-3">
-                  <NoteBlock notes={notes} position="top" />
-                </div>
-              )}
-
-              {description && (
-                <Text size='sm' intent='secondary' className="py-3 border-b border-(--border-muted)">
-                  {description}
-                </Text>
-              )}
-
-              <div className="flex flex-col divide-y divide-(--border-muted)">
-                {sections.map((section, i) => (
-                  <div key={i} className="py-5">
-                    <DaySectionBlock section={section} id={`day-${day}-sec-${i}`} />
                   </div>
-                ))}
+                  <Accordion.Chevron className="size-5 text-neutral-400 shrink-0" />
+                </Accordion.Trigger>
               </div>
 
-              {/* Bottom notes */}
-              {notes && notes.length > 0 && (
-                <div className="pb-2">
-                  <NoteBlock notes={notes} position="bottom" />
-                </div>
-              )}
+              {/* Day Content */}
+              <Accordion.Content className="px-4 pb-2 pt-0">
 
-            </Accordion.Content>
-          </Accordion.Item>
-        ))}
-      </Accordion>
+                {/* Top notes */}
+                {notes && notes.length > 0 && (
+                  <div className="pt-3">
+                    <NoteBlock notes={notes} position="top" />
+                  </div>
+                )}
+
+                {activeTab === 'Plan' && description && (
+                  <Text size='sm' intent='secondary' className="py-3 border-b border-(--border-muted)">
+                    {description}
+                  </Text>
+                )}
+
+                <div className="flex flex-col divide-y divide-(--border-muted)">
+                  {sections.map((section, i) => (
+                    <div key={i} className="py-5">
+                      <DaySectionBlock section={section} id={`day-${day}-${activeTab}-sec-${i}`} />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Bottom notes */}
+                {notes && notes.length > 0 && (
+                  <div className="pb-2">
+                    <NoteBlock notes={notes} position="bottom" />
+                  </div>
+                )}
+
+              </Accordion.Content>
+            </Accordion.Item>
+          ))}
+        </Accordion>
+      )}
 
     </div>
   );

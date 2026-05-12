@@ -137,7 +137,7 @@ export type PackagePageData = {
 
   tags: { name: string; slug: string }[];
   categories: { name: string; slug: string }[];
-  policies: { type: string; title: string }[];
+  policies: { type: string; title: string; points: string[] }[];
 };
 
 // ── Main fetch ─────────────────────────────────────────────────────────────
@@ -206,7 +206,8 @@ export async function fetchPackagePageData(
         tags: { select: { tag: { select: { name: true, slug: true } } } },
         categories: { select: { category: { select: { name: true, slug: true } } } },
         policies: {
-          include: { policy: { select: { type: true, title: true } } },
+          orderBy: { policy: { sort_order: "asc" } },
+          include: { policy: { select: { type: true, title: true, points: true } } },
         },
       },
     }),
@@ -514,7 +515,7 @@ export async function fetchPackagePageData(
       : null,
     tags: pkg.tags.map((t) => t.tag),
     categories: pkg.categories.map((c) => c.category),
-    policies: pkg.policies.map((p) => ({ type: p.policy.type, title: p.policy.title })),
+    policies: pkg.policies.map((p) => ({ type: p.policy.type, title: p.policy.title, points: p.policy.points })),
   };
 }
 
