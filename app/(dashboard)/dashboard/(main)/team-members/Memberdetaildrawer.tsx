@@ -351,12 +351,14 @@ export function MemberDetailDrawer({ member, departments, roles, open, onClose }
           {/* Contact */}
           <Section title="Contact Information" icon={Mail}>
             <div className="grid gap-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid">
                 <WorkEmailInput
                   value={form.email}
                   onChange={(fullEmail) => setForm({ ...form, email: fullEmail })}
                   excludeId={member.id}   // ← skips the current member so their own email shows Available
                 />
+
+
                 <Field label="Personal email">
                   <Input type="email" value={form.personalEmail} onChange={(e) => setForm({ ...form, personalEmail: e.target.value })} placeholder="personal@gmail.com" />
                 </Field>

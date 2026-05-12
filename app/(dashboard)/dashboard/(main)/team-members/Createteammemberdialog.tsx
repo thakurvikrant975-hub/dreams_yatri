@@ -138,10 +138,10 @@ function BasicTab({
           placeholder="Mayank Sharma" />
       </Field>
 
-<WorkEmailInput
-  value={form.email}
-  onChange={(fullEmail) => setForm({ ...form, email: fullEmail })}
-/>
+      <WorkEmailInput
+        value={form.email}
+        onChange={(fullEmail) => setForm({ ...form, email: fullEmail })}
+      />
 
       <Field label="Password" required>
         <div className="flex gap-2">

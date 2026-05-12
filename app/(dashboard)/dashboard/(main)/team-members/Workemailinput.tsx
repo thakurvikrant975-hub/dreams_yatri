@@ -79,7 +79,7 @@ export function WorkEmailInput({ value, onChange, disabled, excludeId }: WorkEma
 
       {/* Input + suffix badge */}
       <div className={`flex items-stretch rounded-md border bg-background ring-offset-background transition-colors
-        focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2
+        
         ${borderClass || "border-input"}
         ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
       >
