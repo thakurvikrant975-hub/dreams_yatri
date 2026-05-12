@@ -1,3 +1,5 @@
+// app/lib/r2/r2delete.ts
+
 import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { r2 } from "./r2";
 

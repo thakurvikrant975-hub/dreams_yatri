@@ -459,18 +459,51 @@ model TeamRole {
 }
 
 model TeamMember {
-  id                     String            @id @default(cuid())
-  name                   String            @db.VarChar(255)
-  email                  String            @unique
+  id                     String    @id @default(cuid())
+
+  // ── Identity ──────────────────────────────────────────────────────────────
+  employeeId             String    @unique               // e.g. DY100001
+  name                   String    @db.VarChar(255)
+
+  // ── Profile picture (R2) ──────────────────────────────────────────────────
+  profilePicKey          String?                         // R2 object key
+  profilePicUrl          String?                         // public CDN URL
+
+  // ── Work details ──────────────────────────────────────────────────────────
+  email                  String    @unique               // work email (primary login)
   password               String?
+  personalEmail          String?
+  designation            String?   @db.VarChar(255)
   departmentId           String?
   teamRoleId             String?
-  isActive               Boolean           @default(true)
+  isActive               Boolean   @default(true)
   joiningDate            DateTime?
   lastLoginAt            DateTime?
+
+  // ── Contact ───────────────────────────────────────────────────────────────
+  personalMobile         String?   @db.VarChar(15)
+  alternativeMobile      String?   @db.VarChar(15)
+
+  // ── Family ────────────────────────────────────────────────────────────────
+  fatherName             String?   @db.VarChar(255)
+  fatherMobile           String?   @db.VarChar(15)
+  motherName             String?   @db.VarChar(255)
+  motherMobile           String?   @db.VarChar(15)
+
+  // ── Documents ─────────────────────────────────────────────────────────────
+  aadhaarNumber          String?   @db.VarChar(12)
+  aadhaarFileKey         String?
+  aadhaarFileUrl         String?
+  panNumber              String?   @db.VarChar(10)
+  panFileKey             String?
+  panFileUrl             String?
+
+  // ── Audit ─────────────────────────────────────────────────────────────────
   createdById            String?
-  createdAt              DateTime          @default(now())
-  updatedAt              DateTime          @updatedAt
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  // ── Relations ─────────────────────────────────────────────────────────────
   confirmedCabBookings   BookingCab[]
   confirmedHotelBookings BookingHotel[]
   timelineEntries        BookingTimeline[] @relation("TimelinePerformedBy")
@@ -482,6 +515,7 @@ model TeamMember {
   teamRole               TeamRole?         @relation(fields: [teamRoleId], references: [id])
 
   @@index([email])
+  @@index([employeeId])
   @@index([departmentId])
   @@index([teamRoleId])
   @@map("team_members")

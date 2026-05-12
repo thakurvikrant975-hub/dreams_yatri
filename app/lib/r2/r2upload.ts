@@ -2,7 +2,13 @@ import "server-only";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { r2, R2_BUCKET, R2_PUBLIC_URL } from "./r2";
 
-export type ImageFolder = "regions" | "destinations" | "hotels" | "packages" | "activities";
+export type ImageFolder =
+  | "regions"
+  | "destinations"
+  | "hotels"
+  | "packages"
+  | "activities"
+  | "team-members";      
 
 export type UploadResult = {
   key: string;
