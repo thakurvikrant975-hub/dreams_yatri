@@ -13,6 +13,7 @@ import type { Metadata } from "next";
 import { StatCard, StatGrid } from "../../components/dashboard/Statcard";
 import { TableFilters, type FilterConfig } from "../../components/dashboard/Tablefilters";
 import { TableEmptyState } from "../../components/dashboard/TableEmptyState";
+import { PageHeader } from "../../components/dashboard/PageHeader";
 
 export const metadata: Metadata = {
     title: "Package Builder - Dashboard",
@@ -307,25 +308,18 @@ export default function PackageBuilderClientPage() {
 
     return (
         <div className="flex flex-col gap-6 max-w-screen-2xl mx-auto">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                        <Package className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                        <h1 className="text-xl font-bold tracking-tight">Package Builder</h1>
-                        <p className="text-sm text-muted-foreground">
-                            Queries pending custom package creation
-                        </p>
-                    </div>
-                </div>
-                <Button variant="outline" size="sm" onClick={load} disabled={isPending}>
+  
+                
+            <PageHeader
+                title="Package Builder"
+                description="Queries pending custom package creation"
+                icon={Package}
+                actions={<Button variant="outline" className="rounded-md bg-dashboard-primary text-dashboard-base-100 px-4 hover:bg-dashboard-primary hover:scale-105 duration-300 hover:text-dashboard-base-100" size="lg" onClick={load} disabled={isPending}>
                     <RefreshCw size={14} className={isPending ? "animate-spin" : ""} />
                     Refresh
-                </Button>
-            </div>
-
+                </Button>}
+            />
+                
             <StatGrid cols={3}>
                 <StatCard
                     label="Pending Packages"
