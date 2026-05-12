@@ -172,6 +172,20 @@ export async function uploadProfilePic(
   }
 }
 
+export async function checkEmailAvailability(
+  email: string,
+  excludeId?: string
+): Promise<{ available: boolean }> {
+  const existing = await db.teamMember.findUnique({
+    where: { email: email.toLowerCase() },
+    select: { id: true },
+  });
+ 
+  if (!existing)              return { available: true  };
+  if (existing.id === excludeId) return { available: true  };  // same member = still free
+  return { available: false };
+}
+
 export async function uploadAadhaarFile(
   memberId: string,
   formData: FormData

@@ -21,15 +21,17 @@ import {
   uploadProfilePic, uploadAadhaarFile, uploadPanFile,
 } from "./actions";
 import type { TeamMember } from "./actions";
+import { WorkEmailInput } from "./Workemailinput";
+
 
 type SelectOption = { id: string; name: string };
 
 interface Props {
-  member:      TeamMember;
+  member: TeamMember;
   departments: SelectOption[];
-  roles:       SelectOption[];
-  open:        boolean;
-  onClose:     () => void;
+  roles: SelectOption[];
+  open: boolean;
+  onClose: () => void;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -37,7 +39,7 @@ interface Props {
 function toTitleCase(s: string) { return s.replace(/\b\w/g, (c) => c.toUpperCase()); }
 function isFutureDate(d: string) {
   if (!d) return false;
-  const sel = new Date(d); const today = new Date(); today.setHours(0,0,0,0); return sel > today;
+  const sel = new Date(d); const today = new Date(); today.setHours(0, 0, 0, 0); return sel > today;
 }
 function todayISO() { return new Date().toISOString().split("T")[0]; }
 
@@ -179,26 +181,26 @@ export function MemberDetailDrawer({ member, departments, roles, open, onClose }
   const [isPending, startTransition] = useTransition();
   const [picPreview, setPicPreview] = useState<string | null>(member.profilePicUrl);
   const [aadhaarUrl, setAadhaarUrl] = useState<string | null>(member.aadhaarFileUrl);
-  const [panUrl,     setPanUrl]     = useState<string | null>(member.panFileUrl);
+  const [panUrl, setPanUrl] = useState<string | null>(member.panFileUrl);
   const picRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
-    name:              member.name,
-    email:             member.email,
-    personalEmail:     member.personalEmail     ?? "",
-    designation:       member.designation       ?? "",
-    departmentId:      member.department?.id    ?? "",
-    roleId:            member.role?.id          ?? "",
-    joiningDate:       member.joiningDate ? format(new Date(member.joiningDate), "yyyy-MM-dd") : "",
-    isActive:          member.isActive,
-    personalMobile:    member.personalMobile    ?? "",
+    name: member.name,
+    email: member.email,
+    personalEmail: member.personalEmail ?? "",
+    designation: member.designation ?? "",
+    departmentId: member.department?.id ?? "",
+    roleId: member.role?.id ?? "",
+    joiningDate: member.joiningDate ? format(new Date(member.joiningDate), "yyyy-MM-dd") : "",
+    isActive: member.isActive,
+    personalMobile: member.personalMobile ?? "",
     alternativeMobile: member.alternativeMobile ?? "",
-    fatherName:        member.fatherName        ?? "",
-    fatherMobile:      member.fatherMobile      ?? "",
-    motherName:        member.motherName        ?? "",
-    motherMobile:      member.motherMobile      ?? "",
-    aadhaarNumber:     member.aadhaarNumber     ?? "",
-    panNumber:         member.panNumber         ?? "",
+    fatherName: member.fatherName ?? "",
+    fatherMobile: member.fatherMobile ?? "",
+    motherName: member.motherName ?? "",
+    motherMobile: member.motherMobile ?? "",
+    aadhaarNumber: member.aadhaarNumber ?? "",
+    panNumber: member.panNumber ?? "",
   });
 
   const handlePicUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -223,22 +225,22 @@ export function MemberDetailDrawer({ member, departments, roles, open, onClose }
     startTransition(async () => {
       const r = await updateTeamMember({
         id: member.id,
-        name:              form.name,
-        email:             form.email,
-        personalEmail:     form.personalEmail     || null,
-        designation:       form.designation       || null,
-        departmentId:      form.departmentId      || null,
-        roleId:            form.roleId            || null,
-        joiningDate:       form.joiningDate       || null,
-        isActive:          form.isActive,
-        personalMobile:    form.personalMobile    || null,
+        name: form.name,
+        email: form.email,
+        personalEmail: form.personalEmail || null,
+        designation: form.designation || null,
+        departmentId: form.departmentId || null,
+        roleId: form.roleId || null,
+        joiningDate: form.joiningDate || null,
+        isActive: form.isActive,
+        personalMobile: form.personalMobile || null,
         alternativeMobile: form.alternativeMobile || null,
-        fatherName:        form.fatherName        || null,
-        fatherMobile:      form.fatherMobile      || null,
-        motherName:        form.motherName        || null,
-        motherMobile:      form.motherMobile      || null,
-        aadhaarNumber:     form.aadhaarNumber     || null,
-        panNumber:         form.panNumber         || null,
+        fatherName: form.fatherName || null,
+        fatherMobile: form.fatherMobile || null,
+        motherName: form.motherName || null,
+        motherMobile: form.motherMobile || null,
+        aadhaarNumber: form.aadhaarNumber || null,
+        panNumber: form.panNumber || null,
       });
       if (r.success) { toast.success("Member updated successfully"); onClose(); }
       else toast.error(r.error);
@@ -350,9 +352,11 @@ export function MemberDetailDrawer({ member, departments, roles, open, onClose }
           <Section title="Contact Information" icon={Mail}>
             <div className="grid gap-4">
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Work email">
-                  <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-                </Field>
+                <WorkEmailInput
+                  value={form.email}
+                  onChange={(fullEmail) => setForm({ ...form, email: fullEmail })}
+                  excludeId={member.id}   // ← skips the current member so their own email shows Available
+                />
                 <Field label="Personal email">
                   <Input type="email" value={form.personalEmail} onChange={(e) => setForm({ ...form, personalEmail: e.target.value })} placeholder="personal@gmail.com" />
                 </Field>
@@ -360,12 +364,12 @@ export function MemberDetailDrawer({ member, departments, roles, open, onClose }
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Personal mobile">
                   <Input type="tel" value={form.personalMobile} maxLength={10}
-                    onChange={(e) => setForm({ ...form, personalMobile: e.target.value.replace(/\D/g,"") })}
+                    onChange={(e) => setForm({ ...form, personalMobile: e.target.value.replace(/\D/g, "") })}
                     placeholder="9876543210" />
                 </Field>
                 <Field label="Alternative mobile">
                   <Input type="tel" value={form.alternativeMobile} maxLength={10}
-                    onChange={(e) => setForm({ ...form, alternativeMobile: e.target.value.replace(/\D/g,"") })}
+                    onChange={(e) => setForm({ ...form, alternativeMobile: e.target.value.replace(/\D/g, "") })}
                     placeholder="9876543210" />
                 </Field>
               </div>
@@ -384,7 +388,7 @@ export function MemberDetailDrawer({ member, departments, roles, open, onClose }
                 </Field>
                 <Field label="Father's mobile">
                   <Input type="tel" value={form.fatherMobile} maxLength={10}
-                    onChange={(e) => setForm({ ...form, fatherMobile: e.target.value.replace(/\D/g,"") })}
+                    onChange={(e) => setForm({ ...form, fatherMobile: e.target.value.replace(/\D/g, "") })}
                     placeholder="9876543210" />
                 </Field>
               </div>
@@ -397,7 +401,7 @@ export function MemberDetailDrawer({ member, departments, roles, open, onClose }
                 </Field>
                 <Field label="Mother's mobile">
                   <Input type="tel" value={form.motherMobile} maxLength={10}
-                    onChange={(e) => setForm({ ...form, motherMobile: e.target.value.replace(/\D/g,"") })}
+                    onChange={(e) => setForm({ ...form, motherMobile: e.target.value.replace(/\D/g, "") })}
                     placeholder="9876543210" />
                 </Field>
               </div>
@@ -410,7 +414,7 @@ export function MemberDetailDrawer({ member, departments, roles, open, onClose }
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Aadhaar number">
                   <Input value={form.aadhaarNumber} maxLength={12}
-                    onChange={(e) => setForm({ ...form, aadhaarNumber: e.target.value.replace(/\D/g,"") })}
+                    onChange={(e) => setForm({ ...form, aadhaarNumber: e.target.value.replace(/\D/g, "") })}
                     placeholder="123456789012" />
                 </Field>
                 <Field label="PAN number">

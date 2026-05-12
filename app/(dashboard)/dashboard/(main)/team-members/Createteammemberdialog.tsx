@@ -18,6 +18,9 @@ import {
 import { Switch } from "../components/ui/switch";
 import { toast } from "sonner";
 import { createTeamMember, uploadProfilePic } from "./actions";
+import { WorkEmailInput } from "./Workemailinput";
+
+
 
 type SelectOption = { id: string; name: string };
 interface Props { departments: SelectOption[]; roles: SelectOption[] }
@@ -135,11 +138,10 @@ function BasicTab({
           placeholder="Mayank Sharma" />
       </Field>
 
-      <Field label="Work email" required>
-        <Input type="email" value={form.email}
-          onChange={(e) => setForm({ ...form, email: e.target.value })}
-          placeholder="mayank.sharma@dreamsyatri.com" />
-      </Field>
+<WorkEmailInput
+  value={form.email}
+  onChange={(fullEmail) => setForm({ ...form, email: fullEmail })}
+/>
 
       <Field label="Password" required>
         <div className="flex gap-2">
@@ -390,7 +392,7 @@ export function CreateTeamMemberDialog({ departments, roles }: Props) {
             const Icon = tab.icon;
             return (
               <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap shrink-0
+                className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer
                   ${activeTab === tab.id
                     ? "border-dashboard-primary text-dashboard-primary"
                     : "border-transparent text-muted-foreground hover:text-dashboard-base-content"}`}>
