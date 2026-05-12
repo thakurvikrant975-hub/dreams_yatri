@@ -17,6 +17,7 @@ interface TabsProps {
   tabs: Tab[];
   activeTab: string;
   onTabChange: (id: string) => void;
+  trailing?: React.ReactNode;
 }
 
 // ─── CVA ─────────────────────────────────────────────────────────────────────
@@ -50,7 +51,7 @@ const tabIconVariants = cva('-ml-0.5 mr-2 size-5 transition-colors duration-200'
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onTabChange }) => {
+const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onTabChange, trailing }) => {
   return (
     <>
 
@@ -77,7 +78,7 @@ const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onTabChange }) => {
       {/* Desktop — tab bar */}
       <div className="hidden sm:block">
         <div className="border-b border-neutral-200">
-          <nav aria-label="Tabs" className="-mb-px flex gap-6">
+          <nav aria-label="Tabs" className="-mb-px flex items-center gap-6">
             {tabs.map((tab) => {
               const isActive = tab.id === activeTab;
               const Icon = tab.icon;
@@ -123,6 +124,11 @@ const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onTabChange }) => {
                 </button>
               );
             })}
+            {trailing && (
+              <div className="ml-auto flex items-center pb-3">
+                {trailing}
+              </div>
+            )}
           </nav>
         </div>
       </div>

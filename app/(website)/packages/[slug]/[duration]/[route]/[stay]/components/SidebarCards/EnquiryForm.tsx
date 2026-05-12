@@ -6,30 +6,29 @@ import Label from '@/app/components/forms/Label';
 import Button from '@/app/components/ui/Button';
 import Card from '@/app/components/ui/Card';
 import { Heading, Text } from '@/app/components/ui/Typography';
+import { useBooking } from '../PackageBookingProvider';
 
 type EnquiryFormProps = {
-  discountedPrice: number;
-  savings:         number;
-  packageName:     string;
+  packageName: string;
 };
 
-const EnquiryForm: React.FC<EnquiryFormProps> = ({
-  discountedPrice,
-  savings,
-  packageName,
-}) => {
+const EnquiryForm: React.FC<EnquiryFormProps> = ({ packageName }) => {
+  const { pricing, adults, childCount, infants } = useBooking();
   const [formData, setFormData] = useState({ name: '', email: '', phone: '' });
 
-  const fmt = (n: number) => `₹${n.toLocaleString('en-IN')}`;
+  const totalPax = adults + childCount + infants;
+  const fmt = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 
   return (
     <Card className='px-6 py-5'>
       <Heading level={3} weight='semibold'>Send Enquiry</Heading>
       <Text size='sm' intent='secondary' truncate={true} className='mt-0.5'>{packageName}</Text>
-      <div className="flex items-center gap-2 mb-4 mt-1">
-        <Text as='span' size='base' intent='primary' weight='bold'>{fmt(discountedPrice)}</Text>
-        <Text as='span' size='xs' weight='medium' className="text-success-700">Save {fmt(savings)}</Text>
-      </div>
+      {pricing && (
+        <div className="flex items-center gap-2 mb-4 mt-1">
+          <Text as='span' size='base' intent='primary' weight='bold'>{fmt(pricing.finalPrice)}</Text>
+          <Text as='span' size='xs' intent='muted'>for {totalPax} traveller{totalPax !== 1 ? 's' : ''}</Text>
+        </div>
+      )}
       <div className="flex flex-col gap-3">
         <div>
           <Label required>Full Name</Label>
