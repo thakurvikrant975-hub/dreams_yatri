@@ -57,7 +57,7 @@ function Field({ label, required, children, hint }: {
   label: string; required?: boolean; children: React.ReactNode; hint?: string;
 }) {
   return (
-    <div className="grid gap-1.5">
+    <div className="grid gap-1.5 rounded-md">
       <Label className="text-sm font-medium text-dashboard-base-content">
         {label}{required && <span className="text-dashboard-error ml-0.5">*</span>}
       </Label>

@@ -48,13 +48,14 @@ export default async function DashboardLayout({
               name={session.user.name ?? "Employee"}
               email={session.user.email ?? "name@dreamsyatri.com"}
               role={session.user.role ?? "unknown"}
+              avatarSrc={member.profilePicUrl ?? undefined}   // ← add this
             />
           </div>
         </div>
 
-            <div className="relative p-6">
-      {children}
-    </div>
+        <div className="relative p-6">
+          {children}
+        </div>
       </main>
 
       <Toaster position="top-center" />

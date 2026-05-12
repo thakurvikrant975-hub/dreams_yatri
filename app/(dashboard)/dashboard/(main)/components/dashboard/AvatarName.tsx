@@ -10,7 +10,7 @@ import { signOutEmployee } from '@/app/lib/auth-dashboard-actions'
 
 interface AvatarNameProps {
   name?: string
-  role?: string
+  role?: string 
   email?: string
   avatarSrc?: string
 }
@@ -19,11 +19,13 @@ const AvatarName = ({
   name = "Mayank Sharma",
   role = "Marketing head",
   email = "mayank@dreamsyatri.com",
-  avatarSrc = "/dashboard/profile.jpg",
+  avatarSrc,                              // ← no default here
 }: AvatarNameProps) => {
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const rootRef = useRef<HTMLDivElement>(null)
+  const DEFAULT_AVATAR = "/dashboard/profile.jpg"
+  const src = avatarSrc?.trim() || DEFAULT_AVATAR 
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -64,7 +66,7 @@ const AvatarName = ({
         )}
       >
         <Avatar className="h-9 w-9 ring-[1.5px] ring-border ring-offset-2 ring-offset-background">
-          <AvatarImage src={avatarSrc} alt={name} />
+          <AvatarImage src={src} alt={name} />
           <AvatarFallback>{name.slice(0, 2).toUpperCase()}</AvatarFallback>
           <AvatarBadge className="bg-green-500 border-background" />
         </Avatar>
@@ -91,7 +93,7 @@ const AvatarName = ({
       )}>
         <div className="flex items-center gap-2.5 px-3.5 py-3 border-b border-border">
           <Avatar className="h-8 w-8">
-            <AvatarImage src={avatarSrc} alt={name} />
+            <AvatarImage src={src} alt={name} />
             <AvatarFallback>{name.slice(0, 2).toUpperCase()}</AvatarFallback>
           </Avatar>
           <div>

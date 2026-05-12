@@ -16,6 +16,8 @@ export async function getCurrentMember() {
       isActive: true,
       joiningDate: true,
       lastLoginAt: true,
+      profilePicKey: true,  // ← add
+      profilePicUrl: true,  // ← add
       department: {
         select: { id: true, name: true },
       },
