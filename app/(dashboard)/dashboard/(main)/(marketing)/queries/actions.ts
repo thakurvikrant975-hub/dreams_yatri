@@ -167,6 +167,7 @@ export type SalesMember = {
     id: string;
     name: string;
     email: string;
+    profilePicUrl:    string | null;  // ← add
     /** Queries in active pipeline (ASSIGNED / IN_PROGRESS / PACKAGE_SENT / CLIENT_ACCEPTED / CLIENT_DECLINED / PAYMENT_INITIATED) */
     activeQueries: number;
     /** All queries ever assigned to this member */
@@ -281,7 +282,7 @@ export async function getSalesMembers(): Promise<SalesMember[]> {
             teamRole: { name: { equals: "Sales", mode: "insensitive" } },
             isActive: true, // ← was missing; was returning inactive members too
         },
-        select: { id: true, name: true, email: true },
+        select: { id: true, name: true, email: true, profilePicUrl: true },
         orderBy: { name: "asc" },
     });
 

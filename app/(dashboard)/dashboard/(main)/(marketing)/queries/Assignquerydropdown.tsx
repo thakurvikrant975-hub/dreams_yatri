@@ -31,11 +31,39 @@ function memberInitials(name: string) {
  * Previously counted SUBMITTED/IN_PROGRESS — now counts the correct active statuses
  * (ASSIGNED, IN_PROGRESS, PACKAGE_SENT, etc.) as returned by the updated action.
  */
+
+// ── MemberAvatar ──────────────────────────────────────────────────────────────
+
+function MemberAvatar({
+    member,
+    className,
+    textClassName,
+}: {
+    member: SalesMember;
+    className?: string;
+    textClassName?: string;
+}) {
+    if (member.profilePicUrl) {
+        return (
+            <img
+                src={member.profilePicUrl}
+                alt={member.name}
+                className={cn("rounded-full object-cover", className)}
+            />
+        );
+    }
+    return (
+        <div className={cn("rounded-full font-bold flex items-center justify-center", avatarColor(member.name), className)}>
+            <span className={textClassName}>{memberInitials(member.name)}</span>
+        </div>
+    );
+}
+
 function loadBadge(count: number) {
-    if (count === 0)  return { label: "Free",           className: "bg-green-100 text-green-700 border-green-200 dark:bg-green-950/40 dark:text-green-400" };
-    if (count <= 5)   return { label: `${count} active`, className: "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400" };
-    if (count <= 10)  return { label: `${count} active`, className: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400" };
-    return             { label: `${count} active`, className: "bg-red-100 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400" };
+    if (count === 0) return { label: "Free", className: "bg-green-100 text-green-700 border-green-200 dark:bg-green-950/40 dark:text-green-400" };
+    if (count <= 5) return { label: `${count} active`, className: "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400" };
+    if (count <= 10) return { label: `${count} active`, className: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400" };
+    return { label: `${count} active`, className: "bg-red-100 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400" };
 }
 
 function avatarColor(name: string) {
@@ -58,20 +86,20 @@ function convRate(member: SalesMember): string {
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type Props = {
-    queryId:    string;
+    queryId: string;
     assignedTo: string | null;
     assignedAt?: Date | null;
-    onDone?:    () => void;
-    compact?:   boolean;
+    onDone?: () => void;
+    compact?: boolean;
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function AssignQueryDropdown({ queryId, assignedTo, assignedAt, onDone, compact = false }: Props) {
-    const [open, setOpen]          = useState(false);
-    const [search, setSearch]      = useState("");
-    const [members, setMembers]    = useState<SalesMember[]>([]);
-    const [loading, setLoading]    = useState(false);
+    const [open, setOpen] = useState(false);
+    const [search, setSearch] = useState("");
+    const [members, setMembers] = useState<SalesMember[]>([]);
+    const [loading, setLoading] = useState(false);
     const [isPending, startAssign] = useTransition();
 
     // Lazy-fetch when popover opens
@@ -125,9 +153,11 @@ export function AssignQueryDropdown({ queryId, assignedTo, assignedAt, onDone, c
             <span className="flex items-center gap-2 min-w-0">
                 {assignedTo && currentMember ? (
                     <>
-                        <span className={cn("h-5 w-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0", avatarColor(currentMember.name))}>
-                            {memberInitials(currentMember.name)}
-                        </span>
+                        <MemberAvatar
+                            member={currentMember}
+                            className="h-5 w-5 shrink-0"
+                            textClassName="text-[10px]"
+                        />
                         <span className="truncate text-xs font-medium">{currentMember.name}</span>
                     </>
                 ) : (
@@ -188,8 +218,8 @@ export function AssignQueryDropdown({ queryId, assignedTo, assignedAt, onDone, c
                         <div className="py-1">
                             {filtered.map((member) => {
                                 const isSelected = member.id === assignedTo;
-                                const load       = loadBadge(member.activeQueries);
-                                const rate       = convRate(member);
+                                const load = loadBadge(member.activeQueries);
+                                const rate = convRate(member);
 
                                 return (
                                     <button
@@ -204,12 +234,11 @@ export function AssignQueryDropdown({ queryId, assignedTo, assignedAt, onDone, c
                                         )}
                                     >
                                         {/* Avatar */}
-                                        <div className={cn(
-                                            "h-9 w-9 rounded-full text-xs font-bold flex items-center justify-center shrink-0 mt-0.5",
-                                            avatarColor(member.name),
-                                        )}>
-                                            {memberInitials(member.name)}
-                                        </div>
+                                        <MemberAvatar
+                                            member={member}
+                                            className="h-9 w-9 shrink-0 mt-0.5"
+                                            textClassName="text-xs"
+                                        />
 
                                         {/* Info */}
                                         <div className="flex-1 min-w-0">
