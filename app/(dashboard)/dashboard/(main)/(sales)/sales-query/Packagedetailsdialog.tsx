@@ -18,7 +18,7 @@ import {
     CheckCircle2, CalendarDays,
 } from "lucide-react";
 import { savePackageRequirements } from "./actions";
-import type { PackageQueryType, PackageRequirements } from "./actions";
+import type { PackageQueryType, PackageRequirements } from "../../(marketing)/queries/actions";
 import { number } from "zod";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -587,7 +587,7 @@ export function PackageDetailsDialog({
 
                                                 // Allow empty input while typing
                                                 if (value === "") {
-                                                    update("journey", { noOfDays: "" });
+                                                    update("journey", { noOfDays: 0 });
                                                     return;
                                                 }
 
@@ -615,7 +615,7 @@ export function PackageDetailsDialog({
                                                 const value = e.target.value;
 
                                                 if (value === "") {
-                                                    update("journey", { noOfNights: "" });
+                                                    update("journey", { noOfNights: 0 });
                                                     return;
                                                 }
 

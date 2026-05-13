@@ -15,7 +15,7 @@ import {
     SelectTrigger, SelectValue,
 } from "../../components/ui/select";
 import { closeSalesQuery } from "./actions";
-import type { CloseReason } from "./actions";
+import type { CloseReason } from "../../(marketing)/queries/actions";
 
 type Props = {
     salesQueryId: string;
