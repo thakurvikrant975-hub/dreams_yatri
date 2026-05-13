@@ -1,5 +1,5 @@
 // app/lib/rbac/permissions.ts
-import { PermissionSet, Action } from "@/types/rbac";
+import { PermissionSet, Action } from "@/app/types/rbac";
 
 export function getResourcePermission(permissions: PermissionSet, resource: string) {
   return permissions.find(p => p.resource === resource) ?? null;

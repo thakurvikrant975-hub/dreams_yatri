@@ -20,17 +20,15 @@ import { toast } from "sonner";
 import { toggleHotelActive, deleteHotel } from "./actions";
 import { StatGrid, StatCard } from "../components/dashboard/Statcard";
 import { TableFilters } from "../components/dashboard/Tablefilters";
-import { getHotels, getDestinationsForSelect } from "./actions";
-
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
 const CATEGORY_LABELS: Record<string, string> = {
-  hotel: "Hotel",
-  resort: "Resort",
+  hotel:     "Hotel",
+  resort:    "Resort",
   houseboat: "Houseboat",
-  villa: "Villa",
-  homestay: "Homestay",
+  villa:     "Villa",
+  homestay:  "Homestay",
 };
 
 const base = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
@@ -40,44 +38,23 @@ const base = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
 type Destination = { id: number; name: string };
 
 type HotelItem = {
-  id: number;
-  name: string;
-  slug: string;
-  thumbnail: string | null;
-  category: string | null;
+  id:          number;
+  name:        string;
+  slug:        string;
+  thumbnail:   string | null;
+  category:    string | null;
   star_rating: number | null;
-  is_active: boolean;
-  created_at: Date;
+  is_active:   boolean;
+  created_at:  Date;
   destination: { id: number; name: string };
 _count: {
   hotelRooms: number;
   images: number;
+  packages?: number;   // ← optional, not required
 };};
 
 // ── Delete Dialog (extracted to fix Radix hydration mismatch) ─────────────
 
-
-async function HotelsData() {
-    const [hotels, destinations] = await Promise.all([
-        getHotels(),
-        getDestinationsForSelect(),
-    ]);
-
-    const activeCount = hotels.filter(h => h.is_active).length;
-    const totalRooms = hotels.reduce((acc, h) => acc + h._count.hotelRooms, 0);
-
-    return (
-        <>
-            <StatGrid cols={3}>
-                <StatCard label="Total Hotels" value={hotels.length} icon={Hotel} />
-                <StatCard label="Active Hotels" value={activeCount} icon={Hotel} />
-                <StatCard label="Total Rooms" value={totalRooms} icon={Building2} />
-            </StatGrid>
-
-            <HotelsTableClient hotels={hotels} destinations={destinations} />
-        </>
-    );
-}
 function DeleteHotelDialog({
   hotel,
   onDelete,
@@ -104,7 +81,7 @@ function DeleteHotelDialog({
           <AlertDialogDescription>
             Delete <span className="font-semibold">{hotel.name}</span>? This will
             permanently remove all rooms, images and categories from R2 and DB.
-            {hotel._count.packages > 0 && (
+{(hotel._count.packages ?? 0) > 0 && (
               <span className="block mt-2 text-destructive font-medium">
                 ⚠ Used in {hotel._count.packages} package(s). Remove from packages first.
               </span>
@@ -115,7 +92,7 @@ function DeleteHotelDialog({
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={() => onDelete(hotel.id)}
-            disabled={hotel._count.packages > 0 || isPending}
+disabled={(hotel._count.packages ?? 0) > 0 || isPending}
             className="bg-destructive text-white hover:bg-destructive/90"
           >
             Delete
@@ -166,8 +143,8 @@ export function HotelsTableClient({
     return matchSearch && matchDest && matchCat && matchStatus;
   });
 
-  const activeCount = hotels.filter(h => h.is_active).length;
-  const totalRooms = hotels.reduce((acc, h) => acc + h._count.hotelRooms, 0);
+  const activeCount  = hotels.filter(h => h.is_active).length;
+  const totalRooms   = hotels.reduce((acc, h) => acc + h._count.hotelRooms, 0);
 
   // ── Actions ───────────────────────────────────────────────────────────
 
@@ -200,9 +177,9 @@ export function HotelsTableClient({
 
       {/* Stats */}
       <StatGrid cols={3}>
-        <StatCard label="Total Hotels" value={hotels.length} icon={Hotel} />
-        <StatCard label="Active Hotels" value={activeCount} icon={Hotel} />
-        <StatCard label="Total Rooms" value={totalRooms} icon={Building2} />
+        <StatCard label="Total Hotels"   value={hotels.length} icon={Hotel}     />
+        <StatCard label="Active Hotels"  value={activeCount}   icon={Hotel}     />
+        <StatCard label="Total Rooms"    value={totalRooms}    icon={Building2} />
       </StatGrid>
 
       {/* Filters */}
@@ -239,9 +216,9 @@ export function HotelsTableClient({
             placeholder: "All Statuses",
             width: "w-36",
             options: [
-              { label: "All Statuses", value: "all" },
-              { label: "Active", value: "active" },
-              { label: "Inactive", value: "inactive" },
+              { label: "All Statuses", value: "all"      },
+              { label: "Active",       value: "active"   },
+              { label: "Inactive",     value: "inactive" },
             ],
           },
         ]}
@@ -252,11 +229,11 @@ export function HotelsTableClient({
         <div className="flex flex-col items-center justify-center py-20 border rounded-xl bg-muted/30">
           <Hotel className="h-10 w-10 text-muted-foreground mb-3" />
           <p className="text-sm font-medium text-muted-foreground">No hotels found</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            {hotels.length === 0
-              ? 'Click "Add Hotel" to get started'
-              : "Try adjusting your filters"}
-          </p>
+<p className="text-xs text-muted-foreground mt-1">
+  {hotels.length === 0
+    ? 'Click "Add Hotel" to get started'
+    : "Try adjusting your filters"}
+</p>
         </div>
       ) : (
         <div className="rounded-xl border bg-card overflow-hidden">

@@ -40,17 +40,18 @@ export async function getHotels() {
     orderBy: { created_at: "desc" },
     include: {
       destination: { select: { id: true, name: true } },
-_count: {
-  select: {
-    hotelRooms: true,
-    images: true,
-  },
-},
+      // actions.ts
+      _count: {
+        select: {
+          hotelRooms: true,
+          images: true,
+        },
+      },
     },
   });
   return rows.map(h => ({
     ...h,
-    latitude:  h.latitude  != null ? Number(h.latitude)  : null,
+    latitude: h.latitude != null ? Number(h.latitude) : null,
     longitude: h.longitude != null ? Number(h.longitude) : null,
   }));
 }
@@ -117,7 +118,7 @@ export async function getHotelById(id: number) {
   if (!hotel) return null;
   return {
     ...hotel,
-    latitude:  hotel.latitude  != null ? Number(hotel.latitude)  : null,
+    latitude: hotel.latitude != null ? Number(hotel.latitude) : null,
     longitude: hotel.longitude != null ? Number(hotel.longitude) : null,
   };
 }
@@ -343,22 +344,22 @@ export async function toggleHotelActive(id: number, is_active: boolean) {
 
 export async function deleteHotel(id: number): Promise<HotelFormState> {
   try {
-const hotel = await db.hotels.findUnique({
-  where: { id },
-  include: {
-    images: { select: { url: true, thumbnail: true } },
-    hotelRooms: { include: { images: { select: { url: true, thumbnail: true } } } },
-    packageBookings: { select: { id: true }, take: 1 },  // ← correct relation name
-  },
-});
+    const hotel = await db.hotels.findUnique({
+      where: { id },
+      include: {
+        images: { select: { url: true, thumbnail: true } },
+        hotelRooms: { include: { images: { select: { url: true, thumbnail: true } } } },
+        packageBookings: { select: { id: true }, take: 1 },  // ← correct relation name
+      },
+    });
 
-if (!hotel) return { success: false, message: "Hotel not found" };
-if (hotel.packageBookings.length > 0) {  // ← update check too
-  return {
-    success: false,
-    message: "Cannot delete — hotel is linked to packages. Remove from packages first.",
-  };
-}
+    if (!hotel) return { success: false, message: "Hotel not found" };
+    if (hotel.packageBookings.length > 0) {  // ← update check too
+      return {
+        success: false,
+        message: "Cannot delete — hotel is linked to packages. Remove from packages first.",
+      };
+    }
 
     const roomImageKeys = hotel.hotelRooms.flatMap((r) =>
       r.images.flatMap((img) => [img.url, img.thumbnail].filter(Boolean) as string[])

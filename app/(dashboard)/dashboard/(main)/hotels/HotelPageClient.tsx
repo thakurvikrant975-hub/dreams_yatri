@@ -44,11 +44,6 @@ function TableSkeleton() {
     );
 }
 
-type Props = {
-  hotels: HotelItem[];
-  destinations: Destination[];
-};
-
 // ── Data component ────────────────────────────────────────────────────────
 
 async function HotelsData() {
@@ -57,29 +52,20 @@ async function HotelsData() {
     const activeCount = hotels.filter(h => h.is_active).length;
     const totalRooms = hotels.reduce((acc, h) => acc + h._count.hotelRooms, 0);
 
+    // Derive unique destinations from fetched hotels
+    const destinations = Array.from(
+        new Map(hotels.map(h => [h.destination.id, h.destination])).values()
+    );
+
     return (
         <>
-
-            {/* ── Stats ── */}
             <StatGrid cols={3}>
-                <StatCard
-                    label="Total Hotels"
-                    value={hotels.length}
-                    icon={Hotel}
-                />
-                <StatCard
-                    label="Active Hotels"
-                    value={activeCount}
-                    icon={Hotel}
-                />
-                <StatCard
-                    label="Total Rooms"
-                    value={totalRooms}
-                    icon={Building2}
-                />
+                <StatCard label="Total Hotels"  value={hotels.length} icon={Hotel}     />
+                <StatCard label="Active Hotels" value={activeCount}   icon={Hotel}     />
+                <StatCard label="Total Rooms"   value={totalRooms}    icon={Building2} />
             </StatGrid>
 
-    <HotelsTableClient hotels={hotels} destinations={destinations} />  // ← add destinations
+            <HotelsTableClient hotels={hotels} destinations={destinations} />
         </>
     );
 }
