@@ -9,35 +9,6 @@ import { Role, UserStatus } from "../generated/prisma";
 
 import type { User } from "next-auth";
 
-declare module "next-auth" {
-  interface Session {
-    user: {
-      id: string;
-      phone: string | null;
-      role: Role;
-      status: UserStatus;
-      isProfileComplete: boolean;
-    } & DefaultSession["user"];
-  }
-
-  interface User {
-    phone: string | null;
-    role: Role;
-    status: UserStatus;
-    isProfileComplete: boolean;
-  }
-}
-
-declare module "next-auth/jwt" {
-  interface JWT {
-    userId: string;
-    phone: string | null;
-    role: Role;
-    status: UserStatus;
-    isProfileComplete: boolean;
-  }
-}
-
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: {
     strategy: "jwt",
@@ -228,14 +199,14 @@ async signIn({ user, account }) {
       return token;
     },
 
-    async session({ session, token }) {
-      session.user.id = token.userId;
-      session.user.phone = token.phone;
-      session.user.role = token.role;
-      session.user.status = token.status;
-      session.user.isProfileComplete = token.isProfileComplete;
-      return session;
-    },
+async session({ session, token }) {
+  session.user.id                = token.userId ?? "";
+  session.user.phone             = token.phone;
+  session.user.role              = token.role;
+  session.user.status            = token.status;
+  session.user.isProfileComplete = token.isProfileComplete;
+  return session;
+},
   },
 
   pages: {

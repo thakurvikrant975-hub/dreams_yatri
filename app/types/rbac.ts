@@ -1,15 +1,25 @@
-// types/rbac.ts  — your single source of truth
+// types/rbac.ts
 export type Action = "create" | "read" | "update" | "delete";
 
 export type FieldAccess = {
-  visible:  string[];   // columns rendered in table
-  editable: string[];   // fields enabled in edit form
+  visible:  string[];
+  editable: string[];
 };
 
 export type ResourcePermission = {
-  resource: string;     // "destinations" | "hotels" | "team_members" | ...
+  resource: string;
   actions:  Action[];
   fields:   FieldAccess;
 };
 
 export type PermissionSet = ResourcePermission[];
+
+// ── Helper ────────────────────────────────────────────────────────────────────
+export function can(
+  permissions: PermissionSet,
+  resource: string,
+  action: Action
+): boolean {
+  const perm = permissions.find(p => p.resource === resource);
+  return perm ? perm.actions.includes(action) : false;
+}

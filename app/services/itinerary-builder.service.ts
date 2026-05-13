@@ -499,11 +499,12 @@ export async function reorderDayItems(updates: ReorderItem[]) {
         return db.itinerary_activities.update({ where: { id: u.id }, data: { sort_order: u.sort_order } });
       if (u.kind === "note")
         return db.itinerary_notes.update({ where: { id: u.id }, data: { sort_order: u.sort_order } });
-      // stay: update all stays for this itinerary to same sort_order
-      return db.itinerary_stays.updateMany({
-        where: { itinerary_id: u.itinerary_id },
-        data: { sort_order: u.sort_order },
-      });
+      if (u.kind === "stay")                                      // ← add this guard
+        return db.itinerary_stays.updateMany({
+          where: { itinerary_id: u.itinerary_id },
+          data:  { sort_order: u.sort_order },
+        });
+      throw new Error(`Unknown reorder kind: ${(u as any).kind}`);
     }),
   );
 }

@@ -79,7 +79,7 @@ export type ItineraryStayView = ItineraryStay & {
 export type ItineraryActivityView = ItineraryActivity & {
   activity: Pick<
     activities,
-    "id" | "name" | "slug" | "price" | "duration_hours" | "category"
+    "id" | "name" | "slug" | "duration_hours" | "category"
   >;
 };
 
