@@ -1,21 +1,19 @@
 "use client";
 
-import React, { useCallback, useEffect, useState, useTransition } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import {
-    MapPin, Calendar, Users, Phone, Search, Package,
-    Clock, ArrowRight, RefreshCw, User, Briefcase,
+    MapPin, Calendar, Users, Phone,
+    Package, Clock, ArrowRight, RefreshCw, Briefcase,
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
-import { Stats } from "../../components/dashboard/Stats";
 import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable";
 import { getPackageBuilderQueries, type QueryRow, type PaginatedQueries } from "./action";
 import type { Metadata } from "next";
 import { StatCard, StatGrid } from "../../components/dashboard/Statcard";
-import { TableFilters } from "../../components/dashboard/Tablefilters";
+import { TableFilters, type FilterConfig } from "../../components/dashboard/Tablefilters";
 import { TableEmptyState } from "../../components/dashboard/TableEmptyState";
-
+import { PageHeader } from "../../components/dashboard/PageHeader";
 
 export const metadata: Metadata = {
     title: "Package Builder - Dashboard",
@@ -33,6 +31,21 @@ function daysSince(date: Date | string) {
     return Math.floor((Date.now() - new Date(date).getTime()) / 86_400_000);
 }
 
+function getWaitingTime(date: Date | string) {
+    const diffMs = Date.now() - new Date(date).getTime();
+    const totalHours = Math.floor(diffMs / 3_600_000);
+    const days = Math.floor(totalHours / 24);
+    const hours = totalHours % 24;
+
+    let label = "";
+    if (days > 0) {
+        label = `${days} day${days > 1 ? "s" : ""}${hours > 0 ? ` and ${hours} hour${hours > 1 ? "s" : ""}` : ""}`;
+    } else {
+        label = `${hours} hour${hours !== 1 ? "s" : ""}`;
+    }
+    return { days, hours, label };
+}
+
 function formatDate(d: Date | string | null) {
     if (!d) return "—";
     return new Date(d).toLocaleDateString("en-IN", {
@@ -40,13 +53,60 @@ function formatDate(d: Date | string | null) {
     });
 }
 
-function getGroupSize(row: QueryRow) {
+function getGroupSize(row: QueryRow): number | string {
     const t = row.requirements?.travellers;
     if (t) return (t.adults ?? 0) + (t.children ?? 0) + (t.infants ?? 0);
     return row.groupSize ?? "—";
 }
 
+// ── NEW: Filter helpers ───────────────────────────────────────────────────────
 
+/** Bucket a query by how long it has been waiting for attention. */
+type WaitingBucket = "all" | "fresh" | "warning" | "urgent";
+
+function getWaitingBucket(row: QueryRow): WaitingBucket {
+    const d = daysSince(row.updatedAt);
+    if (d > 2)  return "urgent";
+    if (d >= 1) return "warning";
+    return "fresh";
+}
+
+/** Bucket a query by its travel date relative to today. */
+type TravelDateBucket = "all" | "past" | "this_month" | "next_month" | "next_3_months";
+
+function getTravelDateBucket(row: QueryRow): TravelDateBucket {
+    const raw = row.requirements?.journey?.travelDate ?? row.travelDate;
+    if (!raw) return "all";
+
+    const travel = new Date(raw);
+    const now = new Date();
+
+    if (travel < now) return "past";
+
+    const sameYear  = travel.getFullYear() === now.getFullYear();
+    const sameMo    = sameYear && travel.getMonth() === now.getMonth();
+    if (sameMo) return "this_month";
+
+    const nextMo  = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const nextMoEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+    if (travel >= nextMo && travel <= nextMoEnd) return "next_month";
+
+    const in3Months = new Date(now.getFullYear(), now.getMonth() + 3, now.getDate());
+    if (travel <= in3Months) return "next_3_months";
+
+    return "all"; // beyond 3 months → treated as "all" (not hidden by any bucket)
+}
+
+/** Bucket a query by group size. */
+type GroupBucket = "all" | "small" | "medium" | "large";
+
+function getGroupBucket(row: QueryRow): GroupBucket {
+    const size = getGroupSize(row);
+    if (typeof size !== "number") return "all";
+    if (size <= 2)  return "small";
+    if (size <= 5)  return "medium";
+    return "large";
+}
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function PackageBuilderClientPage() {
@@ -56,12 +116,19 @@ export default function PackageBuilderClientPage() {
     const [search, setSearch] = useState("");
     const [debQ, setDebQ] = useState("");
 
+    // ── NEW: filter states ────────────────────────────────────────────────────
+    const [waitingFilter, setWaitingFilter]     = useState<WaitingBucket>("all");
+    const [travelFilter,  setTravelFilter]      = useState<TravelDateBucket>("all");
+    const [groupFilter,   setGroupFilter]       = useState<GroupBucket>("all");
+
     // Debounce search
     useEffect(() => {
         const t = setTimeout(() => setDebQ(search), 400);
         return () => clearTimeout(t);
     }, [search]);
-    useEffect(() => { setPage(1); }, [debQ]);
+
+    // Reset to page 1 whenever any filter / search changes
+    useEffect(() => { setPage(1); }, [debQ, waitingFilter, travelFilter, groupFilter]);
 
     const load = useCallback(() => {
         startTransition(async () => {
@@ -71,6 +138,68 @@ export default function PackageBuilderClientPage() {
     }, [page, debQ]);
 
     useEffect(() => { load(); }, [load]);
+
+    // ── NEW: client-side filtering ────────────────────────────────────────────
+    const filteredQueries = useMemo(() => {
+        if (!data?.queries) return [];
+        return data.queries.filter((row) => {
+            if (waitingFilter !== "all" && getWaitingBucket(row)   !== waitingFilter) return false;
+            if (groupFilter   !== "all" && getGroupBucket(row)     !== groupFilter)   return false;
+
+            // For travel date, "next_3_months" is inclusive of this_month and next_month
+            if (travelFilter !== "all") {
+                const bucket = getTravelDateBucket(row);
+                if (travelFilter === "next_3_months") {
+                    if (!["this_month", "next_month", "next_3_months"].includes(bucket)) return false;
+                } else {
+                    if (bucket !== travelFilter) return false;
+                }
+            }
+
+            return true;
+        });
+    }, [data?.queries, waitingFilter, travelFilter, groupFilter]);
+
+    // ── NEW: FilterConfig array for TableFilters ───────────────────────────────
+    const filters: FilterConfig[] = [
+        {
+            value:       waitingFilter,
+            onChange:    (v) => setWaitingFilter(v as WaitingBucket),
+            placeholder: "All waiting",
+            width:       "w-44",
+            allValue:    "all",
+            options: [
+                { label: "Fresh (today)",      value: "fresh"   },
+                { label: "Warning (1–2 days)", value: "warning" },
+                { label: "Urgent (>2 days)",   value: "urgent"  },
+            ],
+        },
+        {
+            value:       travelFilter,
+            onChange:    (v) => setTravelFilter(v as TravelDateBucket),
+            placeholder: "All travel dates",
+            width:       "w-44",
+            allValue:    "all",
+            options: [
+                { label: "Past dates",       value: "past"          },
+                { label: "This month",       value: "this_month"    },
+                { label: "Next month",       value: "next_month"    },
+                { label: "Next 3 months",    value: "next_3_months" },
+            ],
+        },
+        {
+            value:       groupFilter,
+            onChange:    (v) => setGroupFilter(v as GroupBucket),
+            placeholder: "All group sizes",
+            width:       "w-44",
+            allValue:    "all",
+            options: [
+                { label: "Solo / couple (1–2)", value: "small"  },
+                { label: "Small group (3–5)",   value: "medium" },
+                { label: "Large group (6+)",    value: "large"  },
+            ],
+        },
+    ];
 
     // ── Columns ───────────────────────────────────────────────────────────────
     const columns: ColumnDef<QueryRow>[] = [
@@ -141,32 +270,23 @@ export default function PackageBuilderClientPage() {
                 );
             },
         },
-        // {
-        //     header: "Assigned To",
-        //     cell: (row) => (
-        //         <div className="flex items-center gap-1.5">
-        //             <User size={13} className="text-muted-foreground" />
-        //             <span className="text-sm">{row.assignedToName ?? "—"}</span>
-        //         </div>
-        //     ),
-        // },
         {
             header: "Waiting Time",
             align: "center",
             cell: (row) => {
-                const days = daysSince(row.updatedAt);
+                const waiting = getWaitingTime(row.updatedAt);
                 return (
                     <Badge
                         variant="outline"
                         className={
-                            days > 2
+                            waiting.days > 2
                                 ? "border-red-300 text-red-600 bg-red-50 dark:bg-red-950/20 rounded-md"
-                                : days > 1
+                                : waiting.days > 1
                                     ? "border-amber-300 text-amber-600 bg-amber-50 dark:bg-amber-950/20 rounded-md"
                                     : "border-emerald-300 text-emerald-600 bg-emerald-50 rounded-md dark:bg-emerald-950/20"
                         }
                     >
-                        {days} days
+                        {waiting.label}
                     </Badge>
                 );
             },
@@ -182,38 +302,24 @@ export default function PackageBuilderClientPage() {
     ];
 
     // ── Stats ─────────────────────────────────────────────────────────────────
-    const total = data?.total ?? 0;
+    const total  = data?.total ?? 0;
     const urgent = data?.queries.filter((q) => daysSince(q.updatedAt) > 2).length ?? 0;
-    const today = data?.queries.filter((q) => daysSince(q.updatedAt) === 0).length ?? 0;
+    const today  = data?.queries.filter((q) => daysSince(q.updatedAt) === 0).length ?? 0;
 
     return (
         <div className="flex flex-col gap-6 max-w-screen-2xl mx-auto">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                        <Package className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                        <h1 className="text-xl font-bold tracking-tight">Package Builder</h1>
-                        <p className="text-sm text-muted-foreground">
-                            Queries pending custom package creation
-                        </p>
-                    </div>
-                </div>
-                <Button variant="outline" size="sm" onClick={load} disabled={isPending}>
+  
+                
+            <PageHeader
+                title="Package Builder"
+                description="Queries pending custom package creation"
+                icon={Package}
+                actions={<Button variant="outline" className="rounded-md bg-dashboard-primary text-dashboard-base-100 px-4 hover:bg-dashboard-primary hover:scale-105 duration-300 hover:text-dashboard-base-100" size="lg" onClick={load} disabled={isPending}>
                     <RefreshCw size={14} className={isPending ? "animate-spin" : ""} />
                     Refresh
-                </Button>
-            </div>
-
-
-            <Stats
-                cols={4}
-                rows={[
-
-                ]}
+                </Button>}
             />
+                
             <StatGrid cols={3}>
                 <StatCard
                     label="Pending Packages"
@@ -235,17 +341,20 @@ export default function PackageBuilderClientPage() {
                 />
             </StatGrid>
 
-            {/* Search */}
-
+            {/* Search + Filters */}
             <TableFilters
                 search={search}
                 onSearchChange={setSearch}
                 searchPlaceholder="Search by name, destination, phone…"
+                filters={filters}
+                // Shows "12 / 47" count badge when filters are active
+                filteredCount={filteredQueries.length}
+                totalCount={data?.queries.length ?? 0}
             />
 
-            {/* Table */}
+            {/* Table — uses filteredQueries, not raw data.queries */}
             <DataTable
-                data={data?.queries ?? []}
+                data={filteredQueries}
                 columns={columns}
                 rowKey={(r) => r.id}
                 rowClassName={() => "group hover:bg-muted/40 cursor-pointer"}
