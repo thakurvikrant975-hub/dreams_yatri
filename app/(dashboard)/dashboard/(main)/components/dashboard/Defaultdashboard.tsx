@@ -37,18 +37,18 @@ async function DefaultDashboardContent({ member }: { member: CurrentMember }) {
     totalMembers,
     recentActivity,
   ] = await Promise.all([
-    db.packageQuery.count(),
-    db.packageQuery.count({
+    db.package_queries.count(),
+    db.package_queries.count({
       where: { verified: true },
     }),
-    db.packageQuery.count({
+    db.package_queries.count({
       where: {
         status: { notIn: [$Enums.QueryStatus.REJECTED] },
         verified: false,
       },
     }),
     db.teamMember.count({ where: { isActive: true } }),
-    db.packageQuery.findMany({
+    db.package_queries.findMany({
       orderBy: { createdAt: "desc" },
       take: 5,
       select: {

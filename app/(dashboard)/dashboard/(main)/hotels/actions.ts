@@ -40,12 +40,12 @@ export async function getHotels() {
     orderBy: { created_at: "desc" },
     include: {
       destination: { select: { id: true, name: true } },
-      _count: {
-        select: {
-          hotelRooms: true,
-          images: true,
-        },
-      },
+_count: {
+  select: {
+    hotelRooms: true,
+    images: true,
+  },
+},
     },
   });
   return rows.map(h => ({
@@ -343,22 +343,22 @@ export async function toggleHotelActive(id: number, is_active: boolean) {
 
 export async function deleteHotel(id: number): Promise<HotelFormState> {
   try {
-    const hotel = await db.hotels.findUnique({
-      where: { id },
-      include: {
-        images: { select: { url: true, thumbnail: true } },
-        hotelRooms: { include: { images: { select: { url: true, thumbnail: true } } } },
-        packages: { select: { id: true }, take: 1 },
-      },
-    });
+const hotel = await db.hotels.findUnique({
+  where: { id },
+  include: {
+    images: { select: { url: true, thumbnail: true } },
+    hotelRooms: { include: { images: { select: { url: true, thumbnail: true } } } },
+    packageBookings: { select: { id: true }, take: 1 },  // ← correct relation name
+  },
+});
 
-    if (!hotel) return { success: false, message: "Hotel not found" };
-    if (hotel.packages.length > 0) {
-      return {
-        success: false,
-        message: "Cannot delete — hotel is linked to packages. Remove from packages first.",
-      };
-    }
+if (!hotel) return { success: false, message: "Hotel not found" };
+if (hotel.packageBookings.length > 0) {  // ← update check too
+  return {
+    success: false,
+    message: "Cannot delete — hotel is linked to packages. Remove from packages first.",
+  };
+}
 
     const roomImageKeys = hotel.hotelRooms.flatMap((r) =>
       r.images.flatMap((img) => [img.url, img.thumbnail].filter(Boolean) as string[])

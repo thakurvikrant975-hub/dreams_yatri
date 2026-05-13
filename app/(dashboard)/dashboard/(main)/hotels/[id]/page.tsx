@@ -77,15 +77,18 @@ export default async function HotelEditPage({
         })),
     };
 
-    const serializedCategories = hotel.image_categories.map((cat) => ({
-        id: cat.id,
-        name: cat.name,
-        is_required: cat.is_required,
-        is_system: cat.is_system,
-        room_pricing_id: cat.room_pricing_id,
-        room_pricing: cat.room_pricing,
-        images: cat.images,
-    }));
+const serializedCategories = hotel.image_categories.map((cat) => ({
+    id: cat.id,
+    name: cat.name,
+    is_required: cat.is_required,
+    is_system: cat.is_system,
+    room_pricing_id: cat.room_pricing_id,
+    room_pricing: cat.room_pricing,
+    images: cat.images.map((img) => ({
+        ...img,
+        url: img.url ?? "", 
+    })),
+}));
 
     const totalImages = hotel.image_categories.reduce(
         (acc, cat) => acc + cat.images.length,

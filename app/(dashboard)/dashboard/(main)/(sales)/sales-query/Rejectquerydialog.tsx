@@ -14,8 +14,8 @@ import {
     Select, SelectContent, SelectItem,
     SelectTrigger, SelectValue,
 } from "../../components/ui/select";
-import { rejectQuery } from "./actions";
-import type { RejectionReason } from "./actions";
+import { rejectQuery } from "../../(marketing)/queries/actions";
+import type { RejectionReason } from "../../(marketing)/queries/actions";
 
 type Props = {
     queryId:          string;

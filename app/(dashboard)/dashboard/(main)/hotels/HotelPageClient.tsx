@@ -1,16 +1,16 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { Building2, Hotel, House, Plus } from "lucide-react";
-import { Button } from "../../components/ui/button";
-import { Skeleton } from "../../components/ui/skeleton";
+import { Button } from "../components/ui/button";
+import { Skeleton } from "../components/ui/skeleton";
 import {
     Breadcrumb, BreadcrumbItem, BreadcrumbLink,
     BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
-} from "../../components/ui/breadcrumb";
-import { getHotels } from "../actions";
-import { HotelsTableClient } from "../HotelsTableClient";
-import { StatGrid, StatCard } from "../../components/dashboard/Statcard";
-import { PageHeader } from "../../components/dashboard/PageHeader";
+} from "../components/ui/breadcrumb";
+import { getHotels } from "./actions";
+import { HotelsTableClient } from "./HotelsTableClient";
+import { StatGrid, StatCard } from "../components/dashboard/Statcard";
+import { PageHeader } from "../components/dashboard/PageHeader";
 
 // ── Skeleton ──────────────────────────────────────────────────────────────
 
@@ -44,6 +44,11 @@ function TableSkeleton() {
     );
 }
 
+type Props = {
+  hotels: HotelItem[];
+  destinations: Destination[];
+};
+
 // ── Data component ────────────────────────────────────────────────────────
 
 async function HotelsData() {
@@ -74,7 +79,7 @@ async function HotelsData() {
                 />
             </StatGrid>
 
-            <HotelsTableClient hotels={hotels} />
+    <HotelsTableClient hotels={hotels} destinations={destinations} />  // ← add destinations
         </>
     );
 }

@@ -27,7 +27,7 @@ export type SalesQueryStatus =
   | "CLOSED";
 
 // Still actionable by a sales exec
-function isActiveStatus(status: SalesQueryStatus) {
+export function isActiveQuery(status: SalesQueryStatus) {
   return (
     status === "VERIFIED" ||
     status === "ASSIGNED" ||
@@ -40,6 +40,6 @@ function isActiveStatus(status: SalesQueryStatus) {
 }
 
 // Terminal — no further action needed
-function isClosedStatus(status: SalesQueryStatus) {
+export function isClosedQuery(status: SalesQueryStatus) {
   return status === "CLOSED" || status === "CONVERTED" || status === "REJECTED";
 }

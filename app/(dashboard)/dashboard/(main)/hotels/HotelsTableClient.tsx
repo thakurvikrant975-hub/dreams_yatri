@@ -20,6 +20,8 @@ import { toast } from "sonner";
 import { toggleHotelActive, deleteHotel } from "./actions";
 import { StatGrid, StatCard } from "../components/dashboard/Statcard";
 import { TableFilters } from "../components/dashboard/Tablefilters";
+import { getHotels, getDestinationsForSelect } from "./actions";
+
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
@@ -47,11 +49,35 @@ type HotelItem = {
   is_active: boolean;
   created_at: Date;
   destination: { id: number; name: string };
-  _count: { hotelRooms: number; images: number; packages: number };
-};
+_count: {
+  hotelRooms: number;
+  images: number;
+};};
 
 // ── Delete Dialog (extracted to fix Radix hydration mismatch) ─────────────
 
+
+async function HotelsData() {
+    const [hotels, destinations] = await Promise.all([
+        getHotels(),
+        getDestinationsForSelect(),
+    ]);
+
+    const activeCount = hotels.filter(h => h.is_active).length;
+    const totalRooms = hotels.reduce((acc, h) => acc + h._count.hotelRooms, 0);
+
+    return (
+        <>
+            <StatGrid cols={3}>
+                <StatCard label="Total Hotels" value={hotels.length} icon={Hotel} />
+                <StatCard label="Active Hotels" value={activeCount} icon={Hotel} />
+                <StatCard label="Total Rooms" value={totalRooms} icon={Building2} />
+            </StatGrid>
+
+            <HotelsTableClient hotels={hotels} destinations={destinations} />
+        </>
+    );
+}
 function DeleteHotelDialog({
   hotel,
   onDelete,
