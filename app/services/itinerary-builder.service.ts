@@ -95,6 +95,7 @@ export type StayItem = {
   id: number;
   stay_category_id: number;
   sort_order: number;
+  num_nights: number;
   room_pricing: {
     id: number;
     plan_name: string | null;
@@ -229,6 +230,7 @@ export async function getItineraryData(
         id: s.id,
         stay_category_id: s.stay_category_id,
         sort_order: s.sort_order,
+        num_nights: s.num_nights,
         room_pricing: {
           id: s.room_pricing.id,
           plan_name: s.room_pricing.plan_name,
@@ -465,6 +467,7 @@ export async function upsertItineraryStay(
   stayCategoryId: number,
   roomPricingId: number,
   sortOrder: number,
+  numNights: number = 1,
 ) {
   const existing = await db.itinerary_stays.findFirst({
     where: { itinerary_id: itineraryId, stay_category_id: stayCategoryId },
@@ -473,11 +476,11 @@ export async function upsertItineraryStay(
   if (existing) {
     return db.itinerary_stays.update({
       where: { id: existing.id },
-      data: { room_pricing_id: roomPricingId, sort_order: sortOrder },
+      data: { room_pricing_id: roomPricingId, sort_order: sortOrder, num_nights: numNights },
     });
   }
   return db.itinerary_stays.create({
-    data: { itinerary_id: itineraryId, stay_category_id: stayCategoryId, room_pricing_id: roomPricingId, sort_order: sortOrder },
+    data: { itinerary_id: itineraryId, stay_category_id: stayCategoryId, room_pricing_id: roomPricingId, sort_order: sortOrder, num_nights: numNights },
   });
 }
 

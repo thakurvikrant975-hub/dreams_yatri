@@ -175,9 +175,10 @@ export async function handleUpsertStay(
   roomPricingId: number,
   sortOrder: number,
   packageId: number,
+  numNights: number = 1,
 ) {
   try {
-    await upsertItineraryStay(itineraryId, stayCategoryId, roomPricingId, sortOrder);
+    await upsertItineraryStay(itineraryId, stayCategoryId, roomPricingId, sortOrder, numNights);
     revalidatePath(p(packageId));
     return { success: true as const };
   } catch {

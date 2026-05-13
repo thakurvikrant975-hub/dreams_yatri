@@ -327,6 +327,6 @@ export default async function PackagePage({
                             </div>
                         }
                     />
-        </PackageBookingProvider>
+            </PackageBookingProvider>
     );
 }
