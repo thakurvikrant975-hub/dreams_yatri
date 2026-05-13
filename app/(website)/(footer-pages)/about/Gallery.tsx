@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Camera, ChevronLeft, ChevronRight, X, ZoomIn, MapPin } from "lucide-react";
+import { Carousel, usePerView, useDrag } from "@/app/components/ui/Carousel";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -18,55 +19,6 @@ type GalleryProps = {
   /** How many cards visible at once (desktop). Default: 3 */
   perView?: number;
 };
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Hook: responsive perView
-// ─────────────────────────────────────────────────────────────────────────────
-function usePerView(base: number) {
-  const [pv, setPv] = useState(base);
-  useEffect(() => {
-    const calc = () => {
-      if (window.innerWidth < 640) setPv(1);
-      else if (window.innerWidth < 1024) setPv(2);
-      else setPv(base);
-    };
-    calc();
-    window.addEventListener("resize", calc);
-    return () => window.removeEventListener("resize", calc);
-  }, [base]);
-  return pv;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Hook: touch drag
-// ─────────────────────────────────────────────────────────────────────────────
-function useDrag(onSwipe: (dir: -1 | 1) => void) {
-  const startX = useRef(0);
-  const isDragging = useRef(false);
-
-  const onTouchStart = (e: React.TouchEvent) => {
-    startX.current = e.touches[0].clientX;
-    isDragging.current = true;
-  };
-  const onTouchEnd = (e: React.TouchEvent) => {
-    if (!isDragging.current) return;
-    const dx = e.changedTouches[0].clientX - startX.current;
-    if (Math.abs(dx) > 48) onSwipe(dx < 0 ? 1 : -1);
-    isDragging.current = false;
-  };
-  const onMouseDown = (e: React.MouseEvent) => {
-    startX.current = e.clientX;
-    isDragging.current = true;
-  };
-  const onMouseUp = (e: React.MouseEvent) => {
-    if (!isDragging.current) return;
-    const dx = e.clientX - startX.current;
-    if (Math.abs(dx) > 48) onSwipe(dx < 0 ? 1 : -1);
-    isDragging.current = false;
-  };
-
-  return { onTouchStart, onTouchEnd, onMouseDown, onMouseUp };
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Lightbox
@@ -86,18 +38,16 @@ function Lightbox({
 }) {
   const img = images[index];
 
-  // Keyboard nav
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      if (e.key === "ArrowLeft") onPrev();
-      if (e.key === "ArrowRight") onNext();
+      if (e.key === "Escape")      onClose();
+      if (e.key === "ArrowLeft")   onPrev();
+      if (e.key === "ArrowRight")  onNext();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [onClose, onPrev, onNext]);
 
-  // Lock body scroll
   useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = ""; };
@@ -189,12 +139,14 @@ function Lightbox({
       </button>
 
       {/* Thumbnail strip */}
-      <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-2 px-4 overflow-x-auto max-w-full"
-        style={{ scrollbarWidth: "none" }}>
+      <div
+        className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-2 px-4 overflow-x-auto max-w-full"
+        style={{ scrollbarWidth: "none" }}
+      >
         {images.map((im, i) => (
           <button
             key={im.id}
-            onClick={e => { e.stopPropagation(); }}
+            onClick={e => e.stopPropagation()}
             style={{
               width: 48, height: 36, flexShrink: 0,
               borderRadius: 8, overflow: "hidden",
@@ -212,51 +164,89 @@ function Lightbox({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Gallery card item
+// ─────────────────────────────────────────────────────────────────────────────
+function GalleryCard({ img, onClick }: { img: GalleryImage; onClick: () => void }) {
+  return (
+    <div
+      className="gallery-card relative group cursor-pointer overflow-hidden bg-gray-100"
+      style={{ aspectRatio: "4/3", borderRadius: "16px", animationDelay: "0ms" }}
+      onClick={onClick}
+    >
+      <img
+        src={img.src}
+        alt={img.label}
+        className="w-full h-full object-cover"
+        style={{ transition: "transform 0.55s cubic-bezier(0.25,0.46,0.45,0.94)" }}
+        onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.08)")}
+        onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}
+        loading="lazy"
+        draggable={false}
+      />
+
+      {/* Hover gradient */}
+      <div
+        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+        style={{ background: "linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.06) 55%)" }}
+      />
+
+      {/* Tag */}
+      <div className="absolute top-3 left-3">
+        <span
+          className="text-xs font-bold uppercase tracking-widest px-2.5 py-1 rounded-full"
+          style={{ background: "rgba(239,68,68,0.85)", color: "#fff", backdropFilter: "blur(6px)" }}
+        >
+          {img.tag}
+        </span>
+      </div>
+
+      {/* Zoom icon */}
+      <div
+        className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300"
+        style={{
+          background: "rgba(255,255,255,0.2)",
+          backdropFilter: "blur(8px)",
+          border: "1px solid rgba(255,255,255,0.25)",
+        }}
+      >
+        <ZoomIn size={13} className="text-white" />
+      </div>
+
+      {/* Caption */}
+      <div
+        className="absolute bottom-0 left-0 right-0 px-4 py-4 translate-y-1 opacity-0 group-hover:translate-y-0 group-hover:opacity-100"
+        style={{ transition: "all 0.3s cubic-bezier(0.25,0.46,0.45,0.94)" }}
+      >
+        <p className="text-white font-bold text-sm leading-snug">{img.label}</p>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main Gallery
 // ─────────────────────────────────────────────────────────────────────────────
 export function Gallery({ gallery, perView = 3 }: GalleryProps) {
-  const pv = usePerView(perView);
+  const pv  = usePerView(perView);
   const max = Math.max(0, gallery.length - pv);
 
-  const [offset, setOffset] = useState(0);           // current slide index
-  const [animating, setAnimating] = useState(false);  // lock during transition
+  const [offset,      setOffset]      = useState(0);
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
-  const trackRef = useRef<HTMLDivElement>(null);
 
-  // Clamp helper
-  const clamp = (n: number) => Math.max(0, Math.min(max, n));
+  // Reset on perView change
+  useEffect(() => { setOffset(0); }, [pv]);
 
-  // Slide with lock
-  const slideTo = useCallback((next: number) => {
-    if (animating) return;
-    const clamped = clamp(next);
-    if (clamped === offset) return;
-    setAnimating(true);
-    setOffset(clamped);
-    setTimeout(() => setAnimating(false), 480);
-  }, [animating, offset, max]);
-
-  const prev = () => slideTo(offset - 1);
-  const next = () => slideTo(offset + 1);
-
-  // Keyboard nav (slider level)
+  // Keyboard nav for slider (when lightbox is closed)
   useEffect(() => {
     if (lightboxIdx !== null) return;
+    const clamp = (n: number) => Math.max(0, Math.min(max, n));
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "ArrowLeft") prev();
-      if (e.key === "ArrowRight") next();
+      if (e.key === "ArrowLeft")  setOffset(o => clamp(o - 1));
+      if (e.key === "ArrowRight") setOffset(o => clamp(o + 1));
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [lightboxIdx, prev, next]);
-
-  // Reset offset when perView changes
-  useEffect(() => { setOffset(0); }, [pv]);
-
-  const drag = useDrag((dir) => { dir === 1 ? next() : prev(); });
-
-  // Translate %: each card = 100/pv % of track width
-  const translatePct = -(offset * (100 / pv));
+  }, [lightboxIdx, max]);
 
   return (
     <>
@@ -268,112 +258,22 @@ export function Gallery({ gallery, perView = 3 }: GalleryProps) {
         .gallery-card { animation: card-pop 0.5s ease both; }
       `}</style>
 
-      <div className="relative select-none">
+      <div className="relative">
+        {/* Carousel handles the sliding track */}
+        <Carousel
+          items={gallery}
+          perView={perView}
+          gap={16}
+          showDots={false}
+          showArrows={false}
+          offset={offset}
+          onOffsetChange={setOffset}
+          renderItem={(img, i) => (
+            <GalleryCard img={img} onClick={() => setLightboxIdx(i)} />
+          )}
+        />
 
-        {/* ── Track wrapper with overflow hidden ── */}
-        <div
-          className="overflow-hidden rounded-2xl"
-          ref={trackRef}
-          {...drag}
-          style={{ cursor: "grab" }}
-          onMouseDown={e => { drag.onMouseDown(e); (e.currentTarget as HTMLDivElement).style.cursor = "grabbing"; }}
-          onMouseUp={e => { drag.onMouseUp(e); (e.currentTarget as HTMLDivElement).style.cursor = "grab"; }}
-          onMouseLeave={e => { drag.onMouseUp(e as any); (e.currentTarget as HTMLDivElement).style.cursor = "grab"; }}
-        >
-          {/* ── Sliding track ── */}
-          <div
-            style={{
-              display: "flex",
-              gap: "16px",
-              transition: animating
-                ? "transform 0.48s cubic-bezier(0.25, 0.46, 0.45, 0.94)"
-                : "transform 0.48s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
-              transform: `translateX(calc(${translatePct}% - ${offset * 16 / pv}px))`,
-              willChange: "transform",
-            }}
-          >
-            {gallery.map((img, i) => (
-              <div
-                key={img.id}
-                className="flex-shrink-0"
-                style={{ width: `calc((100% - ${(pv - 1) * 16}px) / ${pv})` }}
-              >
-                <div
-                  className="gallery-card relative group cursor-pointer overflow-hidden bg-gray-100"
-                  style={{
-                    aspectRatio: "4/3",
-                    borderRadius: "16px",
-                    animationDelay: `${(i % pv) * 60}ms`,
-                  }}
-                  onClick={() => setLightboxIdx(i)}
-                >
-                  {/* Image */}
-                  <img
-                    src={img.src}
-                    alt={img.label}
-                    className="w-full h-full object-cover"
-                    style={{ transition: "transform 0.55s cubic-bezier(0.25,0.46,0.45,0.94)" }}
-                    onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.08)")}
-                    onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}
-                    loading="lazy"
-                    draggable={false}
-                  />
-
-                  {/* Gradient overlay */}
-                  <div
-                    className="absolute inset-0"
-                    style={{
-                      background: "linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0) 55%)",
-                      opacity: 0,
-                      transition: "opacity 0.3s ease",
-                    }}
-                    onMouseEnter={e => (e.currentTarget.style.opacity = "1")}
-                    onMouseLeave={e => (e.currentTarget.style.opacity = "0")}
-                  />
-
-                  {/* Hover overlay managed at parent */}
-                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                    style={{ background: "linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.06) 55%)" }} />
-
-                  {/* Tag */}
-                  <div className="absolute top-3 left-3">
-                    <span
-                      className="text-xs font-bold uppercase tracking-widest px-2.5 py-1 rounded-full"
-                      style={{ background: "rgba(239,68,68,0.85)", color: "#fff", backdropFilter: "blur(6px)" }}
-                    >
-                      {img.tag}
-                    </span>
-                  </div>
-
-                  {/* Zoom icon */}
-                  <div
-                    className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300"
-                    style={{
-                      background: "rgba(255,255,255,0.2)",
-                      backdropFilter: "blur(8px)",
-                      border: "1px solid rgba(255,255,255,0.25)",
-                      transform: "scale(0.8)",
-                    }}
-                    onMouseEnter={e => (e.currentTarget.style.transform = "scale(1)")}
-                    onMouseLeave={e => (e.currentTarget.style.transform = "scale(0.8)")}
-                  >
-                    <ZoomIn size={13} className="text-white" />
-                  </div>
-
-                  {/* Caption */}
-                  <div
-                    className="absolute bottom-0 left-0 right-0 px-4 py-4 translate-y-1 opacity-0 group-hover:translate-y-0 group-hover:opacity-100"
-                    style={{ transition: "all 0.3s cubic-bezier(0.25,0.46,0.45,0.94)" }}
-                  >
-                    <p className="text-white font-bold text-sm leading-snug">{img.label}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ── Controls ── */}
+        {/* Custom controls (Gallery-specific styling) */}
         <div className="flex items-center justify-between mt-6">
 
           {/* Dot indicators */}
@@ -381,16 +281,14 @@ export function Gallery({ gallery, perView = 3 }: GalleryProps) {
             {Array.from({ length: max + 1 }).map((_, i) => (
               <button
                 key={i}
-                onClick={() => slideTo(i)}
+                onClick={() => setOffset(Math.max(0, Math.min(max, i)))}
                 aria-label={`Go to slide ${i + 1}`}
                 style={{
                   height: 6,
                   width: i === offset ? 28 : 6,
                   borderRadius: 999,
                   background: i === offset ? "#EF4444" : "#D1D5DB",
-                  border: "none",
-                  padding: 0,
-                  cursor: "pointer",
+                  border: "none", padding: 0, cursor: "pointer",
                   transition: "width 0.3s cubic-bezier(0.25,0.46,0.45,0.94), background 0.3s ease",
                   flexShrink: 0,
                 }}
@@ -401,7 +299,7 @@ export function Gallery({ gallery, perView = 3 }: GalleryProps) {
           {/* Prev / Next */}
           <div className="flex items-center gap-2">
             <button
-              onClick={prev}
+              onClick={() => setOffset(o => Math.max(0, o - 1))}
               disabled={offset === 0}
               aria-label="Previous"
               className="transition-all duration-200"
@@ -414,7 +312,7 @@ export function Gallery({ gallery, perView = 3 }: GalleryProps) {
                 cursor: offset === 0 ? "not-allowed" : "pointer",
                 boxShadow: offset === 0 ? "none" : "0 1px 4px rgba(0,0,0,0.08)",
               }}
-              onMouseEnter={e => { if (offset !== 0) (e.currentTarget as HTMLButtonElement).style.borderColor = "#EF4444"; (e.currentTarget as HTMLButtonElement).style.color = "#EF4444"; }}
+              onMouseEnter={e => { if (offset !== 0) { (e.currentTarget as HTMLButtonElement).style.borderColor = "#EF4444"; (e.currentTarget as HTMLButtonElement).style.color = "#EF4444"; } }}
               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#E5E7EB"; (e.currentTarget as HTMLButtonElement).style.color = offset === 0 ? "#D1D5DB" : "#111827"; }}
             >
               <ChevronLeft size={18} />
@@ -425,7 +323,7 @@ export function Gallery({ gallery, perView = 3 }: GalleryProps) {
             </span>
 
             <button
-              onClick={next}
+              onClick={() => setOffset(o => Math.min(max, o + 1))}
               disabled={offset === max}
               aria-label="Next"
               className="transition-all duration-200"
@@ -445,7 +343,7 @@ export function Gallery({ gallery, perView = 3 }: GalleryProps) {
           </div>
         </div>
 
-        {/* ── Edge fade hints ── */}
+        {/* Edge fade hints */}
         {offset > 0 && (
           <div className="absolute top-0 left-0 bottom-12 w-12 pointer-events-none rounded-l-2xl"
             style={{ background: "linear-gradient(to right, rgba(255,255,255,0.7), transparent)", zIndex: 2 }} />
@@ -456,7 +354,7 @@ export function Gallery({ gallery, perView = 3 }: GalleryProps) {
         )}
       </div>
 
-      {/* ── Lightbox ── */}
+      {/* Lightbox */}
       {lightboxIdx !== null && (
         <Lightbox
           images={gallery}

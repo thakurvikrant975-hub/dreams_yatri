@@ -12,6 +12,7 @@ export type PricingInput = {
   adults: number;
   children: number;
   infants: number;
+  child_ages?: number[]; // per-child ages for accurate hotel policy matching
 };
 
 export type DayHotelLine = {
@@ -97,7 +98,7 @@ function matchTier<T extends { label: string }>(
 export async function computePackagePrice(
   input: PricingInput,
 ): Promise<FullPricingBreakdown> {
-  const { package_id, duration_id, route_id, stay_category_id, adults, children, infants } = input;
+  const { package_id, duration_id, route_id, stay_category_id, adults, children, infants, child_ages } = input;
 
   const [itineraries, pricingConfig, duration, stayCategory] = await Promise.all([
     db.package_itineraries.findMany({
@@ -225,15 +226,26 @@ export async function computePackagePrice(
       let childCharge = 0;
       const childPolicies = stay.room_pricing.hotel?.childPolicies ?? [];
       if (children > 0 && childPolicies.length > 0) {
-        const policy = childPolicies[0];
-        const policyPrice = Number(policy.price ?? 0);
-        const ct = policy.charge_type.toUpperCase();
-        if (ct === "FIXED_PRICE" || ct === "FIXED") {
-          childCharge = policyPrice * children;
-        } else if (ct === "PERCENTAGE") {
-          childCharge = (pricePerRoom * policyPrice) / 100 * children;
+        if (child_ages && child_ages.length === children) {
+          // Age-based: match each child to their correct policy bracket
+          for (const age of child_ages) {
+            const policy = childPolicies.find(p => age >= p.age_from && age <= p.age_to);
+            if (policy) {
+              const pp = Number(policy.price ?? 0);
+              const ct = policy.charge_type.toUpperCase();
+              if (ct === "FIXED_PRICE" || ct === "FIXED") childCharge += pp;
+              else if (ct === "PERCENTAGE") childCharge += (pricePerRoom * pp) / 100;
+              // FREE → 0
+            }
+          }
+        } else {
+          // Fallback: apply first policy uniformly (legacy behaviour)
+          const policy = childPolicies[0];
+          const pp = Number(policy.price ?? 0);
+          const ct = policy.charge_type.toUpperCase();
+          if (ct === "FIXED_PRICE" || ct === "FIXED") childCharge = pp * children;
+          else if (ct === "PERCENTAGE") childCharge = (pricePerRoom * pp) / 100 * children;
         }
-        // FREE → 0 (default)
       }
 
       // Infants are typically free at hotels

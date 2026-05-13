@@ -11,8 +11,8 @@ export default function PackageLayout({
     // No slug needed — just wraps with Header + Footer
     return (
         <>
-            <Header />
-            <div className="py-10 screen-space">
+            <Header sticky={false} />
+            <div className="screen-space pb-10">
                 {children}
             </div>
             <Footer />

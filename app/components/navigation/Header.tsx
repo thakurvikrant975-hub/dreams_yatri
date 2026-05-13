@@ -10,10 +10,11 @@ import Link from 'next/link'
 import MobileMenu from './MobileMenu'
 
 interface HeaderProps {
-  transparent?: boolean
+  transparent?: boolean;
+  sticky?: boolean;
 }
 
-export default function Header({ transparent = false }: HeaderProps) {
+export default function Header({ transparent = false, sticky = true }: HeaderProps) {
   const [scrolled, setScrolled] = useState(false)
 
   useEffect(() => {
@@ -26,7 +27,7 @@ export default function Header({ transparent = false }: HeaderProps) {
   const isSolid = !transparent || scrolled
 
   return (
-    <div className="sticky top-0 left-0 z-(--z-sticky)">
+    <div className={`${sticky ? 'sticky top-0' : 'relative'} left-0 z-(--z-sticky)`}>
       <motion.header
         animate={{
           backgroundColor: isSolid ? 'rgba(255,255,255,1)' : 'rgba(255,255,255,0)',
