@@ -88,7 +88,7 @@ export default function QueriesPage() {
                     </BreadcrumbItem>
                 </BreadcrumbList>
             </Breadcrumb>
-
+  
             <PageHeader
                 title="Lead Queries"
                 description="Manage, verify, and action all incoming enquiries"
