@@ -27,7 +27,7 @@ export type DestinationFormState = {
 // ── Read ──────────────────────────────────────────────────────────────────
 
 export async function getDestinations() {
-    return db.destinations.findMany({
+    const rows = await db.destinations.findMany({
         orderBy: { created_at: "desc" },
         include: {
             region: { select: { id: true, name: true, slug: true } },
@@ -40,13 +40,24 @@ export async function getDestinations() {
             },
         },
     });
+    return rows.map(d => ({
+        ...d,
+        latitude:  d.latitude  != null ? Number(d.latitude)  : null,
+        longitude: d.longitude != null ? Number(d.longitude) : null,
+    }));
 }
 
 export async function getDestinationById(id: number) {
-    return db.destinations.findUnique({
+    const d = await db.destinations.findUnique({
         where: { id },
         include: { region: { select: { id: true, name: true } } },
     });
+    if (!d) return null;
+    return {
+        ...d,
+        latitude:  d.latitude  != null ? Number(d.latitude)  : null,
+        longitude: d.longitude != null ? Number(d.longitude) : null,
+    };
 }
 
 // Needed for the region select dropdown in the form

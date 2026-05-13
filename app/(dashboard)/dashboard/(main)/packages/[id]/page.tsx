@@ -175,7 +175,14 @@ export default async function PackageBuilderPage({
               days: d.days,
               nights: d.nights,
               is_default: d.is_default,
-              routes: d.routes.map((r) => ({ id: r.id, name: r.name })),
+              routes: d.routes.map((r) => ({
+                id: r.id,
+                name: r.name,
+                stops: r.stops.map((s) => ({
+                  place_name: s.place_name,
+                  stay_days: s.stay_days,
+                })),
+              })),
             }))}
             stayCategories={pkg.stay_categories}
           />

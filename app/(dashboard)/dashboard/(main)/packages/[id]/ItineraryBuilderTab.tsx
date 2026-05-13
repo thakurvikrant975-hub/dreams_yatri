@@ -22,7 +22,8 @@ import { cn } from "@/app/lib/utils";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-type RouteRow = { id: number; name: string };
+type RouteStop = { place_name: string; stay_days: number };
+type RouteRow = { id: number; name: string; stops?: RouteStop[] };
 
 type Duration = {
   id: number;
@@ -39,6 +40,26 @@ type Props = {
   durations: Duration[];
   stayCategories: StayCategoryFull[];
 };
+
+// ── Stop label helper ──────────────────────────────────────────────────────
+
+function getStopLabel(dayNumber: number, stops: RouteStop[]): string {
+  const ordinals = ["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th"];
+  let cursor = 0;
+  for (const stop of stops) {
+    const days = stop.stay_days ?? 1;
+    const isLast = stops[stops.length - 1] === stop;
+    for (let i = 0; i < days; i++) {
+      cursor++;
+      if (cursor === dayNumber) {
+        const dayInStop = i + 1;
+        const prefix = isLast && dayInStop === days ? "Last Day" : (ordinals[i] ?? `Day ${dayInStop}`);
+        return `${prefix} in ${stop.place_name}`;
+      }
+    }
+  }
+  return "";
+}
 
 // ── Day Card ───────────────────────────────────────────────────────────────
 
@@ -277,20 +298,27 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
       )}
 
       {/* Day sidebar */}
-      {openDay && selectedDurationId && selectedRouteId && (
-        <ItineraryDaySidebar
-          key={`${selectedDurationId}-${selectedRouteId}-${openDay.day}`}
-          open={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-          packageId={packageId}
-          destinationId={destinationId}
-          durationId={selectedDurationId}
-          routeId={selectedRouteId}
-          day={openDay}
-          stayCategories={stayCategories}
-          onSaved={handleDaySaved}
-        />
-      )}
+      {openDay && selectedDurationId && selectedRouteId && (() => {
+        const selectedRoute = selectedDuration?.routes.find((r) => r.id === selectedRouteId);
+        const stopLabel = selectedRoute?.stops
+          ? getStopLabel(openDay.day, selectedRoute.stops)
+          : undefined;
+        return (
+          <ItineraryDaySidebar
+            key={`${selectedDurationId}-${selectedRouteId}-${openDay.day}`}
+            open={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+            packageId={packageId}
+            destinationId={destinationId}
+            durationId={selectedDurationId}
+            routeId={selectedRouteId}
+            day={openDay}
+            stayCategories={stayCategories}
+            onSaved={handleDaySaved}
+            stopLabel={stopLabel}
+          />
+        );
+      })()}
     </div>
   );
 }

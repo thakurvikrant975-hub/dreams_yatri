@@ -4,10 +4,14 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import {
   DndContext,
+  DragOverlay,
   PointerSensor,
   useSensor,
   useSensors,
+  useDraggable,
+  useDroppable,
   type DragEndEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -16,7 +20,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../../components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "../../components/ui/sheet";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Textarea } from "../../components/ui/textarea";
@@ -71,11 +75,11 @@ import {
   Car,
   Activity,
   StickyNote,
-  Bed,
   X,
   Check,
   Hotel,
   Save,
+  ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 
@@ -99,6 +103,7 @@ type Props = {
   day: DayData;
   stayCategories: StayCategory[];
   onSaved: (updated: DayData) => void;
+  stopLabel?: string;
 };
 
 type DndItem =
@@ -107,7 +112,20 @@ type DndItem =
   | { dndId: string; sortOrder: number; kind: "note"; data: NoteItem }
   | { dndId: string; sortOrder: number; kind: "stay"; stays: StayItem[] };
 
-type AddMode = "transfer" | "activity" | "note" | null;
+type EditPanelState =
+  | { mode: "add"; kind: "transfer" | "activity" | "note" }
+  | { mode: "stay" }
+  | { mode: "edit"; dndId: string }
+  | null;
+
+// ── Kind config ────────────────────────────────────────────────────────────
+
+const KIND_CONFIG = {
+  transfer: { Icon: Car,        color: "text-blue-600",    chipBg: "bg-blue-50 border-blue-200 hover:bg-blue-100",    barColor: "bg-blue-500",   label: "Transfer" },
+  activity: { Icon: Activity,   color: "text-emerald-600", chipBg: "bg-emerald-50 border-emerald-200 hover:bg-emerald-100", barColor: "bg-emerald-500", label: "Activity" },
+  note:     { Icon: StickyNote, color: "text-amber-600",   chipBg: "bg-amber-50 border-amber-200 hover:bg-amber-100",   barColor: "bg-amber-500",  label: "Note"     },
+  stay:     { Icon: Hotel,      color: "text-violet-600",  chipBg: "bg-violet-50 border-violet-200 hover:bg-violet-100",  barColor: "bg-violet-500", label: "Stay"     },
+} as const;
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -127,33 +145,134 @@ function buildTimeline(
   return items.sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
-// ── Sortable wrapper ───────────────────────────────────────────────────────
+function kindFromDndId(dndId: string): keyof typeof KIND_CONFIG {
+  if (dndId.startsWith("transfer-")) return "transfer";
+  if (dndId.startsWith("activity-")) return "activity";
+  if (dndId.startsWith("note-")) return "note";
+  return "stay";
+}
+
+function editPanelTitle(panel: EditPanelState): string {
+  if (!panel) return "";
+  if (panel.mode === "stay") return "Hotel Stay";
+  if (panel.mode === "add") return `Add ${KIND_CONFIG[panel.kind].label}`;
+  const kind = kindFromDndId(panel.dndId);
+  return `Edit ${KIND_CONFIG[kind].label}`;
+}
+
+// ── Palette chip (draggable) ───────────────────────────────────────────────
+
+function PaletteChip({
+  kind,
+  disabled,
+  onClick,
+}: {
+  kind: keyof typeof KIND_CONFIG;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  const { Icon, color, chipBg, label } = KIND_CONFIG[kind];
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `palette-${kind}`,
+    data: { source: "palette", kind },
+    disabled,
+  });
+
+  return (
+    <button
+      type="button"
+      ref={setNodeRef}
+      style={transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined}
+      className={cn(
+        "flex flex-col items-center gap-2 px-4 py-3 rounded-xl border cursor-grab select-none transition-all flex-1",
+        chipBg,
+        isDragging && "opacity-40 scale-95 cursor-grabbing shadow-lg",
+        disabled && "opacity-40 cursor-not-allowed pointer-events-none",
+      )}
+      onClick={onClick}
+      {...listeners}
+      {...attributes}
+    >
+      <Icon className={cn("h-5 w-5", color)} />
+      <span className={cn("text-[10px] font-bold uppercase tracking-widest", color)}>{label}</span>
+    </button>
+  );
+}
+
+// ── Sortable row ───────────────────────────────────────────────────────────
 
 function SortableRow({
   id,
   children,
 }: {
   id: string;
-  children: (dragHandleProps: React.HTMLAttributes<HTMLButtonElement>) => React.ReactNode;
+  children: React.ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   return (
     <div
       ref={setNodeRef}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.5 : 1,
-      }}
-      className="group relative"
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }}
+      className="group cursor-grab active:cursor-grabbing"
       {...attributes}
+      {...listeners}
     >
-      {children(listeners ?? {})}
+      {children}
     </div>
   );
 }
 
-// ── Transfer helpers ───────────────────────────────────────────────────────
+// ── Timeline row card ──────────────────────────────────────────────────────
+
+function TimelineRowCard({
+  kind,
+  isActive,
+  onEdit,
+  onDelete,
+  deletePending,
+  children,
+}: {
+  kind: keyof typeof KIND_CONFIG;
+  isActive: boolean;
+  onEdit: () => void;
+  onDelete?: () => void;
+  deletePending: boolean;
+  children: React.ReactNode;
+}) {
+  const { barColor } = KIND_CONFIG[kind];
+  return (
+    <div className={cn(
+      "flex items-stretch rounded-xl border bg-white overflow-hidden transition-all duration-150",
+      isActive ? "ring-2 ring-primary/50 border-primary/20 shadow-sm" : "hover:shadow-sm hover:border-neutral-200",
+    )}>
+      <div className={cn("w-1 shrink-0", barColor)} />
+      <div className="flex-1 flex items-center gap-3 py-2.5 px-3 min-w-0">
+        <div className="flex-1 min-w-0">{children}</div>
+        <div className={cn(
+          "flex items-center gap-0.5 shrink-0 transition-opacity",
+          isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+        )}>
+          <Button
+            size="sm" variant="ghost"
+            className={cn("h-7 w-7 p-0 rounded-lg", isActive && "bg-primary/10 text-primary hover:bg-primary/20")}
+            onClick={(e) => { e.stopPropagation(); onEdit(); }}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+          {onDelete && (
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 rounded-lg hover:text-destructive hover:bg-destructive/10"
+              onClick={(e) => { e.stopPropagation(); onDelete(); }} disabled={deletePending}
+            >
+              {deletePending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Transfer form helpers ──────────────────────────────────────────────────
 
 type TransferFormData = {
   pickup: LocationResult | null;
@@ -183,23 +302,19 @@ function transferFormToInput(data: TransferFormData) {
   };
 }
 
-// ── Transfer card ──────────────────────────────────────────────────────────
+// ── Edit forms ─────────────────────────────────────────────────────────────
 
-function TransferCard({
+function TransferEditForm({
   item,
   vehicles,
-  editing,
   pending,
-  onEdit,
   onSave,
   onCancel,
   onDelete,
 }: {
   item: TransferItem;
   vehicles: VehicleOption[];
-  editing: boolean;
   pending: boolean;
-  onEdit: () => void;
   onSave: (data: TransferFormData) => void;
   onCancel: () => void;
   onDelete: () => void;
@@ -214,153 +329,72 @@ function TransferCard({
     notes: item.notes ?? "",
   });
 
-  useEffect(() => {
-    if (editing) {
-      setForm({
-        pickup: item.route ? { place_name: item.route.pickup_name, place_id: "", address: item.route.pickup_name, latitude: 0, longitude: 0 } : null,
-        drop: item.route ? { place_name: item.route.drop_name, place_id: "", address: item.route.drop_name, latitude: 0, longitude: 0 } : null,
-        vehicle_id: item.vehicle_id,
-        num_vehicles: String(item.num_vehicles),
-        cost_price: item.cost_price != null ? String(item.cost_price) : "",
-        sell_price: item.sell_price != null ? String(item.sell_price) : "",
-        notes: item.notes ?? "",
-      });
-    }
-  }, [editing, item]);
-
-  const routeLabel = item.route
-    ? `${item.route.pickup_name} → ${item.route.drop_name}`
-    : "No route set";
-
   const isValid = !!form.pickup && !!form.drop;
 
   return (
-    <div className={cn("rounded-lg border bg-background p-3", editing && "border-primary/40 bg-primary/5")}>
-      {!editing ? (
-        <div className="flex items-start gap-2">
-          <Car className="h-3.5 w-3.5 text-blue-500 mt-0.5 shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium truncate">{routeLabel}</p>
-            <p className="text-[10px] text-muted-foreground/70 flex items-center gap-1 flex-wrap">
-              {item.vehicle && <span>{item.vehicle.name} · {item.num_vehicles > 1 ? `${item.num_vehicles}×` : ""}{item.vehicle.passenger_capacity} pax</span>}
-              {item.route?.distance_km != null && <span>· {item.route.distance_km} km{item.route.duration_min ? ` · ~${item.route.duration_min} min` : ""}</span>}
-              {item.sell_price != null && <span>· ₹{item.sell_price.toLocaleString("en-IN")}</span>}
-            </p>
-          </div>
-          <div className="flex items-center gap-1 shrink-0">
-            <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={onEdit}>
-              <Pencil className="h-3 w-3" />
-            </Button>
-            <Button size="sm" variant="ghost" className="h-6 w-6 p-0 hover:text-destructive" onClick={onDelete} disabled={pending}>
-              {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-            </Button>
-          </div>
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <Label className="text-xs">Pickup Location <span className="text-destructive">*</span></Label>
+        <LocationPickerField value={form.pickup} onChange={(v) => setForm(f => ({ ...f, pickup: v }))} placeholder="Search pickup point…" />
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs">Drop Location <span className="text-destructive">*</span></Label>
+        <LocationPickerField value={form.drop} onChange={(v) => setForm(f => ({ ...f, drop: v }))} placeholder="Search drop point…" />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs">Vehicle</Label>
+          <Select value={form.vehicle_id ? String(form.vehicle_id) : "none"} onValueChange={(v) => setForm(f => ({ ...f, vehicle_id: v === "none" ? null : Number(v) }))}>
+            <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select…" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No vehicle</SelectItem>
+              {vehicles.map((v) => <SelectItem key={v.id} value={String(v.id)}>{v.name} ({v.passenger_capacity} pax)</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
-      ) : (
-        <div className="space-y-2.5">
-          <div className="flex items-center gap-1.5">
-            <Car className="h-3.5 w-3.5 text-blue-500" />
-            <p className="text-xs font-semibold">Edit Transfer</p>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-[10px]">Pickup Location <span className="text-destructive">*</span></Label>
-            <LocationPickerField
-              value={form.pickup}
-              onChange={(v) => setForm(f => ({ ...f, pickup: v }))}
-              placeholder="Search pickup point…"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-[10px]">Drop Location <span className="text-destructive">*</span></Label>
-            <LocationPickerField
-              value={form.drop}
-              onChange={(v) => setForm(f => ({ ...f, drop: v }))}
-              placeholder="Search drop point…"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <Label className="text-[10px]">Vehicle</Label>
-              <Select
-                value={form.vehicle_id ? String(form.vehicle_id) : "none"}
-                onValueChange={(v) => setForm(f => ({ ...f, vehicle_id: v === "none" ? null : Number(v) }))}
-              >
-                <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Select vehicle…" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No vehicle</SelectItem>
-                  {vehicles.map((v) => (
-                    <SelectItem key={v.id} value={String(v.id)}>
-                      {v.name} ({v.passenger_capacity} pax)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-[10px]">No. of Vehicles</Label>
-              <Input
-                type="number" min={1} value={form.num_vehicles}
-                onChange={(e) => setForm(f => ({ ...f, num_vehicles: e.target.value }))}
-                className="h-7 text-xs"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-[10px]">Cost Price (₹)</Label>
-              <Input
-                type="number" min={0} placeholder="0"
-                value={form.cost_price}
-                onChange={(e) => setForm(f => ({ ...f, cost_price: e.target.value }))}
-                className="h-7 text-xs"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-[10px]">Sell Price (₹)</Label>
-              <Input
-                type="number" min={0} placeholder="0"
-                value={form.sell_price}
-                onChange={(e) => setForm(f => ({ ...f, sell_price: e.target.value }))}
-                className="h-7 text-xs"
-              />
-            </div>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[10px]">Notes</Label>
-            <Input
-              value={form.notes}
-              onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))}
-              className="h-7 text-xs"
-              placeholder="Optional note…"
-            />
-          </div>
-          <div className="flex gap-2 pt-1">
-            <Button size="sm" className="h-7 text-xs gap-1" onClick={() => onSave(form)} disabled={pending || !isValid}>
-              {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-              Save
-            </Button>
-            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onCancel} disabled={pending}>Cancel</Button>
-          </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">No. of Vehicles</Label>
+          <Input type="number" min={1} value={form.num_vehicles} onChange={(e) => setForm(f => ({ ...f, num_vehicles: e.target.value }))} className="h-9 text-xs" />
         </div>
-      )}
+        <div className="space-y-1.5">
+          <Label className="text-xs">Cost Price (₹)</Label>
+          <Input type="number" min={0} placeholder="0" value={form.cost_price} onChange={(e) => setForm(f => ({ ...f, cost_price: e.target.value }))} className="h-9 text-xs" />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Sell Price (₹)</Label>
+          <Input type="number" min={0} placeholder="0" value={form.sell_price} onChange={(e) => setForm(f => ({ ...f, sell_price: e.target.value }))} className="h-9 text-xs" />
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs">Notes</Label>
+        <Input value={form.notes} onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))} className="h-9 text-xs" placeholder="Optional note…" />
+      </div>
+      <div className="flex items-center justify-between pt-2">
+        <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1.5" onClick={onDelete} disabled={pending}>
+          <Trash2 className="h-3.5 w-3.5" /> Delete
+        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={onCancel} disabled={pending}>Cancel</Button>
+          <Button size="sm" onClick={() => onSave(form)} disabled={pending || !isValid} className="gap-1.5">
+            {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+            Save
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
 
-// ── Activity card ──────────────────────────────────────────────────────────
-
-function ActivityCard({
+function ActivityEditForm({
   item,
-  editing,
   pending,
-  onEdit,
   onToggleOptional,
   onChangeVariant,
   onCancel,
   onDelete,
 }: {
   item: ActivityItem;
-  editing: boolean;
   pending: boolean;
-  onEdit: () => void;
   onToggleOptional: (val: boolean) => void;
   onChangeVariant: (variantId: number | null) => void;
   onCancel: () => void;
@@ -370,121 +404,67 @@ function ActivityCard({
   const [loadingVariants, setLoadingVariants] = useState(false);
 
   useEffect(() => {
-    if (!editing) return;
     setLoadingVariants(true);
     handleGetActivityVariants(item.activity.id).then((res) => {
       setLoadingVariants(false);
       if (res.success) setVariants(res.data);
     });
-  }, [editing, item.activity.id]);
+  }, [item.activity.id]);
 
   return (
-    <div className={cn("rounded-lg border bg-background p-3", editing && "border-primary/40 bg-primary/5")}>
-      {!editing ? (
-        <div className="flex items-start gap-2">
-          <Activity className="h-3.5 w-3.5 text-green-500 mt-0.5 shrink-0" />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <p className="text-xs font-medium">{item.activity.name}</p>
-              {item.is_optional && (
-                <Badge variant="outline" className="text-[9px] h-3.5 px-1 py-0">Optional</Badge>
-              )}
-            </div>
-            <p className="text-[10px] text-muted-foreground/60">
-              {[
-                item.activity.category,
-                item.activity.duration_hours != null ? `${item.activity.duration_hours}h` : null,
-                item.variant ? item.variant.name : "No variant",
-              ].filter(Boolean).join(" · ")}
-            </p>
-          </div>
-          <div className="flex items-center gap-1 shrink-0">
-            <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={onEdit}>
-              <Pencil className="h-3 w-3" />
-            </Button>
-            <Button size="sm" variant="ghost" className="h-6 w-6 p-0 hover:text-destructive" onClick={onDelete} disabled={pending}>
-              {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <div className="flex items-center gap-1.5 mb-1">
-            <Activity className="h-3.5 w-3.5 text-green-500" />
-            <p className="text-xs font-semibold">{item.activity.name}</p>
-          </div>
+    <div className="space-y-4">
+      <div className="rounded-xl border bg-muted/30 p-3">
+        <p className="text-sm font-medium">{item.activity.name}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {[item.activity.category, item.activity.duration_hours != null ? `${item.activity.duration_hours}h` : null].filter(Boolean).join(" · ")}
+        </p>
+      </div>
 
-          {/* Variant selector */}
-          <div>
-            <Label className="text-[10px]">Pricing Variant</Label>
-            {loadingVariants ? (
-              <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-1">
-                <Loader2 className="h-2.5 w-2.5 animate-spin" /> Loading…
-              </p>
-            ) : variants.length === 0 ? (
-              <p className="text-[10px] text-muted-foreground/60 italic mt-1">No variants — activity will price at ₹0</p>
-            ) : (
-              <Select
-                value={item.variant_id ? String(item.variant_id) : "none"}
-                onValueChange={(v) => onChangeVariant(v === "none" ? null : Number(v))}
-                disabled={pending}
-              >
-                <SelectTrigger className="h-7 text-xs mt-0.5">
-                  <SelectValue placeholder="Select variant…" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No variant (₹0)</SelectItem>
-                  {variants.map((v) => {
-                    const adultTier = v.pricingTiers.find((t) => t.label.toLowerCase().includes("adult")) ?? v.pricingTiers[0];
-                    return (
-                      <SelectItem key={v.id} value={String(v.id)}>
-                        {v.name}{adultTier ? ` · ₹${adultTier.price}` : ""}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs">Pricing Variant</Label>
+        {loadingVariants ? (
+          <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1"><Loader2 className="h-3 w-3 animate-spin" /> Loading variants…</p>
+        ) : variants.length === 0 ? (
+          <p className="text-xs text-muted-foreground/60 italic mt-1">No variants — will price at ₹0</p>
+        ) : (
+          <Select value={item.variant_id ? String(item.variant_id) : "none"} onValueChange={(v) => onChangeVariant(v === "none" ? null : Number(v))} disabled={pending}>
+            <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select variant…" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No variant (₹0)</SelectItem>
+              {variants.map((v) => {
+                const adultTier = v.pricingTiers.find((t) => t.label.toLowerCase().includes("adult")) ?? v.pricingTiers[0];
+                return <SelectItem key={v.id} value={String(v.id)}>{v.name}{adultTier ? ` · ₹${adultTier.price}` : ""}</SelectItem>;
+              })}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
 
-          <div className="flex items-center gap-3">
-            <Switch
-              id={`optional-${item.id}`}
-              checked={item.is_optional}
-              onCheckedChange={onToggleOptional}
-              disabled={pending}
-            />
-            <Label htmlFor={`optional-${item.id}`} className="text-xs">Optional activity</Label>
-            {pending && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
-          </div>
-          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onCancel}>Done</Button>
-        </div>
-      )}
+      <div className="flex items-center gap-3">
+        <Switch id={`optional-${item.id}`} checked={item.is_optional} onCheckedChange={onToggleOptional} disabled={pending} />
+        <Label htmlFor={`optional-${item.id}`} className="text-sm">Mark as optional activity</Label>
+        {pending && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+      </div>
+
+      <div className="flex items-center justify-between pt-2">
+        <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1.5" onClick={onDelete} disabled={pending}>
+          <Trash2 className="h-3.5 w-3.5" /> Delete
+        </Button>
+        <Button size="sm" variant="outline" onClick={onCancel}>Done</Button>
+      </div>
     </div>
   );
 }
 
-// ── Note card ──────────────────────────────────────────────────────────────
-
-const NOTE_TYPE_COLORS: Record<string, string> = {
-  info: "text-blue-500",
-  warning: "text-amber-500",
-  success: "text-green-500",
-};
-
-function NoteCard({
+function NoteEditForm({
   item,
-  editing,
   pending,
-  onEdit,
   onSave,
   onCancel,
   onDelete,
 }: {
   item: NoteItem;
-  editing: boolean;
   pending: boolean;
-  onEdit: () => void;
   onSave: (data: { message: string; type: string; position: string; optional_link_text: string; optional_link_url: string }) => void;
   onCancel: () => void;
   onDelete: () => void;
@@ -495,255 +475,55 @@ function NoteCard({
   const [linkText, setLinkText] = useState(item.optional_link_text ?? "");
   const [linkUrl, setLinkUrl] = useState(item.optional_link_url ?? "");
 
-  useEffect(() => {
-    if (editing) {
-      setMessage(item.message);
-      setType(item.type);
-      setPosition(item.position);
-      setLinkText(item.optional_link_text ?? "");
-      setLinkUrl(item.optional_link_url ?? "");
-    }
-  }, [editing, item]);
-
   return (
-    <div className={cn("rounded-lg border bg-background p-3", editing && "border-primary/40 bg-primary/5")}>
-      {!editing ? (
-        <div className="flex items-start gap-2">
-          <StickyNote className={cn("h-3.5 w-3.5 mt-0.5 shrink-0", NOTE_TYPE_COLORS[item.type] ?? "text-muted-foreground")} />
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium line-clamp-2">{item.message}</p>
-            <p className="text-[10px] text-muted-foreground/60 capitalize">{item.type} · {item.position}</p>
-          </div>
-          <div className="flex items-center gap-1 shrink-0">
-            <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={onEdit}>
-              <Pencil className="h-3 w-3" />
-            </Button>
-            <Button size="sm" variant="ghost" className="h-6 w-6 p-0 hover:text-destructive" onClick={onDelete} disabled={pending}>
-              {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          <div className="flex items-center gap-1.5 mb-2">
-            <StickyNote className="h-3.5 w-3.5 text-muted-foreground" />
-            <p className="text-xs font-semibold">Edit Note</p>
-          </div>
-          <div>
-            <Label className="text-[10px]">Message</Label>
-            <Textarea value={message} onChange={(e) => setMessage(e.target.value)} className="text-xs mt-0.5 min-h-16 resize-none" />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label className="text-[10px]">Type</Label>
-              <Select value={type} onValueChange={setType}>
-                <SelectTrigger className="h-7 text-xs mt-0.5"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="info">Info</SelectItem>
-                  <SelectItem value="warning">Warning</SelectItem>
-                  <SelectItem value="success">Success</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-[10px]">Position</Label>
-              <Select value={position} onValueChange={setPosition}>
-                <SelectTrigger className="h-7 text-xs mt-0.5"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="top">Top</SelectItem>
-                  <SelectItem value="bottom">Bottom</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label className="text-[10px]">Link Text (optional)</Label>
-              <Input value={linkText} onChange={(e) => setLinkText(e.target.value)} className="h-7 text-xs mt-0.5" />
-            </div>
-            <div>
-              <Label className="text-[10px]">Link URL (optional)</Label>
-              <Input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} className="h-7 text-xs mt-0.5" />
-            </div>
-          </div>
-          <div className="flex gap-2 pt-1">
-            <Button size="sm" className="h-7 text-xs gap-1" onClick={() => onSave({ message, type, position, optional_link_text: linkText, optional_link_url: linkUrl })} disabled={pending || !message.trim()}>
-              {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-              Save
-            </Button>
-            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onCancel} disabled={pending}>Cancel</Button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Stay block ─────────────────────────────────────────────────────────────
-
-function StayBlock({
-  stays,
-  stayCategories,
-  itineraryId,
-  stayBlockOrder,
-  packageId,
-  destinationId,
-  pending,
-  onStaysChange,
-}: {
-  stays: StayItem[];
-  stayCategories: StayCategory[];
-  itineraryId: number | null;
-  stayBlockOrder: number;
-  packageId: number;
-  destinationId: number;
-  pending: boolean;
-  onStaysChange: (stays: StayItem[]) => void;
-}) {
-  const [assigningCategoryId, setAssigningCategoryId] = useState<number | null>(null);
-  const [savingId, setSavingId] = useState<number | null>(null);
-
-  const fetchRooms = useCallback(
-    async (query: string): Promise<Option[]> => {
-      const res = await handleSearchRoomPricings(destinationId, query);
-      if (!res.success) return [];
-      return res.data.map((p) => ({
-        id: p.id,
-        label: `${p.hotel.name}${p.room ? ` — ${p.room.name}` : ""}`,
-        description: `${p.plan_name ?? "Standard"} · ₹${p.price_per_night.toLocaleString("en-IN")}/night`,
-      }));
-    },
-    [destinationId],
-  );
-
-  async function handleAssign(categoryId: number, roomPricingId: number) {
-    if (!itineraryId) return;
-    setSavingId(categoryId);
-    const res = await handleUpsertStay(itineraryId, categoryId, roomPricingId, stayBlockOrder, packageId);
-    setSavingId(null);
-    if (!res.success) { toast.error(res.message); return; }
-
-    // Fetch updated room pricing info from search to get hotel/room details
-    const searchRes = await handleSearchRoomPricings(destinationId, "");
-    const pricing = searchRes.success ? searchRes.data.find((p) => p.id === roomPricingId) : null;
-    if (!pricing) { toast.success("Stay saved"); setAssigningCategoryId(null); return; }
-
-    const category = stayCategories.find((c) => c.id === categoryId)!;
-    const existing = stays.find((s) => s.stay_category_id === categoryId);
-    const newStay: StayItem = {
-      id: existing?.id ?? Date.now(),
-      stay_category_id: categoryId,
-      sort_order: stayBlockOrder,
-      room_pricing: pricing,
-      stay_category: category,
-    };
-    onStaysChange(
-      existing
-        ? stays.map((s) => (s.stay_category_id === categoryId ? newStay : s))
-        : [...stays, newStay],
-    );
-    setAssigningCategoryId(null);
-    toast.success("Stay assigned");
-  }
-
-  async function handleRemove(stay: StayItem) {
-    setSavingId(stay.stay_category_id);
-    const res = await handleDeleteStay(stay.id, packageId);
-    setSavingId(null);
-    if (!res.success) { toast.error(res.message); return; }
-    onStaysChange(stays.filter((s) => s.id !== stay.id));
-    toast.success("Stay removed");
-  }
-
-  return (
-    <div className="rounded-lg border bg-background p-3">
-      <div className="flex items-center gap-2 mb-3">
-        <Hotel className="h-3.5 w-3.5 text-purple-500" />
-        <p className="text-xs font-semibold">Hotel Stay</p>
-        <Badge variant="outline" className="text-[9px] h-3.5 px-1 py-0">{stays.length}/{stayCategories.length} assigned</Badge>
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <Label className="text-xs">Message</Label>
+        <Textarea value={message} onChange={(e) => setMessage(e.target.value)} className="text-sm min-h-20 resize-none" placeholder="Enter note message…" />
       </div>
-
-      {stayCategories.length === 0 ? (
-        <p className="text-xs text-muted-foreground/60 italic">No stay categories configured for this package</p>
-      ) : (
-        <div className="space-y-2">
-          {stayCategories.map((cat) => {
-            const stay = stays.find((s) => s.stay_category_id === cat.id);
-            const isAssigning = assigningCategoryId === cat.id;
-            const isSaving = savingId === cat.id;
-
-            return (
-              <div key={cat.id} className="rounded-md border bg-muted/20 p-2">
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{cat.label}</span>
-                  <div className="flex items-center gap-1">
-                    {stay && !isAssigning && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-5 w-5 p-0 hover:text-primary text-muted-foreground/60"
-                        onClick={() => setAssigningCategoryId(cat.id)}
-                        title="Change"
-                      >
-                        <Pencil className="h-2.5 w-2.5" />
-                      </Button>
-                    )}
-                    {stay && !isAssigning && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-5 w-5 p-0 hover:text-destructive text-muted-foreground/60"
-                        onClick={() => handleRemove(stay)}
-                        disabled={isSaving || !itineraryId}
-                      >
-                        {isSaving ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <X className="h-2.5 w-2.5" />}
-                      </Button>
-                    )}
-                    {isAssigning && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-5 w-5 p-0 text-muted-foreground"
-                        onClick={() => setAssigningCategoryId(null)}
-                      >
-                        <X className="h-2.5 w-2.5" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {isAssigning ? (
-                  <div className="mt-1">
-                    <SearchSelect
-                      fetchOptions={fetchRooms}
-                      placeholder="Search hotel / room…"
-                      onChange={(id) => { if (id) handleAssign(cat.id, id); }}
-                    />
-                    {isSaving && <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1"><Loader2 className="h-2.5 w-2.5 animate-spin" />Saving…</p>}
-                  </div>
-                ) : stay ? (
-                  <div>
-                    <p className="text-xs font-medium">{stay.room_pricing.hotel.name}</p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {stay.room_pricing.room?.name ?? "Room"} · {stay.room_pricing.plan_name ?? "Standard"} · ₹{stay.room_pricing.price_per_night.toLocaleString("en-IN")}/night
-                    </p>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    className="text-[11px] text-primary/70 hover:text-primary flex items-center gap-1 disabled:opacity-50"
-                    onClick={() => setAssigningCategoryId(cat.id)}
-                    disabled={!itineraryId || pending}
-                  >
-                    <Plus className="h-3 w-3" />
-                    Assign hotel
-                  </button>
-                )}
-              </div>
-            );
-          })}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs">Type</Label>
+          <Select value={type} onValueChange={setType}>
+            <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="info">Info</SelectItem>
+              <SelectItem value="warning">Warning</SelectItem>
+              <SelectItem value="success">Success</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-      )}
+        <div className="space-y-1.5">
+          <Label className="text-xs">Position</Label>
+          <Select value={position} onValueChange={setPosition}>
+            <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="top">Top</SelectItem>
+              <SelectItem value="bottom">Bottom</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Link Text (optional)</Label>
+          <Input value={linkText} onChange={(e) => setLinkText(e.target.value)} className="h-9 text-xs" />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Link URL (optional)</Label>
+          <Input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} className="h-9 text-xs" />
+        </div>
+      </div>
+      <div className="flex items-center justify-between pt-2">
+        <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1.5" onClick={onDelete} disabled={pending}>
+          <Trash2 className="h-3.5 w-3.5" /> Delete
+        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={onCancel} disabled={pending}>Cancel</Button>
+          <Button size="sm" onClick={() => onSave({ message, type, position, optional_link_text: linkText, optional_link_url: linkUrl })} disabled={pending || !message.trim()} className="gap-1.5">
+            {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+            Save
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -751,120 +531,75 @@ function StayBlock({
 // ── Add forms ──────────────────────────────────────────────────────────────
 
 function AddTransferForm({
-  vehicles,
-  onSave,
-  onCancel,
-  pending,
+  vehicles, pending, onSave, onCancel,
 }: {
   vehicles: VehicleOption[];
+  pending: boolean;
   onSave: (data: TransferFormData) => void;
   onCancel: () => void;
-  pending: boolean;
 }) {
   const [form, setForm] = useState<TransferFormData>({
     pickup: null, drop: null, vehicle_id: null,
     num_vehicles: "1", cost_price: "", sell_price: "", notes: "",
   });
-
   const isValid = !!form.pickup && !!form.drop;
 
   return (
-    <div className="rounded-lg border border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 p-3 space-y-2.5">
-      <div className="flex items-center gap-1.5">
-        <Car className="h-3.5 w-3.5 text-blue-500" />
-        <p className="text-xs font-semibold">Add Transfer</p>
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <Label className="text-xs">Pickup Location <span className="text-destructive">*</span></Label>
+        <LocationPickerField value={form.pickup} onChange={(v) => setForm(f => ({ ...f, pickup: v }))} placeholder="Search pickup point…" />
       </div>
       <div className="space-y-1.5">
-        <Label className="text-[10px]">Pickup Location <span className="text-destructive">*</span></Label>
-        <LocationPickerField
-          value={form.pickup}
-          onChange={(v) => setForm(f => ({ ...f, pickup: v }))}
-          placeholder="Search pickup point…"
-        />
+        <Label className="text-xs">Drop Location <span className="text-destructive">*</span></Label>
+        <LocationPickerField value={form.drop} onChange={(v) => setForm(f => ({ ...f, drop: v }))} placeholder="Search drop point…" />
       </div>
-      <div className="space-y-1.5">
-        <Label className="text-[10px]">Drop Location <span className="text-destructive">*</span></Label>
-        <LocationPickerField
-          value={form.drop}
-          onChange={(v) => setForm(f => ({ ...f, drop: v }))}
-          placeholder="Search drop point…"
-        />
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-1">
-          <Label className="text-[10px]">Vehicle</Label>
-          <Select
-            value={form.vehicle_id ? String(form.vehicle_id) : "none"}
-            onValueChange={(v) => setForm(f => ({ ...f, vehicle_id: v === "none" ? null : Number(v) }))}
-          >
-            <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Select vehicle…" /></SelectTrigger>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs">Vehicle</Label>
+          <Select value={form.vehicle_id ? String(form.vehicle_id) : "none"} onValueChange={(v) => setForm(f => ({ ...f, vehicle_id: v === "none" ? null : Number(v) }))}>
+            <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select vehicle…" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">No vehicle</SelectItem>
-              {vehicles.map((v) => (
-                <SelectItem key={v.id} value={String(v.id)}>
-                  {v.name} ({v.passenger_capacity} pax)
-                </SelectItem>
-              ))}
+              {vehicles.map((v) => <SelectItem key={v.id} value={String(v.id)}>{v.name} ({v.passenger_capacity} pax)</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-1">
-          <Label className="text-[10px]">No. of Vehicles</Label>
-          <Input
-            type="number" min={1} value={form.num_vehicles}
-            onChange={(e) => setForm(f => ({ ...f, num_vehicles: e.target.value }))}
-            className="h-7 text-xs"
-          />
+        <div className="space-y-1.5">
+          <Label className="text-xs">No. of Vehicles</Label>
+          <Input type="number" min={1} value={form.num_vehicles} onChange={(e) => setForm(f => ({ ...f, num_vehicles: e.target.value }))} className="h-9 text-xs" />
         </div>
-        <div className="space-y-1">
-          <Label className="text-[10px]">Cost Price (₹)</Label>
-          <Input
-            type="number" min={0} placeholder="0"
-            value={form.cost_price}
-            onChange={(e) => setForm(f => ({ ...f, cost_price: e.target.value }))}
-            className="h-7 text-xs"
-          />
+        <div className="space-y-1.5">
+          <Label className="text-xs">Cost Price (₹)</Label>
+          <Input type="number" min={0} placeholder="0" value={form.cost_price} onChange={(e) => setForm(f => ({ ...f, cost_price: e.target.value }))} className="h-9 text-xs" />
         </div>
-        <div className="space-y-1">
-          <Label className="text-[10px]">Sell Price (₹)</Label>
-          <Input
-            type="number" min={0} placeholder="0"
-            value={form.sell_price}
-            onChange={(e) => setForm(f => ({ ...f, sell_price: e.target.value }))}
-            className="h-7 text-xs"
-          />
+        <div className="space-y-1.5">
+          <Label className="text-xs">Sell Price (₹)</Label>
+          <Input type="number" min={0} placeholder="0" value={form.sell_price} onChange={(e) => setForm(f => ({ ...f, sell_price: e.target.value }))} className="h-9 text-xs" />
         </div>
       </div>
-      <div className="space-y-1">
-        <Label className="text-[10px]">Notes</Label>
-        <Input
-          value={form.notes}
-          onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))}
-          className="h-7 text-xs"
-          placeholder="Optional note…"
-        />
+      <div className="space-y-1.5">
+        <Label className="text-xs">Notes</Label>
+        <Input value={form.notes} onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))} className="h-9 text-xs" placeholder="Optional note…" />
       </div>
-      <div className="flex gap-2 pt-1">
-        <Button size="sm" className="h-7 text-xs gap-1" onClick={() => onSave(form)} disabled={pending || !isValid}>
-          {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-          Add
+      <div className="flex gap-2 pt-2 justify-end">
+        <Button size="sm" variant="outline" onClick={onCancel} disabled={pending}>Cancel</Button>
+        <Button size="sm" onClick={() => onSave(form)} disabled={pending || !isValid} className="gap-1.5">
+          {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+          Add Transfer
         </Button>
-        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onCancel} disabled={pending}>Cancel</Button>
       </div>
     </div>
   );
 }
 
 function AddActivityForm({
-  destinationId,
-  onSave,
-  onCancel,
-  pending,
+  destinationId, pending, onSave, onCancel,
 }: {
   destinationId: number;
+  pending: boolean;
   onSave: (activityId: number, isOptional: boolean, variantId: number | null) => void;
   onCancel: () => void;
-  pending: boolean;
 }) {
   const [activityId, setActivityId] = useState<number | null>(null);
   const [isOptional, setIsOptional] = useState(false);
@@ -872,18 +607,15 @@ function AddActivityForm({
   const [variantId, setVariantId] = useState<number | null>(null);
   const [loadingVariants, setLoadingVariants] = useState(false);
 
-  const fetchActivities = useCallback(
-    async (query: string): Promise<Option[]> => {
-      const res = await handleSearchActivities(destinationId, query);
-      if (!res.success) return [];
-      return res.data.map((a) => ({
-        id: a.id,
-        label: a.name,
-        description: [a.category, a.duration_hours != null ? `${a.duration_hours}h` : null].filter(Boolean).join(" · "),
-      }));
-    },
-    [destinationId],
-  );
+  const fetchActivities = useCallback(async (query: string): Promise<Option[]> => {
+    const res = await handleSearchActivities(destinationId, query);
+    if (!res.success) return [];
+    return res.data.map((a) => ({
+      id: a.id,
+      label: a.name,
+      description: [a.category, a.duration_hours != null ? `${a.duration_hours}h` : null].filter(Boolean).join(" · "),
+    }));
+  }, [destinationId]);
 
   async function handleActivitySelect(id: number | null) {
     setActivityId(id);
@@ -899,85 +631,53 @@ function AddActivityForm({
   }
 
   return (
-    <div className="rounded-lg border border-green-200 bg-green-50/50 dark:bg-green-950/20 p-3 space-y-2">
-      <div className="flex items-center gap-1.5 mb-2">
-        <Activity className="h-3.5 w-3.5 text-green-500" />
-        <p className="text-xs font-semibold">Add Activity</p>
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <Label className="text-xs">Activity <span className="text-destructive">*</span></Label>
+        <SearchSelect value={activityId} onChange={handleActivitySelect} fetchOptions={fetchActivities} placeholder="Search activities…" />
       </div>
-      <div>
-        <Label className="text-[10px]">Activity</Label>
-        <div className="mt-0.5">
-          <SearchSelect
-            value={activityId}
-            onChange={handleActivitySelect}
-            fetchOptions={fetchActivities}
-            placeholder="Search activities…"
-          />
-        </div>
-      </div>
-
-      {/* Variant picker — shows after activity is selected */}
       {activityId && (
-        <div>
-          <Label className="text-[10px]">Pricing Variant</Label>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Pricing Variant</Label>
           {loadingVariants ? (
-            <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-1">
-              <Loader2 className="h-2.5 w-2.5 animate-spin" /> Loading variants…
-            </p>
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1"><Loader2 className="h-3 w-3 animate-spin" /> Loading variants…</p>
           ) : variants.length === 0 ? (
-            <p className="text-[10px] text-muted-foreground/60 italic mt-1">No variants configured — activity will price at ₹0</p>
+            <p className="text-xs text-muted-foreground/60 italic mt-1">No variants — will price at ₹0</p>
           ) : (
-            <Select
-              value={variantId ? String(variantId) : "none"}
-              onValueChange={(v) => setVariantId(v === "none" ? null : Number(v))}
-            >
-              <SelectTrigger className="h-7 text-xs mt-0.5">
-                <SelectValue placeholder="Select variant…" />
-              </SelectTrigger>
+            <Select value={variantId ? String(variantId) : "none"} onValueChange={(v) => setVariantId(v === "none" ? null : Number(v))}>
+              <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select variant…" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">No variant (₹0)</SelectItem>
                 {variants.map((v) => {
                   const adultTier = v.pricingTiers.find((t) => t.label.toLowerCase().includes("adult")) ?? v.pricingTiers[0];
-                  return (
-                    <SelectItem key={v.id} value={String(v.id)}>
-                      {v.name}{adultTier ? ` · ₹${adultTier.price}` : ""}
-                    </SelectItem>
-                  );
+                  return <SelectItem key={v.id} value={String(v.id)}>{v.name}{adultTier ? ` · ₹${adultTier.price}` : ""}</SelectItem>;
                 })}
               </SelectContent>
             </Select>
           )}
         </div>
       )}
-
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         <Switch id="add-optional" checked={isOptional} onCheckedChange={setIsOptional} />
-        <Label htmlFor="add-optional" className="text-xs">Optional activity</Label>
+        <Label htmlFor="add-optional" className="text-sm">Mark as optional</Label>
       </div>
-      <div className="flex gap-2 pt-1">
-        <Button
-          size="sm"
-          className="h-7 text-xs gap-1"
-          onClick={() => activityId && onSave(activityId, isOptional, variantId)}
-          disabled={pending || !activityId}
-        >
-          {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-          Add
+      <div className="flex gap-2 pt-2 justify-end">
+        <Button size="sm" variant="outline" onClick={onCancel} disabled={pending}>Cancel</Button>
+        <Button size="sm" onClick={() => activityId && onSave(activityId, isOptional, variantId)} disabled={pending || !activityId} className="gap-1.5">
+          {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+          Add Activity
         </Button>
-        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onCancel} disabled={pending}>Cancel</Button>
       </div>
     </div>
   );
 }
 
 function AddNoteForm({
-  onSave,
-  onCancel,
-  pending,
+  pending, onSave, onCancel,
 }: {
+  pending: boolean;
   onSave: (data: { message: string; type: string; position: string; optional_link_text: string; optional_link_url: string }) => void;
   onCancel: () => void;
-  pending: boolean;
 }) {
   const [message, setMessage] = useState("");
   const [type, setType] = useState("info");
@@ -986,20 +686,16 @@ function AddNoteForm({
   const [linkUrl, setLinkUrl] = useState("");
 
   return (
-    <div className="rounded-lg border border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 p-3 space-y-2">
-      <div className="flex items-center gap-1.5 mb-2">
-        <StickyNote className="h-3.5 w-3.5 text-amber-500" />
-        <p className="text-xs font-semibold">Add Note</p>
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <Label className="text-xs">Message <span className="text-destructive">*</span></Label>
+        <Textarea value={message} onChange={(e) => setMessage(e.target.value)} className="text-sm min-h-20 resize-none" placeholder="Enter note message…" />
       </div>
-      <div>
-        <Label className="text-[10px]">Message</Label>
-        <Textarea value={message} onChange={(e) => setMessage(e.target.value)} className="text-xs mt-0.5 min-h-16 resize-none" placeholder="Enter note message…" />
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <Label className="text-[10px]">Type</Label>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs">Type</Label>
           <Select value={type} onValueChange={setType}>
-            <SelectTrigger className="h-7 text-xs mt-0.5"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="info">Info</SelectItem>
               <SelectItem value="warning">Warning</SelectItem>
@@ -1007,34 +703,181 @@ function AddNoteForm({
             </SelectContent>
           </Select>
         </div>
-        <div>
-          <Label className="text-[10px]">Position</Label>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Position</Label>
           <Select value={position} onValueChange={setPosition}>
-            <SelectTrigger className="h-7 text-xs mt-0.5"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="top">Top</SelectItem>
               <SelectItem value="bottom">Bottom</SelectItem>
             </SelectContent>
           </Select>
         </div>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <Label className="text-[10px]">Link Text (optional)</Label>
-          <Input value={linkText} onChange={(e) => setLinkText(e.target.value)} className="h-7 text-xs mt-0.5" />
+        <div className="space-y-1.5">
+          <Label className="text-xs">Link Text (optional)</Label>
+          <Input value={linkText} onChange={(e) => setLinkText(e.target.value)} className="h-9 text-xs" />
         </div>
-        <div>
-          <Label className="text-[10px]">Link URL (optional)</Label>
-          <Input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} className="h-7 text-xs mt-0.5" />
+        <div className="space-y-1.5">
+          <Label className="text-xs">Link URL (optional)</Label>
+          <Input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} className="h-9 text-xs" />
         </div>
       </div>
-      <div className="flex gap-2 pt-1">
-        <Button size="sm" className="h-7 text-xs gap-1" onClick={() => onSave({ message, type, position, optional_link_text: linkText, optional_link_url: linkUrl })} disabled={pending || !message.trim()}>
-          {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-          Add
+      <div className="flex gap-2 pt-2 justify-end">
+        <Button size="sm" variant="outline" onClick={onCancel} disabled={pending}>Cancel</Button>
+        <Button size="sm" onClick={() => onSave({ message, type, position, optional_link_text: linkText, optional_link_url: linkUrl })} disabled={pending || !message.trim()} className="gap-1.5">
+          {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+          Add Note
         </Button>
-        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onCancel} disabled={pending}>Cancel</Button>
       </div>
+    </div>
+  );
+}
+
+// ── Stay block ─────────────────────────────────────────────────────────────
+
+function StayBlock({
+  stays, stayCategories, itineraryId, stayBlockOrder, packageId, destinationId, pending, onStaysChange,
+}: {
+  stays: StayItem[];
+  stayCategories: StayCategory[];
+  itineraryId: number | null;
+  stayBlockOrder: number;
+  packageId: number;
+  destinationId: number;
+  pending: boolean;
+  onStaysChange: (stays: StayItem[]) => void;
+}) {
+  const [assigningCategoryId, setAssigningCategoryId] = useState<number | null>(null);
+  const [savingId, setSavingId] = useState<number | null>(null);
+
+  const fetchRooms = useCallback(async (query: string): Promise<Option[]> => {
+    const res = await handleSearchRoomPricings(destinationId, query);
+    if (!res.success) return [];
+    return res.data.map((p) => ({
+      id: p.id,
+      label: `${p.hotel.name}${p.room ? ` — ${p.room.name}` : ""}`,
+      description: `${p.plan_name ?? "Standard"} · ₹${p.price_per_night.toLocaleString("en-IN")}/night`,
+    }));
+  }, [destinationId]);
+
+  async function handleAssign(categoryId: number, roomPricingId: number) {
+    if (!itineraryId) return;
+    setSavingId(categoryId);
+    const res = await handleUpsertStay(itineraryId, categoryId, roomPricingId, stayBlockOrder, packageId);
+    setSavingId(null);
+    if (!res.success) { toast.error(res.message); return; }
+    const searchRes = await handleSearchRoomPricings(destinationId, "");
+    const pricing = searchRes.success ? searchRes.data.find((p) => p.id === roomPricingId) : null;
+    if (!pricing) { toast.success("Stay saved"); setAssigningCategoryId(null); return; }
+    const category = stayCategories.find((c) => c.id === categoryId)!;
+    const existing = stays.find((s) => s.stay_category_id === categoryId);
+    const newStay: StayItem = {
+      id: existing?.id ?? Date.now(),
+      stay_category_id: categoryId,
+      sort_order: stayBlockOrder,
+      room_pricing: pricing,
+      stay_category: category,
+    };
+    onStaysChange(existing ? stays.map((s) => (s.stay_category_id === categoryId ? newStay : s)) : [...stays, newStay]);
+    setAssigningCategoryId(null);
+    toast.success("Stay assigned");
+  }
+
+  async function handleRemove(stay: StayItem) {
+    setSavingId(stay.stay_category_id);
+    const res = await handleDeleteStay(stay.id, packageId);
+    setSavingId(null);
+    if (!res.success) { toast.error(res.message); return; }
+    onStaysChange(stays.filter((s) => s.id !== stay.id));
+    toast.success("Stay removed");
+  }
+
+  if (stayCategories.length === 0) {
+    return <p className="text-sm text-muted-foreground/60 italic">No stay categories configured for this package.</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {stayCategories.map((cat) => {
+        const stay = stays.find((s) => s.stay_category_id === cat.id);
+        const isAssigning = assigningCategoryId === cat.id;
+        const isSaving = savingId === cat.id;
+
+        return (
+          <div key={cat.id} className="rounded-xl border bg-muted/20 p-3">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{cat.label}</span>
+              <div className="flex items-center gap-1">
+                {stay && !isAssigning && (
+                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground/50 hover:text-primary" onClick={() => setAssigningCategoryId(cat.id)} title="Change">
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                )}
+                {stay && !isAssigning && (
+                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground/50 hover:text-destructive" onClick={() => handleRemove(stay)} disabled={isSaving || !itineraryId}>
+                    {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
+                  </Button>
+                )}
+                {isAssigning && (
+                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground" onClick={() => setAssigningCategoryId(null)}>
+                    <X className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+            </div>
+            {isAssigning ? (
+              <div>
+                <SearchSelect fetchOptions={fetchRooms} placeholder="Search hotel / room…" onChange={(id) => { if (id) handleAssign(cat.id, id); }} />
+                {isSaving && <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Saving…</p>}
+              </div>
+            ) : stay ? (
+              <div>
+                <p className="text-sm font-medium">{stay.room_pricing.hotel.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {stay.room_pricing.room?.name ?? "Room"} · {stay.room_pricing.plan_name ?? "Standard"} · ₹{stay.room_pricing.price_per_night.toLocaleString("en-IN")}/night
+                </p>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="text-sm text-primary/70 hover:text-primary flex items-center gap-1.5 disabled:opacity-50"
+                onClick={() => setAssigningCategoryId(cat.id)}
+                disabled={!itineraryId || pending}
+              >
+                <Plus className="h-3.5 w-3.5" /> Assign hotel
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Timeline drop zone ─────────────────────────────────────────────────────
+
+function TimelineDropZone({ children, isEmpty }: { children: React.ReactNode; isEmpty: boolean }) {
+  const { isOver, setNodeRef } = useDroppable({ id: "timeline-drop" });
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "h-full min-h-32 rounded-xl transition-all duration-150",
+        isOver && "bg-primary/5 ring-2 ring-primary/25 ring-dashed",
+      )}
+    >
+      {isEmpty && !isOver ? (
+        <div className="flex flex-col items-center justify-center h-32 gap-2">
+          <div className="h-10 w-10 rounded-full bg-muted/60 flex items-center justify-center">
+            <Plus className="h-4 w-4 text-muted-foreground/30" />
+          </div>
+          <p className="text-xs text-muted-foreground/40">Drag elements here or click above to add</p>
+        </div>
+      ) : isEmpty && isOver ? (
+        <div className="flex flex-col items-center justify-center h-32 gap-2">
+          <p className="text-sm font-medium text-primary/70">Drop to add</p>
+        </div>
+      ) : children}
     </div>
   );
 }
@@ -1042,15 +885,7 @@ function AddNoteForm({
 // ── Main sidebar ───────────────────────────────────────────────────────────
 
 export function ItineraryDaySidebar({
-  open,
-  onClose,
-  packageId,
-  destinationId,
-  durationId,
-  routeId,
-  day: initialDay,
-  stayCategories,
-  onSaved,
+  open, onClose, packageId, destinationId, durationId, routeId, day: initialDay, stayCategories, onSaved, stopLabel,
 }: Props) {
   const [itineraryId, setItineraryId] = useState<number | null>(initialDay.id);
   const [title, setTitle] = useState(initialDay.title);
@@ -1059,17 +894,14 @@ export function ItineraryDaySidebar({
   const [activities, setActivities] = useState<ActivityItem[]>(initialDay.activities);
   const [notes, setNotes] = useState<NoteItem[]>(initialDay.notes);
   const [stays, setStays] = useState<StayItem[]>(initialDay.stays);
-  const [stayBlockOrder, setStayBlockOrder] = useState(
-    initialDay.stays[0]?.sort_order ?? 100,
-  );
+  const [stayBlockOrder, setStayBlockOrder] = useState(initialDay.stays[0]?.sort_order ?? 100);
   const [savingMeta, setSavingMeta] = useState(false);
   const [pending, setPending] = useState(false);
-  const [addMode, setAddMode] = useState<AddMode>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [vehicles, setVehicles] = useState<VehicleOption[]>([]);
+  const [editPanel, setEditPanel] = useState<EditPanelState>(null);
+  const [activeDragKind, setActiveDragKind] = useState<string | null>(null);
 
-  // Load vehicles once
   useEffect(() => {
     handleGetVehicles().then((res) => { if (res.success) setVehicles(res.data); });
   }, []);
@@ -1080,11 +912,8 @@ export function ItineraryDaySidebar({
   );
   const dndIds = useMemo(() => timeline.map((i) => i.dndId), [timeline]);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-  );
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
-  // Auto-create day record on first open
   useEffect(() => {
     if (!open) return;
     if (initialDay.id !== null) return;
@@ -1101,7 +930,7 @@ export function ItineraryDaySidebar({
     return { id: itineraryId, day: initialDay.day, title, description: description || null, activities, transfers, notes, stays };
   }
 
-  // ── Day meta save ────────────────────────────────────────────────────────
+  // ── Day meta save ──────────────────────────────────────────────────────
 
   async function saveMeta() {
     if (!title.trim()) return;
@@ -1117,19 +946,39 @@ export function ItineraryDaySidebar({
     onSaved(currentDayData());
   }
 
-  // ── DnD reorder ──────────────────────────────────────────────────────────
+  // ── DnD ───────────────────────────────────────────────────────────────
+
+  function handleDragStart(event: DragStartEvent) {
+    const src = event.active.data.current?.source;
+    if (src === "palette") setActiveDragKind(event.active.data.current?.kind ?? null);
+    else setActiveDragKind(null);
+  }
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
-    if (!over || active.id === over.id || !itineraryId) return;
+    setActiveDragKind(null);
 
+    // Palette → timeline drop
+    if (active.data.current?.source === "palette") {
+      const kind = active.data.current.kind as "transfer" | "activity" | "note" | "stay";
+      if (over && itineraryId) {
+        if (kind === "stay") {
+          setEditPanel({ mode: "stay" });
+        } else {
+          setEditPanel({ mode: "add", kind });
+        }
+      }
+      return;
+    }
+
+    // Existing items reorder
+    if (!over || active.id === over.id || !itineraryId) return;
     const oldIdx = timeline.findIndex((i) => i.dndId === String(active.id));
     const newIdx = timeline.findIndex((i) => i.dndId === String(over.id));
     if (oldIdx === -1 || newIdx === -1) return;
 
     const reordered = arrayMove(timeline, oldIdx, newIdx);
     const updates: ReorderItem[] = [];
-
     reordered.forEach((item, i) => {
       if (item.kind === "transfer") {
         setTransfers((prev) => prev.map((t) => (t.id === item.data.id ? { ...t, sort_order: i } : t)));
@@ -1142,18 +991,13 @@ export function ItineraryDaySidebar({
         updates.push({ kind: "note", id: item.data.id, sort_order: i });
       } else if (item.kind === "stay") {
         setStayBlockOrder(i);
-        if (item.stays.length > 0) {
-          updates.push({ kind: "stay", itinerary_id: itineraryId, sort_order: i });
-        }
+        if (item.stays.length > 0) updates.push({ kind: "stay", itinerary_id: itineraryId, sort_order: i });
       }
     });
-
-    if (updates.length > 0) {
-      handleReorderItems(updates, packageId);
-    }
+    if (updates.length > 0) handleReorderItems(updates, packageId);
   }
 
-  // ── Transfer CRUD ────────────────────────────────────────────────────────
+  // ── Transfer CRUD ──────────────────────────────────────────────────────
 
   async function addTransfer(data: TransferFormData) {
     if (!itineraryId) return;
@@ -1161,7 +1005,7 @@ export function ItineraryDaySidebar({
     const res = await handleAddTransfer(itineraryId, transferFormToInput(data), packageId);
     setPending(false);
     if (!res.success) { toast.error(res.message); return; }
-    setAddMode(null);
+    setEditPanel(null);
     const refreshed = await handleGetItinerary();
     if (refreshed) setTransfers(refreshed.transfers);
     toast.success("Transfer added");
@@ -1175,7 +1019,7 @@ export function ItineraryDaySidebar({
     if (!res.success) { toast.error(res.message); return; }
     const refreshed = await handleGetItinerary();
     if (refreshed) setTransfers(refreshed.transfers);
-    setEditingId(null);
+    setEditPanel(null);
     toast.success("Transfer updated");
   }
 
@@ -1186,11 +1030,12 @@ export function ItineraryDaySidebar({
     setDeletingId(null);
     if (!res.success) { toast.error(res.message); return; }
     setTransfers((prev) => prev.filter((t) => t.id !== id));
+    setEditPanel(null);
     toast.success("Transfer deleted");
     onSaved(currentDayData());
   }
 
-  // ── Activity CRUD ────────────────────────────────────────────────────────
+  // ── Activity CRUD ──────────────────────────────────────────────────────
 
   async function addActivity(activityId: number, isOptional: boolean, variantId: number | null) {
     if (!itineraryId) return;
@@ -1198,7 +1043,7 @@ export function ItineraryDaySidebar({
     const res = await handleAddActivity(itineraryId, activityId, isOptional, packageId, variantId);
     setPending(false);
     if (!res.success) { toast.error(res.message); return; }
-    setAddMode(null);
+    setEditPanel(null);
     const refreshed = await handleGetItinerary();
     if (refreshed) setActivities(refreshed.activities);
     toast.success("Activity added");
@@ -1218,11 +1063,7 @@ export function ItineraryDaySidebar({
     const res = await handleUpdateActivity(id, { variant_id: variantId }, packageId);
     setPending(false);
     if (!res.success) { toast.error(res.message); return; }
-    setActivities((prev) =>
-      prev.map((a) =>
-        a.id === id ? { ...a, variant_id: variantId, variant: null } : a,
-      ),
-    );
+    setActivities((prev) => prev.map((a) => a.id === id ? { ...a, variant_id: variantId, variant: null } : a));
   }
 
   async function deleteActivity(id: number) {
@@ -1232,11 +1073,12 @@ export function ItineraryDaySidebar({
     setDeletingId(null);
     if (!res.success) { toast.error(res.message); return; }
     setActivities((prev) => prev.filter((a) => a.id !== id));
+    setEditPanel(null);
     toast.success("Activity deleted");
     onSaved(currentDayData());
   }
 
-  // ── Note CRUD ────────────────────────────────────────────────────────────
+  // ── Note CRUD ──────────────────────────────────────────────────────────
 
   async function addNote(data: { message: string; type: string; position: string; optional_link_text: string; optional_link_url: string }) {
     if (!itineraryId) return;
@@ -1244,7 +1086,7 @@ export function ItineraryDaySidebar({
     const res = await handleAddNote(itineraryId, data, packageId);
     setPending(false);
     if (!res.success) { toast.error(res.message); return; }
-    setAddMode(null);
+    setEditPanel(null);
     const refreshed = await handleGetItinerary();
     if (refreshed) setNotes(refreshed.notes);
     toast.success("Note added");
@@ -1257,7 +1099,7 @@ export function ItineraryDaySidebar({
     setPending(false);
     if (!res.success) { toast.error(res.message); return; }
     setNotes((prev) => prev.map((n) => n.id === id ? { ...n, ...data, optional_link_text: data.optional_link_text || null, optional_link_url: data.optional_link_url || null } : n));
-    setEditingId(null);
+    setEditPanel(null);
     toast.success("Note updated");
   }
 
@@ -1268,11 +1110,12 @@ export function ItineraryDaySidebar({
     setDeletingId(null);
     if (!res.success) { toast.error(res.message); return; }
     setNotes((prev) => prev.filter((n) => n.id !== id));
+    setEditPanel(null);
     toast.success("Note deleted");
     onSaved(currentDayData());
   }
 
-  // ── Refetch helper ───────────────────────────────────────────────────────
+  // ── Refetch helper ─────────────────────────────────────────────────────
 
   async function handleGetItinerary() {
     const { handleGetItineraryData: fetch } = await import("@/app/actions/packages/itinerary-builder.actions");
@@ -1281,199 +1124,277 @@ export function ItineraryDaySidebar({
     return (res.data as DayData[]).find((d) => d.day === initialDay.day) ?? null;
   }
 
-  // ── Render ───────────────────────────────────────────────────────────────
+  // ── Derived state ──────────────────────────────────────────────────────
 
   const hasNoItems = transfers.length === 0 && activities.length === 0 && notes.length === 0;
+  const isTimelineEmpty = hasNoItems && stays.length === 0;
+
+  const editPanelItem = useMemo(() => {
+    if (!editPanel || editPanel.mode !== "edit") return null;
+    return timeline.find((i) => i.dndId === editPanel.dndId) ?? null;
+  }, [editPanel, timeline]);
+
+  const panelTitle = editPanelTitle(editPanel);
+  const panelKind: keyof typeof KIND_CONFIG | null =
+    editPanel?.mode === "add" ? editPanel.kind :
+    editPanel?.mode === "stay" ? "stay" :
+    editPanel?.mode === "edit" ? kindFromDndId(editPanel.dndId) :
+    null;
+
+  // ── Render ────────────────────────────────────────────────────────────
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent side="right" className="w-full sm:max-w-xl flex flex-col gap-0 p-0">
-        {/* Header */}
-        <SheetHeader className="px-5 pt-5 pb-3 border-b shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="h-6 w-6 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
-              <span className="text-[10px] font-bold text-primary">{initialDay.day}</span>
-            </div>
-            <SheetTitle className="text-sm">Day {initialDay.day} — Itinerary</SheetTitle>
-          </div>
-        </SheetHeader>
+      <SheetContent side="right" className="w-full sm:max-w-xl p-0 flex flex-col gap-0 overflow-hidden">
+        <SheetTitle className="sr-only">Day {initialDay.day} — Itinerary Builder</SheetTitle>
 
-        {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+        <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => setActiveDragKind(null)}>
 
-          {/* Day meta */}
-          <div className="space-y-2">
-            <div>
-              <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Day Title</Label>
-              <Input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="mt-1 text-sm"
-                placeholder={`Day ${initialDay.day}`}
-              />
-            </div>
-            <div>
-              <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Description</Label>
-              <Textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="mt-1 text-xs resize-none min-h-16"
-                placeholder="Brief description of this day…"
-              />
-            </div>
-            <Button size="sm" className="gap-1.5 h-8" onClick={saveMeta} disabled={savingMeta || !title.trim()}>
-              {savingMeta ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-              Save Day
-            </Button>
-          </div>
+          {/* ── Sliding wrapper ── */}
+          <div className="relative flex-1 overflow-hidden flex flex-col">
 
-          <div className="border-t" />
-
-          {/* Add buttons */}
-          <div>
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-2">Add to Timeline</p>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant={addMode === "transfer" ? "default" : "outline"}
-                className="h-7 text-xs gap-1.5"
-                onClick={() => setAddMode(addMode === "transfer" ? null : "transfer")}
-                disabled={!itineraryId}
-              >
-                <Car className="h-3 w-3" />Transfer
-              </Button>
-              <Button
-                size="sm"
-                variant={addMode === "activity" ? "default" : "outline"}
-                className="h-7 text-xs gap-1.5"
-                onClick={() => setAddMode(addMode === "activity" ? null : "activity")}
-                disabled={!itineraryId}
-              >
-                <Activity className="h-3 w-3" />Activity
-              </Button>
-              <Button
-                size="sm"
-                variant={addMode === "note" ? "default" : "outline"}
-                className="h-7 text-xs gap-1.5"
-                onClick={() => setAddMode(addMode === "note" ? null : "note")}
-                disabled={!itineraryId}
-              >
-                <StickyNote className="h-3 w-3" />Note
-              </Button>
-            </div>
-
-            {/* Add form panels */}
-            {addMode === "transfer" && (
-              <div className="mt-3">
-                <AddTransferForm vehicles={vehicles} onSave={addTransfer} onCancel={() => setAddMode(null)} pending={pending} />
+            {/* ── Main panel ── */}
+            <div className={cn(
+              "absolute inset-0 flex flex-col bg-background transition-transform duration-300 ease-in-out",
+              editPanel ? "-translate-x-full" : "translate-x-0",
+            )}>
+              {/* Header */}
+              <div className="flex items-center gap-3 px-5 py-4 border-b shrink-0">
+                <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                  <span className="text-sm font-black text-primary">{initialDay.day}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold leading-none">Day {initialDay.day}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                    {stopLabel ?? "Itinerary Builder"}
+                  </p>
+                </div>
+                <button type="button" onClick={onClose} className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors">
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-            )}
-            {addMode === "activity" && (
-              <div className="mt-3">
-                <AddActivityForm
-                  destinationId={destinationId}
-                  onSave={addActivity}
-                  onCancel={() => setAddMode(null)}
-                  pending={pending}
-                />
-              </div>
-            )}
-            {addMode === "note" && (
-              <div className="mt-3">
-                <AddNoteForm onSave={addNote} onCancel={() => setAddMode(null)} pending={pending} />
-              </div>
-            )}
-          </div>
 
-          {/* DnD Timeline */}
-          <div>
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-2">
-              Timeline {timeline.length > 0 && <span className="normal-case font-normal">· drag to reorder</span>}
-            </p>
-
-            {hasNoItems && stays.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 rounded-xl border border-dashed bg-muted/20">
-                <p className="text-xs text-muted-foreground">No items yet</p>
-                <p className="text-[10px] text-muted-foreground/60 mt-0.5">Add transfers, activities, or notes above</p>
+              {/* Day meta — shrink-0 */}
+              <div className="px-5 pt-4 pb-4 border-b shrink-0">
+                <div className="flex flex-col gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Title</Label>
+                    <Input value={title} onChange={(e) => setTitle(e.target.value)} className="h-9" placeholder={`Day ${initialDay.day}`} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Description</Label>
+                    <Input value={description} onChange={(e) => setDescription(e.target.value)} className="h-9" placeholder="Brief description of this day…" />
+                  </div>
+                </div>
               </div>
-            ) : (
-              <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-                <SortableContext items={dndIds} strategy={verticalListSortingStrategy}>
-                  <div className="space-y-2">
-                    {timeline.map((item) => (
-                      <SortableRow key={item.dndId} id={item.dndId}>
-                        {(dragHandleProps) => (
-                          <div className="flex items-start gap-2">
-                            <button
-                              type="button"
-                              className="mt-2.5 cursor-grab active:cursor-grabbing shrink-0 text-muted-foreground/30 hover:text-muted-foreground transition-colors"
-                              {...dragHandleProps}
-                              aria-label="Drag to reorder"
-                            >
-                              <GripVertical className="h-4 w-4" />
-                            </button>
-                            <div className="flex-1 min-w-0">
+
+              {/* Palette — shrink-0 */}
+              <div className="px-5 pt-4 pb-4 border-b shrink-0">
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold mb-3">Add Elements</p>
+                <div className="flex gap-2">
+                  <PaletteChip kind="transfer" disabled={!itineraryId} onClick={() => setEditPanel({ mode: "add", kind: "transfer" })} />
+                  <PaletteChip kind="stay" disabled={!itineraryId} onClick={() => setEditPanel({ mode: "stay" })} />
+                  <PaletteChip kind="activity" disabled={!itineraryId} onClick={() => setEditPanel({ mode: "add", kind: "activity" })} />
+                  <PaletteChip kind="note" disabled={!itineraryId} onClick={() => setEditPanel({ mode: "add", kind: "note" })} />
+                </div>
+                {!itineraryId && (
+                  <p className="text-[10px] text-muted-foreground/50 mt-2.5">Save the day title first to enable adding elements</p>
+                )}
+              </div>
+
+              {/* Timeline — fills remaining height with own scroll */}
+              <div className="flex-1 overflow-y-auto flex flex-col px-5 pt-4 pb-4">
+                <div className="flex items-center justify-between mb-3 shrink-0">
+                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Timeline</p>
+                  {timeline.length > 0 && (
+                    <span className="text-[10px] bg-muted px-2.5 py-1 rounded-full text-muted-foreground font-medium">
+                      {timeline.length} item{timeline.length !== 1 ? "s" : ""} · drag to reorder
+                    </span>
+                  )}
+                </div>
+
+                {/* Drop zone stretches to fill remaining space */}
+                <div className="flex-1">
+                  <TimelineDropZone isEmpty={isTimelineEmpty}>
+                    <SortableContext items={dndIds} strategy={verticalListSortingStrategy}>
+                      <div className="space-y-2">
+                        {timeline.map((item) => {
+                          const isActive = editPanel?.mode === "edit" && editPanel.dndId === item.dndId;
+                          return (
+                            <SortableRow key={item.dndId} id={item.dndId}>
                               {item.kind === "transfer" && (
-                                <TransferCard
-                                  item={item.data}
-                                  vehicles={vehicles}
-                                  editing={editingId === item.dndId}
-                                  pending={deletingId === item.dndId}
-                                  onEdit={() => setEditingId(editingId === item.dndId ? null : item.dndId)}
-                                  onSave={(data) => saveTransfer(item.data.id, data)}
-                                  onCancel={() => setEditingId(null)}
+                                <TimelineRowCard
+                                  kind="transfer" isActive={isActive}
+                                  onEdit={() => setEditPanel({ mode: "edit", dndId: item.dndId })}
                                   onDelete={() => deleteTransfer(item.data.id)}
-                                />
+                                  deletePending={deletingId === item.dndId}
+                                >
+                                  <p className="text-xs font-medium truncate">
+                                    {item.data.route ? `${item.data.route.pickup_name} → ${item.data.route.drop_name}` : "Route not set"}
+                                  </p>
+                                  <p className="text-[10px] text-muted-foreground/60 truncate">
+                                    {[
+                                      item.data.vehicle?.name,
+                                      item.data.route?.distance_km != null ? `${item.data.route.distance_km} km` : null,
+                                      item.data.sell_price != null ? `₹${item.data.sell_price.toLocaleString("en-IN")}` : null,
+                                    ].filter(Boolean).join(" · ") || "No details"}
+                                  </p>
+                                </TimelineRowCard>
                               )}
                               {item.kind === "activity" && (
-                                <ActivityCard
-                                  item={item.data}
-                                  editing={editingId === item.dndId}
-                                  pending={deletingId === item.dndId || pending}
-                                  onEdit={() => setEditingId(editingId === item.dndId ? null : item.dndId)}
-                                  onToggleOptional={(val) => toggleOptional(item.data.id, val)}
-                                  onChangeVariant={(variantId) => changeVariant(item.data.id, variantId)}
-                                  onCancel={() => setEditingId(null)}
+                                <TimelineRowCard
+                                  kind="activity" isActive={isActive}
+                                  onEdit={() => setEditPanel({ mode: "edit", dndId: item.dndId })}
                                   onDelete={() => deleteActivity(item.data.id)}
-                                />
+                                  deletePending={deletingId === item.dndId}
+                                >
+                                  <p className="text-xs font-medium flex items-center gap-1.5 flex-wrap">
+                                    {item.data.activity.name}
+                                    {item.data.is_optional && <Badge variant="outline" className="text-[9px] h-3.5 px-1 py-0">Optional</Badge>}
+                                  </p>
+                                  <p className="text-[10px] text-muted-foreground/60">
+                                    {[item.data.activity.category, item.data.activity.duration_hours != null ? `${item.data.activity.duration_hours}h` : null].filter(Boolean).join(" · ")}
+                                  </p>
+                                </TimelineRowCard>
                               )}
                               {item.kind === "note" && (
-                                <NoteCard
-                                  item={item.data}
-                                  editing={editingId === item.dndId}
-                                  pending={deletingId === item.dndId}
-                                  onEdit={() => setEditingId(editingId === item.dndId ? null : item.dndId)}
-                                  onSave={(data) => saveNote(item.data.id, data)}
-                                  onCancel={() => setEditingId(null)}
+                                <TimelineRowCard
+                                  kind="note" isActive={isActive}
+                                  onEdit={() => setEditPanel({ mode: "edit", dndId: item.dndId })}
                                   onDelete={() => deleteNote(item.data.id)}
-                                />
+                                  deletePending={deletingId === item.dndId}
+                                >
+                                  <p className="text-xs font-medium line-clamp-1">{item.data.message}</p>
+                                  <p className="text-[10px] text-muted-foreground/60 capitalize">{item.data.type} · {item.data.position}</p>
+                                </TimelineRowCard>
                               )}
                               {item.kind === "stay" && (
-                                <StayBlock
-                                  stays={item.stays}
-                                  stayCategories={stayCategories}
-                                  itineraryId={itineraryId}
-                                  stayBlockOrder={stayBlockOrder}
-                                  packageId={packageId}
-                                  destinationId={destinationId}
-                                  pending={pending}
-                                  onStaysChange={(updated) => {
-                                    setStays(updated);
-                                    onSaved({ ...currentDayData(), stays: updated });
-                                  }}
-                                />
+                                <TimelineRowCard
+                                  kind="stay" isActive={editPanel?.mode === "stay"}
+                                  onEdit={() => setEditPanel({ mode: "stay" })}
+                                  deletePending={false}
+                                >
+                                  <p className="text-xs font-medium">Hotel Stay</p>
+                                  <p className="text-[10px] text-muted-foreground/60">
+                                    {item.stays.length > 0
+                                      ? `${item.stays[0].room_pricing.hotel.name}${item.stays.length > 1 ? ` +${item.stays.length - 1} more` : ""} · ${item.stays.length}/${stayCategories.length} assigned`
+                                      : `${item.stays.length}/${stayCategories.length} assigned`}
+                                  </p>
+                                </TimelineRowCard>
                               )}
-                            </div>
-                          </div>
-                        )}
-                      </SortableRow>
-                    ))}
+                            </SortableRow>
+                          );
+                        })}
+                      </div>
+                    </SortableContext>
+                  </TimelineDropZone>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="border-t px-5 py-4 shrink-0 flex items-center justify-end bg-background/95 backdrop-blur-sm">
+                <Button onClick={saveMeta} disabled={savingMeta || !title.trim()} className="gap-2">
+                  {savingMeta ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Save Day
+                </Button>
+              </div>
+            </div>
+
+            {/* ── Edit panel (slides in from right) ── */}
+            <div className={cn(
+              "absolute inset-0 flex flex-col bg-background transition-transform duration-300 ease-in-out",
+              editPanel ? "translate-x-0" : "translate-x-full",
+            )}>
+              {/* Edit panel header */}
+              <div className="flex items-center gap-3 px-5 py-4 border-b shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setEditPanel(null)}
+                  className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors shrink-0"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+                {panelKind && (
+                  <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center shrink-0", KIND_CONFIG[panelKind].chipBg)}>
+                    {(() => { const { Icon, color } = KIND_CONFIG[panelKind]; return <Icon className={cn("h-4 w-4", color)} />; })()}
                   </div>
-                </SortableContext>
-              </DndContext>
-            )}
+                )}
+                <p className="text-sm font-bold flex-1">{panelTitle}</p>
+              </div>
+
+              {/* Edit panel body */}
+              <div className="flex-1 overflow-y-auto px-5 py-5">
+                {/* Add forms */}
+                {editPanel?.mode === "add" && editPanel.kind === "transfer" && (
+                  <AddTransferForm vehicles={vehicles} pending={pending} onSave={addTransfer} onCancel={() => setEditPanel(null)} />
+                )}
+                {editPanel?.mode === "add" && editPanel.kind === "activity" && (
+                  <AddActivityForm destinationId={destinationId} pending={pending} onSave={addActivity} onCancel={() => setEditPanel(null)} />
+                )}
+                {editPanel?.mode === "add" && editPanel.kind === "note" && (
+                  <AddNoteForm pending={pending} onSave={addNote} onCancel={() => setEditPanel(null)} />
+                )}
+
+                {/* Stay panel */}
+                {editPanel?.mode === "stay" && (
+                  <StayBlock
+                    stays={stays} stayCategories={stayCategories}
+                    itineraryId={itineraryId} stayBlockOrder={stayBlockOrder}
+                    packageId={packageId} destinationId={destinationId}
+                    pending={pending}
+                    onStaysChange={(updated) => {
+                      setStays(updated);
+                      onSaved({ ...currentDayData(), stays: updated });
+                    }}
+                  />
+                )}
+
+                {/* Edit forms */}
+                {editPanel?.mode === "edit" && editPanelItem?.kind === "transfer" && (
+                  <TransferEditForm
+                    item={editPanelItem.data} vehicles={vehicles} pending={pending}
+                    onSave={(data) => saveTransfer(editPanelItem.data.id, data)}
+                    onCancel={() => setEditPanel(null)}
+                    onDelete={() => deleteTransfer(editPanelItem.data.id)}
+                  />
+                )}
+                {editPanel?.mode === "edit" && editPanelItem?.kind === "activity" && (
+                  <ActivityEditForm
+                    item={editPanelItem.data} pending={pending}
+                    onToggleOptional={(val) => toggleOptional(editPanelItem.data.id, val)}
+                    onChangeVariant={(variantId) => changeVariant(editPanelItem.data.id, variantId)}
+                    onCancel={() => setEditPanel(null)}
+                    onDelete={() => deleteActivity(editPanelItem.data.id)}
+                  />
+                )}
+                {editPanel?.mode === "edit" && editPanelItem?.kind === "note" && (
+                  <NoteEditForm
+                    item={editPanelItem.data} pending={pending}
+                    onSave={(data) => saveNote(editPanelItem.data.id, data)}
+                    onCancel={() => setEditPanel(null)}
+                    onDelete={() => deleteNote(editPanelItem.data.id)}
+                  />
+                )}
+              </div>
+            </div>
+
           </div>
-        </div>
+
+          {/* DragOverlay — floating chip while dragging from palette */}
+          <DragOverlay>
+            {activeDragKind && activeDragKind in KIND_CONFIG && (() => {
+              const k = activeDragKind as keyof typeof KIND_CONFIG;
+              const { Icon, color, chipBg, label } = KIND_CONFIG[k];
+              return (
+                <div className={cn("flex items-center gap-2 px-4 py-2.5 rounded-xl border shadow-xl cursor-grabbing", chipBg)}>
+                  <Icon className={cn("h-4 w-4", color)} />
+                  <span className={cn("text-xs font-bold", color)}>{label}</span>
+                </div>
+              );
+            })()}
+          </DragOverlay>
+
+        </DndContext>
       </SheetContent>
     </Sheet>
   );

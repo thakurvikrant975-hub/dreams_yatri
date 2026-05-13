@@ -159,8 +159,15 @@ export default async function PackagePage({
         : { label: pageData.destination.name, slug: pageData.destination.slug };
 
     return (
-        
-        <div>
+        <PackageBookingProvider
+            packageId={pageData.id}
+            durationId={pageData.currentDuration.id}
+            routeId={pageData.selectedRoute!.id}
+            stayCategoryId={pageData.selectedStay!.id}
+            packageName={pageData.title}
+        >
+            <TravelerInputBar startingFrom={startingFrom} />
+
             <PackageHero
                 title={pageData.title}
                 duration={`${pageData.currentDuration.days}D/${pageData.currentDuration.nights}N`}
@@ -174,14 +181,6 @@ export default async function PackagePage({
                 region={region}
                 images={image_gallery}
             />
-
-            <PackageBookingProvider
-                packageId={pageData.id}
-                durationId={pageData.currentDuration.id}
-                routeId={pageData.selectedRoute!.id}
-                stayCategoryId={pageData.selectedStay!.id}
-                packageName={pageData.title}
-            >
 
                 <PackageTab
                     pricing={<PricingCard />}
@@ -329,6 +328,5 @@ export default async function PackagePage({
                         }
                     />
             </PackageBookingProvider>
-        </div>
     );
 }

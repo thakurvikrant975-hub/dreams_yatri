@@ -90,35 +90,35 @@
 
 
 
-    
+
     /* Dashboard tokens exposed to Tailwind */
-    --color-dashboard-base-100:     oklch(100% 0 0);
-    --color-dashboard-base-200:     oklch(95.5% 0.01 265);
-    --color-dashboard-base-300:     oklch(90% 0.015 265);
+    --color-dashboard-base-100: oklch(100% 0 0);
+    --color-dashboard-base-200: oklch(95.5% 0.01 265);
+    --color-dashboard-base-300: oklch(90% 0.015 265);
     --color-dashboard-base-content: oklch(20% 0.018 270);
 
-    --color-dashboard-primary:         oklch(52% 0.268 278);
+    --color-dashboard-primary: oklch(52% 0.268 278);
     --color-dashboard-primary-content: oklch(98% 0.004 278);
 
-    --color-dashboard-secondary:         oklch(56% 0.16 248);
+    --color-dashboard-secondary: oklch(56% 0.16 248);
     --color-dashboard-secondary-content: oklch(98% 0.003 248);
 
-    --color-dashboard-accent:         oklch(68% 0.18 194);
+    --color-dashboard-accent: oklch(68% 0.18 194);
     --color-dashboard-accent-content: oklch(100% 0 0);
 
-    --color-dashboard-neutral:         oklch(25% 0.045 265);
+    --color-dashboard-neutral: oklch(25% 0.045 265);
     --color-dashboard-neutral-content: oklch(97% 0.003 265);
 
-    --color-dashboard-info:         oklch(88.127% 0.085 214.515);
+    --color-dashboard-info: oklch(88.127% 0.085 214.515);
     --color-dashboard-info-content: oklch(0% 0 0);
 
-    --color-dashboard-success:         oklch(60% 0.18 155);
+    --color-dashboard-success: oklch(60% 0.18 155);
     --color-dashboard-success-content: oklch(98% 0.003 155);
 
-    --color-dashboard-warning:         oklch(76% 0.17 63);
+    --color-dashboard-warning: oklch(76% 0.17 63);
     --color-dashboard-warning-content: oklch(20% 0.045 63);
 
-    --color-dashboard-error:         oklch(57% 0.21 22);
+    --color-dashboard-error: oklch(57% 0.21 22);
     --color-dashboard-error-content: oklch(98% 0.003 22);
 
 
@@ -593,32 +593,38 @@ body {
 /* timeline classes here*/
 
 .tl-item .tl-dot {
-  @apply bg-gray-300 transition-all duration-500 ease-in-out;
+    @apply bg-gray-300 transition-all duration-500 ease-in-out;
 }
+
 .tl-item.is-visible .tl-dot {
-  @apply bg-red-500 shadow-[0_0_0_4px_#fee2e2];
+    @apply bg-red-500 shadow-[0_0_0_4px_#fee2e2];
 }
+
 .tl-item .tl-year {
-  @apply text-gray-400 transition-colors duration-500;
+    @apply text-gray-400 transition-colors duration-500;
 }
+
 .tl-item.is-visible .tl-year {
-  @apply text-red-400;
+    @apply text-red-400;
 }
+
 .tl-item .tl-card {
-  @apply opacity-0 translate-y-3 transition-all duration-500 ease-out;
+    @apply opacity-0 translate-y-3 transition-all duration-500 ease-out;
 }
+
 .tl-item.is-visible .tl-card {
-  @apply opacity-100 translate-y-0;
+    @apply opacity-100 translate-y-0;
 }
 
 /* Hide scrollbar but allow scrolling */
 .scrollbar-none {
-  -ms-overflow-style: none;  /* IE & Edge */
-  scrollbar-width: none;     /* Firefox */
+    -ms-overflow-style: none;
+    /* IE & Edge */
+    scrollbar-width: none;
+    /* Firefox */
 }
+
 .scrollbar-none::-webkit-scrollbar {
-  display: none;             /* Chrome, Safari */
+    display: none;
+    /* Chrome, Safari */
 }
-
-
-
