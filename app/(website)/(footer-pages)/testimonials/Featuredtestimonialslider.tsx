@@ -152,7 +152,7 @@ export function FeaturedTestimonialSlider({
   const [dir, setDir]       = useState<"next" | "prev">("next");
   const [animating, setAnim] = useState(false);
   const [paused, setPaused]  = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const go = useCallback((next: number, direction: "next" | "prev") => {
     if (animating) return;

@@ -14,7 +14,7 @@ import { Gallery } from "./Gallery";
 import { gallery } from "./data";
 import { SectionHeading } from "../components/SectionHeading";
 import { WhatWeBelieve } from "./Whatwebelieve";
-import TestimonialSlider from "./TestimonialSlider";
+import { TestimonialSlider } from "./TestimonialSlider";
 import { OurStoryHero } from "./Ourstoryhero";
 import Link from "next/link";
 import { TeamSection } from "./TeamSection";
@@ -22,8 +22,8 @@ import OurJourneyTimeline from "./TimelineSection";
 import Card from "@/app/components/ui/Card";
 import { OriginSection } from "./OriginSection";
 
-const useInView = (threshold = 0.12) => {
-  const ref = useRef(null);
+const useInView = (threshold = 0.12): [React.RefObject<HTMLDivElement | null>, boolean] => {
+  const ref = useRef<HTMLDivElement>(null);
   const [inView, setInView] = useState(false);
   useEffect(() => {
     const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setInView(true); }, { threshold });

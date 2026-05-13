@@ -160,9 +160,9 @@ function TimelineCard({
   align,
 }: {
   item: TimelineItem;
-  t: typeof TOKENS.light;
+  t: (typeof TOKENS)[keyof typeof TOKENS];
   align: "left" | "right";
-}) {
+}){
   const [hovered, setHovered] = useState(false);
   const textAlign = align === "left" ? "right" : "left";
 
@@ -322,7 +322,7 @@ function TimelineCard({
 // Centre dot
 // ─────────────────────────────────────────────────────────────────────────────
 
-function CentreDot({ Icon, t }: { Icon?: ElementType; t: typeof TOKENS.light }) {
+function CentreDot({ Icon, t }: { Icon?: ElementType; t: (typeof TOKENS)[keyof typeof TOKENS] }) {
   return (
     <div
       style={{

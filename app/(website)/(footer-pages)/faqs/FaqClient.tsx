@@ -399,7 +399,7 @@ export default function FAQPage() {
                   Prefer messaging? Drop us a WhatsApp message anytime. Share your query, get a quote, or ask a quick question — we typically reply within minutes.
                 </p>
                 <a
-                  href={contact.whatsapp}
+                  href={contact.whatsapp.phoneUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center justify-center gap-2 w-full py-3 rounded-xl font-bold text-sm transition-all no-underline mt-auto"

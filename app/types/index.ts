@@ -28,6 +28,8 @@ export type {
     ImageFolder,
 } from "./api.types";
 
+export type {CurrentMember} from "@/app/types/members"
+
 // ── Zod schemas (used in validate() calls in route handlers) ──────────────────
 export {
     paginationSchema,

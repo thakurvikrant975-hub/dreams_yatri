@@ -18,7 +18,7 @@ export default function SidebarWrapper({ pricing, coupon, enquiry }: Props) {
   const originalRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const dupRef      = useRef<HTMLDivElement>(null);
-  const timerRef    = useRef<ReturnType<typeof setTimeout>>();
+const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const [floated, setFloated] = useState(false);
   const [pos, setPos]         = useState<FixedPos | null>(null);

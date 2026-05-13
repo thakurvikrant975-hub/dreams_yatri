@@ -360,8 +360,7 @@ export function TestimonialSlider({
   const max = Math.max(0, items.length - pv);
   const [idx, setIdx] = useState(0);
   const [locked, setLocked] = useState(false);
-  const autoRef = useRef<ReturnType<typeof setInterval>>();
-
+  const autoRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const clamp = (n: number) => Math.max(0, Math.min(max, n));
 
   const slide = useCallback(

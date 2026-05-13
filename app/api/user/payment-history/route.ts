@@ -1,19 +1,19 @@
 // app/api/user/payment-history/route.ts
 
-import { NextRequest }          from "next/server";
-import { z }                    from "zod/v4";
-import { db }                   from "@/app/lib/db";
-import { ApiResponse }          from "@/app/lib/api-response";
-import { handleApiError }       from "@/app/lib/api-error";
+import { NextRequest } from "next/server";
+import { z } from "zod/v4";
+import { db } from "@/app/lib/db";
+import { ApiResponse } from "@/app/lib/api-response";
+import { handleApiError } from "@/app/lib/api-error";
 import { getAuthenticatedUser } from "@/app/lib/functions/getAuthenticatedUser";
-import { PaymentStatus }        from "@/app/generated/prisma";
+import { PaymentStatus } from "@/app/generated/prisma";
 
 // ─── Zod Schema ───────────────────────────────────────────────────────────────
 
 const querySchema = z.object({
   status: z.enum(Object.values(PaymentStatus) as [string, ...string[]]).optional(),
-  page:   z.coerce.number().int().min(1).default(1),
-  limit:  z.coerce.number().int().min(1).max(100).default(10),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(10),
 });
 
 // ─── GET ──────────────────────────────────────────────────────────────────────
@@ -28,8 +28,8 @@ export async function GET(req: NextRequest) {
 
     const parsed = querySchema.safeParse({
       status: searchParams.get("status") ?? undefined,
-      page:   searchParams.get("page")   ?? 1,
-      limit:  searchParams.get("limit")  ?? 10,
+      page: searchParams.get("page") ?? 1,
+      limit: searchParams.get("limit") ?? 10,
     });
 
     if (!parsed.success) {
@@ -49,27 +49,27 @@ export async function GET(req: NextRequest) {
       db.payment.findMany({
         where,
         skip,
-        take:    limit,
+        take: limit,
         orderBy: { createdAt: "desc" },
         select: {
-          id:               true,
-          amount:           true,
-          currency:         true,
-          status:           true,
-          gateway:          true,
-          method:           true,
-          gatewayOrderId:   true,
+          id: true,
+          amount: true,
+          currency: true,
+          status: true,
+          gateway: true,
+          method: true,
+          gatewayOrderId: true,
           gatewayPaymentId: true,
-          refundAmount:     true,
-          refundedAt:       true,
-          failureReason:    true,
-          paidAt:           true,
-          createdAt:        true,
+          refundAmount: true,
+          refundedAt: true,
+          failureReason: true,
+          paidAt: true,
+          createdAt: true,
           booking: {
             select: {
-              id:            true,
+              id: true,
               bookingNumber: true,
-              startDate:     true,
+              startDate: true,
               destination: {
                 select: { name: true },
               },
@@ -79,16 +79,16 @@ export async function GET(req: NextRequest) {
       }),
       db.payment.count({ where }),
       db.payment.aggregate({
-        where:  { userId: sessionUser.id, status: "SUCCESS" },
-        _sum:   { amount: true },
+        where: { userId: sessionUser.id, status: PaymentStatus.FULLY_PAID },
+        _sum: { amount: true },
         _count: { id: true },
       }),
     ]);
 
     return ApiResponse.ok(payments, {
       stats: {
-        totalPaid:       stats._sum.amount ?? 0,
-        totalSuccessful: stats._count.id   ?? 0,
+        totalPaid: stats._sum.amount ?? 0,
+        totalSuccessful: stats._count.id ?? 0,
       },
       pagination: {
         total,

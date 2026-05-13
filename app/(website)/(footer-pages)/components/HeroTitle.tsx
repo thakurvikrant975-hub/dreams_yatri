@@ -1,11 +1,18 @@
 "use client";
 
+interface HeroTitleProps {
+    children: React.ReactNode;
+    highlight?: string;
+    paragraph: string;
+    highlightColor?: string;
+}
+
 export default function HeroTitle({
     children,
     highlight,
     paragraph,
     highlightColor = "#EF4444"
-}) {
+}: HeroTitleProps) {
     return (
         <>
             <h1

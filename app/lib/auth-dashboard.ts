@@ -47,51 +47,50 @@ export const {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
+async authorize(credentials) {
+  const parsed = LoginSchema.safeParse(credentials);
+  if (!parsed.success) return null;
 
-      async authorize(credentials) {
-        const parsed = LoginSchema.safeParse(credentials);
-        if (!parsed.success) return null;
+  const { email, password } = parsed.data;
 
-        const { email, password } = parsed.data;
-
-        const member = await db.teamMember.findUnique({
-          where: { email },
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            password: true,
-            isActive: true,
-            departmentId: true,
-            teamRole: {
-              select: {
-                name: true,
-                permissions: true,
-              },
-            },
-          },
-        });
-
-        if (!member || !member.password) return null;
-        if (!member.isActive) return null;
-
-        const valid = await compare(password, member.password);
-        if (!valid) return null;
-
-        db.teamMember.update({
-          where: { id: member.id },
-          data: { lastLoginAt: new Date() },
-        }).catch(console.error);
-
-        return {
-          id: member.id,
-          name: member.name,
-          email: member.email,
-          role: member.teamRole?.name ?? null,
-          permissions: member.teamRole?.permissions ?? [],
-          departmentId: member.departmentId ?? null,
-        };
+  const member = await db.teamMember.findUnique({
+    where: { email },
+    select: {
+      id:           true,
+      name:         true,
+      email:        true,
+      password:     true,
+      isActive:     true,
+      departmentId: true,
+      teamRole: {
+        select: {
+          name:        true,
+          permissions: true,
+        },
       },
+    },
+  });
+
+  if (!member || !member.password) return null;
+  if (!member.isActive) return null;
+
+  const valid = await compare(password, member.password);
+  if (!valid) return null;
+
+  db.teamMember.update({
+    where: { id: member.id },
+    data:  { lastLoginAt: new Date() },
+  }).catch(console.error);
+
+  return {
+    id:           member.id,
+    name:         member.name,
+    email:        member.email,
+    role:         member.teamRole?.name ?? "",   // ← null → "" to satisfy NextAuth User type
+    permissions:  member.teamRole?.permissions ?? [],
+    departmentId: member.departmentId ?? null,
+  } as any;  // ← cast to any so custom fields don't conflict with NextAuth's User
+},
     }),
   ],
 
@@ -106,12 +105,12 @@ export const {
       return token;
     },
 
-    async session({ session, token }) {
-      session.user.id = token.id as string;
-      session.user.role = token.role as string | null;
-      session.user.permissions = token.permissions as string[];
-      session.user.departmentId = token.departmentId as string | null;
-      return session;
-    },
+async session({ session, token }) {
+  session.user.id           = token.id as string;
+  (session.user as any).role         = token.role         ?? null;
+  (session.user as any).permissions  = token.permissions  ?? [];
+  (session.user as any).departmentId = token.departmentId ?? null;
+  return session;
+},
   },
 });

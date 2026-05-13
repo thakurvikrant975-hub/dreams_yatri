@@ -4,9 +4,10 @@ import { SalesDashboard } from "./components/dashboard/Salesdashboard";
 import { MarketingDashboard } from "./components/dashboard/Marketingdashboard";
 import { DefaultDashboard } from "./components/dashboard/Defaultdashboard";
 import DashboardHeader from "./components/dashboard/DashboardHeader";
-import type { Member } from "@/types"; // adjust to your actual type
+import { CurrentMember } from "@/app/types/members";
 
-type DashboardComponent = React.ComponentType<{ member: Member }>;
+
+type DashboardComponent = React.ComponentType<{ member: CurrentMember }>;
 
 const ROLE_DASHBOARD_MAP: Record<string, DashboardComponent> = {
   sales: SalesDashboard,

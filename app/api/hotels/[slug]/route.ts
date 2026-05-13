@@ -1,5 +1,4 @@
 // app/api/hotels/[slug]/route.ts
-// GET /api/hotels/:slug — full hotel detail for the detail page
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/app/lib/db";
@@ -26,7 +25,7 @@ export async function GET(
         longitude:      true,
         star_rating:    true,
         category:       true,
-        amenities:      true,
+        stay_type:      true,
         check_in_time:  true,
         check_out_time: true,
         destination: {
@@ -42,14 +41,41 @@ export async function GET(
           orderBy: { sort_order: "asc" },
           select: {
             id:                true,
-            room_type:         true,
-            description:       true,
-            occupancy:         true,
+            room_id:           true,
+            plan_name:         true,
+            meal_type_id:      true,
+            diet_type_id:      true,
             price_per_night:   true,
             original_price:    true,
-            season:            true,
-            amenities:         true,
+            extra_bed_rate:    true,
             margin_percentage: true,
+            gst_percentage:    true,
+            valid_from:        true,
+            valid_to:          true,
+            sort_order:        true,
+            room: {
+              select: {
+                id:            true,
+                name:          true,
+                slug:          true,
+                area_sqft:     true,
+                bed_type:      true,
+                view_type:     true,
+                max_occupancy: true,
+                amenities:     true,
+                description:   true,
+              },
+            },
+            meal_type:  { select: { id: true, name: true } },
+            diet_type:  { select: { id: true, name: true } },
+            occupancy_prices: {
+              select: {
+                id:             true,
+                occupancy:      true,
+                price_per_night: true,
+                original_price: true,
+              },
+            },
           },
         },
         image_categories: {
@@ -79,7 +105,6 @@ export async function GET(
       return NextResponse.json({ error: "Hotel not found" }, { status: 404 });
     }
 
-    // Serialize Decimal fields
     const data = {
       ...hotel,
       latitude:  hotel.latitude  ? Number(hotel.latitude)  : null,
@@ -87,8 +112,15 @@ export async function GET(
       room_pricing: hotel.room_pricing.map(r => ({
         ...r,
         price_per_night:   Number(r.price_per_night),
-        original_price:    r.original_price ? Number(r.original_price) : null,
+        original_price:    r.original_price  ? Number(r.original_price)  : null,
+        extra_bed_rate:    r.extra_bed_rate  ? Number(r.extra_bed_rate)  : null,
         margin_percentage: Number(r.margin_percentage),
+        gst_percentage:    Number(r.gst_percentage),
+        occupancy_prices:  r.occupancy_prices.map(o => ({
+          ...o,
+          price_per_night: Number(o.price_per_night),
+          original_price:  o.original_price ? Number(o.original_price) : null,
+        })),
       })),
     };
 

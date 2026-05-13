@@ -5,6 +5,17 @@ import { Tag } from '@phosphor-icons/react';
 import Card from '@/app/components/ui/Card';
 import { Text, Heading } from '@/app/components/ui/Typography';
 
+type Coupon = {
+  code: string;
+  discount: number;
+  description?: string;
+  applied?: boolean;
+};
+
+type CoupenCardProps = {
+  coupons?: Coupon[];
+};
+
 const CoupenCard: React.FC<CoupenCardProps> = ({
     coupons = [],
 }) => {

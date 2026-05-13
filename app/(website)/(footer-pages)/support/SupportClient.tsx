@@ -291,7 +291,7 @@ export default function CustomerSupportPage() {
                   onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,0.07)")}>
                   <Shield size={15} /> Call Support
                 </a>
-                <a href={contact.whatsapp.url}
+                <a href={contact.whatsapp.phoneUrl}
                   target="_blank" rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 font-bold text-sm px-5 py-3 rounded-xl no-underline transition-all"
                   style={{ background: "rgba(37,211,102,0.15)", border: "1.5px solid rgba(37,211,102,0.3)", color: "#25D366", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
@@ -408,7 +408,7 @@ export default function CustomerSupportPage() {
               icon={<MessageCircle size={22} />} accent="#25D366" label="WhatsApp" tag="Fastest Response"
               title="Chat Instantly" desc="Drop a message anytime. Share documents, photos, and queries — we reply in minutes."
               value={contact.whatsapp.phone} cta="Open WhatsApp"
-              href={contact.whatsapp.url}
+              href={contact.whatsapp.phoneUrl}
               hours="Typically under 5 minutes" delay={160}
             />
             <ChannelCard

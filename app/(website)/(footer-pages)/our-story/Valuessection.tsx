@@ -71,7 +71,7 @@ export function ValuesSection() {
 ───────────────────────────────────────────────────────────────────────────── */
 
 interface Value {
-  icon: React.ReactNode;
+  icon: React.ElementType;
   title: string;
   body: string;
   stat: string;
