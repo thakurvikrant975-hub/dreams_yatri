@@ -61,7 +61,7 @@ async function PageContent({ searchParams }: PageProps) {
     departments: new Set(allMembers.map((m) => m.department?.id).filter(Boolean)).size,
   };
 
-  return (
+  return ( 
     <>
       <PageHeader
         title="Team Members"
