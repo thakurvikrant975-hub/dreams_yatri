@@ -182,6 +182,7 @@ export default async function PackagePage({
                 stayCategoryId={pageData.selectedStay!.id}
                 packageName={pageData.title}
             >
+                <TravelerInputBar startingFrom={startingFrom} />
 
                 <PackageTab
                     pricing={<PricingCard />}
