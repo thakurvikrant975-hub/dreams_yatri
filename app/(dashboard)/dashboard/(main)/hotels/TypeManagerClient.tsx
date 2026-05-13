@@ -160,7 +160,7 @@ export function TypeManagerClient({
           ) : (
             <div
               key={item.id}
-              className="flex items-center justify-between rounded-lg px-3 py-2 hover:bg-muted/50 group transition-colors"
+              className="flex items-center justify-between rounded-lg px-3 bg-dashboard-base-200 py-2 hover:bg-muted/50 group transition-colors"
             >
               <span className="text-sm font-medium">{item.name}</span>
               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -254,8 +254,8 @@ export function TypeManagerClient({
             <Button
               type="button"
               variant="outline"
-              size="sm"
-              className="border-dashed w-full"
+              size="lg"
+              className="border-dashed w-full bg-dashboard-primary hover:bg-dashboard-primary text-dashboard-base-100 hover:text-dashboard-base-100 py-6"
               onClick={() => setAdding(true)}
             >
               <Plus className="mr-1.5 h-3.5 w-3.5" /> Add {label.replace(" Types", " Type")}
