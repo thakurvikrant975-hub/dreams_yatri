@@ -314,10 +314,6 @@ export default function PackageBuilderClientPage() {
                 title="Package Builder"
                 description="Queries pending custom package creation"
                 icon={Package}
-                actions={<Button variant="outline" className="rounded-md bg-dashboard-primary text-dashboard-base-100 px-4 hover:bg-dashboard-primary hover:scale-105 duration-300 hover:text-dashboard-base-100" size="lg" onClick={load} disabled={isPending}>
-                    <RefreshCw size={14} className={isPending ? "animate-spin" : ""} />
-                    Refresh
-                </Button>}
             />
                 
             <StatGrid cols={3}>
