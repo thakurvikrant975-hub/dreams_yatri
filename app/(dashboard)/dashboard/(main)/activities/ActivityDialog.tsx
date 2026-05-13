@@ -5,12 +5,12 @@ import {
   MapPin, Tag, Search, Plus, Pencil,
   ImageIcon, Star, Trash2, Loader2,
 } from "lucide-react";
-import { Button }   from "../components/ui/button";
-import { Input }    from "../components/ui/input";
-import { Label }    from "../components/ui/label";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
-import { Switch }   from "../components/ui/switch";
-import { Badge }    from "../components/ui/badge";
+import { Switch } from "../components/ui/switch";
+import { Badge } from "../components/ui/badge";
 import {
   Select, SelectContent, SelectItem,
   SelectTrigger, SelectValue,
@@ -49,7 +49,7 @@ type Destination = { id: number; name: string; region: { name: string } };
 // ── Constants ─────────────────────────────────────────────────────────────
 
 export const DIFFICULTIES = ["Easy", "Moderate", "Challenging", "Difficult", "Expert"];
-export const CATEGORIES   = [
+export const CATEGORIES = [
   "Adventure", "Cultural", "Wildlife", "Water Sports",
   "Trekking", "Sightseeing", "Food & Culinary",
   "Shopping", "Spiritual", "Photography", "Other",
@@ -62,13 +62,13 @@ const BASE = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
 function makeSteps(isEdit: boolean): Step[] {
   return [
     {
-      id:          "basic",
-      title:       "Basic Info",
+      id: "basic",
+      title: "Basic Info",
       description: "Name, destination and category",
-      icon:        <MapPin className="h-4 w-4" />,
+      icon: <MapPin className="h-4 w-4" />,
       validate: (data) => {
-        if (!data.name)           return "Activity name is required";
-        if (!data.slug)           return "Slug is required";
+        if (!data.name) return "Activity name is required";
+        if (!data.slug) return "Slug is required";
         if (!/^[a-z0-9-]+$/.test(data.slug as string))
           return "Slug: only lowercase, numbers and hyphens";
         if (!data.destination_id) return "Please select a destination";
@@ -76,24 +76,24 @@ function makeSteps(isEdit: boolean): Step[] {
       },
     },
     {
-      id:          "details",
-      title:       "Details",
+      id: "details",
+      title: "Details",
       description: "Description and settings",
-      icon:        <Tag className="h-4 w-4" />,
+      icon: <Tag className="h-4 w-4" />,
     },
     {
-      id:          "seo",
-      title:       "SEO",
+      id: "seo",
+      title: "SEO",
       description: "Meta title and description",
-      icon:        <Search className="h-4 w-4" />,
-      optional:    true,
+      icon: <Search className="h-4 w-4" />,
+      optional: true,
     },
     {
-      id:          "images",
-      title:       "Images",
+      id: "images",
+      title: "Images",
       description: isEdit ? "Manage activity photos" : "Upload activity photos",
-      icon:        <ImageIcon className="h-4 w-4" />,
-      optional:    true,
+      icon: <ImageIcon className="h-4 w-4" />,
+      optional: true,
     },
   ];
 }
@@ -106,35 +106,35 @@ function buildInitialData(
   const location: LocationResult | null =
     activity.latitude != null && activity.longitude != null
       ? {
-          place_name: `${activity.latitude.toFixed(5)}, ${activity.longitude.toFixed(5)}`,
-          place_id: "",
-          address: `${activity.latitude.toFixed(5)}, ${activity.longitude.toFixed(5)}`,
-          latitude: activity.latitude,
-          longitude: activity.longitude,
-        }
+        place_name: `${activity.latitude.toFixed(5)}, ${activity.longitude.toFixed(5)}`,
+        place_id: "",
+        address: `${activity.latitude.toFixed(5)}, ${activity.longitude.toFixed(5)}`,
+        latitude: activity.latitude,
+        longitude: activity.longitude,
+      }
       : null;
   return {
     basic: {
-      name:           activity.name,
-      slug:           activity.slug,
+      name: activity.name,
+      slug: activity.slug,
       destination_id: String(activity.destination.id),
-      category:       activity.category       ?? "",
-      difficulty:     activity.difficulty     ?? "",
+      category: activity.category ?? "",
+      difficulty: activity.difficulty ?? "",
       duration_hours: activity.duration_hours != null ? String(activity.duration_hours) : "",
-      is_active:      activity.is_active,
+      is_active: activity.is_active,
       location,
     },
     details: { description: activity.description ?? "" },
-    seo:     { meta_title: activity.meta_title ?? "", meta_desc: activity.meta_desc ?? "" },
-    images:  {},
+    seo: { meta_title: activity.meta_title ?? "", meta_desc: activity.meta_desc ?? "" },
+    images: {},
   };
 }
 
 const EMPTY_DATA: Record<string, Record<string, unknown>> = {
-  basic:   { name: "", slug: "", destination_id: "", category: "", difficulty: "", duration_hours: "", is_active: true, location: null },
+  basic: { name: "", slug: "", destination_id: "", category: "", difficulty: "", duration_hours: "", is_active: true, location: null },
   details: { description: "" },
-  seo:     { meta_title: "", meta_desc: "" },
-  images:  {},
+  seo: { meta_title: "", meta_desc: "" },
+  images: {},
 };
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -146,21 +146,21 @@ function BasicStep({
   isEdit,
 }: {
   destinations: Destination[];
-  isEdit:       boolean;
+  isEdit: boolean;
 }) {
   const { stepData, setStepData } = useMultiStep();
-  const data           = stepData["basic"] ?? {};
-  const name           = (data.name           as string)         ?? "";
-  const slug           = (data.slug           as string)         ?? "";
-  const destination_id = (data.destination_id as string)         ?? "";
-  const category       = (data.category       as string)         ?? "";
-  const difficulty     = (data.difficulty     as string)         ?? "";
-  const duration_hours = (data.duration_hours as string)         ?? "";
-  const is_active      = (data.is_active      as boolean)        ?? true;
-  const location       = (data.location       as LocationResult | null) ?? null;
+  const data = stepData["basic"] ?? {};
+  const name = (data.name as string) ?? "";
+  const slug = (data.slug as string) ?? "";
+  const destination_id = (data.destination_id as string) ?? "";
+  const category = (data.category as string) ?? "";
+  const difficulty = (data.difficulty as string) ?? "";
+  const duration_hours = (data.duration_hours as string) ?? "";
+  const is_active = (data.is_active as boolean) ?? true;
+  const location = (data.location as LocationResult | null) ?? null;
 
   function handleNameChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const val     = e.target.value;
+    const val = e.target.value;
     const newSlug = isEdit ? slug : val
       .toLowerCase()
       .replace(/[^a-z0-9\s-]/g, "")
@@ -277,7 +277,7 @@ function BasicStep({
 
 function DetailsStep() {
   const { stepData, setStepData } = useMultiStep();
-  const data        = stepData["details"] ?? {};
+  const data = stepData["details"] ?? {};
   const description = (data.description as string) ?? "";
 
   return (
@@ -301,9 +301,9 @@ function DetailsStep() {
 
 function SeoStep() {
   const { stepData, setStepData } = useMultiStep();
-  const data       = stepData["seo"]  ?? {};
+  const data = stepData["seo"] ?? {};
   const meta_title = (data.meta_title as string) ?? "";
-  const meta_desc  = (data.meta_desc  as string) ?? "";
+  const meta_desc = (data.meta_desc as string) ?? "";
 
   return (
     <div className="space-y-4">
@@ -357,7 +357,7 @@ function ImagesCreateStep({
   picks,
   onChange,
 }: {
-  picks:    PickedImage[];
+  picks: PickedImage[];
   onChange: (picks: PickedImage[]) => void;
 }) {
   return (
@@ -473,8 +473,8 @@ function ImageThumbEditable({
 
 // Edit mode — manage existing + upload new
 function ImagesEditStep({ activity_id, initialImages }: { activity_id: number; initialImages: ActivityImage[] }) {
-  const [images,    setImages]    = useState<ActivityImage[]>(initialImages);
-  const [newPicks,  setNewPicks]  = useState<PickedImage[]>([]);
+  const [images, setImages] = useState<ActivityImage[]>(initialImages);
+  const [newPicks, setNewPicks] = useState<PickedImage[]>([]);
   const [isPending, startTransition] = useTransition();
 
   function handleDelete(img: ActivityImage) {
@@ -514,12 +514,12 @@ function ImagesEditStep({ activity_id, initialImages }: { activity_id: number; i
         toast.success(r.message);
         setNewPicks([]);
         const added: ActivityImage[] = uploaded.map((p, i) => ({
-          id:         Date.now() + i,
-          url:        p.key!,
-          thumbnail:  p.key ?? null,
+          id: Date.now() + i,
+          url: p.key!,
+          thumbnail: p.key ?? null,
           is_primary: images.length === 0 && i === 0,
           sort_order: images.length + i,
-          label:      null,
+          label: null,
         }));
         setImages(prev => [...prev, ...added]);
       } else {
@@ -599,18 +599,18 @@ function ImagesEditStep({ activity_id, initialImages }: { activity_id: number; i
 
 function buildFormData(data: Record<string, unknown>): FormData {
   const fd = new FormData();
-  fd.append("name",           (data.name           as string) ?? "");
-  fd.append("slug",           (data.slug           as string) ?? "");
+  fd.append("name", (data.name as string) ?? "");
+  fd.append("slug", (data.slug as string) ?? "");
   fd.append("destination_id", (data.destination_id as string) ?? "");
-  fd.append("category",       (data.category       as string) ?? "");
-  fd.append("difficulty",     (data.difficulty     as string) ?? "");
+  fd.append("category", (data.category as string) ?? "");
+  fd.append("difficulty", (data.difficulty as string) ?? "");
   fd.append("duration_hours", (data.duration_hours as string) ?? "");
-  fd.append("is_active",      String(data.is_active ?? true));
-  fd.append("description",    (data.description    as string) ?? "");
-  fd.append("meta_title",     (data.meta_title     as string) ?? "");
-  fd.append("meta_desc",      (data.meta_desc      as string) ?? "");
+  fd.append("is_active", String(data.is_active ?? true));
+  fd.append("description", (data.description as string) ?? "");
+  fd.append("meta_title", (data.meta_title as string) ?? "");
+  fd.append("meta_desc", (data.meta_desc as string) ?? "");
   const loc = data.location as LocationResult | null;
-  fd.append("latitude",  loc?.latitude  != null ? String(loc.latitude)  : "");
+  fd.append("latitude", loc?.latitude != null ? String(loc.latitude) : "");
   fd.append("longitude", loc?.longitude != null ? String(loc.longitude) : "");
   return fd;
 }
@@ -624,8 +624,8 @@ export function CreateActivityDialog({
 }: {
   destinations: Destination[];
 }) {
-  const [open,      setOpen]      = useState(false);
-  const [modalKey,  setModalKey]  = useState(0);
+  const [open, setOpen] = useState(false);
+  const [modalKey, setModalKey] = useState(0);
   const [isPending, startTransition] = useTransition();
 
   // Image picks managed outside MultiStepModal so they persist across step navigation
@@ -644,7 +644,7 @@ export function CreateActivityDialog({
   async function handleComplete(data: Record<string, unknown>) {
     startTransition(async () => {
       // 1. Create the activity
-      const fd     = buildFormData(data);
+      const fd = buildFormData(data);
       const result = await createActivity({ success: false, message: "" }, fd);
 
       if (!result.success) {
@@ -668,8 +668,9 @@ export function CreateActivityDialog({
 
   return (
     <>
-      <Button onClick={() => setOpen(true)}>
-        <Plus className="mr-2 h-4 w-4" />
+      <Button onClick={() => setOpen(true)} size="lg"
+        className="gap-2 bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90 rounded-md transition-all duration-200 hover:scale-[1.02] shadow-sm">
+        <Plus className="" />
         Add Activity
       </Button>
 
@@ -704,14 +705,14 @@ export function EditActivityDialog({
   open,
   onOpenChange,
 }: {
-  activity:     ActivityItem;
+  activity: ActivityItem;
   destinations: Destination[];
-  open:         boolean;
+  open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   const [isPending, startTransition] = useTransition();
-  const [modalKey,  setModalKey]     = useState(0);
-  const STEPS       = makeSteps(true);
+  const [modalKey, setModalKey] = useState(0);
+  const STEPS = makeSteps(true);
   const initialData = buildInitialData(activity);
 
   function handleOpenChange(val: boolean) {
@@ -721,7 +722,7 @@ export function EditActivityDialog({
 
   async function handleComplete(data: Record<string, unknown>) {
     startTransition(async () => {
-      const fd     = buildFormData(data);
+      const fd = buildFormData(data);
       const result = await updateActivity(activity.id, { success: false, message: "" }, fd);
       if (result.success) {
         toast.success(result.message);

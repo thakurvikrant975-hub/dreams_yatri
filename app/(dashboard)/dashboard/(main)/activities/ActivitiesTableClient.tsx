@@ -5,11 +5,12 @@ import Link from "next/link";
 import {
   Activity, Search, Pencil, Trash2, Tag,
   Clock, ImageIcon, ExternalLink,
+  Fence,
 } from "lucide-react";
-import { Badge }   from "../components/ui/badge";
-import { Button }  from "../components/ui/button";
-import { Input }   from "../components/ui/input";
-import { Switch }  from "../components/ui/switch";
+import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Switch } from "../components/ui/switch";
 import {
   Table, TableBody, TableCell,
   TableHead, TableHeader, TableRow,
@@ -26,77 +27,69 @@ import {
 } from "../components/ui/alert-dialog";
 import { toast } from "sonner";
 import { toggleActivityActive, deleteActivity, type ActivityItem } from "./actions";
-import { EditActivityDialog }   from "./ActivityDialog";
-import { ActivityImagesSheet }  from "./ActivityImagesSheet";
+import { EditActivityDialog } from "./ActivityDialog";
+import { ActivityImagesSheet } from "./ActivityImagesSheet";
+import { StatGrid, StatCard } from "../components/dashboard/Statcard";
+import { TableFilters } from "../components/dashboard/Tablefilters";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
 type Destination = { id: number; name: string; region: { name: string } };
 
 const DIFFICULTY_COLORS: Record<string, string> = {
-  Easy:        "bg-green-50 text-green-700 border-green-200",
-  Moderate:    "bg-blue-50 text-blue-700 border-blue-200",
+  Easy: "bg-green-50 text-green-700 border-green-200",
+  Moderate: "bg-blue-50 text-blue-700 border-blue-200",
   Challenging: "bg-yellow-50 text-yellow-700 border-yellow-200",
-  Difficult:   "bg-orange-50 text-orange-700 border-orange-200",
-  Expert:      "bg-red-50 text-red-700 border-red-200",
+  Difficult: "bg-orange-50 text-orange-700 border-orange-200",
+  Expert: "bg-red-50 text-red-700 border-red-200",
 };
 
 // ── Delete Dialog (extracted — fixes Radix hydration mismatch) ────────────────
 
 function DeleteActivityDialog({
-    activity,
-    onDelete,
-    isPending,
+  activity,
+  onDelete,
+  isPending,
 }: {
-    activity: ActivityItem;
-    onDelete: (id: number) => void;
-    isPending: boolean;
+  activity: ActivityItem;
+  onDelete: (id: number) => void;
+  isPending: boolean;
 }) {
-    return (
-        <AlertDialog>
-            <AlertDialogTrigger asChild>
-                <Button
-                    variant="ghost" size="icon"
-                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                >
-                    <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>Delete Activity</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        Delete <span className="font-semibold">{activity.name}</span>?
-                        All images and variants will be removed.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                        onClick={() => onDelete(activity.id)}
-                        disabled={isPending}
-                        className="bg-destructive text-white hover:bg-destructive/90"
-                    >
-                        Delete
-                    </AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
-    );
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button
+          variant="ghost" size="icon"
+          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete Activity</AlertDialogTitle>
+          <AlertDialogDescription>
+            Delete <span className="font-semibold">{activity.name}</span>?
+            All images and variants will be removed.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => onDelete(activity.id)}
+            disabled={isPending}
+            className="bg-destructive text-white hover:bg-destructive/90"
+          >
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
 }
 
 const BASE = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
 
-// ── Stat card ─────────────────────────────────────────────────────────────
-
-function StatCard({ label, value, muted }: { label: string; value: number; muted?: boolean }) {
-  return (
-    <div className="rounded-xl bg-muted/50 px-4 py-3 space-y-0.5">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={`text-2xl font-semibold ${muted ? "text-muted-foreground" : ""}`}>{value}</p>
-    </div>
-  );
-}
 
 // ── Thumbnail cell ────────────────────────────────────────────────────────
 
@@ -123,31 +116,31 @@ function ThumbnailCell({ activity }: { activity: ActivityItem }) {
 // ── Main component ────────────────────────────────────────────────────────
 
 export function ActivitiesTableClient({
-  activities:   initialActivities,
+  activities: initialActivities,
   destinations,
 }: {
-  activities:   ActivityItem[];
+  activities: ActivityItem[];
   destinations: Destination[];
 }) {
-  const [activities,        setActivities]        = useState(initialActivities);
-  const [search,            setSearch]            = useState("");
+  const [activities, setActivities] = useState(initialActivities);
+  const [search, setSearch] = useState("");
   const [filterDestination, setFilterDestination] = useState("all");
-  const [filterCategory,    setFilterCategory]    = useState("all");
-  const [editTarget,        setEditTarget]        = useState<ActivityItem | null>(null);
-  const [imagesTarget,      setImagesTarget]      = useState<ActivityItem | null>(null);
-  const [isPending,         startTransition]      = useTransition();
+  const [filterCategory, setFilterCategory] = useState("all");
+  const [editTarget, setEditTarget] = useState<ActivityItem | null>(null);
+  const [imagesTarget, setImagesTarget] = useState<ActivityItem | null>(null);
+  const [isPending, startTransition] = useTransition();
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
   const filtered = activities.filter(a => {
     const matchSearch = !search || a.name.toLowerCase().includes(search.toLowerCase());
-    const matchDest   = filterDestination === "all" || String(a.destination.id) === filterDestination;
-    const matchCat    = filterCategory    === "all" || a.category === filterCategory;
+    const matchDest = filterDestination === "all" || String(a.destination.id) === filterDestination;
+    const matchCat = filterCategory === "all" || a.category === filterCategory;
     return matchSearch && matchDest && matchCat;
   });
 
   const activeCount = activities.filter(a => a.is_active).length;
-  const categories  = [...new Set(activities.map(a => a.category).filter(Boolean))] as string[];
+  const categories = [...new Set(activities.map(a => a.category).filter(Boolean))] as string[];
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
@@ -178,53 +171,55 @@ export function ActivitiesTableClient({
   return (
     <div className="space-y-6">
 
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
-        <StatCard label="Total Activities" value={activities.length} />
-        <StatCard label="Active"           value={activeCount} />
-        <StatCard label="Inactive"         value={activities.length - activeCount} muted />
-      </div>
+      {/* ── Stats ── */}
+      <StatGrid cols={3}>
+        <StatCard
+          label="Total Activities"
+          value={activities.length}
+          icon={Fence}
+        />
+        <StatCard
+          label="Active Activities"
+          value={activeCount}
+          icon={Fence}
+        />
+        <StatCard
+          label="Inactive Activities"
+          value={activities.length - activeCount}
+          icon={Fence}
+        />
 
-      {/* Filters */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[200px] max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search activities..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-
-        <Select value={filterDestination} onValueChange={setFilterDestination}>
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder="All destinations" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Destinations</SelectItem>
-            {destinations.map(d => (
-              <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={filterCategory} onValueChange={setFilterCategory}>
-          <SelectTrigger className="w-36">
-            <SelectValue placeholder="All categories" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {categories.map(c => (
-              <SelectItem key={c} value={c}>{c}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <p className="text-sm text-muted-foreground ml-auto">
-          {filtered.length} of {activities.length}
-        </p>
-      </div>
+      </StatGrid>
+{/* Filters */}
+<TableFilters
+  search={search}
+  onSearchChange={setSearch}
+  searchPlaceholder="Search activities..."
+  filteredCount={filtered.length !== activities.length ? filtered.length : undefined}
+  totalCount={filtered.length !== activities.length ? activities.length : undefined}
+  filters={[
+    {
+      value: filterDestination,
+      onChange: setFilterDestination,
+      placeholder: "All Destinations",
+      width: "w-44",
+      options: [
+        { label: "All Destinations", value: "all" },
+        ...destinations.map(d => ({ label: d.name, value: String(d.id) })),
+      ],
+    },
+    {
+      value: filterCategory,
+      onChange: setFilterCategory,
+      placeholder: "All Categories",
+      width: "w-36",
+      options: [
+        { label: "All Categories", value: "all" },
+        ...categories.map(c => ({ label: c, value: c })),
+      ],
+    },
+  ]}
+/>
 
       {/* Table */}
       {filtered.length === 0 ? (
