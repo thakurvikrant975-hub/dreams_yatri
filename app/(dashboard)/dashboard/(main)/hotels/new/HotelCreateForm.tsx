@@ -112,7 +112,7 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
     <form onSubmit={handleSubmit} className="space-y-8">
 
       {/* ── Basic Info ────────────────────────────────────────────── */}
-      <Card>
+      <Card className="rounded-lg">
         <CardHeader>
           <div className="flex items-center gap-2">
             <Hotel className="h-5 w-5 text-primary" />
@@ -265,7 +265,7 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
       </Card>
 
       {/* ── SEO ──────────────────────────────────────────────────── */}
-      <Card>
+      <Card className="rounded-lg">
         <CardHeader>
           <div className="flex items-center gap-2">
             <Search className="h-5 w-5 text-primary" />
@@ -305,16 +305,16 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
       </Card>
 
       {/* ── Notice ───────────────────────────────────────────────── */}
-      <div className="rounded-lg border border-dashed bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+      <div className="rounded-lg border border-dashed bg-dashboard-base-100 px-4 py-3 text-sm text-dashboard-base-content/75">
         Rooms and pricing can be added after the hotel is created, from the hotel's edit page.
       </div>
 
       {/* ── Submit ───────────────────────────────────────────────── */}
       <div className="flex items-center justify-end gap-3 pb-8">
-        <Button type="button" variant="outline" onClick={() => router.back()}>
+        <Button type="button" variant="outline" className="bg-dashboard-error text-dashboard-base-100 hover:bg-dashboard-error hover:text-dashboard-base-100" onClick={() => router.back()}>
           Cancel
         </Button>
-        <Button type="submit" disabled={isPending} className="min-w-[140px]">
+        <Button type="submit" disabled={isPending} className="min-w-[140px] bg-dashboard-primary py-2.5">
           {isPending
             ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating...</>
             : "Create Hotel"

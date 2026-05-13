@@ -179,7 +179,7 @@ export function ActivityLogsTable({ paginated, stats, currentPage }: Props) {
     },
   ];
 
-  return (
+  return ( 
     <div className="space-y-4">
       <StatGrid cols={5}>
         <StatCard

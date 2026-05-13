@@ -189,7 +189,7 @@ export function PackagesTableClient({ packages }: { packages: PackageItem[] }) {
                       <Link
                         href={url}
                         target="_blank"
-                        className="flex items-center gap-1 text-xs text-primary hover:underline truncate max-w-[160px]"
+                        className="flex text-dashboard-primary items-center gap-1 text-xs hover:underline truncate max-w-[160px]"
                       >
                         <ExternalLink className="h-3 w-3 shrink-0" />
                         <span className="truncate">{url}</span>
