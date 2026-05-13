@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
@@ -41,6 +41,15 @@ type Props = {
   stayCategories: StayCategoryFull[];
 };
 
+// ── Occupied-by type ───────────────────────────────────────────────────────
+
+export type OccupiedBy = {
+  fromDay: number;
+  numNights: number;
+  hotelName: string;
+  nightIndex: number; // 1-based: which night of that stay is this day
+};
+
 // ── Stop label helper ──────────────────────────────────────────────────────
 
 function getStopLabel(dayNumber: number, stops: RouteStop[]): string {
@@ -63,7 +72,7 @@ function getStopLabel(dayNumber: number, stops: RouteStop[]): string {
 
 // ── Day Card ───────────────────────────────────────────────────────────────
 
-function DayCard({ day, onClick }: { day: DayData; onClick: () => void }) {
+function DayCard({ day, occupiedBy, onClick }: { day: DayData; occupiedBy?: OccupiedBy; onClick: () => void }) {
   const hasAny =
     day.id !== null &&
     day.activities.length + day.transfers.length + day.notes.length + day.stays.length > 0;
@@ -74,19 +83,24 @@ function DayCard({ day, onClick }: { day: DayData; onClick: () => void }) {
       onClick={onClick}
       className={cn(
         "text-left p-3 rounded-xl border transition-all hover:border-primary/50 hover:shadow-sm group",
-        day.id ? "bg-background" : "bg-muted/20 border-dashed",
+        occupiedBy ? "bg-violet-50/60 border-violet-200" : day.id ? "bg-background" : "bg-muted/20 border-dashed",
       )}
     >
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] font-bold uppercase tracking-wide text-primary">
-          Day {day.day}
-        </span>
+        <span className="text-[10px] font-bold uppercase tracking-wide text-primary">Day {day.day}</span>
         <ChevronRight className="h-3 w-3 text-muted-foreground/40 group-hover:text-primary transition-colors" />
       </div>
 
       <p className="text-xs font-medium line-clamp-2 mb-2">{day.title}</p>
 
-      {hasAny ? (
+      {occupiedBy ? (
+        <div className="flex items-center gap-1 mt-1">
+          <Bed className="h-2.5 w-2.5 text-violet-500 shrink-0" />
+          <span className="text-[10px] text-violet-600 font-medium truncate">
+            Night {occupiedBy.nightIndex} of {occupiedBy.numNights} · from Day {occupiedBy.fromDay}
+          </span>
+        </div>
+      ) : hasAny ? (
         <div className="flex flex-wrap gap-1.5">
           {day.transfers.length > 0 && (
             <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
@@ -100,7 +114,8 @@ function DayCard({ day, onClick }: { day: DayData; onClick: () => void }) {
           )}
           {day.stays.length > 0 && (
             <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
-              <Bed className="h-2.5 w-2.5" />{day.stays.length}
+              <Bed className="h-2.5 w-2.5" />
+              {day.stays[0]?.num_nights > 1 ? `${day.stays[0].num_nights} nights` : day.stays.length}
             </span>
           )}
           {day.notes.length > 0 && (
@@ -171,6 +186,29 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
   function handleDaySaved(updatedDay: DayData) {
     setDays((prev) => (prev ? prev.map((d) => (d.day === updatedDay.day ? updatedDay : d)) : prev));
   }
+
+  // Build a map of days that are "covered" by a multi-night stay from a prior day
+  const occupiedDays = useMemo((): Map<number, OccupiedBy> => {
+    const map = new Map<number, OccupiedBy>();
+    if (!days) return map;
+    for (const day of days) {
+      for (const stay of day.stays) {
+        const nights = stay.num_nights ?? 1;
+        for (let i = 1; i < nights; i++) {
+          const coveredDay = day.day + i;
+          if (!map.has(coveredDay)) {
+            map.set(coveredDay, {
+              fromDay: day.day,
+              numNights: nights,
+              hotelName: stay.room_pricing.hotel.name,
+              nightIndex: i + 1,
+            });
+          }
+        }
+      }
+    }
+    return map;
+  }, [days]);
 
   if (durations.length === 0) {
     return (
@@ -286,6 +324,7 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
                 <DayCard
                   key={day.day}
                   day={day}
+                  occupiedBy={occupiedDays.get(day.day)}
                   onClick={() => {
                     setOpenDay(day);
                     setSidebarOpen(true);
@@ -303,6 +342,7 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
         const stopLabel = selectedRoute?.stops
           ? getStopLabel(openDay.day, selectedRoute.stops)
           : undefined;
+        const totalDays = selectedDuration?.days ?? 99;
         return (
           <ItineraryDaySidebar
             key={`${selectedDurationId}-${selectedRouteId}-${openDay.day}`}
@@ -316,6 +356,8 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
             stayCategories={stayCategories}
             onSaved={handleDaySaved}
             stopLabel={stopLabel}
+            occupiedBy={occupiedDays.get(openDay.day)}
+            totalDays={totalDays}
           />
         );
       })()}

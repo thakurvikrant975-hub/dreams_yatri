@@ -80,8 +80,10 @@ import {
   Hotel,
   Save,
   ArrowLeft,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
+import type { OccupiedBy } from "./ItineraryBuilderTab";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -104,6 +106,8 @@ type Props = {
   stayCategories: StayCategory[];
   onSaved: (updated: DayData) => void;
   stopLabel?: string;
+  occupiedBy?: OccupiedBy;
+  totalDays?: number;
 };
 
 type DndItem =
@@ -736,7 +740,7 @@ function AddNoteForm({
 // ── Stay block ─────────────────────────────────────────────────────────────
 
 function StayBlock({
-  stays, stayCategories, itineraryId, stayBlockOrder, packageId, destinationId, pending, onStaysChange,
+  stays, stayCategories, itineraryId, stayBlockOrder, packageId, destinationId, pending, currentDay, maxNights, onStaysChange,
 }: {
   stays: StayItem[];
   stayCategories: StayCategory[];
@@ -745,10 +749,16 @@ function StayBlock({
   packageId: number;
   destinationId: number;
   pending: boolean;
+  currentDay: number;
+  maxNights: number;
   onStaysChange: (stays: StayItem[]) => void;
 }) {
   const [assigningCategoryId, setAssigningCategoryId] = useState<number | null>(null);
   const [savingId, setSavingId] = useState<number | null>(null);
+  // Single shared num_nights for all categories (a stay covers the same nights across all tiers)
+  const [numNights, setNumNights] = useState<number>(
+    stays[0]?.num_nights ?? 1,
+  );
 
   const fetchRooms = useCallback(async (query: string): Promise<Option[]> => {
     const res = await handleSearchRoomPricings(destinationId, query);
@@ -763,7 +773,7 @@ function StayBlock({
   async function handleAssign(categoryId: number, roomPricingId: number) {
     if (!itineraryId) return;
     setSavingId(categoryId);
-    const res = await handleUpsertStay(itineraryId, categoryId, roomPricingId, stayBlockOrder, packageId);
+    const res = await handleUpsertStay(itineraryId, categoryId, roomPricingId, stayBlockOrder, packageId, numNights);
     setSavingId(null);
     if (!res.success) { toast.error(res.message); return; }
     const searchRes = await handleSearchRoomPricings(destinationId, "");
@@ -775,12 +785,28 @@ function StayBlock({
       id: existing?.id ?? Date.now(),
       stay_category_id: categoryId,
       sort_order: stayBlockOrder,
+      num_nights: numNights,
       room_pricing: pricing,
       stay_category: category,
     };
     onStaysChange(existing ? stays.map((s) => (s.stay_category_id === categoryId ? newStay : s)) : [...stays, newStay]);
     setAssigningCategoryId(null);
     toast.success("Stay assigned");
+  }
+
+  async function handleUpdateNights(newNights: number) {
+    setNumNights(newNights);
+    // Update all already-assigned stays with new num_nights
+    if (!itineraryId || stays.length === 0) return;
+    setSavingId(-1);
+    await Promise.all(
+      stays.map((s) =>
+        handleUpsertStay(itineraryId, s.stay_category_id, s.room_pricing.id, stayBlockOrder, packageId, newNights),
+      ),
+    );
+    setSavingId(null);
+    onStaysChange(stays.map((s) => ({ ...s, num_nights: newNights })));
+    toast.success(`Stay updated to ${newNights} night${newNights !== 1 ? "s" : ""}`);
   }
 
   async function handleRemove(stay: StayItem) {
@@ -792,64 +818,106 @@ function StayBlock({
     toast.success("Stay removed");
   }
 
+  // Coverage preview: "Covers Day 1, 2, 3"
+  const coverageDays = Array.from({ length: numNights }, (_, i) => currentDay + i);
+
   if (stayCategories.length === 0) {
     return <p className="text-sm text-muted-foreground/60 italic">No stay categories configured for this package.</p>;
   }
 
   return (
-    <div className="space-y-3">
-      {stayCategories.map((cat) => {
-        const stay = stays.find((s) => s.stay_category_id === cat.id);
-        const isAssigning = assigningCategoryId === cat.id;
-        const isSaving = savingId === cat.id;
+    <div className="space-y-4">
 
-        return (
-          <div key={cat.id} className="rounded-xl border bg-muted/20 p-3">
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{cat.label}</span>
-              <div className="flex items-center gap-1">
-                {stay && !isAssigning && (
-                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground/50 hover:text-primary" onClick={() => setAssigningCategoryId(cat.id)} title="Change">
-                    <Pencil className="h-3 w-3" />
-                  </Button>
-                )}
-                {stay && !isAssigning && (
-                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground/50 hover:text-destructive" onClick={() => handleRemove(stay)} disabled={isSaving || !itineraryId}>
-                    {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
-                  </Button>
-                )}
-                {isAssigning && (
-                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground" onClick={() => setAssigningCategoryId(null)}>
-                    <X className="h-3 w-3" />
-                  </Button>
-                )}
-              </div>
-            </div>
-            {isAssigning ? (
-              <div>
-                <SearchSelect fetchOptions={fetchRooms} placeholder="Search hotel / room…" onChange={(id) => { if (id) handleAssign(cat.id, id); }} />
-                {isSaving && <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Saving…</p>}
-              </div>
-            ) : stay ? (
-              <div>
-                <p className="text-sm font-medium">{stay.room_pricing.hotel.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {stay.room_pricing.room?.name ?? "Room"} · {stay.room_pricing.plan_name ?? "Standard"} · ₹{stay.room_pricing.price_per_night.toLocaleString("en-IN")}/night
-                </p>
-              </div>
-            ) : (
-              <button
-                type="button"
-                className="text-sm text-primary/70 hover:text-primary flex items-center gap-1.5 disabled:opacity-50"
-                onClick={() => setAssigningCategoryId(cat.id)}
-                disabled={!itineraryId || pending}
-              >
-                <Plus className="h-3.5 w-3.5" /> Assign hotel
-              </button>
-            )}
+      {/* Nights selector */}
+      <div className="rounded-xl border bg-violet-50/60 border-violet-200 p-3 space-y-2.5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold text-violet-800">Number of Nights</p>
+            <p className="text-[10px] text-violet-600/70 mt-0.5">How many consecutive nights does this stay cover?</p>
           </div>
-        );
-      })}
+          <div className="flex items-center gap-1 shrink-0">
+            <Button
+              size="sm" variant="outline"
+              className="h-7 w-7 p-0 rounded-lg border-violet-200 hover:bg-violet-100"
+              disabled={numNights <= 1 || savingId === -1}
+              onClick={() => handleUpdateNights(numNights - 1)}
+            >−</Button>
+            <span className="w-8 text-center text-sm font-bold text-violet-800">{numNights}</span>
+            <Button
+              size="sm" variant="outline"
+              className="h-7 w-7 p-0 rounded-lg border-violet-200 hover:bg-violet-100"
+              disabled={numNights >= maxNights || savingId === -1}
+              onClick={() => handleUpdateNights(numNights + 1)}
+            >+</Button>
+          </div>
+        </div>
+        {/* Coverage badges */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-[10px] text-violet-600/70">Covers:</span>
+          {coverageDays.map((d) => (
+            <span key={d} className="text-[10px] bg-violet-200/70 text-violet-800 font-semibold px-1.5 py-0.5 rounded-md">
+              Day {d}
+            </span>
+          ))}
+          {savingId === -1 && <Loader2 className="h-3 w-3 animate-spin text-violet-500" />}
+        </div>
+      </div>
+
+      {/* Per-category room assignments */}
+      <div className="space-y-3">
+        {stayCategories.map((cat) => {
+          const stay = stays.find((s) => s.stay_category_id === cat.id);
+          const isAssigning = assigningCategoryId === cat.id;
+          const isSaving = savingId === cat.id;
+
+          return (
+            <div key={cat.id} className="rounded-xl border bg-muted/20 p-3">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{cat.label}</span>
+                <div className="flex items-center gap-1">
+                  {stay && !isAssigning && (
+                    <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground/50 hover:text-primary" onClick={() => setAssigningCategoryId(cat.id)} title="Change">
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                  )}
+                  {stay && !isAssigning && (
+                    <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground/50 hover:text-destructive" onClick={() => handleRemove(stay)} disabled={isSaving || !itineraryId}>
+                      {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
+                    </Button>
+                  )}
+                  {isAssigning && (
+                    <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground" onClick={() => setAssigningCategoryId(null)}>
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+              {isAssigning ? (
+                <div>
+                  <SearchSelect fetchOptions={fetchRooms} placeholder="Search hotel / room…" onChange={(id) => { if (id) handleAssign(cat.id, id); }} />
+                  {isSaving && <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Saving…</p>}
+                </div>
+              ) : stay ? (
+                <div>
+                  <p className="text-sm font-medium">{stay.room_pricing.hotel.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {stay.room_pricing.room?.name ?? "Room"} · {stay.room_pricing.plan_name ?? "Standard"} · ₹{stay.room_pricing.price_per_night.toLocaleString("en-IN")}/night
+                  </p>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="text-sm text-primary/70 hover:text-primary flex items-center gap-1.5 disabled:opacity-50"
+                  onClick={() => setAssigningCategoryId(cat.id)}
+                  disabled={!itineraryId || pending}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Assign hotel
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -885,7 +953,7 @@ function TimelineDropZone({ children, isEmpty }: { children: React.ReactNode; is
 // ── Main sidebar ───────────────────────────────────────────────────────────
 
 export function ItineraryDaySidebar({
-  open, onClose, packageId, destinationId, durationId, routeId, day: initialDay, stayCategories, onSaved, stopLabel,
+  open, onClose, packageId, destinationId, durationId, routeId, day: initialDay, stayCategories, onSaved, stopLabel, occupiedBy, totalDays,
 }: Props) {
   const [itineraryId, setItineraryId] = useState<number | null>(initialDay.id);
   const [title, setTitle] = useState(initialDay.title);
@@ -1145,7 +1213,7 @@ export function ItineraryDaySidebar({
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent side="right" className="w-full sm:max-w-xl p-0 flex flex-col gap-0 overflow-hidden">
+      <SheetContent side="right" showCloseButton={false} className="w-full sm:max-w-xl p-0 flex flex-col gap-0 overflow-hidden">
         <SheetTitle className="sr-only">Day {initialDay.day} — Itinerary Builder</SheetTitle>
 
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => setActiveDragKind(null)}>
@@ -1193,7 +1261,7 @@ export function ItineraryDaySidebar({
                 <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold mb-3">Add Elements</p>
                 <div className="flex gap-2">
                   <PaletteChip kind="transfer" disabled={!itineraryId} onClick={() => setEditPanel({ mode: "add", kind: "transfer" })} />
-                  <PaletteChip kind="stay" disabled={!itineraryId} onClick={() => setEditPanel({ mode: "stay" })} />
+                  <PaletteChip kind="stay" disabled={!itineraryId || !!occupiedBy} onClick={() => setEditPanel({ mode: "stay" })} />
                   <PaletteChip kind="activity" disabled={!itineraryId} onClick={() => setEditPanel({ mode: "add", kind: "activity" })} />
                   <PaletteChip kind="note" disabled={!itineraryId} onClick={() => setEditPanel({ mode: "add", kind: "note" })} />
                 </div>
@@ -1268,7 +1336,20 @@ export function ItineraryDaySidebar({
                                   <p className="text-[10px] text-muted-foreground/60 capitalize">{item.data.type} · {item.data.position}</p>
                                 </TimelineRowCard>
                               )}
-                              {item.kind === "stay" && (
+                              {item.kind === "stay" && occupiedBy ? (
+                                <div className="flex items-stretch rounded-xl border overflow-hidden bg-violet-50/60 border-violet-200">
+                                  <div className="w-1 shrink-0 bg-violet-500" />
+                                  <div className="flex-1 flex items-center gap-2.5 py-2.5 px-3 min-w-0">
+                                    <Lock className="h-3.5 w-3.5 text-violet-500 shrink-0" />
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-medium text-violet-800">Covered by Day {occupiedBy.fromDay}</p>
+                                      <p className="text-[10px] text-violet-600/70 truncate">
+                                        {occupiedBy.hotelName} · Night {occupiedBy.nightIndex} of {occupiedBy.numNights}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : item.kind === "stay" ? (
                                 <TimelineRowCard
                                   kind="stay" isActive={editPanel?.mode === "stay"}
                                   onEdit={() => setEditPanel({ mode: "stay" })}
@@ -1281,7 +1362,7 @@ export function ItineraryDaySidebar({
                                       : `${item.stays.length}/${stayCategories.length} assigned`}
                                   </p>
                                 </TimelineRowCard>
-                              )}
+                              ) : null}
                             </SortableRow>
                           );
                         })}
@@ -1342,6 +1423,8 @@ export function ItineraryDaySidebar({
                     itineraryId={itineraryId} stayBlockOrder={stayBlockOrder}
                     packageId={packageId} destinationId={destinationId}
                     pending={pending}
+                    currentDay={initialDay.day}
+                    maxNights={(totalDays ?? 99) - initialDay.day + 1}
                     onStaysChange={(updated) => {
                       setStays(updated);
                       onSaved({ ...currentDayData(), stays: updated });
