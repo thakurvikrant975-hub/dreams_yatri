@@ -4,10 +4,10 @@ import { useState, useTransition } from "react";
 import {
   FileText, Search, Pencil, Trash2, Filter, Package,
 } from "lucide-react";
-import { Badge }   from "../components/ui/badge";
-import { Button }  from "../components/ui/button";
-import { Input }   from "../components/ui/input";
-import { Switch }  from "../components/ui/switch";
+import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Switch } from "../components/ui/switch";
 import {
   Table, TableBody, TableCell,
   TableHead, TableHeader, TableRow,
@@ -22,29 +22,22 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
 } from "../components/ui/alert-dialog";
-import { toast }   from "sonner";
-import { format }  from "date-fns";
+import { toast } from "sonner";
+import { format } from "date-fns";
 import { togglePolicyActive, deletePolicy, type Policy } from "./actions";
-import { EditPolicyDialog }  from "./PolicyDialog";
+import { EditPolicyDialog } from "./PolicyDialog";
 import { POLICY_TYPE_LABELS, POLICY_TYPES, POLICY_TYPE_COLORS, type PolicyType } from "./constants";
+import { StatGrid, StatCard } from "../components/dashboard/Statcard";
+import { TableFilters } from "../components/dashboard/Tablefilters";
 
-// ── Stat card ─────────────────────────────────────────────────────────────
 
-function StatCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-xl bg-muted/50 px-4 py-3 space-y-0.5">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-2xl font-semibold">{value}</p>
-    </div>
-  );
-}
 
 // ── Points preview — first 2 points as bullet list ────────────────────────
 
 function PointsPreview({ points }: { points: string[] }) {
-  const valid   = points.filter(p => p.trim());
+  const valid = points.filter(p => p.trim());
   const preview = valid.slice(0, 2);
-  const more    = valid.length - 2;
+  const more = valid.length - 2;
 
   if (valid.length === 0) {
     return <span className="text-xs text-muted-foreground italic">No points</span>;
@@ -68,23 +61,23 @@ function PointsPreview({ points }: { points: string[] }) {
 // ── Main component ────────────────────────────────────────────────────────
 
 export function PoliciesTableClient({ policies: initialPolicies }: { policies: Policy[] }) {
-  const [policies,   setPolicies]   = useState(initialPolicies);
-  const [search,     setSearch]     = useState("");
+  const [policies, setPolicies] = useState(initialPolicies);
+  const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [editTarget, setEditTarget] = useState<Policy | null>(null);
-  const [isPending,  startTransition] = useTransition();
+  const [isPending, startTransition] = useTransition();
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
   const filtered = policies.filter(p => {
     const matchSearch = !search || p.title.toLowerCase().includes(search.toLowerCase());
-    const matchType   = filterType === "all" || p.type === filterType;
+    const matchType = filterType === "all" || p.type === filterType;
     return matchSearch && matchType;
   });
 
-  const activeCount  = policies.filter(p => p.is_active).length;
-  const totalUsed    = policies.reduce((acc, p) => acc + p._count.packages, 0);
-  const countByType  = POLICY_TYPES.reduce((acc, t) => {
+  const activeCount = policies.filter(p => p.is_active).length;
+  const totalUsed = policies.reduce((acc, p) => acc + p._count.packages, 0);
+  const countByType = POLICY_TYPES.reduce((acc, t) => {
     acc[t] = policies.filter(p => p.type === t).length;
     return acc;
   }, {} as Record<PolicyType, number>);
@@ -116,13 +109,30 @@ export function PoliciesTableClient({ policies: initialPolicies }: { policies: P
   return (
     <div className="space-y-6">
 
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
-        <StatCard label="Total Policies"  value={policies.length} />
-        <StatCard label="Active"          value={activeCount} />
-        <StatCard label="Package Usages"  value={totalUsed} />
-        <StatCard label="Inactive"        value={policies.length - activeCount} />
-      </div>
+      <StatGrid cols={4}>
+        <StatCard
+          label="Total Policies"
+          value={policies.length}
+          icon={FileText}
+        />
+        <StatCard
+          label="Active Policies"
+          value={activeCount}
+          icon={FileText}
+        />
+        <StatCard
+          label="Package usages"
+          value={totalUsed}
+          icon={FileText}
+        />
+        <StatCard
+          label="Inactive Policies"
+          value={policies.length - activeCount}
+          icon={FileText}
+        />
+      </StatGrid>
+
+
 
       {/* Type breakdown */}
       <div className="flex flex-wrap gap-2">
@@ -130,9 +140,8 @@ export function PoliciesTableClient({ policies: initialPolicies }: { policies: P
           <button
             key={pt}
             onClick={() => setFilterType(filterType === pt ? "all" : pt)}
-            className={`flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg border transition-opacity ${
-              POLICY_TYPE_COLORS[pt]
-            } ${filterType !== "all" && filterType !== pt ? "opacity-40" : ""}`}
+            className={`flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg border transition-opacity ${POLICY_TYPE_COLORS[pt]
+              } ${filterType !== "all" && filterType !== pt ? "opacity-40" : ""}`}
           >
             {POLICY_TYPE_LABELS[pt]}
             <span className="bg-white/60 rounded px-1.5 py-0.5">{countByType[pt]}</span>
@@ -148,21 +157,14 @@ export function PoliciesTableClient({ policies: initialPolicies }: { policies: P
         )}
       </div>
 
-      {/* Search */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search by title..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <p className="text-sm text-muted-foreground ml-auto">
-          {filtered.length} of {policies.length}
-        </p>
-      </div>
+{/* Search */}
+<TableFilters
+  search={search}
+  onSearchChange={setSearch}
+  searchPlaceholder="Search by title..."
+  filteredCount={filtered.length !== policies.length ? filtered.length : undefined}
+  totalCount={filtered.length !== policies.length ? policies.length : undefined}
+/>
 
       {/* Table */}
       {filtered.length === 0 ? (

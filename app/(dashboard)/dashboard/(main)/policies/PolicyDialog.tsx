@@ -2,12 +2,12 @@
 
 import { useState, useTransition, useRef } from "react";
 import { Plus, Tag, List, Eye, GripVertical, X, ArrowUp, ArrowDown } from "lucide-react";
-import { Button }   from "../components/ui/button";
-import { Input }    from "../components/ui/input";
-import { Label }    from "../components/ui/label";
-import { Switch }   from "../components/ui/switch";
-import { Badge }    from "../components/ui/badge";
-import { toast }    from "sonner";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import { Switch } from "../components/ui/switch";
+import { Badge } from "../components/ui/badge";
+import { toast } from "sonner";
 import { cn } from "@/app/lib/utils";
 import {
   MultiStepModal,
@@ -31,21 +31,21 @@ import {
 function makeSteps(): Step[] {
   return [
     {
-      id:          "details",
-      title:       "Details",
+      id: "details",
+      title: "Details",
       description: "Type, title and settings",
-      icon:        <Tag className="h-4 w-4" />,
+      icon: <Tag className="h-4 w-4" />,
       validate: (data) => {
-        if (!data.type)  return "Please select a policy type";
+        if (!data.type) return "Please select a policy type";
         if (!data.title) return "Title is required";
         return null;
       },
     },
     {
-      id:          "points",
-      title:       "Policy Points",
+      id: "points",
+      title: "Policy Points",
       description: "Add individual policy points",
-      icon:        <List className="h-4 w-4" />,
+      icon: <List className="h-4 w-4" />,
       validate: (data) => {
         const pts = (data.points as string[]) ?? [];
         const valid = pts.filter(p => p.trim());
@@ -54,11 +54,11 @@ function makeSteps(): Step[] {
       },
     },
     {
-      id:          "preview",
-      title:       "Preview",
+      id: "preview",
+      title: "Preview",
       description: "Review before saving",
-      icon:        <Eye className="h-4 w-4" />,
-      optional:    true,
+      icon: <Eye className="h-4 w-4" />,
+      optional: true,
     },
   ];
 }
@@ -68,19 +68,19 @@ function makeSteps(): Step[] {
 function buildInitialData(policy: Policy): Record<string, Record<string, unknown>> {
   return {
     details: {
-      type:       policy.type,
-      title:      policy.title,
-      is_active:  policy.is_active,
+      type: policy.type,
+      title: policy.title,
+      is_active: policy.is_active,
       sort_order: String(policy.sort_order),
     },
-    points:  { points: policy.points.length > 0 ? policy.points : [""] },
+    points: { points: policy.points.length > 0 ? policy.points : [""] },
     preview: {},
   };
 }
 
 const EMPTY_DATA: Record<string, Record<string, unknown>> = {
   details: { type: "", title: "", is_active: true, sort_order: "0" },
-  points:  { points: [""] },
+  points: { points: [""] },
   preview: {},
 };
 
@@ -90,11 +90,11 @@ const EMPTY_DATA: Record<string, Record<string, unknown>> = {
 
 function DetailsStep({ isEdit }: { isEdit: boolean }) {
   const { stepData, setStepData } = useMultiStep();
-  const data       = stepData["details"] ?? {};
-  const type       = (data.type       as string)  ?? "";
-  const title      = (data.title      as string)  ?? "";
-  const is_active  = (data.is_active  as boolean) ?? true;
-  const sort_order = (data.sort_order as string)  ?? "0";
+  const data = stepData["details"] ?? {};
+  const type = (data.type as string) ?? "";
+  const title = (data.title as string) ?? "";
+  const is_active = (data.is_active as boolean) ?? true;
+  const sort_order = (data.sort_order as string) ?? "0";
 
   function handleTypeChange(val: string) {
     // Auto-fill title if still empty
@@ -192,7 +192,7 @@ function DetailsStep({ isEdit }: { isEdit: boolean }) {
 
 function PointsStep() {
   const { stepData, setStepData } = useMultiStep();
-  const data   = stepData["points"] ?? {};
+  const data = stepData["points"] ?? {};
   const points = (data.points as string[]) ?? [""];
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -343,7 +343,7 @@ function PointsStep() {
 function PreviewStep() {
   const { stepData } = useMultiStep();
   const details = stepData["details"] ?? {};
-  const points  = ((stepData["points"]?.points as string[]) ?? []).filter(p => p.trim());
+  const points = ((stepData["points"]?.points as string[]) ?? []).filter(p => p.trim());
 
   return (
     <div className="space-y-4">
@@ -403,17 +403,17 @@ function PreviewStep() {
 // ─────────────────────────────────────────────────────────────────────────
 
 function buildFormData(
-  data:     Record<string, unknown>,
+  data: Record<string, unknown>,
   existing?: Policy,
 ): FormData {
-  const fd     = new FormData();
+  const fd = new FormData();
   const points = ((data.points as string[]) ?? existing?.points ?? []).filter(p => (p as string).trim());
 
-  fd.append("type",       (data.type       as string)  ?? existing?.type       ?? "");
-  fd.append("title",      (data.title      as string)  ?? existing?.title      ?? "");
-  fd.append("points",     JSON.stringify(points));
-  fd.append("is_active",  String(data.is_active ?? existing?.is_active ?? true));
-  fd.append("sort_order", (data.sort_order as string)  ?? String(existing?.sort_order ?? 0));
+  fd.append("type", (data.type as string) ?? existing?.type ?? "");
+  fd.append("title", (data.title as string) ?? existing?.title ?? "");
+  fd.append("points", JSON.stringify(points));
+  fd.append("is_active", String(data.is_active ?? existing?.is_active ?? true));
+  fd.append("sort_order", (data.sort_order as string) ?? String(existing?.sort_order ?? 0));
   return fd;
 }
 
@@ -422,7 +422,7 @@ function buildFormData(
 // ─────────────────────────────────────────────────────────────────────────
 
 export function CreatePolicyDialog() {
-  const [open,     setOpen]     = useState(false);
+  const [open, setOpen] = useState(false);
   const [modalKey, setModalKey] = useState(0);
   const [isPending, startTransition] = useTransition();
   const STEPS = makeSteps();
@@ -434,7 +434,7 @@ export function CreatePolicyDialog() {
 
   async function handleComplete(data: Record<string, unknown>) {
     startTransition(async () => {
-      const fd     = buildFormData(data);
+      const fd = buildFormData(data);
       const result = await createPolicy({ success: false, message: "" }, fd);
       if (result.success) {
         toast.success(result.message);
@@ -447,8 +447,9 @@ export function CreatePolicyDialog() {
 
   return (
     <>
-      <Button onClick={() => setOpen(true)}>
-        <Plus className="mr-2 h-4 w-4" />
+      <Button onClick={() => setOpen(true)} size="lg"
+        className="gap-2 bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90 rounded-md transition-all duration-200 hover:scale-[1.02] shadow-sm">
+        <Plus className="" />
         Add Policy
       </Button>
 
@@ -481,13 +482,13 @@ export function EditPolicyDialog({
   open,
   onOpenChange,
 }: {
-  policy:       Policy;
-  open:         boolean;
+  policy: Policy;
+  open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   const [isPending, startTransition] = useTransition();
-  const [modalKey,  setModalKey]     = useState(0);
-  const STEPS       = makeSteps();
+  const [modalKey, setModalKey] = useState(0);
+  const STEPS = makeSteps();
   const initialData = buildInitialData(policy);
 
   function handleOpenChange(val: boolean) {
@@ -497,7 +498,7 @@ export function EditPolicyDialog({
 
   async function handleComplete(data: Record<string, unknown>) {
     startTransition(async () => {
-      const fd     = buildFormData(data, policy);
+      const fd = buildFormData(data, policy);
       const result = await updatePolicy(policy.id, { success: false, message: "" }, fd);
       if (result.success) {
         toast.success(result.message);

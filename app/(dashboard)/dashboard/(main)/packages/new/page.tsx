@@ -1,10 +1,19 @@
 import { PackageForm } from "../components/PackageForm";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+    title: "New Packages  - Dashboard",
+    description: "",
+    robots: {
+        index: false,
+        follow: false,
+        nocache: true,
+        googleBot: { index: false, follow: false },
+    },
+};
 
 export default function NewPackagePage() {
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Create New Package</h1>
       <PackageForm />
-    </div>
   );
 }   
