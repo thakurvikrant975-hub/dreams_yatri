@@ -100,8 +100,8 @@ const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onTabChange, trailing }) =
                     className={cn(
                       "flex items-center gap-2 px-3 py-1.5 rounded-full transition-all",
                       isActive
-                        ? "bg-primary/10 text-primary"
-                        : "text-neutral-500 hover:bg-neutral-100"
+                        ? " text-primary-500"
+                        : "text-neutral-500"
                     )}
                   >
                     <span className="text-sm font-medium">

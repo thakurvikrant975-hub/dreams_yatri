@@ -37,6 +37,7 @@ import {
   addActivityImages,
   deleteActivityImage,
   setPrimaryActivityImage,
+  updateActivityImageLabel,
   type ActivityItem,
   type ActivityImage,
 } from "./actions";
@@ -385,6 +386,91 @@ function ImagesCreateStep({
   );
 }
 
+function ImageThumbEditable({
+  img,
+  isPending,
+  onSetPrimary,
+  onDelete,
+}: {
+  img: ActivityImage;
+  isPending: boolean;
+  onSetPrimary: () => void;
+  onDelete: () => void;
+}) {
+  const [label, setLabel] = useState(img.label ?? "");
+  const [, startLabelTransition] = useTransition();
+
+  function saveLabel() {
+    if (label === (img.label ?? "")) return;
+    startLabelTransition(async () => {
+      const r = await updateActivityImageLabel(img.id, label);
+      if (!r.success) toast.error(r.message);
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className={cn(
+        "group relative aspect-square rounded-xl overflow-hidden border-2 bg-muted",
+        img.is_primary ? "border-primary" : "border-border",
+      )}>
+        <img
+          src={`${BASE}/${img.thumbnail ?? img.url}`}
+          alt={label || "Activity image"}
+          className="w-full h-full object-cover"
+        />
+        {img.is_primary && (
+          <Badge className="absolute bottom-1 left-1 text-[9px] px-1 py-0 pointer-events-none bg-primary">
+            <Star className="h-2 w-2 mr-0.5" />Primary
+          </Badge>
+        )}
+        <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5">
+          {!img.is_primary && (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="text-[10px] h-6 px-2"
+              disabled={isPending}
+              onClick={onSetPrimary}
+            >
+              <Star className="h-2.5 w-2.5 mr-1" />Primary
+            </Button>
+          )}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button type="button" size="sm" variant="destructive" className="text-[10px] h-6 px-2">
+                <Trash2 className="h-2.5 w-2.5 mr-1" />Delete
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Image</AlertDialogTitle>
+                <AlertDialogDescription>Permanently deletes from R2 storage too.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={onDelete} className="bg-destructive text-white hover:bg-destructive/90">
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </div>
+      <input
+        type="text"
+        value={label}
+        onChange={e => setLabel(e.target.value)}
+        onBlur={saveLabel}
+        onKeyDown={e => e.key === "Enter" && saveLabel()}
+        placeholder="Add label…"
+        className="w-full text-[11px] border border-border rounded-md px-2 py-1 bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+      />
+    </div>
+  );
+}
+
 // Edit mode — manage existing + upload new
 function ImagesEditStep({ activity_id, initialImages }: { activity_id: number; initialImages: ActivityImage[] }) {
   const [images,    setImages]    = useState<ActivityImage[]>(initialImages);
@@ -433,6 +519,7 @@ function ImagesEditStep({ activity_id, initialImages }: { activity_id: number; i
           thumbnail:  p.key ?? null,
           is_primary: images.length === 0 && i === 0,
           sort_order: images.length + i,
+          label:      null,
         }));
         setImages(prev => [...prev, ...added]);
       } else {
@@ -453,65 +540,17 @@ function ImagesEditStep({ activity_id, initialImages }: { activity_id: number; i
               {images.length} photo{images.length !== 1 ? "s" : ""} · Hover to manage
             </span>
           </div>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-3 gap-3">
             {images
               .sort((a, b) => a.sort_order - b.sort_order)
               .map(img => (
-                <div
+                <ImageThumbEditable
                   key={img.id}
-                  className={cn(
-                    "group relative aspect-square rounded-xl overflow-hidden border-2 bg-muted",
-                    img.is_primary ? "border-primary" : "border-border",
-                  )}
-                >
-                  <img
-                    src={`${BASE}/${img.thumbnail ?? img.url}`}
-                    alt="Activity image"
-                    className="w-full h-full object-cover"
-                  />
-                  {img.is_primary && (
-                    <Badge className="absolute bottom-1 left-1 text-[9px] px-1 py-0 pointer-events-none bg-primary">
-                      <Star className="h-2 w-2 mr-0.5" />Primary
-                    </Badge>
-                  )}
-                  {/* Hover actions */}
-                  <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5">
-                    {!img.is_primary && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        className="text-[10px] h-6 px-2"
-                        disabled={isPending}
-                        onClick={() => handleSetPrimary(img)}
-                      >
-                        <Star className="h-2.5 w-2.5 mr-1" />Primary
-                      </Button>
-                    )}
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button type="button" size="sm" variant="destructive" className="text-[10px] h-6 px-2">
-                          <Trash2 className="h-2.5 w-2.5 mr-1" />Delete
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete Image</AlertDialogTitle>
-                          <AlertDialogDescription>Permanently deletes from R2 storage too.</AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => handleDelete(img)}
-                            className="bg-destructive text-white hover:bg-destructive/90"
-                          >
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                </div>
+                  img={img}
+                  isPending={isPending}
+                  onSetPrimary={() => handleSetPrimary(img)}
+                  onDelete={() => handleDelete(img)}
+                />
               ))}
           </div>
         </div>

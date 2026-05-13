@@ -69,7 +69,7 @@ export type ActivityDay = {
   is_optional: boolean;
   pricing_type: string;
   pricingTiers: { label: string; price: number }[];
-  images: { url: string; thumbnail: string | null; alt: string | null }[];
+  images: { url: string; thumbnail: string | null; alt: string | null; label: string | null }[];
 };
 
 export type TransferDay = {
@@ -354,7 +354,7 @@ export async function fetchPackagePageData(
                 images: {
                   orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
                   take: 4,
-                  select: { url: true, thumbnail: true, alt: true },
+                  select: { url: true, thumbnail: true, alt: true, label: true },
                 },
               },
             },

@@ -20,6 +20,7 @@ export type ActivityImage = {
   thumbnail:  string | null;
   is_primary: boolean;
   sort_order: number;
+  label:      string | null;
 };
 
 export type ActivityItem = {
@@ -109,7 +110,7 @@ export async function getActivities(): Promise<ActivityItem[]> {
       destination: { select: { id: true, name: true } },
       images: {
         orderBy: { sort_order: "asc" },
-        select:  { id: true, url: true, thumbnail: true, is_primary: true, sort_order: true },
+        select:  { id: true, url: true, thumbnail: true, is_primary: true, sort_order: true, label: true },
       },
       _count: { select: { images: true, variants: true } },
     },
@@ -130,7 +131,7 @@ export async function getActivityById(id: number) {
       destination: { select: { id: true, name: true } },
       images: {
         orderBy: { sort_order: "asc" },
-        select:  { id: true, url: true, thumbnail: true, is_primary: true, sort_order: true },
+        select:  { id: true, url: true, thumbnail: true, is_primary: true, sort_order: true, label: true },
       },
     },
   });
@@ -364,6 +365,19 @@ export async function setPrimaryActivityImage(
     ]);
     revalidatePath("/dashboard/activities");
     return { success: true, message: "Primary image set" };
+  } catch {
+    return { success: false, message: "Database error." };
+  }
+}
+
+export async function updateActivityImageLabel(
+  id:    number,
+  label: string,
+): Promise<ActivityFormState> {
+  try {
+    await db.activity_images.update({ where: { id }, data: { label: label || null } });
+    revalidatePath("/dashboard/activities");
+    return { success: true, message: "Label saved" };
   } catch {
     return { success: false, message: "Database error." };
   }

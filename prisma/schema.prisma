@@ -916,6 +916,7 @@ model activity_images {
   thumbnail   String?
   blur_base64 String?
   alt         String?
+  label       String?
   sort_order  Int        @default(0)
   is_primary  Boolean    @default(false)
   created_at  DateTime   @default(now())
