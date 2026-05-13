@@ -88,7 +88,7 @@ export default function QueriesPage() {
                     </BreadcrumbItem>
                 </BreadcrumbList>
             </Breadcrumb>
-
+  
             <PageHeader
                 title="Lead Queries"
                 description="Manage, verify, and action all incoming enquiries"
@@ -96,7 +96,7 @@ export default function QueriesPage() {
                 actions={<AddQueryDialog />}
             />
 
-            {/* Data */}
+            {/* Data of data */}
             <Suspense fallback={
                 <div className="space-y-4">
                     <div className="grid grid-cols-6 gap-4">

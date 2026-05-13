@@ -75,7 +75,7 @@ export function TableFilters({
                                 <SelectTrigger
                                     className={cn(
                                         filter.width ?? "w-40",
-                                        "h-10 text-sm rounded-lg transition-colors",
+                                        "h-10 text-sm rounded-lg cursor-pointer transition-colors",
                                         "border-dashboard-base-300 bg-dashboard-base-100",
                                         "text-dashboard-base-content/70 cursor-pointer",
                                         "focus:ring-dashboard-primary/30 focus:border-dashboard-primary",
@@ -88,7 +88,7 @@ export function TableFilters({
                                 <SelectContent className="rounded-xl border-dashboard-base-300 bg-dashboard-base-100">
                                     <SelectItem
                                         value={allValue}
-                                        className="text-sm text-dashboard-base-content/55 focus:bg-dashboard-base-200 focus:text-dashboard-base-content rounded-lg"
+                                        className="text-sm text-dashboard-base-content/55 focus:bg-dashboard-base-200 focus:text-dashboard-base-content rounded-lg cursor-pointer"
                                     >
                                         {filter.placeholder}
                                     </SelectItem>
@@ -96,7 +96,7 @@ export function TableFilters({
                                         <SelectItem
                                             key={opt.value}
                                             value={opt.value}
-                                            className="text-sm text-dashboard-base-content focus:bg-dashboard-base-200 focus:text-dashboard-base-content rounded-lg"
+                                            className="text-sm text-dashboard-base-content focus:bg-dashboard-base-200 focus:text-dashboard-base-content rounded-lg cursor-pointer"
                                         >
                                             {opt.label}
                                         </SelectItem>
