@@ -53,7 +53,7 @@ export default function MagicCallbackPage() {
         display:        "flex",
         alignItems:     "center",
         justifyContent: "center",
-        minHeight:      "100vh",
+        minHeight:      "100vh",  
         fontFamily:     "sans-serif",
         color:          "#6b7280",
         fontSize:       "15px",
