@@ -56,7 +56,7 @@ export default function MagicCallbackPage() {
         minHeight:      "100vh",  
         fontFamily:     "sans-serif",
         color:          "#6b7280",
-        fontSize:       "15px",
+        fontSize:       "15px", 
       }}>
         Signing you in...
       </div>
