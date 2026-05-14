@@ -62,6 +62,6 @@ export default function MagicCallbackPage() {
       </div>
     }>
       <MagicCallbackInner />
-    </Suspense>
+    </Suspense> 
   );
 }
