@@ -1,5 +1,7 @@
 // app/(website)/profile/page.tsx
 
+export const dynamic = 'force-dynamic';
+
 import Profile from './ProfileClient';
 import { auth } from '@/app/lib/auth';
 import { db } from '@/app/lib/db';

@@ -2,11 +2,11 @@
 
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 
-export default function MagicCallbackPage() {
+function MagicCallbackInner() {
   const router       = useRouter();
   const searchParams = useSearchParams();
 
@@ -43,5 +43,25 @@ export default function MagicCallbackPage() {
     }}>
       Signing you in...
     </div>
+  );
+}
+
+export default function MagicCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div style={{
+        display:        "flex",
+        alignItems:     "center",
+        justifyContent: "center",
+        minHeight:      "100vh",
+        fontFamily:     "sans-serif",
+        color:          "#6b7280",
+        fontSize:       "15px",
+      }}>
+        Signing you in...
+      </div>
+    }>
+      <MagicCallbackInner />
+    </Suspense>
   );
 }
