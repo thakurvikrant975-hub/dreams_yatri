@@ -1,22 +1,22 @@
 // app/(website)/hotels/[slug]/page.tsx
-// ISR — regenerate every 60s, pre-built at deploy for popular hotels
 
-import { notFound }       from "next/navigation";
-import type { Metadata }  from "next";
-import { db }             from "@/app/lib/db";
-import type { HotelDetail } from "@/app/types/hotels/hotelDetails";
-import { HotelDetailView }  from "./HotelDetailView";
+import { notFound }          from "next/navigation";
+import type { Metadata }     from "next";
+import { db }                from "@/app/lib/db";
+import type { HotelDetail }  from "@/app/types/hotels/hotelDetails";
+import { HotelDetailView }   from "./HotelDetailView";
 
 // ── ISR config ────────────────────────────────────────────────────────────
-export const revalidate = 60; // seconds
+export const revalidate = 60;           // ISR: regenerate every 60s
+export const dynamicParams = true;      // render unknown slugs on-demand (don't 404)
 
-// ── Pre-build popular / recently updated hotels ───────────────────────────
+// ── Pre-build top 50 hotels at deploy time ────────────────────────────────
 export async function generateStaticParams() {
   const hotels = await db.hotels.findMany({
     where:   { is_active: true },
     select:  { slug: true },
     orderBy: { created_at: "desc" },
-    take:    50, // pre-build top 50 at deploy time
+    take:    50,
   });
   return hotels.map(h => ({ slug: h.slug }));
 }
@@ -56,19 +56,17 @@ export async function generateMetadata({
   };
 }
 
-// ── Fetch via internal API (respects ISR caching) ─────────────────────────
+// ── Direct DB fetch (replaces internal fetch) ─────────────────────────────
 async function getHotelDetail(slug: string): Promise<HotelDetail | null> {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
-
-  const res = await fetch(`${baseUrl}/api/hotels/${slug}`, {
-    next: { revalidate: 60 },
+  const hotel = await db.hotels.findUnique({
+    where: { slug, is_active: true },
+    include: {
+      // add whatever relations your HotelDetail type needs
+      // e.g. images: true, amenities: true, rooms: true
+    },
   });
 
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error("Failed to fetch hotel");
-
-  const { data } = await res.json();
-  return data;
+  return hotel as HotelDetail | null;
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────
