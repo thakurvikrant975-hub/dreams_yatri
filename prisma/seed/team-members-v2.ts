@@ -23,7 +23,7 @@ async function main() {
       password:          await hash("Admin@123", 12),
       roleId:            roleMap["sales"],
       designation:       "Sales Executive",
-      joiningDate:       "2022-01-01",
+      joiningDate:       "2022-01-01",  
       personalEmail:     "vikrant@gmail.com",
       personalMobile:    "8799678450",
       alternativeMobile: "9876678970",
