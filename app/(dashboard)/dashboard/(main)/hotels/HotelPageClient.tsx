@@ -9,7 +9,6 @@ import {
 } from "../components/ui/breadcrumb";
 import { getHotels } from "./actions";
 import { HotelsTableClient } from "./HotelsTableClient";
-import { StatGrid, StatCard } from "../components/dashboard/Statcard";
 import { PageHeader } from "../components/dashboard/PageHeader";
 
 // ── Skeleton ──────────────────────────────────────────────────────────────
@@ -59,12 +58,6 @@ async function HotelsData() {
 
     return (
         <>
-            <StatGrid cols={3}>
-                <StatCard label="Total Hotels"  value={hotels.length} icon={Hotel}     />
-                <StatCard label="Active Hotels" value={activeCount}   icon={Hotel}     />
-                <StatCard label="Total Rooms"   value={totalRooms}    icon={Building2} />
-            </StatGrid>
-
             <HotelsTableClient hotels={hotels} destinations={destinations} />
         </>
     );
