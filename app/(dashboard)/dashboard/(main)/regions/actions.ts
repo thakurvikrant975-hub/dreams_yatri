@@ -5,7 +5,9 @@ import { deleteFromR2 }   from "@/app/lib/r2/r2delete";
 import { revalidatePath } from "next/cache";
 import { Ok, Err, Result } from "@/app/lib/result";
 import { RegionSchema }   from "@/app/lib/validators/regions";
-import { RegionInput } from "@/app/lib/validators/regions";
+import { RegionInput }    from "@/app/lib/validators/regions";
+import { dashboardAuth }  from "@/app/lib/auth-dashboard";
+import { createLog }      from "../lib/logger";
 
 // ── Shared FormState type ─────────────────────────────────────────────────────
 export type RegionFormState = {
@@ -13,6 +15,16 @@ export type RegionFormState = {
   message: string;
   errors?: Record<string, string[]>;
 };
+
+// ── Auth guard — call at the top of every mutating action ─────────────────────
+async function requireSession() {
+  const session = await dashboardAuth();
+  if (!session?.user?.email) {
+    return { session: null, actorName: null, error: Result.unauthorized() };
+  }
+  const actorName = session.user.name ?? session.user.email;
+  return { session, actorName, error: null };
+}
 
 // ── Internal helper: FormData → raw object ────────────────────────────────────
 function extractRegionFields(formData: FormData) {
@@ -36,44 +48,85 @@ function toFormState(result: Result<string>): RegionFormState {
 }
 
 // ── Read ──────────────────────────────────────────────────────────────────────
-const PAGE_SIZE = 10;
 
-// actions.ts
-export async function getRegions(page: number) {
-    const skip = (page - 1) * PAGE_SIZE;
- 
-    const [regions, totalCount, activeCount, destinationCount] = await Promise.all([
-        db.custom_regions.findMany({
-            skip,
-            take: PAGE_SIZE,
-            include: { _count: { select: { destinations: true } } },
-            orderBy: { created_at: "desc" },
-        }),
-        db.custom_regions.count(),
-        db.custom_regions.count({ where: { is_active: true } }),
-        db.destinations.count(),
+export type GetRegionsParams = {
+  page?:        number;
+  limit?:       number;
+  search?:      string;
+  country?:     string;
+  status?:      "active" | "inactive" | "all";
+  destCount?:   "0" | "1-5" | "6-15" | "15+" | "all";
+};
+
+export async function getRegions(params: GetRegionsParams = {}) {
+  const {
+    page      = 1,
+    limit     = 10,
+    search    = "",
+    country   = "",
+    status    = "all",
+    destCount = "all",
+  } = params;
+
+  const skip = (page - 1) * limit;
+
+  const where = {
+    is_deleted: false,
+    ...(search  ? { name: { contains: search, mode: "insensitive" as const } } : {}),
+    ...(country ? { country: { equals: country, mode: "insensitive" as const } } : {}),
+    ...(status === "active"   ? { is_active: true  } : {}),
+    ...(status === "inactive" ? { is_active: false } : {}),
+  };
+
+  const [regions, filteredCount, totalCount, activeCount, destinationCount] =
+    await Promise.all([
+      db.custom_regions.findMany({
+        where,
+        skip,
+        take: limit,
+        include: { _count: { select: { destinations: true } } },
+        orderBy: { created_at: "desc" },
+      }),
+      db.custom_regions.count({ where }),
+      db.custom_regions.count({ where: { is_deleted: false } }),
+      db.custom_regions.count({ where: { is_deleted: false, is_active: true } }),
+      db.destinations.count(),
     ]);
- 
-    return {
-        regions,
-        totalPages: Math.ceil(totalCount / PAGE_SIZE),
-        currentPage: page,
-        stats: {
-            total: totalCount,
-            active: activeCount,
-            inactive: totalCount - activeCount,
-            destinations: destinationCount,
-        },
-    };
-} 
+
+  // Apply destination count filter in-memory (small result set after other filters)
+  const filtered = destCount === "all" ? regions : regions.filter((r) => {
+    const c = r._count.destinations;
+    if (destCount === "0")    return c === 0;
+    if (destCount === "1-5")  return c >= 1  && c <= 5;
+    if (destCount === "6-15") return c >= 6  && c <= 15;
+    if (destCount === "15+")  return c > 15;
+    return true;
+  });
+
+  return {
+    regions: filtered,
+    totalPages:  Math.ceil(filteredCount / limit),
+    currentPage: page,
+    limit,
+    totalCount:  filteredCount,
+    stats: {
+      total:        totalCount,
+      active:       activeCount,
+      inactive:     totalCount - activeCount,
+      destinations: destinationCount,
+    },
+  };
+}
 
 // ── Create ────────────────────────────────────────────────────────────────────
 export async function createRegion(
   _prev: RegionFormState,
   formData: FormData,
 ): Promise<RegionFormState> {
-  const parsed = RegionSchema.safeParse(extractRegionFields(formData));
+  const { actorName, error } = await requireSession();
+  if (error) return toFormState(error);
 
+  const parsed = RegionSchema.safeParse(extractRegionFields(formData));
   if (!parsed.success) {
     return {
       success: false,
@@ -82,16 +135,19 @@ export async function createRegion(
     };
   }
 
-  const result = await createRegionRecord(parsed.data);
+  const result = await createRegionRecord(parsed.data, actorName!);
   return toFormState(result);
 }
 
-async function createRegionRecord(data: RegionInput): Promise<Result<string>> {
+async function createRegionRecord(
+  data: RegionInput,
+  actorName: string,
+): Promise<Result<string>> {
   try {
     const existing = await db.custom_regions.findUnique({ where: { slug: data.slug } });
     if (existing) return Result.conflict("This slug is already taken");
 
-    await db.custom_regions.create({
+    const region = await db.custom_regions.create({
       data: {
         name:        data.name,
         slug:        data.slug,
@@ -102,8 +158,19 @@ async function createRegionRecord(data: RegionInput): Promise<Result<string>> {
         is_active:   data.is_active,
         thumbnail:   data.thumbnail,
         cover_image: data.cover_image ?? null,
+        created_by:  actorName,
+        updated_by:  actorName,
       },
     });
+
+    await createLog({
+      action:     "CREATE",
+      entity:     "Region",
+      entityId:   String(region.id),
+      entitySlug: region.slug,
+      newData:    { name: region.name, country: region.country, is_active: region.is_active },
+    });
+
     revalidatePath("/dashboard/regions");
     return Ok("Region created successfully");
   } catch (e) {
@@ -117,8 +184,10 @@ export async function updateRegion(
   _prev: RegionFormState,
   formData: FormData,
 ): Promise<RegionFormState> {
-  const parsed = RegionSchema.safeParse(extractRegionFields(formData));
+  const { actorName, error } = await requireSession();
+  if (error) return toFormState(error);
 
+  const parsed = RegionSchema.safeParse(extractRegionFields(formData));
   if (!parsed.success) {
     return {
       success: false,
@@ -127,13 +196,14 @@ export async function updateRegion(
     };
   }
 
-  const result = await updateRegionRecord(id, parsed.data);
+  const result = await updateRegionRecord(id, parsed.data, actorName!);
   return toFormState(result);
 }
 
 async function updateRegionRecord(
   id: number,
   data: RegionInput,
+  actorName: string,
 ): Promise<Result<string>> {
   try {
     const slugConflict = await db.custom_regions.findFirst({
@@ -156,6 +226,7 @@ async function updateRegionRecord(
         is_active:   data.is_active,
         thumbnail:   data.thumbnail,
         cover_image: data.cover_image ?? null,
+        updated_by:  actorName,
       },
     });
 
@@ -167,6 +238,15 @@ async function updateRegionRecord(
       await deleteFromR2(current.cover_image).catch(console.error);
     }
 
+    await createLog({
+      action:       "UPDATE",
+      entity:       "Region",
+      entityId:     String(id),
+      entitySlug:   data.slug,
+      previousData: { name: current.name, is_active: current.is_active },
+      newData:      { name: data.name,    is_active: data.is_active },
+    });
+
     revalidatePath("/dashboard/regions");
     return Ok("Region updated successfully");
   } catch (e) {
@@ -176,29 +256,54 @@ async function updateRegionRecord(
 
 // ── Delete ────────────────────────────────────────────────────────────────────
 export async function deleteRegion(id: number): Promise<RegionFormState> {
-  const result = await deleteRegionRecord(id);
+  const { actorName, error } = await requireSession();
+  if (error) return toFormState(error);
+
+  const result = await deleteRegionRecord(id, actorName!);
   return toFormState(result);
 }
 
-async function deleteRegionRecord(id: number): Promise<Result<string>> {
+async function deleteRegionRecord(
+  id: number,
+  actorName: string,
+): Promise<Result<string>> {
   try {
     const region = await db.custom_regions.findUnique({
       where:   { id },
-      include: { _count: { select: { destinations: true } } },
+      include: { destinations: { select: { name: true }, take: 5 } },
     });
 
     if (!region) return Result.notFound("Region");
 
-    if (region._count.destinations > 0) {
+    if (region.destinations.length > 0) {
+      const names = region.destinations.map((d) => d.name).join(", ");
+      const total = await db.destinations.count({ where: { region_id: id } });
+      const extra = total > 5 ? ` and ${total - 5} more` : "";
       return Result.conflict(
-        `Cannot delete — ${region._count.destinations} destination(s) linked. Remove them first.`
+        `Cannot delete — linked to ${total} destination(s): ${names}${extra}. Remove them first.`
       );
     }
+
+    // Stamp audit fields before hard delete
+    await db.custom_regions.update({
+      where: { id },
+      data:  { deleted_by: actorName, deleted_at: new Date(), is_deleted: true },
+    });
 
     if (region.thumbnail)   await deleteFromR2(region.thumbnail).catch(console.error);
     if (region.cover_image) await deleteFromR2(region.cover_image).catch(console.error);
 
     await db.custom_regions.delete({ where: { id } });
+
+    await createLog({
+      action:     "DELETE",
+      entity:     "Region",
+      entityId:   String(id),
+      entitySlug: region.slug,
+      severity:   "MEDIUM",
+      previousData: { name: region.name, country: region.country },
+    });
+
     revalidatePath("/dashboard/regions");
     return Ok("Region deleted successfully");
   } catch (e) {
@@ -207,12 +312,42 @@ async function deleteRegionRecord(id: number): Promise<Result<string>> {
 }
 
 // ── Toggle Active ─────────────────────────────────────────────────────────────
-export async function toggleRegionActive(id: number, is_active: boolean): Promise<void> {
+export async function toggleRegionActive(
+  id: number,
+  is_active: boolean,
+): Promise<RegionFormState> {
+  const { actorName, error } = await requireSession();
+  if (error) return toFormState(error);
+
   try {
-    await db.custom_regions.update({ where: { id }, data: { is_active } });
+    const region = await db.custom_regions.findUnique({ where: { id } });
+    if (!region) return toFormState(Result.notFound("Region"));
+
+    // Cannot activate without SEO
+    if (is_active && (!region.meta_title || !region.meta_desc)) {
+      return {
+        success: false,
+        message: "Cannot activate — SEO title and description are required first.",
+      };
+    }
+
+    await db.custom_regions.update({
+      where: { id },
+      data:  { is_active, updated_by: actorName },
+    });
+
+    await createLog({
+      action:     "UPDATE",
+      entity:     "Region",
+      entityId:   String(id),
+      entitySlug: region.slug,
+      metadata:   { operation: "toggle_active" },
+      newData:    { isActive: is_active },
+    });
+
     revalidatePath("/dashboard/regions");
+    return { success: true, message: `Region ${is_active ? "activated" : "deactivated"}` };
   } catch (e) {
-    console.error("[toggleRegionActive]", e);
-    // Surface to caller if needed — extend to return Result<void> when toggle has UI feedback
+    return toFormState(Result.dbError(e));
   }
 }
