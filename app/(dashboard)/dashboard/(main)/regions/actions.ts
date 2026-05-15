@@ -41,14 +41,14 @@ export async function getRegions(page: number) {
     const skip = (page - 1) * PAGE_SIZE;
  
     const [regions, totalCount, activeCount, destinationCount] = await Promise.all([
-        db.regions.findMany({
+        db.custom_regions.findMany({
             skip,
             take: PAGE_SIZE,
             include: { _count: { select: { destinations: true } } },
             orderBy: { created_at: "desc" },
         }),
-        db.regions.count(),
-        db.regions.count({ where: { is_active: true } }),
+        db.custom_regions.count(),
+        db.custom_regions.count({ where: { is_active: true } }),
         db.destinations.count(),
     ]);
  
@@ -93,10 +93,10 @@ async function createRegionRecord(
   cover_image: string | null,
 ): Promise<Result<string>> {
   try {
-    const existing = await db.regions.findUnique({ where: { slug: data.slug } });
+    const existing = await db.custom_regions.findUnique({ where: { slug: data.slug } });
     if (existing) return Result.conflict("This slug is already taken");
 
-    await db.regions.create({ data: { ...data, thumbnail, cover_image } });
+    await db.custom_regions.create({ data: { ...data, thumbnail, cover_image } });
     revalidatePath("/dashboard/regions");
     return Ok("Region created successfully");
   } catch (e) {
@@ -134,12 +134,12 @@ async function updateRegionRecord(
   newCoverImage: string | null,
 ): Promise<Result<string>> {
   try {
-    const slugConflict = await db.regions.findFirst({
+    const slugConflict = await db.custom_regions.findFirst({
       where: { slug: data.slug, NOT: { id } },
     });
     if (slugConflict) return Result.conflict("This slug is already taken");
 
-    const current = await db.regions.findUnique({ where: { id } });
+    const current = await db.custom_regions.findUnique({ where: { id } });
     if (!current) return Result.notFound("Region");
 
     // Prune old R2 assets on replacement
@@ -150,7 +150,7 @@ async function updateRegionRecord(
       await deleteFromR2(current.cover_image).catch(console.error);
     }
 
-    await db.regions.update({
+    await db.custom_regions.update({
       where: { id },
       data: {
         ...data,
@@ -174,7 +174,7 @@ export async function deleteRegion(id: number): Promise<RegionFormState> {
 
 async function deleteRegionRecord(id: number): Promise<Result<string>> {
   try {
-    const region = await db.regions.findUnique({
+    const region = await db.custom_regions.findUnique({
       where:   { id },
       include: { _count: { select: { destinations: true } } },
     });
@@ -190,7 +190,7 @@ async function deleteRegionRecord(id: number): Promise<Result<string>> {
     if (region.thumbnail)   await deleteFromR2(region.thumbnail).catch(console.error);
     if (region.cover_image) await deleteFromR2(region.cover_image).catch(console.error);
 
-    await db.regions.delete({ where: { id } });
+    await db.custom_regions.delete({ where: { id } });
     revalidatePath("/dashboard/regions");
     return Ok("Region deleted successfully");
   } catch (e) {
@@ -201,7 +201,7 @@ async function deleteRegionRecord(id: number): Promise<Result<string>> {
 // ── Toggle Active ─────────────────────────────────────────────────────────────
 export async function toggleRegionActive(id: number, is_active: boolean): Promise<void> {
   try {
-    await db.regions.update({ where: { id }, data: { is_active } });
+    await db.custom_regions.update({ where: { id }, data: { is_active } });
     revalidatePath("/dashboard/regions");
   } catch (e) {
     console.error("[toggleRegionActive]", e);

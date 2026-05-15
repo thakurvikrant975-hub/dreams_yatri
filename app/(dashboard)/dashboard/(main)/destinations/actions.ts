@@ -62,7 +62,7 @@ export async function getDestinationById(id: number) {
 
 // Needed for the region select dropdown in the form
 export async function getRegionsForSelect() {
-    return db.regions.findMany({
+    return db.custom_regions.findMany({
         where: { is_active: true },
         orderBy: { name: "asc" },
         select: { id: true, name: true, slug: true },

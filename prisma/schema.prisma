@@ -349,88 +349,124 @@ model Payment {
   @@map("payments")
 }
 
-model RegionAll {
-  id         Int            @id @default(autoincrement())
-  name       String         @db.VarChar(255)
-  createdAt  DateTime       @default(now()) @map("created_at")
-  updatedAt  DateTime       @updatedAt @map("updated_at")
-  countries  CountryAll[]
-  subregions SubregionAll[]
-
-  @@map("regions_all")
+enum LocationType {
+  REGION
+  SUBREGION
+  COUNTRY
+  STATE
+  CITY
+  DISTRICT
+  AREA
+  NEIGHBORHOOD
+  VILLAGE
+  LANDMARK
+  AIRPORT
+  BEACH
+  MOUNTAIN
+  ISLAND
+  TOURISM_ZONE
+  BUS_STATION
+  TRAIN_STATION
+  PORT
 }
 
-model SubregionAll {
-  id        Int          @id @default(autoincrement())
-  name      String       @db.VarChar(255)
-  createdAt DateTime     @default(now()) @map("created_at")
-  updatedAt DateTime     @updatedAt @map("updated_at")
-  regionId  Int          @map("region_id")
-  countries CountryAll[]
-  region    RegionAll    @relation(fields: [regionId], references: [id])
+model Location {
+  id                    BigInt      @id @default(autoincrement())
 
-  @@index([regionId])
-  @@map("subregions_all")
-}
+  // hierarchy
+  parent_id             BigInt?
 
-model CountryAll {
-  id                Int           @id @default(autoincrement())
-  name              String        @db.VarChar(255)
-  iso2              String?       @db.Char(2)
-  phonecode         String?       @db.VarChar(255)
-  capital           String?       @db.VarChar(255)
-  currency          String?       @db.VarChar(255)
-  currencyName      String?       @map("currency_name") @db.VarChar(255)
-  nationality       String?       @db.VarChar(255)
-  latitude          Decimal?      @db.Decimal(10, 8)
-  longitude         Decimal?      @db.Decimal(11, 8)
-  createdAt         DateTime      @default(now()) @map("created_at")
-  updatedAt         DateTime      @updatedAt @map("updated_at")
-  regionId          Int?          @map("region_id")
-  subregionId       Int?          @map("subregion_id")
-  cities            CityAll[]
-  regionRelation    RegionAll?    @relation(fields: [regionId], references: [id])
-  subregionRelation SubregionAll? @relation(fields: [subregionId], references: [id])
-  states            StateAll[]
+  // type
+  type                  LocationType
 
-  @@index([regionId])
-  @@index([subregionId])
-  @@map("countries_all")
-}
+  // naming
+  name                  String
+  official_name         String?
 
-model StateAll {
-  id          Int        @id @default(autoincrement())
-  name        String     @db.VarChar(255)
-  countryCode String     @map("country_code") @db.Char(2)
-  latitude    Decimal?   @db.Decimal(10, 8)
-  longitude   Decimal?   @db.Decimal(11, 8)
-  createdAt   DateTime   @default(now()) @map("created_at")
-  updatedAt   DateTime   @updatedAt @map("updated_at")
-  countryId   Int        @map("country_id")
-  cities      CityAll[]
-  country     CountryAll @relation(fields: [countryId], references: [id])
+  slug                  String      @unique
 
-  @@index([countryId])
-  @@map("states_all")
-}
+  short_code            String?
+  iso_code              String?
 
-model CityAll {
-  id          Int        @id @default(autoincrement())
-  name        String     @db.VarChar(255)
-  stateCode   String     @map("state_code") @db.VarChar(255)
-  countryCode String     @map("country_code") @db.Char(2)
-  latitude    Decimal    @db.Decimal(10, 8)
-  longitude   Decimal    @db.Decimal(11, 8)
-  createdAt   DateTime   @default(now()) @map("created_at")
-  updatedAt   DateTime   @updatedAt @map("updated_at")
-  stateId     Int        @map("state_id")
-  countryId   Int        @map("country_id")
-  country     CountryAll @relation(fields: [countryId], references: [id])
-  state       StateAll   @relation(fields: [stateId], references: [id])
+  // geo
+  latitude              Decimal?    @db.Decimal(10, 7)
+  longitude             Decimal?    @db.Decimal(10, 7)
 
-  @@index([stateId])
-  @@index([countryId])
-  @@map("cities_all")
+  elevation_meters      Int?
+
+  timezone              String?
+
+  population            Int?
+
+  // SEO
+  seo_title             String?
+  seo_description       String?
+
+  description           String?     @db.Text
+
+  hero_image            String?
+
+  // travel business logic
+  is_featured           Boolean     @default(false)
+  is_popular            Boolean     @default(false)
+  is_searchable         Boolean     @default(true)
+  is_active             Boolean     @default(true)
+
+  // hierarchy optimization
+  country_id            BigInt?
+  state_id              BigInt?
+  city_id               BigInt?
+
+  // external references
+  geonames_id           Int?
+  osm_id                String?
+  mapbox_id             String?
+
+  // metadata
+  metadata              Json?
+
+  // timestamps
+  created_at            DateTime    @default(now())
+  updated_at            DateTime    @updatedAt
+
+  // relations
+  parent                Location?   @relation("LocationHierarchy", fields: [parent_id], references: [id])
+
+  children              Location[]  @relation("LocationHierarchy")
+
+  country               Location?   @relation("CountryRelation", fields: [country_id], references: [id])
+
+  state                 Location?   @relation("StateRelation", fields: [state_id], references: [id])
+
+  city                  Location?   @relation("CityRelation", fields: [city_id], references: [id])
+
+  country_children      Location[]  @relation("CountryRelation")
+
+  state_children        Location[]  @relation("StateRelation")
+
+  city_children         Location[]  @relation("CityRelation")
+
+  @@index([type])
+
+  @@index([parent_id])
+
+  @@index([country_id])
+
+  @@index([state_id])
+
+  @@index([city_id])
+
+  @@index([latitude, longitude])
+
+  @@index([is_active])
+
+  @@index([is_searchable])
+
+  @@index([name])
+
+  @@index([slug])
+
+  @@map("locations")
 }
 
 model Department {
@@ -459,49 +495,49 @@ model TeamRole {
 }
 
 model TeamMember {
-  id                     String    @id @default(cuid())
+  id String @id @default(cuid())
 
   // ── Identity ──────────────────────────────────────────────────────────────
-  employeeId             String    @unique               // e.g. DY100001
-  name                   String    @db.VarChar(255)
+  employeeId String @unique // e.g. DY100001
+  name       String @db.VarChar(255)
 
   // ── Profile picture (R2) ──────────────────────────────────────────────────
-  profilePicKey          String?                         // R2 object key
-  profilePicUrl          String?                         // public CDN URL
+  profilePicKey String? // R2 object key
+  profilePicUrl String? // public CDN URL
 
   // ── Work details ──────────────────────────────────────────────────────────
-  email                  String    @unique               // work email (primary login)
-  password               String?
-  personalEmail          String?
-  designation            String?   @db.VarChar(255)
-  departmentId           String?
-  teamRoleId             String?
-  isActive               Boolean   @default(true)
-  joiningDate            DateTime?
-  lastLoginAt            DateTime?
+  email         String    @unique // work email (primary login)
+  password      String?
+  personalEmail String?
+  designation   String?   @db.VarChar(255)
+  departmentId  String?
+  teamRoleId    String?
+  isActive      Boolean   @default(true)
+  joiningDate   DateTime?
+  lastLoginAt   DateTime?
 
   // ── Contact ───────────────────────────────────────────────────────────────
-  personalMobile         String?   @db.VarChar(15)
-  alternativeMobile      String?   @db.VarChar(15)
+  personalMobile    String? @db.VarChar(15)
+  alternativeMobile String? @db.VarChar(15)
 
   // ── Family ────────────────────────────────────────────────────────────────
-  fatherName             String?   @db.VarChar(255)
-  fatherMobile           String?   @db.VarChar(15)
-  motherName             String?   @db.VarChar(255)
-  motherMobile           String?   @db.VarChar(15)
+  fatherName   String? @db.VarChar(255)
+  fatherMobile String? @db.VarChar(15)
+  motherName   String? @db.VarChar(255)
+  motherMobile String? @db.VarChar(15)
 
   // ── Documents ─────────────────────────────────────────────────────────────
-  aadhaarNumber          String?   @db.VarChar(12)
-  aadhaarFileKey         String?
-  aadhaarFileUrl         String?
-  panNumber              String?   @db.VarChar(10)
-  panFileKey             String?
-  panFileUrl             String?
+  aadhaarNumber  String? @db.VarChar(12)
+  aadhaarFileKey String?
+  aadhaarFileUrl String?
+  panNumber      String? @db.VarChar(10)
+  panFileKey     String?
+  panFileUrl     String?
 
   // ── Audit ─────────────────────────────────────────────────────────────────
-  createdById            String?
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // ── Relations ─────────────────────────────────────────────────────────────
   confirmedCabBookings   BookingCab[]
@@ -620,7 +656,7 @@ model LeadProfile {
   @@map("lead_profiles")
 }
 
-model regions {
+model custom_regions {
   id           Int            @id @default(autoincrement())
   name         String
   slug         String         @unique
@@ -636,28 +672,29 @@ model regions {
   destinations destinations[]
 
   @@index([slug])
+  @@map("regions")
 }
 
 model destinations {
-  id          Int          @id @default(autoincrement())
+  id          Int            @id @default(autoincrement())
   name        String
-  slug        String       @unique
-  country     String       @default("India")
+  slug        String         @unique
+  country     String         @default("India")
   region_id   Int
-  created_at  DateTime     @default(now())
+  created_at  DateTime       @default(now())
   description String?
-  is_active   Boolean      @default(true)
+  is_active   Boolean        @default(true)
   meta_desc   String?
   meta_title  String?
-  updated_at  DateTime     @updatedAt
+  updated_at  DateTime       @updatedAt
   cover_image String?
   thumbnail   String?
-  latitude    Decimal?     @db.Decimal(10, 8)
-  longitude   Decimal?     @db.Decimal(11, 8)
+  latitude    Decimal?       @db.Decimal(10, 8)
+  longitude   Decimal?       @db.Decimal(11, 8)
   place_id    String?
   activities  activities[]
   bookings    Booking[]
-  region      regions      @relation(fields: [region_id], references: [id])
+  region      custom_regions @relation(fields: [region_id], references: [id])
   hotels      hotels[]
   packages    packages[]
 

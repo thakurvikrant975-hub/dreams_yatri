@@ -10,7 +10,7 @@ async function main() {
   console.log("🌱  Seeding database...\n");
 
   // ── 1. Region ──────────────────────────────────────────────────────────────
-  const region = await db.regions.upsert({
+  const region = await db.custom_regions.upsert({
     where: { slug: "north-india" },
     update: {},
     create: {
