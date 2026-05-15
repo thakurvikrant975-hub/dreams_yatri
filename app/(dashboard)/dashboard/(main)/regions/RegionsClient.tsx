@@ -111,7 +111,7 @@ function TablePagination({
 
 // page is passed as a prop so RegionsData can fetch the correct slice
 async function RegionsData({ page }: { page: number }) {
-  const { regions, totalPages, currentPage, stats } = await getRegions(page);
+  const { regions, totalPages, currentPage, stats } = await getRegions({ page });
 
   return (
     <>
