@@ -24,6 +24,8 @@ function extractRegionFields(formData: FormData) {
     meta_title:  (formData.get("meta_title")  as string) || undefined,
     meta_desc:   (formData.get("meta_desc")   as string) || undefined,
     is_active:   formData.get("is_active") === "true",
+    thumbnail:   formData.get("thumbnail")   as string,
+    cover_image: (formData.get("cover_image") as string) || undefined,
   };
 }
 
@@ -80,23 +82,28 @@ export async function createRegion(
     };
   }
 
-  const thumbnail   = (formData.get("thumbnail")   as string) || null;
-  const cover_image = (formData.get("cover_image") as string) || null;
-
-  const result = await createRegionRecord(parsed.data, thumbnail, cover_image);
+  const result = await createRegionRecord(parsed.data);
   return toFormState(result);
 }
 
-async function createRegionRecord(
-  data: RegionInput,
-  thumbnail: string | null,
-  cover_image: string | null,
-): Promise<Result<string>> {
+async function createRegionRecord(data: RegionInput): Promise<Result<string>> {
   try {
     const existing = await db.custom_regions.findUnique({ where: { slug: data.slug } });
     if (existing) return Result.conflict("This slug is already taken");
 
-    await db.custom_regions.create({ data: { ...data, thumbnail, cover_image } });
+    await db.custom_regions.create({
+      data: {
+        name:        data.name,
+        slug:        data.slug,
+        country:     data.country,
+        description: data.description ?? null,
+        meta_title:  data.meta_title  ?? null,
+        meta_desc:   data.meta_desc   ?? null,
+        is_active:   data.is_active,
+        thumbnail:   data.thumbnail,
+        cover_image: data.cover_image ?? null,
+      },
+    });
     revalidatePath("/dashboard/regions");
     return Ok("Region created successfully");
   } catch (e) {
@@ -120,18 +127,13 @@ export async function updateRegion(
     };
   }
 
-  const newThumbnail  = (formData.get("thumbnail")   as string) || null;
-  const newCoverImage = (formData.get("cover_image") as string) || null;
-
-  const result = await updateRegionRecord(id, parsed.data, newThumbnail, newCoverImage);
+  const result = await updateRegionRecord(id, parsed.data);
   return toFormState(result);
 }
 
 async function updateRegionRecord(
   id: number,
   data: RegionInput,
-  newThumbnail: string | null,
-  newCoverImage: string | null,
 ): Promise<Result<string>> {
   try {
     const slugConflict = await db.custom_regions.findFirst({
@@ -142,22 +144,28 @@ async function updateRegionRecord(
     const current = await db.custom_regions.findUnique({ where: { id } });
     if (!current) return Result.notFound("Region");
 
-    // Prune old R2 assets on replacement
-    if (newThumbnail && current.thumbnail && newThumbnail !== current.thumbnail) {
-      await deleteFromR2(current.thumbnail).catch(console.error);
-    }
-    if (newCoverImage && current.cover_image && newCoverImage !== current.cover_image) {
-      await deleteFromR2(current.cover_image).catch(console.error);
-    }
-
     await db.custom_regions.update({
       where: { id },
       data: {
-        ...data,
-        ...(newThumbnail  !== null && { thumbnail:   newThumbnail }),
-        ...(newCoverImage !== null && { cover_image: newCoverImage }),
+        name:        data.name,
+        slug:        data.slug,
+        country:     data.country,
+        description: data.description ?? null,
+        meta_title:  data.meta_title  ?? null,
+        meta_desc:   data.meta_desc   ?? null,
+        is_active:   data.is_active,
+        thumbnail:   data.thumbnail,
+        cover_image: data.cover_image ?? null,
       },
     });
+
+    // Prune replaced R2 assets after confirmed DB success
+    if (data.thumbnail && current.thumbnail && data.thumbnail !== current.thumbnail) {
+      await deleteFromR2(current.thumbnail).catch(console.error);
+    }
+    if (data.cover_image && current.cover_image && data.cover_image !== current.cover_image) {
+      await deleteFromR2(current.cover_image).catch(console.error);
+    }
 
     revalidatePath("/dashboard/regions");
     return Ok("Region updated successfully");
