@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
       : undefined;
     const limit = Math.min(Number(searchParams.get("limit") ?? "8"), 20);
 
-    if (q.length < 2) return NextResponse.json({ results: [] });
+    if (q.length < 2) return NextResponse.json([]);
 
     const rows = await db.location.findMany({
       where: {
@@ -37,8 +37,8 @@ export async function GET(req: NextRequest) {
       take: limit,
     });
 
-    return NextResponse.json({
-      results: rows.map((r) => {
+    return NextResponse.json(
+      rows.map((r) => {
         const parts = [r.name];
         if (r.state?.name   && r.state.name   !== r.name) parts.push(r.state.name);
         if (r.country?.name && r.country.name !== r.name) parts.push(r.country.name);
@@ -53,9 +53,9 @@ export async function GET(req: NextRequest) {
           longitude: r.longitude != null ? Number(r.longitude) : null,
         };
       }),
-    });
+    );
   } catch (e) {
     console.error("[locations/search]", e);
-    return NextResponse.json({ results: [] }, { status: 500 });
+    return NextResponse.json([], { status: 500 });
   }
 }

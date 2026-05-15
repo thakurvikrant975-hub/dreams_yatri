@@ -20,6 +20,8 @@ import {
   type PickedImage,
 } from "../components/dashboard/ImagePicker";
 import { createRegion, updateRegion } from "./actions";
+import { LocationSearchSelect } from "../components/location/LocationSearchSelect";
+import type { LocationValue } from "../components/location/location.types";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -45,6 +47,10 @@ function buildInitialData(region?: Region): Record<string, Record<string, unknow
       name:    region.name,
       slug:    region.slug,
       country: region.country,
+      // Fake LocationValue so the country select shows the existing value on open
+      _countryLoc: region.country
+        ? { id: "init", name: region.country, type: "COUNTRY", breadcrumb: region.country, slug: "" } satisfies LocationValue
+        : null,
     },
     images: {
       cover: region.cover_image ? [{
@@ -112,41 +118,87 @@ const REGION_STEPS: SheetStep[] = [
 
 function BasicInfoStep({ region }: { region?: Region }) {
   const { stepData, setStepData } = useMultiStepSheet();
-  const data    = stepData["basic"] ?? {};
-  const name    = (data.name    as string) ?? "";
-  const slug    = (data.slug    as string) ?? "";
-  const country = (data.country as string) ?? "";
+  const data       = stepData["basic"] ?? {};
+  const name       = (data.name        as string)             ?? "";
+  const slug       = (data.slug        as string)             ?? "";
+  const regionLoc  = (data._regionLoc  as LocationValue|null) ?? null;
+  const countryLoc = (data._countryLoc as LocationValue|null) ?? null;
 
-  function handleNameChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const newName = e.target.value;
-    if (region) {
-      setStepData("basic", { ...data, name: newName });
-    } else {
-      const newSlug = newName
-        .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, "")
-        .replace(/\s+/g, "-")
-        .replace(/-+/g, "-")
-        .trim();
-      setStepData("basic", { ...data, name: newName, slug: newSlug });
+  // Called when user picks a location from the region search select (create only)
+  function handleRegionSelect(loc: LocationValue | null) {
+    if (!loc) {
+      setStepData("basic", { ...data, _regionLoc: null, name: "", slug: "" });
+      return;
     }
+
+    // Auto-generate slug from the location name
+    const newSlug = loc.name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .trim();
+
+    // Derive country from breadcrumb: "City, State, Country" → last segment
+    // If the location itself is a COUNTRY, use its own name
+    const breadParts = loc.breadcrumb.split(", ");
+    const derivedCountry =
+      loc.type === "COUNTRY"
+        ? loc.name
+        : breadParts.length > 1
+          ? breadParts[breadParts.length - 1]
+          : "";
+
+    const newCountryLoc: LocationValue | null = derivedCountry
+      ? { id: "derived", name: derivedCountry, type: "COUNTRY", breadcrumb: derivedCountry, slug: "" }
+      : countryLoc;
+
+    setStepData("basic", {
+      ...data,
+      _regionLoc:  loc,
+      name:        loc.name,
+      slug:        newSlug,
+      country:     derivedCountry || (data.country as string ?? ""),
+      _countryLoc: newCountryLoc,
+    });
+  }
+
+  // Called when user picks a country from the country search select
+  function handleCountrySelect(loc: LocationValue | null) {
+    setStepData("basic", {
+      ...data,
+      _countryLoc: loc,
+      country:     loc?.name ?? "",
+    });
   }
 
   return (
     <div className="space-y-4">
+      {/* Region name ─────────────────────────────────────────────────────── */}
       <div className="space-y-1.5">
-        <Label htmlFor="r-name">
+        <Label>
           Region Name <span className="text-destructive">*</span>
         </Label>
-        <Input
-          id="r-name"
-          placeholder="North India"
-          value={name}
-          onChange={handleNameChange}
-          autoComplete="off"
-        />
+
+        {region ? (
+          // Edit mode — name is a plain input; slug is already locked
+          <Input
+            placeholder="North India"
+            value={name}
+            onChange={(e) => setStepData("basic", { ...data, name: e.target.value })}
+            autoComplete="off"
+          />
+        ) : (
+          // Create mode — search / add from location database
+          <LocationSearchSelect
+            value={regionLoc}
+            onChange={handleRegionSelect}
+            placeholder="Search cities, regions, states…"
+          />
+        )}
       </div>
 
+      {/* Slug ─────────────────────────────────────────────────────────────── */}
       <div className="space-y-1.5">
         <Label htmlFor="r-slug">
           Slug <span className="text-destructive">*</span>
@@ -156,6 +208,7 @@ function BasicInfoStep({ region }: { region?: Region }) {
           placeholder="north-india"
           value={slug}
           onChange={(e) =>
+            !region &&
             setStepData("basic", {
               ...data,
               slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
@@ -171,15 +224,16 @@ function BasicInfoStep({ region }: { region?: Region }) {
         </p>
       </div>
 
+      {/* Country ──────────────────────────────────────────────────────────── */}
       <div className="space-y-1.5">
-        <Label htmlFor="r-country">
+        <Label>
           Country <span className="text-destructive">*</span>
         </Label>
-        <Input
-          id="r-country"
-          placeholder="India"
-          value={country}
-          onChange={(e) => setStepData("basic", { ...data, country: e.target.value })}
+        <LocationSearchSelect
+          value={countryLoc}
+          onChange={handleCountrySelect}
+          placeholder="Search country…"
+          types={["COUNTRY"]}
         />
       </div>
     </div>
