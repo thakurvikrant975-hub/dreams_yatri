@@ -4,12 +4,6 @@ import { getRegions } from "./actions";
 import { RegionsTable } from "./Regionstable";
 import { CreateRegionSheet } from "./RegionSheet";
 import {
-  Pagination, PaginationContent, PaginationEllipsis,
-  PaginationItem, PaginationLink,
-  PaginationNext, PaginationPrevious,
-} from "../components/ui/pagination";
-
-import {
   Breadcrumb, BreadcrumbItem,
   BreadcrumbLink, BreadcrumbList,
   BreadcrumbPage, BreadcrumbSeparator,
@@ -18,6 +12,8 @@ import { Skeleton } from "../components/ui/skeleton";
 import { PageHeader } from "../components/dashboard/PageHeader";
 import { StatCard, StatGrid } from "../components/dashboard/Statcard";
 
+type Status    = "active" | "inactive" | "all";
+type DestCount = "0" | "1-5" | "6-15" | "15+" | "all";
 
 // ── Skeleton fallback ─────────────────────────────────────────────────────
 function TableSkeleton() {
@@ -46,117 +42,50 @@ function TableSkeleton() {
     </div>
   );
 }
-function TablePagination({
-  currentPage, totalPages,
+
+// ── Data async sub-component ──────────────────────────────────────────────
+async function RegionsData({
+  page, limit, search, country, status, destCount,
 }: {
-  currentPage: number; totalPages: number;
+  page: number; limit: number; search: string; country: string;
+  status: Status; destCount: DestCount;
 }) {
-  if (totalPages <= 1) return null;
-
-  function getPageNumbers(): (number | "ellipsis")[] {
-    if (totalPages <= 5)
-      return Array.from({ length: totalPages }, (_, i) => i + 1);
-
-    const pages: (number | "ellipsis")[] = [1];
-    if (currentPage > 3) pages.push("ellipsis");
-
-    const start = Math.max(2, currentPage - 1);
-    const end = Math.min(totalPages - 1, currentPage + 1);
-    for (let i = start; i <= end; i++) pages.push(i);
-
-    if (currentPage < totalPages - 2) pages.push("ellipsis");
-    pages.push(totalPages);
-    return pages;
-  }
-
-  return (
-    <div className="border-t px-4 py-3 flex items-center justify-between">
-      <p className="text-xs text-muted-foreground">
-        Page {currentPage} of {totalPages}
-      </p>
-      <Pagination>
-        <PaginationContent>
-          <PaginationItem>
-            <PaginationPrevious
-              href={`?page=${currentPage - 1}`}
-              aria-disabled={currentPage === 1}
-              className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
-            />
-          </PaginationItem>
-          {getPageNumbers().map((p, i) =>
-            p === "ellipsis" ? (
-              <PaginationItem key={`e-${i}`}>
-                <PaginationEllipsis />
-              </PaginationItem>
-            ) : (
-              <PaginationItem key={p}>
-                <PaginationLink href={`?page=${p}`} isActive={p === currentPage}>
-                  {p}
-                </PaginationLink>
-              </PaginationItem>
-            ),
-          )}
-          <PaginationItem>
-            <PaginationNext
-              href={`?page=${currentPage + 1}`}
-              aria-disabled={currentPage === totalPages}
-              className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
-            />
-          </PaginationItem>
-        </PaginationContent>
-      </Pagination>
-    </div>
-  );
-}
-
-// page is passed as a prop so RegionsData can fetch the correct slice
-async function RegionsData({ page }: { page: number }) {
-  const { regions, totalPages, currentPage, stats } = await getRegions({ page });
+  const { regions, totalPages, currentPage, stats, totalCount, limit: lim } =
+    await getRegions({ page, limit, search, country, status, destCount });
 
   return (
     <>
       <StatGrid cols={4}>
-        <StatCard
-          label="Total Regions"
-          value={stats.total}
-          icon={Earth}
-        />
-        <StatCard
-          label="Active Regions"
-          value={stats.active}
-          icon={Earth}
-        />
-        <StatCard
-          label="Inactives Regions"
-          value={stats.inactive}
-          icon={GlobeLock}
-        />
-        <StatCard
-          label="Destinations"
-          value={stats.destinations}
-          icon={MapPinHouse}
-        />
+        <StatCard label="Total Regions"    value={stats.total}        icon={Earth}      />
+        <StatCard label="Active Regions"   value={stats.active}       icon={Earth}      />
+        <StatCard label="Inactive Regions" value={stats.inactive}     icon={GlobeLock}  />
+        <StatCard label="Destinations"     value={stats.destinations} icon={MapPinHouse} />
       </StatGrid>
       <RegionsTable
         regions={regions}
         currentPage={currentPage}
         totalPages={totalPages}
-        totalCount={stats.total}
-
+        totalCount={totalCount}
+        limit={lim}
+        search={search}
+        country={country}
+        status={status}
+        destCount={destCount}
       />
-      {/* TablePagination removed — DataTable renders it internally */}
     </>
   );
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────
-export default function RegionsPage({ page }: { page: number }) {
-
-
+export default function RegionsPage({
+  page, limit, search, country, status, destCount,
+}: {
+  page: number; limit: number; search: string; country: string;
+  status: Status; destCount: DestCount;
+}) {
   return (
     <div className="space-y-6">
 
-      {/* Breadcrumb */}
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
@@ -176,11 +105,10 @@ export default function RegionsPage({ page }: { page: number }) {
         actions={<CreateRegionSheet />}
       />
 
-      {/* Data — Suspense streams the table in */}
       <Suspense fallback={
         <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-4">
-            {Array.from({ length: 3 }).map((_, i) => (
+          <div className="grid grid-cols-4 gap-4">
+            {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="rounded-xl border bg-card p-4 space-y-2">
                 <Skeleton className="h-3 w-16" />
                 <Skeleton className="h-7 w-10" />
@@ -190,7 +118,14 @@ export default function RegionsPage({ page }: { page: number }) {
           <TableSkeleton />
         </div>
       }>
-        <RegionsData page={page} />
+        <RegionsData
+          page={page}
+          limit={limit}
+          search={search}
+          country={country}
+          status={status}
+          destCount={destCount}
+        />
       </Suspense>
 
     </div>

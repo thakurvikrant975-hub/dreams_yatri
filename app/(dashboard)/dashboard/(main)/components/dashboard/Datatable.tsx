@@ -25,13 +25,16 @@ function TablePagination({
     totalPages,
     buildHref,
     onPageChange,
+    label,
 }: {
     currentPage: number;
     totalPages: number;
     buildHref?: (page: number) => string;
     onPageChange?: (page: number) => void;
+    label?: string;
 }) {
-    if (totalPages <= 1) return null;
+    const showPagination = totalPages > 1;
+    if (!showPagination && !label) return null;
 
     const isClientSide = typeof onPageChange === "function";
     const href = buildHref ?? ((p: number) => `?page=${p}`);
@@ -62,9 +65,9 @@ function TablePagination({
     return (
         <div className="border-t border-dashboard-base-300 px-4 py-3 flex items-center justify-between">
             <p className="text-xs text-dashboard-base-content/45">
-                Page {currentPage} of {totalPages}
+                {label ?? `Page ${currentPage} of ${totalPages}`}
             </p>
-            <Pagination>
+            {showPagination && <Pagination>
                 <PaginationContent>
                     <PaginationItem>
                         <PaginationPrevious
@@ -113,7 +116,7 @@ function TablePagination({
                         />
                     </PaginationItem>
                 </PaginationContent>
-            </Pagination>
+            </Pagination>}
         </div>
     );
 }
@@ -132,6 +135,7 @@ interface DataTableProps<T> {
         totalPages: number;
         buildHref?: (page: number) => string;
         onPageChange?: (page: number) => void;
+        label?: string;
     };
 }
 
@@ -220,6 +224,7 @@ export function DataTable<T>({
                     totalPages={pagination.totalPages}
                     buildHref={pagination.buildHref}
                     onPageChange={pagination.onPageChange}
+                    label={pagination.label}
                 />
             )}
         </div>
