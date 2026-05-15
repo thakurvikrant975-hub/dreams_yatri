@@ -662,16 +662,22 @@ model custom_regions {
   slug         String         @unique
   country      String         @default("India")
   created_at   DateTime       @default(now())
+  updated_at   DateTime       @updatedAt
   description  String?
   is_active    Boolean        @default(true)
+  is_deleted   Boolean        @default(false)
   meta_desc    String?
   meta_title   String?
-  updated_at   DateTime       @updatedAt
   cover_image  String?
   thumbnail    String?
+  created_by   String?
+  updated_by   String?
+  deleted_by   String?
+  deleted_at   DateTime?
   destinations destinations[]
 
   @@index([slug])
+  @@index([is_deleted])
   @@map("regions")
 }
 
