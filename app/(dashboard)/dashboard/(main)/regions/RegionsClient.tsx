@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { Earth, Globe, GlobeLock, MapPinHouse } from "lucide-react";
 import { getRegions } from "./actions";
 import { RegionsTable } from "./Regionstable";
-import { CreateRegionDialog } from "./RegionDialog";
+import { CreateRegionSheet } from "./RegionSheet";
 import {
   Pagination, PaginationContent, PaginationEllipsis,
   PaginationItem, PaginationLink,
@@ -173,7 +173,7 @@ export default function RegionsPage({ page }: { page: number }) {
         title="Regions"
         description="Manage travel regions and their destinations"
         icon={Globe}
-        actions={<CreateRegionDialog />}
+        actions={<CreateRegionSheet />}
       />
 
       {/* Data — Suspense streams the table in */}

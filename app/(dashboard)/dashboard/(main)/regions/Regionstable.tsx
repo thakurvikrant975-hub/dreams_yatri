@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Badge }   from "../components/ui/badge";
 import { Switch }  from "@/app/(dashboard)/dashboard/(main)/components/ui/switch";
-import { EditRegionDialog }   from "./RegionDialog";
+import { EditRegionSheet }   from "./RegionSheet";
 import { DeleteRegionDialog } from "./Deleteregiondialog";
 import { toggleRegionActive } from "./actions";
 import { toast }              from "sonner";
@@ -172,7 +172,7 @@ export function RegionsTable({
       width:  "w-[100px]",
       cell: (region) => (
         <div className="flex items-center justify-end gap-1">
-          <EditRegionDialog region={region} />
+          <EditRegionSheet region={region} />
           <DeleteRegionDialog
             id={region.id}
             name={region.name}
