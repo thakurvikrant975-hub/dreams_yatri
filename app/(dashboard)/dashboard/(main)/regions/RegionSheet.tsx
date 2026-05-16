@@ -158,44 +158,30 @@ function BasicInfoStep({ region }: { region?: Region }) {
   const data       = stepData["basic"] ?? {};
   const name       = (data.name        as string)             ?? "";
   const slug       = (data.slug        as string)             ?? "";
-  const regionLoc  = (data._regionLoc  as LocationValue|null) ?? null;
   const countryLoc = (data._countryLoc as LocationValue|null) ?? null;
 
   function capitalise(s: string) {
     return s.replace(/\b\w/g, (c) => c.toUpperCase());
   }
 
-  function handleRegionSelect(loc: LocationValue | null) {
-    if (!loc) {
-      setStepData("basic", { ...data, _regionLoc: null, name: "", slug: "" });
-      return;
-    }
-    const newSlug = loc.name
+  function toSlug(s: string) {
+    return s
       .toLowerCase()
       .replace(/[^a-z0-9\s-]/g, "")
       .replace(/\s+/g, "-")
       .replace(/-+/g, "-")
       .replace(/(^-|-$)/g, "");
+  }
 
-    const breadParts      = loc.breadcrumb.split(", ");
-    const derivedCountry  =
-      loc.type === "COUNTRY"
-        ? loc.name
-        : breadParts.length > 1
-          ? breadParts[breadParts.length - 1]
-          : "";
-
-    const newCountryLoc: LocationValue | null = derivedCountry
-      ? { id: "derived", name: derivedCountry, type: "COUNTRY", breadcrumb: derivedCountry, slug: "" }
-      : countryLoc;
-
+  function handleNameChange(value: string) {
+    const capitalised = capitalise(value);
+    const currentSlug = (data.slug as string) ?? "";
+    // Keep auto-generating slug while it still matches what the previous name produced
+    const slugIsAuto  = currentSlug === "" || currentSlug === toSlug((data.name as string) ?? "");
     setStepData("basic", {
       ...data,
-      _regionLoc:  loc,
-      name:        capitalise(loc.name),
-      slug:        newSlug,
-      country:     derivedCountry || (data.country as string ?? ""),
-      _countryLoc: newCountryLoc,
+      name: capitalised,
+      slug: slugIsAuto ? toSlug(capitalised) : currentSlug,
     });
   }
 
@@ -214,22 +200,15 @@ function BasicInfoStep({ region }: { region?: Region }) {
         <Label>
           Region Name <span className="text-destructive">*</span>
         </Label>
-        {region ? (
-          <Input
-            placeholder="North India"
-            value={name}
-            onChange={(e) =>
-              setStepData("basic", { ...data, name: capitalise(e.target.value) })
-            }
-            autoComplete="off"
-          />
-        ) : (
-          <LocationSearchSelect
-            value={regionLoc}
-            onChange={handleRegionSelect}
-            placeholder="Search cities, regions, states…"
-          />
-        )}
+        <Input
+          placeholder="North India"
+          value={name}
+          onChange={(e) => region
+            ? setStepData("basic", { ...data, name: capitalise(e.target.value) })
+            : handleNameChange(e.target.value)
+          }
+          autoComplete="off"
+        />
       </div>
 
       {/* Slug */}
