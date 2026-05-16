@@ -35,7 +35,7 @@ function TableSkeleton() {
 // ── Data component ────────────────────────────────────────────────────────
 
 async function PoliciesData() {
-  const policies = await getPolicies();
+  const { policies } = await getPolicies();
 
   return <PoliciesTableClient policies={policies} />;
 }

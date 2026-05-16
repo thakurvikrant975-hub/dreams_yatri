@@ -1,160 +1,241 @@
 "use server";
 
-import { db } from "@/app/lib/db";
+import { db }             from "@/app/lib/db";
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
+import { dashboardAuth }  from "@/app/lib/auth-dashboard";
+import { PolicySchema }   from "@/app/lib/validators/policies";
 import type { PolicyType } from "./constants";
+
+// ── Auth helper ───────────────────────────────────────────────────────────
+
+async function requireActor(): Promise<string | null> {
+    const session = await dashboardAuth();
+    if (!session?.user?.email) return null;
+    return session.user.name ?? session.user.email;
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
 export type PolicyFormState = {
-  success: boolean;
-  message: string;
-  errors?: Record<string, string[]>;
+    success: boolean;
+    message: string;
+    errors?: Record<string, string[]>;
 };
 
 export type Policy = {
-  id: number;
-  type: PolicyType;
-  title: string;
-  points: string[];
-  is_active: boolean;
-  sort_order: number;
-  created_at: Date;
-  updated_at: Date;
-  _count: { packages: number };
+    id:         number;
+    type:       PolicyType;
+    title:      string;
+    points:     string[];
+    is_active:  boolean;
+    sort_order: number;
+    created_at: Date;
+    updated_at: Date;
+    _count: { packages: number };
 };
 
-// ── Schema ────────────────────────────────────────────────────────────────
-
-const PolicySchema = z.object({
-  type: z.enum(["CANCELLATION", "DATE_CHANGE", "REFUND", "TERMS_AND_CONDITIONS"]),
-  title: z.string().min(1, "Title is required"),
-  points: z.array(z.string().min(1)).min(1, "At least one point is required"),
-  is_active: z.boolean().default(true),
-  sort_order: z.coerce.number().int().default(0),
-});
+export type GetPoliciesParams = {
+    page?:   number;
+    limit?:  number;
+    search?: string;
+    type?:   PolicyType | "all";
+    status?: "active" | "inactive" | "all";
+};
 
 // ── Read ──────────────────────────────────────────────────────────────────
 
-export async function getPolicies(): Promise<Policy[]> {
-  return db.policies.findMany({
-    orderBy: [{ type: "asc" }, { sort_order: "asc" }],
-    include: {
-      _count: { select: { packages: true } },
-    },
-  }) as Promise<Policy[]>;
+export async function getPolicies(params: GetPoliciesParams = {}) {
+    const {
+        page   = 1,
+        limit  = 10,
+        search = "",
+        type   = "all",
+        status = "all",
+    } = params;
+
+    const skip        = (page - 1) * limit;
+    const isFiltering = !!(search || type !== "all" || status !== "all");
+
+    const where = {
+        ...(search ? {
+            title: { contains: search, mode: "insensitive" as const },
+        } : {}),
+        ...(type !== "all" ? { type } : {}),
+        ...(status === "active"   ? { is_active: true  } : {}),
+        ...(status === "inactive" ? { is_active: false } : {}),
+    };
+
+    const include = { _count: { select: { packages: true } } } as const;
+
+    const [policies, totalCount, statsTotal, statsActive, statsInactive] =
+        await Promise.all([
+            db.policies.findMany({
+                where,
+                orderBy: [{ type: "asc" }, { sort_order: "asc" }],
+                skip,
+                take:    limit,
+                include,
+            }),
+            db.policies.count({ where }),
+            db.policies.count(),
+            db.policies.count({ where: { is_active: true  } }),
+            db.policies.count({ where: { is_active: false } }),
+        ]);
+
+    const allForPackageCount = await db.policies.findMany({
+        select: { _count: { select: { packages: true } } },
+    });
+    const statsPackages = allForPackageCount.reduce(
+        (acc, p) => acc + p._count.packages, 0
+    );
+
+    return {
+        policies:     policies as Policy[],
+        totalCount,
+        isFiltering,
+        stats: {
+            total:    statsTotal,
+            active:   statsActive,
+            inactive: statsInactive,
+            packages: statsPackages,
+        },
+    };
 }
 
 // ── Create ────────────────────────────────────────────────────────────────
 
 export async function createPolicy(
-  _prev: PolicyFormState,
-  formData: FormData,
+    _prev: PolicyFormState,
+    formData: FormData,
 ): Promise<PolicyFormState> {
-  // Points come as JSON string from the form
-  let points: string[] = [];
-  try {
-    points = JSON.parse(formData.get("points") as string || "[]");
-  } catch {
-    return { success: false, message: "Invalid points data" };
-  }
+    const actor = await requireActor();
+    if (!actor) return { success: false, message: "Unauthorized" };
 
-  const raw = {
-    type: formData.get("type"),
-    title: formData.get("title"),
-    points,
-    is_active: formData.get("is_active") === "true",
-    sort_order: formData.get("sort_order") || 0,
-  };
+    let points: string[] = [];
+    try {
+        points = JSON.parse((formData.get("points") as string) || "[]");
+    } catch {
+        return { success: false, message: "Invalid points data" };
+    }
 
-  const parsed = PolicySchema.safeParse(raw);
-  if (!parsed.success) {
-    return {
-      success: false,
-      message: "Validation failed",
-      errors: parsed.error.flatten().fieldErrors,
+    const raw = {
+        type:       formData.get("type"),
+        title:      formData.get("title"),
+        points,
+        is_active:  formData.get("is_active") === "true",
+        sort_order: formData.get("sort_order") || 0,
     };
-  }
 
-  try {
-    await db.policies.create({ data: parsed.data });
-    revalidatePath("/dashboard/policies");
-    return { success: true, message: "Policy created" };
-  } catch {
-    return { success: false, message: "Database error. Please try again." };
-  }
+    const parsed = PolicySchema.safeParse(raw);
+    if (!parsed.success) {
+        return {
+            success: false,
+            message: "Validation failed",
+            errors:  parsed.error.flatten().fieldErrors,
+        };
+    }
+
+    try {
+        await db.policies.create({ data: parsed.data });
+        revalidatePath("/dashboard/policies");
+        return { success: true, message: "Policy created successfully" };
+    } catch {
+        return { success: false, message: "Database error. Please try again." };
+    }
 }
 
 // ── Update ────────────────────────────────────────────────────────────────
 
 export async function updatePolicy(
-  id: number,
-  _prev: PolicyFormState,
-  formData: FormData,
+    id: number,
+    _prev: PolicyFormState,
+    formData: FormData,
 ): Promise<PolicyFormState> {
-  let points: string[] = [];
-  try {
-    points = JSON.parse(formData.get("points") as string || "[]");
-  } catch {
-    return { success: false, message: "Invalid points data" };
-  }
+    const actor = await requireActor();
+    if (!actor) return { success: false, message: "Unauthorized" };
 
-  const raw = {
-    type: formData.get("type"),
-    title: formData.get("title"),
-    points,
-    is_active: formData.get("is_active") === "true",
-    sort_order: formData.get("sort_order") || 0,
-  };
+    let points: string[] = [];
+    try {
+        points = JSON.parse((formData.get("points") as string) || "[]");
+    } catch {
+        return { success: false, message: "Invalid points data" };
+    }
 
-  const parsed = PolicySchema.safeParse(raw);
-  if (!parsed.success) {
-    return {
-      success: false,
-      message: "Validation failed",
-      errors: parsed.error.flatten().fieldErrors,
+    const raw = {
+        type:       formData.get("type"),
+        title:      formData.get("title"),
+        points,
+        is_active:  formData.get("is_active") === "true",
+        sort_order: formData.get("sort_order") || 0,
     };
-  }
 
-  try {
-    await db.policies.update({ where: { id }, data: parsed.data });
-    revalidatePath("/dashboard/policies");
-    return { success: true, message: "Policy updated" };
-  } catch {
-    return { success: false, message: "Database error. Please try again." };
-  }
+    const parsed = PolicySchema.safeParse(raw);
+    if (!parsed.success) {
+        return {
+            success: false,
+            message: "Validation failed",
+            errors:  parsed.error.flatten().fieldErrors,
+        };
+    }
+
+    try {
+        const current = await db.policies.findUnique({ where: { id } });
+        if (!current) return { success: false, message: "Policy not found" };
+
+        await db.policies.update({ where: { id }, data: parsed.data });
+        revalidatePath("/dashboard/policies");
+        return { success: true, message: "Policy updated successfully" };
+    } catch {
+        return { success: false, message: "Database error. Please try again." };
+    }
 }
 
 // ── Toggle Active ─────────────────────────────────────────────────────────
 
-export async function togglePolicyActive(id: number, is_active: boolean): Promise<void> {
-  await db.policies.update({ where: { id }, data: { is_active } });
-  revalidatePath("/dashboard/policies");
+export async function togglePolicyActive(
+    id: number,
+    is_active: boolean,
+): Promise<PolicyFormState> {
+    const actor = await requireActor();
+    if (!actor) return { success: false, message: "Unauthorized" };
+
+    try {
+        await db.policies.update({ where: { id }, data: { is_active } });
+        revalidatePath("/dashboard/policies");
+        return {
+            success: true,
+            message: `Policy ${is_active ? "activated" : "deactivated"}`,
+        };
+    } catch {
+        return { success: false, message: "Database error. Please try again." };
+    }
 }
 
 // ── Delete ────────────────────────────────────────────────────────────────
 
 export async function deletePolicy(id: number): Promise<PolicyFormState> {
-  try {
-    const policy = await db.policies.findUnique({
-      where: { id },
-      include: { _count: { select: { packages: true } } },
-    });
+    const actor = await requireActor();
+    if (!actor) return { success: false, message: "Unauthorized" };
 
-    if (!policy) return { success: false, message: "Policy not found" };
+    try {
+        const policy = await db.policies.findUnique({
+            where:   { id },
+            include: { _count: { select: { packages: true } } },
+        });
 
-    if (policy._count.packages > 0) {
-      return {
-        success: false,
-        message: `Cannot delete — used in ${policy._count.packages} package(s). Remove assignments first.`,
-      };
+        if (!policy) return { success: false, message: "Policy not found" };
+
+        if (policy._count.packages > 0) {
+            return {
+                success: false,
+                message: `Cannot delete — used in ${policy._count.packages} package(s). Remove assignments first.`,
+            };
+        }
+
+        await db.policies.delete({ where: { id } });
+        revalidatePath("/dashboard/policies");
+        return { success: true, message: "Policy deleted successfully" };
+    } catch {
+        return { success: false, message: "Database error. Please try again." };
     }
-
-    await db.policies.delete({ where: { id } });
-    revalidatePath("/dashboard/policies");
-    return { success: true, message: "Policy deleted" };
-  } catch {
-    return { success: false, message: "Database error. Please try again." };
-  }
 }
