@@ -7,8 +7,6 @@ export const runtime = "nodejs";
 export default async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  console.log("[MW]", pathname);
-
   if (pathname.startsWith("/dashboard")) {
     const isLoginPage = pathname === "/dashboard/login";
 
@@ -18,15 +16,11 @@ export default async function middleware(req: NextRequest) {
       cookieName: "dy.dashboard.session-token",
     });
 
-    console.log("[MW] token:", !!token, "| loginPage:", isLoginPage);
-
     if (isLoginPage && token) {
-      console.log("[MW] → /dashboard");
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
 
     if (!isLoginPage && !token) {
-      console.log("[MW] → /dashboard/login");
       return NextResponse.redirect(new URL("/dashboard/login", req.url));
     }
 

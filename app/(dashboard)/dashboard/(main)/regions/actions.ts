@@ -59,6 +59,16 @@ export type GetRegionsParams = {
 };
 
 export async function getRegions(params: GetRegionsParams = {}) {
+  const { error } = await requireSession();
+  if (error) return {
+    regions:     [],
+    totalPages:  0,
+    currentPage: params.page ?? 1,
+    limit:       params.limit ?? 10,
+    totalCount:  0,
+    stats:       { total: 0, active: 0, inactive: 0, destinations: 0 },
+  };
+
   const {
     page      = 1,
     limit     = 10,
