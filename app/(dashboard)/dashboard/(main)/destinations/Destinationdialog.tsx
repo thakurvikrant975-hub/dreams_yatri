@@ -77,7 +77,7 @@ function buildInitialData(dest: Destination): Record<string, Record<string, unkn
         ? ({
             id:         dest.location_id,
             name:       dest.name,
-            type:       "DESTINATION",
+            type:       "CITY",
             breadcrumb: dest.name,
             slug:       dest.slug,
           } satisfies LocationValue)

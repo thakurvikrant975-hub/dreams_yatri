@@ -699,6 +699,11 @@ model destinations {
   longitude   Decimal?       @db.Decimal(11, 8)
   place_id    String?
   location_id String?
+  created_by  String?
+  updated_by  String?
+  deleted_by  String?
+  deleted_at  DateTime?
+  is_deleted  Boolean        @default(false)
   activities  activities[]
   bookings    Booking[]
   region      custom_regions @relation(fields: [region_id], references: [id])
@@ -707,6 +712,7 @@ model destinations {
 
   @@index([region_id])
   @@index([slug])
+  @@index([is_deleted])
 }
 
 model categories {

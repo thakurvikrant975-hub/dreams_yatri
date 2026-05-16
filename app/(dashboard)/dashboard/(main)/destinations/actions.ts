@@ -1,10 +1,10 @@
 "use server";
 
-import { db }             from "@/app/lib/db";
-import { deleteFromR2 }   from "@/app/lib/r2/r2delete";
-import { revalidatePath } from "next/cache";
-import { z }              from "zod";
-import { dashboardAuth }  from "@/app/lib/auth-dashboard";
+import { db }                  from "@/app/lib/db";
+import { deleteFromR2 }        from "@/app/lib/r2/r2delete";
+import { revalidatePath }      from "next/cache";
+import { dashboardAuth }       from "@/app/lib/auth-dashboard";
+import { DestinationSchema }   from "@/app/lib/validators/destinations";
 
 // ── Auth helper ───────────────────────────────────────────────────────────────
 
@@ -13,21 +13,6 @@ async function requireActor(): Promise<string | null> {
   if (!session?.user?.email) return null;
   return session.user.name ?? session.user.email;
 }
-
-// ── Schema ────────────────────────────────────────────────────────────────────
-
-const DestinationSchema = z.object({
-  name:        z.string().min(1, "Name is required"),
-  slug:        z.string().min(1, "Slug is required")
-                 .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "Lowercase, numbers and hyphens only — no leading or trailing hyphens"),
-  country:     z.string().min(1, "Country is required"),
-  region_id:   z.number({ message: "Region is required" }).int().positive("Region is required"),
-  description: z.string().optional(),
-  meta_title:  z.string().max(60).optional(),
-  meta_desc:   z.string().max(160).optional(),
-  is_active:   z.boolean().default(true),
-  location_id: z.string().optional(),
-});
 
 export type DestinationFormState = {
   success: boolean;
@@ -39,6 +24,7 @@ export type DestinationFormState = {
 
 export async function getDestinations() {
   const rows = await db.destinations.findMany({
+    where:   { is_deleted: false },
     orderBy: { created_at: "desc" },
     include: {
       region: { select: { id: true, name: true, slug: true } },
@@ -94,10 +80,9 @@ export async function createDestination(
     meta_desc:   (formData.get("meta_desc")   as string) || undefined,
     is_active:   formData.get("is_active") === "true",
     location_id: (formData.get("location_id") as string) || undefined,
+    thumbnail:   (formData.get("thumbnail")   as string) || "",
+    cover_image: (formData.get("cover_image") as string) || undefined,
   };
-
-  const thumbnail   = (formData.get("thumbnail")   as string) || null;
-  const cover_image = (formData.get("cover_image") as string) || null;
 
   const parsed = DestinationSchema.safeParse(raw);
   if (!parsed.success) {
@@ -114,8 +99,8 @@ export async function createDestination(
       data: {
         ...parsed.data,
         location_id: parsed.data.location_id ?? null,
-        thumbnail,
-        cover_image,
+        cover_image:  parsed.data.cover_image  ?? null,
+        created_by:  actor,
       },
     });
 
@@ -136,6 +121,14 @@ export async function updateDestination(
   const actor = await requireActor();
   if (!actor) return { success: false, message: "Unauthorized" };
 
+  const current = await db.destinations.findUnique({ where: { id } });
+  if (!current) return { success: false, message: "Destination not found" };
+
+  // For updates: use the incoming thumbnail if provided, otherwise fall back to the existing one
+  const incomingThumbnail  = (formData.get("thumbnail")   as string) || "";
+  const incomingCoverImage = (formData.get("cover_image") as string) || undefined;
+  const effectiveThumbnail = incomingThumbnail || current.thumbnail || "";
+
   const raw = {
     name:        formData.get("name")        as string,
     slug:        formData.get("slug")        as string,
@@ -146,10 +139,9 @@ export async function updateDestination(
     meta_desc:   (formData.get("meta_desc")   as string) || undefined,
     is_active:   formData.get("is_active") === "true",
     location_id: (formData.get("location_id") as string) || undefined,
+    thumbnail:   effectiveThumbnail,
+    cover_image: incomingCoverImage,
   };
-
-  const newThumbnail  = (formData.get("thumbnail")   as string) || null;
-  const newCoverImage = (formData.get("cover_image") as string) || null;
 
   const parsed = DestinationSchema.safeParse(raw);
   if (!parsed.success) {
@@ -164,13 +156,10 @@ export async function updateDestination(
       return { success: false, message: "Slug already taken", errors: { slug: ["This slug is already taken"] } };
     }
 
-    const current = await db.destinations.findUnique({ where: { id } });
-    if (!current) return { success: false, message: "Destination not found" };
-
-    // Delete replaced R2 assets after confirmed DB success
-    if (newThumbnail  && current.thumbnail   && newThumbnail  !== current.thumbnail)
+    // Delete replaced R2 assets
+    if (incomingThumbnail && current.thumbnail && incomingThumbnail !== current.thumbnail)
       await deleteFromR2(current.thumbnail).catch(console.error);
-    if (newCoverImage && current.cover_image && newCoverImage !== current.cover_image)
+    if (incomingCoverImage && current.cover_image && incomingCoverImage !== current.cover_image)
       await deleteFromR2(current.cover_image).catch(console.error);
 
     await db.destinations.update({
@@ -178,8 +167,8 @@ export async function updateDestination(
       data: {
         ...parsed.data,
         location_id: parsed.data.location_id ?? null,
-        ...(newThumbnail  !== null && { thumbnail:   newThumbnail  }),
-        ...(newCoverImage !== null && { cover_image: newCoverImage }),
+        cover_image:  parsed.data.cover_image  ?? null,
+        updated_by:  actor,
       },
     });
 
@@ -199,23 +188,41 @@ export async function deleteDestination(id: number): Promise<DestinationFormStat
   try {
     const destination = await db.destinations.findUnique({
       where:   { id },
-      include: { _count: { select: { packages: true, hotels: true, activities: true } } },
+      include: {
+        _count: { select: { packages: true, hotels: true, activities: true } },
+        packages:   { select: { title: true }, take: 5 },
+        hotels:     { select: { name: true }, take: 5 },
+        activities: { select: { name: true }, take: 5 },
+      },
     });
 
     if (!destination) return { success: false, message: "Destination not found" };
 
     const linkedCount = destination._count.packages + destination._count.hotels + destination._count.activities;
     if (linkedCount > 0) {
+      const names: string[] = [
+        ...destination.packages.map((p) => `Package: ${p.title}`),
+        ...destination.hotels.map((h) => `Hotel: ${h.name}`),
+        ...destination.activities.map((a) => `Activity: ${a.name}`),
+      ];
+      const remaining = linkedCount - names.length;
+      const nameList = names.join(", ") + (remaining > 0 ? `, and ${remaining} more` : "");
       return {
         success: false,
-        message: `Cannot delete — ${destination._count.packages} package(s), ${destination._count.hotels} hotel(s) and ${destination._count.activities} activity(s) are linked. Remove them first.`,
+        message: `Cannot delete — linked to: ${nameList}. Remove them first.`,
       };
     }
 
+    // Soft-delete: stamp audit fields, preserve data for audit history
+    await db.destinations.update({
+      where: { id },
+      data: { is_deleted: true, deleted_by: actor, deleted_at: new Date(), is_active: false },
+    });
+
+    // Clean up R2 assets after soft-delete stamp
     if (destination.thumbnail)   await deleteFromR2(destination.thumbnail).catch(console.error);
     if (destination.cover_image) await deleteFromR2(destination.cover_image).catch(console.error);
 
-    await db.destinations.delete({ where: { id } });
     revalidatePath("/dashboard/destinations");
     return { success: true, message: "Destination deleted successfully" };
   } catch {
@@ -233,7 +240,20 @@ export async function toggleDestinationActive(
   if (!actor) return { success: false, message: "Unauthorized" };
 
   try {
-    await db.destinations.update({ where: { id }, data: { is_active } });
+    if (is_active) {
+      const dest = await db.destinations.findUnique({
+        where:  { id },
+        select: { meta_title: true, meta_desc: true },
+      });
+      if (!dest?.meta_title || !dest?.meta_desc) {
+        return {
+          success: false,
+          message: "Cannot activate — SEO title and description are required first.",
+        };
+      }
+    }
+
+    await db.destinations.update({ where: { id }, data: { is_active, updated_by: actor } });
     revalidatePath("/dashboard/destinations");
     return { success: true, message: `Destination ${is_active ? "activated" : "deactivated"}` };
   } catch {
