@@ -98,8 +98,9 @@ function SubcategoryRow({
 
     function handleToggle() {
         startTransition(async () => {
-            await toggleCategoryActive(child.id, !child.is_active);
-            toast.success(`Subcategory ${!child.is_active ? "activated" : "deactivated"}`);
+            const res = await toggleCategoryActive(child.id, !child.is_active);
+            if (res.success) toast.success(res.message);
+            else toast.error(res.message);
         });
     }
 
@@ -202,8 +203,9 @@ export function CategoriesTable({
 
     function handleToggle(id: number, current: boolean) {
         startTransition(async () => {
-            await toggleCategoryActive(id, !current);
-            toast.success(`Category ${!current ? "activated" : "deactivated"}`);
+            const res = await toggleCategoryActive(id, !current);
+            if (res.success) toast.success(res.message);
+            else toast.error(res.message);
         });
     }
 
