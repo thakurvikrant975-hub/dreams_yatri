@@ -371,101 +371,91 @@ enum LocationType {
 }
 
 model Location {
-  id                    BigInt      @id @default(autoincrement())
+  id BigInt @id @default(autoincrement())
 
   // hierarchy
-  parent_id             BigInt?
+  parent_id BigInt?
 
   // type
-  type                  LocationType
+  type LocationType
 
   // naming
-  name                  String
-  official_name         String?
+  name          String
+  official_name String?
 
-  slug                  String      @unique
+  slug String @unique
 
-  short_code            String?
-  iso_code              String?
+  short_code String?
+  iso_code   String?
 
   // geo
-  latitude              Decimal?    @db.Decimal(10, 7)
-  longitude             Decimal?    @db.Decimal(10, 7)
+  latitude  Decimal? @db.Decimal(10, 7)
+  longitude Decimal? @db.Decimal(10, 7)
 
-  elevation_meters      Int?
+  elevation_meters Int?
 
-  timezone              String?
+  timezone String?
 
-  population            Int?
+  population Int?
 
   // SEO
-  seo_title             String?
-  seo_description       String?
+  seo_title       String?
+  seo_description String?
 
-  description           String?     @db.Text
+  description String? @db.Text
 
-  hero_image            String?
+  hero_image String?
 
   // travel business logic
-  is_featured           Boolean     @default(false)
-  is_popular            Boolean     @default(false)
-  is_searchable         Boolean     @default(true)
-  is_active             Boolean     @default(true)
+  is_featured   Boolean @default(false)
+  is_popular    Boolean @default(false)
+  is_searchable Boolean @default(true)
+  is_active     Boolean @default(true)
 
   // hierarchy optimization
-  country_id            BigInt?
-  state_id              BigInt?
-  city_id               BigInt?
+  country_id BigInt?
+  state_id   BigInt?
+  city_id    BigInt?
 
   // external references
-  geonames_id           Int?
-  osm_id                String?
-  mapbox_id             String?
+  geonames_id Int?
+  osm_id      String?
+  mapbox_id   String?
 
   // metadata
-  metadata              Json?
+  metadata Json?
 
   // timestamps
-  created_at            DateTime    @default(now())
-  updated_at            DateTime    @updatedAt
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   // relations
-  parent                Location?   @relation("LocationHierarchy", fields: [parent_id], references: [id])
+  parent Location? @relation("LocationHierarchy", fields: [parent_id], references: [id])
 
-  children              Location[]  @relation("LocationHierarchy")
+  children Location[] @relation("LocationHierarchy")
 
-  country               Location?   @relation("CountryRelation", fields: [country_id], references: [id])
+  country Location? @relation("CountryRelation", fields: [country_id], references: [id])
 
-  state                 Location?   @relation("StateRelation", fields: [state_id], references: [id])
+  state Location? @relation("StateRelation", fields: [state_id], references: [id])
 
-  city                  Location?   @relation("CityRelation", fields: [city_id], references: [id])
+  city Location? @relation("CityRelation", fields: [city_id], references: [id])
 
-  country_children      Location[]  @relation("CountryRelation")
+  country_children Location[] @relation("CountryRelation")
 
-  state_children        Location[]  @relation("StateRelation")
+  state_children Location[] @relation("StateRelation")
 
-  city_children         Location[]  @relation("CityRelation")
+  city_children Location[] @relation("CityRelation")
 
   @@index([type])
-
   @@index([parent_id])
-
   @@index([country_id])
-
   @@index([state_id])
-
   @@index([city_id])
-
   @@index([latitude, longitude])
-
   @@index([is_active])
-
   @@index([is_searchable])
-
   @@index([name])
-
   @@index([slug])
-
   @@map("locations")
 }
 

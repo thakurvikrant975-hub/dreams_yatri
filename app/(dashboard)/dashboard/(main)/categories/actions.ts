@@ -85,7 +85,7 @@ export async function getCategories(params: GetCategoriesParams = {}) {
     const topLevelWhere = { ...filterWhere, parent_id: null };
     const activeWhere   = isFiltering ? filterWhere : topLevelWhere;
 
-    const [rows, totalCount, statsTotal, statsActive, statsSubCount, statsPackages, parentCategories] =
+    const [rows, totalCount, statsTotal, statsActive, statsSubCount, parentCategories] =
         await Promise.all([
             db.categories.findMany({
                 where:   isFiltering ? filterWhere : topLevelWhere,
@@ -98,7 +98,6 @@ export async function getCategories(params: GetCategoriesParams = {}) {
             db.categories.count(),
             db.categories.count({ where: { is_active: true } }),
             db.categories.count({ where: { parent_id: { not: null } } }),
-            db.categories.aggregate({ _sum: { /* packages via _count below */ } }),
             db.categories.findMany({
                 where:   { parent_id: null, is_active: true },
                 orderBy: { name: "asc" },
