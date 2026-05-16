@@ -1,11 +1,17 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
-import { Badge } from "../components/ui/badge";
-import { Switch } from "../components/ui/switch";
-import { Button } from "../components/ui/button";
+import React, { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Badge }   from "../components/ui/badge";
+import { Switch }  from "../components/ui/switch";
+import { Button }  from "../components/ui/button";
 import { TableCell, TableRow } from "../components/ui/table";
-import { Trash2, Tag, Package, GitBranch, ChevronDown, ChevronRight } from "lucide-react";
+import {
+    Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "../components/ui/select";
+import {
+    Trash2, Tag, Package, GitBranch, ChevronDown, ChevronRight,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
     AlertDialog, AlertDialogAction, AlertDialogCancel,
@@ -15,10 +21,8 @@ import {
 } from "../components/ui/alert-dialog";
 import { EditCategoryDialog } from "./Categorydialog";
 import {
-    deleteCategory,
-    toggleCategoryActive,
-    type CategoryWithRelations,
-    type CategoryForSelect,
+    deleteCategory, toggleCategoryActive,
+    type CategoryWithRelations, type CategoryForSelect,
 } from "./actions";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { TableFilters } from "../components/dashboard/Tablefilters";
@@ -72,7 +76,6 @@ function DeleteCategoryDialog({
                     </AlertDialogDescription>
                 </AlertDialogHeader>
 
-                {/* Pre-flight warnings */}
                 {!errorMsg && (childCount > 0 || packageCount > 0) && (
                     <div className="text-sm text-amber-700 dark:text-amber-400 rounded-md border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 space-y-1">
                         {childCount > 0 && (
@@ -84,7 +87,6 @@ function DeleteCategoryDialog({
                     </div>
                 )}
 
-                {/* Server error */}
                 {errorMsg && (
                     <p className="text-sm text-destructive rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2">
                         {errorMsg}
@@ -111,9 +113,9 @@ function DeleteCategoryDialog({
 function SubcategoryRow({
     child, parentCategories, allCategories,
 }: {
-    child: { id: number; name: string; slug: string; is_active: boolean };
+    child:            { id: number; name: string; slug: string; is_active: boolean };
     parentCategories: CategoryForSelect[];
-    allCategories: CategoryWithRelations[];
+    allCategories:    CategoryWithRelations[];
 }) {
     const [isPending, startTransition] = useTransition();
     const full = allCategories.find((c) => c.id === child.id);
@@ -128,7 +130,6 @@ function SubcategoryRow({
 
     return (
         <TableRow className="hover:bg-muted/20 bg-muted/5">
-            {/* Name */}
             <TableCell>
                 <div className="flex items-center gap-2 pl-8">
                     <div className="w-px h-4 bg-border" />
@@ -142,25 +143,20 @@ function SubcategoryRow({
                     </div>
                 </div>
             </TableCell>
-            {/* Slug */}
             <TableCell>
                 <Badge variant="outline" className="font-mono text-xs">{child.slug}</Badge>
             </TableCell>
-            {/* Parent */}
             <TableCell>
                 <span className="text-xs text-muted-foreground italic">—</span>
             </TableCell>
-            {/* Subcategories */}
             <TableCell className="text-center">
                 <span className="text-xs text-muted-foreground">—</span>
             </TableCell>
-            {/* Packages */}
             <TableCell className="text-center">
                 <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
                     <Package className="h-3 w-3" /> {full?._count.packages ?? 0}
                 </div>
             </TableCell>
-            {/* Status */}
             <TableCell className="text-center">
                 <Switch
                     checked={child.is_active}
@@ -168,17 +164,12 @@ function SubcategoryRow({
                     onCheckedChange={handleToggle}
                 />
             </TableCell>
-            {/* Order */}
             <TableCell className="text-xs text-muted-foreground">—</TableCell>
-            {/* Actions */}
             <TableCell className="text-right">
                 <div className="flex items-center justify-end gap-1">
                     {full && (
                         <>
-                            <EditCategoryDialog
-                                category={full}
-                                parentCategories={parentCategories}
-                            />
+                            <EditCategoryDialog category={full} parentCategories={parentCategories} />
                             <DeleteCategoryDialog
                                 id={full.id}
                                 name={full.name}
@@ -197,24 +188,60 @@ function SubcategoryRow({
 
 export function CategoriesTable({
     categories,
-    paginatedTopLevel,
     parentCategories,
+    totalCount,
+    limit,
     currentPage,
-    totalPages,
+    isFiltering,
+    search,
+    status,
+    parentFilter,
 }: {
-    categories: CategoryWithRelations[];
-    paginatedTopLevel: CategoryWithRelations[];
+    categories:       CategoryWithRelations[];
     parentCategories: CategoryForSelect[];
-    currentPage: number;
-    totalPages: number;
-    pageSize: number;
+    totalCount:       number;
+    limit:            number;
+    currentPage:      number;
+    isFiltering:      boolean;
+    search:           string;
+    status:           string;
+    parentFilter:     string;
 }) {
+    const router       = useRouter();
+    const searchParams = useSearchParams();
     const [isPending, startTransition] = useTransition();
-    const [expanded, setExpanded] = useState<Set<number>>(new Set());
-    const [search, setSearch] = useState("");
-    const [statusFilter, setStatusFilter] = useState<string>("all");
-    const [parentFilter, setParentFilter] = useState<string>("all");
+    const [expanded,  setExpanded]     = useState<Set<number>>(new Set());
 
+    const [localSearch, setLocalSearch] = useState(search);
+    const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+    useEffect(() => { setLocalSearch(search); }, [search]);
+
+    // ── URL helpers ────────────────────────────────────────────────────────────
+    function updateParam(key: string, value: string) {
+        const params = new URLSearchParams(searchParams.toString());
+        if (value === "all" || value === "") {
+            params.delete(key);
+        } else {
+            params.set(key, value);
+        }
+        params.delete("page");
+        router.push(`?${params.toString()}`);
+    }
+
+    function handleSearch(value: string) {
+        setLocalSearch(value);
+        clearTimeout(searchTimer.current);
+        searchTimer.current = setTimeout(() => updateParam("search", value), 400);
+    }
+
+    function buildHref(p: number) {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set("page", String(p));
+        return `?${params.toString()}`;
+    }
+
+    // ── Expand/collapse (top-level only, not when filtering) ───────────────────
     function toggleExpanded(id: number) {
         setExpanded((prev) => {
             const next = new Set(prev);
@@ -223,6 +250,7 @@ export function CategoriesTable({
         });
     }
 
+    // ── Toggle active ──────────────────────────────────────────────────────────
     function handleToggle(id: number, current: boolean) {
         startTransition(async () => {
             const res = await toggleCategoryActive(id, !current);
@@ -231,56 +259,36 @@ export function CategoriesTable({
         });
     }
 
-    // ── Filter logic ──────────────────────────────────────────────────────────
-    const query = search.trim().toLowerCase();
-    const isSearching = query.length > 0;
+    // ── Pagination ─────────────────────────────────────────────────────────────
+    const totalPages = Math.max(1, Math.ceil(totalCount / limit));
+    const from = totalCount === 0 ? 0 : (currentPage - 1) * limit + 1;
+    const to   = Math.min(currentPage * limit, totalCount);
+    const paginationLabel = `Showing ${from}–${to} of ${totalCount} categor${totalCount !== 1 ? "ies" : "y"}`;
 
     const parentOptions = parentCategories.map((p) => ({
         label: p.name,
         value: String(p.id),
     }));
 
-    const baseData = isSearching || statusFilter !== "all" || parentFilter !== "all"
-        ? categories
-        : paginatedTopLevel;
-
-    const displayRows = baseData.filter((c) => {
-        const matchesSearch =
-            c.name.toLowerCase().includes(query) ||
-            c.slug.toLowerCase().includes(query) ||
-            (c.parent?.name?.toLowerCase().includes(query) ?? false);
-
-        const matchesStatus =
-            statusFilter === "all" ||
-            (statusFilter === "active" && c.is_active) ||
-            (statusFilter === "inactive" && !c.is_active);
-
-        const matchesParent =
-            parentFilter === "all" ||
-            String(c.parent_id ?? "top") === parentFilter;
-
-        return matchesSearch && matchesStatus && matchesParent;
-    });
-
-    // ── Column definitions ────────────────────────────────────────────────────
+    // ── Columns ────────────────────────────────────────────────────────────────
     const columns: ColumnDef<CategoryWithRelations>[] = [
         {
             header: "Category",
-            width: "w-[240px]",
+            width:  "w-[240px]",
             cell: (cat) => {
                 const hasChildren = cat.children.length > 0;
-                const isTopLevel = cat.parent_id === null;
-                const isExpanded = expanded.has(cat.id);
+                const isTopLevel  = cat.parent_id === null;
+                const isExpanded  = expanded.has(cat.id);
 
                 return (
                     <div className="flex items-center gap-2">
-                        {hasChildren && isTopLevel ? (
+                        {hasChildren && isTopLevel && !isFiltering ? (
                             <button
                                 onClick={() => toggleExpanded(cat.id)}
                                 className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted transition-colors shrink-0"
                             >
                                 {isExpanded
-                                    ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                    ? <ChevronDown  className="h-3.5 w-3.5 text-muted-foreground" />
                                     : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                                 }
                             </button>
@@ -314,11 +322,11 @@ export function CategoriesTable({
         },
         {
             header: "Subcategories",
-            align: "center",
+            align:  "center",
             cell: (cat) => {
                 const hasChildren = cat.children.length > 0;
-                const isTopLevel = cat.parent_id === null;
-                return hasChildren && isTopLevel ? (
+                const isTopLevel  = cat.parent_id === null;
+                return hasChildren && isTopLevel && !isFiltering ? (
                     <button
                         onClick={() => toggleExpanded(cat.id)}
                         className="flex items-center justify-center gap-1 text-xs text-primary hover:underline mx-auto"
@@ -327,13 +335,15 @@ export function CategoriesTable({
                         {cat._count.children}
                     </button>
                 ) : (
-                    <span className="text-xs text-muted-foreground">0</span>
+                    <span className="text-xs text-muted-foreground">
+                        {cat._count.children || 0}
+                    </span>
                 );
             },
         },
         {
             header: "Packages",
-            align: "center",
+            align:  "center",
             cell: (cat) => (
                 <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
                     <Package className="h-3 w-3" /> {cat._count.packages}
@@ -342,7 +352,7 @@ export function CategoriesTable({
         },
         {
             header: "Status",
-            align: "center",
+            align:  "center",
             cell: (cat) => (
                 <Switch
                     checked={cat.is_active}
@@ -359,8 +369,8 @@ export function CategoriesTable({
         },
         {
             header: "Actions",
-            align: "right",
-            width: "w-[100px]",
+            align:  "right",
+            width:  "w-[100px]",
             cell: (cat) => (
                 <div className="flex items-center justify-end gap-1">
                     <EditCategoryDialog category={cat} parentCategories={parentCategories} />
@@ -375,8 +385,7 @@ export function CategoriesTable({
         },
     ];
 
-    // ── Empty state (no data at all, not a search miss) ───────────────────────
-    if (!isSearching && paginatedTopLevel.length === 0) {
+    if (!isFiltering && categories.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center py-20 border rounded-xl bg-muted/30">
                 <Tag className="h-10 w-10 text-muted-foreground mb-3" />
@@ -391,58 +400,69 @@ export function CategoriesTable({
     return (
         <div className="space-y-3">
 
+            {/* Filters + rows-per-page */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <TableFilters
+                    search={localSearch}
+                    onSearchChange={handleSearch}
+                    searchPlaceholder="Search categories..."
+                    className="flex-1"
+                    filters={[
+                        {
+                            value:       status,
+                            onChange:    (v) => updateParam("status", v),
+                            placeholder: "All Statuses",
+                            width:       "w-36",
+                            options: [
+                                { label: "Active",   value: "active"   },
+                                { label: "Inactive", value: "inactive" },
+                            ],
+                        },
+                        {
+                            value:       parentFilter,
+                            onChange:    (v) => updateParam("parent", v),
+                            placeholder: "All Parents",
+                            width:       "w-44",
+                            options: [
+                                { label: "Top Level Only", value: "top" },
+                                ...parentOptions,
+                            ],
+                        },
+                    ]}
+                />
 
-            {/* Filters */}
-            <TableFilters
-                search={search}
-                onSearchChange={setSearch}
-                searchPlaceholder="Search categories..."
-                filters={[
-                    {
-                        value: statusFilter,
-                        onChange: setStatusFilter,
-                        placeholder: "All Status",
-                        width: "w-40",
-                        options: [
-                            { label: "All", value: "all" },
-                            { label: "Active", value: "active" },
-                            { label: "Inactive", value: "inactive" },
-                        ],
-                    },
-                    {
-                        value: parentFilter,
-                        onChange: setParentFilter,
-                        placeholder: "All Parents",
-                        width: "w-48",
-                        options: [
-                            { label: "Top Level", value: "top" },
-                            ...parentOptions,
-                        ],
-                    },
-                ]}
-            />
+                <Select
+                    value={String(limit)}
+                    onValueChange={(v) => {
+                        const params = new URLSearchParams(searchParams.toString());
+                        params.set("limit", v);
+                        params.delete("page");
+                        router.push(`?${params.toString()}`);
+                    }}
+                >
+                    <SelectTrigger className="w-32 h-10 text-sm shrink-0 border-dashboard-base-300 bg-dashboard-base-100 text-dashboard-base-content/70 rounded-lg focus:ring-dashboard-primary/30 focus:border-dashboard-primary">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-dashboard-base-300 bg-dashboard-base-100">
+                        {[10, 20, 50].map((n) => (
+                            <SelectItem
+                                key={n}
+                                value={String(n)}
+                                className="text-sm text-dashboard-base-content focus:bg-dashboard-base-200 focus:text-dashboard-base-content rounded-lg cursor-pointer"
+                            >
+                                {n} / page
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
 
-            {/* Search result count */}
-            {isSearching && (
-                <p className="text-xs text-muted-foreground px-1">
-                    {displayRows.length === 0
-                        ? `No results for "${search}"`
-                        : `${displayRows.length} result${displayRows.length !== 1 ? "s" : ""} for "${search}"`
-                    }
-                </p>
-            )}
-
-            {/* Table */}
             <DataTable
-                data={displayRows}
+                data={categories}
                 columns={columns}
                 rowKey={(cat) => cat.id}
                 renderSubRows={(cat) => {
-                    const isTopLevel = cat.parent_id === null;
-                    const isExpanded = expanded.has(cat.id);
-
-                    if (isSearching || !isExpanded || !isTopLevel) return null;
-
+                    if (isFiltering || !expanded.has(cat.id) || cat.parent_id !== null) return null;
                     return cat.children.map((child) => (
                         <SubcategoryRow
                             key={child.id}
@@ -455,16 +475,15 @@ export function CategoriesTable({
                 emptyState={
                     <div className="flex flex-col items-center gap-2">
                         <Tag className="h-8 w-8 text-muted-foreground" />
-                        <p className="text-sm text-muted-foreground">
-                            No categories match your search
-                        </p>
+                        <p className="text-sm text-muted-foreground">No categories match your filters</p>
                     </div>
                 }
-                pagination={
-                    isSearching
-                        ? undefined
-                        : { currentPage, totalPages }
-                }
+                pagination={{
+                    currentPage,
+                    totalPages,
+                    buildHref,
+                    label: paginationLabel,
+                }}
             />
         </div>
     );

@@ -46,18 +46,86 @@ export type CategoryForSelect = {
 
 // ── Read ──────────────────────────────────────────────────────────────────────
 
-export async function getCategories(): Promise<CategoryWithRelations[]> {
-    return db.categories.findMany({
-        orderBy: [{ sort_order: "asc" }, { name: "asc" }],
-        include: {
-            parent: { select: { id: true, name: true, slug: true } },
-            children: {
-                select: { id: true, name: true, slug: true, is_active: true },
-                orderBy: { sort_order: "asc" },
-            },
-            _count: { select: { packages: true, children: true } },
-        },
+export type GetCategoriesParams = {
+    page?:      number;
+    limit?:     number;
+    search?:    string;
+    status?:    "active" | "inactive" | "all";
+    parent_id?: "top" | number | "all";
+};
+
+const CATEGORY_INCLUDE = {
+    parent: { select: { id: true, name: true, slug: true } },
+    children: {
+        select:  { id: true, name: true, slug: true, is_active: true },
+        orderBy: { sort_order: "asc" as const },
+    },
+    _count: { select: { packages: true, children: true } },
+} as const;
+
+export async function getCategories(params: GetCategoriesParams = {}) {
+    const { page = 1, limit = 10, search = "", status = "all", parent_id = "all" } = params;
+    const skip = (page - 1) * limit;
+    const isFiltering = !!(search || status !== "all" || parent_id !== "all");
+
+    const filterWhere = {
+        ...(search ? {
+            OR: [
+                { name: { contains: search, mode: "insensitive" as const } },
+                { slug: { contains: search, mode: "insensitive" as const } },
+            ],
+        } : {}),
+        ...(status === "active"   ? { is_active: true  } : {}),
+        ...(status === "inactive" ? { is_active: false } : {}),
+        ...(parent_id === "top"          ? { parent_id: null }         : {}),
+        ...(typeof parent_id === "number" ? { parent_id }              : {}),
+    };
+
+    // When not filtering: paginate top-level only, include children for expand/collapse
+    const topLevelWhere = { ...filterWhere, parent_id: null };
+    const activeWhere   = isFiltering ? filterWhere : topLevelWhere;
+
+    const [rows, totalCount, statsTotal, statsActive, statsSubCount, statsPackages, parentCategories] =
+        await Promise.all([
+            db.categories.findMany({
+                where:   isFiltering ? filterWhere : topLevelWhere,
+                orderBy: [{ sort_order: "asc" }, { name: "asc" }],
+                skip,
+                take:    limit,
+                include: CATEGORY_INCLUDE,
+            }),
+            db.categories.count({ where: activeWhere }),
+            db.categories.count(),
+            db.categories.count({ where: { is_active: true } }),
+            db.categories.count({ where: { parent_id: { not: null } } }),
+            db.categories.aggregate({ _sum: { /* packages via _count below */ } }),
+            db.categories.findMany({
+                where:   { parent_id: null, is_active: true },
+                orderBy: { name: "asc" },
+                select:  { id: true, name: true, slug: true },
+            }),
+        ]);
+
+    // Total packages: sum _count.packages across all categories
+    const allForPackageCount = await db.categories.findMany({
+        select: { _count: { select: { packages: true } } },
     });
+    const statsPackageCount = allForPackageCount.reduce(
+        (acc, c) => acc + c._count.packages, 0
+    );
+
+    return {
+        categories:      rows as CategoryWithRelations[],
+        totalCount,
+        isFiltering,
+        stats: {
+            total:         statsTotal,
+            active:        statsActive,
+            subCategories: statsSubCount,
+            packages:      statsPackageCount,
+        },
+        parentCategories: parentCategories as CategoryForSelect[],
+    };
 }
 
 export async function getParentCategoriesForSelect(): Promise<CategoryForSelect[]> {
