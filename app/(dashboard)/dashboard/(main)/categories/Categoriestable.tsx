@@ -30,19 +30,30 @@ function DeleteCategoryDialog({
 }: {
     id: number; name: string; packageCount: number; childCount: number;
 }) {
+    const [open,      setOpen]         = useState(false);
+    const [errorMsg,  setErrorMsg]     = useState<string | null>(null);
     const [isPending, startTransition] = useTransition();
-    const isBlocked = packageCount > 0 || childCount > 0;
 
-    function handleDelete() {
+    function handleOpenChange(o: boolean) {
+        setOpen(o);
+        if (!o) setErrorMsg(null);
+    }
+
+    function handleDelete(e: React.MouseEvent) {
+        e.preventDefault();
         startTransition(async () => {
             const result = await deleteCategory(id);
-            if (result.success) toast.success(result.message);
-            else toast.error(result.message);
+            if (result.success) {
+                toast.success(result.message);
+                setOpen(false);
+            } else {
+                setErrorMsg(result.message);
+            }
         });
     }
 
     return (
-        <AlertDialog>
+        <AlertDialog open={open} onOpenChange={handleOpenChange}>
             <AlertDialogTrigger asChild>
                 <Button
                     variant="ghost" size="icon"
@@ -57,26 +68,37 @@ function DeleteCategoryDialog({
                     <AlertDialogDescription>
                         Are you sure you want to delete{" "}
                         <span className="font-semibold">{name}</span>?
-                        {childCount > 0 && (
-                            <span className="block mt-2 text-destructive font-medium">
-                                ⚠ This category has {childCount} subcategory(s). Remove them first.
-                            </span>
-                        )}
-                        {packageCount > 0 && (
-                            <span className="block mt-2 text-destructive font-medium">
-                                ⚠ {packageCount} package(s) are linked. Unlink them first.
-                            </span>
-                        )}
+                        This action cannot be undone.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
+
+                {/* Pre-flight warnings */}
+                {!errorMsg && (childCount > 0 || packageCount > 0) && (
+                    <div className="text-sm text-amber-700 dark:text-amber-400 rounded-md border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 space-y-1">
+                        {childCount > 0 && (
+                            <p>⚠ This category has {childCount} subcategory(s). Remove them first.</p>
+                        )}
+                        {packageCount > 0 && (
+                            <p>⚠ {packageCount} package(s) are linked. Unlink them first.</p>
+                        )}
+                    </div>
+                )}
+
+                {/* Server error */}
+                {errorMsg && (
+                    <p className="text-sm text-destructive rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2">
+                        {errorMsg}
+                    </p>
+                )}
+
                 <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                     <AlertDialogAction
                         onClick={handleDelete}
-                        disabled={isPending || isBlocked}
+                        disabled={isPending}
                         className="bg-destructive text-white hover:bg-destructive/90"
                     >
-                        {isPending ? "Deleting..." : "Delete"}
+                        {isPending ? "Deleting…" : "Delete"}
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
