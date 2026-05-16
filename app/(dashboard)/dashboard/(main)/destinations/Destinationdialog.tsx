@@ -1,16 +1,13 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
-import { Plus, MapPin, ImageIcon, Search, Settings2, Pencil, AlertTriangle, Info } from "lucide-react";
+import { useState, useTransition, useEffect, useRef } from "react";
+import { Plus, MapPin, ImageIcon, Search, Settings2, Pencil, AlertTriangle, Info, ChevronsUpDown, Check } from "lucide-react";
 import { Button }   from "../components/ui/button";
 import { Input }    from "../components/ui/input";
 import { Label }    from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
-import { Switch }   from "../components/ui/switch";
-import {
-  Select, SelectContent, SelectItem,
-  SelectTrigger, SelectValue,
-} from "../components/ui/select";
+import { Switch } from "../components/ui/switch";
+import { Popover as PopoverPrimitive } from "radix-ui";
 import { toast } from "sonner";
 import { cn }    from "@/app/lib/utils";
 
@@ -61,6 +58,87 @@ function toSlug(s: string) {
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .replace(/(^-|-$)/g, "");
+}
+
+// ── Region Combobox ───────────────────────────────────────────────────────────
+
+function RegionCombobox({
+  regions,
+  value,
+  onChange,
+}: {
+  regions:  Region[];
+  value:    string;
+  onChange: (v: string) => void;
+}) {
+  const [open,   setOpen]   = useState(false);
+  const [query,  setQuery]  = useState("");
+  const inputRef            = useRef<HTMLInputElement>(null);
+
+  const selected = regions.find((r) => String(r.id) === value);
+  const filtered = query
+    ? regions.filter((r) => r.name.toLowerCase().includes(query.toLowerCase()))
+    : regions;
+
+  return (
+    <PopoverPrimitive.Root open={open} onOpenChange={(o) => { setOpen(o); if (o) setTimeout(() => inputRef.current?.focus(), 0); }}>
+      <PopoverPrimitive.Trigger asChild>
+        <button
+          type="button"
+          role="combobox"
+          aria-expanded={open}
+          className={cn(
+            "flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs",
+            "hover:bg-accent/30 transition-colors",
+            !selected && "text-muted-foreground"
+          )}
+        >
+          <span className="truncate">{selected ? selected.name : "Select a region"}</span>
+          <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground ml-2" />
+        </button>
+      </PopoverPrimitive.Trigger>
+      <PopoverPrimitive.Portal>
+        <PopoverPrimitive.Content
+          className="z-50 w-[--radix-popover-trigger-width] rounded-md border bg-popover shadow-md outline-none"
+          align="start"
+          sideOffset={4}
+        >
+          <div className="p-2 border-b">
+            <div className="flex items-center gap-2 px-1">
+              <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <input
+                ref={inputRef}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search regions…"
+                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              />
+            </div>
+          </div>
+          <div className="max-h-48 overflow-y-auto p-1">
+            {filtered.length === 0 ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">No regions found</p>
+            ) : (
+              filtered.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => { onChange(String(r.id)); setOpen(false); setQuery(""); }}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground",
+                    value === String(r.id) && "bg-accent/50"
+                  )}
+                >
+                  <Check className={cn("h-3.5 w-3.5 shrink-0", value === String(r.id) ? "opacity-100" : "opacity-0")} />
+                  {r.name}
+                </button>
+              ))
+            )}
+          </div>
+        </PopoverPrimitive.Content>
+      </PopoverPrimitive.Portal>
+    </PopoverPrimitive.Root>
+  );
 }
 
 // ── Initial data seed for edit mode ──────────────────────────────────────────
@@ -116,6 +194,21 @@ function buildInitialData(dest: Destination): Record<string, Record<string, unkn
       meta_title: dest.meta_title ?? "",
       meta_desc:  dest.meta_desc  ?? "",
     },
+  };
+}
+
+const INDIA_DEFAULT: LocationValue = {
+  id: "country_india", name: "India", type: "COUNTRY",
+  breadcrumb: "India", slug: "india",
+};
+
+function buildCreateInitialData(): Record<string, Record<string, unknown>> {
+  return {
+    basic: {
+      country:     "India",
+      _countryLoc: INDIA_DEFAULT,
+    },
+    details: { is_active: false },
   };
 }
 
@@ -268,21 +361,11 @@ function BasicInfoStep({
         <Label>
           Region <span className="text-destructive">*</span>
         </Label>
-        <Select
+        <RegionCombobox
+          regions={regions}
           value={region_id}
-          onValueChange={(v) => setStepData("basic", { ...data, region_id: v })}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select a region" />
-          </SelectTrigger>
-          <SelectContent>
-            {regions.map((r) => (
-              <SelectItem key={r.id} value={String(r.id)}>
-                {r.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          onChange={(v) => setStepData("basic", { ...data, region_id: v })}
+        />
       </div>
 
       {/* Country — LocationSearchSelect, auto-filled from name selection */}
@@ -562,8 +645,8 @@ export function CreateDestinationDialog({ regions }: { regions: Region[] }) {
       const result = await createDestination({ success: false, message: "" }, formData);
       if (result.success) {
         toast.success(result.message);
-        setSheetKey((k) => k + 1); // force remount → clean slate
         setOpen(false);
+        setSheetKey((k) => k + 1); // increment after close → clean state on next open
       } else {
         toast.error(result.message);
       }
@@ -591,7 +674,7 @@ export function CreateDestinationDialog({ regions }: { regions: Region[] }) {
         onComplete={handleComplete}
         isSubmitting={isPending}
         submitLabel="Create Destination"
-        initialStepData={{}}
+        initialStepData={buildCreateInitialData()}
       >
         <BasicInfoStep regions={regions} />
         <ImagesStep />
