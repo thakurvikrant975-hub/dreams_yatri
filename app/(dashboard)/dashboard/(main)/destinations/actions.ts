@@ -5,6 +5,7 @@ import { deleteFromR2 }        from "@/app/lib/r2/r2delete";
 import { revalidatePath }      from "next/cache";
 import { dashboardAuth }       from "@/app/lib/auth-dashboard";
 import { DestinationSchema }   from "@/app/lib/validators/destinations";
+import { createLog }           from "../lib/logger";
 
 // ── Auth helper ───────────────────────────────────────────────────────────────
 
@@ -140,13 +141,21 @@ export async function createDestination(
       return { success: false, message: "Slug already exists", errors: { slug: ["This slug is already taken"] } };
     }
 
-    await db.destinations.create({
+    const created = await db.destinations.create({
       data: {
         ...parsed.data,
         location_id: parsed.data.location_id ?? null,
         cover_image:  parsed.data.cover_image  ?? null,
         created_by:  actor,
       },
+    });
+
+    await createLog({
+      action:     "CREATE",
+      entity:     "destination",
+      entityId:   String(created.id),
+      entitySlug: created.slug,
+      newData:    { name: created.name, slug: created.slug, country: created.country },
     });
 
     revalidatePath("/dashboard/destinations");
@@ -217,6 +226,15 @@ export async function updateDestination(
       },
     });
 
+    await createLog({
+      action:       "UPDATE",
+      entity:       "destination",
+      entityId:     String(id),
+      entitySlug:   parsed.data.slug,
+      previousData: { name: current.name, country: current.country, is_active: current.is_active },
+      newData:      { name: parsed.data.name, country: parsed.data.country, is_active: parsed.data.is_active },
+    });
+
     revalidatePath("/dashboard/destinations");
     return { success: true, message: "Destination updated successfully" };
   } catch {
@@ -264,6 +282,14 @@ export async function deleteDestination(id: number): Promise<DestinationFormStat
       data: { is_deleted: true, deleted_by: actor, deleted_at: new Date(), is_active: false },
     });
 
+    await createLog({
+      action:       "DELETE",
+      entity:       "destination",
+      entityId:     String(id),
+      entitySlug:   destination.slug,
+      previousData: { name: destination.name, slug: destination.slug, country: destination.country },
+    });
+
     // Clean up R2 assets after soft-delete stamp
     if (destination.thumbnail)   await deleteFromR2(destination.thumbnail).catch(console.error);
     if (destination.cover_image) await deleteFromR2(destination.cover_image).catch(console.error);
@@ -273,6 +299,28 @@ export async function deleteDestination(id: number): Promise<DestinationFormStat
   } catch {
     return { success: false, message: "Database error. Please try again." };
   }
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+
+export async function getDestinationHistory(id: number) {
+  return db.activityLog.findMany({
+    where:   { entity: "destination", entityId: String(id) },
+    orderBy: { actionAt: "desc" },
+    select: {
+      id:          true,
+      action:      true,
+      description: true,
+      userName:    true,
+      userEmail:   true,
+      previousData: true,
+      newData:      true,
+      metadata:     true,
+      status:      true,
+      actionAt:    true,
+    },
+    take: 50,
+  });
 }
 
 // ── Toggle Active ─────────────────────────────────────────────────────────────
@@ -285,20 +333,29 @@ export async function toggleDestinationActive(
   if (!actor) return { success: false, message: "Unauthorized" };
 
   try {
-    if (is_active) {
-      const dest = await db.destinations.findUnique({
-        where:  { id },
-        select: { meta_title: true, meta_desc: true },
-      });
-      if (!dest?.meta_title || !dest?.meta_desc) {
-        return {
-          success: false,
-          message: "Cannot activate — SEO title and description are required first.",
-        };
-      }
+    const row = await db.destinations.findUnique({
+      where:  { id },
+      select: { slug: true, meta_title: true, meta_desc: true },
+    });
+
+    if (is_active && (!row?.meta_title || !row?.meta_desc)) {
+      return {
+        success: false,
+        message: "Cannot activate — SEO title and description are required first.",
+      };
     }
 
     await db.destinations.update({ where: { id }, data: { is_active, updated_by: actor } });
+
+    await createLog({
+      action:     "UPDATE",
+      entity:     "destination",
+      entityId:   String(id),
+      entitySlug: row?.slug,
+      newData:    { is_active },
+      metadata:   { operation: "toggle_active" },
+    });
+
     revalidatePath("/dashboard/destinations");
     return { success: true, message: `Destination ${is_active ? "activated" : "deactivated"}` };
   } catch {

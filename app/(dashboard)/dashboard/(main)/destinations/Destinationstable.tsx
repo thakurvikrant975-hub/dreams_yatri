@@ -19,6 +19,7 @@ import {
     AlertDialogTrigger,
 } from "../components/ui/alert-dialog";
 import { EditDestinationDialog } from "./Destinationdialog";
+import { DestinationHistorySheet } from "./DestinationHistory";
 import { deleteDestination, toggleDestinationActive } from "./actions";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { TableFilters } from "../components/dashboard/Tablefilters";
@@ -288,6 +289,7 @@ export function DestinationsTable({
                 const linkedCount = dest._count.packages + dest._count.hotels + dest._count.activities;
                 return (
                     <div className="flex items-center justify-end gap-1">
+                        <DestinationHistorySheet id={dest.id} name={dest.name} />
                         <EditDestinationDialog destination={dest} regions={regions} />
                         <DeleteDestinationDialog
                             id={dest.id}
