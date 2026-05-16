@@ -37,6 +37,7 @@ type Destination = {
     cover_image: string | null;
     is_active: boolean;
     created_at: Date;
+    location_id: string | null;
     region: { id: number; name: string; slug: string };
     _count: { packages: number; hotels: number; activities: number };
 };
@@ -141,8 +142,9 @@ export function DestinationsTable({
     // ── Toggle ─────────────────────────────────────────────────────────────────
     function handleToggle(id: number, current: boolean) {
         startTransition(async () => {
-            await toggleDestinationActive(id, !current);
-            toast.success(`Destination ${!current ? "activated" : "deactivated"}`);
+            const res = await toggleDestinationActive(id, !current);
+            if (res.success) toast.success(res.message);
+            else toast.error(res.message);
         });
     }
 

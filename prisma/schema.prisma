@@ -698,6 +698,7 @@ model destinations {
   latitude    Decimal?       @db.Decimal(10, 8)
   longitude   Decimal?       @db.Decimal(11, 8)
   place_id    String?
+  location_id String?
   activities  activities[]
   bookings    Booking[]
   region      custom_regions @relation(fields: [region_id], references: [id])
