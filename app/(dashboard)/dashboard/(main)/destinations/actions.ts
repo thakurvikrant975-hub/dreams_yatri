@@ -22,22 +22,67 @@ export type DestinationFormState = {
 
 // ── Read ──────────────────────────────────────────────────────────────────────
 
-export async function getDestinations() {
-  const rows = await db.destinations.findMany({
-    where:   { is_deleted: false },
-    orderBy: { created_at: "desc" },
-    include: {
-      region: { select: { id: true, name: true, slug: true } },
-      _count: {
-        select: { packages: true, hotels: true, activities: true },
+export type GetDestinationsParams = {
+  page?:      number;
+  limit?:     number;
+  search?:    string;
+  region_id?: number;
+  status?:    "active" | "inactive" | "all";
+};
+
+export async function getDestinations(params: GetDestinationsParams = {}) {
+  const { page = 1, limit = 10, search = "", region_id, status = "all" } = params;
+  const skip = (page - 1) * limit;
+
+  const baseWhere  = { is_deleted: false } as const;
+  const filterWhere = {
+    is_deleted: false,
+    ...(search ? {
+      OR: [
+        { name:    { contains: search, mode: "insensitive" as const } },
+        { slug:    { contains: search, mode: "insensitive" as const } },
+        { country: { contains: search, mode: "insensitive" as const } },
+      ],
+    } : {}),
+    ...(region_id ? { region_id } : {}),
+    ...(status === "active"   ? { is_active: true  } : {}),
+    ...(status === "inactive" ? { is_active: false } : {}),
+  };
+
+  const [rows, totalCount, activeCount, totalPackages] = await Promise.all([
+    db.destinations.findMany({
+      where:   filterWhere,
+      orderBy: { created_at: "desc" },
+      skip,
+      take:    limit,
+      include: {
+        region: { select: { id: true, name: true, slug: true } },
+        _count: { select: { packages: true, hotels: true, activities: true } },
       },
+    }),
+    db.destinations.count({ where: filterWhere }),
+    db.destinations.count({ where: { ...baseWhere, is_active: true } }),
+    db.packages.count({ where: { destination: { is_deleted: false } } }),
+  ]);
+
+  const totalCount_all = status === "all" && !search && !region_id
+    ? totalCount
+    : await db.destinations.count({ where: baseWhere });
+
+  return {
+    destinations: rows.map((d) => ({
+      ...d,
+      latitude:  d.latitude  != null ? Number(d.latitude)  : null,
+      longitude: d.longitude != null ? Number(d.longitude) : null,
+    })),
+    totalCount,
+    stats: {
+      total:    totalCount_all,
+      active:   activeCount,
+      inactive: totalCount_all - activeCount,
+      packages: totalPackages,
     },
-  });
-  return rows.map((d) => ({
-    ...d,
-    latitude:  d.latitude  != null ? Number(d.latitude)  : null,
-    longitude: d.longitude != null ? Number(d.longitude) : null,
-  }));
+  };
 }
 
 export async function getDestinationById(id: number) {

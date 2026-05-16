@@ -62,7 +62,7 @@ export function RegionsTable({
 
   // Local search state — debounced push to URL to avoid one fetch per keystroke
   const [localSearch, setLocalSearch] = useState(search);
-  const searchTimer = useRef<ReturnType<typeof setTimeout>>();
+  const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Sync when server-side search param changes (e.g. browser back/forward)
   useEffect(() => { setLocalSearch(search); }, [search]);
