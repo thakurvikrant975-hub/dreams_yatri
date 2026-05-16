@@ -12,6 +12,9 @@ import { PageHeader }           from "../components/dashboard/PageHeader";
 import { StatCard, StatGrid }   from "../components/dashboard/Statcard";
 import type { PolicyType }      from "./constants";
 
+// re-export to satisfy PoliciesData inline cast
+type _Status = "active" | "inactive" | "all";
+
 // ── Skeleton ──────────────────────────────────────────────────────────────
 
 function TableSkeleton() {
@@ -49,8 +52,12 @@ function TableSkeleton() {
 
 // ── Async data component ──────────────────────────────────────────────────
 
-async function PoliciesData({ params }: { params: GetPoliciesParams }) {
-    const { policies, stats } = await getPolicies(params);
+async function PoliciesData({
+    params,
+}: {
+    params: GetPoliciesParams;
+}) {
+    const { policies, totalCount, isFiltering, stats } = await getPolicies(params);
 
     return (
         <>
@@ -61,7 +68,16 @@ async function PoliciesData({ params }: { params: GetPoliciesParams }) {
                 <StatCard label="In Packages"     value={stats.packages} icon={Package}      />
             </StatGrid>
 
-            <PoliciesTableClient policies={policies} />
+            <PoliciesTableClient
+                policies={policies}
+                totalCount={totalCount}
+                limit={params.limit ?? 10}
+                currentPage={params.page ?? 1}
+                isFiltering={isFiltering}
+                search={params.search ?? ""}
+                type={(params.type ?? "all") as PolicyType | "all"}
+                status={(params.status ?? "all") as _Status}
+            />
         </>
     );
 }
