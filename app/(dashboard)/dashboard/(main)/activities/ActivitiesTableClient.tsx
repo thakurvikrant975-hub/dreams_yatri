@@ -1,375 +1,403 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter, useSearchParams }                  from "next/navigation";
 import Link from "next/link";
 import {
-  Activity, Search, Pencil, Trash2, Tag,
-  Clock, ImageIcon, ExternalLink,
-  Fence,
+    Activity, Search, Trash2, Tag, Clock,
+    ImageIcon, Zap, ExternalLink,
 } from "lucide-react";
-import { Badge } from "../components/ui/badge";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { Switch } from "../components/ui/switch";
+import { Badge }   from "../components/ui/badge";
+import { Button }  from "../components/ui/button";
+import { Input }   from "../components/ui/input";
+import { Switch }  from "../components/ui/switch";
 import {
-  Table, TableBody, TableCell,
-  TableHead, TableHeader, TableRow,
-} from "../components/ui/table";
-import {
-  Select, SelectContent, SelectItem,
-  SelectTrigger, SelectValue,
+    Select, SelectContent, SelectItem,
+    SelectTrigger, SelectValue,
 } from "../components/ui/select";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel,
-  AlertDialogContent, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-  AlertDialogTrigger,
+    AlertDialog, AlertDialogCancel, AlertDialogContent,
+    AlertDialogDescription, AlertDialogFooter,
+    AlertDialogHeader, AlertDialogTitle,
 } from "../components/ui/alert-dialog";
 import { toast } from "sonner";
+import { cn }    from "@/app/lib/utils";
 import { toggleActivityActive, deleteActivity, type ActivityItem } from "./actions";
-import { EditActivityDialog } from "./ActivityDialog";
-import { ActivityImagesSheet } from "./ActivityImagesSheet";
-import { StatGrid, StatCard } from "../components/dashboard/Statcard";
-import { TableFilters } from "../components/dashboard/Tablefilters";
+import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
+
+// ── Constants ─────────────────────────────────────────────────────────────
+
+const CATEGORIES = [
+    "Adventure", "Cultural", "Wildlife", "Water Sports",
+    "Trekking", "Sightseeing", "Food & Culinary",
+    "Shopping", "Spiritual", "Photography", "Other",
+];
+
+const DIFFICULTY_COLORS: Record<string, string> = {
+    Easy:        "bg-green-50 text-green-700 border-green-200",
+    Moderate:    "bg-blue-50 text-blue-700 border-blue-200",
+    Challenging: "bg-yellow-50 text-yellow-700 border-yellow-200",
+    Difficult:   "bg-orange-50 text-orange-700 border-orange-200",
+    Expert:      "bg-red-50 text-red-700 border-red-200",
+};
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
 type Destination = { id: number; name: string; region: { name: string } };
+type _Status     = "active" | "inactive" | "all";
 
-const DIFFICULTY_COLORS: Record<string, string> = {
-  Easy: "bg-green-50 text-green-700 border-green-200",
-  Moderate: "bg-blue-50 text-blue-700 border-blue-200",
-  Challenging: "bg-yellow-50 text-yellow-700 border-yellow-200",
-  Difficult: "bg-orange-50 text-orange-700 border-orange-200",
-  Expert: "bg-red-50 text-red-700 border-red-200",
-};
-
-// ── Delete Dialog (extracted — fixes Radix hydration mismatch) ────────────────
-
-function DeleteActivityDialog({
-  activity,
-  onDelete,
-  isPending,
-}: {
-  activity: ActivityItem;
-  onDelete: (id: number) => void;
-  isPending: boolean;
-}) {
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button
-          variant="ghost" size="icon"
-          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Delete Activity</AlertDialogTitle>
-          <AlertDialogDescription>
-            Delete <span className="font-semibold">{activity.name}</span>?
-            All images and variants will be removed.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={() => onDelete(activity.id)}
-            disabled={isPending}
-            className="bg-destructive text-white hover:bg-destructive/90"
-          >
-            Delete
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
+// ── Thumbnail ─────────────────────────────────────────────────────────────
 
 const BASE = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
 
-
-// ── Thumbnail cell ────────────────────────────────────────────────────────
-
 function ThumbnailCell({ activity }: { activity: ActivityItem }) {
-  const primary = activity.images.find(i => i.is_primary) ?? activity.images[0];
-
-  if (!primary) {
+    const primary = activity.images.find(i => i.is_primary) ?? activity.images[0];
+    if (!primary) {
+        return (
+            <div className="h-10 w-14 rounded-lg bg-muted border flex items-center justify-center shrink-0">
+                <ImageIcon className="h-4 w-4 text-muted-foreground" />
+            </div>
+        );
+    }
     return (
-      <div className="h-10 w-14 rounded-lg bg-muted border flex items-center justify-center shrink-0">
-        <ImageIcon className="h-4 w-4 text-muted-foreground" />
-      </div>
+        <img
+            src={`${BASE}/${primary.thumbnail ?? primary.url}`}
+            alt={activity.name}
+            className="h-10 w-14 rounded-lg object-cover shrink-0 border"
+        />
     );
-  }
-
-  return (
-    <img
-      src={`${BASE}/${primary.thumbnail ?? primary.url}`}
-      alt={activity.name}
-      className="h-10 w-14 rounded-lg object-cover shrink-0 border"
-    />
-  );
 }
 
 // ── Main component ────────────────────────────────────────────────────────
 
 export function ActivitiesTableClient({
-  activities: initialActivities,
-  destinations,
+    activities,
+    destinations,
+    totalCount,
+    limit,
+    currentPage,
+    isFiltering,
+    search,
+    destination_id,
+    category,
+    status,
 }: {
-  activities: ActivityItem[];
-  destinations: Destination[];
+    activities:     ActivityItem[];
+    destinations:   Destination[];
+    totalCount:     number;
+    limit:          number;
+    currentPage:    number;
+    isFiltering:    boolean;
+    search:         string;
+    destination_id: number | "all";
+    category:       string;
+    status:         _Status;
 }) {
-  const [activities, setActivities] = useState(initialActivities);
-  const [search, setSearch] = useState("");
-  const [filterDestination, setFilterDestination] = useState("all");
-  const [filterCategory, setFilterCategory] = useState("all");
-  const [editTarget, setEditTarget] = useState<ActivityItem | null>(null);
-  const [imagesTarget, setImagesTarget] = useState<ActivityItem | null>(null);
-  const [isPending, startTransition] = useTransition();
+    const router       = useRouter();
+    const searchParams = useSearchParams();
+    const [isPending, startTransition] = useTransition();
 
-  // ── Derived ───────────────────────────────────────────────────────────────
+    // Debounced search
+    const [localSearch, setLocalSearch] = useState(search);
+    const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+    useEffect(() => { setLocalSearch(search); }, [search]);
 
-  const filtered = activities.filter(a => {
-    const matchSearch = !search || a.name.toLowerCase().includes(search.toLowerCase());
-    const matchDest = filterDestination === "all" || String(a.destination.id) === filterDestination;
-    const matchCat = filterCategory === "all" || a.category === filterCategory;
-    return matchSearch && matchDest && matchCat;
-  });
+    // Delete dialog state
+    const [deleteTarget, setDeleteTarget] = useState<ActivityItem | null>(null);
+    const [errorMsg,     setErrorMsg]     = useState<string | null>(null);
 
-  const activeCount = activities.filter(a => a.is_active).length;
-  const categories = [...new Set(activities.map(a => a.category).filter(Boolean))] as string[];
+    // ── URL helpers ───────────────────────────────────────────────────────
 
-  // ── Actions ───────────────────────────────────────────────────────────────
+    function updateParam(key: string, value: string) {
+        const params = new URLSearchParams(searchParams.toString());
+        if (value === "all" || value === "") {
+            params.delete(key);
+        } else {
+            params.set(key, value);
+        }
+        params.delete("page");
+        router.push(`?${params.toString()}`);
+    }
 
-  function handleToggle(id: number, current: boolean) {
-    startTransition(async () => {
-      await toggleActivityActive(id, !current);
-      setActivities(prev =>
-        prev.map(a => a.id === id ? { ...a, is_active: !current } : a)
-      );
-      toast.success(`Activity ${!current ? "activated" : "deactivated"}`);
-    });
-  }
+    function handleSearch(value: string) {
+        setLocalSearch(value);
+        clearTimeout(searchTimer.current);
+        searchTimer.current = setTimeout(() => updateParam("search", value), 400);
+    }
 
-  function handleDelete(id: number) {
-    startTransition(async () => {
-      const result = await deleteActivity(id);
-      if (result.success) {
-        setActivities(prev => prev.filter(a => a.id !== id));
-        toast.success(result.message);
-      } else {
-        toast.error(result.message);
-      }
-    });
-  }
+    function buildHref(p: number) {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set("page", String(p));
+        return `?${params.toString()}`;
+    }
 
-  // ── Render ────────────────────────────────────────────────────────────────
+    // ── Actions ───────────────────────────────────────────────────────────
 
-  return (
-    <div className="space-y-6">
+    function handleToggle(id: number, current: boolean) {
+        startTransition(async () => {
+            const result = await toggleActivityActive(id, !current);
+            if (result.success) toast.success(result.message);
+            else toast.error(result.message);
+        });
+    }
 
-      {/* ── Stats ── */}
-      <StatGrid cols={3}>
-        <StatCard
-          label="Total Activities"
-          value={activities.length}
-          icon={Fence}
-        />
-        <StatCard
-          label="Active Activities"
-          value={activeCount}
-          icon={Fence}
-        />
-        <StatCard
-          label="Inactive Activities"
-          value={activities.length - activeCount}
-          icon={Fence}
-        />
+    function openDelete(activity: ActivityItem) {
+        setDeleteTarget(activity);
+        setErrorMsg(null);
+    }
 
-      </StatGrid>
-{/* Filters */}
-<TableFilters
-  search={search}
-  onSearchChange={setSearch}
-  searchPlaceholder="Search activities..."
-  filteredCount={filtered.length !== activities.length ? filtered.length : undefined}
-  totalCount={filtered.length !== activities.length ? activities.length : undefined}
-  filters={[
-    {
-      value: filterDestination,
-      onChange: setFilterDestination,
-      placeholder: "All Destinations",
-      width: "w-44",
-      options: [
-        { label: "All Destinations", value: "all" },
-        ...destinations.map(d => ({ label: d.name, value: String(d.id) })),
-      ],
-    },
-    {
-      value: filterCategory,
-      onChange: setFilterCategory,
-      placeholder: "All Categories",
-      width: "w-36",
-      options: [
-        { label: "All Categories", value: "all" },
-        ...categories.map(c => ({ label: c, value: c })),
-      ],
-    },
-  ]}
-/>
+    function closeDelete() {
+        setDeleteTarget(null);
+        setErrorMsg(null);
+    }
 
-      {/* Table */}
-      {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 border rounded-xl bg-muted/30">
-          <Activity className="h-10 w-10 text-muted-foreground mb-3" />
-          <p className="text-sm font-medium text-muted-foreground">No activities found</p>
-        </div>
-      ) : (
-        <div className="rounded-xl border bg-card overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50">
-                <TableHead className="w-[300px]">Activity</TableHead>
-                <TableHead>Destination</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Difficulty</TableHead>
-                <TableHead>Duration</TableHead>
-                <TableHead className="text-center">Variants</TableHead>
-                <TableHead className="text-center">Images</TableHead>
-                <TableHead className="text-center">Status</TableHead>
-                <TableHead className="text-right w-30">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map(activity => {
-                const duration = activity.duration_hours ? `${activity.duration_hours}h` : null;
+    function handleDelete() {
+        if (!deleteTarget) return;
+        startTransition(async () => {
+            const result = await deleteActivity(deleteTarget.id);
+            if (result.success) {
+                toast.success(result.message);
+                closeDelete();
+            } else {
+                setErrorMsg(result.message);
+            }
+        });
+    }
 
-                return (
-                  <TableRow key={activity.id} className="hover:bg-muted/30">
+    // ── Pagination ────────────────────────────────────────────────────────
 
-                    {/* Activity + thumbnail */}
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <ThumbnailCell activity={activity} />
-                        <div>
-                          <p className="font-medium text-sm">{activity.name}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-[200px]">
-                            {activity.slug}
-                          </p>
-                        </div>
-                      </div>
-                    </TableCell>
+    const totalPages = Math.ceil(totalCount / limit);
+    const from       = totalCount === 0 ? 0 : (currentPage - 1) * limit + 1;
+    const to         = Math.min(currentPage * limit, totalCount);
+    const label      = `Showing ${from}–${to} of ${totalCount} activit${totalCount !== 1 ? "ies" : "y"}`;
 
-                    <TableCell>
-                      <Badge variant="secondary" className="text-xs">
-                        {activity.destination.name}
-                      </Badge>
-                    </TableCell>
+    // ── Columns ───────────────────────────────────────────────────────────
 
-                    <TableCell>
-                      {activity.category ? (
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Tag className="h-3 w-3" />
-                          {activity.category}
-                        </span>
-                      ) : <span className="text-xs text-muted-foreground">—</span>}
-                    </TableCell>
-
-                    <TableCell>
-                      {activity.difficulty ? (
-                        <span className={`text-[11px] font-medium px-2 py-0.5 rounded border ${DIFFICULTY_COLORS[activity.difficulty] ?? "bg-muted text-muted-foreground"}`}>
-                          {activity.difficulty}
-                        </span>
-                      ) : <span className="text-xs text-muted-foreground">—</span>}
-                    </TableCell>
-
-                    <TableCell>
-                      {duration ? (
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Clock className="h-3 w-3" />
-                          {duration}
-                        </span>
-                      ) : <span className="text-xs text-muted-foreground">—</span>}
-                    </TableCell>
-
-                    <TableCell className="text-center">
-                      {activity._count.variants > 0
-                        ? <span className="text-xs font-medium">{activity._count.variants}</span>
-                        : <span className="text-xs text-muted-foreground">—</span>}
-                    </TableCell>
-
-                    {/* Images — clickable to open sheet */}
-                    <TableCell className="text-center">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2 gap-1 text-xs"
-                        onClick={() => setImagesTarget(activity)}
-                      >
-                        <ImageIcon className="h-3 w-3" />
-                        {activity._count.images}
-                      </Button>
-                    </TableCell>
-
-                    <TableCell className="text-center">
-                      <Switch
-                        checked={activity.is_active}
-                        disabled={isPending}
-                        onCheckedChange={() => handleToggle(activity.id, activity.is_active)}
-                      />
-                    </TableCell>
-
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-                          <Link href={`/dashboard/activities/${activity.id}`}>
+    const columns: ColumnDef<ActivityItem>[] = [
+        {
+            header: "Activity",
+            width:  "w-[280px]",
+            cell: (a) => (
+                <div className="flex items-center gap-3">
+                    <ThumbnailCell activity={a} />
+                    <div className="min-w-0">
+                        <p className="font-medium text-sm truncate max-w-45">{a.name}</p>
+                        <p className="text-xs text-muted-foreground truncate max-w-45">{a.slug}</p>
+                    </div>
+                </div>
+            ),
+        },
+        {
+            header: "Destination",
+            cell: (a) => (
+                <Badge variant="secondary" className="text-xs whitespace-nowrap">
+                    {a.destination.name}
+                </Badge>
+            ),
+        },
+        {
+            header: "Category",
+            cell: (a) => a.category
+                ? <span className="flex items-center gap-1 text-xs text-muted-foreground"><Tag className="h-3 w-3" />{a.category}</span>
+                : <span className="text-xs text-muted-foreground">—</span>,
+        },
+        {
+            header: "Difficulty",
+            cell: (a) => a.difficulty
+                ? <span className={cn("text-[11px] font-medium px-2 py-0.5 rounded border", DIFFICULTY_COLORS[a.difficulty] ?? "bg-muted text-muted-foreground")}>{a.difficulty}</span>
+                : <span className="text-xs text-muted-foreground">—</span>,
+        },
+        {
+            header: "Duration",
+            cell: (a) => a.duration_hours
+                ? <span className="flex items-center gap-1 text-xs text-muted-foreground"><Clock className="h-3 w-3" />{a.duration_hours}h</span>
+                : <span className="text-xs text-muted-foreground">—</span>,
+        },
+        {
+            header: "Variants",
+            align:  "center",
+            cell: (a) => a._count.variants > 0
+                ? <span className="flex items-center justify-center gap-1 text-xs font-medium"><Zap className="h-3 w-3 text-muted-foreground" />{a._count.variants}</span>
+                : <span className="text-xs text-muted-foreground">—</span>,
+        },
+        {
+            header: "Images",
+            align:  "center",
+            cell: (a) => (
+                <Link
+                    href={`/dashboard/activities/${a.id}`}
+                    className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                    <ImageIcon className="h-3 w-3" />
+                    {a._count.images}
+                </Link>
+            ),
+        },
+        {
+            header: "Status",
+            align:  "center",
+            cell: (a) => (
+                <Switch
+                    checked={a.is_active}
+                    disabled={isPending}
+                    onCheckedChange={() => handleToggle(a.id, a.is_active)}
+                />
+            ),
+        },
+        {
+            header: "Actions",
+            align:  "right",
+            width:  "w-[80px]",
+            cell: (a) => (
+                <div className="flex items-center justify-end gap-1">
+                    <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                        <Link href={`/dashboard/activities/${a.id}`}>
                             <ExternalLink className="h-3.5 w-3.5" />
-                          </Link>
-                        </Button>
+                        </Link>
+                    </Button>
+                    <Button
+                        variant="ghost" size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => openDelete(a)}
+                    >
+                        <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                </div>
+            ),
+        },
+    ];
+
+    // ── Render ────────────────────────────────────────────────────────────
+
+    return (
+        <div className="space-y-4">
+
+            {/* Search + destination + category + status + rows-per-page */}
+            <div className="flex flex-wrap items-center gap-3">
+                <div className="relative flex-1 min-w-52 max-w-sm">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        className="pl-9"
+                        placeholder="Search activities…"
+                        value={localSearch}
+                        onChange={e => handleSearch(e.target.value)}
+                    />
+                </div>
+
+                <Select
+                    value={String(destination_id)}
+                    onValueChange={v => updateParam("destination_id", v)}
+                >
+                    <SelectTrigger className="w-44">
+                        <SelectValue placeholder="All Destinations" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Destinations</SelectItem>
+                        {destinations.map(d => (
+                            <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+
+                <Select value={category} onValueChange={v => updateParam("category", v)}>
+                    <SelectTrigger className="w-40">
+                        <SelectValue placeholder="All Categories" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Categories</SelectItem>
+                        {CATEGORIES.map(c => (
+                            <SelectItem key={c} value={c}>{c}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+
+                <Select value={status} onValueChange={v => updateParam("status", v)}>
+                    <SelectTrigger className="w-36">
+                        <SelectValue placeholder="All statuses" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All statuses</SelectItem>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectContent>
+                </Select>
+
+                <div className="flex items-center gap-2 ml-auto">
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">Rows per page</span>
+                    <Select
+                        value={String(limit)}
+                        onValueChange={v => updateParam("limit", v)}
+                    >
+                        <SelectTrigger className="w-20">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="10">10</SelectItem>
+                            <SelectItem value="20">20</SelectItem>
+                            <SelectItem value="50">50</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
+
+            {/* Table */}
+            {activities.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 border rounded-xl bg-muted/30">
+                    <Activity className="h-10 w-10 text-muted-foreground mb-3" />
+                    <p className="text-sm font-medium text-muted-foreground">No activities found</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                        {isFiltering ? "Try adjusting your filters" : "Create your first activity"}
+                    </p>
+                </div>
+            ) : (
+                <DataTable
+                    columns={columns}
+                    data={activities}
+                    rowKey={a => a.id}
+                    pagination={{
+                        currentPage,
+                        totalPages,
+                        buildHref,
+                        label,
+                    }}
+                />
+            )}
+
+            {/* Delete dialog — controlled, stays open on error */}
+            <AlertDialog open={!!deleteTarget} onOpenChange={open => !open && closeDelete()}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Activity</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Delete <span className="font-semibold">{deleteTarget?.name}</span>?
+                            All images, variants, and add-ons will be permanently removed.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+
+                    {errorMsg && (
+                        <p className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
+                            {errorMsg}
+                        </p>
+                    )}
+
+                    {(deleteTarget?._count.variants ?? 0) > 0 && !errorMsg && (
+                        <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                            ⚠ This activity has {deleteTarget?._count.variants} variant{(deleteTarget?._count.variants ?? 0) !== 1 ? "s" : ""} — all will be deleted.
+                        </p>
+                    )}
+
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
                         <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => setEditTarget(activity)}
+                            variant="destructive"
+                            disabled={isPending}
+                            onClick={handleDelete}
                         >
-                          <Pencil className="h-3.5 w-3.5" />
+                            {isPending ? "Deleting…" : "Delete"}
                         </Button>
-                        <DeleteActivityDialog
-                          activity={activity}
-                          onDelete={handleDelete}
-                          isPending={isPending}
-                        />
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
-      )}
-
-      {/* Edit dialog */}
-      {editTarget && (
-        <EditActivityDialog
-          activity={editTarget}
-          destinations={destinations}
-          open={!!editTarget}
-          onOpenChange={open => !open && setEditTarget(null)}
-        />
-      )}
-
-      {/* Images sheet */}
-      {imagesTarget && (
-        <ActivityImagesSheet
-          activity={imagesTarget}
-          open={!!imagesTarget}
-          onOpenChange={open => !open && setImagesTarget(null)}
-        />
-      )}
-    </div>
-  );
+    );
 }
