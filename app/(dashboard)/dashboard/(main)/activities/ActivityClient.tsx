@@ -26,7 +26,7 @@ function TableSkeleton() {
 }
 
 async function ActivitiesData() {
-  const [activities, destinations] = await Promise.all([
+  const [{ activities }, destinations] = await Promise.all([
     getActivities(),
     getDestinationsForSelect(),
   ]);
