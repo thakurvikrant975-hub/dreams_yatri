@@ -49,16 +49,18 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
   const [description,    setDescription]    = useState("");
   const [isActive,      setIsActive]      = useState(true);
   const [thumbnail,     setThumbnail]     = useState<PickedImage[]>([]);
-  const [metaTitle,     setMetaTitle]     = useState("");
-  const [metaDesc,      setMetaDesc]      = useState("");
+  const [metaTitle,      setMetaTitle]      = useState("");
+  const [metaDesc,       setMetaDesc]       = useState("");
+  const [metaTitleManual, setMetaTitleManual] = useState(false);
+  const [metaDescManual,  setMetaDescManual]  = useState(false);
 
-  // Auto-fill SEO fields from name/description when they're empty
+  // Keep SEO fields in sync with name/description until user manually edits them
   useEffect(() => {
-    if (!metaTitle && name) setMetaTitle(`${name} | Dreams Yatri`.slice(0, 60));
-  }, [name]);
+    if (!metaTitleManual) setMetaTitle(name ? `${name} | Dreams Yatri`.slice(0, 60) : "");
+  }, [name, metaTitleManual]);
   useEffect(() => {
-    if (!metaDesc && description) setMetaDesc(description.slice(0, 160));
-  }, [description]);
+    if (!metaDescManual) setMetaDesc(description ? description.slice(0, 160) : "");
+  }, [description, metaDescManual]);
 
   function handleNameChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value;
@@ -333,7 +335,7 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
             <Input
               placeholder="Grand Houseboat Srinagar | Dreams Yatri Hotels"
               value={metaTitle}
-              onChange={e => setMetaTitle(e.target.value)}
+              onChange={e => { setMetaTitle(e.target.value); setMetaTitleManual(true); }}
             />
           </div>
           <div className="space-y-1.5">
@@ -346,7 +348,7 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
             <Textarea
               placeholder="Stay in a traditional Kashmiri houseboat on Dal Lake..."
               value={metaDesc}
-              onChange={e => setMetaDesc(e.target.value)}
+              onChange={e => { setMetaDesc(e.target.value); setMetaDescManual(true); }}
               rows={3}
             />
           </div>

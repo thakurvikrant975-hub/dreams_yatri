@@ -426,20 +426,23 @@ function RoomImageThumb({
 function RoomImagesSection({
   room,
   hotel_id,
+  images,
+  onImagesChanged,
 }: {
   room: DBRoom;
   hotel_id: number;
+  images: RoomImage[];
+  onImagesChanged: (updated: RoomImage[]) => void;
 }) {
-  const [images, setImages] = useState<RoomImage[]>(room.images);
   const [picks, setPicks] = useState<PickedImage[]>([]);
   const [isPending, startTransition] = useTransition();
 
   function handleDelete(id: number) {
-    setImages((prev) => prev.filter((img) => img.id !== id));
+    onImagesChanged(images.filter((img) => img.id !== id));
   }
 
   function handleSetPrimary(id: number) {
-    setImages((prev) => prev.map((img) => ({ ...img, is_primary: img.id === id })));
+    onImagesChanged(images.map((img) => ({ ...img, is_primary: img.id === id })));
   }
 
   function handleSave() {
@@ -464,7 +467,7 @@ function RoomImagesSection({
           is_primary: images.length === 0 && i === 0,
           sort_order: images.length + i,
         }));
-        setImages((prev) => [...prev, ...added]);
+        onImagesChanged([...images, ...added]);
       } else {
         toast.error(result.message);
       }
@@ -537,6 +540,7 @@ function RoomRow({
   onDelete: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [images, setImages] = useState<RoomImage[]>(room.images);
   const [isPending, startTransition] = useTransition();
   const amenities = Array.isArray(room.amenities) ? (room.amenities as string[]) : [];
 
@@ -555,7 +559,7 @@ function RoomRow({
         {/* Primary image preview */}
         <div className="h-12 w-16 rounded-lg bg-muted border shrink-0 overflow-hidden">
           {(() => {
-            const primary = room.images.find((img) => img.is_primary) ?? room.images[0];
+            const primary = images.find((img) => img.is_primary) ?? images[0];
             return primary ? (
               <img
                 src={`${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${primary.url}`}
@@ -608,7 +612,7 @@ function RoomRow({
             onClick={() => setExpanded((p) => !p)}
           >
             {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-            {room.images.length > 0 ? `${room.images.length} photos` : "Photos"}
+            {images.length > 0 ? `${images.length} photos` : "Photos"}
           </Button>
           <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={onEdit}>
             <Pencil className="h-3 w-3" />
@@ -650,7 +654,12 @@ function RoomRow({
       {/* Expandable images section */}
       {expanded && (
         <div className="px-4 pb-4 bg-muted/10">
-          <RoomImagesSection room={room} hotel_id={hotel_id} />
+          <RoomImagesSection
+            room={room}
+            hotel_id={hotel_id}
+            images={images}
+            onImagesChanged={setImages}
+          />
         </div>
       )}
     </div>
@@ -678,11 +687,12 @@ export function RoomsTab({
         const roomId = result.id!;
         const uploaded = form.images.filter((p) => p.status === "uploaded" && p.key);
         if (uploaded.length > 0) {
-          await createRoomImages(
+          const imgResult = await createRoomImages(
             roomId,
             hotel_id,
             uploaded.map((p) => ({ url: p.key!, thumbnail: p.key, alt: p.name }))
           );
+          if (!imgResult.success) toast.error("Room created but photos failed to save");
         }
         toast.success(result.message);
         setAdding(false);

@@ -732,15 +732,25 @@ export function PricingTab({
       const result = await createRoomPricing(hotel_id, buildFormData(form));
       if (result.success) {
         const planId = result.id!;
+        const savedPrices: OccupancyPrice[] = [];
         for (const entry of form.occupancy_prices) {
           if (entry.price && Number(entry.price) > 0) {
-            await upsertOccupancyPrice(
+            const r = await upsertOccupancyPrice(
               planId,
               hotel_id,
               entry.occupancy,
               Number(entry.price),
               entry.original ? Number(entry.original) : null,
             );
+            if (r.success) {
+              savedPrices.push({
+                id: Date.now() + savedPrices.length,
+                pricing_id: planId,
+                occupancy: entry.occupancy,
+                price_per_night: Number(entry.price),
+                original_price: entry.original ? Number(entry.original) : null,
+              });
+            }
           }
         }
         toast.success(result.message);
@@ -769,7 +779,7 @@ export function PricingTab({
             room: rooms.find((r) => r.id === roomId) ?? null,
             meal_type: mealTypes.find((m) => m.id === mealId) ?? null,
             diet_type: dietTypes.find((d) => d.id === dietId) ?? null,
-            occupancy_prices: [],
+            occupancy_prices: savedPrices,
           },
         ]);
       } else {
