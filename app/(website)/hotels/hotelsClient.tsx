@@ -90,6 +90,7 @@ function Pagination({
 // ── Main Client Component ─────────────────────────────────────────────────
 
 const CATEGORIES = ["hotel", "resort", "houseboat", "villa", "homestay"];
+const STAY_TYPES = ["Standard", "Deluxe", "Super Deluxe", "Luxury", "Super Luxury"];
 const SORT_OPTIONS = [
     { label: "Newest", value: "newest" },
     { label: "Price: Low", value: "price_asc" },
@@ -176,7 +177,7 @@ export function HotelsClient({ initialHotels, initialMeta }: Props) {
                                 <input type="radio" name="stay_type" checked={!filters.stay_type} onChange={() => setFilter("stay_type", undefined)} />
                                 Any
                             </label>
-                            {["Standard", "Deluxe", "Super Deluxe", "Luxury", "Super Luxury"].map(t => (
+                            {STAY_TYPES.map(t => (
                                 <label key={t} className="flex items-center gap-2 text-sm cursor-pointer">
                                     <input type="radio" name="stay_type" checked={filters.stay_type === t} onChange={() => setFilter("stay_type", t)} />
                                     {t}

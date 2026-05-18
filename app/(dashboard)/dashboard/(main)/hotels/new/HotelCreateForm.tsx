@@ -17,6 +17,7 @@ import { LocationPickerField } from "../../components/dashboard/LocationPickerFi
 import type { LocationResult } from "../../components/dashboard/LocationSearchInput";
 import { SearchSelect } from "../../components/dashboard/SearchSelect";
 import { createHotel } from "../actions";
+import { CATEGORIES, STAY_TYPES } from "../constants";
 import { toast }    from "sonner";
 import { Hotel, Search, Loader2 } from "lucide-react";
 
@@ -25,14 +26,6 @@ type Destination = {
   name:   string;
   region: { name: string };
 };
-
-const CATEGORIES = [
-  { value: "hotel",     label: "Hotel" },
-  { value: "resort",    label: "Resort" },
-  { value: "houseboat", label: "Houseboat" },
-  { value: "villa",     label: "Villa" },
-  { value: "homestay",  label: "Homestay" },
-];
 
 export function HotelCreateForm({ destinations }: { destinations: Destination[] }) {
   const router                       = useRouter();
@@ -68,7 +61,7 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!name || !slug || !destinationId) {  // destinationId is number | null
+    if (!name || !slug || !destinationId) {
       toast.error("Please fill in all required fields");
       return;
     }
@@ -176,11 +169,7 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
               <Select value={stayType} onValueChange={setStayType}>
                 <SelectTrigger><SelectValue placeholder="Select stay type" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Standard">Standard</SelectItem>
-                  <SelectItem value="Deluxe">Deluxe</SelectItem>
-                  <SelectItem value="Super Deluxe">Super Deluxe</SelectItem>
-                  <SelectItem value="Luxury">Luxury</SelectItem>
-                  <SelectItem value="Super Luxury">Super Luxury</SelectItem>
+                  {STAY_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

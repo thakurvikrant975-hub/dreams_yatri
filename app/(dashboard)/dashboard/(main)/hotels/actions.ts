@@ -24,7 +24,7 @@ const HotelSchema = z.object({
   country: z.string().nullable().optional(),
   pincode: z.string().nullable().optional(),
   business_phone: z.string().nullable().optional(),
-  business_email: z.string().email("Invalid email").nullable().optional(),
+  business_email: z.string().email("Invalid email").or(z.literal("")).transform(v => v === "" ? null : v).nullable().optional(),
   description: z.string().optional(),
   meta_title: z.string().max(60, "Meta title must be 60 characters or less").nullable().optional(),
   meta_desc: z.string().max(160, "Meta description must be 160 characters or less").nullable().optional(),

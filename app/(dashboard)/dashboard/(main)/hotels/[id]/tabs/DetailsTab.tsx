@@ -17,14 +17,7 @@ import { LocationPickerField } from "../../../components/dashboard/LocationPicke
 import type { LocationResult } from "../../../components/dashboard/LocationSearchInput";
 import { SearchSelect } from "../../../components/dashboard/SearchSelect";
 import { updateHotelDetails } from "../../actions";
-
-const CATEGORIES = [
-  { value: "hotel",     label: "Hotel" },
-  { value: "resort",    label: "Resort" },
-  { value: "houseboat", label: "Houseboat" },
-  { value: "villa",     label: "Villa" },
-  { value: "homestay",  label: "Homestay" },
-];
+import { CATEGORIES, STAY_TYPES } from "../../constants";
 
 type Hotel = {
   id:             number;
@@ -164,11 +157,7 @@ export function DetailsTab({
               <Select name="stay_type" defaultValue={hotel.stay_type ?? ""}>
                 <SelectTrigger><SelectValue placeholder="Select stay type" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Standard">Standard</SelectItem>
-                  <SelectItem value="Deluxe">Deluxe</SelectItem>
-                  <SelectItem value="Super Deluxe">Super Deluxe</SelectItem>
-                  <SelectItem value="Luxury">Luxury</SelectItem>
-                  <SelectItem value="Super Luxury">Super Luxury</SelectItem>
+                  {STAY_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

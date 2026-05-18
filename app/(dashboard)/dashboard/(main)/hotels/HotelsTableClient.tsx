@@ -93,7 +93,7 @@ function DeleteHotelDialog({
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={() => onDelete(hotel.id)}
-disabled={(hotel._count.packageBookings) > 0 || isPending}
+disabled={hotel._count.packageBookings > 0 || isPending}
             className="bg-destructive text-white hover:bg-destructive/90"
           >
             Delete
