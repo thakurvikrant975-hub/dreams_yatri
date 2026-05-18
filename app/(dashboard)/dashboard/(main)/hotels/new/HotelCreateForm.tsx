@@ -15,6 +15,7 @@ import {
 import { ImagePicker, type PickedImage } from "../../components/dashboard/ImagePicker";
 import { LocationPickerField } from "../../components/dashboard/LocationPickerField";
 import type { LocationResult } from "../../components/dashboard/LocationSearchInput";
+import { SearchSelect } from "../../components/dashboard/SearchSelect";
 import { createHotel } from "../actions";
 import { toast }    from "sonner";
 import { Hotel, Search, Loader2 } from "lucide-react";
@@ -39,7 +40,7 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
 
   const [name,          setName]          = useState("");
   const [slug,          setSlug]          = useState("");
-  const [destinationId, setDestinationId] = useState("");
+  const [destinationId, setDestinationId] = useState<number | null>(null);
   const [category,      setCategory]      = useState("");
   const [stayType,      setStayType]      = useState("");
   const [checkIn,       setCheckIn]       = useState("14:00");
@@ -67,7 +68,7 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!name || !slug || !destinationId) {
+    if (!name || !slug || !destinationId) {  // destinationId is number | null
       toast.error("Please fill in all required fields");
       return;
     }
@@ -81,7 +82,7 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
       const formData = new FormData();
       formData.append("name",           name);
       formData.append("slug",           slug);
-      formData.append("destination_id", destinationId);
+      formData.append("destination_id", destinationId ? String(destinationId) : "");
       formData.append("thumbnail",      thumbnail[0]?.key ?? "");
       formData.append("category",       category);
       formData.append("stay_type",      stayType);
@@ -142,17 +143,20 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-1.5">
               <Label>Destination <span className="text-destructive">*</span></Label>
-              <Select value={destinationId} onValueChange={setDestinationId}>
-                <SelectTrigger><SelectValue placeholder="Select destination" /></SelectTrigger>
-                <SelectContent>
-                  {destinations.map(d => (
-                    <SelectItem key={d.id} value={String(d.id)}>
-                      {d.name}
-                      <span className="text-muted-foreground ml-1 text-xs">({d.region.name})</span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchSelect
+                value={destinationId}
+                onChange={(val) => setDestinationId(val)}
+                fetchOptions={async (q) => {
+                  const lower = q.toLowerCase();
+                  return destinations
+                    .filter(d =>
+                      d.name.toLowerCase().includes(lower) ||
+                      d.region.name.toLowerCase().includes(lower)
+                    )
+                    .map(d => ({ id: d.id, label: d.name, description: d.region.name }));
+                }}
+                placeholder="Search destination…"
+              />
             </div>
 
             <div className="space-y-1.5">

@@ -15,6 +15,7 @@ import { Loader2 } from "lucide-react";
 import { ImagePicker, type PickedImage } from "../../../components/dashboard/ImagePicker";
 import { LocationPickerField } from "../../../components/dashboard/LocationPickerField";
 import type { LocationResult } from "../../../components/dashboard/LocationSearchInput";
+import { SearchSelect } from "../../../components/dashboard/SearchSelect";
 import { updateHotelDetails } from "../../actions";
 
 const CATEGORIES = [
@@ -73,6 +74,7 @@ export function DetailsTab({
       : null,
   );
   const [address, setAddress] = useState(hotel.address ?? "");
+  const [destinationId, setDestinationId] = useState<number | null>(hotel.destination.id);
 
   // Thumbnail state — managed separately so we can preview and pass key via hidden input
   const [thumbnail, setThumbnail] = useState<PickedImage[]>(
@@ -128,15 +130,23 @@ export function DetailsTab({
 
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-1.5">
-              <Label>Destination</Label>
-              <Select name="destination_id" defaultValue={String(hotel.destination.id)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {destinations.map(d => (
-                    <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Destination <span className="text-destructive">*</span></Label>
+              <SearchSelect
+                value={destinationId}
+                onChange={(val) => setDestinationId(val)}
+                fetchOptions={async (q) => {
+                  const lower = q.toLowerCase();
+                  return destinations
+                    .filter(d =>
+                      d.name.toLowerCase().includes(lower) ||
+                      d.region.name.toLowerCase().includes(lower)
+                    )
+                    .map(d => ({ id: d.id, label: d.name, description: d.region.name }));
+                }}
+                placeholder="Search destination…"
+                initialLabel={hotel.destination.name}
+              />
+              <input type="hidden" name="destination_id" value={destinationId ?? ""} />
             </div>
             <div className="space-y-1.5">
               <Label>Category</Label>
