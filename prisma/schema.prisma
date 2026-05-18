@@ -763,6 +763,12 @@ model hotels {
   stay_type        String?
   check_in_time    String?
   check_out_time   String?
+  city             String?
+  state            String?
+  country          String?
+  pincode          String?
+  business_phone   String?
+  business_email   String?
   is_active        Boolean                  @default(true)
   created_at       DateTime                 @default(now())
   updated_at       DateTime                 @updatedAt
