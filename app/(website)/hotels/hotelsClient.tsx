@@ -168,18 +168,18 @@ export function HotelsClient({ initialHotels, initialMeta }: Props) {
                         </div>
                     </div>
 
-                    {/* Stars */}
+                    {/* Stay Type */}
                     <div className="space-y-1.5">
-                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Star Rating</p>
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Stay Type</p>
                         <div className="space-y-1">
                             <label className="flex items-center gap-2 text-sm cursor-pointer">
-                                <input type="radio" name="stars" checked={!filters.stars} onChange={() => setFilter("stars", undefined)} />
+                                <input type="radio" name="stay_type" checked={!filters.stay_type} onChange={() => setFilter("stay_type", undefined)} />
                                 Any
                             </label>
-                            {[5, 4, 3, 2].map(s => (
-                                <label key={s} className="flex items-center gap-2 text-sm cursor-pointer">
-                                    <input type="radio" name="stars" checked={filters.stars === s} onChange={() => setFilter("stars", s)} />
-                                    {"★".repeat(s)} {s} star
+                            {["Standard", "Deluxe", "Super Deluxe", "Luxury", "Super Luxury"].map(t => (
+                                <label key={t} className="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input type="radio" name="stay_type" checked={filters.stay_type === t} onChange={() => setFilter("stay_type", t)} />
+                                    {t}
                                 </label>
                             ))}
                         </div>

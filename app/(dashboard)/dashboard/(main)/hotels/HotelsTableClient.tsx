@@ -47,11 +47,12 @@ type HotelItem = {
   is_active:   boolean;
   created_at:  Date;
   destination: { id: number; name: string };
-_count: {
-  hotelRooms: number;
-  images: number;
-  packages?: number;   // ← optional, not required
-};};
+  _count: {
+    hotelRooms: number;
+    images: number;
+    packageBookings: number;
+  };
+};
 
 // ── Delete Dialog (extracted to fix Radix hydration mismatch) ─────────────
 
@@ -81,9 +82,9 @@ function DeleteHotelDialog({
           <AlertDialogDescription>
             Delete <span className="font-semibold">{hotel.name}</span>? This will
             permanently remove all rooms, images and categories from R2 and DB.
-{(hotel._count.packages ?? 0) > 0 && (
+{hotel._count.packageBookings > 0 && (
               <span className="block mt-2 text-destructive font-medium">
-                ⚠ Used in {hotel._count.packages} package(s). Remove from packages first.
+                This hotel is linked to {hotel._count.packageBookings} package(s). Remove those links before deleting.
               </span>
             )}
           </AlertDialogDescription>
@@ -92,7 +93,7 @@ function DeleteHotelDialog({
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={() => onDelete(hotel.id)}
-disabled={(hotel._count.packages ?? 0) > 0 || isPending}
+disabled={(hotel._count.packageBookings) > 0 || isPending}
             className="bg-destructive text-white hover:bg-destructive/90"
           >
             Delete

@@ -4,6 +4,7 @@ import { db } from "@/app/lib/db";
 import { deleteFromR2 } from "@/app/lib/r2/r2delete";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { Prisma } from "@/app/generated/prisma";
 import { ALL_SYSTEM_HOTEL_CATEGORIES, REQUIRED_HOTEL_CATEGORIES } from "@/app/lib/hotelImageCategories";
 
 // ── Schemas ───────────────────────────────────────────────────────────────
@@ -13,14 +14,20 @@ const HotelSchema = z.object({
   slug: z.string().min(1).regex(/^[a-z0-9-]+$/),
   destination_id: z.coerce.number().int().positive("Destination is required"),
   thumbnail: z.string().optional(),
-  category: z.string().optional(),
-  stay_type: z.string().optional(),
+  category: z.string().nullable().optional(),
+  stay_type: z.string().nullable().optional(),
   check_in_time: z.string().optional(),
   check_out_time: z.string().optional(),
-  address: z.string().optional(),
+  address: z.string().nullable().optional(),
+  city: z.string().nullable().optional(),
+  state: z.string().nullable().optional(),
+  country: z.string().nullable().optional(),
+  pincode: z.string().nullable().optional(),
+  business_phone: z.string().nullable().optional(),
+  business_email: z.string().email("Invalid email").nullable().optional(),
   description: z.string().optional(),
-  meta_title: z.string().optional(),
-  meta_desc: z.string().optional(),
+  meta_title: z.string().max(60, "Meta title must be 60 characters or less").nullable().optional(),
+  meta_desc: z.string().max(160, "Meta description must be 160 characters or less").nullable().optional(),
   is_active: z.boolean().default(true),
   latitude: z.coerce.number().nullable().optional(),
   longitude: z.coerce.number().nullable().optional(),
@@ -40,11 +47,11 @@ export async function getHotels() {
     orderBy: { created_at: "desc" },
     include: {
       destination: { select: { id: true, name: true } },
-      // actions.ts
       _count: {
         select: {
           hotelRooms: true,
           images: true,
+          packageBookings: true,
         },
       },
     },
@@ -226,14 +233,20 @@ export async function createHotel(
     slug: formData.get("slug"),
     destination_id: formData.get("destination_id"),
     thumbnail: formData.get("thumbnail") || undefined,
-    category: formData.get("category") || undefined,
-    stay_type: formData.get("stay_type") || undefined,
+    category: formData.get("category") || null,
+    stay_type: formData.get("stay_type") || null,
     check_in_time: formData.get("check_in_time") || undefined,
     check_out_time: formData.get("check_out_time") || undefined,
-    address: formData.get("address") || undefined,
+    address: formData.get("address") || null,
+    city: formData.get("city") || null,
+    state: formData.get("state") || null,
+    country: formData.get("country") || null,
+    pincode: formData.get("pincode") || null,
+    business_phone: formData.get("business_phone") || null,
+    business_email: formData.get("business_email") || null,
     description: formData.get("description") || undefined,
-    meta_title: formData.get("meta_title") || undefined,
-    meta_desc: formData.get("meta_desc") || undefined,
+    meta_title: formData.get("meta_title") || null,
+    meta_desc: formData.get("meta_desc") || null,
     is_active: formData.get("is_active") === "true",
     latitude: formData.get("latitude") || undefined,
     longitude: formData.get("longitude") || undefined,
@@ -256,7 +269,7 @@ export async function createHotel(
 
     await db.$transaction(async (tx) => {
       const hotel = await tx.hotels.create({
-        data: { ...parsed.data, stay_type: (formData.get("stay_type") as string) || null },
+        data: { ...parsed.data },
       });
       await tx.hotel_image_categories.createMany({
         data: ALL_SYSTEM_HOTEL_CATEGORIES.map((cat) => ({
@@ -289,14 +302,20 @@ export async function updateHotelDetails(
     slug: formData.get("slug"),
     destination_id: formData.get("destination_id"),
     thumbnail: formData.get("thumbnail") || undefined,
-    category: formData.get("category") || undefined,
-    stay_type: formData.get("stay_type") || undefined,
+    category: formData.get("category") || null,
+    stay_type: formData.get("stay_type") || null,
     check_in_time: formData.get("check_in_time") || undefined,
     check_out_time: formData.get("check_out_time") || undefined,
-    address: formData.get("address") || undefined,
+    address: formData.get("address") || null,
+    city: formData.get("city") || null,
+    state: formData.get("state") || null,
+    country: formData.get("country") || null,
+    pincode: formData.get("pincode") || null,
+    business_phone: formData.get("business_phone") || null,
+    business_email: formData.get("business_email") || null,
     description: formData.get("description") || undefined,
-    meta_title: formData.get("meta_title") || undefined,
-    meta_desc: formData.get("meta_desc") || undefined,
+    meta_title: formData.get("meta_title") || null,
+    meta_desc: formData.get("meta_desc") || null,
     is_active: formData.get("is_active") === "true",
     latitude: formData.get("latitude") || undefined,
     longitude: formData.get("longitude") || undefined,
@@ -323,7 +342,7 @@ export async function updateHotelDetails(
 
     await db.hotels.update({
       where: { id },
-      data: { ...parsed.data, stay_type: (formData.get("stay_type") as string) || null },
+      data: { ...parsed.data },
     });
     revalidatePath("/dashboard/hotels");
     revalidatePath(`/dashboard/hotels/${id}`);
@@ -389,7 +408,11 @@ export async function deleteHotel(id: number): Promise<HotelFormState> {
 
     revalidatePath("/dashboard/hotels");
     return { success: true, message: "Hotel deleted" };
-  } catch {
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2003") {
+      const field = (err.meta?.field_name as string | undefined) ?? "unknown";
+      return { success: false, message: `Cannot delete — hotel is still linked to other records (${field}). Remove those links first.` };
+    }
     return { success: false, message: "Database error. Please try again." };
   }
 }
@@ -520,6 +543,9 @@ export async function createRoomPricing(
 
     const validFrom = formData.get("valid_from") as string;
     const validTo = formData.get("valid_to") as string;
+    if (validFrom && validTo && new Date(validTo) <= new Date(validFrom)) {
+      return { success: false, message: "End date must be after start date." };
+    }
     const count = await db.hotel_room_pricing.count({ where: { hotel_id } });
 
     await db.hotel_room_pricing.create({
@@ -527,7 +553,7 @@ export async function createRoomPricing(
         hotel_id,
         room_id,
         plan_name: (formData.get("plan_name") as string) || null,
-        meal_type_id: formData.get("meal_type_id") ? Number(formData.get("meal_type_id")) : null,
+        meal_type_id: (() => { const v = formData.get("meal_type_id") as string; return v && v !== "none" ? Number(v) : null; })(),
         diet_type_id: formData.get("diet_type_id") ? Number(formData.get("diet_type_id")) : null,
         price_per_night: price,
         original_price: formData.get("original_price") ? Number(formData.get("original_price")) : null,
@@ -561,13 +587,16 @@ export async function updateRoomPricing(
 
     const validFrom = formData.get("valid_from") as string;
     const validTo = formData.get("valid_to") as string;
+    if (validFrom && validTo && new Date(validTo) <= new Date(validFrom)) {
+      return { success: false, message: "End date must be after start date." };
+    }
 
     await db.hotel_room_pricing.update({
       where: { id },
       data: {
         room_id,
         plan_name: (formData.get("plan_name") as string) || null,
-        meal_type_id: formData.get("meal_type_id") ? Number(formData.get("meal_type_id")) : null,
+        meal_type_id: (() => { const v = formData.get("meal_type_id") as string; return v && v !== "none" ? Number(v) : null; })(),
         diet_type_id: formData.get("diet_type_id") ? Number(formData.get("diet_type_id")) : null,
         price_per_night: price,
         original_price: formData.get("original_price") ? Number(formData.get("original_price")) : null,
