@@ -189,7 +189,7 @@ function PricingForm({
           <Input
             placeholder="e.g. Luxury Queen Room Riverside"
             value={form.plan_name}
-            onChange={(e) => update("plan_name", e.target.value)}
+            onChange={(e) => { const v = e.target.value; update("plan_name", v.charAt(0).toUpperCase() + v.slice(1)); }}
           />
         </div>
       </div>

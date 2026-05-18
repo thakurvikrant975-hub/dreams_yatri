@@ -190,8 +190,9 @@ function RoomForm({
 
   function handleNameChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value;
-    update("name", val);
-    if (!initial.slug) update("slug", toSlug(val));
+    const capped = val.charAt(0).toUpperCase() + val.slice(1);
+    update("name", capped);
+    if (!initial.slug) update("slug", toSlug(capped));
   }
 
   return (
@@ -261,7 +262,7 @@ function RoomForm({
         <Textarea
           placeholder="Spacious room with panoramic views..."
           value={form.description}
-          onChange={(e) => update("description", e.target.value)}
+          onChange={(e) => { const v = e.target.value; update("description", v.charAt(0).toUpperCase() + v.slice(1)); }}
           rows={2}
         />
       </div>

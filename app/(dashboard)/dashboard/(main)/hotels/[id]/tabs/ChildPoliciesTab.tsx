@@ -146,7 +146,7 @@ function PolicyForm({
         <Input
           placeholder="e.g. Valid with extra mattress, includes meals"
           value={form.description}
-          onChange={(e) => update("description", e.target.value)}
+          onChange={(e) => { const v = e.target.value; update("description", v.charAt(0).toUpperCase() + v.slice(1)); }}
         />
       </div>
 
