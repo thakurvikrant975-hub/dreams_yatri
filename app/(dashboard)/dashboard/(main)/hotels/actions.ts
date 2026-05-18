@@ -385,11 +385,7 @@ export async function updateHotelDetails(
 
   try {
     const current = await db.hotels.findUnique({ where: { id }, select: { thumbnail: true } });
-    if (
-      current?.thumbnail &&
-      parsed.data.thumbnail &&
-      parsed.data.thumbnail !== current.thumbnail
-    ) {
+    if (current?.thumbnail && current.thumbnail !== (parsed.data.thumbnail ?? "")) {
       await deleteFromR2(current.thumbnail).catch(console.error);
     }
 

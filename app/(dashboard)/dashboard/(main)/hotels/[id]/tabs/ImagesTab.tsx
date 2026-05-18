@@ -477,6 +477,7 @@ export function ImagesTab({
               onChange={e => setNewCatName(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleAddCategory()}
               autoFocus
+              maxLength={60}
               className="max-w-xs"
             />
             <Button

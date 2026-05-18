@@ -611,7 +611,7 @@ function RoomRow({
                 <AlertDialogTitle>Delete Room</AlertDialogTitle>
                 <AlertDialogDescription>
                   Delete <span className="font-semibold">{room.name}</span>? This will also delete
-                  all room images and pricing plans linked to this room.
+                  all room images, pricing plans, and occupancy prices linked to this room.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
