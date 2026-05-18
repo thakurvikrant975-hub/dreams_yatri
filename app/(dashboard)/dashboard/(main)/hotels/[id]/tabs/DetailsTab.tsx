@@ -29,6 +29,12 @@ type Hotel = {
   check_in_time:  string | null;
   check_out_time: string | null;
   address:        string | null;
+  city:           string | null;
+  state:          string | null;
+  country:        string | null;
+  pincode:        string | null;
+  business_phone: string | null;
+  business_email: string | null;
   description:    string | null;
   meta_title:     string | null;
   meta_desc:      string | null;
@@ -194,6 +200,36 @@ export function DetailsTab({
               onChange={e => setAddress(e.target.value)}
               placeholder="Dal Lake, Srinagar..."
             />
+          </div>
+
+          <div className="grid grid-cols-4 gap-3">
+            <div className="space-y-1.5">
+              <Label>City</Label>
+              <Input name="city" defaultValue={hotel.city ?? ""} placeholder="Srinagar" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>State</Label>
+              <Input name="state" defaultValue={hotel.state ?? ""} placeholder="Jammu & Kashmir" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Country</Label>
+              <Input name="country" defaultValue={hotel.country ?? ""} placeholder="India" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Pincode</Label>
+              <Input name="pincode" defaultValue={hotel.pincode ?? ""} placeholder="190001" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Business Phone</Label>
+              <Input name="business_phone" type="tel" defaultValue={hotel.business_phone ?? ""} placeholder="+91 9876543210" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Business Email</Label>
+              <Input name="business_email" type="email" defaultValue={hotel.business_email ?? ""} placeholder="hotel@example.com" />
+            </div>
           </div>
 
           <input type="hidden" name="latitude"  value={location?.latitude  ?? ""} />

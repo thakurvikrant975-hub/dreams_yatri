@@ -38,9 +38,15 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
   const [stayType,      setStayType]      = useState("");
   const [checkIn,       setCheckIn]       = useState("14:00");
   const [checkOut,      setCheckOut]      = useState("11:00");
-  const [address,       setAddress]       = useState("");
-  const [location,      setLocation]      = useState<LocationResult | null>(null);
-  const [description,   setDescription]   = useState("");
+  const [address,        setAddress]        = useState("");
+  const [city,           setCity]           = useState("");
+  const [state,          setState]          = useState("");
+  const [country,        setCountry]        = useState("");
+  const [pincode,        setPincode]        = useState("");
+  const [businessPhone,  setBusinessPhone]  = useState("");
+  const [businessEmail,  setBusinessEmail]  = useState("");
+  const [location,       setLocation]       = useState<LocationResult | null>(null);
+  const [description,    setDescription]    = useState("");
   const [isActive,      setIsActive]      = useState(true);
   const [thumbnail,     setThumbnail]     = useState<PickedImage[]>([]);
   const [metaTitle,     setMetaTitle]     = useState("");
@@ -82,6 +88,12 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
       formData.append("check_in_time",  checkIn);
       formData.append("check_out_time", checkOut);
       formData.append("address",        address);
+      formData.append("city",           city);
+      formData.append("state",          state);
+      formData.append("country",        country);
+      formData.append("pincode",        pincode);
+      formData.append("business_phone", businessPhone);
+      formData.append("business_email", businessEmail);
       formData.append("latitude",       location?.latitude  != null ? String(location.latitude)  : "");
       formData.append("longitude",      location?.longitude != null ? String(location.longitude) : "");
       formData.append("description",    description);
@@ -206,6 +218,36 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
               value={address}
               onChange={e => setAddress(e.target.value)}
             />
+          </div>
+
+          <div className="grid grid-cols-4 gap-3">
+            <div className="space-y-1.5">
+              <Label>City</Label>
+              <Input placeholder="Srinagar" value={city} onChange={e => setCity(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>State</Label>
+              <Input placeholder="Jammu & Kashmir" value={state} onChange={e => setState(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Country</Label>
+              <Input placeholder="India" value={country} onChange={e => setCountry(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Pincode</Label>
+              <Input placeholder="190001" value={pincode} onChange={e => setPincode(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Business Phone</Label>
+              <Input type="tel" placeholder="+91 9876543210" value={businessPhone} onChange={e => setBusinessPhone(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Business Email</Label>
+              <Input type="email" placeholder="hotel@example.com" value={businessEmail} onChange={e => setBusinessEmail(e.target.value)} />
+            </div>
           </div>
 
           <div className="space-y-1.5">
