@@ -320,9 +320,10 @@ export async function createHotel(
       return { success: false, message: "Slug already exists", errors: { slug: ["Slug taken"] } };
     }
 
-    await db.$transaction(async (tx) => {
+    const newHotel = await db.$transaction(async (tx) => {
       const hotel = await tx.hotels.create({
         data: { ...parsed.data },
+        select: { id: true },
       });
       await tx.hotel_image_categories.createMany({
         data: ALL_SYSTEM_HOTEL_CATEGORIES.map((cat) => ({
@@ -334,10 +335,11 @@ export async function createHotel(
           sort_order: cat.sort_order,
         })),
       });
+      return hotel;
     });
 
     revalidatePath("/dashboard/hotels");
-    return { success: true, message: "Hotel created successfully" };
+    return { success: true, message: "Hotel created successfully", id: newHotel.id };
   } catch {
     return { success: false, message: "Database error. Please try again." };
   }
@@ -597,7 +599,7 @@ export async function createRoomPricing(
     }
     const count = await db.hotel_room_pricing.count({ where: { hotel_id } });
 
-    await db.hotel_room_pricing.create({
+    const plan = await db.hotel_room_pricing.create({
       data: {
         hotel_id,
         room_id,
@@ -617,7 +619,7 @@ export async function createRoomPricing(
     });
 
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
-    return { success: true, message: "Pricing plan added" };
+    return { success: true, message: "Pricing plan added", id: plan.id };
   } catch {
     return { success: false, message: "Database error." };
   }

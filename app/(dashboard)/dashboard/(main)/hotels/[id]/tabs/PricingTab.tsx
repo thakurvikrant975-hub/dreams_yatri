@@ -64,6 +64,8 @@ type PricingPlan = {
   occupancy_prices: OccupancyPrice[];
 };
 
+type OccupancyEntry = { occupancy: number; price: string; original: string };
+
 type PricingFormState = {
   room_id: string;
   plan_name: string;
@@ -77,6 +79,7 @@ type PricingFormState = {
   valid_from: string;
   valid_to: string;
   is_active: boolean;
+  occupancy_prices: OccupancyEntry[];
 };
 
 const EMPTY_FORM: PricingFormState = {
@@ -92,6 +95,7 @@ const EMPTY_FORM: PricingFormState = {
   valid_from: "",
   valid_to: "",
   is_active: true,
+  occupancy_prices: [],
 };
 
 const OCCUPANCY_LABELS: Record<number, string> = {
@@ -100,6 +104,10 @@ const OCCUPANCY_LABELS: Record<number, string> = {
   3: "Triple (3P)",
   4: "Quad (4P)",
 };
+
+const OCCUPANCY_OPTIONS = Object.entries(OCCUPANCY_LABELS)
+  .map(([k, v]) => ({ value: Number(k), label: v }))
+  .sort((a, b) => a.value - b.value);
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -123,6 +131,7 @@ function toFormState(p: PricingPlan): PricingFormState {
     valid_from: toISODate(p.valid_from),
     valid_to: toISODate(p.valid_to),
     is_active: p.is_active,
+    occupancy_prices: [],
   };
 }
 
@@ -153,6 +162,7 @@ function PricingForm({
   onSave,
   onCancel,
   isSaving,
+  isNew = false,
 }: {
   initial: PricingFormState;
   rooms: RoomOption[];
@@ -161,6 +171,7 @@ function PricingForm({
   onSave: (form: PricingFormState) => void;
   onCancel: () => void;
   isSaving: boolean;
+  isNew?: boolean;
 }) {
   const [form, setForm] = useState<PricingFormState>(initial);
   function update<K extends keyof PricingFormState>(key: K, value: PricingFormState[K]) {
@@ -295,6 +306,50 @@ function PricingForm({
           <p className="text-[10px] text-muted-foreground">12% (&lt;₹7500) / 18% (≥₹7500)</p>
         </div>
       </div>
+
+      {isNew && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            Occupancy Prices <span className="font-normal normal-case">(optional — overrides base price)</span>
+          </p>
+          {OCCUPANCY_OPTIONS.map((occ) => {
+            const entry = form.occupancy_prices.find((e) => e.occupancy === occ.value);
+            return (
+              <div key={occ.value} className="flex items-center gap-2">
+                <span className="text-xs w-24 shrink-0 text-muted-foreground">{occ.label}</span>
+                <Input
+                  type="number"
+                  className="h-7 text-xs w-28"
+                  placeholder="Price"
+                  value={entry?.price ?? ""}
+                  onChange={(e) => {
+                    const price = e.target.value;
+                    const existing = form.occupancy_prices.filter((x) => x.occupancy !== occ.value);
+                    if (price) {
+                      update("occupancy_prices", [...existing, { occupancy: occ.value, price, original: entry?.original ?? "" }]);
+                    } else {
+                      update("occupancy_prices", existing);
+                    }
+                  }}
+                />
+                <Input
+                  type="number"
+                  className="h-7 text-xs w-28"
+                  placeholder="MRP (optional)"
+                  value={entry?.original ?? ""}
+                  onChange={(e) => {
+                    const original = e.target.value;
+                    const existing = form.occupancy_prices.filter((x) => x.occupancy !== occ.value);
+                    if (entry?.price) {
+                      update("occupancy_prices", [...existing, { occupancy: occ.value, price: entry.price, original }]);
+                    }
+                  }}
+                />
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Row 5: Active + Buttons */}
       <div className="flex items-center justify-between pt-1">
@@ -676,6 +731,18 @@ export function PricingTab({
     startTransition(async () => {
       const result = await createRoomPricing(hotel_id, buildFormData(form));
       if (result.success) {
+        const planId = result.id!;
+        for (const entry of form.occupancy_prices) {
+          if (entry.price && Number(entry.price) > 0) {
+            await upsertOccupancyPrice(
+              planId,
+              hotel_id,
+              entry.occupancy,
+              Number(entry.price),
+              entry.original ? Number(entry.original) : null,
+            );
+          }
+        }
         toast.success(result.message);
         setAdding(false);
         const roomId = Number(form.room_id);
@@ -800,6 +867,7 @@ export function PricingTab({
             onSave={handleAdd}
             onCancel={() => setAdding(false)}
             isSaving={isPending}
+            isNew
           />
         )}
 

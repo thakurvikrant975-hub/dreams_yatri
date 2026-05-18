@@ -13,8 +13,8 @@ import {
 } from "../../../components/ui/select";
 import { Loader2 } from "lucide-react";
 import { ImagePicker, type PickedImage } from "../../../components/dashboard/ImagePicker";
-import { LocationPickerField } from "../../../components/dashboard/LocationPickerField";
-import type { LocationResult } from "../../../components/dashboard/LocationSearchInput";
+import { LocationSearchSelect } from "../../../components/location/LocationSearchSelect";
+import type { LocationValue } from "../../../components/location/location.types";
 import { SearchSelect } from "../../../components/dashboard/SearchSelect";
 import { updateHotelDetails } from "../../actions";
 import { CATEGORIES, STAY_TYPES } from "../../constants";
@@ -61,17 +61,7 @@ export function DetailsTab({
     { success: false, message: "" }
   );
 
-  const [location, setLocation] = useState<LocationResult | null>(
-    hotel.latitude != null && hotel.longitude != null
-      ? {
-          place_name: hotel.address ?? `${hotel.latitude}, ${hotel.longitude}`,
-          place_id: "",
-          address: hotel.address ?? `${hotel.latitude}, ${hotel.longitude}`,
-          latitude: Number(hotel.latitude),
-          longitude: Number(hotel.longitude),
-        }
-      : null,
-  );
+  const [location, setLocation] = useState<LocationValue | null>(null);
   const [address,   setAddress]   = useState(hotel.address ?? "");
   const [metaTitle, setMetaTitle] = useState(hotel.meta_title ?? "");
   const [metaDesc,  setMetaDesc]  = useState(hotel.meta_desc  ?? "");
@@ -194,13 +184,13 @@ export function DetailsTab({
 
           <div className="space-y-1.5">
             <Label>Location</Label>
-            <LocationPickerField
+            <LocationSearchSelect
               value={location}
-              onChange={(v) => {
-                setLocation(v);
-                if (v) setAddress(v.address);
+              onChange={(loc) => {
+                setLocation(loc);
+                if (loc) setAddress(loc.breadcrumb);
               }}
-              placeholder="Search hotel address or pin on map…"
+              placeholder="Search hotel location…"
             />
           </div>
 

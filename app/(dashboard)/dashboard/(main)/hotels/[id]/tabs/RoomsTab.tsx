@@ -78,6 +78,7 @@ type RoomFormState = {
   amenities: string[];
   features: string[];
   is_active: boolean;
+  images: PickedImage[];
 };
 
 const EMPTY_FORM: RoomFormState = {
@@ -91,6 +92,7 @@ const EMPTY_FORM: RoomFormState = {
   amenities: [],
   features: [],
   is_active: true,
+  images: [],
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -107,6 +109,7 @@ function toFormState(room: DBRoom): RoomFormState {
     amenities: Array.isArray(room.amenities) ? (room.amenities as string[]) : [],
     features: Array.isArray(room.features) ? (room.features as string[]) : [],
     is_active: room.is_active,
+    images: [],
   };
 }
 
@@ -176,11 +179,13 @@ function RoomForm({
   onSave,
   onCancel,
   isSaving,
+  isNew = false,
 }: {
   initial: RoomFormState;
   onSave: (form: RoomFormState) => void;
   onCancel: () => void;
   isSaving: boolean;
+  isNew?: boolean;
 }) {
   const [form, setForm] = useState<RoomFormState>(initial);
 
@@ -284,6 +289,20 @@ function RoomForm({
           onChange={(v) => update("features", v)}
         />
       </div>
+
+      {isNew && (
+        <div className="space-y-1.5">
+          <Label>Room Photos <span className="text-xs text-muted-foreground">(optional)</span></Label>
+          <ImagePicker
+            folder="hotels"
+            value={form.images}
+            onChange={(imgs) => update("images", imgs)}
+            maxFiles={8}
+            label="Add Room Photos"
+            hint="JPG, PNG, WebP"
+          />
+        </div>
+      )}
 
       <div className="flex items-center justify-between pt-2">
         <div className="flex items-center gap-2">
@@ -656,12 +675,21 @@ export function RoomsTab({
     startTransition(async () => {
       const result = await createRoom(hotel_id, buildFormData(form));
       if (result.success) {
+        const roomId = result.id!;
+        const uploaded = form.images.filter((p) => p.status === "uploaded" && p.key);
+        if (uploaded.length > 0) {
+          await createRoomImages(
+            roomId,
+            hotel_id,
+            uploaded.map((p) => ({ url: p.key!, thumbnail: p.key, alt: p.name }))
+          );
+        }
         toast.success(result.message);
         setAdding(false);
         setRooms((prev) => [
           ...prev,
           {
-            id: result.id!,
+            id: roomId,
             hotel_id,
             name: form.name,
             slug: form.slug,
@@ -676,7 +704,15 @@ export function RoomsTab({
             facilities: null,
             is_active: form.is_active,
             sort_order: prev.length,
-            images: [],
+            images: uploaded.map((p, i) => ({
+              id: Date.now() + i,
+              room_id: roomId,
+              url: p.key!,
+              thumbnail: p.key ?? null,
+              alt: p.name,
+              is_primary: i === 0,
+              sort_order: i,
+            })),
           },
         ]);
       } else {
@@ -744,6 +780,7 @@ export function RoomsTab({
             onSave={handleAdd}
             onCancel={() => setAdding(false)}
             isSaving={isPending}
+            isNew
           />
         )}
 

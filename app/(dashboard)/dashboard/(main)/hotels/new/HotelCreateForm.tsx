@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter }               from "next/navigation";
 import { Input }                   from "../../components/ui/input";
 import { Label }                   from "../../components/ui/label";
@@ -13,8 +13,8 @@ import {
   SelectTrigger, SelectValue,
 } from "../../components/ui/select";
 import { ImagePicker, type PickedImage } from "../../components/dashboard/ImagePicker";
-import { LocationPickerField } from "../../components/dashboard/LocationPickerField";
-import type { LocationResult } from "../../components/dashboard/LocationSearchInput";
+import { LocationSearchSelect } from "../../components/location/LocationSearchSelect";
+import type { LocationValue } from "../../components/location/location.types";
 import { SearchSelect } from "../../components/dashboard/SearchSelect";
 import { createHotel } from "../actions";
 import { CATEGORIES, STAY_TYPES } from "../constants";
@@ -45,12 +45,20 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
   const [pincode,        setPincode]        = useState("");
   const [businessPhone,  setBusinessPhone]  = useState("");
   const [businessEmail,  setBusinessEmail]  = useState("");
-  const [location,       setLocation]       = useState<LocationResult | null>(null);
+  const [location,       setLocation]       = useState<LocationValue | null>(null);
   const [description,    setDescription]    = useState("");
   const [isActive,      setIsActive]      = useState(true);
   const [thumbnail,     setThumbnail]     = useState<PickedImage[]>([]);
   const [metaTitle,     setMetaTitle]     = useState("");
   const [metaDesc,      setMetaDesc]      = useState("");
+
+  // Auto-fill SEO fields from name/description when they're empty
+  useEffect(() => {
+    if (!metaTitle && name) setMetaTitle(`${name} | Dreams Yatri`.slice(0, 60));
+  }, [name]);
+  useEffect(() => {
+    if (!metaDesc && description) setMetaDesc(description.slice(0, 160));
+  }, [description]);
 
   function handleNameChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value;
@@ -103,9 +111,9 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
 
       const result = await createHotel({ success: false, message: "" }, formData);
 
-      if (result.success) {
+      if (result.success && result.id) {
         toast.success(result.message);
-        router.push("/dashboard/hotels");
+        router.push(`/dashboard/hotels/${result.id}`);
       } else {
         toast.error(result.message);
       }
@@ -201,13 +209,19 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
 
           <div className="space-y-1.5">
             <Label>Location</Label>
-            <LocationPickerField
+            <LocationSearchSelect
               value={location}
-              onChange={(v) => {
-                setLocation(v);
-                if (v) setAddress(v.address);
+              onChange={(loc) => {
+                setLocation(loc);
+                if (loc) {
+                  setAddress(loc.breadcrumb);
+                  const parts = loc.breadcrumb.split(",").map((s: string) => s.trim());
+                  if (parts.length >= 1 && !country) setCountry(parts.at(-1) ?? "");
+                  if (parts.length >= 2 && !state) setState(parts.at(-2) ?? "");
+                  if (parts.length >= 3 && !city) setCity(parts.at(-3) ?? "");
+                }
               }}
-              placeholder="Search hotel address or pin on map…"
+              placeholder="Search hotel location…"
             />
           </div>
 
