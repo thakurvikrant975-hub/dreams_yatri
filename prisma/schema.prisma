@@ -935,6 +935,13 @@ model activities {
   category             String?
   latitude             Decimal?               @db.Decimal(10, 8)
   longitude            Decimal?               @db.Decimal(11, 8)
+  address              String?
+  city                 String?
+  state                String?
+  country              String?                @default("India")
+  pincode              String?
+  phone                String?
+  email                String?
   is_active            Boolean                @default(true)
   created_at           DateTime               @default(now())
   updated_at           DateTime               @updatedAt
