@@ -16,32 +16,16 @@ export const ActivitySchema = z.object({
       "Slug must be lowercase letters and numbers separated by hyphens — no leading or trailing hyphens"
     ),
 
-  destination_id: z.coerce
-    .number({ message: "Destination is required" })
+  category_id: z.coerce
+    .number()
     .int()
-    .positive("Destination is required"),
+    .positive()
+    .optional()
+    .nullable(),
 
   description: z
     .string()
     .max(5000, "Description must be 5000 characters or less")
-    .optional()
-    .transform((s) => s?.trim() || undefined),
-
-  meta_title: z
-    .string()
-    .max(60, "SEO title must be 60 characters or less")
-    .optional()
-    .transform((s) => s?.trim().slice(0, 60) || undefined),
-
-  meta_desc: z
-    .string()
-    .max(160, "SEO description must be 160 characters or less")
-    .optional()
-    .transform((s) => s?.trim().slice(0, 160) || undefined),
-
-  category: z
-    .string()
-    .max(100)
     .optional()
     .transform((s) => s?.trim() || undefined),
 
@@ -61,7 +45,6 @@ export const ActivitySchema = z.object({
   latitude:  z.coerce.number().min(-90).max(90).optional().nullable(),
   longitude: z.coerce.number().min(-180).max(180).optional().nullable(),
 
-  // Business contact / location
   address: z
     .string()
     .max(500)

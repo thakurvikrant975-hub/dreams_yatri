@@ -694,7 +694,6 @@ model destinations {
   deleted_by  String?
   deleted_at  DateTime?
   is_deleted  Boolean        @default(false)
-  activities  activities[]
   bookings    Booking[]
   region      custom_regions @relation(fields: [region_id], references: [id])
   hotels      hotels[]
@@ -922,6 +921,20 @@ model diet_types {
   hotelRoomPricings hotel_room_pricing[]
 }
 
+model activity_categories {
+  id         Int          @id @default(autoincrement())
+  name       String       @unique
+  slug       String       @unique
+  is_active  Boolean      @default(true)
+  sort_order Int          @default(0)
+  created_at DateTime     @default(now())
+  updated_at DateTime     @updatedAt
+  activities activities[]
+
+  @@index([is_active])
+  @@map("activity_categories")
+}
+
 model activities {
   id                   Int                    @id @default(autoincrement())
   name                 String
@@ -929,10 +942,9 @@ model activities {
   description          String?
   meta_title           String?
   meta_desc            String?
-  destination_id       Int
+  category_id          Int?
   duration_hours       Decimal?               @db.Decimal(4, 1)
   difficulty           String?
-  category             String?
   latitude             Decimal?               @db.Decimal(10, 8)
   longitude            Decimal?               @db.Decimal(11, 8)
   address              String?
@@ -945,14 +957,13 @@ model activities {
   is_active            Boolean                @default(true)
   created_at           DateTime               @default(now())
   updated_at           DateTime               @updatedAt
-  destination          destinations           @relation(fields: [destination_id], references: [id])
+  category             activity_categories?   @relation(fields: [category_id], references: [id], onDelete: SetNull)
   images               activity_images[]
   itinerary_activities itinerary_activities[]
   variants             activity_variants[]
   addons               activity_addons[]
 
-  @@index([destination_id, is_active])
-  @@index([category])
+  @@index([category_id, is_active])
   @@index([slug])
 }
 

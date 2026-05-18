@@ -9,7 +9,7 @@ import {
 } from "../components/ui/breadcrumb";
 import { PageHeader }       from "../components/dashboard/PageHeader";
 import { StatCard, StatGrid } from "../components/dashboard/Statcard";
-import { getActivities, getDestinationsForSelect, type GetActivitiesParams } from "./actions";
+import { getActivities, getCategoriesForSelect, type GetActivitiesParams } from "./actions";
 import { ActivitiesTableClient } from "./ActivitiesTableClient";
 
 // ── Skeleton ──────────────────────────────────────────────────────────────
@@ -28,22 +28,20 @@ function TableSkeleton() {
             <div className="flex gap-3">
                 <Skeleton className="h-9 flex-1 max-w-sm" />
                 <Skeleton className="h-9 w-36" />
-                <Skeleton className="h-9 w-36" />
                 <Skeleton className="h-9 w-24 ml-auto" />
             </div>
             <div className="rounded-xl border bg-card overflow-hidden">
-                <div className="bg-muted/50 px-4 py-3 grid grid-cols-7 gap-4">
-                    {Array.from({ length: 7 }).map((_, i) => <Skeleton key={i} className="h-4" />)}
+                <div className="bg-muted/50 px-4 py-3 grid grid-cols-6 gap-4">
+                    {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-4" />)}
                 </div>
                 {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="px-4 py-3 grid grid-cols-7 gap-4 border-t items-center">
+                    <div key={i} className="px-4 py-3 grid grid-cols-6 gap-4 border-t items-center">
                         <div className="flex items-center gap-3 col-span-2">
                             <Skeleton className="h-10 w-14 rounded-lg" />
                             <Skeleton className="h-4 w-28" />
                         </div>
                         <Skeleton className="h-5 w-20" />
                         <Skeleton className="h-4 w-16" />
-                        <Skeleton className="h-4 w-12" />
                         <Skeleton className="h-5 w-8 mx-auto" />
                         <div className="flex justify-end gap-1">
                             <Skeleton className="h-8 w-8 rounded-md" />
@@ -59,9 +57,9 @@ function TableSkeleton() {
 // ── Async data component ──────────────────────────────────────────────────
 
 async function ActivitiesData({ params }: { params: GetActivitiesParams }) {
-    const [{ activities, totalCount, isFiltering, stats }, destinations] = await Promise.all([
+    const [{ activities, totalCount, isFiltering, stats }, categories] = await Promise.all([
         getActivities(params),
-        getDestinationsForSelect(),
+        getCategoriesForSelect(),
     ]);
 
     return (
@@ -75,14 +73,13 @@ async function ActivitiesData({ params }: { params: GetActivitiesParams }) {
 
             <ActivitiesTableClient
                 activities={activities}
-                destinations={destinations}
+                categories={categories}
                 totalCount={totalCount}
                 limit={params.limit ?? 10}
                 currentPage={params.page ?? 1}
                 isFiltering={isFiltering}
                 search={params.search ?? ""}
-                destination_id={params.destination_id ?? "all"}
-                category={params.category ?? "all"}
+                category_id={params.category_id ?? "all"}
                 status={(params.status ?? "all") as "active" | "inactive" | "all"}
             />
         </>
@@ -96,17 +93,15 @@ export async function ActivitiesClient({
     limit,
     search,
     status,
-    destination_id,
-    category,
+    category_id,
 }: {
-    page:           number;
-    limit:          number;
-    search:         string;
-    status:         "active" | "inactive" | "all";
-    destination_id: number | "all";
-    category:       string;
+    page:        number;
+    limit:       number;
+    search:      string;
+    status:      "active" | "inactive" | "all";
+    category_id: number | "all";
 }) {
-    const params: GetActivitiesParams = { page, limit, search, status, destination_id, category };
+    const params: GetActivitiesParams = { page, limit, search, status, category_id };
 
     return (
         <div className="space-y-6">
@@ -136,7 +131,7 @@ export async function ActivitiesClient({
             />
 
             <Suspense
-                key={`${page}-${limit}-${search}-${String(destination_id)}-${category}-${status}`}
+                key={`${page}-${limit}-${search}-${String(category_id)}-${status}`}
                 fallback={<TableSkeleton />}
             >
                 <ActivitiesData params={params} />

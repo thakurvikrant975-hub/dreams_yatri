@@ -350,7 +350,7 @@ export async function fetchPackagePageData(
                 description: true,
                 duration_hours: true,
                 difficulty: true,
-                category: true,
+                category: { select: { name: true } },
                 images: {
                   orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
                   take: 4,
@@ -444,7 +444,7 @@ export async function fetchPackagePageData(
         ? Number(ia.activity.duration_hours)
         : null,
       difficulty: ia.activity.difficulty,
-      category: ia.activity.category,
+      category: ia.activity.category?.name ?? null,
       is_optional: ia.is_optional,
       pricing_type: ia.variant?.pricing_type ?? "PER_PERSON",
       pricingTiers: (ia.variant?.pricing ?? []).map((p) => ({

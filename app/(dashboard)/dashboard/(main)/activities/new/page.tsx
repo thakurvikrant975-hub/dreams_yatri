@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Activity, ChevronRight } from "lucide-react";
-import { getDestinationsForSelect } from "../actions";
+import { getCategoriesForSelect } from "../actions";
 import { CreateActivityForm } from "./CreateActivityForm";
 
 export const metadata: Metadata = {
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 };
 
 export default async function NewActivityPage() {
-    const destinations = await getDestinationsForSelect();
+    const categories = await getCategoriesForSelect();
 
     return (
         <div className="space-y-6">
@@ -46,7 +46,7 @@ export default async function NewActivityPage() {
                 </div>
             </div>
 
-            <CreateActivityForm destinations={destinations} />
+            <CreateActivityForm categories={categories} />
         </div>
     );
 }

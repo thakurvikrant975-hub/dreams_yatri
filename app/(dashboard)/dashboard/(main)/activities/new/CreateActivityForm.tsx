@@ -4,15 +4,14 @@ import { useState, useTransition, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-    MapPin, Tag, Search, FileText, ChevronDown, Check,
-    Phone, Mail, Building2, Loader2,
+    MapPin, Tag, FileText, ChevronDown, Check,
+    Phone, Mail, Loader2,
 } from "lucide-react";
 import { Button }   from "../../components/ui/button";
 import { Input }    from "../../components/ui/input";
 import { Label }    from "../../components/ui/label";
 import { Textarea } from "../../components/ui/textarea";
 import { Switch }   from "../../components/ui/switch";
-import { Badge }    from "../../components/ui/badge";
 import {
     Select, SelectContent, SelectItem,
     SelectTrigger, SelectValue,
@@ -20,46 +19,42 @@ import {
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { toast }  from "sonner";
 import { cn }     from "@/app/lib/utils";
-import { LocationPickerField } from "../../components/dashboard/LocationPickerField";
-import type { LocationResult } from "../../components/dashboard/LocationSearchInput";
+import { LocationSearchInput, type LocationResult } from "../../components/dashboard/LocationSearchInput";
 import { createActivity } from "../actions";
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
 export const DIFFICULTIES = ["Easy", "Moderate", "Challenging", "Difficult", "Expert"];
-export const CATEGORIES   = [
-    "Adventure", "Cultural", "Wildlife", "Water Sports",
-    "Trekking", "Sightseeing", "Food & Culinary",
-    "Shopping", "Spiritual", "Photography", "Other",
-];
 
-type Destination = { id: number; name: string; region: { name: string } };
+type CategoryOption = { id: number; name: string; slug: string };
 
-// ── Destination searchable combobox ───────────────────────────────────────
+// ── Category searchable combobox ──────────────────────────────────────────
 
-function DestinationCombobox({
-    destinations,
+function CategoryCombobox({
+    categories,
     value,
     onChange,
     error,
 }: {
-    destinations: Destination[];
-    value:        string;
-    onChange:     (v: string) => void;
-    error?:       string;
+    categories: CategoryOption[];
+    value:      string;
+    onChange:   (v: string) => void;
+    error?:     string;
 }) {
     const [open,   setOpen]   = useState(false);
     const [filter, setFilter] = useState("");
     const inputRef = useRef<HTMLInputElement>(null);
 
-    const selected = destinations.find(d => String(d.id) === value);
-    const filtered = destinations.filter(d =>
-        d.name.toLowerCase().includes(filter.toLowerCase()) ||
-        d.region.name.toLowerCase().includes(filter.toLowerCase())
+    const selected = categories.find(c => String(c.id) === value);
+    const filtered = categories.filter(c =>
+        c.name.toLowerCase().includes(filter.toLowerCase())
     );
 
     return (
-        <PopoverPrimitive.Root open={open} onOpenChange={o => { setOpen(o); if (o) setTimeout(() => inputRef.current?.focus(), 50); }}>
+        <PopoverPrimitive.Root
+            open={open}
+            onOpenChange={o => { setOpen(o); if (o) setTimeout(() => inputRef.current?.focus(), 50); }}
+        >
             <PopoverPrimitive.Trigger asChild>
                 <button
                     type="button"
@@ -70,12 +65,7 @@ function DestinationCombobox({
                         !selected && "text-muted-foreground",
                     )}
                 >
-                    <span className="truncate">
-                        {selected
-                            ? <>{selected.name} <span className="text-muted-foreground text-xs">({selected.region.name})</span></>
-                            : "Search destination…"
-                        }
-                    </span>
+                    <span className="truncate">{selected ? selected.name : "Search category…"}</span>
                     <ChevronDown className="h-4 w-4 shrink-0 opacity-50 ml-2" />
                 </button>
             </PopoverPrimitive.Trigger>
@@ -86,28 +76,34 @@ function DestinationCombobox({
                     align="start"
                 >
                     <div className="flex items-center border-b px-3 py-2 gap-2">
-                        <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
                         <input
                             ref={inputRef}
                             value={filter}
                             onChange={e => setFilter(e.target.value)}
-                            placeholder="Search destinations…"
+                            placeholder="Search categories…"
                             className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
                         />
                     </div>
-                    <div className="max-h-60 overflow-y-auto p-1">
+                    <div className="max-h-56 overflow-y-auto p-1">
+                        <button
+                            type="button"
+                            onClick={() => { onChange(""); setOpen(false); setFilter(""); }}
+                            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground text-muted-foreground"
+                        >
+                            <Check className={cn("h-4 w-4 shrink-0", !value ? "opacity-100" : "opacity-0")} />
+                            None
+                        </button>
                         {filtered.length === 0 ? (
-                            <p className="py-6 text-center text-sm text-muted-foreground">No destinations found</p>
-                        ) : filtered.map(d => (
+                            <p className="py-6 text-center text-sm text-muted-foreground">No categories found</p>
+                        ) : filtered.map(c => (
                             <button
-                                key={d.id}
+                                key={c.id}
                                 type="button"
-                                onClick={() => { onChange(String(d.id)); setOpen(false); setFilter(""); }}
+                                onClick={() => { onChange(String(c.id)); setOpen(false); setFilter(""); }}
                                 className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
                             >
-                                <Check className={cn("h-4 w-4 shrink-0", String(d.id) === value ? "opacity-100" : "opacity-0")} />
-                                <span className="flex-1 text-left">{d.name}</span>
-                                <span className="text-xs text-muted-foreground">{d.region.name}</span>
+                                <Check className={cn("h-4 w-4 shrink-0", String(c.id) === value ? "opacity-100" : "opacity-0")} />
+                                <span className="flex-1 text-left">{c.name}</span>
                             </button>
                         ))}
                     </div>
@@ -154,20 +150,26 @@ function FieldError({ errors, field }: { errors: Record<string, string[]>; field
     return <p className="text-xs text-destructive mt-1">{msgs[0]}</p>;
 }
 
+// ── Country extraction from Mapbox address ─────────────────────────────────
+
+function extractCountry(address: string): string {
+    const parts = address.split(",").map(s => s.trim());
+    return parts.at(-1) ?? "";
+}
+
 // ── Main form ─────────────────────────────────────────────────────────────
 
-export function CreateActivityForm({ destinations }: { destinations: Destination[] }) {
+export function CreateActivityForm({ categories }: { categories: CategoryOption[] }) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
 
     // Basic Info
-    const [name,         setName]        = useState("");
-    const [slug,         setSlug]        = useState("");
-    const [destId,       setDestId]      = useState("");
-    const [category,     setCategory]    = useState("");
-    const [difficulty,   setDifficulty]  = useState("");
-    const [duration,     setDuration]    = useState("");
-    const [isActive,     setIsActive]    = useState(true);
+    const [name,       setName]      = useState("");
+    const [slug,       setSlug]      = useState("");
+    const [categoryId, setCategoryId]= useState("");
+    const [difficulty, setDifficulty]= useState("");
+    const [duration,   setDuration]  = useState("");
+    const [isActive,   setIsActive]  = useState(true);
 
     // Location & Contact
     const [location, setLocation] = useState<LocationResult | null>(null);
@@ -181,10 +183,6 @@ export function CreateActivityForm({ destinations }: { destinations: Destination
 
     // Content
     const [description, setDescription] = useState("");
-
-    // SEO
-    const [metaTitle, setMetaTitle] = useState("");
-    const [metaDesc,  setMetaDesc]  = useState("");
 
     // Errors
     const [errors, setErrors] = useState<Record<string, string[]>>({});
@@ -200,15 +198,13 @@ export function CreateActivityForm({ destinations }: { destinations: Destination
                 .replace(/-+/g, "-")
                 .replace(/^-|-$/g, "")
         );
-        if (!metaTitle) setMetaTitle(`${val} | Dreams Yatri`);
     }
 
     function handleLocationChange(loc: LocationResult | null) {
         setLocation(loc);
-        // Auto-fill city/state from location result if fields are empty
-        if (loc && !city) {
-            const parts = loc.place_name?.split(",").map(s => s.trim()) ?? [];
-            if (parts.length >= 2 && !city) setCity(parts[0]);
+        if (loc) {
+            const detected = extractCountry(loc.address);
+            if (detected) setCountry(detected);
         }
     }
 
@@ -218,8 +214,7 @@ export function CreateActivityForm({ destinations }: { destinations: Destination
             const fd = new FormData();
             fd.append("name",           name);
             fd.append("slug",           slug);
-            fd.append("destination_id", destId);
-            fd.append("category",       category);
+            if (categoryId) fd.append("category_id", categoryId);
             fd.append("difficulty",     difficulty);
             fd.append("duration_hours", duration);
             fd.append("is_active",      String(isActive));
@@ -233,8 +228,6 @@ export function CreateActivityForm({ destinations }: { destinations: Destination
             fd.append("phone",          phone);
             fd.append("email",          email);
             fd.append("description",    description);
-            fd.append("meta_title",     metaTitle);
-            fd.append("meta_desc",      metaDesc);
 
             const result = await createActivity({ success: false, message: "" }, fd);
 
@@ -251,10 +244,10 @@ export function CreateActivityForm({ destinations }: { destinations: Destination
     // ── Render ────────────────────────────────────────────────────────────
 
     return (
-        <div className="max-w-3xl space-y-5">
+        <div className="space-y-5">
 
             {/* ── Section 1: Basic Info ── */}
-            <Section icon={Tag} title="Basic Info" description="Name, destination and classification">
+            <Section icon={Tag} title="Basic Info" description="Name, category and classification">
 
                 {/* Name + Slug */}
                 <div className="grid grid-cols-2 gap-4">
@@ -279,28 +272,17 @@ export function CreateActivityForm({ destinations }: { destinations: Destination
                     </div>
                 </div>
 
-                {/* Destination */}
-                <div className="space-y-1.5">
-                    <Label>Destination <span className="text-destructive">*</span></Label>
-                    <DestinationCombobox
-                        destinations={destinations}
-                        value={destId}
-                        onChange={setDestId}
-                        error={errors.destination_id?.[0]}
-                    />
-                    <FieldError errors={errors} field="destination_id" />
-                </div>
-
                 {/* Category + Difficulty */}
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                         <Label>Category</Label>
-                        <Select value={category} onValueChange={setCategory}>
-                            <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                            <SelectContent>
-                                {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
+                        <CategoryCombobox
+                            categories={categories}
+                            value={categoryId}
+                            onChange={setCategoryId}
+                            error={errors.category_id?.[0]}
+                        />
+                        <FieldError errors={errors} field="category_id" />
                     </div>
                     <div className="space-y-1.5">
                         <Label>Difficulty</Label>
@@ -326,7 +308,7 @@ export function CreateActivityForm({ destinations }: { destinations: Destination
                             onChange={e => setDuration(e.target.value)}
                         />
                     </div>
-                    <div className="flex items-center justify-between rounded-lg border p-3 bg-muted/30 h-9 px-4 h-auto">
+                    <div className="flex items-center justify-between rounded-lg border p-3 bg-muted/30 px-4 h-auto">
                         <div>
                             <p className="text-sm font-medium">Active</p>
                             <p className="text-xs text-muted-foreground">Visible on Dreams Yatri</p>
@@ -339,13 +321,13 @@ export function CreateActivityForm({ destinations }: { destinations: Destination
             {/* ── Section 2: Location & Contact ── */}
             <Section icon={MapPin} title="Location & Contact" description="Physical address, coordinates and business contact">
 
-                {/* Map pin picker */}
+                {/* Map location */}
                 <div className="space-y-1.5">
                     <Label>Map Location <span className="text-xs text-muted-foreground">(optional)</span></Label>
-                    <LocationPickerField
+                    <LocationSearchInput
                         value={location}
                         onChange={handleLocationChange}
-                        placeholder="Search or pin activity location on map…"
+                        placeholder="Search activity location on map…"
                     />
                 </div>
 
@@ -363,39 +345,23 @@ export function CreateActivityForm({ destinations }: { destinations: Destination
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                         <Label>City</Label>
-                        <Input
-                            value={city}
-                            onChange={e => setCity(e.target.value)}
-                            placeholder="Rishikesh"
-                        />
+                        <Input value={city} onChange={e => setCity(e.target.value)} placeholder="Rishikesh" />
                     </div>
                     <div className="space-y-1.5">
                         <Label>State</Label>
-                        <Input
-                            value={state}
-                            onChange={e => setState(e.target.value)}
-                            placeholder="Uttarakhand"
-                        />
+                        <Input value={state} onChange={e => setState(e.target.value)} placeholder="Uttarakhand" />
                     </div>
                 </div>
 
                 {/* Country + Pincode */}
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                        <Label>Country</Label>
-                        <Input
-                            value={country}
-                            onChange={e => setCountry(e.target.value)}
-                            placeholder="India"
-                        />
+                        <Label>Country <span className="text-xs text-muted-foreground">(auto-filled from map)</span></Label>
+                        <Input value={country} onChange={e => setCountry(e.target.value)} placeholder="India" />
                     </div>
                     <div className="space-y-1.5">
                         <Label>Pincode</Label>
-                        <Input
-                            value={pincode}
-                            onChange={e => setPincode(e.target.value)}
-                            placeholder="249201"
-                        />
+                        <Input value={pincode} onChange={e => setPincode(e.target.value)} placeholder="249201" />
                     </div>
                 </div>
 
@@ -448,49 +414,6 @@ export function CreateActivityForm({ destinations }: { destinations: Destination
                         rows={6}
                     />
                 </div>
-            </Section>
-
-            {/* ── Section 4: SEO ── */}
-            <Section icon={Search} title="SEO" description="Search engine meta tags — optional but recommended">
-                <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                        <Label>Meta Title</Label>
-                        <span className={cn("text-xs", metaTitle.length > 60 ? "text-destructive" : "text-muted-foreground")}>
-                            {metaTitle.length}/60
-                        </span>
-                    </div>
-                    <Input
-                        placeholder="Valley of Flowers Trek | Dreams Yatri"
-                        value={metaTitle}
-                        onChange={e => setMetaTitle(e.target.value.slice(0, 60))}
-                    />
-                </div>
-
-                <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                        <Label>Meta Description</Label>
-                        <span className={cn("text-xs", metaDesc.length > 160 ? "text-destructive" : "text-muted-foreground")}>
-                            {metaDesc.length}/160
-                        </span>
-                    </div>
-                    <Textarea
-                        placeholder="A breathtaking high-altitude trek through a valley of wildflowers…"
-                        value={metaDesc}
-                        onChange={e => setMetaDesc(e.target.value.slice(0, 160))}
-                        rows={3}
-                    />
-                </div>
-
-                {(metaTitle || metaDesc) && (
-                    <div className="rounded-lg border p-3 bg-muted/20 space-y-1">
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium mb-2">
-                            Search Preview
-                        </p>
-                        <p className="text-xs text-green-700">dreamsyatri.com/activities/{slug || "…"}</p>
-                        <p className="text-sm text-blue-600 font-medium">{metaTitle || "Page title"}</p>
-                        <p className="text-xs text-muted-foreground line-clamp-2">{metaDesc || "Page description…"}</p>
-                    </div>
-                )}
             </Section>
 
             {/* ── Footer ── */}

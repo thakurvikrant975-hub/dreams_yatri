@@ -77,10 +77,13 @@ export type ItineraryStayView = ItineraryStay & {
 };
 
 export type ItineraryActivityView = ItineraryActivity & {
-  activity: Pick<
-    activities,
-    "id" | "name" | "slug" | "duration_hours" | "category"
-  >;
+  activity: {
+    id:             number;
+    name:           string;
+    slug:           string;
+    duration_hours: unknown;
+    category:       { id: number; name: string; slug: string } | null;
+  };
 };
 
 export type ItineraryDayView = PackageItinerary & {

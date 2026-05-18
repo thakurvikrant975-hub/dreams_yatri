@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, Activity, ImageIcon, Zap, Package } from "lu
 import { Badge }    from "../../components/ui/badge";
 import { Button }   from "../../components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
-import { getActivityWithVariants, getDestinationsForSelect } from "../actions";
+import { getActivityWithVariants, getCategoriesForSelect } from "../actions";
 import { OverviewTab }  from "./tabs/OverviewTab";
 import { ImagesTab }    from "./tabs/ImagesTab";
 import { VariantsTab }  from "./tabs/VariantsTab";
@@ -29,9 +29,9 @@ export default async function ActivityDetailPage({
     const { id: idStr } = await params;
     const id = Number(idStr);
 
-    const [activity, destinations] = await Promise.all([
+    const [activity, categories] = await Promise.all([
         getActivityWithVariants(id),
-        getDestinationsForSelect(),
+        getCategoriesForSelect(),
     ]);
 
     if (!activity) notFound();
@@ -73,8 +73,7 @@ export default async function ActivityDetailPage({
                         </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground truncate">
-                        {activity.destination.name}
-                        {activity.category && ` · ${activity.category}`}
+                        {activity.category?.name && `${activity.category.name}`}
                         {activity.difficulty && ` · ${activity.difficulty}`}
                         {totalVariants > 0 && ` · ${totalVariants} variant${totalVariants !== 1 ? "s" : ""}`}
                     </p>
@@ -112,8 +111,7 @@ export default async function ActivityDetailPage({
                             name:           activity.name,
                             slug:           activity.slug,
                             description:    activity.description,
-                            meta_title:     activity.meta_title,
-                            meta_desc:      activity.meta_desc,
+                            category_id:    activity.category_id,
                             category:       activity.category,
                             difficulty:     activity.difficulty,
                             duration_hours: activity.duration_hours,
@@ -127,9 +125,8 @@ export default async function ActivityDetailPage({
                             phone:          activity.phone,
                             email:          activity.email,
                             is_active:      activity.is_active,
-                            destination:    activity.destination,
                         }}
-                        destinations={destinations}
+                        categories={categories}
                     />
                 </TabsContent>
 

@@ -45,7 +45,7 @@ type Destination = {
     location_id: string | null;
     created_by: string | null;
     region: { id: number; name: string; slug: string };
-    _count: { packages: number; hotels: number; activities: number };
+    _count: { packages: number; hotels: number };
 };
 
 type Stats = { total: number; active: number; inactive: number; packages: number };
@@ -251,9 +251,6 @@ export function DestinationsTable({
                     <span className="flex items-center gap-0.5">
                         <Hotel className="h-3 w-3" /> {dest._count.hotels}
                     </span>
-                    <span className="flex items-center gap-0.5">
-                        <Activity className="h-3 w-3" /> {dest._count.activities}
-                    </span>
                 </div>
             ),
         },
@@ -286,7 +283,7 @@ export function DestinationsTable({
             align: "right",
             width: "w-[100px]",
             cell: (dest) => {
-                const linkedCount = dest._count.packages + dest._count.hotels + dest._count.activities;
+                const linkedCount = dest._count.packages + dest._count.hotels;
                 return (
                     <div className="flex items-center justify-end gap-1">
                         <DestinationHistorySheet id={dest.id} name={dest.name} />

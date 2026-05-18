@@ -33,8 +33,15 @@ const navGroups = [
       { title: "Regions",      href: "/dashboard/regions",      icon: GlobeHemisphereEastIcon, phosphor: true },
       { title: "Destinations", href: "/dashboard/destinations", icon: MapPinIcon,              phosphor: true },
       { title: "Categories",   href: "/dashboard/categories",   icon: TagIcon,                 phosphor: true },
-      { title: "Activities",   href: "/dashboard/activities",   icon: ParachuteIcon,           phosphor: true },
       { title: "Policies",     href: "/dashboard/policies",     icon: FileTextIcon,            phosphor: true },
+    ],
+  },
+  {
+    id: "activities", label: "Activities",
+    items: [
+      { title: "All Activities", href: "/dashboard/activities",            icon: ParachuteIcon, phosphor: true },
+      { title: "New Activity",   href: "/dashboard/activities/new",        icon: PlusIcon,      phosphor: true },
+      { title: "Categories",     href: "/dashboard/activities/categories", icon: TagIcon,       phosphor: true },
     ],
   },
   {
@@ -114,6 +121,9 @@ export function AppSidebar() {
   function isActive(href: string) {
     if (href === "/dashboard/packages/new") return pathname === href;
     if (href === "/dashboard/packages") return pathname === href || (pathname.startsWith("/dashboard/packages") && pathname !== "/dashboard/packages/new");
+    if (href === "/dashboard/activities/new") return pathname === href;
+    if (href === "/dashboard/activities/categories") return pathname === href;
+    if (href === "/dashboard/activities") return pathname === href || (pathname.startsWith("/dashboard/activities/") && pathname !== "/dashboard/activities/new" && !pathname.startsWith("/dashboard/activities/categories"));
     return pathname === href;
   }
 

@@ -21,19 +21,17 @@ export default async function Page({
 }) {
     const sp = await searchParams;
 
-    const page    = Math.max(1, parseInt(sp.page  ?? "1",  10) || 1);
-    const rawLim  = parseInt(sp.limit ?? "10", 10);
-    const limit   = (VALID_LIMITS as readonly number[]).includes(rawLim) ? rawLim : 10;
-    const search  = (sp.search ?? "").trim();
-    const status  = (["active", "inactive"].includes(sp.status ?? "")
+    const page   = Math.max(1, parseInt(sp.page  ?? "1",  10) || 1);
+    const rawLim = parseInt(sp.limit ?? "10", 10);
+    const limit  = (VALID_LIMITS as readonly number[]).includes(rawLim) ? rawLim : 10;
+    const search = (sp.search ?? "").trim();
+    const status = (["active", "inactive"].includes(sp.status ?? "")
         ? sp.status : "all") as "active" | "inactive" | "all";
 
-    const rawDest      = sp.destination_id ?? "all";
-    const destination_id = rawDest === "all"
+    const rawCat     = sp.category_id ?? "all";
+    const category_id = rawCat === "all"
         ? ("all" as const)
-        : ((parseInt(rawDest, 10) || "all") as number | "all");
-
-    const category = sp.category ?? "all";
+        : ((parseInt(rawCat, 10) || "all") as number | "all");
 
     return (
         <ActivitiesClient
@@ -41,8 +39,7 @@ export default async function Page({
             limit={limit}
             search={search}
             status={status}
-            destination_id={destination_id}
-            category={category}
+            category_id={category_id}
         />
     );
 }

@@ -27,12 +27,6 @@ import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
-const CATEGORIES = [
-    "Adventure", "Cultural", "Wildlife", "Water Sports",
-    "Trekking", "Sightseeing", "Food & Culinary",
-    "Shopping", "Spiritual", "Photography", "Other",
-];
-
 const DIFFICULTY_COLORS: Record<string, string> = {
     Easy:        "bg-green-50 text-green-700 border-green-200",
     Moderate:    "bg-blue-50 text-blue-700 border-blue-200",
@@ -43,8 +37,8 @@ const DIFFICULTY_COLORS: Record<string, string> = {
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
-type Destination = { id: number; name: string; region: { name: string } };
-type _Status     = "active" | "inactive" | "all";
+type CategoryOption = { id: number; name: string; slug: string };
+type _Status        = "active" | "inactive" | "all";
 
 // ── Thumbnail ─────────────────────────────────────────────────────────────
 
@@ -72,26 +66,24 @@ function ThumbnailCell({ activity }: { activity: ActivityItem }) {
 
 export function ActivitiesTableClient({
     activities,
-    destinations,
+    categories,
     totalCount,
     limit,
     currentPage,
     isFiltering,
     search,
-    destination_id,
-    category,
+    category_id,
     status,
 }: {
-    activities:     ActivityItem[];
-    destinations:   Destination[];
-    totalCount:     number;
-    limit:          number;
-    currentPage:    number;
-    isFiltering:    boolean;
-    search:         string;
-    destination_id: number | "all";
-    category:       string;
-    status:         _Status;
+    activities:  ActivityItem[];
+    categories:  CategoryOption[];
+    totalCount:  number;
+    limit:       number;
+    currentPage: number;
+    isFiltering: boolean;
+    search:      string;
+    category_id: number | "all";
+    status:      _Status;
 }) {
     const router       = useRouter();
     const searchParams = useSearchParams();
@@ -188,17 +180,9 @@ export function ActivitiesTableClient({
             ),
         },
         {
-            header: "Destination",
-            cell: (a) => (
-                <Badge variant="secondary" className="text-xs whitespace-nowrap">
-                    {a.destination.name}
-                </Badge>
-            ),
-        },
-        {
             header: "Category",
             cell: (a) => a.category
-                ? <span className="flex items-center gap-1 text-xs text-muted-foreground"><Tag className="h-3 w-3" />{a.category}</span>
+                ? <Badge variant="outline" className="text-xs whitespace-nowrap">{a.category.name}</Badge>
                 : <span className="text-xs text-muted-foreground">—</span>,
         },
         {
@@ -272,7 +256,7 @@ export function ActivitiesTableClient({
     return (
         <div className="space-y-4">
 
-            {/* Search + destination + category + status + rows-per-page */}
+            {/* Search + category + status + rows-per-page */}
             <div className="flex flex-wrap items-center gap-3">
                 <div className="relative flex-1 min-w-52 max-w-sm">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -285,28 +269,16 @@ export function ActivitiesTableClient({
                 </div>
 
                 <Select
-                    value={String(destination_id)}
-                    onValueChange={v => updateParam("destination_id", v)}
+                    value={String(category_id)}
+                    onValueChange={v => updateParam("category_id", v)}
                 >
                     <SelectTrigger className="w-44">
-                        <SelectValue placeholder="All Destinations" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All Destinations</SelectItem>
-                        {destinations.map(d => (
-                            <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-
-                <Select value={category} onValueChange={v => updateParam("category", v)}>
-                    <SelectTrigger className="w-40">
                         <SelectValue placeholder="All Categories" />
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="all">All Categories</SelectItem>
-                        {CATEGORIES.map(c => (
-                            <SelectItem key={c} value={c}>{c}</SelectItem>
+                        {categories.map(c => (
+                            <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
                         ))}
                     </SelectContent>
                 </Select>

@@ -156,11 +156,9 @@ async function main() {
     data: {
       name: "Hadimba Temple Visit",
       slug: "hadimba-temple-visit",
-      destination_id: destination.id,
       description: "Visit the ancient wooden Hadimba Devi Temple set amid a cedar forest. One of Manali's most revered landmarks.",
       duration_hours: 2,
       difficulty: "Easy",
-      category: "Sightseeing",
       is_active: true,
       variants: {
         create: {
@@ -185,11 +183,9 @@ async function main() {
     data: {
       name: "Solang Valley Snow Sports",
       slug: "solang-valley-snow-sports",
-      destination_id: destination.id,
       description: "Skiing, snow scooter rides, and cable car at the spectacular Solang Valley — 14 km from Manali.",
       duration_hours: 5,
       difficulty: "Moderate",
-      category: "Adventure",
       is_active: true,
       variants: {
         create: {
@@ -214,11 +210,9 @@ async function main() {
     data: {
       name: "Beas River Rafting",
       slug: "beas-river-rafting",
-      destination_id: destination.id,
       description: "Thrilling Grade II–III rapids on the Beas River between Pirdi and Jhiri — 14 km of white water action.",
       duration_hours: 3,
       difficulty: "Moderate",
-      category: "Adventure",
       is_active: true,
       variants: {
         create: {
@@ -242,11 +236,9 @@ async function main() {
     data: {
       name: "Old Manali Heritage Walk",
       slug: "old-manali-walk",
-      destination_id: destination.id,
       description: "Wander through the Old Manali village market, charming cafés, and the ancient Manu Temple.",
       duration_hours: 2.5,
       difficulty: "Easy",
-      category: "Cultural",
       is_active: true,
       variants: {
         create: {

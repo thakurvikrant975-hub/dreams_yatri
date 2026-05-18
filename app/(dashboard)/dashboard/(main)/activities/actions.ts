@@ -32,14 +32,18 @@ export type ActivityImage = {
     label:      string | null;
 };
 
+export type ActivityCategory = {
+    id:   number;
+    name: string;
+    slug: string;
+};
+
 export type ActivityItem = {
     id:             number;
     name:           string;
     slug:           string;
     description:    string | null;
-    meta_title:     string | null;
-    meta_desc:      string | null;
-    category:       string | null;
+    category_id:    number | null;
     difficulty:     string | null;
     duration_hours: number | null;
     latitude:       number | null;
@@ -53,7 +57,7 @@ export type ActivityItem = {
     email:          string | null;
     is_active:      boolean;
     created_at:     Date;
-    destination:    { id: number; name: string };
+    category:       ActivityCategory | null;
     images:         ActivityImage[];
     _count:         { images: number; variants: number };
 };
@@ -102,18 +106,17 @@ export type ActivityAddon = {
 };
 
 export type GetActivitiesParams = {
-    page?:           number;
-    limit?:          number;
-    search?:         string;
-    destination_id?: number | "all";
-    category?:       string | "all";
-    status?:         "active" | "inactive" | "all";
+    page?:        number;
+    limit?:       number;
+    search?:      string;
+    category_id?: number | "all";
+    status?:      "active" | "inactive" | "all";
 };
 
 // ── Read ──────────────────────────────────────────────────────────────────
 
 const ACTIVITY_INCLUDE = {
-    destination: { select: { id: true, name: true } },
+    category: { select: { id: true, name: true, slug: true } },
     images: {
         orderBy: { sort_order: "asc" as const },
         select:  { id: true, url: true, thumbnail: true, is_primary: true, sort_order: true, label: true },
@@ -123,25 +126,23 @@ const ACTIVITY_INCLUDE = {
 
 export async function getActivities(params: GetActivitiesParams = {}) {
     const {
-        page           = 1,
-        limit          = 10,
-        search         = "",
-        destination_id = "all",
-        category       = "all",
-        status         = "all",
+        page        = 1,
+        limit       = 10,
+        search      = "",
+        category_id = "all",
+        status      = "all",
     } = params;
 
     const skip        = (page - 1) * limit;
-    const isFiltering = !!(search || destination_id !== "all" || category !== "all" || status !== "all");
+    const isFiltering = !!(search || category_id !== "all" || status !== "all");
 
     const where = {
         ...(search ? {
             name: { contains: search, mode: "insensitive" as const },
         } : {}),
-        ...(destination_id !== "all" ? { destination_id: destination_id as number } : {}),
-        ...(category !== "all"       ? { category }                                  : {}),
-        ...(status === "active"      ? { is_active: true  }                          : {}),
-        ...(status === "inactive"    ? { is_active: false }                          : {}),
+        ...(category_id !== "all" ? { category_id: category_id as number } : {}),
+        ...(status === "active"   ? { is_active: true  }                   : {}),
+        ...(status === "inactive" ? { is_active: false }                   : {}),
     };
 
     const [activities, totalCount, statsTotal, statsActive, statsWithVariants] =
@@ -177,31 +178,11 @@ export async function getActivities(params: GetActivitiesParams = {}) {
     };
 }
 
-export async function getActivityById(id: number) {
-    const activity = await db.activities.findUnique({
-        where:   { id },
-        include: {
-            destination: { select: { id: true, name: true } },
-            images: {
-                orderBy: { sort_order: "asc" },
-                select:  { id: true, url: true, thumbnail: true, is_primary: true, sort_order: true, label: true },
-            },
-        },
-    });
-    if (!activity) return null;
-    return {
-        ...activity,
-        duration_hours: activity.duration_hours ? Number(activity.duration_hours) : null,
-        latitude:       activity.latitude  ? Number(activity.latitude)  : null,
-        longitude:      activity.longitude ? Number(activity.longitude) : null,
-    };
-}
-
 export async function getActivityWithVariants(id: number) {
     const activity = await db.activities.findUnique({
         where: { id },
         include: {
-            destination: { select: { id: true, name: true } },
+            category: { select: { id: true, name: true, slug: true } },
             images: {
                 orderBy: { sort_order: "asc" },
                 select:  { id: true, url: true, thumbnail: true, is_primary: true, sort_order: true, label: true },
@@ -238,11 +219,11 @@ export async function getActivityWithVariants(id: number) {
     };
 }
 
-export async function getDestinationsForSelect() {
-    return db.destinations.findMany({
+export async function getCategoriesForSelect() {
+    return db.activity_categories.findMany({
         where:   { is_active: true },
-        orderBy: { name: "asc" },
-        select:  { id: true, name: true, region: { select: { name: true } } },
+        orderBy: [{ sort_order: "asc" }, { name: "asc" }],
+        select:  { id: true, name: true, slug: true },
     });
 }
 
@@ -258,11 +239,8 @@ export async function createActivity(
     const raw = {
         name:           formData.get("name"),
         slug:           formData.get("slug"),
-        destination_id: formData.get("destination_id"),
+        category_id:    formData.get("category_id") || undefined,
         description:    formData.get("description")    || undefined,
-        meta_title:     formData.get("meta_title")     || undefined,
-        meta_desc:      formData.get("meta_desc")      || undefined,
-        category:       formData.get("category")       || undefined,
         difficulty:     formData.get("difficulty")     || undefined,
         duration_hours: formData.get("duration_hours") || undefined,
         is_active:      formData.get("is_active") === "true",
@@ -317,11 +295,8 @@ export async function updateActivity(
     const raw = {
         name:           formData.get("name"),
         slug:           formData.get("slug"),
-        destination_id: formData.get("destination_id"),
+        category_id:    formData.get("category_id") || undefined,
         description:    formData.get("description")    || undefined,
-        meta_title:     formData.get("meta_title")     || undefined,
-        meta_desc:      formData.get("meta_desc")      || undefined,
-        category:       formData.get("category")       || undefined,
         difficulty:     formData.get("difficulty")     || undefined,
         duration_hours: formData.get("duration_hours") || undefined,
         is_active:      formData.get("is_active") === "true",

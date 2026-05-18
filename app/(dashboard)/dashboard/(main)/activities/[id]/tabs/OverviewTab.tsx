@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useRef } from "react";
 import {
-    MapPin, Tag, Search, FileText, ChevronDown, Check,
+    MapPin, Tag, FileText, ChevronDown, Check,
     Phone, Mail, Loader2,
 } from "lucide-react";
 import { Button }   from "../../../components/ui/button";
@@ -18,31 +18,24 @@ import {
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { toast }  from "sonner";
 import { cn }     from "@/app/lib/utils";
-import { LocationPickerField } from "../../../components/dashboard/LocationPickerField";
-import type { LocationResult } from "../../../components/dashboard/LocationSearchInput";
+import { LocationSearchInput, type LocationResult } from "../../../components/dashboard/LocationSearchInput";
 import { updateActivity } from "../../actions";
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
 const DIFFICULTIES = ["Easy", "Moderate", "Challenging", "Difficult", "Expert"];
-const CATEGORIES   = [
-    "Adventure", "Cultural", "Wildlife", "Water Sports",
-    "Trekking", "Sightseeing", "Food & Culinary",
-    "Shopping", "Spiritual", "Photography", "Other",
-];
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
-type Destination = { id: number; name: string; region: { name: string } };
+type CategoryOption = { id: number; name: string; slug: string };
 
 export type ActivityDetail = {
     id:             number;
     name:           string;
     slug:           string;
     description:    string | null;
-    meta_title:     string | null;
-    meta_desc:      string | null;
-    category:       string | null;
+    category_id:    number | null;
+    category:       { id: number; name: string; slug: string } | null;
     difficulty:     string | null;
     duration_hours: number | null;
     latitude:       number | null;
@@ -55,34 +48,35 @@ export type ActivityDetail = {
     phone:          string | null;
     email:          string | null;
     is_active:      boolean;
-    destination:    { id: number; name: string };
 };
 
-// ── Destination searchable combobox ────────────────────────────────────────
+// ── Category searchable combobox ──────────────────────────────────────────
 
-function DestinationCombobox({
-    destinations,
+function CategoryCombobox({
+    categories,
     value,
     onChange,
     error,
 }: {
-    destinations: Destination[];
-    value:        string;
-    onChange:     (v: string) => void;
-    error?:       string;
+    categories: CategoryOption[];
+    value:      string;
+    onChange:   (v: string) => void;
+    error?:     string;
 }) {
     const [open,   setOpen]   = useState(false);
     const [filter, setFilter] = useState("");
     const inputRef = useRef<HTMLInputElement>(null);
 
-    const selected = destinations.find(d => String(d.id) === value);
-    const filtered = destinations.filter(d =>
-        d.name.toLowerCase().includes(filter.toLowerCase()) ||
-        d.region.name.toLowerCase().includes(filter.toLowerCase())
+    const selected = categories.find(c => String(c.id) === value);
+    const filtered = categories.filter(c =>
+        c.name.toLowerCase().includes(filter.toLowerCase())
     );
 
     return (
-        <PopoverPrimitive.Root open={open} onOpenChange={v => { setOpen(v); if (v) setTimeout(() => inputRef.current?.focus(), 50); }}>
+        <PopoverPrimitive.Root
+            open={open}
+            onOpenChange={o => { setOpen(o); if (o) setTimeout(() => inputRef.current?.focus(), 50); }}
+        >
             <PopoverPrimitive.Trigger asChild>
                 <button
                     type="button"
@@ -93,9 +87,7 @@ function DestinationCombobox({
                         !selected && "text-muted-foreground",
                     )}
                 >
-                    <span className="truncate">
-                        {selected ? `${selected.name} — ${selected.region.name}` : "Select destination…"}
-                    </span>
+                    <span className="truncate">{selected ? selected.name : "Search category…"}</span>
                     <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </button>
             </PopoverPrimitive.Trigger>
@@ -108,24 +100,31 @@ function DestinationCombobox({
                         <input
                             ref={inputRef}
                             className="w-full rounded border-0 bg-transparent py-1 text-sm outline-none placeholder:text-muted-foreground"
-                            placeholder="Search destinations…"
+                            placeholder="Search categories…"
                             value={filter}
                             onChange={e => setFilter(e.target.value)}
                         />
                     </div>
                     <div className="max-h-52 overflow-y-auto">
+                        <button
+                            type="button"
+                            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent text-muted-foreground"
+                            onClick={() => { onChange(""); setOpen(false); setFilter(""); }}
+                        >
+                            <Check className={cn("h-3.5 w-3.5 shrink-0", !value ? "opacity-100" : "opacity-0")} />
+                            None
+                        </button>
                         {filtered.length === 0
-                            ? <p className="py-6 text-center text-sm text-muted-foreground">No destinations found</p>
-                            : filtered.map(d => (
+                            ? <p className="py-6 text-center text-sm text-muted-foreground">No categories found</p>
+                            : filtered.map(c => (
                                 <button
-                                    key={d.id}
+                                    key={c.id}
                                     type="button"
                                     className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent"
-                                    onClick={() => { onChange(String(d.id)); setOpen(false); setFilter(""); }}
+                                    onClick={() => { onChange(String(c.id)); setOpen(false); setFilter(""); }}
                                 >
-                                    <Check className={cn("h-3.5 w-3.5 shrink-0", String(d.id) === value ? "opacity-100" : "opacity-0")} />
-                                    <span className="flex-1 text-left">{d.name}</span>
-                                    <span className="text-xs text-muted-foreground">{d.region.name}</span>
+                                    <Check className={cn("h-3.5 w-3.5 shrink-0", String(c.id) === value ? "opacity-100" : "opacity-0")} />
+                                    <span className="flex-1 text-left">{c.name}</span>
                                 </button>
                             ))
                         }
@@ -171,22 +170,28 @@ function FieldError({ errors, field }: { errors: Record<string, string[]>; field
     return <p className="text-xs text-destructive mt-0.5">{msgs[0]}</p>;
 }
 
+// ── Country extraction from Mapbox address ─────────────────────────────────
+
+function extractCountry(address: string): string {
+    const parts = address.split(",").map(s => s.trim());
+    return parts.at(-1) ?? "";
+}
+
 // ── Overview / Edit Tab ────────────────────────────────────────────────────
 
 export function OverviewTab({
     activity,
-    destinations,
+    categories,
 }: {
-    activity:     ActivityDetail;
-    destinations: Destination[];
+    activity:   ActivityDetail;
+    categories: CategoryOption[];
 }) {
     const [isPending, startTransition] = useTransition();
 
     // Basic Info
     const [name,       setName]      = useState(activity.name);
     const [slug,       setSlug]      = useState(activity.slug);
-    const [destId,     setDestId]    = useState(String(activity.destination.id));
-    const [category,   setCategory]  = useState(activity.category ?? "");
+    const [categoryId, setCategoryId]= useState(activity.category_id != null ? String(activity.category_id) : "");
     const [difficulty, setDifficulty]= useState(activity.difficulty ?? "");
     const [duration,   setDuration]  = useState(activity.duration_hours != null ? String(activity.duration_hours) : "");
     const [isActive,   setIsActive]  = useState(activity.is_active);
@@ -197,9 +202,9 @@ export function OverviewTab({
             ? {
                 latitude:   activity.latitude,
                 longitude:  activity.longitude,
-                place_name: `${activity.latitude.toFixed(5)}, ${activity.longitude.toFixed(5)}`,
+                place_name: activity.city ?? `${activity.latitude.toFixed(5)}, ${activity.longitude.toFixed(5)}`,
                 place_id:   "",
-                address:    `${activity.latitude.toFixed(5)}, ${activity.longitude.toFixed(5)}`,
+                address:    activity.address ?? `${activity.latitude.toFixed(5)}, ${activity.longitude.toFixed(5)}`,
             }
             : null
     );
@@ -214,10 +219,6 @@ export function OverviewTab({
     // Content
     const [description, setDescription] = useState(activity.description ?? "");
 
-    // SEO
-    const [metaTitle, setMetaTitle] = useState(activity.meta_title ?? "");
-    const [metaDesc,  setMetaDesc]  = useState(activity.meta_desc  ?? "");
-
     // Errors
     const [errors, setErrors] = useState<Record<string, string[]>>({});
 
@@ -225,9 +226,9 @@ export function OverviewTab({
 
     function handleLocationChange(loc: LocationResult | null) {
         setLocation(loc);
-        if (loc && !city) {
-            const parts = loc.place_name?.split(",").map(s => s.trim()) ?? [];
-            if (parts.length >= 2) setCity(parts[0]);
+        if (loc) {
+            const detected = extractCountry(loc.address);
+            if (detected) setCountry(detected);
         }
     }
 
@@ -237,8 +238,7 @@ export function OverviewTab({
             const fd = new FormData();
             fd.append("name",           name);
             fd.append("slug",           slug);
-            fd.append("destination_id", destId);
-            fd.append("category",       category);
+            if (categoryId) fd.append("category_id", categoryId);
             fd.append("difficulty",     difficulty);
             fd.append("duration_hours", duration);
             fd.append("is_active",      String(isActive));
@@ -252,8 +252,6 @@ export function OverviewTab({
             fd.append("phone",          phone);
             fd.append("email",          email);
             fd.append("description",    description);
-            fd.append("meta_title",     metaTitle);
-            fd.append("meta_desc",      metaDesc);
 
             const result = await updateActivity(activity.id, { success: false, message: "" }, fd);
 
@@ -269,10 +267,10 @@ export function OverviewTab({
     // ── Render ────────────────────────────────────────────────────────────
 
     return (
-        <div className="max-w-3xl space-y-5">
+        <div className="space-y-5">
 
             {/* ── Section 1: Basic Info ── */}
-            <Section icon={Tag} title="Basic Info" description="Name, destination and classification">
+            <Section icon={Tag} title="Basic Info" description="Name, category and classification">
 
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
@@ -296,26 +294,16 @@ export function OverviewTab({
                     </div>
                 </div>
 
-                <div className="space-y-1.5">
-                    <Label>Destination <span className="text-destructive">*</span></Label>
-                    <DestinationCombobox
-                        destinations={destinations}
-                        value={destId}
-                        onChange={setDestId}
-                        error={errors.destination_id?.[0]}
-                    />
-                    <FieldError errors={errors} field="destination_id" />
-                </div>
-
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                         <Label>Category</Label>
-                        <Select value={category} onValueChange={setCategory}>
-                            <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                            <SelectContent>
-                                {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
+                        <CategoryCombobox
+                            categories={categories}
+                            value={categoryId}
+                            onChange={setCategoryId}
+                            error={errors.category_id?.[0]}
+                        />
+                        <FieldError errors={errors} field="category_id" />
                     </div>
                     <div className="space-y-1.5">
                         <Label>Difficulty</Label>
@@ -355,10 +343,10 @@ export function OverviewTab({
 
                 <div className="space-y-1.5">
                     <Label>Map Location <span className="text-xs text-muted-foreground">(optional)</span></Label>
-                    <LocationPickerField
+                    <LocationSearchInput
                         value={location}
                         onChange={handleLocationChange}
-                        placeholder="Search or pin activity location on map…"
+                        placeholder="Search activity location on map…"
                     />
                 </div>
 
@@ -384,7 +372,7 @@ export function OverviewTab({
 
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                        <Label>Country</Label>
+                        <Label>Country <span className="text-xs text-muted-foreground">(auto-filled from map)</span></Label>
                         <Input value={country} onChange={e => setCountry(e.target.value)} placeholder="India" />
                     </div>
                     <div className="space-y-1.5">
@@ -441,49 +429,6 @@ export function OverviewTab({
                         rows={6}
                     />
                 </div>
-            </Section>
-
-            {/* ── Section 4: SEO ── */}
-            <Section icon={Search} title="SEO" description="Search engine meta tags — optional but recommended">
-                <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                        <Label>Meta Title</Label>
-                        <span className={cn("text-xs", metaTitle.length > 60 ? "text-destructive" : "text-muted-foreground")}>
-                            {metaTitle.length}/60
-                        </span>
-                    </div>
-                    <Input
-                        placeholder="Valley of Flowers Trek | Dreams Yatri"
-                        value={metaTitle}
-                        onChange={e => setMetaTitle(e.target.value.slice(0, 60))}
-                    />
-                </div>
-
-                <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                        <Label>Meta Description</Label>
-                        <span className={cn("text-xs", metaDesc.length > 160 ? "text-destructive" : "text-muted-foreground")}>
-                            {metaDesc.length}/160
-                        </span>
-                    </div>
-                    <Textarea
-                        placeholder="A breathtaking high-altitude trek through a valley of wildflowers…"
-                        value={metaDesc}
-                        onChange={e => setMetaDesc(e.target.value.slice(0, 160))}
-                        rows={3}
-                    />
-                </div>
-
-                {(metaTitle || metaDesc) && (
-                    <div className="rounded-lg border p-3 bg-muted/20 space-y-1">
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium mb-2">
-                            Search Preview
-                        </p>
-                        <p className="text-xs text-green-700">dreamsyatri.com/activities/{slug || "…"}</p>
-                        <p className="text-sm text-blue-600 font-medium">{metaTitle || "Page title"}</p>
-                        <p className="text-xs text-muted-foreground line-clamp-2">{metaDesc || "Page description…"}</p>
-                    </div>
-                )}
             </Section>
 
             {/* ── Footer ── */}

@@ -58,7 +58,7 @@ export async function getDestinations(params: GetDestinationsParams = {}) {
       take:    limit,
       include: {
         region: { select: { id: true, name: true, slug: true } },
-        _count: { select: { packages: true, hotels: true, activities: true } },
+        _count: { select: { packages: true, hotels: true } },
       },
     }),
     db.destinations.count({ where: filterWhere }),
@@ -252,21 +252,19 @@ export async function deleteDestination(id: number): Promise<DestinationFormStat
     const destination = await db.destinations.findUnique({
       where:   { id },
       include: {
-        _count: { select: { packages: true, hotels: true, activities: true } },
-        packages:   { select: { title: true }, take: 5 },
-        hotels:     { select: { name: true }, take: 5 },
-        activities: { select: { name: true }, take: 5 },
+        _count: { select: { packages: true, hotels: true } },
+        packages: { select: { title: true }, take: 5 },
+        hotels:   { select: { name: true }, take: 5 },
       },
     });
 
     if (!destination) return { success: false, message: "Destination not found" };
 
-    const linkedCount = destination._count.packages + destination._count.hotels + destination._count.activities;
+    const linkedCount = destination._count.packages + destination._count.hotels;
     if (linkedCount > 0) {
       const names: string[] = [
         ...destination.packages.map((p) => `Package: ${p.title}`),
         ...destination.hotels.map((h) => `Hotel: ${h.name}`),
-        ...destination.activities.map((a) => `Activity: ${a.name}`),
       ];
       const remaining = linkedCount - names.length;
       const nameList = names.join(", ") + (remaining > 0 ? `, and ${remaining} more` : "");

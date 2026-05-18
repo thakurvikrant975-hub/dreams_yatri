@@ -148,7 +148,7 @@ export async function getItineraryData(
       itinerary_activities: {
         orderBy: { sort_order: "asc" },
         include: {
-          activity: { select: { id: true, name: true, duration_hours: true, category: true } },
+          activity: { select: { id: true, name: true, duration_hours: true, category: { select: { name: true } } } },
           variant: { select: { id: true, name: true } },
         },
       },
@@ -197,7 +197,7 @@ export async function getItineraryData(
         activity: {
           id: ia.activity.id,
           name: ia.activity.name,
-          category: ia.activity.category,
+          category: ia.activity.category?.name ?? null,
           duration_hours: ia.activity.duration_hours != null ? Number(ia.activity.duration_hours) : null,
         },
       })),
@@ -514,16 +514,17 @@ export async function reorderDayItems(updates: ReorderItem[]) {
 export async function searchActivities(destinationId: number, query: string) {
   const list = await db.activities.findMany({
     where: {
-      destination_id: destinationId,
       is_active: true,
       ...(query ? { name: { contains: query, mode: "insensitive" as const } } : {}),
     },
-    select: { id: true, name: true, duration_hours: true, category: true },
+    select: { id: true, name: true, duration_hours: true, category: { select: { name: true } } },
     take: 20,
     orderBy: { name: "asc" },
   });
   return list.map((a) => ({
-    ...a,
+    id: a.id,
+    name: a.name,
+    category: a.category?.name ?? null,
     duration_hours: a.duration_hours != null ? Number(a.duration_hours) : null,
   }));
 }

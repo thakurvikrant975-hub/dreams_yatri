@@ -259,13 +259,15 @@ export function HotelDetailView({ hotel }: { hotel: HotelDetail }) {
         <aside className="space-y-6">
           <div className="sticky top-6 space-y-4">
 
-              {/* Pricing Card */}  
-              <HotelPricingCard
-                originalPrice={lowestRoom.original_price ?? lowestRoom.price_per_night}
-                discountedPrice={lowestRoom.price_per_night}
-                savings={lowestRoom.original_price ? lowestRoom.original_price - lowestRoom.price_per_night : 0}
-                packageName={lowestRoom.room_type}
-              />    
+              {/* Pricing Card */}
+              {lowestRoom && (
+                <HotelPricingCard
+                  originalPrice={lowestRoom.original_price ?? lowestRoom.price_per_night}
+                  discountedPrice={lowestRoom.price_per_night}
+                  savings={lowestRoom.original_price ? lowestRoom.original_price - lowestRoom.price_per_night : 0}
+                  packageName={lowestRoom.room_type}
+                />
+              )}    
 
 
             {/* Check-in / out */}
