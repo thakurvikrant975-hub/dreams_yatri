@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -15,21 +16,17 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
 } from "../components/ui/alert-dialog";
-import { Hotel, Pencil, Trash2, BedDouble, ImageIcon, Building2 } from "lucide-react";
+import { Hotel, Pencil, Trash2, BedDouble, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import { toggleHotelActive, deleteHotel } from "./actions";
-import { StatGrid, StatCard } from "../components/dashboard/Statcard";
 import { TableFilters } from "../components/dashboard/Tablefilters";
+import { CATEGORIES } from "./constants";
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
-const CATEGORY_LABELS: Record<string, string> = {
-  hotel:     "Hotel",
-  resort:    "Resort",
-  houseboat: "Houseboat",
-  villa:     "Villa",
-  homestay:  "Homestay",
-};
+const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
+  CATEGORIES.map(c => [c.value, c.label])
+);
 
 const base = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
 
@@ -48,21 +45,21 @@ type HotelItem = {
   created_at:  Date;
   destination: { id: number; name: string };
   _count: {
-    hotelRooms: number;
-    images: number;
+    hotelRooms:      number;
+    images:          number;
     packageBookings: number;
   };
 };
 
-// ── Delete Dialog (extracted to fix Radix hydration mismatch) ─────────────
+// ── Delete Dialog ─────────────────────────────────────────────────────────
 
 function DeleteHotelDialog({
   hotel,
   onDelete,
   isPending,
 }: {
-  hotel: HotelItem;
-  onDelete: (id: number) => void;
+  hotel:     HotelItem;
+  onDelete:  (id: number) => void;
   isPending: boolean;
 }) {
   return (
@@ -82,7 +79,7 @@ function DeleteHotelDialog({
           <AlertDialogDescription>
             Delete <span className="font-semibold">{hotel.name}</span>? This will
             permanently remove all rooms, images and categories from R2 and DB.
-{hotel._count.packageBookings > 0 && (
+            {hotel._count.packageBookings > 0 && (
               <span className="block mt-2 text-destructive font-medium">
                 This hotel is linked to {hotel._count.packageBookings} package(s). Remove those links before deleting.
               </span>
@@ -93,7 +90,7 @@ function DeleteHotelDialog({
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={() => onDelete(hotel.id)}
-disabled={hotel._count.packageBookings > 0 || isPending}
+            disabled={hotel._count.packageBookings > 0 || isPending}
             className="bg-destructive text-white hover:bg-destructive/90"
           >
             Delete
@@ -104,57 +101,120 @@ disabled={hotel._count.packageBookings > 0 || isPending}
   );
 }
 
+// ── Pagination ────────────────────────────────────────────────────────────
+
+function Pagination({
+  currentPage,
+  totalPages,
+  buildHref,
+}: {
+  currentPage: number;
+  totalPages:  number;
+  buildHref:   (p: number) => string;
+}) {
+  if (totalPages <= 1) return null;
+
+  const pages = Array.from({ length: totalPages }, (_, i) => i + 1)
+    .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2);
+
+  return (
+    <div className="flex items-center justify-center gap-2 pt-4 border-t">
+      <Button variant="outline" size="sm" asChild disabled={currentPage <= 1}>
+        <Link href={buildHref(currentPage - 1)}>← Prev</Link>
+      </Button>
+
+      {pages.map((p, i) => {
+        const prev = pages[i - 1];
+        const showEllipsis = prev && p - prev > 1;
+        return (
+          <span key={p} className="flex items-center gap-2">
+            {showEllipsis && <span className="text-muted-foreground text-sm">…</span>}
+            <Button
+              variant={p === currentPage ? "default" : "outline"}
+              size="icon"
+              className="h-8 w-8 text-sm"
+              asChild={p !== currentPage}
+            >
+              {p === currentPage ? <span>{p}</span> : <Link href={buildHref(p)}>{p}</Link>}
+            </Button>
+          </span>
+        );
+      })}
+
+      <Button variant="outline" size="sm" asChild disabled={currentPage >= totalPages}>
+        <Link href={buildHref(currentPage + 1)}>Next →</Link>
+      </Button>
+    </div>
+  );
+}
+
 // ── Main Component ────────────────────────────────────────────────────────
 
 export function HotelsTableClient({
   hotels: initialHotels,
   destinations,
+  totalCount,
+  limit,
+  currentPage,
+  search,
+  destination,
+  category,
+  status,
 }: {
-  hotels: HotelItem[];
+  hotels:       HotelItem[];
   destinations: Destination[];
+  totalCount:   number;
+  limit:        number;
+  currentPage:  number;
+  search:       string;
+  destination:  number | "all";
+  category:     string | "all";
+  status:       "active" | "inactive" | "all";
 }) {
-  const [hotels, setHotels] = useState(initialHotels);
-  const [search, setSearch] = useState("");
-  const [filterDestination, setFilterDestination] = useState("all");
-  const [filterCategory, setFilterCategory] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
+  const router       = useRouter();
+  const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
-  // ── Derived ───────────────────────────────────────────────────────────
+  // Local optimistic state for toggle/delete
+  const [hotels, setHotels] = useState(initialHotels);
+  useEffect(() => { setHotels(initialHotels); }, [initialHotels]);
 
-  const isFiltering =
-    search !== "" ||
-    filterDestination !== "all" ||
-    filterCategory !== "all" ||
-    filterStatus !== "all";
+  // Debounced search
+  const [localSearch, setLocalSearch] = useState(search);
+  const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => { setLocalSearch(search); }, [search]);
 
-  const filtered = hotels.filter(h => {
-    const matchSearch =
-      !search ||
-      h.name.toLowerCase().includes(search.toLowerCase()) ||
-      h.slug.toLowerCase().includes(search.toLowerCase());
-    const matchDest =
-      filterDestination === "all" || String(h.destination.id) === filterDestination;
-    const matchCat =
-      filterCategory === "all" || h.category === filterCategory;
-    const matchStatus =
-      filterStatus === "all" ||
-      (filterStatus === "active" && h.is_active) ||
-      (filterStatus === "inactive" && !h.is_active);
-    return matchSearch && matchDest && matchCat && matchStatus;
-  });
+  // ── URL helpers ───────────────────────────────────────────────────────
 
-  const activeCount  = hotels.filter(h => h.is_active).length;
-  const totalRooms   = hotels.reduce((acc, h) => acc + h._count.hotelRooms, 0);
+  function updateParam(key: string, value: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value === "all" || value === "") {
+      params.delete(key);
+    } else {
+      params.set(key, value);
+    }
+    params.delete("page");
+    router.push(`?${params.toString()}`);
+  }
+
+  function handleSearch(value: string) {
+    setLocalSearch(value);
+    clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => updateParam("search", value), 400);
+  }
+
+  function buildHref(p: number) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("page", String(p));
+    return `?${params.toString()}`;
+  }
 
   // ── Actions ───────────────────────────────────────────────────────────
 
   function handleToggle(id: number, current: boolean) {
     startTransition(async () => {
       await toggleHotelActive(id, !current);
-      setHotels(prev =>
-        prev.map(h => h.id === id ? { ...h, is_active: !current } : h)
-      );
+      setHotels(prev => prev.map(h => h.id === id ? { ...h, is_active: !current } : h));
       toast.success(`Hotel ${!current ? "activated" : "deactivated"}`);
     });
   }
@@ -171,29 +231,28 @@ export function HotelsTableClient({
     });
   }
 
+  // ── Derived ───────────────────────────────────────────────────────────
+
+  const totalPages = Math.ceil(totalCount / limit);
+  const from       = totalCount === 0 ? 0 : (currentPage - 1) * limit + 1;
+  const to         = Math.min(currentPage * limit, totalCount);
+
   // ── Render ────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6">
-
-      {/* Stats */}
-      <StatGrid cols={3}>
-        <StatCard label="Total Hotels"   value={hotels.length} icon={Hotel}     />
-        <StatCard label="Active Hotels"  value={activeCount}   icon={Hotel}     />
-        <StatCard label="Total Rooms"    value={totalRooms}    icon={Building2} />
-      </StatGrid>
+    <div className="space-y-4">
 
       {/* Filters */}
       <TableFilters
-        search={search}
-        onSearchChange={setSearch}
+        search={localSearch}
+        onSearchChange={handleSearch}
         searchPlaceholder="Search hotels..."
-        filteredCount={isFiltering ? filtered.length : undefined}
-        totalCount={isFiltering ? hotels.length : undefined}
+        filteredCount={undefined}
+        totalCount={undefined}
         filters={[
           {
-            value: filterDestination,
-            onChange: setFilterDestination,
+            value: destination === "all" ? "all" : String(destination),
+            onChange: (v) => updateParam("destination", v),
             placeholder: "All Destinations",
             width: "w-44",
             options: [
@@ -202,18 +261,18 @@ export function HotelsTableClient({
             ],
           },
           {
-            value: filterCategory,
-            onChange: setFilterCategory,
+            value: category === "all" ? "all" : category,
+            onChange: (v) => updateParam("category", v),
             placeholder: "All Categories",
             width: "w-40",
             options: [
               { label: "All Categories", value: "all" },
-              ...Object.entries(CATEGORY_LABELS).map(([value, label]) => ({ label, value })),
+              ...CATEGORIES.map(c => ({ label: c.label, value: c.value })),
             ],
           },
           {
-            value: filterStatus,
-            onChange: setFilterStatus,
+            value: status,
+            onChange: (v) => updateParam("status", v),
             placeholder: "All Statuses",
             width: "w-36",
             options: [
@@ -226,15 +285,15 @@ export function HotelsTableClient({
       />
 
       {/* Empty state */}
-      {filtered.length === 0 ? (
+      {hotels.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 border rounded-xl bg-muted/30">
           <Hotel className="h-10 w-10 text-muted-foreground mb-3" />
           <p className="text-sm font-medium text-muted-foreground">No hotels found</p>
-<p className="text-xs text-muted-foreground mt-1">
-  {hotels.length === 0
-    ? 'Click "Add Hotel" to get started'
-    : "Try adjusting your filters"}
-</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {totalCount === 0
+              ? 'Click "Add Hotel" to get started'
+              : "Try adjusting your filters"}
+          </p>
         </div>
       ) : (
         <div className="rounded-xl border bg-card overflow-hidden">
@@ -251,80 +310,88 @@ export function HotelsTableClient({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map(hotel => (
-                  <TableRow key={hotel.id} className="hover:bg-muted/30">
+              {hotels.map(hotel => (
+                <TableRow key={hotel.id} className="hover:bg-muted/30">
 
-                    {/* Hotel name + thumbnail */}
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        {hotel.thumbnail ? (
-                          <img
-                            src={`${base}/${hotel.thumbnail}`}
-                            alt={hotel.name}
-                            className="h-12 w-16 rounded-lg object-cover shrink-0 border"
-                          />
-                        ) : (
-                          <div className="h-12 w-16 rounded-lg bg-muted border flex items-center justify-center shrink-0">
-                            <Hotel className="h-4 w-4 text-muted-foreground" />
-                          </div>
-                        )}
-                        <div>
-                          <p className="font-medium text-sm">{hotel.name}</p>
-                          {hotel.stay_type && <p className="text-xs text-muted-foreground">{hotel.stay_type}</p>}
-                        </div>
-                      </div>
-                    </TableCell>
-
-                    <TableCell>
-                      <Badge variant="secondary" className="text-xs">
-                        {hotel.destination.name}
-                      </Badge>
-                    </TableCell>
-
-                    <TableCell className="text-sm text-muted-foreground">
-                      {CATEGORY_LABELS[hotel.category ?? ""] ?? hotel.category ?? "—"}
-                    </TableCell>
-
-                    <TableCell className="text-center">
-                      <div className="flex items-center justify-center gap-1 text-sm">
-                        <BedDouble className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="font-medium">{hotel._count.hotelRooms}</span>
-                      </div>
-                    </TableCell>
-
-                    <TableCell className="text-center">
-                      <div className="flex items-center justify-center gap-1 text-sm">
-                        <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="font-medium">{hotel._count.images}</span>
-                      </div>
-                    </TableCell>
-
-                    <TableCell className="text-center">
-                      <Switch
-                        checked={hotel.is_active}
-                        disabled={isPending}
-                        onCheckedChange={() => handleToggle(hotel.id, hotel.is_active)}
-                      />
-                    </TableCell>
-
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-                          <Link href={`/dashboard/hotels/${hotel.id}`}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Link>
-                        </Button>
-                        <DeleteHotelDialog
-                          hotel={hotel}
-                          onDelete={handleDelete}
-                          isPending={isPending}
+                  {/* Hotel name + thumbnail */}
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      {hotel.thumbnail ? (
+                        <img
+                          src={`${base}/${hotel.thumbnail}`}
+                          alt={hotel.name}
+                          className="h-12 w-16 rounded-lg object-cover shrink-0 border"
                         />
+                      ) : (
+                        <div className="h-12 w-16 rounded-lg bg-muted border flex items-center justify-center shrink-0">
+                          <Hotel className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      )}
+                      <div>
+                        <p className="font-medium text-sm">{hotel.name}</p>
+                        {hotel.stay_type && <p className="text-xs text-muted-foreground">{hotel.stay_type}</p>}
                       </div>
-                    </TableCell>
-                  </TableRow>
+                    </div>
+                  </TableCell>
+
+                  <TableCell>
+                    <Badge variant="secondary" className="text-xs">
+                      {hotel.destination.name}
+                    </Badge>
+                  </TableCell>
+
+                  <TableCell className="text-sm text-muted-foreground">
+                    {CATEGORY_LABELS[hotel.category ?? ""] ?? hotel.category ?? "—"}
+                  </TableCell>
+
+                  <TableCell className="text-center">
+                    <div className="flex items-center justify-center gap-1 text-sm">
+                      <BedDouble className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="font-medium">{hotel._count.hotelRooms}</span>
+                    </div>
+                  </TableCell>
+
+                  <TableCell className="text-center">
+                    <div className="flex items-center justify-center gap-1 text-sm">
+                      <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="font-medium">{hotel._count.images}</span>
+                    </div>
+                  </TableCell>
+
+                  <TableCell className="text-center">
+                    <Switch
+                      checked={hotel.is_active}
+                      disabled={isPending}
+                      onCheckedChange={() => handleToggle(hotel.id, hotel.is_active)}
+                    />
+                  </TableCell>
+
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                        <Link href={`/dashboard/hotels/${hotel.id}`}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Link>
+                      </Button>
+                      <DeleteHotelDialog
+                        hotel={hotel}
+                        onDelete={handleDelete}
+                        isPending={isPending}
+                      />
+                    </div>
+                  </TableCell>
+                </TableRow>
               ))}
             </TableBody>
           </Table>
+
+          {/* Pagination */}
+          <div className="px-4 py-3">
+            <div className="flex items-center justify-between text-sm text-muted-foreground mb-3">
+              <span>Showing {from}–{to} of {totalCount} hotel{totalCount !== 1 ? "s" : ""}</span>
+            </div>
+            <Pagination currentPage={currentPage} totalPages={totalPages} buildHref={buildHref} />
+          </div>
         </div>
       )}
     </div>

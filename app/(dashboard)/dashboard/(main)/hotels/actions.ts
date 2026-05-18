@@ -42,25 +42,78 @@ export type HotelFormState = {
 
 // ── Read ──────────────────────────────────────────────────────────────────
 
-export async function getHotels() {
-  const rows = await db.hotels.findMany({
-    orderBy: { created_at: "desc" },
-    include: {
-      destination: { select: { id: true, name: true } },
-      _count: {
-        select: {
-          hotelRooms: true,
-          images: true,
-          packageBookings: true,
-        },
-      },
+export type GetHotelsParams = {
+  page?:        number;
+  limit?:       number;
+  search?:      string;
+  destination?: number | "all";
+  category?:    string | "all";
+  status?:      "active" | "inactive" | "all";
+};
+
+const HOTEL_INCLUDE = {
+  destination: { select: { id: true, name: true } },
+  _count: {
+    select: {
+      hotelRooms: true,
+      images: true,
+      packageBookings: true,
     },
-  });
-  return rows.map(h => ({
+  },
+} as const;
+
+export async function getHotels(params: GetHotelsParams = {}) {
+  const {
+    page        = 1,
+    limit       = 20,
+    search      = "",
+    destination = "all",
+    category    = "all",
+    status      = "all",
+  } = params;
+
+  const skip = (page - 1) * limit;
+
+  const where = {
+    ...(search ? { name: { contains: search, mode: "insensitive" as const } } : {}),
+    ...(destination !== "all" ? { destination_id: destination as number } : {}),
+    ...(category    !== "all" ? { category: category as string }           : {}),
+    ...(status === "active"   ? { is_active: true }                        : {}),
+    ...(status === "inactive" ? { is_active: false }                       : {}),
+  };
+
+  const [rows, totalCount, statsTotal, statsActive, totalRooms] = await Promise.all([
+    db.hotels.findMany({
+      where,
+      orderBy: { created_at: "desc" },
+      skip,
+      take: limit,
+      include: HOTEL_INCLUDE,
+    }),
+    db.hotels.count({ where }),
+    db.hotels.count(),
+    db.hotels.count({ where: { is_active: true } }),
+    db.hotel_rooms.count(),
+  ]);
+
+  const hotels = rows.map(h => ({
     ...h,
-    latitude: h.latitude != null ? Number(h.latitude) : null,
+    latitude:  h.latitude  != null ? Number(h.latitude)  : null,
     longitude: h.longitude != null ? Number(h.longitude) : null,
   }));
+
+  return {
+    hotels,
+    totalCount,
+    stats: { total: statsTotal, active: statsActive, totalRooms },
+  };
+}
+
+export async function getDestinationsForHotelFilter() {
+  return db.destinations.findMany({
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
 }
 
 export async function getHotelById(id: number) {

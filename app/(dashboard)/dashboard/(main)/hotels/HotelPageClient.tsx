@@ -1,16 +1,16 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { Building2, Hotel, House, Plus } from "lucide-react";
+import { Building2, Hotel, Plus } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Skeleton } from "../components/ui/skeleton";
 import {
     Breadcrumb, BreadcrumbItem, BreadcrumbLink,
     BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "../components/ui/breadcrumb";
-import { getHotels } from "./actions";
-import { HotelsTableClient } from "./HotelsTableClient";
-import { StatGrid, StatCard } from "../components/dashboard/Statcard";
 import { PageHeader } from "../components/dashboard/PageHeader";
+import { StatCard, StatGrid } from "../components/dashboard/Statcard";
+import { getHotels, getDestinationsForHotelFilter, type GetHotelsParams } from "./actions";
+import { HotelsTableClient } from "./HotelsTableClient";
 
 // ── Skeleton ──────────────────────────────────────────────────────────────
 
@@ -44,35 +44,56 @@ function TableSkeleton() {
     );
 }
 
-// ── Data component ────────────────────────────────────────────────────────
+// ── Async data component ──────────────────────────────────────────────────
 
-async function HotelsData() {
-    const hotels = await getHotels();
-
-    const activeCount = hotels.filter(h => h.is_active).length;
-    const totalRooms = hotels.reduce((acc, h) => acc + h._count.hotelRooms, 0);
-
-    // Derive unique destinations from fetched hotels
-    const destinations = Array.from(
-        new Map(hotels.map(h => [h.destination.id, h.destination])).values()
-    );
+async function HotelsData({ params }: { params: GetHotelsParams }) {
+    const [{ hotels, totalCount, stats }, destinations] = await Promise.all([
+        getHotels(params),
+        getDestinationsForHotelFilter(),
+    ]);
 
     return (
         <>
             <StatGrid cols={3}>
-                <StatCard label="Total Hotels"  value={hotels.length} icon={Hotel}     />
-                <StatCard label="Active Hotels" value={activeCount}   icon={Hotel}     />
-                <StatCard label="Total Rooms"   value={totalRooms}    icon={Building2} />
+                <StatCard label="Total Hotels"  value={stats.total}      icon={Hotel}     />
+                <StatCard label="Active Hotels" value={stats.active}     icon={Hotel}     />
+                <StatCard label="Total Rooms"   value={stats.totalRooms} icon={Building2} />
             </StatGrid>
 
-            <HotelsTableClient hotels={hotels} destinations={destinations} />
+            <HotelsTableClient
+                hotels={hotels}
+                destinations={destinations}
+                totalCount={totalCount}
+                limit={params.limit ?? 20}
+                currentPage={params.page ?? 1}
+                search={params.search ?? ""}
+                destination={params.destination ?? "all"}
+                category={params.category ?? "all"}
+                status={(params.status ?? "all") as "active" | "inactive" | "all"}
+            />
         </>
     );
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────
+// ── Page shell ────────────────────────────────────────────────────────────
 
-export default function HotelsPage() {
+export async function HotelsPageServer({
+    page,
+    limit,
+    search,
+    status,
+    destination,
+    category,
+}: {
+    page:        number;
+    limit:       number;
+    search:      string;
+    status:      "active" | "inactive" | "all";
+    destination: number | "all";
+    category:    string | "all";
+}) {
+    const params: GetHotelsParams = { page, limit, search, status, destination, category };
+
     return (
         <div className="space-y-6">
             <Breadcrumb>
@@ -98,20 +119,23 @@ export default function HotelsPage() {
                 }
             />
 
-            <Suspense fallback={
-                <div className="space-y-4">
-                    <div className="grid grid-cols-4 gap-4">
-                        {Array.from({ length: 4 }).map((_, i) => (
-                            <div key={i} className="rounded-xl border bg-card p-4 space-y-2">
-                                <Skeleton className="h-3 w-20" />
-                                <Skeleton className="h-7 w-10" />
-                            </div>
-                        ))}
+            <Suspense
+                key={`${page}-${limit}-${search}-${String(destination)}-${category}-${status}`}
+                fallback={
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-3 gap-4">
+                            {Array.from({ length: 3 }).map((_, i) => (
+                                <div key={i} className="rounded-xl border bg-card p-4 space-y-2">
+                                    <Skeleton className="h-3 w-20" />
+                                    <Skeleton className="h-7 w-10" />
+                                </div>
+                            ))}
+                        </div>
+                        <TableSkeleton />
                     </div>
-                    <TableSkeleton />
-                </div>
-            }>
-                <HotelsData />
+                }
+            >
+                <HotelsData params={params} />
             </Suspense>
         </div>
     );
