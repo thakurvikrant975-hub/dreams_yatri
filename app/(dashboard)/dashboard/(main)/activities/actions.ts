@@ -202,6 +202,10 @@ export async function getActivityWithVariants(id: number) {
         where: { id },
         include: {
             destination: { select: { id: true, name: true } },
+            images: {
+                orderBy: { sort_order: "asc" },
+                select:  { id: true, url: true, thumbnail: true, is_primary: true, sort_order: true, label: true },
+            },
             variants: {
                 orderBy: { sort_order: "asc" },
                 include: { pricing: { orderBy: { sort_order: "asc" } } },
