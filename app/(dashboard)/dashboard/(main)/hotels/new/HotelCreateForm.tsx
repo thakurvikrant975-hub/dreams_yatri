@@ -42,7 +42,6 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
   const [destinationId, setDestinationId] = useState("");
   const [category,      setCategory]      = useState("");
   const [stayType,      setStayType]      = useState("");
-  const [starRating,    setStarRating]    = useState("");
   const [checkIn,       setCheckIn]       = useState("14:00");
   const [checkOut,      setCheckOut]      = useState("11:00");
   const [address,       setAddress]       = useState("");
@@ -86,7 +85,6 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
       formData.append("thumbnail",      thumbnail[0]?.key ?? "");
       formData.append("category",       category);
       formData.append("stay_type",      stayType);
-      formData.append("star_rating",    starRating);
       formData.append("check_in_time",  checkIn);
       formData.append("check_out_time", checkOut);
       formData.append("address",        address);
@@ -175,25 +173,14 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
                 <SelectTrigger><SelectValue placeholder="Select stay type" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Standard">Standard</SelectItem>
-                  <SelectItem value="Deluxe 2*">Deluxe 2*</SelectItem>
-                  <SelectItem value="Super Deluxe 3*">Super Deluxe 3*</SelectItem>
-                  <SelectItem value="Luxury 4*">Luxury 4*</SelectItem>
-                  <SelectItem value="Super Luxury 5*">Super Luxury 5*</SelectItem>
+                  <SelectItem value="Deluxe">Deluxe</SelectItem>
+                  <SelectItem value="Super Deluxe">Super Deluxe</SelectItem>
+                  <SelectItem value="Luxury">Luxury</SelectItem>
+                  <SelectItem value="Super Luxury">Super Luxury</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="space-y-1.5">
-              <Label>Star Rating</Label>
-              <Select value={starRating} onValueChange={setStarRating}>
-                <SelectTrigger><SelectValue placeholder="Stars" /></SelectTrigger>
-                <SelectContent>
-                  {[1, 2, 3, 4, 5].map(s => (
-                    <SelectItem key={s} value={String(s)}>{"★".repeat(s)} {s} Star</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

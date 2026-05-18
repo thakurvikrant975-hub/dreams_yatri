@@ -23,7 +23,6 @@ export async function GET(
         address:        true,
         latitude:       true,
         longitude:      true,
-        star_rating:    true,
         category:       true,
         stay_type:      true,
         check_in_time:  true,

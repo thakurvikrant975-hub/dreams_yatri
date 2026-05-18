@@ -65,7 +65,7 @@ export type Hotel = {
   id: number;
   name: string;
   slug: string;
-  star_rating: number | null;
+  stay_type: string | null;
   category: string | null;
   check_in_time: string | null;
   check_out_time: string | null;
@@ -183,7 +183,7 @@ export type PackageHotel = {
     name: string;
     slug: string;
     description: string | null;
-    star_rating: number | null;
+    stay_type: string | null;
     category: string | null;
     address: string | null;
     amenities: unknown;

@@ -40,8 +40,8 @@ export type HotelDetail = {
   address:        string | null;
   latitude:       number | null;
   longitude:      number | null;
-  star_rating:    number | null;
   category:       string | null;
+  stay_type:      string | null;
   amenities:      unknown;
   check_in_time:  string | null;
   check_out_time: string | null;

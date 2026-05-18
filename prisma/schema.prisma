@@ -758,7 +758,6 @@ model hotels {
   address          String?
   latitude         Decimal?                 @db.Decimal(10, 8)
   longitude        Decimal?                 @db.Decimal(11, 8)
-  star_rating      Int?
   category         String?
   stay_type        String?
   check_in_time    String?

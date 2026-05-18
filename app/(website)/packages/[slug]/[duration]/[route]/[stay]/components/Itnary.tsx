@@ -74,7 +74,7 @@ interface StaySection {
   type: 'stay';
   nights: number;
   hotelName: string;
-  stars: number;
+  stayType: string | null;
   checkIn: string;
   checkOut: string;
   address: string | null;
@@ -569,10 +569,8 @@ function StayContent({ section }: { section: StaySection }) {
             <Text size="base" weight="semibold" className="font-heading text-primary leading-tight">
               {section.hotelName}
             </Text>
-            {section.stars > 0 && (
-              <p className="text-warning-500 text-sm tracking-widest leading-none">
-                {'★'.repeat(section.stars)}
-              </p>
+            {section.stayType && (
+              <p className="text-muted-foreground text-xs">{section.stayType}</p>
             )}
           </div>
           {section.address && (

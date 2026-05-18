@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   const destination_id = searchParams.get("destination_id") ? Number(searchParams.get("destination_id")) : undefined;
   const region_id      = searchParams.get("region_id")      ? Number(searchParams.get("region_id"))      : undefined;
   const category       = searchParams.get("category")       ?? undefined;
-  const stars          = searchParams.get("stars")          ? Number(searchParams.get("stars"))           : undefined;
+  const stay_type      = searchParams.get("stay_type")      ?? undefined;
   const min_price      = searchParams.get("min_price")      ? Number(searchParams.get("min_price"))       : undefined;
   const max_price      = searchParams.get("max_price")      ? Number(searchParams.get("max_price"))       : undefined;
   const sort           = searchParams.get("sort")           ?? "newest";
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   const where: Prisma.hotelsWhereInput = {
     is_active: true,
     ...(category       && { category }),
-    ...(stars          && { star_rating: stars }),
+    ...(stay_type      && { stay_type }),
     ...(destination_id && { destination_id }),
     ...(region_id      && { destination: { region_id } }),
     ...(search         && {
@@ -61,7 +61,6 @@ export async function GET(req: NextRequest) {
           thumbnail:      true,
           category:       true,
           stay_type:      true,
-          star_rating:    true,
           address:        true,
           check_in_time:  true,
           check_out_time: true,

@@ -125,7 +125,7 @@ export default async function PackagePage({
                 type: "stay" as const,
                 nights: 1,
                 hotelName: d.hotel.name,
-                stars: d.hotel.star_rating ?? 0,
+                stayType: d.hotel.stay_type ?? null,
                 checkIn: d.hotel.check_in_time ?? "",
                 checkOut: d.hotel.check_out_time ?? "",
                 address: d.hotel.address,
@@ -270,7 +270,7 @@ export default async function PackagePage({
                                                             <td className="px-3 py-2.5 text-sm font-medium text-primary">{d.title}</td>
                                                             <td className="px-3 py-2.5 text-sm text-secondary">
                                                                 {d.hotel ? (
-                                                                    <span>{d.hotel.name}{d.hotel.star_rating ? ` ${'★'.repeat(d.hotel.star_rating)}` : ''}</span>
+                                                                    <span>{d.hotel.name}{d.hotel.stay_type ? ` · ${d.hotel.stay_type}` : ''}</span>
                                                                 ) : '–'}
                                                             </td>
                                                             <td className="px-3 py-2.5 text-sm text-secondary">

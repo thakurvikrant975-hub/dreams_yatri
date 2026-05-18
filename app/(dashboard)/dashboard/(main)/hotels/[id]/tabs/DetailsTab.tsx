@@ -31,7 +31,7 @@ type Hotel = {
   slug:           string;
   thumbnail:      string | null;
   category:       string | null;
-  star_rating:    number | null;
+  stay_type:      string | null;
   check_in_time:  string | null;
   check_out_time: string | null;
   address:        string | null;
@@ -150,13 +150,15 @@ export function DetailsTab({
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Star Rating</Label>
-              <Select name="star_rating" defaultValue={hotel.star_rating ? String(hotel.star_rating) : ""}>
-                <SelectTrigger><SelectValue placeholder="Stars" /></SelectTrigger>
+              <Label>Stay Type</Label>
+              <Select name="stay_type" defaultValue={hotel.stay_type ?? ""}>
+                <SelectTrigger><SelectValue placeholder="Select stay type" /></SelectTrigger>
                 <SelectContent>
-                  {[1, 2, 3, 4, 5].map(s => (
-                    <SelectItem key={s} value={String(s)}>{"★".repeat(s)} {s} Star</SelectItem>
-                  ))}
+                  <SelectItem value="Standard">Standard</SelectItem>
+                  <SelectItem value="Deluxe">Deluxe</SelectItem>
+                  <SelectItem value="Super Deluxe">Super Deluxe</SelectItem>
+                  <SelectItem value="Luxury">Luxury</SelectItem>
+                  <SelectItem value="Super Luxury">Super Luxury</SelectItem>
                 </SelectContent>
               </Select>
             </div>

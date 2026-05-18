@@ -2,24 +2,11 @@
 import { MapPinIcon } from '@phosphor-icons/react';
 import Card from '@/app/components/ui/Card';
 import { Heading, Text } from '@/app/components/ui/Typography';
-import { cn } from '@/app/lib/utils';
 import SavingsBadge from '@/app/components/packages/SavingBadge';
 import { ArrowTopRightOnSquareIcon } from '@heroicons/react/20/solid';
 import { HotelCardData } from '@/app/types/hotels/hotels';
 
 
-
-function StarRow({ count }: { count: number }) {
-    return (
-        <div className="flex gap-0.5">
-            {Array.from({ length: 5 }).map((_, i) => (
-                <svg key={i} className={cn("w-3 h-3", i < count ? "fill-warning-500" : "fill-neutral-300")} viewBox="0 0 24 24">
-                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                </svg>
-            ))}
-        </div>
-    );
-}
 
 const base = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
 
@@ -38,7 +25,7 @@ export default function HotelCard({ hotel }: { hotel: HotelCardData }) {
 
   const location   = `${hotel.destination.name} · ${hotel.destination.region.name}`;
   const category   = hotel.category ?? "";
-  const stars      = hotel.star_rating ?? 0;
+  const stayType   = hotel.stay_type ?? null;
   const roomTypes  = hotel._count.room_pricing;
   const checkIn    = hotel.check_in_time  ?? "—";
   const checkOut   = hotel.check_out_time ?? "—";
@@ -90,7 +77,9 @@ export default function HotelCard({ hotel }: { hotel: HotelCardData }) {
                 )}
               </div>
             )}
-            <StarRow count={stars} />
+            {stayType && (
+              <span className="text-[11px] font-medium text-muted-foreground">{stayType}</span>
+            )}
           </div>
         </div>
 

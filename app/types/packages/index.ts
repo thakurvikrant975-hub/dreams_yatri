@@ -59,7 +59,7 @@ export type RouteWithStops = PackageRoute & {
 
 export type HotelRef = Pick<
   hotels,
-  "id" | "name" | "slug" | "star_rating" | "category"
+  "id" | "name" | "slug" | "stay_type" | "category"
 >;
 
 export type RoomRef = Pick<hotel_rooms, "id" | "name" | "slug"> | null;

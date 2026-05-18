@@ -45,7 +45,7 @@ export type HotelDay = {
   id: number;
   name: string;
   slug: string;
-  star_rating: number | null;
+  stay_type: string | null;
   check_in_time: string | null;
   check_out_time: string | null;
   address: string | null;
@@ -311,7 +311,7 @@ export async function fetchPackagePageData(
                     id: true,
                     name: true,
                     slug: true,
-                    star_rating: true,
+                    stay_type: true,
                     check_in_time: true,
                     check_out_time: true,
                     address: true,
@@ -421,7 +421,7 @@ export async function fetchPackagePageData(
           id: rp.hotel.id,
           name: rp.hotel.name,
           slug: rp.hotel.slug,
-          star_rating: rp.hotel.star_rating,
+          stay_type: rp.hotel.stay_type,
           check_in_time: rp.hotel.check_in_time,
           check_out_time: rp.hotel.check_out_time,
           address: rp.hotel.address,

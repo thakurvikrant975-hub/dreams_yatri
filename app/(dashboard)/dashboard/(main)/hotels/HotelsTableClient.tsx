@@ -43,7 +43,7 @@ type HotelItem = {
   slug:        string;
   thumbnail:   string | null;
   category:    string | null;
-  star_rating: number | null;
+  stay_type:   string | null;
   is_active:   boolean;
   created_at:  Date;
   destination: { id: number; name: string };
@@ -250,10 +250,7 @@ export function HotelsTableClient({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map(hotel => {
-                const stars = hotel.star_rating ? "★".repeat(hotel.star_rating) : null;
-
-                return (
+              {filtered.map(hotel => (
                   <TableRow key={hotel.id} className="hover:bg-muted/30">
 
                     {/* Hotel name + thumbnail */}
@@ -272,7 +269,7 @@ export function HotelsTableClient({
                         )}
                         <div>
                           <p className="font-medium text-sm">{hotel.name}</p>
-                          {stars && <p className="text-xs text-amber-500">{stars}</p>}
+                          {hotel.stay_type && <p className="text-xs text-muted-foreground">{hotel.stay_type}</p>}
                         </div>
                       </div>
                     </TableCell>
@@ -324,8 +321,7 @@ export function HotelsTableClient({
                       </div>
                     </TableCell>
                   </TableRow>
-                );
-              })}
+              ))}
             </TableBody>
           </Table>
         </div>

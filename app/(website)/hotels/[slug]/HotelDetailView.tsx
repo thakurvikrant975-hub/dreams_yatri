@@ -18,21 +18,7 @@ function imgUrl(key: string) {
   return `${BASE}/${key}`;
 }
 
-// ── Stars ─────────────────────────────────────────────────────────────────
 
-function Stars({ count }: { count: number }) {
-  return (
-    <div className="flex gap-0.5">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <svg key={i} className={cn("size-3.5", i < count ? "fill-warning-400 stroke-warning-500" : "fill-neutral-300 stroke-neutral-400/60")} viewBox="0 0 24 24"
-          strokeWidth="1.5"
-          style={{ color: "var(--color-neutral-300)" }}>
-          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-        </svg>
-      ))}
-    </div>
-  );
-}
 
 // ── Image Gallery ─────────────────────────────────────────────────────────
 
@@ -157,12 +143,7 @@ export function HotelDetailView({ hotel }: { hotel: HotelDetail }) {
         className="mb-5"
       />
 
-      <Heading level={1} weight='semibold' className="relative w-max">
-        {hotel.name}
-        <div className="absolute top-0 left-full translate-x-2 translate-y-1 ">
-          {hotel.star_rating && <Stars count={hotel.star_rating} />}
-        </div>
-      </Heading>
+      <Heading level={1} weight='semibold'>{hotel.name}</Heading>
 
       <div className="flex flex-row items-center gap-3 mt-4">
         {hotel.category && (

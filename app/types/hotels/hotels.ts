@@ -6,7 +6,7 @@ export type HotelCardData = {
   slug:           string;
   thumbnail:      string | null;
   category:       string | null;
-  star_rating:    number | null;
+  stay_type:      string | null;
   address:        string | null;
   check_in_time:  string | null;
   check_out_time: string | null;
@@ -44,7 +44,7 @@ export type HotelFilters = {
   destination_id?: number;
   region_id?:      number;
   category?:       string;
-  stars?:          number;
+  stay_type?:      string;
   min_price?:      number;
   max_price?:      number;
   sort?:           "newest" | "price_asc" | "price_desc";
