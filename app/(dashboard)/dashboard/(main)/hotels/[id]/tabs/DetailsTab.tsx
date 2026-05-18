@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { Input }    from "../../../components/ui/input";
 import { Label }    from "../../../components/ui/label";
 import { Textarea } from "../../../components/ui/textarea";
@@ -72,8 +72,20 @@ export function DetailsTab({
         }
       : null,
   );
-  const [address, setAddress] = useState(hotel.address ?? "");
+  const [address,   setAddress]   = useState(hotel.address ?? "");
+  const [metaTitle, setMetaTitle] = useState(hotel.meta_title ?? "");
+  const [metaDesc,  setMetaDesc]  = useState(hotel.meta_desc  ?? "");
   const [destinationId, setDestinationId] = useState<number | null>(hotel.destination.id);
+
+  const nameRef = useRef<HTMLInputElement>(null);
+  const descRef = useRef<HTMLTextAreaElement>(null);
+
+  function handleAutofillSEO() {
+    const name = nameRef.current?.value ?? hotel.name;
+    const desc = descRef.current?.value ?? hotel.description ?? "";
+    if (!metaTitle) setMetaTitle(`${name} | Dreams Yatri`.slice(0, 60));
+    if (!metaDesc)  setMetaDesc(desc.slice(0, 160));
+  }
 
   // Thumbnail state — managed separately so we can preview and pass key via hidden input
   const [thumbnail, setThumbnail] = useState<PickedImage[]>(
@@ -113,7 +125,7 @@ export function DetailsTab({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Hotel Name</Label>
-              <Input name="name" defaultValue={hotel.name} required />
+              <Input ref={nameRef} name="name" defaultValue={hotel.name} required />
             </div>
             <div className="space-y-1.5">
               <Label>Slug</Label>
@@ -237,7 +249,7 @@ export function DetailsTab({
 
           <div className="space-y-1.5">
             <Label>Description</Label>
-            <Textarea name="description" defaultValue={hotel.description ?? ""} rows={4} />
+            <Textarea ref={descRef} name="description" defaultValue={hotel.description ?? ""} rows={4} />
           </div>
 
           {/* ── Thumbnail ─────────────────────────────────────────── */}
@@ -271,16 +283,40 @@ export function DetailsTab({
       {/* ── SEO ───────────────────────────────────────────────────── */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">SEO</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">SEO</CardTitle>
+            <Button type="button" variant="outline" size="sm" onClick={handleAutofillSEO}>
+              Autofill from title &amp; description
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-1.5">
-            <Label>Meta Title</Label>
-            <Input name="meta_title" defaultValue={hotel.meta_title ?? ""} />
+            <div className="flex items-center justify-between">
+              <Label>Meta Title</Label>
+              <span className={`text-xs ${metaTitle.length > 60 ? "text-destructive" : "text-muted-foreground"}`}>
+                {metaTitle.length}/60
+              </span>
+            </div>
+            <Input
+              name="meta_title"
+              value={metaTitle}
+              onChange={e => setMetaTitle(e.target.value)}
+            />
           </div>
           <div className="space-y-1.5">
-            <Label>Meta Description</Label>
-            <Textarea name="meta_desc" defaultValue={hotel.meta_desc ?? ""} rows={3} />
+            <div className="flex items-center justify-between">
+              <Label>Meta Description</Label>
+              <span className={`text-xs ${metaDesc.length > 160 ? "text-destructive" : "text-muted-foreground"}`}>
+                {metaDesc.length}/160
+              </span>
+            </div>
+            <Textarea
+              name="meta_desc"
+              value={metaDesc}
+              onChange={e => setMetaDesc(e.target.value)}
+              rows={3}
+            />
           </div>
         </CardContent>
       </Card>

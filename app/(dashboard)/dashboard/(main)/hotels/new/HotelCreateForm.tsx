@@ -289,9 +289,22 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
       {/* ── SEO ──────────────────────────────────────────────────── */}
       <Card className="rounded-lg">
         <CardHeader>
-          <div className="flex items-center gap-2">
-            <Search className="h-5 w-5 text-primary" />
-            <CardTitle className="text-base">SEO</CardTitle>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Search className="h-5 w-5 text-primary" />
+              <CardTitle className="text-base">SEO</CardTitle>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (!metaTitle) setMetaTitle(`${name} | Dreams Yatri`.slice(0, 60));
+                if (!metaDesc)  setMetaDesc(description.slice(0, 160));
+              }}
+            >
+              Autofill from title &amp; description
+            </Button>
           </div>
           <CardDescription>Optional — improves Google search visibility</CardDescription>
         </CardHeader>
