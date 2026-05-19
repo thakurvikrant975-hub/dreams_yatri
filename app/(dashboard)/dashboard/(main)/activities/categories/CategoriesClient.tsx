@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect, useRef } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useTransition, useMemo } from "react";
 import Link from "next/link";
 import {
     Tag, Plus, Pencil, Trash2, Loader2, Activity,
@@ -35,14 +34,7 @@ import { TableEmptyState } from "../../components/dashboard/TableEmptyState";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
-type Status = "active" | "inactive" | "all";
-
-type Props = {
-    initialCategories: CategoryRow[];
-    totalCount:        number;
-    search:            string;
-    status:            Status;
-};
+type Props = { initialCategories: CategoryRow[] };
 
 // ── Slug helper ───────────────────────────────────────────────────────────
 
@@ -268,30 +260,26 @@ function EditCategoryButton({ category }: { category: CategoryRow }) {
 
 // ── Main client component ─────────────────────────────────────────────────
 
-export function CategoriesClient({ initialCategories, totalCount, search, status }: Props) {
-    const router       = useRouter();
-    const searchParams = useSearchParams();
+export function CategoriesClient({ initialCategories }: Props) {
     const [isPending, startTransition] = useTransition();
 
-    const [localSearch, setLocalSearch] = useState(search);
-    const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-    useEffect(() => { setLocalSearch(search); }, [search]);
+    const [search, setSearch] = useState("");
+    const [status, setStatus] = useState<"active" | "inactive" | "all">("all");
+
+    const filtered = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        return initialCategories.filter(cat => {
+            const matchesSearch = !q || cat.name.toLowerCase().includes(q) || cat.slug.includes(q);
+            const matchesStatus =
+                status === "all"      ? true :
+                status === "active"   ? cat.is_active :
+                                        !cat.is_active;
+            return matchesSearch && matchesStatus;
+        });
+    }, [initialCategories, search, status]);
 
     const [deleteTarget, setDeleteTarget] = useState<CategoryRow | null>(null);
     const [deleteError,  setDeleteError]  = useState<string | null>(null);
-
-    function updateParam(key: string, value: string) {
-        const params = new URLSearchParams(searchParams.toString());
-        if (value === "all" || value === "") params.delete(key);
-        else params.set(key, value);
-        router.push(`?${params.toString()}`);
-    }
-
-    function handleSearch(value: string) {
-        setLocalSearch(value);
-        clearTimeout(searchTimer.current);
-        searchTimer.current = setTimeout(() => updateParam("search", value), 400);
-    }
 
     function handleToggle(id: number, current: boolean) {
         startTransition(async () => {
@@ -423,15 +411,15 @@ export function CategoriesClient({ initialCategories, totalCount, search, status
 
             {/* Filters */}
             <TableFilters
-                search={localSearch}
-                onSearchChange={handleSearch}
+                search={search}
+                onSearchChange={setSearch}
                 searchPlaceholder="Search categories…"
-                filteredCount={initialCategories.length}
-                totalCount={totalCount}
+                filteredCount={filtered.length}
+                totalCount={initialCategories.length}
                 filters={[
                     {
                         value:       status,
-                        onChange:    (v) => updateParam("status", v),
+                        onChange:    (v) => setStatus(v as "active" | "inactive" | "all"),
                         placeholder: "All Statuses",
                         width:       "w-38",
                         options: [
@@ -444,7 +432,7 @@ export function CategoriesClient({ initialCategories, totalCount, search, status
 
             {/* DataTable */}
             <DataTable
-                data={initialCategories}
+                data={filtered}
                 columns={columns}
                 rowKey={cat => cat.id}
                 emptyState={
