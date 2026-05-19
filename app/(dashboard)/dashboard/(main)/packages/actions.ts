@@ -138,42 +138,73 @@ export async function getPackageForBuilder(id: number) {
   };
 }
 
-export async function getPackages() {
-  return db.packages.findMany({
-    orderBy: { created_at: "desc" },
-    include: {
-      destination: {
-        select: {
-          id: true,
-          name: true,
-          region: { select: { name: true } },
-        },
-      },
-      _count: {
-        select: {
-          durations: true,
-          packageRoutes: true,
-          gallery: true,
-        },
-      },
-      durations: {
-        where: { is_default: true },
-        take: 1,
-        select: {
-          slug: true,
-          routes: {
-            orderBy: { sort_order: "asc" },
-            take: 1,
-            select: { slug: true },
-          },
-        },
-      },
-      stay_categories: {
-        where: { is_default: true },
-        take: 1,
-        select: { slug: true },
-      },
+export type GetPackagesParams = {
+  page?:        number;
+  limit?:       number;
+  search?:      string;
+  destination?: number | "all";
+  status?:      "active" | "inactive" | "all";
+};
+
+const PACKAGE_INCLUDE = {
+  destination: {
+    select: { id: true, name: true, region: { select: { name: true } } },
+  },
+  _count: {
+    select: { durations: true, packageRoutes: true, gallery: true },
+  },
+  durations: {
+    where: { is_default: true },
+    take: 1,
+    select: {
+      slug: true,
+      routes: { orderBy: { sort_order: "asc" as const }, take: 1, select: { slug: true } },
     },
+  },
+  stay_categories: {
+    where: { is_default: true },
+    take: 1,
+    select: { slug: true },
+  },
+} as const;
+
+export async function getPackages(params: GetPackagesParams = {}) {
+  const {
+    page        = 1,
+    limit       = 20,
+    search      = "",
+    destination = "all",
+    status      = "all",
+  } = params;
+
+  const skip = (page - 1) * limit;
+
+  const where = {
+    ...(search      ? { title: { contains: search, mode: "insensitive" as const } } : {}),
+    ...(destination !== "all" ? { destination_id: destination as number } : {}),
+    ...(status === "active"   ? { is_active: true }  : {}),
+    ...(status === "inactive" ? { is_active: false } : {}),
+  };
+
+  const [rows, totalCount, statsTotal, statsActive] = await Promise.all([
+    db.packages.findMany({ where, orderBy: { created_at: "desc" }, skip, take: limit, include: PACKAGE_INCLUDE }),
+    db.packages.count({ where }),
+    db.packages.count(),
+    db.packages.count({ where: { is_active: true } }),
+  ]);
+
+  return {
+    packages: rows,
+    totalCount,
+    stats: { total: statsTotal, active: statsActive, inactive: statsTotal - statsActive },
+  };
+}
+
+export async function getDestinationsForPackageFilter() {
+  return db.destinations.findMany({
+    where: { packages: { some: {} } },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
   });
 }
 
