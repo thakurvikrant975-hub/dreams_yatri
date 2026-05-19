@@ -29,6 +29,9 @@ export async function handleSaveRouteVariant(
   durationMeta?: DurationMeta,
   routeId?: number,
 ) {
+  if (stops.length === 0) return { success: false, message: "At least one stop is required" };
+  if (stops.some((s) => !s.place_name?.trim())) return { success: false, message: "All stops must have a name" };
+  if (stops.some((s) => !Number.isInteger(s.stay_days) || s.stay_days < 1)) return { success: false, message: "Each stop must have at least 1 night" };
   try {
     const result = await upsertRouteVariant(packageId, stops, meta, durationMeta, routeId);
     revalidatePath(`/dashboard/packages/${packageId}`);

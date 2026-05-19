@@ -66,8 +66,11 @@ export async function handleUpsertPackagePricing(input: {
 }
 
 export async function handleComputePackagePrice(input: PricingInput) {
+  const adults = Math.max(1, Math.floor(input.adults ?? 1));
+  const children = Math.max(0, Math.floor(input.children ?? 0));
+  const infants = Math.max(0, Math.floor(input.infants ?? 0));
   try {
-    const data = await computePackagePrice(input);
+    const data = await computePackagePrice({ ...input, adults, children, infants });
     return { success: true as const, data };
   } catch (err) {
     console.error("[computePackagePrice]", err);

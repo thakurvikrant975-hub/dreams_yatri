@@ -81,6 +81,7 @@ export type FullPricingBreakdown = {
   gst_amount: number;
   final_price: number;
   price_per_adult: number;
+  missing_pricing_config: boolean;
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────

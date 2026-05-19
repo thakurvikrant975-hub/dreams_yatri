@@ -38,6 +38,7 @@ export async function handleUpsertGallerySlot(
   sourceType: GallerySlot["source_type"],
   sourceId: number | null,
 ) {
+  if (position < 1 || position > 5) return { success: false as const, message: "Invalid gallery position" };
   try {
     await upsertGallerySlot(packageId, routeId, position, imageUrl, sourceType, sourceId);
     revalidatePath(`/dashboard/packages/${packageId}`);
@@ -49,6 +50,7 @@ export async function handleUpsertGallerySlot(
 }
 
 export async function handleClearGallerySlot(packageId: number, routeId: number, position: number) {
+  if (position < 1 || position > 5) return { success: false as const, message: "Invalid gallery position" };
   try {
     await clearGallerySlot(packageId, routeId, position);
     revalidatePath(`/dashboard/packages/${packageId}`);
@@ -60,6 +62,7 @@ export async function handleClearGallerySlot(packageId: number, routeId: number,
 }
 
 export async function handleUpdateGallerySlotLabel(packageId: number, routeId: number, position: number, label: string) {
+  if (position < 1 || position > 5) return { success: false as const, message: "Invalid gallery position" };
   try {
     await updateGallerySlotLabel(packageId, routeId, position, label);
     revalidatePath(`/dashboard/packages/${packageId}`);

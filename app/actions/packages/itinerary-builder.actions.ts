@@ -57,6 +57,8 @@ export async function handleUpsertDayMeta(
   day: number,
   data: { title: string; description?: string | null },
 ) {
+  if (!Number.isInteger(day) || day < 1) return { success: false as const, message: "Invalid day number" };
+  if (!data.title?.trim()) return { success: false as const, message: "Day title is required" };
   try {
     const result = await upsertDayMeta(packageId, durationId, routeId, day, data);
     revalidatePath(p(packageId));
