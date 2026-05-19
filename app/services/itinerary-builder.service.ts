@@ -6,11 +6,11 @@ import { db } from "../lib/db";
 
 export type TransferInput = {
   pickup_name: string;
-  pickup_place_id?: string | null;
+  pickup_location_id?: string | null;
   pickup_lat?: number | null;
   pickup_lng?: number | null;
   drop_name: string;
-  drop_place_id?: string | null;
+  drop_location_id?: string | null;
   drop_lat?: number | null;
   drop_lng?: number | null;
   vehicle_id?: number | null;
@@ -344,10 +344,13 @@ export async function deleteItineraryActivity(id: number) {
 async function findOrCreateRoute(data: TransferInput): Promise<number | null> {
   if (!data.pickup_name || !data.drop_name) return null;
 
-  // Try to find existing route by place IDs first
-  if (data.pickup_place_id && data.drop_place_id) {
+  // Deduplicate by DB location IDs when available
+  if (data.pickup_location_id && data.drop_location_id) {
     const existing = await db.transfer_routes.findFirst({
-      where: { pickup_place_id: data.pickup_place_id, drop_place_id: data.drop_place_id },
+      where: {
+        pickup_location_id: BigInt(data.pickup_location_id),
+        drop_location_id: BigInt(data.drop_location_id),
+      },
       select: { id: true },
     });
     if (existing) return existing.id;
@@ -379,11 +382,11 @@ async function findOrCreateRoute(data: TransferInput): Promise<number | null> {
   const route = await db.transfer_routes.create({
     data: {
       pickup_name: data.pickup_name,
-      pickup_place_id: data.pickup_place_id ?? null,
+      pickup_location_id: data.pickup_location_id ? BigInt(data.pickup_location_id) : null,
       pickup_lat: data.pickup_lat ?? null,
       pickup_lng: data.pickup_lng ?? null,
       drop_name: data.drop_name,
-      drop_place_id: data.drop_place_id ?? null,
+      drop_location_id: data.drop_location_id ? BigInt(data.drop_location_id) : null,
       drop_lat: data.drop_lat ?? null,
       drop_lng: data.drop_lng ?? null,
       distance_km,

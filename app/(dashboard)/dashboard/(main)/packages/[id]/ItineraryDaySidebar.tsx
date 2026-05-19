@@ -369,11 +369,11 @@ type TransferFormData = {
 function transferFormToInput(data: TransferFormData) {
   return {
     pickup_name: data.pickup?.name ?? "",
-    pickup_place_id: data.pickup?.id ?? null,
+    pickup_location_id: data.pickup?.id ?? null,
     pickup_lat: data.pickup?.latitude ?? null,
     pickup_lng: data.pickup?.longitude ?? null,
     drop_name: data.drop?.name ?? "",
-    drop_place_id: data.drop?.id ?? null,
+    drop_location_id: data.drop?.id ?? null,
     drop_lat: data.drop?.latitude ?? null,
     drop_lng: data.drop?.longitude ?? null,
     vehicle_id: data.vehicle_id,
