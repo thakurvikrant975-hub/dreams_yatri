@@ -47,6 +47,27 @@ function toFormState(result: Result<string>): RegionFormState {
   return { success: false, message: result.error.message };
 }
 
+// ── Slug availability check ───────────────────────────────────────────────────
+export async function checkSlugAvailability(
+  slug: string,
+): Promise<{ exists: boolean; suggestion: string }> {
+  if (!slug) return { exists: false, suggestion: slug };
+
+  const existing = await db.custom_regions.findFirst({ where: { slug } });
+  if (!existing) return { exists: false, suggestion: slug };
+
+  let counter = 2;
+  let candidate = `${slug}-${counter}`;
+  while (counter < 100) {
+    const conflict = await db.custom_regions.findFirst({ where: { slug: candidate } });
+    if (!conflict) break;
+    counter++;
+    candidate = `${slug}-${counter}`;
+  }
+
+  return { exists: true, suggestion: candidate };
+}
+
 // ── Read ──────────────────────────────────────────────────────────────────────
 
 export type GetRegionsParams = {
