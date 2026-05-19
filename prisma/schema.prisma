@@ -1055,6 +1055,7 @@ model packages {
   updated_at      DateTime                  @updatedAt
   bookings        Booking[]
   cabOptions      package_cab_options[]
+  cabPricings     package_cab_pricings[]
   categories      package_categories[]
   durations       package_durations[]
   gallery         package_gallery[]
@@ -1108,22 +1109,23 @@ model package_durations {
 }
 
 model package_routes {
-  id                 Int                   @id @default(autoincrement())
+  id                 Int                    @id @default(autoincrement())
   duration_id        Int
   name               String
   slug               String
   meta_title         String?
   meta_desc          String?
-  sort_order         Int                   @default(0)
-  is_active          Boolean               @default(true)
+  sort_order         Int                    @default(0)
+  is_active          Boolean                @default(true)
   polyline           Json?
   total_distance_km  Float?
   total_duration_min Int?
   packagesId         Int?
   itineraries        package_itineraries[]
-  duration           package_durations     @relation(fields: [duration_id], references: [id], onDelete: Cascade)
-  packages           packages?             @relation(fields: [packagesId], references: [id])
+  duration           package_durations      @relation(fields: [duration_id], references: [id], onDelete: Cascade)
+  packages           packages?              @relation(fields: [packagesId], references: [id])
   stops              route_stops[]
+  cabPricings        package_cab_pricings[]
 
   @@unique([duration_id, slug])
   @@index([duration_id])
@@ -1166,21 +1168,21 @@ model package_categories {
 }
 
 model package_itineraries {
-  id                      Int                       @id @default(autoincrement())
-  package_id              Int
-  duration_id             Int
-  route_id                Int
-  day                     Int
-  title                   String
-  description             String?
-  itinerary_activities    itinerary_activities[]
-  itinerary_notes         itinerary_notes[]
-  itineraryStays          itinerary_stays[]
-  itinerary_transfers     itinerary_transfers[]
-  itinerary_attractions   itinerary_attractions[]
-  duration                package_durations         @relation(fields: [duration_id], references: [id])
-  package                 packages                  @relation(fields: [package_id], references: [id])
-  route                   package_routes            @relation(fields: [route_id], references: [id])
+  id                    Int                     @id @default(autoincrement())
+  package_id            Int
+  duration_id           Int
+  route_id              Int
+  day                   Int
+  title                 String
+  description           String?
+  itinerary_activities  itinerary_activities[]
+  itinerary_notes       itinerary_notes[]
+  itineraryStays        itinerary_stays[]
+  itinerary_transfers   itinerary_transfers[]
+  itinerary_attractions itinerary_attractions[]
+  duration              package_durations       @relation(fields: [duration_id], references: [id])
+  package               packages                @relation(fields: [package_id], references: [id])
+  route                 package_routes          @relation(fields: [route_id], references: [id])
 
   @@unique([package_id, duration_id, route_id, day])
   @@index([route_id, duration_id])
@@ -1229,16 +1231,20 @@ model itinerary_activities {
 }
 
 model vehicles {
-  id                 Int                   @id @default(autoincrement())
+  id                 Int                    @id @default(autoincrement())
   name               String
   type               VehicleType
   passenger_capacity Int
-  luggage_bags       Int                   @default(0)
+  luggage_bags       Int                    @default(0)
+  has_ac             Boolean                @default(false)
+  image_key          String?
+  fuel_type          FuelType?
   description        String?
-  is_active          Boolean               @default(true)
-  created_at         DateTime              @default(now())
+  is_active          Boolean                @default(true)
+  created_at         DateTime               @default(now())
   rates              vehicle_rates[]
   transfers          itinerary_transfers[]
+  cabPricings        package_cab_pricings[]
 }
 
 model vehicle_rates {
@@ -1278,8 +1284,6 @@ model itinerary_transfers {
   route_id     Int?
   vehicle_id   Int?
   num_vehicles Int                 @default(1)
-  cost_price   Decimal?            @db.Decimal(10, 2)
-  sell_price   Decimal?            @db.Decimal(10, 2)
   notes        String?
   sort_order   Int                 @default(0)
   itinerary    package_itineraries @relation(fields: [itinerary_id], references: [id], onDelete: Cascade)
@@ -1348,6 +1352,23 @@ model package_cab_options {
 
   @@unique([package_id, cab_type])
   @@map("package_cab_options")
+}
+
+model package_cab_pricings {
+  id         Int            @id @default(autoincrement())
+  package_id Int
+  route_id   Int
+  vehicle_id Int
+  sell_price Decimal        @db.Decimal(10, 2)
+  cost_price Decimal?       @db.Decimal(10, 2)
+  sort_order Int            @default(0)
+  is_active  Boolean        @default(true)
+  package    packages       @relation(fields: [package_id], references: [id], onDelete: Cascade)
+  route      package_routes @relation(fields: [route_id], references: [id], onDelete: Cascade)
+  vehicle    vehicles       @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
+
+  @@unique([route_id, vehicle_id])
+  @@map("package_cab_pricings")
 }
 
 model package_policy_map {
@@ -1757,6 +1778,14 @@ enum VehicleType {
   MINI_BUS
   BUS
   Rikshaw
+}
+
+enum FuelType {
+  PETROL
+  DIESEL
+  CNG
+  ELECTRIC
+  HYBRID
 }
 
 enum VehicleRateType {

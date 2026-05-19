@@ -22,6 +22,9 @@ export type VehicleFull = {
   type: string;
   passenger_capacity: number;
   luggage_bags: number;
+  has_ac: boolean;
+  image_key: string | null;
+  fuel_type: string | null;
   description: string | null;
   is_active: boolean;
   rates: VehicleRate[];
@@ -45,6 +48,9 @@ export async function getVehiclesWithRates(): Promise<VehicleFull[]> {
     type: v.type,
     passenger_capacity: v.passenger_capacity,
     luggage_bags: v.luggage_bags,
+    has_ac: v.has_ac,
+    image_key: v.image_key,
+    fuel_type: v.fuel_type,
     description: v.description,
     is_active: v.is_active,
     rates: v.rates.map((r) => ({
@@ -63,6 +69,9 @@ export async function createVehicle(data: {
   type: string;
   passenger_capacity: number;
   luggage_bags?: number;
+  has_ac?: boolean;
+  image_key?: string | null;
+  fuel_type?: string | null;
   description?: string | null;
 }) {
   try {
@@ -72,6 +81,9 @@ export async function createVehicle(data: {
         type: data.type as never,
         passenger_capacity: data.passenger_capacity,
         luggage_bags: data.luggage_bags ?? 0,
+        has_ac: data.has_ac ?? false,
+        image_key: data.image_key ?? null,
+        fuel_type: (data.fuel_type as never) ?? null,
         description: data.description ?? null,
       },
     });
@@ -89,6 +101,9 @@ export async function updateVehicle(
     type: string;
     passenger_capacity: number;
     luggage_bags?: number;
+    has_ac?: boolean;
+    image_key?: string | null;
+    fuel_type?: string | null;
     description?: string | null;
   },
 ) {
@@ -100,6 +115,9 @@ export async function updateVehicle(
         type: data.type as never,
         passenger_capacity: data.passenger_capacity,
         luggage_bags: data.luggage_bags ?? 0,
+        has_ac: data.has_ac ?? false,
+        image_key: data.image_key ?? null,
+        fuel_type: (data.fuel_type as never) ?? null,
         description: data.description ?? null,
       },
     });

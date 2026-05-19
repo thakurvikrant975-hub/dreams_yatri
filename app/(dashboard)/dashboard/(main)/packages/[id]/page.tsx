@@ -223,7 +223,7 @@ export default async function PackageBuilderPage({
           />
         </TabsContent>
 
-        {/* Tab 7 — Pricing (margin / GST config) */}
+        {/* Tab 7 — Pricing (margin / GST config + cab options) */}
         <TabsContent value="pricing" className="pt-6">
           <PricingTab
             packageId={pkg.id}
@@ -239,6 +239,15 @@ export default async function PackageBuilderPage({
               slug: c.slug,
             }))}
             initialPricings={pkg.packagePricings}
+            routes={pkg.durations.flatMap((d) =>
+              d.routes.map((r) => ({
+                id: r.id,
+                name: r.name,
+                durationLabel: d.label,
+              }))
+            )}
+            initialCabPricings={pkg.cabPricings}
+            availableVehicles={pkg.availableVehicles}
           />
         </TabsContent>
 

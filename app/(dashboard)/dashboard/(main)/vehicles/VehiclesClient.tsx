@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Car, Plus, Pencil, Trash2, Loader2, Check, X, ChevronDown, ChevronRight, Tag } from "lucide-react";
+import { Car, Plus, Pencil, Trash2, Loader2, Check, X, ChevronDown, ChevronRight, Tag, Flame, Wind } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -11,6 +11,7 @@ import {
   Select, SelectContent, SelectItem,
   SelectTrigger, SelectValue,
 } from "../components/ui/select";
+import { ImagePicker, type PickedImage } from "../components/dashboard/ImagePicker";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription,
@@ -40,6 +41,14 @@ const VEHICLE_TYPES = [
   { value: "BUS",             label: "Bus" },
 ];
 
+const FUEL_TYPES = [
+  { value: "PETROL",   label: "Petrol" },
+  { value: "DIESEL",   label: "Diesel" },
+  { value: "CNG",      label: "CNG" },
+  { value: "ELECTRIC", label: "Electric" },
+  { value: "HYBRID",   label: "Hybrid" },
+];
+
 const RATE_TYPES = [
   { value: "PER_KM",     label: "Per KM" },
   { value: "FLAT_TRIP",  label: "Flat Trip" },
@@ -53,12 +62,15 @@ type VehicleFormState = {
   type: string;
   passenger_capacity: string;
   luggage_bags: string;
+  has_ac: boolean;
+  fuel_type: string;
+  image_key: string;
   description: string;
 };
 
 const EMPTY_VEHICLE: VehicleFormState = {
   name: "", type: "SUV", passenger_capacity: "4",
-  luggage_bags: "2", description: "",
+  luggage_bags: "2", has_ac: false, fuel_type: "", image_key: "", description: "",
 };
 
 function VehicleForm({
@@ -73,8 +85,18 @@ function VehicleForm({
   isSaving: boolean;
 }) {
   const [form, setForm] = useState(initial);
+  const [vehicleImages, setVehicleImages] = useState<PickedImage[]>(
+    initial.image_key
+      ? [{ id: "existing", key: initial.image_key, url: `${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${initial.image_key}`, name: "vehicle", size: 0, status: "uploaded" as const }]
+      : []
+  );
   function set<K extends keyof VehicleFormState>(k: K, v: VehicleFormState[K]) {
     setForm(f => ({ ...f, [k]: v }));
+  }
+  function handleImagesChange(images: PickedImage[]) {
+    setVehicleImages(images);
+    const uploaded = images.find(img => img.status === "uploaded" && img.key);
+    set("image_key", uploaded?.key ?? "");
   }
   const isValid = !!form.name && !!form.type && Number(form.passenger_capacity) > 0;
 
@@ -99,15 +121,40 @@ function VehicleForm({
           <Input type="number" min={1} value={form.passenger_capacity} onChange={e => set("passenger_capacity", e.target.value)} />
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="space-y-1.5">
           <Label>Luggage Bags</Label>
           <Input type="number" min={0} value={form.luggage_bags} onChange={e => set("luggage_bags", e.target.value)} />
         </div>
         <div className="space-y-1.5">
+          <Label>Fuel Type</Label>
+          <Select value={form.fuel_type || "none"} onValueChange={v => set("fuel_type", v === "none" ? "" : v)}>
+            <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Not specified</SelectItem>
+              {FUEL_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
           <Label>Description</Label>
           <Input placeholder="Optional notes…" value={form.description} onChange={e => set("description", e.target.value)} />
         </div>
+        <div className="flex items-center gap-2 pt-6">
+          <Switch id="has_ac" checked={form.has_ac} onCheckedChange={v => set("has_ac", v)} />
+          <Label htmlFor="has_ac" className="cursor-pointer">Air Conditioning</Label>
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <Label>Vehicle Image</Label>
+        <ImagePicker
+          folder="vehicles"
+          value={vehicleImages}
+          onChange={handleImagesChange}
+          maxFiles={1}
+          label="Upload Vehicle Photo"
+          hint="JPG, PNG, WebP"
+        />
       </div>
       <div className="flex justify-end gap-2 pt-1">
         <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={isSaving}>
@@ -264,12 +311,15 @@ function VehicleCard({
         type: form.type,
         passenger_capacity: Number(form.passenger_capacity),
         luggage_bags: Number(form.luggage_bags),
+        has_ac: form.has_ac,
+        image_key: form.image_key || null,
+        fuel_type: form.fuel_type || null,
         description: form.description || null,
       });
       if (res.success) {
         toast.success(res.message);
         setEditingVehicle(false);
-        onUpdate({ ...vehicle, name: form.name, type: form.type, passenger_capacity: Number(form.passenger_capacity), luggage_bags: Number(form.luggage_bags), description: form.description || null });
+        onUpdate({ ...vehicle, name: form.name, type: form.type, passenger_capacity: Number(form.passenger_capacity), luggage_bags: Number(form.luggage_bags), has_ac: form.has_ac, image_key: form.image_key || null, fuel_type: form.fuel_type || null, description: form.description || null });
       } else {
         toast.error(res.message);
       }
@@ -334,7 +384,7 @@ function VehicleCard({
       {editingVehicle ? (
         <div className="p-4">
           <VehicleForm
-            initial={{ name: vehicle.name, type: vehicle.type, passenger_capacity: String(vehicle.passenger_capacity), luggage_bags: String(vehicle.luggage_bags), description: vehicle.description ?? "" }}
+            initial={{ name: vehicle.name, type: vehicle.type, passenger_capacity: String(vehicle.passenger_capacity), luggage_bags: String(vehicle.luggage_bags), has_ac: vehicle.has_ac, fuel_type: vehicle.fuel_type ?? "", image_key: vehicle.image_key ?? "", description: vehicle.description ?? "" }}
             onSave={handleSaveVehicle}
             onCancel={() => setEditingVehicle(false)}
             isSaving={isPending}
@@ -350,6 +400,8 @@ function VehicleCard({
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-medium text-sm">{vehicle.name}</span>
               <Badge variant="outline" className="text-[10px] px-1.5 py-0">{typeLabel}</Badge>
+              {vehicle.fuel_type && <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-0.5"><Flame className="h-2.5 w-2.5" />{FUEL_TYPES.find(f => f.value === vehicle.fuel_type)?.label ?? vehicle.fuel_type}</Badge>}
+              {vehicle.has_ac && <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-0.5"><Wind className="h-2.5 w-2.5" />AC</Badge>}
               <span className="text-xs text-muted-foreground">{vehicle.passenger_capacity} pax · {vehicle.luggage_bags} bags</span>
               {vehicle.rates.length > 0 && <span className="text-xs text-muted-foreground">· {vehicle.rates.length} rate{vehicle.rates.length !== 1 ? "s" : ""}</span>}
             </div>
@@ -465,16 +517,19 @@ export function VehiclesClient({ initialVehicles }: { initialVehicles: VehicleFu
         type: form.type,
         passenger_capacity: Number(form.passenger_capacity),
         luggage_bags: Number(form.luggage_bags),
+        has_ac: form.has_ac,
+        image_key: form.image_key || null,
+        fuel_type: form.fuel_type || null,
         description: form.description || null,
       });
       if (res.success) {
         toast.success(res.message);
         setAdding(false);
-        // Optimistic entry — page will revalidate on next visit
         const newVehicle: VehicleFull = {
           id: Date.now(), name: form.name, type: form.type,
           passenger_capacity: Number(form.passenger_capacity),
           luggage_bags: Number(form.luggage_bags),
+          has_ac: form.has_ac, image_key: form.image_key || null, fuel_type: form.fuel_type || null,
           description: form.description || null,
           is_active: true, rates: [],
         };

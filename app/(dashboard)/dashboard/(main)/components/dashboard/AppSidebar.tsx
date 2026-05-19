@@ -56,8 +56,9 @@ const navGroups = [
   {
     id: "packages", label: "Packages",
     items: [
-      { title: "All Packages", href: "/dashboard/packages",     icon: PackageIcon, phosphor: true },
-      { title: "New Package",  href: "/dashboard/packages/new", icon: PlusIcon,    phosphor: true },
+      { title: "All Packages", href: "/dashboard/packages",     icon: PackageIcon,        phosphor: true },
+      { title: "New Package",  href: "/dashboard/packages/new", icon: PlusIcon,           phosphor: true },
+      { title: "Cabs",         href: "/dashboard/vehicles",     icon: SteeringWheelIcon,  phosphor: true },
     ],
   },
   {

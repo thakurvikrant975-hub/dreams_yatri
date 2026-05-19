@@ -51,6 +51,19 @@ export async function getPackageForBuilder(id: number) {
           gst_percentage: true,
         },
       },
+      cabPricings: {
+        orderBy: [{ route_id: "asc" }, { sort_order: "asc" }],
+        select: {
+          id: true,
+          route_id: true,
+          vehicle_id: true,
+          sell_price: true,
+          cost_price: true,
+          sort_order: true,
+          is_active: true,
+          vehicle: { select: { id: true, name: true, type: true, passenger_capacity: true, has_ac: true, fuel_type: true } },
+        },
+      },
       durations: {
         orderBy: { days: "asc" },
         include: {
@@ -65,6 +78,12 @@ export async function getPackageForBuilder(id: number) {
 
   if (!pkg) return null;
 
+  const availableVehicles = await db.vehicles.findMany({
+    where: { is_active: true },
+    orderBy: [{ type: "asc" }, { name: "asc" }],
+    select: { id: true, name: true, type: true, passenger_capacity: true, has_ac: true, fuel_type: true },
+  });
+
   // Prisma returns Decimal — serialize to plain numbers for RSC boundary
   return {
     ...pkg,
@@ -75,6 +94,17 @@ export async function getPackageForBuilder(id: number) {
       margin_percentage: Number(p.margin_percentage),
       gst_percentage: Number(p.gst_percentage),
     })),
+    cabPricings: pkg.cabPricings.map((c) => ({
+      id: c.id,
+      route_id: c.route_id,
+      vehicle_id: c.vehicle_id,
+      sell_price: Number(c.sell_price),
+      cost_price: c.cost_price != null ? Number(c.cost_price) : null,
+      sort_order: c.sort_order,
+      is_active: c.is_active,
+      vehicle: c.vehicle,
+    })),
+    availableVehicles,
     durations: pkg.durations.map((d) => ({
       ...d,
       routes: d.routes.map((r) => ({

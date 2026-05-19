@@ -15,8 +15,6 @@ export type TransferInput = {
   drop_lng?: number | null;
   vehicle_id?: number | null;
   num_vehicles?: number;
-  cost_price?: number | null;
-  sell_price?: number | null;
   notes?: string | null;
 };
 
@@ -53,8 +51,6 @@ export type TransferItem = {
   route_id: number | null;
   vehicle_id: number | null;
   num_vehicles: number;
-  cost_price: number | null;
-  sell_price: number | null;
   notes: string | null;
   sort_order: number;
   route: {
@@ -78,6 +74,7 @@ export type VehicleOption = {
   type: string;
   passenger_capacity: number;
   luggage_bags: number;
+  has_ac: boolean;
 };
 
 export type NoteItem = {
@@ -217,8 +214,6 @@ export async function getItineraryData(
           route_id: t.route_id,
           vehicle_id: t.vehicle_id,
           num_vehicles: t.num_vehicles,
-          cost_price: t.cost_price != null ? Number(t.cost_price) : null,
-          sell_price: t.sell_price != null ? Number(t.sell_price) : null,
           notes: t.notes,
           sort_order: t.sort_order,
           route: t.route ? {
@@ -402,8 +397,6 @@ export async function addItineraryTransfer(itineraryId: number, data: TransferIn
       route_id: routeId,
       vehicle_id: data.vehicle_id ?? null,
       num_vehicles: data.num_vehicles ?? 1,
-      cost_price: data.cost_price ?? null,
-      sell_price: data.sell_price ?? null,
       notes: data.notes ?? null,
       sort_order: order,
     },
@@ -418,8 +411,6 @@ export async function updateItineraryTransfer(id: number, data: TransferInput) {
       route_id: routeId,
       vehicle_id: data.vehicle_id ?? null,
       num_vehicles: data.num_vehicles ?? 1,
-      cost_price: data.cost_price ?? null,
-      sell_price: data.sell_price ?? null,
       notes: data.notes ?? null,
     },
   });
@@ -429,7 +420,7 @@ export async function getVehicles(): Promise<VehicleOption[]> {
   return db.vehicles.findMany({
     where: { is_active: true },
     orderBy: [{ type: "asc" }, { name: "asc" }],
-    select: { id: true, name: true, type: true, passenger_capacity: true, luggage_bags: true },
+    select: { id: true, name: true, type: true, passenger_capacity: true, luggage_bags: true, has_ac: true },
   });
 }
 

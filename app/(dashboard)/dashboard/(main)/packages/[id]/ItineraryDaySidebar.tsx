@@ -304,8 +304,6 @@ type TransferFormData = {
   drop: LocationResult | null;
   vehicle_id: number | null;
   num_vehicles: string;
-  cost_price: string;
-  sell_price: string;
   notes: string;
 };
 
@@ -321,8 +319,6 @@ function transferFormToInput(data: TransferFormData) {
     drop_lng: data.drop?.longitude ?? null,
     vehicle_id: data.vehicle_id,
     num_vehicles: Number(data.num_vehicles) || 1,
-    cost_price: data.cost_price ? Number(data.cost_price) : null,
-    sell_price: data.sell_price ? Number(data.sell_price) : null,
     notes: data.notes || null,
   };
 }
@@ -349,8 +345,6 @@ function TransferEditForm({
     drop: item.route ? { place_name: item.route.drop_name, place_id: "", address: item.route.drop_name, latitude: 0, longitude: 0 } : null,
     vehicle_id: item.vehicle_id,
     num_vehicles: String(item.num_vehicles),
-    cost_price: item.cost_price != null ? String(item.cost_price) : "",
-    sell_price: item.sell_price != null ? String(item.sell_price) : "",
     notes: item.notes ?? "",
   });
 
@@ -380,14 +374,6 @@ function TransferEditForm({
         <div className="space-y-1.5">
           <Label className="text-xs">No. of Vehicles</Label>
           <Input type="number" min={1} value={form.num_vehicles} onChange={(e) => setForm(f => ({ ...f, num_vehicles: e.target.value }))} className="h-9 text-xs" />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">Cost Price (₹)</Label>
-          <Input type="number" min={0} placeholder="0" value={form.cost_price} onChange={(e) => setForm(f => ({ ...f, cost_price: e.target.value }))} className="h-9 text-xs" />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">Sell Price (₹)</Label>
-          <Input type="number" min={0} placeholder="0" value={form.sell_price} onChange={(e) => setForm(f => ({ ...f, sell_price: e.target.value }))} className="h-9 text-xs" />
         </div>
       </div>
       <div className="space-y-1.5">
@@ -565,7 +551,7 @@ function AddTransferForm({
 }) {
   const [form, setForm] = useState<TransferFormData>({
     pickup: null, drop: null, vehicle_id: null,
-    num_vehicles: "1", cost_price: "", sell_price: "", notes: "",
+    num_vehicles: "1", notes: "",
   });
   const isValid = !!form.pickup && !!form.drop;
 
@@ -593,14 +579,6 @@ function AddTransferForm({
         <div className="space-y-1.5">
           <Label className="text-xs">No. of Vehicles</Label>
           <Input type="number" min={1} value={form.num_vehicles} onChange={(e) => setForm(f => ({ ...f, num_vehicles: e.target.value }))} className="h-9 text-xs" />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">Cost Price (₹)</Label>
-          <Input type="number" min={0} placeholder="0" value={form.cost_price} onChange={(e) => setForm(f => ({ ...f, cost_price: e.target.value }))} className="h-9 text-xs" />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">Sell Price (₹)</Label>
-          <Input type="number" min={0} placeholder="0" value={form.sell_price} onChange={(e) => setForm(f => ({ ...f, sell_price: e.target.value }))} className="h-9 text-xs" />
         </div>
       </div>
       <div className="space-y-1.5">
@@ -1626,7 +1604,6 @@ export function ItineraryDaySidebar({
                                     {[
                                       item.data.vehicle?.name,
                                       item.data.route?.distance_km != null ? `${item.data.route.distance_km} km` : null,
-                                      item.data.sell_price != null ? `₹${item.data.sell_price.toLocaleString("en-IN")}` : null,
                                     ].filter(Boolean).join(" · ") || "No details"}
                                   </p>
                                 </TimelineRowCard>

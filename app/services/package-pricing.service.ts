@@ -100,7 +100,7 @@ export async function computePackagePrice(
 ): Promise<FullPricingBreakdown> {
   const { package_id, duration_id, route_id, stay_category_id, adults, children, infants, child_ages } = input;
 
-  const [itineraries, pricingConfig, duration, stayCategory] = await Promise.all([
+  const [itineraries, pricingConfig, duration, stayCategory, cabPricings] = await Promise.all([
     db.package_itineraries.findMany({
       where: { package_id, duration_id, route_id },
       orderBy: { day: "asc" },
@@ -164,7 +164,13 @@ export async function computePackagePrice(
     }),
     db.package_durations.findUnique({ where: { id: duration_id }, select: { label: true } }),
     db.package_stay_categories.findUnique({ where: { id: stay_category_id }, select: { label: true } }),
+    db.package_cab_pricings.findMany({
+      where: { package_id, route_id, is_active: true },
+      select: { vehicle_id: true, sell_price: true },
+    }),
   ]);
+
+  const cabPriceMap = new Map(cabPricings.map((c) => [c.vehicle_id, Number(c.sell_price)]));
 
   const margin_percentage = Number(pricingConfig?.margin_percentage ?? 10);
   const gst_percentage = Number(pricingConfig?.gst_percentage ?? 5);
@@ -332,8 +338,8 @@ export async function computePackagePrice(
     // ── Transfers ────────────────────────────────────────────────────────────
     const transfers: DayTransferLine[] = itin.itinerary_transfers.map((tr) => {
       const configuredVehicles = Math.max(tr.num_vehicles, 1);
-      const configuredSell = tr.sell_price ? Number(tr.sell_price) : 0;
-      const perVehiclePrice = configuredSell / configuredVehicles;
+      const configuredSell = tr.vehicle_id != null ? (cabPriceMap.get(tr.vehicle_id) ?? 0) : 0;
+      const perVehiclePrice = configuredSell;
 
       const vehicleCapacity = tr.vehicle?.passenger_capacity ?? null;
       let actualVehicles = configuredVehicles;
