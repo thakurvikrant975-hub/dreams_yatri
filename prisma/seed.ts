@@ -411,8 +411,8 @@ async function main() {
       is_active: true,
       stops: {
         create: [
-          { place_name: "Delhi", stay_days: 0, sort_order: 0, latitude: 28.6139, longitude: 77.209 },
-          { place_name: "Manali", stay_days: 4, sort_order: 1, latitude: 32.2396, longitude: 77.1887 },
+          { place_name: "Delhi", stay_days: 0, sort_order: 0 },
+          { place_name: "Manali", stay_days: 4, sort_order: 1 },
         ],
       },
     },
@@ -430,8 +430,8 @@ async function main() {
       is_active: true,
       stops: {
         create: [
-          { place_name: "Chandigarh", stay_days: 0, sort_order: 0, latitude: 30.7333, longitude: 76.7794 },
-          { place_name: "Manali", stay_days: 4, sort_order: 1, latitude: 32.2396, longitude: 77.1887 },
+          { place_name: "Chandigarh", stay_days: 0, sort_order: 0 },
+          { place_name: "Manali", stay_days: 4, sort_order: 1 },
         ],
       },
     },
@@ -449,9 +449,9 @@ async function main() {
       is_active: true,
       stops: {
         create: [
-          { place_name: "Delhi", stay_days: 0, sort_order: 0, latitude: 28.6139, longitude: 77.209 },
-          { place_name: "Kullu", stay_days: 2, sort_order: 1, latitude: 31.9579, longitude: 77.1095 },
-          { place_name: "Manali", stay_days: 4, sort_order: 2, latitude: 32.2396, longitude: 77.1887 },
+          { place_name: "Delhi", stay_days: 0, sort_order: 0 },
+          { place_name: "Kullu", stay_days: 2, sort_order: 1 },
+          { place_name: "Manali", stay_days: 4, sort_order: 2 },
         ],
       },
     },

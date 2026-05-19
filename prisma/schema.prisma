@@ -446,6 +446,8 @@ model Location {
 
   city_children Location[] @relation("CityRelation")
 
+  route_stops route_stops[]
+
   @@index([type])
   @@index([parent_id])
   @@index([country_id])
@@ -1133,19 +1135,18 @@ model package_routes {
 }
 
 model route_stops {
-  id         Int            @id @default(autoincrement())
-  route_id   Int
-  place_name String
-  place_id   String?
-  address    String?
-  stay_days  Int
-  sort_order Int            @default(0)
-  latitude   Decimal?       @db.Decimal(10, 8)
-  longitude  Decimal?       @db.Decimal(11, 8)
-  route      package_routes @relation(fields: [route_id], references: [id], onDelete: Cascade)
+  id          Int            @id @default(autoincrement())
+  route_id    Int
+  location_id BigInt?
+  place_name  String
+  stay_days   Int
+  sort_order  Int            @default(0)
+  route       package_routes @relation(fields: [route_id], references: [id], onDelete: Cascade)
+  location    Location?      @relation(fields: [location_id], references: [id], onDelete: SetNull)
 
   @@unique([route_id, sort_order])
   @@index([route_id])
+  @@index([location_id])
 }
 
 model package_tags {

@@ -58,12 +58,16 @@ export type EditingRoute = {
   stops: {
     id: number;
     place_name: string;
-    place_id: string | null;
-    address: string | null;
     stay_days: number;
     sort_order: number;
-    latitude: number | null;
-    longitude: number | null;
+    location_id: string | null;
+    location: {
+      id: string;
+      latitude: number | null;
+      longitude: number | null;
+      type: string;
+      slug: string;
+    } | null;
   }[];
 };
 
@@ -557,23 +561,19 @@ export function RouteBuilderSidebar({ packageId, editing, open, onClose, onSaved
   useEffect(() => {
     if (open) {
       if (editing) {
-        setStops(editing.stops.map((s) => {
-          const lat = s.latitude != null ? Number(s.latitude) : null;
-          const lng = s.longitude != null ? Number(s.longitude) : null;
-          return {
-            id: uid(),
-            stay_nights: s.stay_days,
-            location: lat != null && lng != null ? {
-              id: String(s.id),
-              name: s.place_name,
-              type: "CITY" as LocationType,
-              breadcrumb: s.address ?? s.place_name,
-              slug: "",
-              latitude: lat,
-              longitude: lng,
-            } : null,
-          };
-        }));
+        setStops(editing.stops.map((s) => ({
+          id: uid(),
+          stay_nights: s.stay_days,
+          location: s.location ? {
+            id: s.location.id,
+            name: s.place_name,
+            type: s.location.type as LocationType,
+            breadcrumb: s.place_name,
+            slug: s.location.slug,
+            latitude: s.location.latitude,
+            longitude: s.location.longitude,
+          } : null,
+        })));
       } else {
         setStops([{ id: uid(), location: null, stay_nights: 1 }]);
       }
@@ -608,11 +608,8 @@ export function RouteBuilderSidebar({ packageId, editing, open, onClose, onSaved
       .filter((r) => r.location)
       .map((s) => ({
         place_name: s.location!.name,
-        place_id: s.location!.id || null,
-        address: s.location!.breadcrumb || null,
         stay_days: s.stay_nights,
-        latitude: s.location!.latitude,
-        longitude: s.location!.longitude,
+        location_id: s.location!.id || null,
       }));
 
     const meta = data as { name?: string; meta_title?: string | null; meta_desc?: string | null };

@@ -6,8 +6,8 @@ export type RouteStop = {
   place_name: string;
   stay_days: number;
   sort_order: number;
-  latitude: number | null;
-  longitude: number | null;
+  latitude: number | null;  // from linked Location
+  longitude: number | null; // from linked Location
 };
 
 export type RouteOption = {
@@ -243,8 +243,7 @@ export async function fetchPackagePageData(
                 place_name: true,
                 stay_days: true,
                 sort_order: true,
-                latitude: true,
-                longitude: true,
+                location: { select: { latitude: true, longitude: true } },
               },
             },
           },
@@ -267,8 +266,8 @@ export async function fetchPackagePageData(
       place_name: s.place_name,
       stay_days: s.stay_days,
       sort_order: s.sort_order,
-      latitude: s.latitude != null ? Number(s.latitude) : null,
-      longitude: s.longitude != null ? Number(s.longitude) : null,
+      latitude: s.location?.latitude != null ? Number(s.location.latitude) : null,
+      longitude: s.location?.longitude != null ? Number(s.location.longitude) : null,
     })),
   }));
 

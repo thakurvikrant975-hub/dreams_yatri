@@ -40,12 +40,16 @@ import { cn } from "@/app/lib/utils";
 type RouteStop = {
   id: number;
   place_name: string;
-  place_id: string | null;
-  address: string | null;
   stay_days: number;
   sort_order: number;
-  latitude: number | null;
-  longitude: number | null;
+  location_id: string | null;
+  location: {
+    id: string;
+    latitude: number | null;
+    longitude: number | null;
+    type: string;
+    slug: string;
+  } | null;
 };
 
 type RouteRow = {

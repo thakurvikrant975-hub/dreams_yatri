@@ -7,11 +7,8 @@ import { deriveRouteName } from "../lib/route-builder-utils";
 
 export type StopInput = {
   place_name: string;
-  place_id?: string | null;
-  address?: string | null;
   stay_days: number;
-  latitude?: number | null;
-  longitude?: number | null;
+  location_id?: string | null;
 };
 
 export type RouteMeta = {
@@ -106,7 +103,21 @@ export async function getPackageRouteData(packageId: number) {
     include: {
       routes: {
         orderBy: { sort_order: "asc" },
-        include: { stops: { orderBy: { sort_order: "asc" } } },
+        include: {
+          stops: {
+            orderBy: { sort_order: "asc" },
+            select: {
+              id: true,
+              place_name: true,
+              stay_days: true,
+              sort_order: true,
+              location_id: true,
+              location: {
+                select: { id: true, latitude: true, longitude: true, type: true, slug: true },
+              },
+            },
+          },
+        },
       },
     },
   });
@@ -116,9 +127,18 @@ export async function getPackageRouteData(packageId: number) {
     routes: d.routes.map((r) => ({
       ...r,
       stops: r.stops.map((s) => ({
-        ...s,
-        latitude: s.latitude != null ? Number(s.latitude) : null,
-        longitude: s.longitude != null ? Number(s.longitude) : null,
+        id: s.id,
+        place_name: s.place_name,
+        stay_days: s.stay_days,
+        sort_order: s.sort_order,
+        location_id: s.location_id ? String(s.location_id) : null,
+        location: s.location ? {
+          id: String(s.location.id),
+          latitude: s.location.latitude != null ? Number(s.location.latitude) : null,
+          longitude: s.location.longitude != null ? Number(s.location.longitude) : null,
+          type: s.location.type,
+          slug: s.location.slug,
+        } : null,
       })),
     })),
   }));
@@ -167,12 +187,9 @@ export async function upsertRouteVariant(
 
   const stopData = stops.map((s, i) => ({
     place_name: s.place_name,
-    place_id: s.place_id ?? null,
-    address: s.address ?? null,
     stay_days: s.stay_days,
     sort_order: i,
-    latitude: s.latitude != null ? String(s.latitude) : null,
-    longitude: s.longitude != null ? String(s.longitude) : null,
+    location_id: s.location_id ? BigInt(s.location_id) : null,
   }));
 
   if (routeId) {
