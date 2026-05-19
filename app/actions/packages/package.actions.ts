@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { createPackageSchema } from "@/app/validators/package.validator";
 import { createPackages } from "@/app/services/package.service";
@@ -129,7 +129,8 @@ export async function updatePackageBasicInfo(id: number, data: createPackagesTyp
     revalidatePath(`/dashboard/packages/${id}`);
 
     return { success: true as const };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return {
       success: false as const,
       type: "server" as const,

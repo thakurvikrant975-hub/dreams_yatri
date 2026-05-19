@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { revalidatePath } from "next/cache";
 import {
@@ -14,7 +14,8 @@ export async function handleGetPackageGallery(packageId: number, routeId: number
   try {
     const data = await getPackageGallery(packageId, routeId);
     return { success: true as const, data };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to load gallery" };
   }
 }
@@ -23,7 +24,8 @@ export async function handleGetSourceImages(packageId: number) {
   try {
     const data = await getPackageSourceImages(packageId);
     return { success: true as const, data };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to load source images" };
   }
 }
@@ -40,7 +42,8 @@ export async function handleUpsertGallerySlot(
     await upsertGallerySlot(packageId, routeId, position, imageUrl, sourceType, sourceId);
     revalidatePath(`/dashboard/packages/${packageId}`);
     return { success: true as const };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to save gallery slot" };
   }
 }
@@ -50,7 +53,8 @@ export async function handleClearGallerySlot(packageId: number, routeId: number,
     await clearGallerySlot(packageId, routeId, position);
     revalidatePath(`/dashboard/packages/${packageId}`);
     return { success: true as const };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to clear gallery slot" };
   }
 }
@@ -60,7 +64,8 @@ export async function handleUpdateGallerySlotLabel(packageId: number, routeId: n
     await updateGallerySlotLabel(packageId, routeId, position, label);
     revalidatePath(`/dashboard/packages/${packageId}`);
     return { success: true as const };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to update label" };
   }
 }

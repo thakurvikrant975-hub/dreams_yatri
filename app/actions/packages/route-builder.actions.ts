@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { revalidatePath } from "next/cache";
 import {
@@ -16,7 +16,8 @@ export async function handleGetRouteData(packageId: number) {
   try {
     const data = await getPackageRouteData(packageId);
     return { success: true, data };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false, message: "Failed to load route data" };
   }
 }
@@ -56,7 +57,8 @@ export async function handleUpdateRouteMeta(
     await updateRouteMeta(routeId, data);
     revalidatePath(`/dashboard/packages/${packageId}`);
     return { success: true };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false, message: "Failed to update route" };
   }
 }
@@ -76,7 +78,8 @@ export async function handleUpdateDurationMeta(
     await updateDurationMeta(durationId, data);
     revalidatePath(`/dashboard/packages/${packageId}`);
     return { success: true };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false, message: "Failed to update duration" };
   }
 }

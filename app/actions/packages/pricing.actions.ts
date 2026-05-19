@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { db } from "@/app/lib/db";
 import { revalidatePath } from "next/cache";
@@ -29,7 +29,8 @@ export async function handleGetPackagePricings(packageId: number) {
         gst_percentage: Number(p.gst_percentage),
       })),
     };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, error: "Failed to load pricing configurations" };
   }
 }
@@ -58,7 +59,8 @@ export async function handleUpsertPackagePricing(input: {
     });
     revalidatePath(`/dashboard/packages/${input.package_id}`);
     return { success: true as const };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, error: "Failed to save pricing configuration" };
   }
 }

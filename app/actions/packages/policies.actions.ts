@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { db } from "@/app/lib/db";
 import { revalidatePath } from "next/cache";
@@ -16,7 +16,8 @@ export async function searchPoliciesByType(type: string, query: string) {
       take: 20,
     });
     return { success: true as const, data: list };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, data: [] as { id: number; title: string; points: string[] }[], message: "Search failed" };
   }
 }
@@ -44,7 +45,8 @@ export async function setPackagePolicy(packageId: number, type: string, policyId
 
     revalidatePath(`/dashboard/packages/${packageId}`);
     return { success: true as const };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to assign policy" };
   }
 }
@@ -70,7 +72,8 @@ export async function removePackagePolicy(packageId: number, type: string) {
 
     revalidatePath(`/dashboard/packages/${packageId}`);
     return { success: true as const };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to remove policy" };
   }
 }

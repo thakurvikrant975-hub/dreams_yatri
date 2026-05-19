@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { db } from "@/app/lib/db";
 import { revalidatePath } from "next/cache";
@@ -39,7 +39,8 @@ export async function upsertCabPricing(data: CabPricingInput) {
     });
     revalidatePath(`/dashboard/packages/${data.package_id}`);
     return { success: true as const };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, error: "Failed to save cab pricing" };
   }
 }
@@ -49,7 +50,8 @@ export async function deleteCabPricing(id: number, packageId: number) {
     await db.package_cab_pricings.delete({ where: { id } });
     revalidatePath(`/dashboard/packages/${packageId}`);
     return { success: true as const };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, error: "Failed to delete cab pricing" };
   }
 }
@@ -59,7 +61,8 @@ export async function toggleCabPricingActive(id: number, value: boolean, package
     await db.package_cab_pricings.update({ where: { id }, data: { is_active: value } });
     revalidatePath(`/dashboard/packages/${packageId}`);
     return { success: true as const };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, error: "Failed to update status" };
   }
 }

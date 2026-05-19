@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { revalidatePath } from "next/cache";
 import {
@@ -44,7 +44,8 @@ export async function handleGetItineraryData(packageId: number, durationId: numb
   try {
     const data = await getItineraryData(packageId, durationId, routeId);
     return { success: true as const, data };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to load itinerary data" };
   }
 }
@@ -60,7 +61,8 @@ export async function handleUpsertDayMeta(
     const result = await upsertDayMeta(packageId, durationId, routeId, day, data);
     revalidatePath(p(packageId));
     return { success: true as const, data: { id: result.id } };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to save day" };
   }
 }
@@ -69,7 +71,8 @@ export async function handleGetActivityVariants(activityId: number) {
   try {
     const data = await getActivityVariants(activityId);
     return { success: true as const, data };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, data: [] as Awaited<ReturnType<typeof getActivityVariants>>, message: "Failed to load variants" };
   }
 }
@@ -85,7 +88,8 @@ export async function handleAddActivity(
     await addItineraryActivity(itineraryId, activityId, isOptional, variantId);
     revalidatePath(p(packageId));
     return { success: true as const };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to add activity" };
   }
 }
@@ -99,7 +103,8 @@ export async function handleUpdateActivity(
     await updateItineraryActivity(id, data);
     revalidatePath(p(packageId));
     return { success: true as const };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to update activity" };
   }
 }
@@ -109,7 +114,8 @@ export async function handleDeleteActivity(id: number, packageId: number) {
     await deleteItineraryActivity(id);
     revalidatePath(p(packageId));
     return { success: true as const };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to delete activity" };
   }
 }
@@ -119,7 +125,8 @@ export async function handleAddTransfer(itineraryId: number, data: TransferInput
     await addItineraryTransfer(itineraryId, data);
     revalidatePath(p(packageId));
     return { success: true as const };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to add transfer" };
   }
 }
@@ -129,7 +136,8 @@ export async function handleUpdateTransfer(id: number, data: TransferInput, pack
     await updateItineraryTransfer(id, data);
     revalidatePath(p(packageId));
     return { success: true as const };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to update transfer" };
   }
 }
@@ -139,7 +147,8 @@ export async function handleDeleteTransfer(id: number, packageId: number) {
     await deleteItineraryTransfer(id);
     revalidatePath(p(packageId));
     return { success: true as const };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to delete transfer" };
   }
 }
@@ -149,7 +158,8 @@ export async function handleAddNote(itineraryId: number, data: NoteInput, packag
     await addItineraryNote(itineraryId, data);
     revalidatePath(p(packageId));
     return { success: true as const };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to add note" };
   }
 }
@@ -159,7 +169,8 @@ export async function handleUpdateNote(id: number, data: NoteInput, packageId: n
     await updateItineraryNote(id, data);
     revalidatePath(p(packageId));
     return { success: true as const };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to update note" };
   }
 }
@@ -169,7 +180,8 @@ export async function handleDeleteNote(id: number, packageId: number) {
     await deleteItineraryNote(id);
     revalidatePath(p(packageId));
     return { success: true as const };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to delete note" };
   }
 }
@@ -186,7 +198,8 @@ export async function handleUpsertStay(
     await upsertItineraryStay(itineraryId, stayCategoryId, roomPricingId, sortOrder, numNights);
     revalidatePath(p(packageId));
     return { success: true as const };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to save stay" };
   }
 }
@@ -196,7 +209,8 @@ export async function handleDeleteStay(id: number, packageId: number) {
     await deleteItineraryStay(id);
     revalidatePath(p(packageId));
     return { success: true as const };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to remove stay" };
   }
 }
@@ -206,7 +220,8 @@ export async function handleReorderItems(updates: ReorderItem[], packageId: numb
     await reorderDayItems(updates);
     revalidatePath(p(packageId));
     return { success: true as const };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to reorder" };
   }
 }
@@ -215,7 +230,8 @@ export async function handleGetVehicles() {
   try {
     const data = await getVehicles();
     return { success: true as const, data };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, data: [] as Awaited<ReturnType<typeof getVehicles>>, message: "Failed to load vehicles" };
   }
 }
@@ -224,7 +240,8 @@ export async function handleSearchActivities(destinationId: number, query: strin
   try {
     const data = await searchActivities(destinationId, query);
     return { success: true as const, data };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, data: [] as Awaited<ReturnType<typeof searchActivities>>, message: "Search failed" };
   }
 }
@@ -233,7 +250,8 @@ export async function handleSearchRoomPricings(destinationId: number, query: str
   try {
     const data = await searchRoomPricings(destinationId, query);
     return { success: true as const, data };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, data: [] as Awaited<ReturnType<typeof searchRoomPricings>>, message: "Search failed" };
   }
 }
@@ -244,7 +262,8 @@ export async function handleGetStayCategories(packageId: number) {
   try {
     const data = await getStayCategories(packageId);
     return { success: true as const, data };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to load stay categories" };
   }
 }
@@ -254,7 +273,8 @@ export async function handleCreateStayCategory(packageId: number, data: StayCate
     const result = await createStayCategory(packageId, data);
     revalidatePath(p(packageId));
     return { success: true as const, data: result };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to create tier" };
   }
 }
@@ -264,7 +284,8 @@ export async function handleUpdateStayCategory(id: number, data: StayCategoryInp
     const result = await updateStayCategory(id, data);
     revalidatePath(p(packageId));
     return { success: true as const, data: result };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to update tier" };
   }
 }
@@ -274,7 +295,8 @@ export async function handleDeleteStayCategory(id: number, packageId: number) {
     await deleteStayCategory(id);
     revalidatePath(p(packageId));
     return { success: true as const };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Cannot delete — this tier is in use by an itinerary" };
   }
 }
@@ -287,7 +309,8 @@ export async function handleReorderStayCategories(
     await reorderStayCategories(updates);
     revalidatePath(p(packageId));
     return { success: true as const };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to reorder" };
   }
 }
@@ -298,7 +321,8 @@ export async function handleGetDaySourceImages(itineraryId: number, packageId: n
   try {
     const data = await getDaySourceImages(itineraryId, packageId);
     return { success: true as const, data };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to load images" };
   }
 }
@@ -315,7 +339,8 @@ export async function handleAddAttraction(
     const data = await addItineraryAttraction(itineraryId, imageKey, caption);
     revalidatePath(p(packageId));
     return { success: true as const, data };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to add attraction" };
   }
 }
@@ -325,7 +350,8 @@ export async function handleUpdateAttraction(id: number, caption: string, packag
     await updateItineraryAttraction(id, caption);
     revalidatePath(p(packageId));
     return { success: true as const };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to update attraction" };
   }
 }
@@ -335,7 +361,8 @@ export async function handleDeleteAttraction(id: number, packageId: number) {
     await deleteItineraryAttraction(id);
     revalidatePath(p(packageId));
     return { success: true as const };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to delete attraction" };
   }
 }
@@ -348,7 +375,8 @@ export async function handleReorderAttractions(
     await reorderItineraryAttractions(updates);
     revalidatePath(p(packageId));
     return { success: true as const };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { success: false as const, message: "Failed to reorder attractions" };
   }
 }
