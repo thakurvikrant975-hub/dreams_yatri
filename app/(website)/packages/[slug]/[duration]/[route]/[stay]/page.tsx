@@ -43,8 +43,6 @@ export default async function PackagePage({
     const pageData = await fetchPackagePageData(_slug, _duration, _route, _stay);
     if (!pageData) notFound();
 
-    console.log(pageData);
-
     const R2 = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? "";
     const imgUrl = (key: string | null | undefined): string =>
         !key ? "" : key.startsWith("http") ? key : `${R2}/${key}`;
@@ -102,56 +100,61 @@ export default async function PackagePage({
         pageData.destination.name;
 
     // ── Itinerary ──────────────────────────────────────────────────────────────
-    const itinerary: ItineraryDay[] = pageData.itinerary.map(d => ({
-        day: d.day,
-        title: d.title,
-        description: d.description ?? "",
-        notes: d.notes,
-        sections: [
-            // Transfers first (cab/vehicle sections)
-            ...d.transfers.map(t => ({
-                type: "cab" as const,
-                from: { label: "Pickup", value: t.pickup_name ?? "–" },
-                to:   { label: "Drop",   value: t.drop_name   ?? "–" },
-                distance_km:      t.distance_km,
-                vehicle_name:     t.vehicle_name,
-                vehicle_type:     t.vehicle_type,
-                vehicle_capacity: t.vehicle_capacity,
-                num_vehicles:     t.num_vehicles,
-                transfer_notes:   t.notes,
+    const itinerary: ItineraryDay[] = pageData.itinerary.map(d => {
+        type SortableSection = DaySection & { _sort: number };
+
+        const transferSections: SortableSection[] = d.transfers.map(t => ({
+            _sort: t.sort_order,
+            type: "cab" as const,
+            from: { label: "Pickup", value: t.pickup_name ?? "–" },
+            to:   { label: "Drop",   value: t.drop_name   ?? "–" },
+            distance_km:      t.distance_km,
+            vehicle_name:     t.vehicle_name,
+            vehicle_type:     t.vehicle_type,
+            vehicle_capacity: t.vehicle_capacity,
+            num_vehicles:     t.num_vehicles,
+            transfer_notes:   t.notes,
+        }));
+
+        const hotelSections: SortableSection[] = d.hotel ? [{
+            _sort: d.hotel.sort_order,
+            type: "stay" as const,
+            nights: 1,
+            hotelName: d.hotel.name,
+            stayType: d.hotel.stay_type ?? null,
+            checkIn: d.hotel.check_in_time ?? "",
+            checkOut: d.hotel.check_out_time ?? "",
+            address: d.hotel.address,
+            inclusions: [],
+            roomName: d.hotel.room_name,
+            roomCapacity: d.hotel.room_capacity,
+            mealType: d.hotel.meal_type,
+            planName: d.hotel.plan_name,
+            images: [
+                d.hotel.images[0],
+                d.hotel.room_images[0], d.hotel.room_images[1],
+                d.hotel.images[1], d.hotel.images[2],
+                d.hotel.images[3], d.hotel.images[4],
+            ].filter(img => img?.url).map(img => imgUrl(img!.url)).slice(0, 5),
+        }] : [];
+
+        const activitySections: SortableSection[] = d.activities.map(a => ({
+            _sort: a.sort_order,
+            type: "activity" as const,
+            name: a.name,
+            images: a.images.map(img => ({
+                src: imgUrl(img.url),
+                label: img.label ?? img.alt ?? a.category ?? a.name,
             })),
-            // Hotel stay
-            ...(d.hotel ? [{
-                type: "stay" as const,
-                nights: 1,
-                hotelName: d.hotel.name,
-                stayType: d.hotel.stay_type ?? null,
-                checkIn: d.hotel.check_in_time ?? "",
-                checkOut: d.hotel.check_out_time ?? "",
-                address: d.hotel.address,
-                inclusions: [],
-                roomName: d.hotel.room_name,
-                roomCapacity: d.hotel.room_capacity,
-                mealType: d.hotel.meal_type,
-                planName: d.hotel.plan_name,
-                images: [
-                    d.hotel.images[0],
-                    d.hotel.room_images[0], d.hotel.room_images[1],
-                    d.hotel.images[1], d.hotel.images[2],
-                    d.hotel.images[3], d.hotel.images[4],
-                ].filter(img => img?.url).map(img => imgUrl(img!.url)).slice(0, 5),
-            }] : []),
-            // Activities
-            ...d.activities.map(a => ({
-                type: "activity" as const,
-                name: a.name,
-                images: a.images.map(img => ({
-                    src: imgUrl(img.url),
-                    label: img.label ?? img.alt ?? a.category ?? a.name,
-                })),
-            })),
-        ] as DaySection[],
-    }));
+        }));
+
+        const sections = [...transferSections, ...hotelSections, ...activitySections]
+            .sort((a, b) => a._sort - b._sort)
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            .map(({ _sort, ...s }) => s as DaySection);
+
+        return { day: d.day, title: d.title, description: d.description ?? "", notes: d.notes, sections };
+    });
 
     // ── Region fallback ────────────────────────────────────────────────────────
     const region = pageData.destination.region

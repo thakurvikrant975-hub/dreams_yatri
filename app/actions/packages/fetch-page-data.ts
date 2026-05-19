@@ -43,6 +43,7 @@ export type StayCategoryOption = {
 
 export type HotelDay = {
   id: number;
+  sort_order: number;
   name: string;
   slug: string;
   stay_type: string | null;
@@ -61,6 +62,7 @@ export type HotelDay = {
 
 export type ActivityDay = {
   id: number;
+  sort_order: number;
   name: string;
   description: string | null;
   duration_hours: number | null;
@@ -74,6 +76,7 @@ export type ActivityDay = {
 
 export type TransferDay = {
   id: number;
+  sort_order: number;
   pickup_name: string | null;
   drop_name: string | null;
   distance_km: number | null;
@@ -300,6 +303,8 @@ export async function fetchPackagePageData(
           where: { stay_category_id: selectedStay.id },
           take: 1,
           select: {
+            sort_order: true,
+            num_nights: true,
             room_pricing: {
               select: {
                 plan_name: true,
@@ -342,6 +347,7 @@ export async function fetchPackagePageData(
           orderBy: { sort_order: "asc" },
           select: {
             id: true,
+            sort_order: true,
             is_optional: true,
             activity: {
               select: {
@@ -374,6 +380,7 @@ export async function fetchPackagePageData(
           orderBy: { sort_order: "asc" },
           select: {
             id: true,
+            sort_order: true,
             num_vehicles: true,
             notes: true,
             route: {
@@ -412,13 +419,16 @@ export async function fetchPackagePageData(
   ]);
 
   // ── Step 4: shape itinerary ────────────────────────────────────────────────
-  const itinerary: ItineraryDayData[] = itineraries.map((day) => {
+  type ItineraryWithNights = ItineraryDayData & { _numNights: number };
+
+  const itineraryWithNights: ItineraryWithNights[] = itineraries.map((day) => {
     const stay = day.itineraryStays[0] ?? null;
     const rp = stay?.room_pricing ?? null;
 
     const hotel: HotelDay | null = rp
       ? {
           id: rp.hotel.id,
+          sort_order: stay?.sort_order ?? 0,
           name: rp.hotel.name,
           slug: rp.hotel.slug,
           stay_type: rp.hotel.stay_type,
@@ -438,6 +448,7 @@ export async function fetchPackagePageData(
 
     const activities: ActivityDay[] = day.itinerary_activities.map((ia) => ({
       id: ia.activity.id,
+      sort_order: ia.sort_order,
       name: ia.activity.name,
       description: ia.activity.description,
       duration_hours: ia.activity.duration_hours
@@ -456,6 +467,7 @@ export async function fetchPackagePageData(
 
     const transfers: TransferDay[] = day.itinerary_transfers.map((tr) => ({
       id: tr.id,
+      sort_order: tr.sort_order,
       pickup_name: tr.route?.pickup_name ?? null,
       drop_name: tr.route?.drop_name ?? null,
       distance_km: tr.route?.distance_km ? Number(tr.route.distance_km) : null,
@@ -475,8 +487,22 @@ export async function fetchPackagePageData(
       activities,
       transfers,
       notes: day.itinerary_notes,
+      _numNights: stay?.num_nights ?? 1,
     };
   });
+
+  // Propagate multi-night hotel stays to covered days that have no own stay
+  const itinerary: ItineraryDayData[] = itineraryWithNights.map((d, idx) => {
+    if (d.hotel !== null) return d;
+    for (let j = 0; j < idx; j++) {
+      const prior = itineraryWithNights[j];
+      if (prior.hotel && prior.day + prior._numNights > d.day) {
+        return { ...d, hotel: prior.hotel };
+      }
+    }
+    return d;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  }).map(({ _numNights, ...d }) => d);
 
   // ── Step 5: assemble final shape ──────────────────────────────────────────
   return {

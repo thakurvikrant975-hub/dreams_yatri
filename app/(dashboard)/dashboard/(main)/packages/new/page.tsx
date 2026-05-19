@@ -1,8 +1,8 @@
-import { PackageForm } from "../components/PackageForm";
+import { NewPackageClient } from "./NewPackageClient";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-    title: "New Packages  - Dashboard",
+    title: "New Package - Dashboard",
     description: "",
     robots: {
         index: false,
@@ -13,7 +13,5 @@ export const metadata: Metadata = {
 };
 
 export default function NewPackagePage() {
-  return (
-      <PackageForm />
-  );
-}   
+  return <NewPackageClient />;
+}

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Badge } from "../ui/badge";
-import { Loader2, ChevronsUpDown, Check, X } from "lucide-react";
+import { Loader2, ChevronsUpDown, Check, X, Plus } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 
 type Option = {
@@ -16,6 +16,7 @@ type MultiSearchSelectProps = {
   value: string[];
   onChange: (val: string[]) => void;
   fetchOptions: (query: string) => Promise<Option[]>;
+  createOption?: (name: string) => Promise<Option>;
   placeholder?: string;
   disabled?: boolean;
 };
@@ -24,6 +25,7 @@ export function MultiSearchSelect({
   value,
   onChange,
   fetchOptions,
+  createOption,
   placeholder = "Search...",
   disabled = false,
 }: MultiSearchSelectProps) {
@@ -31,6 +33,7 @@ export function MultiSearchSelect({
   const [query, setQuery] = useState("");
   const [options, setOptions] = useState<Option[]>([]);
   const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -93,6 +96,27 @@ export function MultiSearchSelect({
     onChange(value.filter(v => v !== name));
   }
 
+  async function handleCreate() {
+    if (!createOption || !query.trim() || creating) return;
+    setCreating(true);
+    try {
+      const created = await createOption(query.trim());
+      onChange([...value, created.label]);
+      setQuery("");
+      setOpen(false);
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  const trimmedQuery = query.trim();
+  const canCreate =
+    !!createOption &&
+    trimmedQuery.length > 0 &&
+    !loading &&
+    !options.some((o) => o.label.toLowerCase() === trimmedQuery.toLowerCase()) &&
+    !value.some((v) => v.toLowerCase() === trimmedQuery.toLowerCase());
+
   return (
     <div className="space-y-1.5">
       {value.length > 0 && (
@@ -145,7 +169,7 @@ export function MultiSearchSelect({
                 <div className="flex items-center justify-center py-5">
                   <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                 </div>
-              ) : options.length === 0 ? (
+              ) : options.length === 0 && !canCreate ? (
                 <p className="text-xs text-muted-foreground text-center py-5">
                   {query ? "No results found" : "Start typing to search"}
                 </p>
@@ -169,6 +193,22 @@ export function MultiSearchSelect({
                 ))
               )}
             </div>
+
+            {canCreate && (
+              <div className="border-t p-1">
+                <button
+                  type="button"
+                  onClick={handleCreate}
+                  disabled={creating}
+                  className="w-full flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-primary/10 text-primary text-left"
+                >
+                  {creating
+                    ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                    : <Plus className="h-3.5 w-3.5 shrink-0" />}
+                  <span className="font-medium">Create &quot;{trimmedQuery}&quot;</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

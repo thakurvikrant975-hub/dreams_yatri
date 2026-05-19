@@ -299,6 +299,16 @@ function TimelineRowCard({
 
 // ── Transfer form helpers ──────────────────────────────────────────────────
 
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 type TransferFormData = {
   pickup: LocationResult | null;
   drop: LocationResult | null;
@@ -341,14 +351,36 @@ function TransferEditForm({
   onDelete: () => void;
 }) {
   const [form, setForm] = useState<TransferFormData>({
-    pickup: item.route ? { place_name: item.route.pickup_name, place_id: "", address: item.route.pickup_name, latitude: 0, longitude: 0 } : null,
-    drop: item.route ? { place_name: item.route.drop_name, place_id: "", address: item.route.drop_name, latitude: 0, longitude: 0 } : null,
+    pickup: item.route
+      ? {
+          place_name: item.route.pickup_name,
+          place_id: "",
+          address: item.route.pickup_name,
+          latitude: item.route.pickup_lat ?? 0,
+          longitude: item.route.pickup_lng ?? 0,
+        }
+      : null,
+    drop: item.route
+      ? {
+          place_name: item.route.drop_name,
+          place_id: "",
+          address: item.route.drop_name,
+          latitude: item.route.drop_lat ?? 0,
+          longitude: item.route.drop_lng ?? 0,
+        }
+      : null,
     vehicle_id: item.vehicle_id,
     num_vehicles: String(item.num_vehicles),
     notes: item.notes ?? "",
   });
 
   const isValid = !!form.pickup && !!form.drop;
+
+  const distanceKm = item.route?.distance_km != null
+    ? item.route.distance_km
+    : (form.pickup && form.drop && form.pickup.latitude && form.drop.latitude)
+      ? Math.round(haversineKm(form.pickup.latitude, form.pickup.longitude, form.drop.latitude, form.drop.longitude))
+      : null;
 
   return (
     <div className="space-y-4">
@@ -360,6 +392,15 @@ function TransferEditForm({
         <Label className="text-xs">Drop Location <span className="text-destructive">*</span></Label>
         <LocationPickerField value={form.drop} onChange={(v) => setForm(f => ({ ...f, drop: v }))} placeholder="Search drop point…" />
       </div>
+      {distanceKm != null && (
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
+          <Car className="h-3.5 w-3.5 shrink-0" />
+          <span>~{distanceKm} km road distance</span>
+          {item.route?.duration_min != null && (
+            <span className="text-muted-foreground/60">· ~{Math.round(item.route.duration_min / 60)}h {item.route.duration_min % 60}m</span>
+          )}
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label className="text-xs">Vehicle</Label>
@@ -555,6 +596,10 @@ function AddTransferForm({
   });
   const isValid = !!form.pickup && !!form.drop;
 
+  const distanceKm = (form.pickup && form.drop && form.pickup.latitude && form.drop.latitude)
+    ? Math.round(haversineKm(form.pickup.latitude, form.pickup.longitude, form.drop.latitude, form.drop.longitude))
+    : null;
+
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
@@ -565,6 +610,12 @@ function AddTransferForm({
         <Label className="text-xs">Drop Location <span className="text-destructive">*</span></Label>
         <LocationPickerField value={form.drop} onChange={(v) => setForm(f => ({ ...f, drop: v }))} placeholder="Search drop point…" />
       </div>
+      {distanceKm != null && (
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
+          <Car className="h-3.5 w-3.5 shrink-0" />
+          <span>~{distanceKm} km (road distance computed on save)</span>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label className="text-xs">Vehicle</Label>

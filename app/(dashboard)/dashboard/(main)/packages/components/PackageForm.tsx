@@ -9,6 +9,8 @@ import {
   searchDestinations,
   searchTags,
   searchCategories,
+  createTag,
+  createCategory,
 } from "@/app/actions/packages/search.actions";
 import { createPackage, updatePackageBasicInfo } from "@/app/actions/packages/package.actions";
 import { createPackageSchema } from "@/app/validators/package.validator";
@@ -164,7 +166,7 @@ function AddButton({ onClick, variant }: { onClick: () => void; variant: "succes
       type="button"
       onClick={onClick}
       className={cn(
-        "flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-lg",
+        "flex h-9.5 w-9.5 shrink-0 items-center justify-center rounded-lg",
         "border border-dashboard-base-300 bg-dashboard-base-100",
         "text-dashboard-base-content/40 transition-colors",
         variant === "success" &&
@@ -322,7 +324,193 @@ export function PackageForm({
   const isFirstStep = step === 0;
   const isLastStep = step === STEPS.length - 1;
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Shared section blocks ─────────────────────────────────────────────────
+
+  const sectionBasicInfo = (
+    <div className="flex flex-col gap-5 rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 p-5">
+      <SectionLabel icon={<Info className="h-3.5 w-3.5" />}>Package details</SectionLabel>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Title" icon={<AlignLeft className="h-3 w-3 text-dashboard-base-content" />} error={errors.title}>
+          <input
+            className={`${inputCls(!!errors.title)} border border-dashboard-base-content/40`}
+            value={data.title}
+            onChange={(e) => handleTitleChange(e.target.value)}
+            placeholder="e.g. Kerala Backwaters Tour"
+          />
+        </Field>
+        <Field label="Slug" icon={<Link2 className="h-3 w-3 text-dashboard-base-content" />} error={errors.slug}>
+          <div className="flex">
+            <span className="flex items-center whitespace-nowrap rounded-l-lg border border-r-0 border-dashboard-base-300 bg-dashboard-base-content/80 px-3 text-[12px] font-medium text-dashboard-base-100">
+              packages/
+            </span>
+            <input
+              className={cn(inputCls(!!errors.slug), "rounded-l-none border-r border-y border-dashboard-base-content/40")}
+              value={data.slug}
+              onChange={(e) => handleSlugChange(e.target.value)}
+              placeholder="kerala-backwaters-tour"
+            />
+          </div>
+        </Field>
+      </div>
+      <Field label="Description" icon={<AlignLeft className="h-3 w-3 text-dashboard-base-content" />} error={errors.description}>
+        <textarea
+          className={cn(inputCls(!!errors.description), "min-h-22 border border-dashboard-base-content/40 resize-none leading-relaxed")}
+          value={data.description}
+          onChange={(e) => update("description", e.target.value)}
+          placeholder="Describe what makes this package special..."
+        />
+      </Field>
+      <Field label="Destination" icon={<MapPin className="h-3 w-3 text-dashboard-base-content" />} error={errors.destination_id}>
+        <SearchSelect
+          value={data.destination_id}
+          onChange={(val) => update("destination_id", val)}
+          fetchOptions={searchDestinations}
+          placeholder="Search destinations..."
+          initialLabel={initialDestinationLabel}
+        />
+      </Field>
+    </div>
+  );
+
+  const sectionMedia = (
+    <div className="flex flex-col gap-4 rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 p-5">
+      <SectionLabel icon={<ImageIcon className="h-3.5 w-3.5" />}>Thumbnail image</SectionLabel>
+      <div className="w-full">
+        <ImageUpload
+          name="thumbnail"
+          label="Upload Thumbnail"
+          folder="packages"
+          aspectRatio="wide"
+          value={thumbnailImage}
+          onChange={(img) => {
+            setThumbnailImage(img);
+            update("thumbnail", img?.key ?? null);
+          }}
+        />
+      </div>
+      <FieldError message={errors.thumbnail} />
+    </div>
+  );
+
+  const sectionCategorise = (
+    <div className="flex flex-col gap-5 rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 p-5">
+      <SectionLabel icon={<Tag className="h-3.5 w-3.5" />}>Tags &amp; Categories</SectionLabel>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Tags" icon={<Hash className="h-3 w-3 text-dashboard-base-content" />} error={errors.tags}>
+          <MultiSearchSelect
+            value={data.tags}
+            onChange={(val) => update("tags", val)}
+            fetchOptions={searchTags}
+            createOption={createTag}
+            placeholder="Search or create tags..."
+          />
+        </Field>
+        <Field label="Categories" icon={<Tag className="h-3 w-3 text-dashboard-base-content" />} error={errors.category}>
+          <MultiSearchSelect
+            value={data.category}
+            onChange={(val) => update("category", val)}
+            fetchOptions={searchCategories}
+            createOption={createCategory}
+            placeholder="Search or create categories..."
+          />
+        </Field>
+      </div>
+    </div>
+  );
+
+  const sectionInclusions = (
+    <div className="flex flex-col gap-5 rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 p-5">
+      <SectionLabel icon={<CheckCircle2 className="h-3.5 w-3.5" />}>
+        What&apos;s included &amp; excluded
+      </SectionLabel>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="flex flex-col gap-3">
+          <span className="flex items-center gap-1.5 text-[12px] font-medium text-dashboard-base-content/75">
+            <CheckCircle2 className="h-3.5 w-3.5 text-dashboard-success" />
+            Inclusions
+          </span>
+          <div className="flex gap-2">
+            <input
+              className={`${inputCls(!!errors.inclusions)} border border-dashboard-base-content/40`}
+              value={newInclusion}
+              onChange={(e) => setNewInclusion(e.target.value)}
+              placeholder="e.g. Breakfast included"
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addItem("inclusions", newInclusion, () => setNewInclusion("")); } }}
+            />
+            <AddButton variant="success" onClick={() => addItem("inclusions", newInclusion, () => setNewInclusion(""))} />
+          </div>
+          <FieldError message={errors.inclusions} />
+          {data.inclusions.length > 0 && (
+            <ul className="flex flex-col gap-1.5">
+              {data.inclusions.map((item, i) => (
+                <li key={i} className="flex items-center gap-2 rounded-lg border border-dashboard-success/20 bg-dashboard-success/8 px-3 py-2 text-dashboard-success">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                  <span className="flex-1 min-w-0 truncate text-xs font-medium">{item}</span>
+                  <button type="button" onClick={() => removeItem("inclusions", i)} className="shrink-0 rounded p-0.5 transition-colors hover:bg-dashboard-success/20" aria-label="Remove">
+                    <X className="h-3 w-3 text-dashboard-base-content" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="flex flex-col gap-3">
+          <span className="flex items-center gap-1.5 text-[12px] font-medium text-dashboard-base-content/75">
+            <XCircle className="h-3.5 w-3.5 text-dashboard-error" />
+            Exclusions
+          </span>
+          <div className="flex gap-2">
+            <input
+              className={`${inputCls(!!errors.exclusions)} border border-dashboard-base-content/40`}
+              value={newExclusion}
+              onChange={(e) => setNewExclusion(e.target.value)}
+              placeholder="e.g. Flight tickets"
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addItem("exclusions", newExclusion, () => setNewExclusion("")); } }}
+            />
+            <AddButton variant="error" onClick={() => addItem("exclusions", newExclusion, () => setNewExclusion(""))} />
+          </div>
+          <FieldError message={errors.exclusions} />
+          {data.exclusions.length > 0 && (
+            <ul className="flex flex-col gap-1.5">
+              {data.exclusions.map((item, i) => (
+                <li key={i} className="flex items-center gap-2 rounded-lg border border-dashboard-error/20 bg-dashboard-error/8 px-3 py-2 text-dashboard-error">
+                  <XCircle className="h-3.5 w-3.5 shrink-0" />
+                  <span className="flex-1 min-w-0 truncate text-xs font-medium">{item}</span>
+                  <button type="button" onClick={() => removeItem("exclusions", i)} className="shrink-0 rounded p-0.5 transition-colors hover:bg-dashboard-error/20" aria-label="Remove">
+                    <X className="h-3 w-3 text-dashboard-base-content" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── Update mode: single scrollable form ───────────────────────────────────
+
+  if (mode === "update") {
+    return (
+      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+        {sectionBasicInfo}
+        {sectionMedia}
+        {sectionCategorise}
+        {sectionInclusions}
+        <div className="flex justify-end rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 px-5 py-4">
+          <button type="submit" disabled={isSubmitting} className={cn(primaryBtn, "min-w-37")}>
+            {isSubmitting ? (
+              <><Loader2 className="h-3.5 w-3.5 animate-spin" />Saving…</>
+            ) : (
+              <><Save className="h-3.5 w-3.5" />Save Changes</>
+            )}
+          </button>
+        </div>
+      </form>
+    );
+  }
+
+  // ── Create mode: step wizard ──────────────────────────────────────────────
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
@@ -333,14 +521,8 @@ export function PackageForm({
           <Package className="h-5 w-5 text-dashboard-primary-content" />
         </div>
         <div>
-          <h2 className="text-[17px] font-semibold tracking-tight text-dashboard-base-content">
-            {mode === "update" ? "Edit Package" : "Create Package"}
-          </h2>
-          <p className="mt-0.5 text-[13px] text-dashboard-base-content/50">
-            {mode === "update"
-              ? "Update the details for this tour package"
-              : "Fill in the details to publish a new tour package"}
-          </p>
+          <h2 className="text-[17px] font-semibold tracking-tight text-dashboard-base-content">Create Package</h2>
+          <p className="mt-0.5 text-[13px] text-dashboard-base-content/50">Fill in the details to publish a new tour package</p>
         </div>
       </div>
 
@@ -355,242 +537,34 @@ export function PackageForm({
               type="button"
               onClick={() => setStep(i)}
               className={cn(
-                "flex items-center gap-1.5 rounded-full px-3.5 py-[5px] text-[12px] font-semibold transition-all cursor-pointer",
+                "flex items-center gap-1.5 rounded-full px-3.5 py-1.25 text-[12px] font-semibold transition-all cursor-pointer",
                 isActive && "bg-dashboard-primary text-dashboard-base-100",
                 isDone && "bg-dashboard-success/15 text-dashboard-success",
-                !isActive && !isDone &&
-                "bg-dashboard-base-200 text-dashboard-base-content/75 hover:text-dashboard-base-content/70",
+                !isActive && !isDone && "bg-dashboard-base-200 text-dashboard-base-content/75 hover:text-dashboard-base-content/70",
               )}
             >
-              <Icon className={cn("h-3 w-3 text-dashboard-base-content",                 isActive && "bg-dashboard-primary text-dashboard-base-100",
-                isDone && "bg-dashboard-success/15 text-dashboard-success",
-                !isActive && !isDone &&
-                "bg-dashboard-base-200 text-dashboard-base-content/75 hover:text-dashboard-base-content/70",)} />
+              <Icon className={cn("h-3 w-3",
+                isActive && "text-dashboard-base-100",
+                isDone && "text-dashboard-success",
+                !isActive && !isDone && "text-dashboard-base-content/75",
+              )} />
               {label}
             </button>
           );
         })}
       </div>
 
-      {/* ── STEP 0 — Basic info ── */}
-      {step === 0 && (
-        <div className="flex flex-col gap-5 rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 p-5">
-          <SectionLabel icon={<Info className="h-3.5 w-3.5" />}>
-            Package details
-          </SectionLabel>
+      {step === 0 && sectionBasicInfo}
+      {step === 1 && sectionMedia}
+      {step === 2 && sectionCategorise}
+      {step === 3 && sectionInclusions}
 
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Title" icon={<AlignLeft className="h-3 w-3 text-dashboard-base-content " />} error={errors.title}>
-              <input
-                className={`${inputCls(!!errors.title)} border border-dashboard-base-content/40`}
-                value={data.title}
-                onChange={(e) => handleTitleChange(e.target.value)}
-                placeholder="e.g. Kerala Backwaters Tour"
-              />
-            </Field>
-
-            <Field label="Slug" icon={<Link2 className="h-3 w-3 text-dashboard-base-content" />} error={errors.slug}>
-              <div className="flex">
-                <span className="flex items-center whitespace-nowrap rounded-l-lg border border-r-0 border-dashboard-base-300 bg-dashboard-base-content/80 px-3 text-[12px] font-medium text-dashboard-base-100">
-                  packages/
-                </span>
-                <input
-                  className={cn(inputCls(!!errors.slug), "rounded-l-none  border-r border-y border-dashboard-base-content/40")}
-                  value={data.slug}
-                  onChange={(e) => handleSlugChange(e.target.value)}
-                  placeholder="kerala-backwaters-tour"
-                />
-              </div>
-            </Field>
-          </div>
-
-          <Field label="Description" icon={<AlignLeft className="h-3 w-3 text-dashboard-base-content" />} error={errors.description}>
-            <textarea
-              className={cn(inputCls(!!errors.description), "min-h-[88px] border border-dashboard-base-content/40 resize-none leading-relaxed")}
-              value={data.description}
-              onChange={(e) => update("description", e.target.value)}
-              placeholder="Describe what makes this package special..."
-            />
-          </Field>
-
-          <Field label="Destination" icon={<MapPin className="h-3 w-3 text-dashboard-base-content" />} error={errors.destination_id}>
-            <SearchSelect
-              value={data.destination_id}
-              onChange={(val) => update("destination_id", val)}
-              fetchOptions={searchDestinations}
-              placeholder="Search destinations..."
-              initialLabel={initialDestinationLabel}
-            />
-          </Field>
-        </div>
-      )}
-
-      {/* ── STEP 1 — Media ── */}
-      {step === 1 && (
-        <div className="flex flex-col gap-4 rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 p-5">
-          <SectionLabel icon={<ImageIcon className="h-3.5 w-3.5" />}>
-            Thumbnail image
-          </SectionLabel>
-          <div className="w-full">
-            <ImageUpload
-              name="thumbnail"
-              label="Upload Thumbnail"
-              folder="packages"
-              aspectRatio="wide"
-              value={thumbnailImage}
-              onChange={(img) => {
-                setThumbnailImage(img);
-                update("thumbnail", img?.key ?? null);
-              }}
-            />
-          </div>
-          <FieldError message={errors.thumbnail} />
-        </div>
-      )}
-
-      {/* ── STEP 2 — Categorise ── */}
-      {step === 2 && (
-        <div className="flex flex-col gap-5 rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 p-5">
-          <SectionLabel icon={<Tag className="h-3.5 w-3.5" />}>
-            Tags &amp; Categories
-          </SectionLabel>
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Tags" icon={<Hash className="h-3 w-3 text-dashboard-base-content" />} error={errors.tags}>
-              <MultiSearchSelect
-                value={data.tags}
-                onChange={(val) => update("tags", val)}
-                fetchOptions={searchTags}
-                placeholder="Search tags..."
-              />
-            </Field>
-            <Field label="Categories" icon={<Tag className="h-3 w-3 text-dashboard-base-content" />} error={errors.category}>
-              <MultiSearchSelect
-                value={data.category}
-                onChange={(val) => update("category", val)}
-                fetchOptions={searchCategories}
-                placeholder="Search categories..."
-              />
-            </Field>
-          </div>
-        </div>
-      )}
-
-      {/* ── STEP 3 — Inclusions & Exclusions ── */}
-      {step === 3 && (
-        <div className="flex flex-col gap-5 rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 p-5">
-          <SectionLabel icon={<CheckCircle2 className="h-3.5 w-3.5" />}>
-            What&apos;s included &amp; excluded
-          </SectionLabel>
-
-          <div className="grid grid-cols-2 gap-4">
-
-            {/* Inclusions */}
-            <div className="flex flex-col gap-3">
-              <span className="flex items-center gap-1.5 text-[12px] font-medium text-dashboard-base-content/75">
-                <CheckCircle2 className="h-3.5 w-3.5 text-dashboard-success" />
-                Inclusions
-              </span>
-              <div className="flex gap-2">
-                <input
-                  className={`${inputCls(!!errors.inclusions)} border border-dashboard-base-content/40`} 
-                  value={newInclusion}
-                  onChange={(e) => setNewInclusion(e.target.value)}
-                  placeholder="e.g. Breakfast included"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addItem("inclusions", newInclusion, () => setNewInclusion(""));
-                    }
-                  }}
-                />
-                <AddButton
-                  variant="success"
-                  onClick={() => addItem("inclusions", newInclusion, () => setNewInclusion(""))}
-                />
-              </div>
-              <FieldError message={errors.inclusions} />
-              {data.inclusions.length > 0 && (
-                <ul className="flex flex-col gap-1.5">
-                  {data.inclusions.map((item, i) => (
-                    <li
-                      key={i}
-                      className="flex items-center gap-2 rounded-lg border border-dashboard-success/20 bg-dashboard-success/8 px-3 py-2 text-dashboard-success"
-                    >
-                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                      <span className="flex-1 min-w-0 truncate text-xs font-medium">{item}</span>
-                      <button
-                        type="button"
-                        onClick={() => removeItem("inclusions", i)}
-                        className="shrink-0 rounded p-0.5 transition-colors hover:bg-dashboard-success/20"
-                        aria-label="Remove"
-                      >
-                        <X className="h-3 w-3 text-dashboard-base-content" />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            {/* Exclusions */}
-            <div className="flex flex-col gap-3">
-              <span className="flex items-center gap-1.5 text-[12px] font-medium text-dashboard-base-content/75">
-                <XCircle className="h-3.5 w-3.5 text-dashboard-error" />
-                Exclusions
-              </span>
-              <div className="flex gap-2">
-                <input
-                  className={`${inputCls(!!errors.exclusions)} border border-dashboard-base-content/40`}
-                  value={newExclusion}
-                  onChange={(e) => setNewExclusion(e.target.value)}
-                  placeholder="e.g. Flight tickets"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addItem("exclusions", newExclusion, () => setNewExclusion(""));
-                    }
-                  }}
-                />
-                <AddButton
-                  variant="error"
-                  onClick={() => addItem("exclusions", newExclusion, () => setNewExclusion(""))}
-                />
-              </div>
-              <FieldError message={errors.exclusions} />
-              {data.exclusions.length > 0 && (
-                <ul className="flex flex-col gap-1.5">
-                  {data.exclusions.map((item, i) => (
-                    <li
-                      key={i}
-                      className="flex items-center gap-2 rounded-lg border border-dashboard-error/20 bg-dashboard-error/8 px-3 py-2 text-dashboard-error"
-                    >
-                      <XCircle className="h-3.5 w-3.5 shrink-0" />
-                      <span className="flex-1 min-w-0 truncate text-xs font-medium">{item}</span>
-                      <button
-                        type="button"
-                        onClick={() => removeItem("exclusions", i)}
-                        className="shrink-0 rounded p-0.5 transition-colors hover:bg-dashboard-error/20"
-                        aria-label="Remove"
-                      >
-                        <X className="h-3 w-3 text-dashboard-base-content" />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* ── Footer ── */}
+      {/* Footer */}
       <div className="flex items-center justify-between rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 px-5 py-4">
         <span className="flex items-center gap-1.5 text-[12.5px] text-dashboard-base-content/75">
           <Info className="h-3.5 w-3.5" />
           Step {step + 1} of {STEPS.length} — {STEPS[step].label.toLowerCase()}
         </span>
-
         <div className="flex items-center gap-2.5">
           {!isFirstStep && (
             <button type="button" onClick={() => setStep((s) => s - 1)} className={ghostBtn}>
@@ -598,31 +572,14 @@ export function PackageForm({
               Back
             </button>
           )}
-
           {isLastStep ? (
-            <>
-              <button type="button" className={ghostBtn}>
-                <Save className="h-3.5 w-3.5" />
-                Save draft
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className={cn(primaryBtn, "min-w-[148px]")}
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    {mode === "update" ? "Saving…" : "Creating…"}
-                  </>
-                ) : (
-                  <>
-                    <Rocket className="h-3.5 w-3.5" />
-                    {mode === "update" ? "Save Changes" : "Create Package"}
-                  </>
-                )}
-              </button>
-            </>
+            <button type="submit" disabled={isSubmitting} className={cn(primaryBtn, "min-w-37")}>
+              {isSubmitting ? (
+                <><Loader2 className="h-3.5 w-3.5 animate-spin" />Creating…</>
+              ) : (
+                <><Rocket className="h-3.5 w-3.5" />Create Package</>
+              )}
+            </button>
           ) : (
             <button type="button" onClick={() => setStep((s) => s + 1)} className={primaryBtn}>
               Next

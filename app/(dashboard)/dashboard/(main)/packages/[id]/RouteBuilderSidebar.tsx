@@ -142,6 +142,17 @@ function StopsStep({
     () => deriveRouteName(stops.filter((s) => s.location).map((s) => ({ place_name: s.location!.place_name }))),
     [stops],
   );
+  const mapStops = useMemo(
+    () => stops
+      .filter((s) => s.location)
+      .map((s) => ({
+        place_name: s.location!.place_name,
+        latitude: s.location!.latitude,
+        longitude: s.location!.longitude,
+        stay_days: s.stay_nights,
+      })),
+    [stops],
+  );
 
   useEffect(() => { setStepData("stops", { stops }); }, [stops, setStepData]);
 
@@ -194,6 +205,8 @@ function StopsStep({
           </div>
         </div>
       )}
+
+      {mapStops.length > 0 && <RoutePreviewMap stops={mapStops} />}
     </div>
   );
 }

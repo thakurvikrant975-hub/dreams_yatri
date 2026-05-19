@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useMemo } from "react";
 import Link from "next/link";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Switch } from "../../components/ui/switch";
+import { Input } from "../../components/ui/input";
 import {
   Table, TableBody, TableCell,
   TableHead, TableHeader, TableRow,
@@ -17,7 +18,7 @@ import {
 } from "../../components/ui/alert-dialog";
 import {
   ChevronLeft, ChevronRight,
-  ExternalLink, ImageIcon, MapPin, Pencil, Package, Route, Timer, Trash2,
+  ExternalLink, ImageIcon, MapPin, Pencil, Package, Route, Search, Timer, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { togglePackageActive, deletePackage } from "../actions";
@@ -57,17 +58,39 @@ const base = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
 
 // ── Component ──────────────────────────────────────────────────────────────
 
-export function PackagesTableClient({ packages }: { packages: PackageItem[] }) {
+export function PackagesTableClient({ packages: initialPackages }: { packages: PackageItem[] }) {
   const [isPending, startTransition] = useTransition();
+  const [items, setItems] = useState<PackageItem[]>(initialPackages);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
 
-  const totalPages = Math.max(1, Math.ceil(packages.length / ROWS_PER_PAGE));
-  const rows = packages.slice((page - 1) * ROWS_PER_PAGE, page * ROWS_PER_PAGE);
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(
+      (p) =>
+        p.title.toLowerCase().includes(q) ||
+        p.slug.toLowerCase().includes(q) ||
+        p.destination.name.toLowerCase().includes(q) ||
+        (p.destination.region?.name ?? "").toLowerCase().includes(q),
+    );
+  }, [items, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ROWS_PER_PAGE));
+  const safePage = Math.min(page, totalPages);
+  const rows = filtered.slice((safePage - 1) * ROWS_PER_PAGE, safePage * ROWS_PER_PAGE);
+
+  function handleSearchChange(value: string) {
+    setSearch(value);
+    setPage(1);
+  }
 
   function handleToggle(id: number, current: boolean) {
+    setItems((prev) => prev.map((p) => p.id === id ? { ...p, is_active: !current } : p));
     startTransition(async () => {
       const result = await togglePackageActive(id, !current);
       if (!result.success) {
+        setItems((prev) => prev.map((p) => p.id === id ? { ...p, is_active: current } : p));
         toast.error(result.message ?? "Failed to update package status");
       } else {
         toast.success(`Package ${!current ? "activated" : "deactivated"}`);
@@ -75,15 +98,19 @@ export function PackagesTableClient({ packages }: { packages: PackageItem[] }) {
     });
   }
 
-  function handleDelete(id: number, title: string) {
+  function handleDelete(id: number) {
+    setItems((prev) => prev.filter((p) => p.id !== id));
     startTransition(async () => {
       const result = await deletePackage(id);
       if (result.success) toast.success(result.message);
-      else toast.error(result.message);
+      else {
+        toast.error(result.message);
+        // restore on failure — refetch not possible here, so show error only
+      }
     });
   }
 
-  if (packages.length === 0) {
+  if (initialPackages.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 border rounded-xl bg-muted/30">
         <Package className="h-10 w-10 text-muted-foreground mb-3" />
@@ -95,6 +122,23 @@ export function PackagesTableClient({ packages }: { packages: PackageItem[] }) {
 
   return (
     <div className="space-y-3">
+      {/* Search */}
+      <div className="relative max-w-xs">
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+        <Input
+          value={search}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          placeholder="Search packages…"
+          className="pl-8 h-9 text-sm"
+        />
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 border rounded-xl bg-muted/30">
+          <Search className="h-8 w-8 text-muted-foreground mb-2" />
+          <p className="text-sm font-medium text-muted-foreground">No packages match &quot;{search}&quot;</p>
+        </div>
+      ) : (<>
       <div className="rounded-xl border bg-card overflow-hidden">
         <Table>
           <TableHeader>
@@ -233,7 +277,7 @@ export function PackagesTableClient({ packages }: { packages: PackageItem[] }) {
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
                           <AlertDialogAction
-                            onClick={() => handleDelete(pkg.id, pkg.title)}
+                            onClick={() => handleDelete(pkg.id)}
                             disabled={isPending}
                             className="bg-destructive text-white hover:bg-destructive/90"
                           >
@@ -254,26 +298,26 @@ export function PackagesTableClient({ packages }: { packages: PackageItem[] }) {
       {totalPages > 1 && (
         <div className="flex items-center justify-between px-1">
           <p className="text-xs text-muted-foreground">
-            Showing {(page - 1) * ROWS_PER_PAGE + 1}–{Math.min(page * ROWS_PER_PAGE, packages.length)} of {packages.length} packages
+            Showing {(safePage - 1) * ROWS_PER_PAGE + 1}–{Math.min(safePage * ROWS_PER_PAGE, filtered.length)} of {filtered.length} packages
           </p>
           <div className="flex items-center gap-1">
             <Button
               variant="outline"
               size="icon"
               className="h-7 w-7"
-              disabled={page === 1}
+              disabled={safePage === 1}
               onClick={() => setPage(p => p - 1)}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <span className="text-xs px-2">
-              {page} / {totalPages}
+              {safePage} / {totalPages}
             </span>
             <Button
               variant="outline"
               size="icon"
               className="h-7 w-7"
-              disabled={page === totalPages}
+              disabled={safePage === totalPages}
               onClick={() => setPage(p => p + 1)}
             >
               <ChevronRight className="h-4 w-4" />
@@ -281,6 +325,7 @@ export function PackagesTableClient({ packages }: { packages: PackageItem[] }) {
           </div>
         </div>
       )}
+      </>)}
     </div>
   );
 }
