@@ -187,12 +187,19 @@ export async function togglePackageActive(
     const pkg = await db.packages.findUnique({
       where: { id },
       select: {
+        thumbnail: true,
         durations: {
           where: { is_default: true },
           take: 1,
           select: {
             id: true,
-            routes: { take: 1, select: { id: true } },
+            routes: {
+              take: 1,
+              select: {
+                id: true,
+                _count: { select: { stops: true } },
+              },
+            },
           },
         },
         stay_categories: {
@@ -203,14 +210,32 @@ export async function togglePackageActive(
       },
     });
 
-    if (!pkg?.durations.length) {
+    if (!pkg?.thumbnail) {
+      return { success: false, message: "Add a thumbnail image before activating" };
+    }
+    if (!pkg.durations.length) {
       return { success: false, message: "Set a default duration before activating" };
     }
     if (!pkg.durations[0].routes.length) {
       return { success: false, message: "Add at least one route to the default duration" };
     }
-    if (!pkg?.stay_categories.length) {
+    if (pkg.durations[0].routes[0]._count.stops === 0) {
+      return { success: false, message: "Add at least one stop to the default route before activating" };
+    }
+    if (!pkg.stay_categories.length) {
       return { success: false, message: "Set a default stay category before activating" };
+    }
+
+    const hasPricingConfig = await db.package_pricing.findFirst({
+      where: {
+        package_id: id,
+        duration_id: pkg.durations[0].id,
+        stay_category_id: pkg.stay_categories[0].id,
+      },
+      select: { id: true },
+    });
+    if (!hasPricingConfig) {
+      return { success: false, message: "Configure pricing for the default duration + stay category before activating" };
     }
   }
 
