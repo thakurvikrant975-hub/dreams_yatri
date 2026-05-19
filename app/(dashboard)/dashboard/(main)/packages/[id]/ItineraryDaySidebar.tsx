@@ -667,7 +667,11 @@ function AddActivityForm({
     return res.data.map((a) => ({
       id: a.id,
       label: a.name,
-      description: [a.category, a.duration_hours != null ? `${a.duration_hours}h` : null].filter(Boolean).join(" · "),
+      description: [
+        a.category,
+        a.duration_hours != null ? `${a.duration_hours}h` : null,
+        !a.has_pricing ? "⚠ No pricing set" : null,
+      ].filter(Boolean).join(" · "),
     }));
   }, [destinationId]);
 
@@ -1673,10 +1677,15 @@ export function ItineraryDaySidebar({
                                   onDelete={() => deleteActivity(item.data.id)}
                                   deletePending={deletingId === item.dndId}
                                 >
-                                  <p className="text-xs font-medium flex items-center gap-1.5 flex-wrap">
-                                    {item.data.activity.name}
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <p className="text-xs font-medium">{item.data.activity.name}</p>
                                     {item.data.is_optional && <Badge variant="outline" className="text-[9px] h-3.5 px-1 py-0">Optional</Badge>}
-                                  </p>
+                                    {item.data.variant_id === null && (
+                                      <span className="text-[9px] font-bold bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded leading-none">
+                                        ₹0
+                                      </span>
+                                    )}
+                                  </div>
                                   <p className="text-[10px] text-muted-foreground/60">
                                     {[item.data.activity.category, item.data.activity.duration_hours != null ? `${item.data.activity.duration_hours}h` : null].filter(Boolean).join(" · ")}
                                   </p>

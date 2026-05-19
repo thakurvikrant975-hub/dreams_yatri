@@ -527,7 +527,11 @@ export async function searchActivities(destinationId: number, query: string) {
       is_active: true,
       ...(query ? { name: { contains: query, mode: "insensitive" as const } } : {}),
     },
-    select: { id: true, name: true, duration_hours: true, category: { select: { name: true } } },
+    select: {
+      id: true, name: true, duration_hours: true,
+      category: { select: { name: true } },
+      _count: { select: { variants: true } },
+    },
     take: 20,
     orderBy: { name: "asc" },
   });
@@ -536,6 +540,7 @@ export async function searchActivities(destinationId: number, query: string) {
     name: a.name,
     category: a.category?.name ?? null,
     duration_hours: a.duration_hours != null ? Number(a.duration_hours) : null,
+    has_pricing: a._count.variants > 0,
   }));
 }
 
