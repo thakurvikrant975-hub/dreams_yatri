@@ -4,8 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
-    ExternalLink, ImageIcon, MapPin, Package,
-    Pencil, Route, Timer, Trash2,
+  ExternalLink, ImageIcon, MapPin, Package, Pencil, Route, Timer, Trash2,
 } from "lucide-react";
 import { Badge }  from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
@@ -19,9 +18,6 @@ import {
   AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "../../components/ui/alert-dialog";
-import {
-  ExternalLink, ImageIcon, MapPin, Package, Pencil, Route, Timer, Trash2,
-} from "lucide-react";
 import { toast } from "sonner";
 import { togglePackageActive, deletePackage } from "../actions";
 import { TableFilters } from "../../components/dashboard/Tablefilters";
