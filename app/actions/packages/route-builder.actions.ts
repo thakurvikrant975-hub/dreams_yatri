@@ -42,8 +42,8 @@ export async function handleDeleteRouteVariant(routeId: number, packageId: numbe
     await deleteRouteVariant(routeId);
     revalidatePath(`/dashboard/packages/${packageId}`);
     return { success: true };
-  } catch {
-    return { success: false, message: "Failed to delete route" };
+  } catch (e) {
+    return { success: false, message: e instanceof Error ? e.message : "Failed to delete route" };
   }
 }
 

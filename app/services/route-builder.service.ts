@@ -236,9 +236,16 @@ export async function upsertRouteVariant(
 export async function deleteRouteVariant(routeId: number) {
   const route = await db.package_routes.findUnique({
     where: { id: routeId },
-    select: { duration_id: true },
+    select: { duration_id: true, _count: { select: { itineraries: true } } },
   });
   if (!route) throw new Error("Route not found");
+
+  if (route._count.itineraries > 0) {
+    const n = route._count.itineraries;
+    throw new Error(
+      `Cannot delete — this route has ${n} built itinerary day${n !== 1 ? "s" : ""}. Clear the itinerary first.`,
+    );
+  }
 
   await db.package_routes.delete({ where: { id: routeId } });
   await cleanOrphanDuration(route.duration_id);
