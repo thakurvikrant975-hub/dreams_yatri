@@ -144,7 +144,7 @@ export function RegionsTable({
     {
       header: "Slug",
       cell: (region) => (
-        <Badge variant="outline" className="font-mono text-xs">{region.slug}</Badge>
+        <Badge variant="outline" className="font-mono text-xs border border-dashboard-neutral/75">{region.slug}</Badge>
       ),
     },
     {

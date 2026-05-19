@@ -136,7 +136,7 @@ function SubcategoryRow({
                     <div className="w-px h-4 bg-border" />
                     <div className="w-3 h-px bg-border" />
                     <div className="h-6 w-6 rounded-md bg-muted flex items-center justify-center shrink-0">
-                        <Tag className="h-3 w-3 text-muted-foreground" />
+                        <Tag className="h-3 w-3 text-dashboard-primary" />
                     </div>
                     <div>
                         <p className="text-sm font-medium">{child.name}</p>
@@ -289,15 +289,15 @@ export function CategoriesTable({
                                 className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted transition-colors shrink-0"
                             >
                                 {isExpanded
-                                    ? <ChevronDown  className="h-3.5 w-3.5 text-muted-foreground" />
+                                    ? <ChevronDown  className="h-3.5 w-3.5 text-dashboard-primary" />
                                     : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                                 }
                             </button>
                         ) : (
                             <div className="w-5 shrink-0" />
                         )}
-                        <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${isTopLevel ? "bg-primary/10" : "bg-muted"}`}>
-                            <Tag className={`h-4 w-4 ${isTopLevel ? "text-primary" : "text-muted-foreground"}`} />
+                        <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 bg-dashboard-primary ${isTopLevel ? "bg-dashboard-primary/10" : "bg-muted"}`}>
+                            <Tag className={`h-4 w-4 ${isTopLevel ? "text-dashboard-primary" : "text-dashboard-primary"}`} />
                         </div>
                         <div>
                             <p className="font-medium text-sm">{cat.name}</p>
@@ -310,13 +310,13 @@ export function CategoriesTable({
         {
             header: "Slug",
             cell: (cat) => (
-                <Badge variant="outline" className="font-mono text-xs">{cat.slug}</Badge>
+                <Badge variant="outline" className="font-mono text-xs border-dashboard-neutral/75 text-dashboard-neutral/75">{cat.slug}</Badge>
             ),
         },
         {
             header: "Parent",
             cell: (cat) => (
-                <Badge variant="secondary" className="text-xs">
+                <Badge variant="secondary" className="text-xs bg-dashboard-primary/10 text-dashboard-primary">
                     {cat.parent?.name ?? "Top Level"}
                 </Badge>
             ),

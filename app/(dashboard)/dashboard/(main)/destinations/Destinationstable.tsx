@@ -220,7 +220,7 @@ export function DestinationsTable({
         {
             header: "Slug",
             cell: (dest) => (
-                <Badge variant="outline" className="font-mono text-xs">{dest.slug}</Badge>
+                <Badge variant="outline" className="font-mono text-xs text-dashboard-neutral/75 border border-dashboard-neutral/75">{dest.slug}</Badge>
             ),
         },
         {
@@ -243,7 +243,7 @@ export function DestinationsTable({
         {
             header: "Region",
             cell: (dest) => (
-                <Badge variant="secondary" className="text-xs">{dest.region.name}</Badge>
+                <Badge variant="secondary" className="text-xs bg-dashboard-primary/10 text-dashboard-primary">{dest.region.name}</Badge>
             ),
         },
         {
