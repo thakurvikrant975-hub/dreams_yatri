@@ -27,7 +27,7 @@ export type PickedImage = {
 };
 
 type Props = {
-    folder: "regions" | "destinations" | "hotels" | "packages" | "activities";
+    folder: "regions" | "destinations" | "hotels" | "packages" | "activities" | "attractions";
     value?: PickedImage[];
     onChange: (images: PickedImage[]) => void;
     maxFiles?: number;

@@ -25,6 +25,11 @@ import {
   deleteStayCategory,
   reorderStayCategories,
   getVehicles,
+  addItineraryAttraction,
+  updateItineraryAttraction,
+  deleteItineraryAttraction,
+  reorderItineraryAttractions,
+  getDaySourceImages,
   type TransferInput,
   type NoteInput,
   type ReorderItem,
@@ -284,5 +289,66 @@ export async function handleReorderStayCategories(
     return { success: true as const };
   } catch {
     return { success: false as const, message: "Failed to reorder" };
+  }
+}
+
+// ── Day source images ──────────────────────────────────────────────────────
+
+export async function handleGetDaySourceImages(itineraryId: number, packageId: number) {
+  try {
+    const data = await getDaySourceImages(itineraryId, packageId);
+    return { success: true as const, data };
+  } catch {
+    return { success: false as const, message: "Failed to load images" };
+  }
+}
+
+// ── Attraction CRUD ────────────────────────────────────────────────────────
+
+export async function handleAddAttraction(
+  itineraryId: number,
+  imageKey: string,
+  caption: string,
+  packageId: number,
+) {
+  try {
+    const data = await addItineraryAttraction(itineraryId, imageKey, caption);
+    revalidatePath(p(packageId));
+    return { success: true as const, data };
+  } catch {
+    return { success: false as const, message: "Failed to add attraction" };
+  }
+}
+
+export async function handleUpdateAttraction(id: number, caption: string, packageId: number) {
+  try {
+    await updateItineraryAttraction(id, caption);
+    revalidatePath(p(packageId));
+    return { success: true as const };
+  } catch {
+    return { success: false as const, message: "Failed to update attraction" };
+  }
+}
+
+export async function handleDeleteAttraction(id: number, packageId: number) {
+  try {
+    await deleteItineraryAttraction(id);
+    revalidatePath(p(packageId));
+    return { success: true as const };
+  } catch {
+    return { success: false as const, message: "Failed to delete attraction" };
+  }
+}
+
+export async function handleReorderAttractions(
+  updates: { id: number; sort_order: number }[],
+  packageId: number,
+) {
+  try {
+    await reorderItineraryAttractions(updates);
+    revalidatePath(p(packageId));
+    return { success: true as const };
+  } catch {
+    return { success: false as const, message: "Failed to reorder attractions" };
   }
 }

@@ -18,7 +18,8 @@ import {
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { toast }  from "sonner";
 import { cn }     from "@/app/lib/utils";
-import { LocationSearchInput, type LocationResult } from "../../../components/dashboard/LocationSearchInput";
+import { LocationSearchSelect } from "../../../components/location/LocationSearchSelect";
+import type { LocationValue } from "../../../components/location/location.types";
 import { updateActivity } from "../../actions";
 
 // ── Constants ─────────────────────────────────────────────────────────────
@@ -170,13 +171,6 @@ function FieldError({ errors, field }: { errors: Record<string, string[]>; field
     return <p className="text-xs text-destructive mt-0.5">{msgs[0]}</p>;
 }
 
-// ── Country extraction from Mapbox address ─────────────────────────────────
-
-function extractCountry(address: string): string {
-    const parts = address.split(",").map(s => s.trim());
-    return parts.at(-1) ?? "";
-}
-
 // ── Overview / Edit Tab ────────────────────────────────────────────────────
 
 export function OverviewTab({
@@ -197,17 +191,7 @@ export function OverviewTab({
     const [isActive,   setIsActive]  = useState(activity.is_active);
 
     // Location & Contact
-    const [location, setLocation] = useState<LocationResult | null>(
-        activity.latitude != null && activity.longitude != null
-            ? {
-                latitude:   activity.latitude,
-                longitude:  activity.longitude,
-                place_name: activity.city ?? `${activity.latitude.toFixed(5)}, ${activity.longitude.toFixed(5)}`,
-                place_id:   "",
-                address:    activity.address ?? `${activity.latitude.toFixed(5)}, ${activity.longitude.toFixed(5)}`,
-            }
-            : null
-    );
+    const [location, setLocation] = useState<LocationValue | null>(null);
     const [address, setAddress] = useState(activity.address ?? "");
     const [city,    setCity]    = useState(activity.city    ?? "");
     const [state,   setState]   = useState(activity.state   ?? "");
@@ -224,10 +208,11 @@ export function OverviewTab({
 
     // ── Handlers ──────────────────────────────────────────────────────────
 
-    function handleLocationChange(loc: LocationResult | null) {
+    function handleLocationChange(loc: LocationValue | null) {
         setLocation(loc);
         if (loc) {
-            const detected = extractCountry(loc.address);
+            const parts = loc.breadcrumb.split(",").map(s => s.trim());
+            const detected = parts.at(-1) ?? "";
             if (detected) setCountry(detected);
         }
     }
@@ -343,10 +328,10 @@ export function OverviewTab({
 
                 <div className="space-y-1.5">
                     <Label>Map Location <span className="text-xs text-muted-foreground">(optional)</span></Label>
-                    <LocationSearchInput
+                    <LocationSearchSelect
                         value={location}
                         onChange={handleLocationChange}
-                        placeholder="Search activity location on map…"
+                        placeholder="Search activity location…"
                     />
                 </div>
 

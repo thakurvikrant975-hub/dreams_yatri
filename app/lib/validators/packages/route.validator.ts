@@ -5,7 +5,7 @@ import { SlugSchema } from "./package.validator";
 
 export const CreateRouteStopSchema = z.object({
   destination_id: z.number().int().positive("Destination is required"),
-  stay_days: z.number().int().min(1, "At least 1 stay day required"),
+  stay_days: z.number().int().min(0, "Nights cannot be negative"),
   sort_order: z.number().int().min(0),
   latitude: z.number().min(-90).max(90).optional(),
   longitude: z.number().min(-180).max(180).optional(),
@@ -46,7 +46,7 @@ export const RouteStopsArraySchema = z
       const total_stay = stops.reduce((sum, s) => sum + s.stay_days, 0);
       return total_stay >= 1;
     },
-    { message: "Total stay days across all stops must be at least 1" }
+    { message: "Total nights across all stops must be at least 1" }
   );
 
 // ── Package route ──────────────────────────────────────────────────────────────

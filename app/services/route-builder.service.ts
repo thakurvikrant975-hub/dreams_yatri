@@ -135,7 +135,8 @@ export async function upsertRouteVariant(
 ) {
   if (!stops.length) throw new Error("At least one stop is required");
 
-  const autoDays = stops.reduce((sum, s) => sum + s.stay_days, 0);
+  const autoNights = stops.reduce((sum, s) => sum + s.stay_days, 0);
+  const autoDays = autoNights + 1;
   const days = durationMeta?.days ?? autoDays;
   const nights = durationMeta?.nights ?? (days - 1);
   const autoName = deriveRouteName(stops);

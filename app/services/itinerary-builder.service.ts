@@ -106,6 +106,14 @@ export type StayItem = {
   stay_category: { id: number; label: string; slug: string };
 };
 
+export type AttractionItem = {
+  id: number;
+  itinerary_id: number;
+  image_key: string;
+  caption: string;
+  sort_order: number;
+};
+
 export type DayData = {
   id: number | null;
   day: number;
@@ -115,6 +123,7 @@ export type DayData = {
   transfers: TransferItem[];
   notes: NoteItem[];
   stays: StayItem[];
+  attractions: AttractionItem[];
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -160,6 +169,7 @@ export async function getItineraryData(
           },
         },
       itinerary_notes: { orderBy: { sort_order: "asc" } },
+      itinerary_attractions: { orderBy: { sort_order: "asc" } },
       itineraryStays: {
         include: {
           room_pricing: {
@@ -181,7 +191,7 @@ export async function getItineraryData(
     const day = i + 1;
     const rec = records.find((r) => r.day === day);
     if (!rec) {
-      return { id: null, day, title: `Day ${day}`, description: null, activities: [], transfers: [], notes: [], stays: [] };
+      return { id: null, day, title: `Day ${day}`, description: null, activities: [], transfers: [], notes: [], stays: [], attractions: [] };
     }
     return {
       id: rec.id,
@@ -240,6 +250,7 @@ export async function getItineraryData(
         },
         stay_category: s.stay_category,
       })),
+      attractions: rec.itinerary_attractions,
     };
   });
 }
@@ -552,6 +563,113 @@ export async function searchRoomPricings(_destinationId: number, query: string) 
     ...p,
     price_per_night: Number(p.price_per_night),
   }));
+}
+
+// ── Day source images (for attraction picker) ──────────────────────────────
+
+export type AttractionSourceImage = {
+  id: number;
+  url: string;
+  thumbnail: string | null;
+  group_label: string;
+};
+
+export type AttractionSourceImages = {
+  PACKAGE: AttractionSourceImage[];
+  HOTEL: AttractionSourceImage[];
+  ACTIVITY: AttractionSourceImage[];
+};
+
+export async function getDaySourceImages(
+  itineraryId: number,
+  packageId: number,
+): Promise<AttractionSourceImages> {
+  const [packageImgs, hotelImgs, activityImgs] = await Promise.all([
+    db.package_images.findMany({
+      where: { package_id: packageId },
+      orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
+      select: { id: true, url: true, thumbnail: true },
+    }),
+    db.hotel_images.findMany({
+      where: {
+        url: { not: null },
+        hotel: {
+          room_pricing: {
+            some: { itineraryStays: { some: { itinerary_id: itineraryId } } },
+          },
+        },
+      },
+      select: {
+        id: true, url: true, thumbnail: true,
+        hotel: { select: { id: true, name: true } },
+      },
+      orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
+    }),
+    db.activity_images.findMany({
+      where: {
+        activity: {
+          itinerary_activities: { some: { itinerary_id: itineraryId } },
+        },
+      },
+      select: {
+        id: true, url: true, thumbnail: true,
+        activity: { select: { id: true, name: true } },
+      },
+      orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
+    }),
+  ]);
+
+  return {
+    PACKAGE: packageImgs.map((img) => ({
+      id: img.id, url: img.url, thumbnail: img.thumbnail,
+      group_label: "Package Images",
+    })),
+    HOTEL: hotelImgs
+      .filter((img) => img.url != null)
+      .map((img) => ({
+        id: img.id, url: img.url as string, thumbnail: img.thumbnail,
+        group_label: img.hotel.name,
+      })),
+    ACTIVITY: activityImgs.map((img) => ({
+      id: img.id, url: img.url, thumbnail: img.thumbnail,
+      group_label: img.activity.name,
+    })),
+  };
+}
+
+// ── Attractions ────────────────────────────────────────────────────────────
+
+export async function addItineraryAttraction(
+  itineraryId: number,
+  imageKey: string,
+  caption: string,
+): Promise<AttractionItem> {
+  const max = await db.itinerary_attractions.aggregate({
+    where: { itinerary_id: itineraryId },
+    _max: { sort_order: true },
+  });
+  const order = (max._max.sort_order ?? -1) + 1;
+  return db.itinerary_attractions.create({
+    data: { itinerary_id: itineraryId, image_key: imageKey, caption, sort_order: order },
+  });
+}
+
+export async function updateItineraryAttraction(id: number, caption: string): Promise<void> {
+  await db.itinerary_attractions.update({ where: { id }, data: { caption } });
+}
+
+export async function deleteItineraryAttraction(id: number): Promise<void> {
+  await db.itinerary_attractions.delete({ where: { id } });
+}
+
+export async function reorderItineraryAttractions(
+  updates: { id: number; sort_order: number }[],
+): Promise<void> {
+  await db.$transaction(
+    updates.map((u) =>
+      db.itinerary_attractions.update({ where: { id: u.id }, data: { sort_order: u.sort_order } }),
+    ),
+  );
 }
 
 // ── Stay categories ────────────────────────────────────────────────────────

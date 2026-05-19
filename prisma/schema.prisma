@@ -1166,23 +1166,36 @@ model package_categories {
 }
 
 model package_itineraries {
-  id                   Int                    @id @default(autoincrement())
-  package_id           Int
-  duration_id          Int
-  route_id             Int
-  day                  Int
-  title                String
-  description          String?
-  itinerary_activities itinerary_activities[]
-  itinerary_notes      itinerary_notes[]
-  itineraryStays       itinerary_stays[]
-  itinerary_transfers  itinerary_transfers[]
-  duration             package_durations      @relation(fields: [duration_id], references: [id])
-  package              packages               @relation(fields: [package_id], references: [id])
-  route                package_routes         @relation(fields: [route_id], references: [id])
+  id                      Int                       @id @default(autoincrement())
+  package_id              Int
+  duration_id             Int
+  route_id                Int
+  day                     Int
+  title                   String
+  description             String?
+  itinerary_activities    itinerary_activities[]
+  itinerary_notes         itinerary_notes[]
+  itineraryStays          itinerary_stays[]
+  itinerary_transfers     itinerary_transfers[]
+  itinerary_attractions   itinerary_attractions[]
+  duration                package_durations         @relation(fields: [duration_id], references: [id])
+  package                 packages                  @relation(fields: [package_id], references: [id])
+  route                   package_routes            @relation(fields: [route_id], references: [id])
 
   @@unique([package_id, duration_id, route_id, day])
   @@index([route_id, duration_id])
+}
+
+model itinerary_attractions {
+  id           Int                 @id @default(autoincrement())
+  itinerary_id Int
+  image_key    String
+  caption      String              @default("") @db.VarChar(50)
+  sort_order   Int                 @default(0)
+  created_at   DateTime            @default(now())
+  itinerary    package_itineraries @relation(fields: [itinerary_id], references: [id], onDelete: Cascade)
+
+  @@index([itinerary_id])
 }
 
 model itinerary_stays {

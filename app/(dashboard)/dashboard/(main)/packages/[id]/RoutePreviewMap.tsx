@@ -79,7 +79,7 @@ export function RoutePreviewMap({ stops }: Props) {
         L.marker([lat, lng], { icon })
           .addTo(map)
           .bindPopup(
-            `<strong>${validStops[i].place_name}</strong><br/>${validStops[i].stay_days} day${validStops[i].stay_days > 1 ? "s" : ""}`,
+            `<strong>${validStops[i].place_name}</strong><br/>${validStops[i].stay_days} night${validStops[i].stay_days > 1 ? "s" : ""}`,
           );
       });
 

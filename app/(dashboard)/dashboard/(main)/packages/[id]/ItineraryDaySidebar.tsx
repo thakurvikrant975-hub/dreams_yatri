@@ -53,6 +53,10 @@ import {
   handleSearchRoomPricings,
   handleGetVehicles,
   handleGetActivityVariants,
+  handleAddAttraction,
+  handleUpdateAttraction,
+  handleDeleteAttraction,
+  handleReorderAttractions,
 } from "@/app/actions/packages/itinerary-builder.actions";
 import type {
   DayData,
@@ -60,14 +64,28 @@ import type {
   TransferItem,
   NoteItem,
   StayItem,
+  AttractionItem,
+  AttractionSourceImages,
   ReorderItem,
   VehicleOption,
   ActivityVariantOption,
 } from "@/app/services/itinerary-builder.service";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "../../components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../../components/ui/tooltip";
+import { handleGetDaySourceImages } from "@/app/actions/packages/itinerary-builder.actions";
 import { LocationPickerField } from "../../components/dashboard/LocationPickerField";
 import type { LocationResult } from "../../components/dashboard/LocationSearchInput";
 import {
-  GripVertical,
   Loader2,
   Pencil,
   Trash2,
@@ -81,6 +99,9 @@ import {
   Save,
   ArrowLeft,
   Lock,
+  Camera,
+  Package,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import type { OccupiedBy } from "./ItineraryBuilderTab";
@@ -922,6 +943,263 @@ function StayBlock({
   );
 }
 
+// ── Attractions modal ──────────────────────────────────────────────────────
+
+const R2 = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
+const MAX_ATTRACTIONS = 8;
+
+type AttractionSourceKey = "PACKAGE" | "HOTEL" | "ACTIVITY";
+
+const SOURCE_TABS: { key: AttractionSourceKey; label: string; Icon: React.ElementType }[] = [
+  { key: "PACKAGE",  label: "Package",  Icon: Package  },
+  { key: "HOTEL",    label: "Hotel",    Icon: Hotel    },
+  { key: "ACTIVITY", label: "Activity", Icon: Zap      },
+];
+
+function AttractionsModal({
+  open,
+  onClose,
+  itineraryId,
+  packageId,
+  attractions,
+  onAttractionsChange,
+  hasStay,
+  hasActivity,
+}: {
+  open: boolean;
+  onClose: () => void;
+  itineraryId: number;
+  packageId: number;
+  attractions: AttractionItem[];
+  onAttractionsChange: (updated: AttractionItem[]) => void;
+  hasStay: boolean;
+  hasActivity: boolean;
+}) {
+  const [sourceImages, setSourceImages] = useState<AttractionSourceImages | null>(null);
+  const [loadingImages, setLoadingImages] = useState(false);
+  const [activeSource, setActiveSource] = useState<AttractionSourceKey>("PACKAGE");
+  const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
+  const [caption, setCaption] = useState("");
+  const [addPending, setAddPending] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!open || sourceImages) return;
+    setLoadingImages(true);
+    handleGetDaySourceImages(itineraryId, packageId).then((res) => {
+      setLoadingImages(false);
+      if (res.success) setSourceImages(res.data);
+      else toast.error(res.message ?? "Failed to load images");
+    });
+  }, [open, itineraryId, packageId, sourceImages]);
+
+  const images = sourceImages?.[activeSource] ?? [];
+  const grouped = images.reduce<Record<string, typeof images[0][]>>((acc, img) => {
+    (acc[img.group_label] ??= []).push(img);
+    return acc;
+  }, {});
+
+  async function handleAdd() {
+    if (!selectedUrl) return;
+    setAddPending(true);
+    const res = await handleAddAttraction(itineraryId, selectedUrl, caption.trim(), packageId);
+    setAddPending(false);
+    if (!res.success) { toast.error(res.message ?? "Failed to add attraction"); return; }
+    onAttractionsChange([...attractions, res.data]);
+    setSelectedUrl(null);
+    setCaption("");
+    toast.success("Attraction added");
+    onClose();
+  }
+
+  async function handleDelete(id: number) {
+    setDeletingId(id);
+    const res = await handleDeleteAttraction(id, packageId);
+    setDeletingId(null);
+    if (!res.success) { toast.error(res.message); return; }
+    onAttractionsChange(attractions.filter((a) => a.id !== id));
+    toast.success("Removed");
+  }
+
+  const atLimit = attractions.length >= MAX_ATTRACTIONS;
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-2xl p-0 gap-0 overflow-hidden">
+        <DialogHeader className="px-5 py-4 border-b">
+          <DialogTitle className="flex items-center gap-2 text-sm">
+            <Camera className="h-4 w-4 text-primary" />
+            Attractions
+            <span className="text-xs text-muted-foreground font-normal">
+              {attractions.length}/{MAX_ATTRACTIONS}
+            </span>
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-0 max-h-[70vh] overflow-hidden">
+
+          {/* Warning if no stay and no activity */}
+          {!hasStay && !hasActivity && (
+            <div className="mx-5 mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              Add a hotel stay or activity to this day first — their images will appear in the Hotel and Activity tabs.
+            </div>
+          )}
+
+          {/* Existing attractions — single scrollable row */}
+          {attractions.length > 0 && (
+            <div className="px-5 py-3 border-b bg-muted/20">
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
+                {attractions.map((a) => (
+                  <TooltipProvider key={a.id}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="relative shrink-0 group">
+                          <div className="w-16 h-12 rounded-lg overflow-hidden border bg-muted">
+                            <img
+                              src={`${R2}/${a.image_key}`}
+                              alt={a.caption || "Attraction"}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(a.id)}
+                            disabled={deletingId === a.id}
+                            className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            {deletingId === a.id
+                              ? <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                              : <X className="h-2.5 w-2.5" />}
+                          </button>
+                        </div>
+                      </TooltipTrigger>
+                      {a.caption && <TooltipContent>{a.caption}</TooltipContent>}
+                    </Tooltip>
+                  </TooltipProvider>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Add section */}
+          {!atLimit ? (
+            <div className="flex flex-col flex-1 overflow-hidden">
+              {/* Source tabs */}
+              <div className="flex border-b px-5">
+                {SOURCE_TABS.map(({ key, label, Icon }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => { setActiveSource(key); setSelectedUrl(null); }}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors",
+                      activeSource === key
+                        ? "border-primary text-primary"
+                        : "border-transparent text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Image grid */}
+              <div className="flex-1 overflow-y-auto p-4">
+                {loadingImages ? (
+                  <div className="flex items-center justify-center py-10">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : images.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-10 text-center">
+                    <Camera className="h-7 w-7 text-muted-foreground/30 mb-2" />
+                    <p className="text-sm text-muted-foreground">No images available</p>
+                    <p className="text-xs text-muted-foreground/60 mt-1">
+                      {activeSource === "PACKAGE"
+                        ? "Upload images in the Images tab first"
+                        : activeSource === "HOTEL"
+                          ? hasStay ? "No hotel images uploaded yet" : "Assign a hotel stay to this day first"
+                          : hasActivity ? "No activity images uploaded yet" : "Add an activity to this day first"}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {Object.entries(grouped).map(([groupLabel, imgs]) => (
+                      <div key={groupLabel}>
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                          {groupLabel}
+                        </p>
+                        <div className="grid grid-cols-5 sm:grid-cols-6 gap-1.5">
+                          {imgs.map((img) => {
+                            const isSelected = selectedUrl === img.url;
+                            return (
+                              <button
+                                key={img.id}
+                                type="button"
+                                onClick={() => setSelectedUrl(isSelected ? null : img.url)}
+                                className={cn(
+                                  "relative aspect-square rounded-lg overflow-hidden border-2 transition-all",
+                                  isSelected
+                                    ? "border-primary ring-2 ring-primary/30"
+                                    : "border-transparent hover:border-primary/50",
+                                )}
+                              >
+                                <img
+                                  src={`${R2}/${img.thumbnail ?? img.url}`}
+                                  alt=""
+                                  className="absolute inset-0 w-full h-full object-cover"
+                                />
+                                {isSelected && (
+                                  <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                                    <Check className="h-4 w-4 text-white drop-shadow" />
+                                  </div>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Caption + add — shown when image selected */}
+              {selectedUrl && (
+                <div className="border-t px-4 py-3 flex items-center gap-3 bg-background">
+                  <div className="w-10 h-8 rounded-md overflow-hidden border shrink-0">
+                    <img src={`${R2}/${selectedUrl}`} alt="" className="w-full h-full object-cover" />
+                  </div>
+                  <input
+                    type="text"
+                    value={caption}
+                    maxLength={50}
+                    onChange={(e) => setCaption(e.target.value)}
+                    placeholder="Add a caption (optional)…"
+                    className="flex-1 h-8 px-2.5 text-xs rounded-md border bg-background outline-none focus:ring-1 focus:ring-primary/30"
+                    autoFocus
+                  />
+                  <span className={cn("text-[10px] shrink-0", caption.length > 50 ? "text-destructive" : "text-muted-foreground/50")}>
+                    {caption.length}/50
+                  </span>
+                  <Button size="sm" onClick={handleAdd} disabled={addPending} className="gap-1.5 shrink-0">
+                    {addPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                    Add
+                  </Button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center py-8">
+              <p className="text-sm text-muted-foreground">Limit of {MAX_ATTRACTIONS} attractions reached</p>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Timeline drop zone ─────────────────────────────────────────────────────
 
 function TimelineDropZone({ children, isEmpty }: { children: React.ReactNode; isEmpty: boolean }) {
@@ -962,6 +1240,7 @@ export function ItineraryDaySidebar({
   const [activities, setActivities] = useState<ActivityItem[]>(initialDay.activities);
   const [notes, setNotes] = useState<NoteItem[]>(initialDay.notes);
   const [stays, setStays] = useState<StayItem[]>(initialDay.stays);
+  const [attractions, setAttractions] = useState<AttractionItem[]>(initialDay.attractions);
   const [stayBlockOrder, setStayBlockOrder] = useState(initialDay.stays[0]?.sort_order ?? 100);
   const [savingMeta, setSavingMeta] = useState(false);
   const [pending, setPending] = useState(false);
@@ -969,6 +1248,7 @@ export function ItineraryDaySidebar({
   const [vehicles, setVehicles] = useState<VehicleOption[]>([]);
   const [editPanel, setEditPanel] = useState<EditPanelState>(null);
   const [activeDragKind, setActiveDragKind] = useState<string | null>(null);
+  const [attractionsOpen, setAttractionsOpen] = useState(false);
 
   useEffect(() => {
     handleGetVehicles().then((res) => { if (res.success) setVehicles(res.data); });
@@ -995,7 +1275,7 @@ export function ItineraryDaySidebar({
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function currentDayData(): DayData {
-    return { id: itineraryId, day: initialDay.day, title, description: description || null, activities, transfers, notes, stays };
+    return { id: itineraryId, day: initialDay.day, title, description: description || null, activities, transfers, notes, stays, attractions };
   }
 
   // ── Day meta save ──────────────────────────────────────────────────────
@@ -1253,6 +1533,48 @@ export function ItineraryDaySidebar({
                     <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Description</Label>
                     <Input value={description} onChange={(e) => setDescription(e.target.value)} className="h-9" placeholder="Brief description of this day…" />
                   </div>
+
+                  {/* Attractions row */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => itineraryId && setAttractionsOpen(true)}
+                      disabled={!itineraryId}
+                      className={cn(
+                        "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors shrink-0",
+                        "border-dashed border-muted-foreground/30 text-muted-foreground hover:border-primary/50 hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed",
+                      )}
+                    >
+                      <Camera className="h-3 w-3" />
+                      Attractions
+                      {attractions.length > 0 && (
+                        <span className="bg-primary/10 text-primary text-[10px] font-bold px-1 rounded">
+                          {attractions.length}
+                        </span>
+                      )}
+                    </button>
+                    {/* Small preview row */}
+                    {attractions.length > 0 && (
+                      <div className="flex gap-1 overflow-x-auto flex-1 min-w-0">
+                        {attractions.map((a) => (
+                          <TooltipProvider key={a.id}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="shrink-0 w-8 h-6 rounded overflow-hidden border border-muted">
+                                  <img
+                                    src={`${R2}/${a.image_key}`}
+                                    alt={a.caption || ""}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                              </TooltipTrigger>
+                              {a.caption && <TooltipContent>{a.caption}</TooltipContent>}
+                            </Tooltip>
+                          </TooltipProvider>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1270,7 +1592,7 @@ export function ItineraryDaySidebar({
                 )}
               </div>
 
-              {/* Timeline — fills remaining height with own scroll */}
+              {/* Timeline + Attractions — fills remaining height with own scroll */}
               <div className="flex-1 overflow-y-auto flex flex-col px-5 pt-4 pb-4">
                 <div className="flex items-center justify-between mb-3 shrink-0">
                   <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Timeline</p>
@@ -1281,8 +1603,8 @@ export function ItineraryDaySidebar({
                   )}
                 </div>
 
-                {/* Drop zone stretches to fill remaining space */}
-                <div className="flex-1">
+                {/* Drop zone */}
+                <div>
                   <TimelineDropZone isEmpty={isTimelineEmpty}>
                     <SortableContext items={dndIds} strategy={verticalListSortingStrategy}>
                       <div className="space-y-2">
@@ -1370,6 +1692,7 @@ export function ItineraryDaySidebar({
                     </SortableContext>
                   </TimelineDropZone>
                 </div>
+
               </div>
 
               {/* Footer */}
@@ -1478,6 +1801,20 @@ export function ItineraryDaySidebar({
           </DragOverlay>
 
         </DndContext>
+
+        {/* Attractions modal — outside DndContext to avoid conflicts */}
+        {itineraryId && (
+          <AttractionsModal
+            open={attractionsOpen}
+            onClose={() => setAttractionsOpen(false)}
+            itineraryId={itineraryId}
+            packageId={packageId}
+            attractions={attractions}
+            onAttractionsChange={setAttractions}
+            hasStay={stays.length > 0}
+            hasActivity={activities.length > 0}
+          />
+        )}
       </SheetContent>
     </Sheet>
   );

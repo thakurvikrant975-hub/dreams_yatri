@@ -17,6 +17,7 @@ import {
   Activity,
   StickyNote,
   ChevronRight,
+  Camera,
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 
@@ -56,13 +57,15 @@ function getStopLabel(dayNumber: number, stops: RouteStop[]): string {
   const ordinals = ["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th"];
   let cursor = 0;
   for (const stop of stops) {
-    const days = stop.stay_days ?? 1;
+    const nights = stop.stay_days ?? 0;
     const isLast = stops[stops.length - 1] === stop;
-    for (let i = 0; i < days; i++) {
+    // Each stop owns `nights` days; the last stop gets +1 for the departure day
+    const daysForStop = nights + (isLast ? 1 : 0);
+    for (let i = 0; i < daysForStop; i++) {
       cursor++;
       if (cursor === dayNumber) {
         const dayInStop = i + 1;
-        const prefix = isLast && dayInStop === days ? "Last Day" : (ordinals[i] ?? `Day ${dayInStop}`);
+        const prefix = isLast && dayInStop === daysForStop ? "Last Day" : (ordinals[i] ?? `Day ${dayInStop}`);
         return `${prefix} in ${stop.place_name}`;
       }
     }
@@ -75,7 +78,7 @@ function getStopLabel(dayNumber: number, stops: RouteStop[]): string {
 function DayCard({ day, occupiedBy, onClick }: { day: DayData; occupiedBy?: OccupiedBy; onClick: () => void }) {
   const hasAny =
     day.id !== null &&
-    day.activities.length + day.transfers.length + day.notes.length + day.stays.length > 0;
+    day.activities.length + day.transfers.length + day.notes.length + day.stays.length + day.attractions.length > 0;
 
   return (
     <button
@@ -121,6 +124,11 @@ function DayCard({ day, occupiedBy, onClick }: { day: DayData; occupiedBy?: Occu
           {day.notes.length > 0 && (
             <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
               <StickyNote className="h-2.5 w-2.5" />{day.notes.length}
+            </span>
+          )}
+          {day.attractions.length > 0 && (
+            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+              <Camera className="h-2.5 w-2.5" />{day.attractions.length}
             </span>
           )}
         </div>

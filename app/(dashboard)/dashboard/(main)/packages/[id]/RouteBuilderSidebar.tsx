@@ -40,7 +40,7 @@ import {
 export type StopRow = {
   id: string;
   location: LocationResult | null;
-  stay_days: number;
+  stay_nights: number;
 };
 
 export type EditingRoute = {
@@ -114,11 +114,11 @@ function SortableStopRow({
 
       <div className="w-20 shrink-0 relative">
         <input
-          type="number" min={1} value={row.stay_days}
-          onChange={(e) => onChange(row.id, { stay_days: Math.max(1, parseInt(e.target.value) || 1) })}
+          type="number" min={0} value={row.stay_nights}
+          onChange={(e) => onChange(row.id, { stay_nights: Math.max(0, parseInt(e.target.value) || 0) })}
           className="w-full rounded-md border border-input bg-background text-sm py-2 pl-2 pr-6 focus:outline-none focus:ring-2 focus:ring-ring"
         />
-        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">d</span>
+        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">n</span>
       </div>
 
       <button type="button" disabled={total <= 1} onClick={() => onRemove(row.id)}
@@ -137,7 +137,7 @@ function StopsStep({
   const { setStepData } = useMultiStepSheet();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
-  const totalDays = useMemo(() => stops.reduce((s, r) => s + r.stay_days, 0), [stops]);
+  const totalNights = useMemo(() => stops.reduce((s, r) => s + r.stay_nights, 0), [stops]);
   const autoName = useMemo(
     () => deriveRouteName(stops.filter((s) => s.location).map((s) => ({ place_name: s.location!.place_name }))),
     [stops],
@@ -145,7 +145,7 @@ function StopsStep({
 
   useEffect(() => { setStepData("stops", { stops }); }, [stops, setStepData]);
 
-  function addStop() { setStops((p) => [...p, { id: uid(), location: null, stay_days: 1 }]); }
+  function addStop() { setStops((p) => [...p, { id: uid(), location: null, stay_nights: 1 }]); }
   function updateStop(id: string, patch: Partial<StopRow>) {
     setStops((p) => p.map((r) => r.id === id ? { ...r, ...patch } : r));
   }
@@ -178,11 +178,11 @@ function StopsStep({
         <Plus className="h-3.5 w-3.5" /> Add Stop
       </Button>
 
-      {totalDays > 0 && (
+      {totalNights > 0 && (
         <div className="rounded-lg bg-muted/50 border px-3 py-2.5 text-xs space-y-1.5">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Auto duration</span>
-            <span className="font-semibold">{totalDays}D / {totalDays - 1}N</span>
+            <span className="font-semibold">{totalNights + 1}D / {totalNights}N</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Route name</span>
@@ -268,9 +268,9 @@ function RouteMetaStep({ autoName, init }: {
 // ── Step 3: Duration ───────────────────────────────────────────────────────
 
 function DurationStep({
-  autoDays, packageImages, init,
+  autoNights, packageImages, init,
 }: {
-  autoDays: number;
+  autoNights: number;
   packageImages: SelectableImage[];
   init?: {
     days: number; nights: number; label: string;
@@ -280,7 +280,7 @@ function DurationStep({
 }) {
   const { setStepData, stepData } = useMultiStepSheet();
 
-  const autoNights = autoDays - 1;
+  const autoDays = autoNights + 1;
   const autoLabel = `${autoDays}D / ${autoNights}N`;
 
   // Read persisted stepData on remount so values survive step navigation
@@ -290,8 +290,8 @@ function DurationStep({
     sort_order?: number; thumbnail_url?: string | null;
   } | undefined;
 
-  const [days, setDays] = useState<number>(() => saved?.days ?? init?.days ?? autoDays);
   const [nights, setNights] = useState<number>(() => saved?.nights ?? init?.nights ?? autoNights);
+  const [days, setDays] = useState<number>(() => saved?.days ?? init?.days ?? autoDays);
   const [label, setLabel] = useState<string>(() => saved?.label ?? init?.label ?? autoLabel);
   const [isDefault, setIsDefault] = useState<boolean>(() => saved?.is_default ?? init?.is_default ?? false);
   const [isActive, setIsActive] = useState<boolean>(() => saved?.is_active ?? init?.is_active ?? true);
@@ -301,32 +301,32 @@ function DurationStep({
     saved && "thumbnail_url" in saved ? (saved.thumbnail_url ?? null) : (init?.thumbnail_url ?? null)
   );
 
-  // Keep nights in sync when days changes (unless admin has edited nights manually)
-  const [nightsManual, setNightsManual] = useState(false);
-
-  function handleDaysChange(val: number) {
-    setDays(val);
-    if (!nightsManual) setNights(val - 1);
-    setLabel(`${val}D / ${nightsManual ? nights : val - 1}N`);
-  }
+  // Keep days in sync when nights changes (unless admin has edited days manually)
+  const [daysManual, setDaysManual] = useState(false);
 
   function handleNightsChange(val: number) {
-    setNightsManual(true);
     setNights(val);
+    if (!daysManual) setDays(val + 1);
+    setLabel(`${daysManual ? days : val + 1}D / ${val}N`);
+  }
+
+  function handleDaysChange(val: number) {
+    setDaysManual(true);
+    setDays(val);
   }
 
   function resetToAuto() {
-    setDays(autoDays);
     setNights(autoNights);
+    setDays(autoDays);
     setLabel(autoLabel);
-    setNightsManual(false);
+    setDaysManual(false);
   }
 
   useEffect(() => {
     setStepData("duration", { days, nights, label, is_default: isDefault, is_active: isActive, sort_order: sortOrder, thumbnail_url: thumbnail });
   }, [days, nights, label, isDefault, isActive, sortOrder, thumbnail, setStepData]);
 
-  const isModified = days !== autoDays || nights !== autoNights;
+  const isModified = nights !== autoNights || days !== autoDays;
 
   return (
     <div className="space-y-5">
@@ -344,14 +344,14 @@ function DurationStep({
 
         <div className="grid grid-cols-3 gap-3">
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Days</Label>
-            <Input type="number" min={1} value={days}
-              onChange={(e) => handleDaysChange(Math.max(1, parseInt(e.target.value) || 1))} />
-          </div>
-          <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Nights</Label>
             <Input type="number" min={0} value={nights}
               onChange={(e) => handleNightsChange(Math.max(0, parseInt(e.target.value) || 0))} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Days</Label>
+            <Input type="number" min={1} value={days}
+              onChange={(e) => handleDaysChange(Math.max(1, parseInt(e.target.value) || 1))} />
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Sort Order</Label>
@@ -423,9 +423,9 @@ function PreviewStep({ stops }: { stops: StopRow[] }) {
     is_default?: boolean; thumbnail_url?: string | null;
   };
 
-  const autoDays = stops.reduce((s, r) => s + r.stay_days, 0);
-  const days = d.days ?? autoDays;
-  const nights = d.nights ?? days - 1;
+  const autoNights = stops.reduce((s, r) => s + r.stay_nights, 0);
+  const nights = d.nights ?? autoNights;
+  const days = d.days ?? (nights + 1);
   const label = d.label || `${days}D / ${nights}N`;
   const autoName = deriveRouteName(
     stops.filter((s) => s.location).map((s) => ({ place_name: s.location!.place_name })),
@@ -438,7 +438,7 @@ function PreviewStep({ stops }: { stops: StopRow[] }) {
       place_name: s.location!.place_name,
       latitude: s.location!.latitude,
       longitude: s.location!.longitude,
-      stay_days: s.stay_days,
+      stay_days: s.stay_nights,
     }));
 
   const R2_BASE = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? "";
@@ -480,7 +480,7 @@ function PreviewStep({ stops }: { stops: StopRow[] }) {
           <div className="flex gap-1 flex-wrap justify-end max-w-[65%]">
             {stops.filter((s) => s.location).map((s, i) => (
               <Badge key={i} variant="secondary" className="text-[10px] px-1.5 py-0">
-                {s.location!.place_name} · {s.stay_days}d
+                {s.location!.place_name} · {s.stay_nights}n
               </Badge>
             ))}
           </div>
@@ -498,7 +498,7 @@ const STEPS: SheetStep[] = [
   {
     id: "stops",
     title: "Stops",
-    description: "Add destinations and stay duration per stop",
+    description: "Add destinations and nights per stop",
     icon: <MapPin className="h-4 w-4" />,
     validate: (data) => {
       const rows = (data.stops as StopRow[] | undefined) ?? [];
@@ -540,7 +540,7 @@ type Props = {
 
 export function RouteBuilderSidebar({ packageId, editing, open, onClose, onSaved, packageImages }: Props) {
   const [isSaving, setIsSaving] = useState(false);
-  const [stops, setStops] = useState<StopRow[]>([{ id: uid(), location: null, stay_days: 1 }]);
+  const [stops, setStops] = useState<StopRow[]>([{ id: uid(), location: null, stay_nights: 1 }]);
 
   useEffect(() => {
     if (open) {
@@ -550,7 +550,7 @@ export function RouteBuilderSidebar({ packageId, editing, open, onClose, onSaved
           const lng = s.longitude != null ? Number(s.longitude) : null;
           return {
             id: uid(),
-            stay_days: s.stay_days,
+            stay_nights: s.stay_days,
             location: lat != null && lng != null ? {
               place_name: s.place_name,
               place_id: s.place_id ?? s.place_name,
@@ -561,7 +561,7 @@ export function RouteBuilderSidebar({ packageId, editing, open, onClose, onSaved
           };
         }));
       } else {
-        setStops([{ id: uid(), location: null, stay_days: 1 }]);
+        setStops([{ id: uid(), location: null, stay_nights: 1 }]);
       }
     }
   }, [open, editing]);
@@ -571,7 +571,7 @@ export function RouteBuilderSidebar({ packageId, editing, open, onClose, onSaved
     [stops],
   );
 
-  const autoDays = useMemo(() => stops.reduce((s, r) => s + r.stay_days, 0), [stops]);
+  const autoNights = useMemo(() => stops.reduce((s, r) => s + r.stay_nights, 0), [stops]);
 
   const initialStepData = useMemo((): Record<string, Record<string, unknown>> => {
     if (!editing) return {};
@@ -596,7 +596,7 @@ export function RouteBuilderSidebar({ packageId, editing, open, onClose, onSaved
         place_name: s.location!.place_name,
         place_id: s.location!.place_id,
         address: s.location!.address,
-        stay_days: s.stay_days,
+        stay_days: s.stay_nights,
         latitude: s.location!.latitude,
         longitude: s.location!.longitude,
       }));
@@ -664,7 +664,7 @@ export function RouteBuilderSidebar({ packageId, editing, open, onClose, onSaved
 
       {/* Step 3: Duration */}
       <DurationStep
-        autoDays={autoDays}
+        autoNights={autoNights}
         packageImages={packageImages}
         init={editing ? {
           days: editing.durationDays,

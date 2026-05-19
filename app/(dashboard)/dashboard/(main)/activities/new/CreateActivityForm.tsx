@@ -19,7 +19,8 @@ import {
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { toast }  from "sonner";
 import { cn }     from "@/app/lib/utils";
-import { LocationSearchInput, type LocationResult } from "../../components/dashboard/LocationSearchInput";
+import { LocationSearchSelect } from "../../components/location/LocationSearchSelect";
+import type { LocationValue } from "../../components/location/location.types";
 import { createActivity } from "../actions";
 
 // ── Constants ─────────────────────────────────────────────────────────────
@@ -150,13 +151,6 @@ function FieldError({ errors, field }: { errors: Record<string, string[]>; field
     return <p className="text-xs text-destructive mt-1">{msgs[0]}</p>;
 }
 
-// ── Country extraction from Mapbox address ─────────────────────────────────
-
-function extractCountry(address: string): string {
-    const parts = address.split(",").map(s => s.trim());
-    return parts.at(-1) ?? "";
-}
-
 // ── Main form ─────────────────────────────────────────────────────────────
 
 export function CreateActivityForm({ categories }: { categories: CategoryOption[] }) {
@@ -172,7 +166,7 @@ export function CreateActivityForm({ categories }: { categories: CategoryOption[
     const [isActive,   setIsActive]  = useState(true);
 
     // Location & Contact
-    const [location, setLocation] = useState<LocationResult | null>(null);
+    const [location, setLocation] = useState<LocationValue | null>(null);
     const [address,  setAddress]  = useState("");
     const [city,     setCity]     = useState("");
     const [state,    setState]    = useState("");
@@ -200,10 +194,11 @@ export function CreateActivityForm({ categories }: { categories: CategoryOption[
         );
     }
 
-    function handleLocationChange(loc: LocationResult | null) {
+    function handleLocationChange(loc: LocationValue | null) {
         setLocation(loc);
         if (loc) {
-            const detected = extractCountry(loc.address);
+            const parts = loc.breadcrumb.split(",").map(s => s.trim());
+            const detected = parts.at(-1) ?? "";
             if (detected) setCountry(detected);
         }
     }
@@ -324,10 +319,10 @@ export function CreateActivityForm({ categories }: { categories: CategoryOption[
                 {/* Map location */}
                 <div className="space-y-1.5">
                     <Label>Map Location <span className="text-xs text-muted-foreground">(optional)</span></Label>
-                    <LocationSearchInput
+                    <LocationSearchSelect
                         value={location}
                         onChange={handleLocationChange}
-                        placeholder="Search activity location on map…"
+                        placeholder="Search activity location…"
                     />
                 </div>
 
