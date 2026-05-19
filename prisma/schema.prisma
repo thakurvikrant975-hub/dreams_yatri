@@ -698,6 +698,7 @@ model destinations {
   is_deleted  Boolean        @default(false)
   bookings    Booking[]
   region      custom_regions @relation(fields: [region_id], references: [id])
+  activities  activities[]
   hotels      hotels[]
   packages    packages[]
 
@@ -950,6 +951,7 @@ model activities {
   meta_title           String?
   meta_desc            String?
   category_id          Int?
+  destination_id       Int?
   duration_hours       Decimal?               @db.Decimal(4, 1)
   difficulty           String?
   latitude             Decimal?               @db.Decimal(10, 8)
@@ -965,12 +967,14 @@ model activities {
   created_at           DateTime               @default(now())
   updated_at           DateTime               @updatedAt
   category             activity_categories?   @relation(fields: [category_id], references: [id], onDelete: SetNull)
+  destination          destinations?          @relation(fields: [destination_id], references: [id], onDelete: SetNull)
   images               activity_images[]
   itinerary_activities itinerary_activities[]
   variants             activity_variants[]
   addons               activity_addons[]
 
   @@index([category_id, is_active])
+  @@index([destination_id, is_active])
   @@index([slug])
 }
 

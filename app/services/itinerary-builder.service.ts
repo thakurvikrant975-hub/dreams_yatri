@@ -525,6 +525,7 @@ export async function searchActivities(destinationId: number, query: string) {
   const list = await db.activities.findMany({
     where: {
       is_active: true,
+      OR: [{ destination_id: destinationId }, { destination_id: null }],
       ...(query ? { name: { contains: query, mode: "insensitive" as const } } : {}),
     },
     select: {
