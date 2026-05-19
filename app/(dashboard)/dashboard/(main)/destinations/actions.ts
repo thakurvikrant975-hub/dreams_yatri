@@ -107,6 +107,28 @@ export async function getRegionsForSelect() {
   });
 }
 
+// ── Slug availability check ───────────────────────────────────────────────────
+export async function checkDestinationSlug(
+  slug: string,
+): Promise<{ exists: boolean; suggestion: string }> {
+  if (!slug) return { exists: false, suggestion: slug };
+
+  // Only treat non-deleted destinations as conflicts
+  const existing = await db.destinations.findFirst({ where: { slug, is_deleted: false } });
+  if (!existing) return { exists: false, suggestion: slug };
+
+  let counter = 2;
+  let candidate = `${slug}-${counter}`;
+  while (counter < 100) {
+    const conflict = await db.destinations.findFirst({ where: { slug: candidate, is_deleted: false } });
+    if (!conflict) break;
+    counter++;
+    candidate = `${slug}-${counter}`;
+  }
+
+  return { exists: true, suggestion: candidate };
+}
+
 // ── Create ────────────────────────────────────────────────────────────────────
 
 export async function createDestination(
@@ -136,16 +158,48 @@ export async function createDestination(
   }
 
   try {
-    const existing = await db.destinations.findUnique({ where: { slug: parsed.data.slug } });
-    if (existing) {
+    const existing = await db.destinations.findFirst({ where: { slug: parsed.data.slug } });
+
+    if (existing && !existing.is_deleted) {
       return { success: false, message: "Slug already exists", errors: { slug: ["This slug is already taken"] } };
+    }
+
+    if (existing && existing.is_deleted) {
+      // Restore the soft-deleted row with fresh data instead of inserting a duplicate
+      const restored = await db.destinations.update({
+        where: { id: existing.id },
+        data: {
+          ...parsed.data,
+          location_id: parsed.data.location_id ?? null,
+          cover_image: parsed.data.cover_image  ?? null,
+          is_deleted:  false,
+          deleted_by:  null,
+          deleted_at:  null,
+          created_by:  actor,
+          updated_by:  actor,
+        },
+      });
+
+      await createLog({
+        action:      "UPDATE",
+        entity:      "destination",
+        entityId:    String(restored.id),
+        entitySlug:  restored.slug,
+        description: `${actor} restored previously deleted destination [${restored.slug}]`,
+        previousData: { is_deleted: true, is_active: false, deleted_by: existing.deleted_by },
+        newData:      { name: restored.name, slug: restored.slug, country: restored.country, is_active: restored.is_active },
+        metadata:    { operation: "restore" },
+      });
+
+      revalidatePath("/dashboard/destinations");
+      return { success: true, message: "Destination created successfully" };
     }
 
     const created = await db.destinations.create({
       data: {
         ...parsed.data,
         location_id: parsed.data.location_id ?? null,
-        cover_image:  parsed.data.cover_image  ?? null,
+        cover_image: parsed.data.cover_image  ?? null,
         created_by:  actor,
       },
     });

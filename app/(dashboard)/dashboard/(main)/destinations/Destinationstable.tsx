@@ -8,8 +8,9 @@ import { Button }  from "../components/ui/button";
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "../components/ui/select";
-import { Trash2, MapPin, Package, Hotel, Activity, Package2, Globe, GlobeX, Earth } from "lucide-react";
+import { Trash2, Package, Hotel, Package2, Globe, GlobeX, Earth } from "lucide-react";
 import { ImageIcon } from "@phosphor-icons/react";
+import Image         from "next/image";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import {
@@ -22,7 +23,8 @@ import { EditDestinationDialog } from "./Destinationdialog";
 import { DestinationHistorySheet } from "./DestinationHistory";
 import { deleteDestination, toggleDestinationActive } from "./actions";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
-import { TableFilters } from "../components/dashboard/Tablefilters";
+import { TableFilters }    from "../components/dashboard/Tablefilters";
+import { TableEmptyState } from "../components/dashboard/TableEmptyState";
 import { StatCard, StatGrid } from "../components/dashboard/Statcard";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -158,7 +160,7 @@ export function DestinationsTable({
             params.set(key, value);
         }
         params.delete("page");
-        router.push(`?${params.toString()}`);
+        startTransition(() => router.replace(`?${params.toString()}`));
     }
 
     function handleSearch(value: string) {
@@ -196,9 +198,11 @@ export function DestinationsTable({
             cell: (dest) => (
                 <div className="flex items-center gap-3">
                     {dest.thumbnail ? (
-                        <img
+                        <Image
                             src={`${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${dest.thumbnail}`}
                             alt={dest.name}
+                            width={56}
+                            height={40}
                             className="h-10 w-14 rounded-lg object-cover shrink-0 border"
                         />
                     ) : (
@@ -216,16 +220,18 @@ export function DestinationsTable({
         {
             header: "Slug",
             cell: (dest) => (
-                <Badge variant="outline" className="font-mono text-xs">{dest.slug}</Badge>
+                <Badge variant="outline" className="font-mono text-xs text-dashboard-neutral/75 border border-dashboard-neutral/75">{dest.slug}</Badge>
             ),
         },
         {
             header: "Cover",
             cell: (dest) =>
                 dest.cover_image ? (
-                    <img
+                    <Image
                         src={`${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${dest.cover_image}`}
                         alt={dest.name}
+                        width={56}
+                        height={40}
                         className="h-10 w-14 rounded-lg object-cover shrink-0 border"
                     />
                 ) : (
@@ -237,7 +243,7 @@ export function DestinationsTable({
         {
             header: "Region",
             cell: (dest) => (
-                <Badge variant="secondary" className="text-xs">{dest.region.name}</Badge>
+                <Badge variant="secondary" className="text-xs bg-dashboard-primary/10 text-dashboard-primary">{dest.region.name}</Badge>
             ),
         },
         {
@@ -343,7 +349,7 @@ export function DestinationsTable({
                         const params = new URLSearchParams(searchParams.toString());
                         params.set("limit", v);
                         params.delete("page");
-                        router.push(`?${params.toString()}`);
+                        startTransition(() => router.replace(`?${params.toString()}`));
                     }}
                 >
                     <SelectTrigger className="w-32 h-10 text-sm shrink-0 border-dashboard-base-300 bg-dashboard-base-100 text-dashboard-base-content/70 rounded-lg focus:ring-dashboard-primary/30 focus:border-dashboard-primary">
@@ -368,11 +374,10 @@ export function DestinationsTable({
                 columns={columns}
                 rowKey={(d) => d.id}
                 emptyState={
-                    <div className="flex flex-col items-center gap-2">
-                        <MapPin className="h-10 w-10 text-muted-foreground" />
-                        <p className="text-sm font-medium text-muted-foreground">No destinations found</p>
-                        <p className="text-xs text-muted-foreground">Try adjusting your filters</p>
-                    </div>
+                    <TableEmptyState
+                        title="No destinations found"
+                        description="Try adjusting your filters or create a new destination"
+                    />
                 }
                 pagination={{
                     currentPage,

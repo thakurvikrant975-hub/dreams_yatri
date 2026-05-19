@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect, useRef } from "react";
-import { Plus, MapPin, ImageIcon, Search, Settings2, Pencil, AlertTriangle, Info, ChevronsUpDown, Check } from "lucide-react";
+import { Plus, MapPin, ImageIcon, Search, Settings2, Pencil, AlertTriangle, Info, ChevronsUpDown, Check, CheckCircle2, Loader2 } from "lucide-react";
 import { Button }   from "../components/ui/button";
 import { Input }    from "../components/ui/input";
 import { Label }    from "../components/ui/label";
@@ -24,7 +24,7 @@ import {
 
 import { LocationSearchSelect } from "../components/location/LocationSearchSelect";
 import type { LocationValue }   from "../components/location/location.types";
-import { createDestination, updateDestination } from "./actions";
+import { createDestination, updateDestination, checkDestinationSlug } from "./actions";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -99,7 +99,7 @@ function RegionCombobox({
       </PopoverPrimitive.Trigger>
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content
-          className="z-50 w-[--radix-popover-trigger-width] rounded-md border bg-popover shadow-md outline-none"
+          className="z-50 w-full rounded-md border bg-popover shadow-md outline-none"
           align="start"
           sideOffset={4}
         >
@@ -221,12 +221,13 @@ const DEST_STEPS: SheetStep[] = [
     description: "Location, slug and region",
     icon:        <MapPin className="h-4 w-4" />,
     validate: (data) => {
-      if (!data.name)      return "Destination name is required";
-      if (!data.slug)      return "Slug is required";
+      if (!data.name)       return "Destination name is required";
+      if (!data.slug)       return "Slug is required";
       if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(data.slug as string))
         return "Slug must be lowercase letters/numbers separated by hyphens — no leading or trailing hyphens";
-      if (!data.country)   return "Country is required";
-      if (!data.region_id) return "Please select a region";
+      if (data._slugConflict) return "Slug is already taken — apply the suggestion or choose a different one";
+      if (!data.country)    return "Country is required";
+      if (!data.region_id)  return "Please select a region";
       return null;
     },
   },
@@ -267,10 +268,52 @@ function BasicInfoStep({
 }) {
   const { stepData, setStepData } = useMultiStepSheet();
   const data        = stepData["basic"] ?? {};
-  const slug        = (data.slug        as string)              ?? "";
-  const region_id   = (data.region_id   as string)              ?? "";
-  const locationLoc = (data._locationLoc as LocationValue|null) ?? null;
-  const countryLoc  = (data._countryLoc  as LocationValue|null) ?? null;
+  const slug        = (data.slug           as string)              ?? "";
+  const region_id   = (data.region_id      as string)              ?? "";
+  const locationLoc = (data._locationLoc   as LocationValue|null)  ?? null;
+  const countryLoc  = (data._countryLoc    as LocationValue|null)  ?? null;
+  const slugSuggestion = (data._slugSuggestion as string)          ?? "";
+
+  const [slugStatus, setSlugStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
+  const dataRef = useRef<Record<string, unknown>>(data);
+  useEffect(() => { dataRef.current = data; });
+
+  // Live slug availability check (create mode only)
+  useEffect(() => {
+    if (!!destination || !slug) {
+      setSlugStatus("idle");
+      return;
+    }
+
+    setSlugStatus("checking");
+
+    const timer = setTimeout(async () => {
+      try {
+        const result = await checkDestinationSlug(slug);
+        setSlugStatus(result.exists ? "taken" : "available");
+        setStepData("basic", {
+          ...dataRef.current,
+          _slugConflict:   result.exists,
+          _slugSuggestion: result.suggestion,
+        });
+      } catch {
+        setSlugStatus("idle");
+      }
+    }, 600);
+
+    return () => { clearTimeout(timer); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
+
+  function applySuggestion() {
+    setStepData("basic", {
+      ...data,
+      slug:            slugSuggestion,
+      _slugConflict:   false,
+      _slugSuggestion: "",
+      _slugManual:     false,
+    });
+  }
 
   function handleLocationSelect(loc: LocationValue | null) {
     if (!loc) {
@@ -278,7 +321,6 @@ function BasicInfoStep({
       return;
     }
 
-    // Derive country from breadcrumb — last segment is typically the country
     const breadParts     = loc.breadcrumb.split(", ");
     const derivedCountry =
       loc.type === "COUNTRY"
@@ -293,12 +335,16 @@ function BasicInfoStep({
 
     setStepData("basic", {
       ...data,
-      _locationLoc: loc,
-      location_id:  loc.id,
-      name:         capitalise(loc.name),
-      // Auto-generate slug in create mode only
-      ...(!destination ? { slug: toSlug(loc.name) } : {}),
-      // Suggest country from location — LocationSearchSelect stays editable so user can override
+      _locationLoc:    loc,
+      location_id:     loc.id,
+      name:            capitalise(loc.name),
+      // Auto-generate slug in create mode, always reset on new location pick
+      ...(!destination ? {
+        slug:            toSlug(loc.name),
+        _slugManual:     false,
+        _slugConflict:   false,
+        _slugSuggestion: "",
+      } : {}),
       ...(derivedCountry ? { country: derivedCountry, _countryLoc: derivedCountryLoc } : {}),
     });
   }
@@ -342,18 +388,56 @@ function BasicInfoStep({
             !destination &&
             setStepData("basic", {
               ...data,
-              slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/--+/g, "-"),
+              slug:            e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/--+/g, "-"),
+              _slugManual:     true,
+              _slugConflict:   false,
+              _slugSuggestion: "",
             })
           }
           readOnly={!!destination}
-          className={cn(destination && "bg-muted text-muted-foreground cursor-not-allowed")}
+          className={cn(
+            destination && "bg-muted text-muted-foreground cursor-not-allowed",
+            slugStatus === "taken" && "border-destructive focus-visible:ring-destructive",
+          )}
         />
-        <p className="text-xs text-muted-foreground">
-          {destination
-            ? "Slug cannot be changed after creation to preserve URLs"
-            : <span>URL: dreamsyatri.com/destinations/<strong>{slug || "kashmir"}</strong></span>
-          }
-        </p>
+        {destination ? (
+          <p className="text-xs text-muted-foreground">
+            Slug cannot be changed after creation to preserve URLs
+          </p>
+        ) : slugStatus === "checking" ? (
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Loader2 className="h-3 w-3 animate-spin shrink-0" />
+            Checking availability…
+          </p>
+        ) : slugStatus === "taken" ? (
+          <div className="space-y-0.5">
+            <p className="flex items-center gap-1.5 text-xs text-destructive">
+              <AlertTriangle className="h-3 w-3 shrink-0" />
+              <span><strong>{slug}</strong> is already taken.</span>
+            </p>
+            {slugSuggestion && (
+              <p className="text-xs text-muted-foreground">
+                Try:{" "}
+                <button
+                  type="button"
+                  onClick={applySuggestion}
+                  className="font-medium text-primary underline underline-offset-2 hover:no-underline"
+                >
+                  {slugSuggestion}
+                </button>
+              </p>
+            )}
+          </div>
+        ) : slugStatus === "available" ? (
+          <p className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
+            <CheckCircle2 className="h-3 w-3 shrink-0" />
+            Slug is available · URL: dreamsyatri.com/destinations/<strong>{slug}</strong>
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            URL: dreamsyatri.com/destinations/<strong>{slug || "kashmir"}</strong>
+          </p>
+        )}
       </div>
 
       {/* Region */}

@@ -13,6 +13,6 @@ export const metadata: Metadata = {
 };
 
 export default async function ActivityCategoriesPage() {
-    const categories = await getCategories();
+    const { categories } = await getCategories();
     return <CategoriesClient initialCategories={categories} />;
 }

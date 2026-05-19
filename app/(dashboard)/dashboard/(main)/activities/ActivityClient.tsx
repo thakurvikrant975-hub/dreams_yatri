@@ -122,8 +122,8 @@ export async function ActivitiesClient({
                 description="Manage activities across all destinations"
                 icon={Activity}
                 actions={
-                    <Button asChild>
-                        <Link href="/dashboard/activities/new">
+                    <Button asChild size="lg" className="rounded-md bg-dashboard-primary text-dashboard-base-100 py-2.5 px-4 hover:bg-dashboard-primary hover:scale-105 duration-300 hover:text-dashboard-base-100 border border-dashboard-primary">
+                        <Link href="/dashboard/activities/new" className="">
                             <Plus className="mr-2 h-4 w-4" /> New Activity
                         </Link>
                     </Button>

@@ -11,11 +11,13 @@ import { EditRegionSheet }    from "./RegionSheet";
 import { DeleteRegionDialog } from "./Deleteregiondialog";
 import { toggleRegionActive } from "./actions";
 import { toast }              from "sonner";
-import { Globe, MapPin }      from "lucide-react";
+import { MapPin }             from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ImageIcon }          from "@phosphor-icons/react";
+import Image                  from "next/image";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { TableFilters }       from "../components/dashboard/Tablefilters";
+import { TableEmptyState }   from "../components/dashboard/TableEmptyState";
 
 // ── Type ──────────────────────────────────────────────────────────────────────
 type Region = {
@@ -76,7 +78,7 @@ export function RegionsTable({
       params.set(key, value);
     }
     params.delete("page"); // reset to page 1 on any filter change
-    router.push(`?${params.toString()}`);
+    startTransition(() => router.replace(`?${params.toString()}`));
   }
 
   function handleSearch(value: string) {
@@ -116,9 +118,11 @@ export function RegionsTable({
       cell: (region) => (
         <div className="flex items-center gap-2">
           {region.thumbnail ? (
-            <img
+            <Image
               src={`${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${region.thumbnail}`}
               alt={region.name}
+              width={56}
+              height={40}
               className="h-10 w-14 rounded-lg object-cover shrink-0"
             />
           ) : (
@@ -140,7 +144,7 @@ export function RegionsTable({
     {
       header: "Slug",
       cell: (region) => (
-        <Badge variant="outline" className="font-mono text-xs">{region.slug}</Badge>
+        <Badge variant="outline" className="font-mono text-xs border border-dashboard-neutral/75">{region.slug}</Badge>
       ),
     },
     {
@@ -148,8 +152,10 @@ export function RegionsTable({
       width:  "w-[100px]",
       cell: (region) =>
         region.cover_image ? (
-          <img
+          <Image
             src={`${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${region.cover_image}`}
+            width={56}
+            height={40}
             alt={`${region.name} cover`}
             className="h-10 w-14 rounded-lg object-cover shrink-0"
           />
@@ -259,7 +265,7 @@ export function RegionsTable({
             const params = new URLSearchParams(searchParams.toString());
             params.set("limit", v);
             params.delete("page");
-            router.push(`?${params.toString()}`);
+            startTransition(() => router.replace(`?${params.toString()}`));
           }}
         >
           <SelectTrigger className="w-32 h-10 text-sm shrink-0 border-dashboard-base-300 bg-dashboard-base-100 text-dashboard-base-content/70 rounded-lg focus:ring-dashboard-primary/30 focus:border-dashboard-primary">
@@ -285,11 +291,10 @@ export function RegionsTable({
         columns={columns}
         rowKey={(r) => r.id}
         emptyState={
-          <div className="flex flex-col items-center gap-2">
-            <Globe className="h-10 w-10 text-muted-foreground" />
-            <p className="text-sm font-medium text-muted-foreground">No regions found</p>
-            <p className="text-xs text-muted-foreground">Try adjusting your filters</p>
-          </div>
+          <TableEmptyState
+            title="No regions found"
+            description="Try adjusting your filters or create a new region"
+          />
         }
         pagination={{
           currentPage,

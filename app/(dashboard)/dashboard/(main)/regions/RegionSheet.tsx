@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
-import { Globe, ImageIcon, Search, Settings2, Plus, Pencil, AlertTriangle, Info } from "lucide-react";
+import { useState, useTransition, useEffect, useRef } from "react";
+import { Globe, ImageIcon, Search, Settings2, Plus, Pencil, AlertTriangle, Info, CheckCircle2, Loader2 } from "lucide-react";
 import { Button }   from "../components/ui/button";
 import { Input }    from "../components/ui/input";
 import { Label }    from "../components/ui/label";
@@ -23,7 +23,7 @@ import {
 
 import { LocationSearchSelect } from "../components/location/LocationSearchSelect";
 import type { LocationValue }   from "../components/location/location.types";
-import { createRegion, updateRegion } from "./actions";
+import { createRegion, updateRegion, checkSlugAvailability } from "./actions";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -117,11 +117,13 @@ const REGION_STEPS: SheetStep[] = [
     description: "Name, slug and country",
     icon:        <Globe className="h-4 w-4" />,
     validate: (data) => {
-      if (!data.name)    return "Region name is required";
-      if (!data.slug)    return "Slug is required";
+      if (!data.name)                                      return "Region name is required";
+      if ((data.name as string).length > 90)               return "Region name must be 90 characters or fewer";
+      if (!data.slug)                                      return "Slug is required";
       if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(data.slug as string))
         return "Slug must be lowercase letters/numbers separated by hyphens — no leading or trailing hyphens";
-      if (!data.country) return "Country is required";
+      if (data._slugConflict)                              return "Slug is already taken — apply the suggestion or choose a different one";
+      if (!data.country)                                   return "Country is required";
       return null;
     },
   },
@@ -159,6 +161,11 @@ function BasicInfoStep({ region }: { region?: Region }) {
   const name       = (data.name        as string)             ?? "";
   const slug       = (data.slug        as string)             ?? "";
   const countryLoc = (data._countryLoc as LocationValue|null) ?? null;
+  const slugSuggestion = (data._slugSuggestion as string) ?? "";
+
+  const [slugStatus, setSlugStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
+  const dataRef = useRef<Record<string, unknown>>(data);
+  useEffect(() => { dataRef.current = data; });
 
   function capitalise(s: string) {
     return s.replace(/\b\w/g, (c) => c.toUpperCase());
@@ -176,12 +183,14 @@ function BasicInfoStep({ region }: { region?: Region }) {
   function handleNameChange(value: string) {
     const capitalised = capitalise(value);
     const currentSlug = (data.slug as string) ?? "";
-    // Keep auto-generating slug while it still matches what the previous name produced
-    const slugIsAuto  = currentSlug === "" || currentSlug === toSlug((data.name as string) ?? "");
+    const isManual    = (data._slugManual as boolean) ?? false;
+    const newSlug     = isManual ? currentSlug : toSlug(capitalised);
     setStepData("basic", {
       ...data,
       name: capitalised,
-      slug: slugIsAuto ? toSlug(capitalised) : currentSlug,
+      slug: newSlug,
+      // Clear stale conflict immediately whenever the slug auto-changes
+      ...(newSlug !== currentSlug && { _slugConflict: false, _slugSuggestion: "" }),
     });
   }
 
@@ -193,20 +202,75 @@ function BasicInfoStep({ region }: { region?: Region }) {
     });
   }
 
+  // Live slug availability check (create mode only)
+  useEffect(() => {
+    if (!!region || !slug) {
+      setSlugStatus("idle");
+      return;
+    }
+
+    setSlugStatus("checking");
+
+    const timer = setTimeout(async () => {
+      try {
+        const result = await checkSlugAvailability(slug);
+        setSlugStatus(result.exists ? "taken" : "available");
+        setStepData("basic", {
+          ...dataRef.current,
+          _slugConflict:   result.exists,
+          _slugSuggestion: result.suggestion,
+        });
+      } catch {
+        setSlugStatus("idle");
+      }
+    }, 600);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
+
+  function applySuggestion() {
+    setStepData("basic", {
+      ...data,
+      slug:            slugSuggestion,
+      _slugConflict:   false,
+      _slugSuggestion: "",
+      _slugManual:     false, // re-enable auto-follow so name changes keep updating the slug
+    });
+  }
+
+  const nameLen = name.length;
+
   return (
     <div className="space-y-4">
       {/* Region Name */}
       <div className="space-y-1.5">
-        <Label>
-          Region Name <span className="text-destructive">*</span>
-        </Label>
+        <div className="flex items-center justify-between">
+          <Label>
+            Region Name <span className="text-destructive">*</span>
+          </Label>
+          <span className={cn(
+            "text-xs tabular-nums",
+            nameLen >= 90 ? "text-destructive font-medium" :
+            nameLen > 75  ? "text-amber-600 dark:text-amber-400" :
+            "text-muted-foreground",
+          )}>
+            {nameLen}/90
+          </span>
+        </div>
         <Input
           placeholder="North India"
           value={name}
-          onChange={(e) => region
-            ? setStepData("basic", { ...data, name: capitalise(e.target.value) })
-            : handleNameChange(e.target.value)
-          }
+          onChange={(e) => {
+            const val = e.target.value.slice(0, 90);
+            if (region) {
+              setStepData("basic", { ...data, name: capitalise(val) });
+            } else {
+              handleNameChange(val);
+            }
+          }}
           autoComplete="off"
         />
       </div>
@@ -224,18 +288,56 @@ function BasicInfoStep({ region }: { region?: Region }) {
             !region &&
             setStepData("basic", {
               ...data,
-              slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/--+/g, "-"),
+              slug:            e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/--+/g, "-"),
+              _slugManual:     true,
+              _slugConflict:   false,
+              _slugSuggestion: "",
             })
           }
           readOnly={!!region}
-          className={cn(region && "bg-muted text-muted-foreground cursor-not-allowed")}
+          className={cn(
+            region && "bg-muted text-muted-foreground cursor-not-allowed",
+            slugStatus === "taken" && "border-destructive focus-visible:ring-destructive",
+          )}
         />
-        <p className="text-xs text-muted-foreground">
-          {region
-            ? "Slug cannot be changed after creation to preserve URLs"
-            : <span>URL: dreamsyatri.com/regions/<strong>{slug || "north-india"}</strong></span>
-          }
-        </p>
+        {region ? (
+          <p className="text-xs text-muted-foreground">
+            Slug cannot be changed after creation to preserve URLs
+          </p>
+        ) : slugStatus === "checking" ? (
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Loader2 className="h-3 w-3 animate-spin shrink-0" />
+            Checking availability…
+          </p>
+        ) : slugStatus === "taken" ? (
+          <div className="space-y-0.5">
+            <p className="flex items-center gap-1.5 text-xs text-destructive">
+              <AlertTriangle className="h-3 w-3 shrink-0" />
+              <span><strong>{slug}</strong> is already taken.</span>
+            </p>
+            {slugSuggestion && (
+              <p className="text-xs text-muted-foreground">
+                Try:{" "}
+                <button
+                  type="button"
+                  onClick={applySuggestion}
+                  className="font-medium text-primary underline underline-offset-2 hover:no-underline"
+                >
+                  {slugSuggestion}
+                </button>
+              </p>
+            )}
+          </div>
+        ) : slugStatus === "available" ? (
+          <p className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
+            <CheckCircle2 className="h-3 w-3 shrink-0" />
+            Slug is available · URL: dreamsyatri.com/regions/<strong>{slug}</strong>
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            URL: dreamsyatri.com/regions/<strong>{slug || "north-india"}</strong>
+          </p>
+        )}
       </div>
 
       {/* Country */}
@@ -336,11 +438,16 @@ function DetailsStep() {
           id="r-desc"
           placeholder="A brief description of this region..."
           value={description}
-          onChange={(e) => setStepData("details", { ...data, description: e.target.value })}
+          onChange={(e) => setStepData("details", { ...data, description: e.target.value.slice(0, 2000) })}
           rows={5}
         />
-        <p className="text-xs text-muted-foreground text-right">
-          {description.length} / 2000
+        <p className={cn(
+          "text-xs tabular-nums text-right",
+          description.length >= 2000 ? "text-destructive font-medium" :
+          description.length > 1800  ? "text-amber-600 dark:text-amber-400" :
+          "text-muted-foreground",
+        )}>
+          {description.length}/2000
         </p>
       </div>
 
@@ -555,6 +662,7 @@ export function CreateRegionSheet() {
 
 export function EditRegionSheet({ region }: { region: Region }) {
   const [open,      setOpen]         = useState(false);
+  const [sheetKey,  setSheetKey]     = useState(0);
   const [isPending, startTransition] = useTransition();
 
   async function handleComplete(data: Record<string, unknown>) {
@@ -582,12 +690,12 @@ export function EditRegionSheet({ region }: { region: Region }) {
 
   return (
     <>
-      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setOpen(true)}>
+      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setSheetKey((k) => k + 1); setOpen(true); }}>
         <Pencil className="h-3.5 w-3.5" />
       </Button>
 
       <MultiStepSheet
-        key={region.id}
+        key={sheetKey}
         open={open}
         onOpenChange={setOpen}
         title="Edit Region"

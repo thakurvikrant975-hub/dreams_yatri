@@ -3,7 +3,11 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Badge } from "../../components/ui/badge";
+import {
+    ExternalLink, ImageIcon, MapPin, Package,
+    Pencil, Route, Timer, Trash2,
+} from "lucide-react";
+import { Badge }  from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Switch } from "../../components/ui/switch";
 import {
@@ -28,24 +32,26 @@ import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable"
 type Destination = { id: number; name: string };
 
 type PackageItem = {
-  id: number;
-  title: string;
-  slug: string;
-  thumbnail: string | null;
-  is_active: boolean;
-  destination: {
-    id: number;
-    name: string;
-    region: { name: string } | null;
-  };
-  _count: {
-    durations: number;
-    packageRoutes: number;
-    gallery: number;
-  };
-  durations: { slug: string; routes: { slug: string }[] }[];
-  stay_categories: { slug: string }[];
+    id:        number;
+    title:     string;
+    slug:      string;
+    thumbnail: string | null;
+    is_active: boolean;
+    destination: {
+        id:     number;
+        name:   string;
+        region: { name: string } | null;
+    };
+    _count: {
+        durations:     number;
+        packageRoutes: number;
+        gallery:       number;
+    };
+    durations:        { slug: string; routes: { slug: string }[] }[];
+    stay_categories:  { slug: string }[];
 };
+
+// ── Helpers ───────────────────────────────────────────────────────────────
 
 function getWebsiteUrl(pkg: PackageItem): string | null {
   const dur   = pkg.durations[0];
