@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
     Trash2, Clock,
     ImageIcon, Zap, ExternalLink,
+    Pencil,
 } from "lucide-react";
 import { Badge }   from "../components/ui/badge";
 import { Button }  from "../components/ui/button";
@@ -237,7 +238,7 @@ export function ActivitiesTableClient({
                 <div className="flex items-center justify-end gap-1">
                     <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
                         <Link href={`/dashboard/activities/${a.id}`}>
-                            <ExternalLink className="h-3.5 w-3.5" />
+                            <Pencil className="h-3.5 w-3.5" />
                         </Link>
                     </Button>
                     <Button
