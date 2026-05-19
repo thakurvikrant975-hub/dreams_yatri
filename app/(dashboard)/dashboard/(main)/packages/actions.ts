@@ -38,10 +38,6 @@ export async function getPackageForBuilder(id: number) {
           policy: { select: { id: true, type: true, title: true } },
         },
       },
-      gallery: {
-        orderBy: { position: "asc" },
-        select: { id: true, position: true, image_url: true, source_type: true, source_id: true, label: true },
-      },
       packagePricings: {
         select: {
           id: true,

@@ -28,9 +28,12 @@ export type GallerySourceImages = {
 
 // ── Read ───────────────────────────────────────────────────────────────────
 
-export async function getPackageGallery(packageId: number): Promise<(GallerySlot | null)[]> {
+export async function getPackageGallery(
+  packageId: number,
+  routeId: number,
+): Promise<(GallerySlot | null)[]> {
   const rows = await db.package_gallery.findMany({
-    where: { package_id: packageId },
+    where: { package_id: packageId, route_id: routeId },
     orderBy: { position: "asc" },
   });
   const map = new Map(rows.map((r) => [r.position, r]));
@@ -167,25 +170,25 @@ export async function getPackageSourceImages(packageId: number): Promise<Gallery
 
 export async function upsertGallerySlot(
   packageId: number,
+  routeId: number,
   position: number,
   imageUrl: string,
   sourceType: GallerySlot["source_type"],
   sourceId: number | null,
 ) {
-  return db.package_gallery.upsert({
-    where: { package_id_position: { package_id: packageId, position } },
-    create: { package_id: packageId, position, image_url: imageUrl, source_type: sourceType, source_id: sourceId },
-    update: { image_url: imageUrl, source_type: sourceType, source_id: sourceId },
+  await db.package_gallery.deleteMany({ where: { package_id: packageId, route_id: routeId, position } });
+  return db.package_gallery.create({
+    data: { package_id: packageId, route_id: routeId, position, image_url: imageUrl, source_type: sourceType, source_id: sourceId },
   });
 }
 
-export async function clearGallerySlot(packageId: number, position: number) {
-  await db.package_gallery.deleteMany({ where: { package_id: packageId, position } });
+export async function clearGallerySlot(packageId: number, routeId: number, position: number) {
+  await db.package_gallery.deleteMany({ where: { package_id: packageId, route_id: routeId, position } });
 }
 
-export async function updateGallerySlotLabel(packageId: number, position: number, label: string) {
+export async function updateGallerySlotLabel(packageId: number, routeId: number, position: number, label: string) {
   await db.package_gallery.updateMany({
-    where: { package_id: packageId, position },
+    where: { package_id: packageId, route_id: routeId, position },
     data: { label: label.trim() || null },
   });
 }

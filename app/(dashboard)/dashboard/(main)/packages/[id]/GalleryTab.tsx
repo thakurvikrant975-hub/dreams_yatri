@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import { cn } from "@/app/lib/utils";
 
@@ -11,6 +11,7 @@ function r2(path: string | null | undefined) {
   return `${R2}/${path}`;
 }
 import {
+  handleGetPackageGallery,
   handleGetSourceImages,
   handleUpsertGallerySlot,
   handleClearGallerySlot,
@@ -27,6 +28,7 @@ import {
   BedDouble,
   ChevronLeft,
   Star,
+  Route,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 
@@ -34,9 +36,11 @@ import { Button } from "../../components/ui/button";
 
 type SlotData = GallerySlot | null;
 
+type RouteOption = { id: number; name: string; durationLabel: string };
+
 type Props = {
   packageId: number;
-  initialGallery: SlotData[];
+  routes: RouteOption[];
 };
 
 type SourceKey = "PACKAGE" | "HOTEL" | "ACTIVITY" | "ROOM";
@@ -89,7 +93,7 @@ function SlotCard({
     <div
       className={cn(
         "relative rounded-xl border-2 overflow-hidden transition-all cursor-pointer group",
-        isCover ? "col-span-2 row-span-2 aspect-[4/3]" : "aspect-square",
+        isCover ? "col-span-2 row-span-2 aspect-4/3" : "aspect-square",
         active ? "border-primary ring-2 ring-primary/30" : "border-border hover:border-primary/50",
         !slot && "bg-muted/20 border-dashed",
       )}
@@ -104,7 +108,6 @@ function SlotCard({
             className="absolute inset-0 w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
-          {/* Position badge */}
           <div className="absolute top-2 left-2">
             <span className={cn(
               "text-[10px] font-bold px-1.5 py-0.5 rounded-md",
@@ -114,7 +117,6 @@ function SlotCard({
               {SLOT_LABELS[position]}
             </span>
           </div>
-          {/* Clear button */}
           {!saving && (
             <button
               type="button"
@@ -129,7 +131,6 @@ function SlotCard({
               <Loader2 className="h-5 w-5 text-white animate-spin" />
             </div>
           )}
-          {/* Label input — non-cover slots only */}
           {!isCover && (
             <div className="absolute bottom-0 left-0 right-0" onClick={(e) => e.stopPropagation()}>
               <input
@@ -189,7 +190,6 @@ function ImagePickerPanel({
 
   const images = sourceImages?.[activeSource] ?? [];
 
-  // Group by group_label
   const grouped = images.reduce<Record<string, SourceImage[]>>((acc, img) => {
     (acc[img.group_label] ??= []).push(img);
     return acc;
@@ -197,7 +197,6 @@ function ImagePickerPanel({
 
   return (
     <div className="rounded-xl border bg-background flex flex-col" style={{ minHeight: 420 }}>
-      {/* Panel header */}
       <div className="flex items-center justify-between px-4 py-3 border-b">
         <div className="flex items-center gap-2">
           <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
@@ -209,7 +208,6 @@ function ImagePickerPanel({
         </div>
       </div>
 
-      {/* Source tabs */}
       <div className="flex border-b px-4">
         {SOURCE_TABS.map(({ key, label, icon: Icon }) => (
           <button
@@ -229,7 +227,6 @@ function ImagePickerPanel({
         ))}
       </div>
 
-      {/* Image grid */}
       <div className="flex-1 overflow-y-auto p-4">
         {loading ? (
           <div className="flex items-center justify-center py-12">
@@ -282,20 +279,38 @@ function ImagePickerPanel({
   );
 }
 
-// ── Main Tab ───────────────────────────────────────────────────────────────
+// ── Route Gallery Panel ────────────────────────────────────────────────────
 
-export function GalleryTab({ packageId, initialGallery }: Props) {
-  const [gallery, setGallery] = useState<SlotData[]>(initialGallery);
+function RouteGalleryPanel({
+  packageId,
+  routeId,
+}: {
+  packageId: number;
+  routeId: number;
+}) {
+  const [gallery, setGallery] = useState<SlotData[]>(Array(5).fill(null));
+  const [galleryLoading, setGalleryLoading] = useState(true);
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
   const [sourceImages, setSourceImages] = useState<GallerySourceImages | null>(null);
   const [pickerLoading, setPickerLoading] = useState(false);
   const [savingSlot, setSavingSlot] = useState<number | null>(null);
-  const [labels, setLabels] = useState<Record<number, string>>(() =>
-    Object.fromEntries(
-      initialGallery.map((s, i) => [i + 1, s?.label ?? ""]),
-    ),
-  );
+  const [labels, setLabels] = useState<Record<number, string>>({});
   const [savingLabel, setSavingLabel] = useState<number | null>(null);
+
+  // Load gallery when routeId changes
+  useEffect(() => {
+    setGalleryLoading(true);
+    setActiveSlot(null);
+    handleGetPackageGallery(packageId, routeId).then((res) => {
+      setGalleryLoading(false);
+      if (res.success) {
+        setGallery(res.data);
+        setLabels(Object.fromEntries(res.data.map((s, i) => [i + 1, s?.label ?? ""])));
+      } else {
+        toast.error(res.message ?? "Failed to load gallery");
+      }
+    });
+  }, [packageId, routeId]);
 
   const openPicker = useCallback(
     async (position: number) => {
@@ -317,7 +332,7 @@ export function GalleryTab({ packageId, initialGallery }: Props) {
   async function handlePick(img: SourceImage, sourceType: SourceKey) {
     if (!activeSlot) return;
     setSavingSlot(activeSlot);
-    const res = await handleUpsertGallerySlot(packageId, activeSlot, img.url, sourceType, img.source_id);
+    const res = await handleUpsertGallerySlot(packageId, routeId, activeSlot, img.url, sourceType, img.source_id);
     setSavingSlot(null);
     if (!res.success) { toast.error(res.message); return; }
     setGallery((prev) => {
@@ -338,7 +353,7 @@ export function GalleryTab({ packageId, initialGallery }: Props) {
 
   async function handleClear(position: number) {
     setSavingSlot(position);
-    const res = await handleClearGallerySlot(packageId, position);
+    const res = await handleClearGallerySlot(packageId, routeId, position);
     setSavingSlot(null);
     if (!res.success) { toast.error(res.message); return; }
     setGallery((prev) => {
@@ -357,7 +372,7 @@ export function GalleryTab({ packageId, initialGallery }: Props) {
     const saved = gallery[position - 1]?.label ?? "";
     if (current === saved) return;
     setSavingLabel(position);
-    const res = await handleUpdateGallerySlotLabel(packageId, position, current);
+    const res = await handleUpdateGallerySlotLabel(packageId, routeId, position, current);
     setSavingLabel(null);
     if (!res.success) { toast.error(res.message); return; }
     setGallery((prev) => {
@@ -369,67 +384,121 @@ export function GalleryTab({ packageId, initialGallery }: Props) {
 
   const filledCount = gallery.filter(Boolean).length;
 
+  if (galleryLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-5 w-5 text-muted-foreground animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Slot grid */}
+      <div>
+        <p className="text-xs text-muted-foreground mb-3">
+          {filledCount}/5 filled — click a slot to pick an image
+        </p>
+        <div className="grid grid-cols-4 grid-rows-2 gap-2" style={{ minHeight: 280 }}>
+          {Array.from({ length: 5 }, (_, i) => i + 1).map((pos) => (
+            <SlotCard
+              key={pos}
+              position={pos}
+              slot={gallery[pos - 1]}
+              active={activeSlot === pos}
+              saving={savingSlot === pos}
+              label={labels[pos] ?? ""}
+              savingLabel={savingLabel === pos}
+              onSelect={() => openPicker(pos)}
+              onClear={() => handleClear(pos)}
+              onLabelChange={(val) => setLabels((prev) => ({ ...prev, [pos]: val }))}
+              onLabelBlur={() => handleSaveLabel(pos)}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Image picker */}
+      <div>
+        {activeSlot ? (
+          <ImagePickerPanel
+            activeSlot={activeSlot}
+            sourceImages={sourceImages}
+            loading={pickerLoading}
+            savingSlot={savingSlot}
+            onPick={handlePick}
+            onClose={() => setActiveSlot(null)}
+          />
+        ) : (
+          <div className="rounded-xl border border-dashed bg-muted/20 flex flex-col items-center justify-center" style={{ minHeight: 280 }}>
+            <ImageIcon className="h-8 w-8 text-muted-foreground/30 mb-2" />
+            <p className="text-sm text-muted-foreground">Select a slot to pick an image</p>
+            <p className="text-xs text-muted-foreground/50 mt-1">
+              Images sourced from package, hotels, activities, and rooms in the itinerary
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Main Tab ───────────────────────────────────────────────────────────────
+
+export function GalleryTab({ packageId, routes }: Props) {
+  const [selectedRouteId, setSelectedRouteId] = useState<number | null>(routes[0]?.id ?? null);
+
+  if (routes.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 rounded-xl border border-dashed bg-muted/20">
+        <Route className="h-10 w-10 text-muted-foreground/30 mb-4" />
+        <p className="text-sm font-medium text-muted-foreground">No route variants yet</p>
+        <p className="text-xs text-muted-foreground/60 mt-1">
+          Create at least one route in the Route Builder tab first.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       {/* Header */}
       <div>
         <h3 className="text-sm font-semibold">Gallery — Intro Section</h3>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Choose up to 5 images for the package gallery. Position 1 is the large cover photo.{" "}
-          <span className="text-muted-foreground/70">{filledCount}/5 filled</span>
+          5 images per route variant. Position 1 is the large cover photo.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Slot grid */}
-        <div>
-          <div className="grid grid-cols-4 grid-rows-2 gap-2" style={{ minHeight: 280 }}>
-            {Array.from({ length: 5 }, (_, i) => i + 1).map((pos) => (
-              <SlotCard
-                key={pos}
-                position={pos}
-                slot={gallery[pos - 1]}
-                active={activeSlot === pos}
-                saving={savingSlot === pos}
-                label={labels[pos] ?? ""}
-                savingLabel={savingLabel === pos}
-                onSelect={() => openPicker(pos)}
-                onClear={() => handleClear(pos)}
-                onLabelChange={(val) => setLabels((prev) => ({ ...prev, [pos]: val }))}
-                onLabelBlur={() => handleSaveLabel(pos)}
-              />
-            ))}
-          </div>
-
-          {filledCount === 0 && (
-            <p className="text-xs text-muted-foreground/60 mt-3 text-center">
-              Click a slot to pick an image
-            </p>
-          )}
-        </div>
-
-        {/* Image picker */}
-        <div>
-          {activeSlot ? (
-            <ImagePickerPanel
-              activeSlot={activeSlot}
-              sourceImages={sourceImages}
-              loading={pickerLoading}
-              savingSlot={savingSlot}
-              onPick={handlePick}
-              onClose={() => setActiveSlot(null)}
-            />
-          ) : (
-            <div className="rounded-xl border border-dashed bg-muted/20 flex flex-col items-center justify-center" style={{ minHeight: 280 }}>
-              <ImageIcon className="h-8 w-8 text-muted-foreground/30 mb-2" />
-              <p className="text-sm text-muted-foreground">Select a slot to pick an image</p>
-              <p className="text-xs text-muted-foreground/50 mt-1">
-                Images are sourced from the package, hotels, activities, and rooms in the itinerary
-              </p>
-            </div>
-          )}
-        </div>
+      {/* Route tabs */}
+      <div className="flex gap-0 border-b overflow-x-auto">
+        {routes.map((r) => (
+          <button
+            key={r.id}
+            type="button"
+            onClick={() => setSelectedRouteId(r.id)}
+            className={cn(
+              "flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 whitespace-nowrap transition-colors",
+              selectedRouteId === r.id
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Route className="h-3 w-3" />
+            {r.name}
+            <span className="text-muted-foreground/50 font-normal">· {r.durationLabel}</span>
+          </button>
+        ))}
       </div>
+
+      {/* Gallery for selected route */}
+      {selectedRouteId != null && (
+        <RouteGalleryPanel
+          key={selectedRouteId}
+          packageId={packageId}
+          routeId={selectedRouteId}
+        />
+      )}
     </div>
   );
 }

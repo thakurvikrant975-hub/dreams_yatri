@@ -1126,6 +1126,7 @@ model package_routes {
   packages           packages?              @relation(fields: [packagesId], references: [id])
   stops              route_stops[]
   cabPricings        package_cab_pricings[]
+  gallery            package_gallery[]
 
   @@unique([duration_id, slug])
   @@index([duration_id])
@@ -1384,6 +1385,7 @@ model package_policy_map {
 model package_gallery {
   id          Int               @id @default(autoincrement())
   package_id  Int
+  route_id    Int?
   image_url   String
   source_type GallerySourceType
   source_id   Int?
@@ -1391,9 +1393,10 @@ model package_gallery {
   created_at  DateTime          @default(now())
   label       String?
   package     packages          @relation(fields: [package_id], references: [id], onDelete: Cascade)
+  route       package_routes?   @relation(fields: [route_id], references: [id], onDelete: Cascade)
 
-  @@unique([package_id, position])
   @@index([package_id])
+  @@index([route_id])
 }
 
 model QueryFollowUp {

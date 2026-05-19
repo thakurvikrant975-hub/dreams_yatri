@@ -213,21 +213,13 @@ export default async function PackageBuilderPage({
         <TabsContent value="gallery" className="pt-6">
           <GalleryTab
             packageId={pkg.id}
-            initialGallery={(() => {
-              const map = new Map(pkg.gallery.map((g) => [g.position, g]));
-              return Array.from({ length: 5 }, (_, i) => {
-                const g = map.get(i + 1);
-                if (!g) return null;
-                return {
-                  id: g.id,
-                  position: g.position,
-                  image_url: g.image_url,
-                  source_type: g.source_type as "PACKAGE" | "HOTEL" | "ACTIVITY" | "ROOM",
-                  source_id: g.source_id,
-                  label: g.label,
-                };
-              });
-            })()}
+            routes={pkg.durations.flatMap((d) =>
+              d.routes.map((r) => ({
+                id: r.id,
+                name: r.name,
+                durationLabel: d.label,
+              }))
+            )}
           />
         </TabsContent>
 
