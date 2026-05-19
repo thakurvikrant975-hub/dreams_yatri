@@ -110,7 +110,7 @@ export function ActivitiesTableClient({
             params.set(key, value);
         }
         params.delete("page");
-        router.push(`?${params.toString()}`);
+        startTransition(() => router.replace(`?${params.toString()}`));
     }
 
     function handleSearch(value: string) {

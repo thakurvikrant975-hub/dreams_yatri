@@ -77,7 +77,7 @@ export function RegionsTable({
       params.set(key, value);
     }
     params.delete("page"); // reset to page 1 on any filter change
-    router.push(`?${params.toString()}`);
+    startTransition(() => router.replace(`?${params.toString()}`));
   }
 
   function handleSearch(value: string) {
@@ -260,7 +260,7 @@ export function RegionsTable({
             const params = new URLSearchParams(searchParams.toString());
             params.set("limit", v);
             params.delete("page");
-            router.push(`?${params.toString()}`);
+            startTransition(() => router.replace(`?${params.toString()}`));
           }}
         >
           <SelectTrigger className="w-32 h-10 text-sm shrink-0 border-dashboard-base-300 bg-dashboard-base-100 text-dashboard-base-content/70 rounded-lg focus:ring-dashboard-primary/30 focus:border-dashboard-primary">

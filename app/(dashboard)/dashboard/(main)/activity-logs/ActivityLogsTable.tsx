@@ -88,6 +88,7 @@ export function ActivityLogsTable({ paginated, stats, currentPage }: Props) {
   const { logs, totalPages } = paginated;
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [, startTransition] = useTransition();
 
   const [search, setSearch] = useState("");
   const [actionFilter, setAction] = useState("all");
@@ -112,7 +113,7 @@ export function ActivityLogsTable({ paginated, stats, currentPage }: Props) {
   const goToPage = (p: number) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("page", String(p));
-    router.push(`?${params.toString()}`);
+    startTransition(() => router.replace(`?${params.toString()}`));
   };
 
   // ── Columns ──────────────────────────────────────────────────────────────

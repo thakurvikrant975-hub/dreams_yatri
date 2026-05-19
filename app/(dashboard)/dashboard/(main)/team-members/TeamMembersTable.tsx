@@ -55,7 +55,7 @@ export function TeamMembersTable({ paginated, totalStats, departments, roles, cu
   const goToPage = (p: number) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("page", String(p));
-    router.push(`?${params.toString()}`);
+    startTransition(() => router.replace(`?${params.toString()}`));
   };
 
   const handleDelete = (id: string, name: string, e: React.MouseEvent) => {
