@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -11,11 +11,16 @@ type Stop = {
   stay_days: number;
 };
 
+type RoadLeg = {
+  distance_km: number;
+  duration_min: number;
+};
+
 type Props = {
   stops: Stop[];
 };
 
-// ── Haversine distance ─────────────────────────────────────────────────────
+// ── Haversine fallback ─────────────────────────────────────────────────────
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371;
@@ -34,15 +39,19 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
 export function RoutePreviewMap({ stops }: Props) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<import("leaflet").Map | null>(null);
+  const [roadLegs, setRoadLegs] = useState<RoadLeg[] | null>(null);
 
   const validStops = stops.filter((s) => s.latitude && s.longitude);
 
   useEffect(() => {
     if (!mapRef.current || validStops.length === 0) return;
 
-    // Leaflet must run client-side only
+    setRoadLegs(null);
+    let cancelled = false;
+
     import("leaflet").then((L) => {
-      // Fix default icon paths (bundler issue)
+      if (cancelled || !mapRef.current) return;
+
       // @ts-expect-error leaflet icon hack
       delete L.Icon.Default.prototype._getIconUrl;
       L.Icon.Default.mergeOptions({
@@ -65,10 +74,15 @@ export function RoutePreviewMap({ stops }: Props) {
         maxZoom: 18,
       }).addTo(map);
 
-      // Draw polyline
-      L.polyline(coords, { color: "hsl(var(--primary))", weight: 3, dashArray: "6 4" }).addTo(map);
+      // Initial dashed polyline (haversine straight-line, replaced when Mapbox loads)
+      let polyline = L.polyline(coords, {
+        color: "hsl(var(--primary))",
+        weight: 3,
+        dashArray: "6 4",
+        opacity: 0.7,
+      }).addTo(map);
 
-      // Add numbered markers
+      // Numbered markers
       coords.forEach(([lat, lng], i) => {
         const icon = L.divIcon({
           className: "",
@@ -79,15 +93,46 @@ export function RoutePreviewMap({ stops }: Props) {
         L.marker([lat, lng], { icon })
           .addTo(map)
           .bindPopup(
-            `<strong>${validStops[i].place_name}</strong><br/>${validStops[i].stay_days} night${validStops[i].stay_days > 1 ? "s" : ""}`,
+            `<strong>${validStops[i].place_name}</strong><br/>${validStops[i].stay_days} night${validStops[i].stay_days !== 1 ? "s" : ""}`,
           );
       });
 
-      // Fit bounds
       if (coords.length > 1) map.fitBounds(L.latLngBounds(coords), { padding: [40, 40] });
+
+      // Fetch Mapbox road route to replace straight-line polyline
+      const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+      if (TOKEN && validStops.length >= 2) {
+        const mbCoords = validStops.map((s) => `${s.longitude},${s.latitude}`).join(";");
+        fetch(
+          `https://api.mapbox.com/directions/v5/mapbox/driving/${mbCoords}?access_token=${TOKEN}&geometries=geojson&overview=full&steps=false`,
+        )
+          .then((r) => r.json())
+          .then((data) => {
+            if (cancelled || !mapInstanceRef.current) return;
+            const route = data.routes?.[0];
+            if (route?.geometry?.coordinates) {
+              polyline.remove();
+              const roadCoords = (route.geometry.coordinates as [number, number][]).map(
+                ([lng, lat]) => [lat, lng] as [number, number],
+              );
+              polyline = L.polyline(roadCoords, {
+                color: "hsl(var(--primary))",
+                weight: 3,
+              }).addTo(mapInstanceRef.current!);
+              setRoadLegs(
+                route.legs.map((leg: { distance: number; duration: number }) => ({
+                  distance_km: Math.round(leg.distance / 1000),
+                  duration_min: Math.round(leg.duration / 60),
+                })),
+              );
+            }
+          })
+          .catch(() => {});
+      }
     });
 
     return () => {
+      cancelled = true;
       mapInstanceRef.current?.remove();
       mapInstanceRef.current = null;
     };
@@ -104,18 +149,31 @@ export function RoutePreviewMap({ stops }: Props) {
 
   return (
     <div className="space-y-3">
-      {/* Distance table */}
+      {/* Per-leg distance + duration table */}
       {validStops.length > 1 && (
         <div className="rounded-lg border divide-y text-sm">
           {validStops.slice(0, -1).map((stop, i) => {
             const next = validStops[i + 1];
-            const km = haversineKm(stop.latitude, stop.longitude, next.latitude, next.longitude);
+            const leg = roadLegs?.[i];
+            const km = leg?.distance_km ?? Math.round(haversineKm(stop.latitude, stop.longitude, next.latitude, next.longitude));
+            const isRoad = !!leg;
+            const dMin = leg?.duration_min;
             return (
               <div key={i} className="flex items-center justify-between px-3 py-2">
-                <span className="text-muted-foreground">
+                <span className="text-muted-foreground text-xs">
                   {stop.place_name} → {next.place_name}
                 </span>
-                <span className="font-medium tabular-nums">~{Math.round(km)} km</span>
+                <span className="font-medium tabular-nums text-xs flex items-center gap-1.5">
+                  {km} km
+                  {!isRoad && (
+                    <span className="text-muted-foreground/50 text-[10px] font-normal">est.</span>
+                  )}
+                  {dMin != null && (
+                    <span className="text-muted-foreground/60 font-normal">
+                      · {Math.floor(dMin / 60)}h{dMin % 60 > 0 ? ` ${dMin % 60}m` : ""}
+                    </span>
+                  )}
+                </span>
               </div>
             );
           })}

@@ -21,9 +21,8 @@ import { Textarea } from "../../components/ui/textarea";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { Switch } from "../../components/ui/switch";
-import {
-  LocationSearchInput, type LocationResult,
-} from "../../components/dashboard/LocationSearchInput";
+import { LocationSearchSelect } from "../../components/location/LocationSearchSelect";
+import type { LocationValue, LocationType } from "../../components/location/location.types";
 import {
   DBImageSelector, type SelectableImage,
 } from "../../components/dashboard/DBImageSelector";
@@ -39,7 +38,7 @@ import {
 
 export type StopRow = {
   id: string;
-  location: LocationResult | null;
+  location: LocationValue | null;
   stay_nights: number;
 };
 
@@ -105,7 +104,7 @@ function SortableStopRow({
       </div>
 
       <div className="flex-1 min-w-0">
-        <LocationSearchInput
+        <LocationSearchSelect
           value={row.location}
           onChange={(loc) => onChange(row.id, { location: loc })}
           placeholder={`Stop ${index + 1} — search location`}
@@ -139,16 +138,16 @@ function StopsStep({
 
   const totalNights = useMemo(() => stops.reduce((s, r) => s + r.stay_nights, 0), [stops]);
   const autoName = useMemo(
-    () => deriveRouteName(stops.filter((s) => s.location).map((s) => ({ place_name: s.location!.place_name }))),
+    () => deriveRouteName(stops.filter((s) => s.location).map((s) => ({ place_name: s.location!.name }))),
     [stops],
   );
   const mapStops = useMemo(
     () => stops
       .filter((s) => s.location)
       .map((s) => ({
-        place_name: s.location!.place_name,
-        latitude: s.location!.latitude,
-        longitude: s.location!.longitude,
+        place_name: s.location!.name,
+        latitude: s.location!.latitude ?? 0,
+        longitude: s.location!.longitude ?? 0,
         stay_days: s.stay_nights,
       })),
     [stops],
@@ -441,16 +440,16 @@ function PreviewStep({ stops }: { stops: StopRow[] }) {
   const days = d.days ?? (nights + 1);
   const label = d.label || `${days}D / ${nights}N`;
   const autoName = deriveRouteName(
-    stops.filter((s) => s.location).map((s) => ({ place_name: s.location!.place_name })),
+    stops.filter((s) => s.location).map((s) => ({ place_name: s.location!.name })),
   );
   const displayName = (d.name as string | undefined) || autoName;
 
   const mapStops = stops
     .filter((s) => s.location)
     .map((s) => ({
-      place_name: s.location!.place_name,
-      latitude: s.location!.latitude,
-      longitude: s.location!.longitude,
+      place_name: s.location!.name,
+      latitude: s.location!.latitude ?? 0,
+      longitude: s.location!.longitude ?? 0,
       stay_days: s.stay_nights,
     }));
 
@@ -493,7 +492,7 @@ function PreviewStep({ stops }: { stops: StopRow[] }) {
           <div className="flex gap-1 flex-wrap justify-end max-w-[65%]">
             {stops.filter((s) => s.location).map((s, i) => (
               <Badge key={i} variant="secondary" className="text-[10px] px-1.5 py-0">
-                {s.location!.place_name} · {s.stay_nights}n
+                {s.location!.name} · {s.stay_nights}n
               </Badge>
             ))}
           </div>
@@ -565,9 +564,11 @@ export function RouteBuilderSidebar({ packageId, editing, open, onClose, onSaved
             id: uid(),
             stay_nights: s.stay_days,
             location: lat != null && lng != null ? {
-              place_name: s.place_name,
-              place_id: s.place_id ?? s.place_name,
-              address: s.address ?? s.place_name,
+              id: String(s.id),
+              name: s.place_name,
+              type: "CITY" as LocationType,
+              breadcrumb: s.address ?? s.place_name,
+              slug: "",
               latitude: lat,
               longitude: lng,
             } : null,
@@ -580,7 +581,7 @@ export function RouteBuilderSidebar({ packageId, editing, open, onClose, onSaved
   }, [open, editing]);
 
   const autoName = useMemo(
-    () => deriveRouteName(stops.filter((s) => s.location).map((s) => ({ place_name: s.location!.place_name }))),
+    () => deriveRouteName(stops.filter((s) => s.location).map((s) => ({ place_name: s.location!.name }))),
     [stops],
   );
 
@@ -606,9 +607,9 @@ export function RouteBuilderSidebar({ packageId, editing, open, onClose, onSaved
     const stopInputs: StopInput[] = rows
       .filter((r) => r.location)
       .map((s) => ({
-        place_name: s.location!.place_name,
-        place_id: s.location!.place_id,
-        address: s.location!.address,
+        place_name: s.location!.name,
+        place_id: s.location!.id || null,
+        address: s.location!.breadcrumb || null,
         stay_days: s.stay_nights,
         latitude: s.location!.latitude,
         longitude: s.location!.longitude,

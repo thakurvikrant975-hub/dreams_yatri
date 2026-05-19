@@ -83,8 +83,8 @@ import {
   TooltipTrigger,
 } from "../../components/ui/tooltip";
 import { handleGetDaySourceImages } from "@/app/actions/packages/itinerary-builder.actions";
-import { LocationPickerField } from "../../components/dashboard/LocationPickerField";
-import type { LocationResult } from "../../components/dashboard/LocationSearchInput";
+import { LocationSearchSelect } from "../../components/location/LocationSearchSelect";
+import type { LocationValue, LocationType } from "../../components/location/location.types";
 import {
   Loader2,
   Pencil,
@@ -309,9 +309,58 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function useRoadDistance(pickup: LocationValue | null, drop: LocationValue | null) {
+  const [roadKm, setRoadKm] = useState<number | null>(null);
+  const [roadMin, setRoadMin] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const lat1 = pickup?.latitude, lng1 = pickup?.longitude;
+    const lat2 = drop?.latitude, lng2 = drop?.longitude;
+    if (lat1 == null || lng1 == null || lat2 == null || lng2 == null) {
+      setRoadKm(null);
+      setRoadMin(null);
+      return;
+    }
+    const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+    if (!TOKEN) {
+      setRoadKm(Math.round(haversineKm(lat1, lng1, lat2, lng2)));
+      setRoadMin(null);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    fetch(
+      `https://api.mapbox.com/directions/v5/mapbox/driving/${lng1},${lat1};${lng2},${lat2}?access_token=${TOKEN}&geometries=geojson&overview=false&steps=false`,
+    )
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        const route = data.routes?.[0];
+        if (route) {
+          setRoadKm(Math.round(route.distance / 1000));
+          setRoadMin(Math.round(route.duration / 60));
+        } else {
+          setRoadKm(Math.round(haversineKm(lat1, lng1, lat2, lng2)));
+          setRoadMin(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRoadKm(Math.round(haversineKm(lat1, lng1, lat2, lng2)));
+          setRoadMin(null);
+        }
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [pickup?.latitude, pickup?.longitude, drop?.latitude, drop?.longitude]);
+
+  return { roadKm, roadMin, loading };
+}
+
 type TransferFormData = {
-  pickup: LocationResult | null;
-  drop: LocationResult | null;
+  pickup: LocationValue | null;
+  drop: LocationValue | null;
   vehicle_id: number | null;
   num_vehicles: string;
   notes: string;
@@ -319,12 +368,12 @@ type TransferFormData = {
 
 function transferFormToInput(data: TransferFormData) {
   return {
-    pickup_name: data.pickup?.place_name ?? "",
-    pickup_place_id: data.pickup?.place_id ?? null,
+    pickup_name: data.pickup?.name ?? "",
+    pickup_place_id: data.pickup?.id ?? null,
     pickup_lat: data.pickup?.latitude ?? null,
     pickup_lng: data.pickup?.longitude ?? null,
-    drop_name: data.drop?.place_name ?? "",
-    drop_place_id: data.drop?.place_id ?? null,
+    drop_name: data.drop?.name ?? "",
+    drop_place_id: data.drop?.id ?? null,
     drop_lat: data.drop?.latitude ?? null,
     drop_lng: data.drop?.longitude ?? null,
     vehicle_id: data.vehicle_id,
@@ -353,20 +402,24 @@ function TransferEditForm({
   const [form, setForm] = useState<TransferFormData>({
     pickup: item.route
       ? {
-          place_name: item.route.pickup_name,
-          place_id: "",
-          address: item.route.pickup_name,
-          latitude: item.route.pickup_lat ?? 0,
-          longitude: item.route.pickup_lng ?? 0,
+          id: "",
+          name: item.route.pickup_name,
+          type: "CITY" as LocationType,
+          breadcrumb: item.route.pickup_name,
+          slug: "",
+          latitude: item.route.pickup_lat ?? undefined,
+          longitude: item.route.pickup_lng ?? undefined,
         }
       : null,
     drop: item.route
       ? {
-          place_name: item.route.drop_name,
-          place_id: "",
-          address: item.route.drop_name,
-          latitude: item.route.drop_lat ?? 0,
-          longitude: item.route.drop_lng ?? 0,
+          id: "",
+          name: item.route.drop_name,
+          type: "CITY" as LocationType,
+          breadcrumb: item.route.drop_name,
+          slug: "",
+          latitude: item.route.drop_lat ?? undefined,
+          longitude: item.route.drop_lng ?? undefined,
         }
       : null,
     vehicle_id: item.vehicle_id,
@@ -376,28 +429,34 @@ function TransferEditForm({
 
   const isValid = !!form.pickup && !!form.drop;
 
-  const distanceKm = item.route?.distance_km != null
-    ? item.route.distance_km
-    : (form.pickup && form.drop && form.pickup.latitude && form.drop.latitude)
-      ? Math.round(haversineKm(form.pickup.latitude, form.pickup.longitude, form.drop.latitude, form.drop.longitude))
-      : null;
+  const { roadKm: distKm, roadMin: distMin, loading: distLoading } = useRoadDistance(form.pickup, form.drop);
+  const displayKm = distKm ?? (distLoading ? (item.route?.distance_km ?? null) : null);
+  const displayMin = distMin ?? (distLoading ? (item.route?.duration_min ?? null) : null);
 
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
         <Label className="text-xs">Pickup Location <span className="text-destructive">*</span></Label>
-        <LocationPickerField value={form.pickup} onChange={(v) => setForm(f => ({ ...f, pickup: v }))} placeholder="Search pickup point…" />
+        <LocationSearchSelect value={form.pickup} onChange={(v) => setForm(f => ({ ...f, pickup: v }))} placeholder="Search pickup point…" />
       </div>
       <div className="space-y-1.5">
         <Label className="text-xs">Drop Location <span className="text-destructive">*</span></Label>
-        <LocationPickerField value={form.drop} onChange={(v) => setForm(f => ({ ...f, drop: v }))} placeholder="Search drop point…" />
+        <LocationSearchSelect value={form.drop} onChange={(v) => setForm(f => ({ ...f, drop: v }))} placeholder="Search drop point…" />
       </div>
-      {distanceKm != null && (
+      {(displayKm != null || distLoading) && (
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
-          <Car className="h-3.5 w-3.5 shrink-0" />
-          <span>~{distanceKm} km road distance</span>
-          {item.route?.duration_min != null && (
-            <span className="text-muted-foreground/60">· ~{Math.round(item.route.duration_min / 60)}h {item.route.duration_min % 60}m</span>
+          {distLoading && displayKm == null
+            ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+            : <Car className="h-3.5 w-3.5 shrink-0" />}
+          {displayKm != null && (
+            <>
+              <span>{displayKm} km by road</span>
+              {displayMin != null && (
+                <span className="text-muted-foreground/60">
+                  · ~{Math.floor(displayMin / 60)}h{displayMin % 60 > 0 ? ` ${displayMin % 60}m` : ""}
+                </span>
+              )}
+            </>
           )}
         </div>
       )}
@@ -596,24 +655,33 @@ function AddTransferForm({
   });
   const isValid = !!form.pickup && !!form.drop;
 
-  const distanceKm = (form.pickup && form.drop && form.pickup.latitude && form.drop.latitude)
-    ? Math.round(haversineKm(form.pickup.latitude, form.pickup.longitude, form.drop.latitude, form.drop.longitude))
-    : null;
+  const { roadKm, roadMin, loading: distLoading } = useRoadDistance(form.pickup, form.drop);
 
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
         <Label className="text-xs">Pickup Location <span className="text-destructive">*</span></Label>
-        <LocationPickerField value={form.pickup} onChange={(v) => setForm(f => ({ ...f, pickup: v }))} placeholder="Search pickup point…" />
+        <LocationSearchSelect value={form.pickup} onChange={(v) => setForm(f => ({ ...f, pickup: v }))} placeholder="Search pickup point…" />
       </div>
       <div className="space-y-1.5">
         <Label className="text-xs">Drop Location <span className="text-destructive">*</span></Label>
-        <LocationPickerField value={form.drop} onChange={(v) => setForm(f => ({ ...f, drop: v }))} placeholder="Search drop point…" />
+        <LocationSearchSelect value={form.drop} onChange={(v) => setForm(f => ({ ...f, drop: v }))} placeholder="Search drop point…" />
       </div>
-      {distanceKm != null && (
+      {(roadKm != null || distLoading) && (
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
-          <Car className="h-3.5 w-3.5 shrink-0" />
-          <span>~{distanceKm} km (road distance computed on save)</span>
+          {distLoading && roadKm == null
+            ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+            : <Car className="h-3.5 w-3.5 shrink-0" />}
+          {roadKm != null && (
+            <>
+              <span>{roadKm} km by road</span>
+              {roadMin != null && (
+                <span className="text-muted-foreground/60">
+                  · ~{Math.floor(roadMin / 60)}h{roadMin % 60 > 0 ? ` ${roadMin % 60}m` : ""}
+                </span>
+              )}
+            </>
+          )}
         </div>
       )}
       <div className="grid grid-cols-2 gap-3">
