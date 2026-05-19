@@ -16,6 +16,7 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "../components/ui/alert-dialog";
 import { Hotel, BedDouble, ImageIcon, ExternalLink, Trash2 } from "lucide-react";
+import Image from "next/image";
 import { toast } from "sonner";
 import { toggleHotelActive, deleteHotel } from "./actions";
 import { TableFilters } from "../components/dashboard/Tablefilters";
@@ -155,9 +156,11 @@ export function HotelsTableClient({
       cell: (h) => (
         <div className="flex items-center gap-3">
           {h.thumbnail ? (
-            <img
+            <Image
               src={`${base}/${h.thumbnail}`}
               alt={h.name}
+              width={64}
+              height={48}
               className="h-12 w-16 rounded-lg object-cover shrink-0 border"
             />
           ) : (

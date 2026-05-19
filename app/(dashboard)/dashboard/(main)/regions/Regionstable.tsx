@@ -14,6 +14,7 @@ import { toast }              from "sonner";
 import { MapPin }             from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ImageIcon }          from "@phosphor-icons/react";
+import Image                  from "next/image";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { TableFilters }       from "../components/dashboard/Tablefilters";
 import { TableEmptyState }   from "../components/dashboard/TableEmptyState";
@@ -117,9 +118,11 @@ export function RegionsTable({
       cell: (region) => (
         <div className="flex items-center gap-2">
           {region.thumbnail ? (
-            <img
+            <Image
               src={`${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${region.thumbnail}`}
               alt={region.name}
+              width={56}
+              height={40}
               className="h-10 w-14 rounded-lg object-cover shrink-0"
             />
           ) : (
@@ -149,8 +152,10 @@ export function RegionsTable({
       width:  "w-[100px]",
       cell: (region) =>
         region.cover_image ? (
-          <img
+          <Image
             src={`${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${region.cover_image}`}
+            width={56}
+            height={40}
             alt={`${region.name} cover`}
             className="h-10 w-14 rounded-lg object-cover shrink-0"
           />

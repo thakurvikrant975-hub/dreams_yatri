@@ -10,6 +10,7 @@ import {
 } from "../components/ui/select";
 import { Trash2, Package, Hotel, Package2, Globe, GlobeX, Earth } from "lucide-react";
 import { ImageIcon } from "@phosphor-icons/react";
+import Image         from "next/image";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import {
@@ -197,9 +198,11 @@ export function DestinationsTable({
             cell: (dest) => (
                 <div className="flex items-center gap-3">
                     {dest.thumbnail ? (
-                        <img
+                        <Image
                             src={`${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${dest.thumbnail}`}
                             alt={dest.name}
+                            width={56}
+                            height={40}
                             className="h-10 w-14 rounded-lg object-cover shrink-0 border"
                         />
                     ) : (
@@ -224,9 +227,11 @@ export function DestinationsTable({
             header: "Cover",
             cell: (dest) =>
                 dest.cover_image ? (
-                    <img
+                    <Image
                         src={`${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${dest.cover_image}`}
                         alt={dest.name}
+                        width={56}
+                        height={40}
                         className="h-10 w-14 rounded-lg object-cover shrink-0 border"
                     />
                 ) : (

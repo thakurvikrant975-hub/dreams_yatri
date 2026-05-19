@@ -22,6 +22,7 @@ import {
 import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable";
 import { TableFilters }    from "../../components/dashboard/Tablefilters";
 import { TableEmptyState } from "../../components/dashboard/TableEmptyState";
+import Image from "next/image";
 import { toast } from "sonner";
 import { togglePackageActive, deletePackage } from "../actions";
 
@@ -116,9 +117,11 @@ export function PackagesTableClient({ packages }: { packages: PackageItem[] }) {
             cell: (pkg) => (
                 <div className="flex items-center gap-3">
                     {pkg.thumbnail ? (
-                        <img
+                        <Image
                             src={`${base}/${pkg.thumbnail}`}
                             alt={pkg.title}
+                            width={64}
+                            height={48}
                             className="h-12 w-16 rounded-lg object-cover shrink-0 border"
                         />
                     ) : (

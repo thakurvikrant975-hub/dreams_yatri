@@ -22,6 +22,7 @@ import {
     AlertDialogDescription, AlertDialogFooter,
     AlertDialogHeader, AlertDialogTitle,
 } from "../components/ui/alert-dialog";
+import Image from "next/image";
 import { toast } from "sonner";
 import { cn } from "@/app/lib/utils";
 import { toggleActivityActive, deleteActivity, type ActivityItem } from "./actions";
@@ -56,9 +57,11 @@ function ThumbnailCell({ activity }: { activity: ActivityItem }) {
         );
     }
     return (
-        <img
+        <Image
             src={`${BASE}/${primary.thumbnail ?? primary.url}`}
             alt={activity.name}
+            width={56}
+            height={40}
             className="h-10 w-14 rounded-lg object-cover shrink-0 border"
         />
     );
