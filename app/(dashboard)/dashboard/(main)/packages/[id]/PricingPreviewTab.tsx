@@ -582,6 +582,11 @@ export function PricingPreviewTab({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Day cards */}
           <div className="lg:col-span-2 space-y-3">
+            {breakdown.missing_pricing_config && (
+              <div className="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-2.5 text-sm text-yellow-800 dark:border-yellow-800 dark:bg-yellow-950/30 dark:text-yellow-300">
+                No pricing config set for this duration + stay category — using default 10% margin and 5% GST. Go to the Pricing tab to configure.
+              </div>
+            )}
             {breakdown.days.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 rounded-xl border border-dashed">
                 <MapPin className="h-8 w-8 text-muted-foreground/30 mb-3" />

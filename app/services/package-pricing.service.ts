@@ -401,5 +401,6 @@ export async function computePackagePrice(
     gst_amount,
     final_price,
     price_per_adult: adults > 0 ? Math.round(final_price / adults) : final_price,
+    missing_pricing_config: !pricingConfig,
   };
 }
