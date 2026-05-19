@@ -244,7 +244,7 @@ export async function handleSearchActivities(destinationId: number, query: strin
     return { success: true as const, data };
   } catch (e) {
     console.error(e);
-    return { success: false as const, data: [] as Awaited<ReturnType<typeof searchActivities>>, message: "Search failed" };
+    return { success: false as const, data: { items: [], has_more: false }, message: "Search failed" };
   }
 }
 
@@ -254,7 +254,7 @@ export async function handleSearchRoomPricings(destinationId: number, query: str
     return { success: true as const, data };
   } catch (e) {
     console.error(e);
-    return { success: false as const, data: [] as Awaited<ReturnType<typeof searchRoomPricings>>, message: "Search failed" };
+    return { success: false as const, data: { items: [], has_more: false }, message: "Search failed" };
   }
 }
 

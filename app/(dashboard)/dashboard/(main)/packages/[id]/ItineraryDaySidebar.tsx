@@ -732,7 +732,7 @@ function AddActivityForm({
   const fetchActivities = useCallback(async (query: string): Promise<Option[]> => {
     const res = await handleSearchActivities(destinationId, query);
     if (!res.success) return [];
-    return res.data.map((a) => ({
+    const items: Option[] = res.data.items.map((a) => ({
       id: a.id,
       label: a.name,
       description: [
@@ -741,6 +741,8 @@ function AddActivityForm({
         !a.has_pricing ? "⚠ No pricing set" : null,
       ].filter(Boolean).join(" · "),
     }));
+    if (res.data.has_more) items.push({ id: -1, label: "Showing top 20 — refine search to see more" });
+    return items;
   }, [destinationId]);
 
   async function handleActivitySelect(id: number | null) {
@@ -885,11 +887,13 @@ function StayBlock({
   const fetchRooms = useCallback(async (query: string): Promise<Option[]> => {
     const res = await handleSearchRoomPricings(destinationId, query);
     if (!res.success) return [];
-    return res.data.map((p) => ({
+    const items: Option[] = res.data.items.map((p) => ({
       id: p.id,
       label: `${p.hotel.name}${p.room ? ` — ${p.room.name}` : ""}`,
       description: `${p.plan_name ?? "Standard"} · ₹${p.price_per_night.toLocaleString("en-IN")}/night`,
     }));
+    if (res.data.has_more) items.push({ id: -1, label: "Showing top 50 — refine search to see more" });
+    return items;
   }, [destinationId]);
 
   async function handleAssign(categoryId: number, roomPricingId: number) {
@@ -899,7 +903,7 @@ function StayBlock({
     setSavingId(null);
     if (!res.success) { toast.error(res.message); return; }
     const searchRes = await handleSearchRoomPricings(destinationId, "");
-    const pricing = searchRes.success ? searchRes.data.find((p) => p.id === roomPricingId) : null;
+    const pricing = searchRes.success ? searchRes.data.items.find((p) => p.id === roomPricingId) : null;
     if (!pricing) { toast.success("Stay saved"); setAssigningCategoryId(null); return; }
     const category = stayCategories.find((c) => c.id === categoryId)!;
     const existing = stays.find((s) => s.stay_category_id === categoryId);

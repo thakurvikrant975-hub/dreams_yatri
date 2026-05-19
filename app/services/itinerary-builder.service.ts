@@ -536,16 +536,20 @@ export async function searchActivities(destinationId: number, query: string) {
       category: { select: { name: true } },
       _count: { select: { variants: true } },
     },
-    take: 20,
+    take: 21,
     orderBy: { name: "asc" },
   });
-  return list.map((a) => ({
-    id: a.id,
-    name: a.name,
-    category: a.category?.name ?? null,
-    duration_hours: a.duration_hours != null ? Number(a.duration_hours) : null,
-    has_pricing: a._count.variants > 0,
-  }));
+  const has_more = list.length > 20;
+  return {
+    items: list.slice(0, 20).map((a) => ({
+      id: a.id,
+      name: a.name,
+      category: a.category?.name ?? null,
+      duration_hours: a.duration_hours != null ? Number(a.duration_hours) : null,
+      has_pricing: a._count.variants > 0,
+    })),
+    has_more,
+  };
 }
 
 export async function searchRoomPricings(destinationId: number, query: string) {
@@ -565,13 +569,14 @@ export async function searchRoomPricings(destinationId: number, query: string) {
       hotel: { select: { id: true, name: true } },
       room: { select: { id: true, name: true } },
     },
-    take: 50,
+    take: 51,
     orderBy: [{ hotel: { name: "asc" } }, { sort_order: "asc" }],
   });
-  return list.map((p) => ({
-    ...p,
-    price_per_night: Number(p.price_per_night),
-  }));
+  const has_more = list.length > 50;
+  return {
+    items: list.slice(0, 50).map((p) => ({ ...p, price_per_night: Number(p.price_per_night) })),
+    has_more,
+  };
 }
 
 // ── Day source images (for attraction picker) ──────────────────────────────
