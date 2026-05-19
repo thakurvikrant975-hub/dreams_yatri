@@ -39,7 +39,7 @@ const CategorySchema = z.object({
         .string()
         .min(1, "Name is required")
         .max(100, "Name must be 100 characters or less")
-        .transform(s => s.trim()),
+        .transform(s => s.trim().replace(/\b\w/g, c => c.toUpperCase())),
     slug: z
         .string()
         .min(1, "Slug is required")

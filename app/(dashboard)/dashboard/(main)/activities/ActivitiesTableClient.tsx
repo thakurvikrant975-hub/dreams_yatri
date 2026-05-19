@@ -1,21 +1,21 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { useRouter, useSearchParams }                  from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
     Trash2, Clock,
-    ImageIcon, Zap, ExternalLink,
+    ImageIcon, Zap,
     Pencil,
 } from "lucide-react";
-import { Badge }   from "../components/ui/badge";
-import { Button }  from "../components/ui/button";
-import { Switch }  from "../components/ui/switch";
+import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
+import { Switch } from "../components/ui/switch";
 import {
     Select, SelectContent, SelectItem,
     SelectTrigger, SelectValue,
 } from "../components/ui/select";
-import { TableFilters }    from "../components/dashboard/Tablefilters";
+import { TableFilters } from "../components/dashboard/Tablefilters";
 import { TableEmptyState } from "../components/dashboard/TableEmptyState";
 import {
     AlertDialog, AlertDialogCancel, AlertDialogContent,
@@ -23,24 +23,24 @@ import {
     AlertDialogHeader, AlertDialogTitle,
 } from "../components/ui/alert-dialog";
 import { toast } from "sonner";
-import { cn }    from "@/app/lib/utils";
+import { cn } from "@/app/lib/utils";
 import { toggleActivityActive, deleteActivity, type ActivityItem } from "./actions";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
 const DIFFICULTY_COLORS: Record<string, string> = {
-    Easy:        "bg-green-50 text-green-700 border-green-200",
-    Moderate:    "bg-blue-50 text-blue-700 border-blue-200",
+    Easy: "bg-green-50 text-green-700 border-green-200",
+    Moderate: "bg-blue-50 text-blue-700 border-blue-200",
     Challenging: "bg-yellow-50 text-yellow-700 border-yellow-200",
-    Difficult:   "bg-orange-50 text-orange-700 border-orange-200",
-    Expert:      "bg-red-50 text-red-700 border-red-200",
+    Difficult: "bg-orange-50 text-orange-700 border-orange-200",
+    Expert: "bg-red-50 text-red-700 border-red-200",
 };
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
 type CategoryOption = { id: number; name: string; slug: string };
-type _Status        = "active" | "inactive" | "all";
+type _Status = "active" | "inactive" | "all";
 
 // ── Thumbnail ─────────────────────────────────────────────────────────────
 
@@ -77,17 +77,17 @@ export function ActivitiesTableClient({
     category_id,
     status,
 }: {
-    activities:  ActivityItem[];
-    categories:  CategoryOption[];
-    totalCount:  number;
-    limit:       number;
+    activities: ActivityItem[];
+    categories: CategoryOption[];
+    totalCount: number;
+    limit: number;
     currentPage: number;
     isFiltering: boolean;
-    search:      string;
+    search: string;
     category_id: number | "all";
-    status:      _Status;
+    status: _Status;
 }) {
-    const router       = useRouter();
+    const router = useRouter();
     const searchParams = useSearchParams();
     const [isPending, startTransition] = useTransition();
 
@@ -98,7 +98,7 @@ export function ActivitiesTableClient({
 
     // Delete dialog state
     const [deleteTarget, setDeleteTarget] = useState<ActivityItem | null>(null);
-    const [errorMsg,     setErrorMsg]     = useState<string | null>(null);
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
     // ── URL helpers ───────────────────────────────────────────────────────
 
@@ -161,16 +161,16 @@ export function ActivitiesTableClient({
     // ── Pagination ────────────────────────────────────────────────────────
 
     const totalPages = Math.ceil(totalCount / limit);
-    const from       = totalCount === 0 ? 0 : (currentPage - 1) * limit + 1;
-    const to         = Math.min(currentPage * limit, totalCount);
-    const label      = `Showing ${from}–${to} of ${totalCount} activit${totalCount !== 1 ? "ies" : "y"}`;
+    const from = totalCount === 0 ? 0 : (currentPage - 1) * limit + 1;
+    const to = Math.min(currentPage * limit, totalCount);
+    const label = `Showing ${from}–${to} of ${totalCount} activit${totalCount !== 1 ? "ies" : "y"}`;
 
     // ── Columns ───────────────────────────────────────────────────────────
 
     const columns: ColumnDef<ActivityItem>[] = [
         {
             header: "Activity",
-            width:  "w-[280px]",
+            width: "w-[280px]",
             cell: (a) => (
                 <div className="flex items-center gap-3">
                     <ThumbnailCell activity={a} />
@@ -201,14 +201,14 @@ export function ActivitiesTableClient({
         },
         {
             header: "Variants",
-            align:  "center",
+            align: "center",
             cell: (a) => a._count.variants > 0
                 ? <span className="flex items-center justify-center gap-1 text-xs font-medium"><Zap className="h-3 w-3 text-muted-foreground" />{a._count.variants}</span>
                 : <span className="text-xs text-muted-foreground">—</span>,
         },
         {
             header: "Images",
-            align:  "center",
+            align: "center",
             cell: (a) => (
                 <Link
                     href={`/dashboard/activities/${a.id}`}
@@ -221,7 +221,7 @@ export function ActivitiesTableClient({
         },
         {
             header: "Status",
-            align:  "center",
+            align: "center",
             cell: (a) => (
                 <Switch
                     checked={a.is_active}
@@ -232,8 +232,8 @@ export function ActivitiesTableClient({
         },
         {
             header: "Actions",
-            align:  "right",
-            width:  "w-[80px]",
+            align: "right",
+            width: "w-[80px]",
             cell: (a) => (
                 <div className="flex items-center justify-end gap-1">
                     <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
@@ -267,19 +267,19 @@ export function ActivitiesTableClient({
                     className="flex-1"
                     filters={[
                         {
-                            value:       String(category_id),
-                            onChange:    (v) => updateParam("category_id", v),
+                            value: String(category_id),
+                            onChange: (v) => updateParam("category_id", v),
                             placeholder: "All Categories",
-                            width:       "w-44",
-                            options:     categories.map(c => ({ label: c.name, value: String(c.id) })),
+                            width: "w-44",
+                            options: categories.map(c => ({ label: c.name, value: String(c.id) })),
                         },
                         {
-                            value:       status,
-                            onChange:    (v) => updateParam("status", v),
+                            value: status,
+                            onChange: (v) => updateParam("status", v),
                             placeholder: "All Statuses",
-                            width:       "w-38",
+                            width: "w-38",
                             options: [
-                                { label: "Active",   value: "active"   },
+                                { label: "Active", value: "active" },
                                 { label: "Inactive", value: "inactive" },
                             ],
                         },

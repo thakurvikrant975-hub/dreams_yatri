@@ -1,16 +1,14 @@
 "use client";
 
-import { useState, useTransition, useActionState, useRef } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import {
-    Tag, Plus, Pencil, Trash2, ChevronRight, Loader2,
-    GripVertical, Activity,
+    Tag, Plus, Pencil, Trash2, Loader2, Activity,
 } from "lucide-react";
 import { Button }   from "../../components/ui/button";
 import { Input }    from "../../components/ui/input";
 import { Label }    from "../../components/ui/label";
 import { Switch }   from "../../components/ui/switch";
-import { Badge }    from "../../components/ui/badge";
 import {
     Dialog, DialogContent, DialogHeader,
     DialogTitle, DialogFooter,
@@ -25,11 +23,11 @@ import {
     BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "../../components/ui/breadcrumb";
 import { PageHeader } from "../../components/dashboard/PageHeader";
+import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable";
 import { toast } from "sonner";
-import { cn }    from "@/app/lib/utils";
 import {
     createCategory, updateCategory, deleteCategory, toggleCategoryActive,
-    type CategoryRow, type CategoryFormState,
+    type CategoryRow,
 } from "./actions";
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -54,9 +52,9 @@ function FieldError({ errors, field }: { errors?: Record<string, string[]>; fiel
     return <p className="text-xs text-destructive mt-1">{msgs[0]}</p>;
 }
 
-// ── Create form (inline at bottom of list) ────────────────────────────────
+// ── Create form ───────────────────────────────────────────────────────────
 
-function CreateCategoryForm({ onCreated }: { onCreated: (cat: CategoryRow) => void }) {
+function CreateCategoryForm() {
     const [name,      setName]      = useState("");
     const [slug,      setSlug]      = useState("");
     const [sortOrder, setSortOrder] = useState("0");
@@ -65,7 +63,8 @@ function CreateCategoryForm({ onCreated }: { onCreated: (cat: CategoryRow) => vo
     const [errors, setErrors] = useState<Record<string, string[]>>({});
 
     function handleNameChange(val: string) {
-        setName(val);
+        const titled = val.replace(/\b\w/g, c => c.toUpperCase());
+        setName(titled);
         setSlug(toSlug(val));
     }
 
@@ -82,7 +81,6 @@ function CreateCategoryForm({ onCreated }: { onCreated: (cat: CategoryRow) => vo
             if (result.success) {
                 toast.success(result.message);
                 setName(""); setSlug(""); setSortOrder("0"); setIsActive(true);
-                // Optimistic: page revalidation will update the list
             } else {
                 if (result.errors) setErrors(result.errors);
                 toast.error(result.message);
@@ -162,7 +160,8 @@ function EditCategoryDialog({
     const [errors, setErrors] = useState<Record<string, string[]>>({});
 
     function handleNameChange(val: string) {
-        setName(val);
+        const titled = val.replace(/\b\w/g, c => c.toUpperCase());
+        setName(titled);
         if (slug === toSlug(category.name)) setSlug(toSlug(val));
     }
 
@@ -280,6 +279,82 @@ export function CategoriesClient({ initialCategories }: Props) {
         });
     }
 
+    // ── Columns ───────────────────────────────────────────────────────────
+
+    const columns: ColumnDef<CategoryRow>[] = [
+        {
+            header: "Name",
+            cell: (cat) => <span className="font-medium">{cat.name}</span>,
+        },
+        {
+            header: "Slug",
+            cell: (cat) => (
+                <code className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                    {cat.slug}
+                </code>
+            ),
+        },
+        {
+            header: "Activities",
+            align:  "center",
+            cell: (cat) => cat._count.activities > 0 ? (
+                <Link
+                    href={`/dashboard/activities?category_id=${cat.id}`}
+                    className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={e => e.stopPropagation()}
+                >
+                    <Activity className="h-3 w-3" />
+                    {cat._count.activities}
+                </Link>
+            ) : (
+                <span className="text-xs text-muted-foreground">—</span>
+            ),
+        },
+        {
+            header: "Order",
+            align:  "center",
+            width:  "w-20",
+            cell: (cat) => <span className="text-xs text-muted-foreground">{cat.sort_order}</span>,
+        },
+        {
+            header: "Status",
+            align:  "center",
+            width:  "w-24",
+            cell: (cat) => (
+                <Switch
+                    checked={cat.is_active}
+                    disabled={isPending}
+                    onCheckedChange={() => handleToggle(cat.id, cat.is_active)}
+                    onClick={e => e.stopPropagation()}
+                />
+            ),
+        },
+        {
+            header: "Actions",
+            align:  "right",
+            width:  "w-[80px]",
+            cell: (cat) => (
+                <div className="flex items-center justify-end gap-1">
+                    <Button
+                        variant="ghost" size="icon" className="h-8 w-8"
+                        onClick={e => { e.stopPropagation(); setEditTarget(cat); }}
+                    >
+                        <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                        variant="ghost" size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={e => { e.stopPropagation(); openDelete(cat); }}
+                    >
+                        <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                </div>
+            ),
+        },
+    ];
+
+    // ── Render ────────────────────────────────────────────────────────────
+
     return (
         <div className="space-y-6">
             {/* Breadcrumb */}
@@ -305,90 +380,22 @@ export function CategoriesClient({ initialCategories }: Props) {
                 icon={Tag}
             />
 
-            {/* Category list */}
-            <div className="rounded-xl border bg-card overflow-hidden">
-                {initialCategories.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-20 text-center">
-                        <Tag className="h-10 w-10 text-muted-foreground mb-3" />
-                        <p className="text-sm font-medium text-muted-foreground">No categories yet</p>
-                        <p className="text-xs text-muted-foreground mt-1">Create your first category below</p>
+            {/* DataTable */}
+            <DataTable
+                data={initialCategories}
+                columns={columns}
+                rowKey={cat => cat.id}
+                emptyState={
+                    <div className="flex flex-col items-center gap-2 py-4">
+                        <Tag className="h-8 w-8 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">No categories yet</p>
+                        <p className="text-xs text-muted-foreground">Create your first category below</p>
                     </div>
-                ) : (
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="border-b bg-muted/40 text-muted-foreground text-xs uppercase tracking-wide">
-                                <th className="px-4 py-3 text-left font-medium w-8"></th>
-                                <th className="px-4 py-3 text-left font-medium">Name</th>
-                                <th className="px-4 py-3 text-left font-medium">Slug</th>
-                                <th className="px-4 py-3 text-center font-medium">Activities</th>
-                                <th className="px-4 py-3 text-center font-medium">Order</th>
-                                <th className="px-4 py-3 text-center font-medium">Status</th>
-                                <th className="px-4 py-3 text-right font-medium">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y">
-                            {initialCategories.map(cat => (
-                                <tr key={cat.id} className="hover:bg-muted/20 transition-colors">
-                                    <td className="px-4 py-3 text-muted-foreground">
-                                        <GripVertical className="h-4 w-4" />
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <span className="font-medium">{cat.name}</span>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <code className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                                            {cat.slug}
-                                        </code>
-                                    </td>
-                                    <td className="px-4 py-3 text-center">
-                                        {cat._count.activities > 0 ? (
-                                            <Link
-                                                href={`/dashboard/activities?category_id=${cat.id}`}
-                                                className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                                            >
-                                                <Activity className="h-3 w-3" />
-                                                {cat._count.activities}
-                                            </Link>
-                                        ) : (
-                                            <span className="text-xs text-muted-foreground">—</span>
-                                        )}
-                                    </td>
-                                    <td className="px-4 py-3 text-center">
-                                        <span className="text-xs text-muted-foreground">{cat.sort_order}</span>
-                                    </td>
-                                    <td className="px-4 py-3 text-center">
-                                        <Switch
-                                            checked={cat.is_active}
-                                            disabled={isPending}
-                                            onCheckedChange={() => handleToggle(cat.id, cat.is_active)}
-                                        />
-                                    </td>
-                                    <td className="px-4 py-3 text-right">
-                                        <div className="flex items-center justify-end gap-1">
-                                            <Button
-                                                variant="ghost" size="icon" className="h-8 w-8"
-                                                onClick={() => setEditTarget(cat)}
-                                            >
-                                                <Pencil className="h-3.5 w-3.5" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost" size="icon"
-                                                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                onClick={() => openDelete(cat)}
-                                            >
-                                                <Trash2 className="h-3.5 w-3.5" />
-                                            </Button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                )}
-            </div>
+                }
+            />
 
             {/* Create form */}
-            <CreateCategoryForm onCreated={() => {}} />
+            <CreateCategoryForm />
 
             {/* Edit dialog */}
             {editTarget && (
