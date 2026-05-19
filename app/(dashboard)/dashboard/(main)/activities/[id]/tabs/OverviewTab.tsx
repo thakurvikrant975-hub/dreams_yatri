@@ -3,7 +3,7 @@
 import { useState, useTransition, useRef } from "react";
 import {
     MapPin, Tag, FileText, ChevronDown, Check,
-    Phone, Mail, Loader2,
+    Phone, Mail, Loader2, Lock,
 } from "lucide-react";
 import { Button }   from "../../../components/ui/button";
 import { Input }    from "../../../components/ui/input";
@@ -184,7 +184,7 @@ export function OverviewTab({
 
     // Basic Info
     const [name,       setName]      = useState(activity.name);
-    const [slug,       setSlug]      = useState(activity.slug);
+    const slug = activity.slug;
     const [categoryId, setCategoryId]= useState(activity.category_id != null ? String(activity.category_id) : "");
     const [difficulty, setDifficulty]= useState(activity.difficulty ?? "");
     const [duration,   setDuration]  = useState(activity.duration_hours != null ? String(activity.duration_hours) : "");
@@ -222,7 +222,6 @@ export function OverviewTab({
         startTransition(async () => {
             const fd = new FormData();
             fd.append("name",           name);
-            fd.append("slug",           slug);
             if (categoryId) fd.append("category_id", categoryId);
             fd.append("difficulty",     difficulty);
             fd.append("duration_hours", duration);
@@ -269,13 +268,16 @@ export function OverviewTab({
                         <FieldError errors={errors} field="name" />
                     </div>
                     <div className="space-y-1.5">
-                        <Label>Slug <span className="text-destructive">*</span></Label>
+                        <Label className="flex items-center gap-1.5">
+                            Slug <Lock className="h-3 w-3 text-muted-foreground" />
+                        </Label>
                         <Input
                             value={slug}
-                            onChange={e => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))}
-                            placeholder="valley-of-flowers-trek"
+                            readOnly
+                            disabled
+                            className="cursor-not-allowed bg-muted/50 text-muted-foreground"
                         />
-                        <FieldError errors={errors} field="slug" />
+                        <p className="text-xs text-muted-foreground">Slug is permanent and cannot be changed after creation</p>
                     </div>
                 </div>
 

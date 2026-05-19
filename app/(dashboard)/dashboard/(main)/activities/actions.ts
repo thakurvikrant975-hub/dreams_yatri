@@ -4,7 +4,7 @@ import { db }             from "@/app/lib/db";
 import { deleteFromR2 }   from "@/app/lib/r2/r2delete";
 import { revalidatePath } from "next/cache";
 import { dashboardAuth }  from "@/app/lib/auth-dashboard";
-import { ActivitySchema } from "@/app/lib/validators/activities";
+import { ActivitySchema, ActivityUpdateSchema } from "@/app/lib/validators/activities";
 
 // ── Auth helper ───────────────────────────────────────────────────────────
 
@@ -227,6 +227,44 @@ export async function getCategoriesForSelect() {
     });
 }
 
+// ── Slug check ────────────────────────────────────────────────────────────
+
+export async function checkActivitySlug(slug: string): Promise<{
+    status:      "available" | "active_taken" | "inactive_exists";
+    suggestion?: string;
+    existingId?: number;
+}> {
+    if (!slug || !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug)) {
+        return { status: "available" };
+    }
+
+    const existing = await db.activities.findUnique({
+        where:  { slug },
+        select: { id: true, is_active: true },
+    });
+
+    if (!existing) return { status: "available" };
+
+    if (!existing.is_active) {
+        return { status: "inactive_exists", existingId: existing.id };
+    }
+
+    // Active record taken — find the next available suggestion
+    let counter = 2;
+    let suggestion = "";
+    while (counter <= 99) {
+        suggestion = `${slug}-${counter}`;
+        const conflict = await db.activities.findUnique({
+            where:  { slug: suggestion },
+            select: { id: true, is_active: true },
+        });
+        if (!conflict || !conflict.is_active) break;
+        counter++;
+    }
+
+    return { status: "active_taken", suggestion };
+}
+
 // ── Create ────────────────────────────────────────────────────────────────
 
 export async function createActivity(
@@ -265,8 +303,18 @@ export async function createActivity(
     }
 
     try {
-        const existing = await db.activities.findUnique({ where: { slug: parsed.data.slug } });
+        const existing = await db.activities.findUnique({
+            where:  { slug: parsed.data.slug },
+            select: { id: true, is_active: true },
+        });
+
         if (existing) {
+            if (!existing.is_active) {
+                // Reactivate and update the soft-deleted / inactive record
+                await db.activities.update({ where: { id: existing.id }, data: parsed.data });
+                revalidatePath("/dashboard/activities");
+                return { success: true, message: "Activity updated successfully", id: existing.id };
+            }
             return {
                 success: false,
                 message: "Slug already in use",
@@ -294,7 +342,6 @@ export async function updateActivity(
 
     const raw = {
         name:           formData.get("name"),
-        slug:           formData.get("slug"),
         category_id:    formData.get("category_id") || undefined,
         description:    formData.get("description")    || undefined,
         difficulty:     formData.get("difficulty")     || undefined,
@@ -311,7 +358,7 @@ export async function updateActivity(
         email:          formData.get("email")     || undefined,
     };
 
-    const parsed = ActivitySchema.safeParse(raw);
+    const parsed = ActivityUpdateSchema.safeParse(raw);
     if (!parsed.success) {
         return {
             success: false,
@@ -323,17 +370,6 @@ export async function updateActivity(
     try {
         const current = await db.activities.findUnique({ where: { id } });
         if (!current) return { success: false, message: "Activity not found" };
-
-        if (parsed.data.slug !== current.slug) {
-            const conflict = await db.activities.findUnique({ where: { slug: parsed.data.slug } });
-            if (conflict) {
-                return {
-                    success: false,
-                    message: "Slug already in use",
-                    errors:  { slug: ["This slug is already taken"] },
-                };
-            }
-        }
 
         await db.activities.update({ where: { id }, data: parsed.data });
         revalidatePath("/dashboard/activities");

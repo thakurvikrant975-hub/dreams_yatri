@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useTransition, useRef } from "react";
+import { useState, useTransition, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
     MapPin, Tag, FileText, ChevronDown, Check,
-    Phone, Mail, Loader2,
+    Phone, Mail, Loader2, CheckCircle2, XCircle, AlertCircle,
 } from "lucide-react";
 import { Button }   from "../../components/ui/button";
 import { Input }    from "../../components/ui/input";
@@ -21,7 +21,7 @@ import { toast }  from "sonner";
 import { cn }     from "@/app/lib/utils";
 import { LocationSearchSelect } from "../../components/location/LocationSearchSelect";
 import type { LocationValue } from "../../components/location/location.types";
-import { createActivity } from "../actions";
+import { createActivity, checkActivitySlug } from "../actions";
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
@@ -181,6 +181,22 @@ export function CreateActivityForm({ categories }: { categories: CategoryOption[
     // Errors
     const [errors, setErrors] = useState<Record<string, string[]>>({});
 
+    // Slug check
+    type SlugStatus = "idle" | "checking" | "available" | "active_taken" | "inactive_exists";
+    const [slugStatus,     setSlugStatus]     = useState<SlugStatus>("idle");
+    const [slugSuggestion, setSlugSuggestion] = useState("");
+
+    useEffect(() => {
+        if (!slug || slug.length < 3) { setSlugStatus("idle"); return; }
+        setSlugStatus("checking");
+        const t = setTimeout(async () => {
+            const res = await checkActivitySlug(slug);
+            setSlugStatus(res.status);
+            setSlugSuggestion(res.suggestion ?? "");
+        }, 500);
+        return () => clearTimeout(t);
+    }, [slug]);
+
     // ── Handlers ─────────────────────────────────────────────────────────
 
     function handleNameChange(val: string) {
@@ -247,10 +263,15 @@ export function CreateActivityForm({ categories }: { categories: CategoryOption[
                 {/* Name + Slug */}
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                        <Label>Activity Name <span className="text-destructive">*</span></Label>
+                        <div className="flex items-center justify-between">
+                            <Label>Activity Name <span className="text-destructive">*</span></Label>
+                            <span className={cn("text-xs", name.length > 80 ? "text-destructive" : "text-muted-foreground")}>
+                                {name.length}/90
+                            </span>
+                        </div>
                         <Input
                             value={name}
-                            onChange={e => handleNameChange(e.target.value)}
+                            onChange={e => handleNameChange(e.target.value.slice(0, 90))}
                             placeholder="Valley of Flowers Trek"
                             autoComplete="off"
                         />
@@ -262,8 +283,45 @@ export function CreateActivityForm({ categories }: { categories: CategoryOption[
                             value={slug}
                             onChange={e => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))}
                             placeholder="valley-of-flowers-trek"
+                            className={cn(
+                                slugStatus === "active_taken"    && "border-destructive",
+                                slugStatus === "inactive_exists" && "border-yellow-500",
+                                slugStatus === "available"       && "border-green-500",
+                            )}
                         />
-                        <FieldError errors={errors} field="slug" />
+                        {/* Slug status indicator */}
+                        {slugStatus === "checking" && (
+                            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <Loader2 className="h-3 w-3 animate-spin" /> Checking…
+                            </p>
+                        )}
+                        {slugStatus === "available" && (
+                            <p className="flex items-center gap-1.5 text-xs text-green-600">
+                                <CheckCircle2 className="h-3 w-3" /> Available
+                            </p>
+                        )}
+                        {slugStatus === "active_taken" && (
+                            <p className="flex items-center gap-1.5 text-xs text-destructive">
+                                <XCircle className="h-3 w-3" />
+                                Already taken.{slugSuggestion && (
+                                    <> Try:{" "}
+                                        <button
+                                            type="button"
+                                            className="underline font-medium"
+                                            onClick={() => setSlug(slugSuggestion)}
+                                        >
+                                            {slugSuggestion}
+                                        </button>
+                                    </>
+                                )}
+                            </p>
+                        )}
+                        {slugStatus === "inactive_exists" && (
+                            <p className="flex items-center gap-1.5 text-xs text-yellow-600">
+                                <AlertCircle className="h-3 w-3" /> Inactive record exists — submitting will update it
+                            </p>
+                        )}
+                        {slugStatus === "idle" && <FieldError errors={errors} field="slug" />}
                     </div>
                 </div>
 
@@ -405,7 +463,9 @@ export function CreateActivityForm({ categories }: { categories: CategoryOption[
                     <Textarea
                         placeholder="A brief description of this activity…"
                         value={description}
-                        onChange={e => setDescription(e.target.value.slice(0, 5000))}
+                        onChange={e => {
+                            if (e.target.value.length <= 5000) setDescription(e.target.value);
+                        }}
                         rows={6}
                     />
                 </div>

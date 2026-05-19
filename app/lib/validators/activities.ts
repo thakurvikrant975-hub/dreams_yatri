@@ -4,7 +4,7 @@ export const ActivitySchema = z.object({
   name: z
     .string()
     .min(1, "Activity name is required")
-    .max(200, "Name must be 200 characters or less")
+    .max(90, "Name must be 90 characters or less")
     .transform((s) => s.trim()),
 
   slug: z
@@ -92,4 +92,7 @@ export const ActivitySchema = z.object({
   is_active: z.boolean().default(true),
 });
 
-export type ActivityInput = z.infer<typeof ActivitySchema>;
+export const ActivityUpdateSchema = ActivitySchema.omit({ slug: true });
+
+export type ActivityInput       = z.infer<typeof ActivitySchema>;
+export type ActivityUpdateInput = z.infer<typeof ActivityUpdateSchema>;
