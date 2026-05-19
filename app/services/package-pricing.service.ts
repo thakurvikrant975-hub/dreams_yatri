@@ -12,7 +12,8 @@ export type PricingInput = {
   adults: number;
   children: number;
   infants: number;
-  child_ages?: number[]; // per-child ages for accurate hotel policy matching
+  child_ages?: number[];
+  vehicle_id_override?: number | null;
 };
 
 export type DayHotelLine = {
@@ -98,7 +99,7 @@ function matchTier<T extends { label: string }>(
 export async function computePackagePrice(
   input: PricingInput,
 ): Promise<FullPricingBreakdown> {
-  const { package_id, duration_id, route_id, stay_category_id, adults, children, infants, child_ages } = input;
+  const { package_id, duration_id, route_id, stay_category_id, adults, children, infants, child_ages, vehicle_id_override } = input;
 
   const [itineraries, pricingConfig, duration, stayCategory, cabPricings] = await Promise.all([
     db.package_itineraries.findMany({
@@ -166,11 +167,12 @@ export async function computePackagePrice(
     db.package_stay_categories.findUnique({ where: { id: stay_category_id }, select: { label: true } }),
     db.package_cab_pricings.findMany({
       where: { package_id, route_id, is_active: true },
-      select: { vehicle_id: true, sell_price: true },
+      select: { vehicle_id: true, sell_price: true, vehicle: { select: { passenger_capacity: true } } },
     }),
   ]);
 
   const cabPriceMap = new Map(cabPricings.map((c) => [c.vehicle_id, Number(c.sell_price)]));
+  const cabCapacityMap = new Map(cabPricings.map((c) => [c.vehicle_id, c.vehicle?.passenger_capacity ?? null]));
 
   const margin_percentage = Number(pricingConfig?.margin_percentage ?? 10);
   const gst_percentage = Number(pricingConfig?.gst_percentage ?? 5);
@@ -336,15 +338,18 @@ export async function computePackagePrice(
     });
 
     // ── Transfers ────────────────────────────────────────────────────────────
+    const effectiveVehicleId = vehicle_id_override ?? null;
     const transfers: DayTransferLine[] = itin.itinerary_transfers.map((tr) => {
+      const lookupVehicleId = effectiveVehicleId ?? tr.vehicle_id;
       const configuredVehicles = Math.max(tr.num_vehicles, 1);
-      const configuredSell = tr.vehicle_id != null ? (cabPriceMap.get(tr.vehicle_id) ?? 0) : 0;
-      const perVehiclePrice = configuredSell;
+      const perVehiclePrice = lookupVehicleId != null ? (cabPriceMap.get(lookupVehicleId) ?? 0) : 0;
 
-      const vehicleCapacity = tr.vehicle?.passenger_capacity ?? null;
+      const vehicleCapacity = effectiveVehicleId != null
+        ? (cabCapacityMap.get(effectiveVehicleId) ?? null)
+        : (tr.vehicle?.passenger_capacity ?? null);
       let actualVehicles = configuredVehicles;
       if (vehicleCapacity && vehicleCapacity > 0) {
-        const totalPax = adults + children; // infants don't need seats
+        const totalPax = adults + children;
         actualVehicles = Math.ceil(Math.max(totalPax, 1) / vehicleCapacity);
       }
 

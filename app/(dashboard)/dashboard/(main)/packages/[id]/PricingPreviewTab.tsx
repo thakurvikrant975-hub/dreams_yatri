@@ -37,10 +37,19 @@ type Duration = {
 };
 type StayCategory = { id: number; label: string; slug: string; is_default?: boolean };
 
+type CabPricingEntry = {
+  routeId: number;
+  vehicleId: number;
+  sellPrice: number;
+  vehicleName: string;
+  vehicleCapacity: number;
+};
+
 type PricingPreviewTabProps = {
   packageId: number;
   durations: Duration[];
   stayCategories: StayCategory[];
+  cabPricings: CabPricingEntry[];
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -345,11 +354,11 @@ export function PricingPreviewTab({
   packageId,
   durations,
   stayCategories,
+  cabPricings,
 }: PricingPreviewTabProps) {
   const defaultDuration = durations.find((d) => d.is_default) ?? durations[0];
   const defaultCategory = stayCategories.find((c) => c.is_default) ?? stayCategories[0];
 
-  // Stable initial values used for auto-calculation on mount
   const initDurationId = defaultDuration?.id.toString() ?? "";
   const initRouteId = defaultDuration?.routes[0]?.id.toString() ?? "";
   const initCategoryId = defaultCategory?.id.toString() ?? "";
@@ -357,6 +366,7 @@ export function PricingPreviewTab({
   const [durationId, setDurationId] = useState(initDurationId);
   const [routeId, setRouteId] = useState(initRouteId);
   const [categoryId, setCategoryId] = useState(initCategoryId);
+  const [vehicleId, setVehicleId] = useState<string>("none");
   const [adults, setAdults] = useState("1");
   const [children, setChildren] = useState("0");
   const [infants, setInfants] = useState("0");
@@ -366,13 +376,21 @@ export function PricingPreviewTab({
   const selectedDuration = durations.find((d) => d.id.toString() === durationId);
   const routes = selectedDuration?.routes ?? [];
 
-  // Reset route to first when duration changes
+  const routeCabs = cabPricings.filter((c) => c.routeId.toString() === routeId);
+
+  // Reset route + vehicle when duration changes
   useEffect(() => {
     setRouteId(routes[0]?.id.toString() ?? "");
+    setVehicleId("none");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [durationId]);
 
-  // Auto-calculate on mount with defaults (1 adult, 0 children)
+  // Reset vehicle when route changes
+  useEffect(() => {
+    setVehicleId("none");
+  }, [routeId]);
+
+  // Auto-calculate on mount with defaults
   useEffect(() => {
     if (!initDurationId || !initRouteId || !initCategoryId) return;
     startTransition(async () => {
@@ -403,6 +421,7 @@ export function PricingPreviewTab({
         adults: Math.max(1, parseInt(adults) || 1),
         children: Math.max(0, parseInt(children) || 0),
         infants: Math.max(0, parseInt(infants) || 0),
+        vehicle_id_override: vehicleId !== "none" ? parseInt(vehicleId) : null,
       });
       if (result.success) {
         setBreakdown(result.data);
@@ -418,7 +437,7 @@ export function PricingPreviewTab({
       {/* ── Controls ───────────────────────────────────────────────────────── */}
       <Card>
         <CardContent className="pt-5 pb-4">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 items-end">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-8 gap-3 items-end">
             {/* Duration */}
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Duration</label>
@@ -470,6 +489,24 @@ export function PricingPreviewTab({
                   {stayCategories.map((c) => (
                     <SelectItem key={c.id} value={c.id.toString()}>
                       {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Vehicle */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Vehicle</label>
+              <Select value={vehicleId} onValueChange={setVehicleId} disabled={routeCabs.length === 0}>
+                <SelectTrigger className="text-sm h-9">
+                  <SelectValue placeholder={routeCabs.length === 0 ? "No cabs" : "Select…"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Itinerary default</SelectItem>
+                  {routeCabs.map((c) => (
+                    <SelectItem key={c.vehicleId} value={c.vehicleId.toString()}>
+                      {c.vehicleName} · ₹{fmt(c.sellPrice)}
                     </SelectItem>
                   ))}
                 </SelectContent>

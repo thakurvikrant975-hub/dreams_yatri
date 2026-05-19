@@ -275,6 +275,15 @@ export default async function PackageBuilderPage({
               label: c.label,
               slug: c.slug,
             }))}
+            cabPricings={pkg.cabPricings
+              .filter((c) => c.is_active && c.vehicle)
+              .map((c) => ({
+                routeId: c.route_id,
+                vehicleId: c.vehicle_id,
+                sellPrice: c.sell_price,
+                vehicleName: c.vehicle!.name,
+                vehicleCapacity: c.vehicle!.passenger_capacity,
+              }))}
           />
         </TabsContent>
       </Tabs>
