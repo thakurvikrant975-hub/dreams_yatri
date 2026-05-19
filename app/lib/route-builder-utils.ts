@@ -1,3 +1,4 @@
 export function deriveRouteName(stops: { place_name: string }[]): string {
-  return stops.map((s) => s.place_name).join(" → ");
+  const names = stops.map((s) => s.place_name.trim()).filter(Boolean);
+  return names.length > 0 ? names.join(" → ") : "Route";
 }
