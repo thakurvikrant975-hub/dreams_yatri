@@ -4,17 +4,18 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams }                  from "next/navigation";
 import Link from "next/link";
 import {
-    Activity, Search, Trash2, Tag, Clock,
+    Trash2, Clock,
     ImageIcon, Zap, ExternalLink,
 } from "lucide-react";
 import { Badge }   from "../components/ui/badge";
 import { Button }  from "../components/ui/button";
-import { Input }   from "../components/ui/input";
 import { Switch }  from "../components/ui/switch";
 import {
     Select, SelectContent, SelectItem,
     SelectTrigger, SelectValue,
 } from "../components/ui/select";
+import { TableFilters }    from "../components/dashboard/Tablefilters";
+import { TableEmptyState } from "../components/dashboard/TableEmptyState";
 import {
     AlertDialog, AlertDialogCancel, AlertDialogContent,
     AlertDialogDescription, AlertDialogFooter,
@@ -256,84 +257,73 @@ export function ActivitiesTableClient({
     return (
         <div className="space-y-4">
 
-            {/* Search + category + status + rows-per-page */}
-            <div className="flex flex-wrap items-center gap-3">
-                <div className="relative flex-1 min-w-52 max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        className="pl-9"
-                        placeholder="Search activities…"
-                        value={localSearch}
-                        onChange={e => handleSearch(e.target.value)}
-                    />
-                </div>
+            {/* Filters + rows-per-page */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <TableFilters
+                    search={localSearch}
+                    onSearchChange={handleSearch}
+                    searchPlaceholder="Search activities…"
+                    className="flex-1"
+                    filters={[
+                        {
+                            value:       String(category_id),
+                            onChange:    (v) => updateParam("category_id", v),
+                            placeholder: "All Categories",
+                            width:       "w-44",
+                            options:     categories.map(c => ({ label: c.name, value: String(c.id) })),
+                        },
+                        {
+                            value:       status,
+                            onChange:    (v) => updateParam("status", v),
+                            placeholder: "All Statuses",
+                            width:       "w-38",
+                            options: [
+                                { label: "Active",   value: "active"   },
+                                { label: "Inactive", value: "inactive" },
+                            ],
+                        },
+                    ]}
+                />
 
                 <Select
-                    value={String(category_id)}
-                    onValueChange={v => updateParam("category_id", v)}
+                    value={String(limit)}
+                    onValueChange={(v) => updateParam("limit", v)}
                 >
-                    <SelectTrigger className="w-44">
-                        <SelectValue placeholder="All Categories" />
+                    <SelectTrigger className="w-32 h-10 text-sm shrink-0 border-dashboard-base-300 bg-dashboard-base-100 text-dashboard-base-content/70 rounded-lg focus:ring-dashboard-primary/30 focus:border-dashboard-primary">
+                        <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All Categories</SelectItem>
-                        {categories.map(c => (
-                            <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                    <SelectContent className="rounded-xl border-dashboard-base-300 bg-dashboard-base-100">
+                        {[10, 20, 50].map((n) => (
+                            <SelectItem
+                                key={n}
+                                value={String(n)}
+                                className="text-sm text-dashboard-base-content focus:bg-dashboard-base-200 focus:text-dashboard-base-content rounded-lg cursor-pointer"
+                            >
+                                {n} / page
+                            </SelectItem>
                         ))}
                     </SelectContent>
                 </Select>
-
-                <Select value={status} onValueChange={v => updateParam("status", v)}>
-                    <SelectTrigger className="w-36">
-                        <SelectValue placeholder="All statuses" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All statuses</SelectItem>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="inactive">Inactive</SelectItem>
-                    </SelectContent>
-                </Select>
-
-                <div className="flex items-center gap-2 ml-auto">
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">Rows per page</span>
-                    <Select
-                        value={String(limit)}
-                        onValueChange={v => updateParam("limit", v)}
-                    >
-                        <SelectTrigger className="w-20">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="10">10</SelectItem>
-                            <SelectItem value="20">20</SelectItem>
-                            <SelectItem value="50">50</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
             </div>
 
             {/* Table */}
-            {activities.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 border rounded-xl bg-muted/30">
-                    <Activity className="h-10 w-10 text-muted-foreground mb-3" />
-                    <p className="text-sm font-medium text-muted-foreground">No activities found</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                        {isFiltering ? "Try adjusting your filters" : "Create your first activity"}
-                    </p>
-                </div>
-            ) : (
-                <DataTable
-                    columns={columns}
-                    data={activities}
-                    rowKey={a => a.id}
-                    pagination={{
-                        currentPage,
-                        totalPages,
-                        buildHref,
-                        label,
-                    }}
-                />
-            )}
+            <DataTable
+                columns={columns}
+                data={activities}
+                rowKey={a => a.id}
+                emptyState={
+                    <TableEmptyState
+                        title="No activities found"
+                        description={isFiltering ? "Try adjusting your filters" : "Create your first activity to get started"}
+                    />
+                }
+                pagination={{
+                    currentPage,
+                    totalPages,
+                    buildHref,
+                    label,
+                }}
+            />
 
             {/* Delete dialog — controlled, stays open on error */}
             <AlertDialog open={!!deleteTarget} onOpenChange={open => !open && closeDelete()}>

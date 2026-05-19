@@ -11,11 +11,12 @@ import { EditRegionSheet }    from "./RegionSheet";
 import { DeleteRegionDialog } from "./Deleteregiondialog";
 import { toggleRegionActive } from "./actions";
 import { toast }              from "sonner";
-import { Globe, MapPin }      from "lucide-react";
+import { MapPin }             from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ImageIcon }          from "@phosphor-icons/react";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { TableFilters }       from "../components/dashboard/Tablefilters";
+import { TableEmptyState }   from "../components/dashboard/TableEmptyState";
 
 // ── Type ──────────────────────────────────────────────────────────────────────
 type Region = {
@@ -285,11 +286,10 @@ export function RegionsTable({
         columns={columns}
         rowKey={(r) => r.id}
         emptyState={
-          <div className="flex flex-col items-center gap-2">
-            <Globe className="h-10 w-10 text-muted-foreground" />
-            <p className="text-sm font-medium text-muted-foreground">No regions found</p>
-            <p className="text-xs text-muted-foreground">Try adjusting your filters</p>
-          </div>
+          <TableEmptyState
+            title="No regions found"
+            description="Try adjusting your filters or create a new region"
+          />
         }
         pagination={{
           currentPage,

@@ -8,7 +8,7 @@ import { Button }  from "../components/ui/button";
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "../components/ui/select";
-import { Trash2, MapPin, Package, Hotel, Activity, Package2, Globe, GlobeX, Earth } from "lucide-react";
+import { Trash2, Package, Hotel, Package2, Globe, GlobeX, Earth } from "lucide-react";
 import { ImageIcon } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
@@ -22,7 +22,8 @@ import { EditDestinationDialog } from "./Destinationdialog";
 import { DestinationHistorySheet } from "./DestinationHistory";
 import { deleteDestination, toggleDestinationActive } from "./actions";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
-import { TableFilters } from "../components/dashboard/Tablefilters";
+import { TableFilters }    from "../components/dashboard/Tablefilters";
+import { TableEmptyState } from "../components/dashboard/TableEmptyState";
 import { StatCard, StatGrid } from "../components/dashboard/Statcard";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -368,11 +369,10 @@ export function DestinationsTable({
                 columns={columns}
                 rowKey={(d) => d.id}
                 emptyState={
-                    <div className="flex flex-col items-center gap-2">
-                        <MapPin className="h-10 w-10 text-muted-foreground" />
-                        <p className="text-sm font-medium text-muted-foreground">No destinations found</p>
-                        <p className="text-xs text-muted-foreground">Try adjusting your filters</p>
-                    </div>
+                    <TableEmptyState
+                        title="No destinations found"
+                        description="Try adjusting your filters or create a new destination"
+                    />
                 }
                 pagination={{
                     currentPage,
