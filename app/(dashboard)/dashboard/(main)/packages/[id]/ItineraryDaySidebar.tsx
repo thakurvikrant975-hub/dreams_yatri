@@ -921,9 +921,16 @@ function StayBlock({
           const isSaving = savingId === cat.id;
 
           return (
-            <div key={cat.id} className="rounded-xl border bg-muted/20 p-3">
+            <div key={cat.id} className={cn("rounded-xl border p-3", stay ? "bg-muted/20" : "bg-amber-50/60 border-amber-200")}>
               <div className="flex items-center justify-between gap-2 mb-2">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{cat.label}</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{cat.label}</span>
+                  {!stay && !isAssigning && (
+                    <span className="text-[9px] font-bold uppercase tracking-wide bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded">
+                      Not assigned
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-1">
                   {stay && !isAssigning && (
                     <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground/50 hover:text-primary" onClick={() => setAssigningCategoryId(cat.id)} title="Change">
@@ -1705,11 +1712,18 @@ export function ItineraryDaySidebar({
                                   onEdit={() => setEditPanel({ mode: "stay" })}
                                   deletePending={false}
                                 >
-                                  <p className="text-xs font-medium">Hotel Stay</p>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <p className="text-xs font-medium">Hotel Stay</p>
+                                    {item.stays.length < stayCategories.length && (
+                                      <span className="text-[9px] font-bold bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded leading-none">
+                                        {stayCategories.length - item.stays.length} unassigned
+                                      </span>
+                                    )}
+                                  </div>
                                   <p className="text-[10px] text-muted-foreground/60">
                                     {item.stays.length > 0
                                       ? `${item.stays[0].room_pricing.hotel.name}${item.stays.length > 1 ? ` +${item.stays.length - 1} more` : ""} · ${item.stays.length}/${stayCategories.length} assigned`
-                                      : `${item.stays.length}/${stayCategories.length} assigned`}
+                                      : `0/${stayCategories.length} assigned`}
                                   </p>
                                 </TimelineRowCard>
                               ) : null}

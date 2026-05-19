@@ -539,12 +539,13 @@ export async function searchActivities(destinationId: number, query: string) {
   }));
 }
 
-export async function searchRoomPricings(_destinationId: number, query: string) {
+export async function searchRoomPricings(destinationId: number, query: string) {
   const list = await db.hotel_room_pricing.findMany({
     where: {
       is_active: true,
       hotel: {
         is_active: true,
+        destination_id: destinationId,
         ...(query ? { name: { contains: query, mode: "insensitive" as const } } : {}),
       },
     },
