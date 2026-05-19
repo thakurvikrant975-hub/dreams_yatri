@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
     Tag, Plus, Pencil, Trash2, Loader2, Activity,
@@ -24,15 +25,24 @@ import {
 } from "../../components/ui/breadcrumb";
 import { PageHeader } from "../../components/dashboard/PageHeader";
 import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable";
+import { TableFilters } from "../../components/dashboard/Tablefilters";
 import { toast } from "sonner";
 import {
     createCategory, updateCategory, deleteCategory, toggleCategoryActive,
     type CategoryRow,
 } from "./actions";
+import { TableEmptyState } from "../../components/dashboard/TableEmptyState";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
-type Props = { initialCategories: CategoryRow[] };
+type Status = "active" | "inactive" | "all";
+
+type Props = {
+    initialCategories: CategoryRow[];
+    totalCount:        number;
+    search:            string;
+    status:            Status;
+};
 
 // ── Slug helper ───────────────────────────────────────────────────────────
 
@@ -258,11 +268,30 @@ function EditCategoryButton({ category }: { category: CategoryRow }) {
 
 // ── Main client component ─────────────────────────────────────────────────
 
-export function CategoriesClient({ initialCategories }: Props) {
+export function CategoriesClient({ initialCategories, totalCount, search, status }: Props) {
+    const router       = useRouter();
+    const searchParams = useSearchParams();
     const [isPending, startTransition] = useTransition();
+
+    const [localSearch, setLocalSearch] = useState(search);
+    const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+    useEffect(() => { setLocalSearch(search); }, [search]);
 
     const [deleteTarget, setDeleteTarget] = useState<CategoryRow | null>(null);
     const [deleteError,  setDeleteError]  = useState<string | null>(null);
+
+    function updateParam(key: string, value: string) {
+        const params = new URLSearchParams(searchParams.toString());
+        if (value === "all" || value === "") params.delete(key);
+        else params.set(key, value);
+        router.push(`?${params.toString()}`);
+    }
+
+    function handleSearch(value: string) {
+        setLocalSearch(value);
+        clearTimeout(searchTimer.current);
+        searchTimer.current = setTimeout(() => updateParam("search", value), 400);
+    }
 
     function handleToggle(id: number, current: boolean) {
         startTransition(async () => {
@@ -392,17 +421,37 @@ export function CategoriesClient({ initialCategories }: Props) {
                 actions={<AddCategoryButton />}
             />
 
+            {/* Filters */}
+            <TableFilters
+                search={localSearch}
+                onSearchChange={handleSearch}
+                searchPlaceholder="Search categories…"
+                filteredCount={initialCategories.length}
+                totalCount={totalCount}
+                filters={[
+                    {
+                        value:       status,
+                        onChange:    (v) => updateParam("status", v),
+                        placeholder: "All Statuses",
+                        width:       "w-38",
+                        options: [
+                            { label: "Active",   value: "active"   },
+                            { label: "Inactive", value: "inactive" },
+                        ],
+                    },
+                ]}
+            />
+
             {/* DataTable */}
             <DataTable
                 data={initialCategories}
                 columns={columns}
                 rowKey={cat => cat.id}
                 emptyState={
-                    <div className="flex flex-col items-center gap-2 py-4">
-                        <Tag className="h-8 w-8 text-muted-foreground" />
-                        <p className="text-sm text-muted-foreground">No categories yet</p>
-                        <p className="text-xs text-muted-foreground">Add your first category using the button above</p>
-                    </div>
+                    <TableEmptyState
+                        title="No Categories Yet"
+                        description="Add your first category using the button above"
+                    />
                 }
             />
 

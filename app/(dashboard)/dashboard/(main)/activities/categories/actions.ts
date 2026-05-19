@@ -54,11 +54,33 @@ const CategorySchema = z.object({
 
 // ── Read ──────────────────────────────────────────────────────────────────
 
-export async function getCategories(): Promise<CategoryRow[]> {
-    return db.activity_categories.findMany({
-        orderBy: [{ sort_order: "asc" }, { name: "asc" }],
-        include: { _count: { select: { activities: true } } },
-    });
+export type GetCategoriesParams = {
+    search?: string;
+    status?: "active" | "inactive" | "all";
+};
+
+export async function getCategories(params: GetCategoriesParams = {}): Promise<{
+    categories:  CategoryRow[];
+    totalCount:  number;
+}> {
+    const { search = "", status = "all" } = params;
+
+    const where = {
+        ...(search ? { name: { contains: search, mode: "insensitive" as const } } : {}),
+        ...(status === "active"   ? { is_active: true  } : {}),
+        ...(status === "inactive" ? { is_active: false } : {}),
+    };
+
+    const [categories, totalCount] = await Promise.all([
+        db.activity_categories.findMany({
+            where,
+            orderBy: [{ sort_order: "asc" }, { name: "asc" }],
+            include: { _count: { select: { activities: true } } },
+        }),
+        db.activity_categories.count(),
+    ]);
+
+    return { categories, totalCount };
 }
 
 // ── Create ────────────────────────────────────────────────────────────────

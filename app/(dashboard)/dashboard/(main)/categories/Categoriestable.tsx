@@ -26,6 +26,7 @@ import {
 } from "./actions";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { TableFilters } from "../components/dashboard/Tablefilters";
+import { TableEmptyState } from "../components/dashboard/TableEmptyState";
 
 // ── Delete Dialog ─────────────────────────────────────────────────────────────
 
@@ -473,10 +474,11 @@ export function CategoriesTable({
                     ));
                 }}
                 emptyState={
-                    <div className="flex flex-col items-center gap-2">
-                        <Tag className="h-8 w-8 text-muted-foreground" />
-                        <p className="text-sm text-muted-foreground">No categories match your filters</p>
-                    </div>
+                    <TableEmptyState
+                        title="No Categories Found"
+                        description="Try adjusting your filters or adding a new category."
+                    />
+
                 }
                 pagination={{
                     currentPage,

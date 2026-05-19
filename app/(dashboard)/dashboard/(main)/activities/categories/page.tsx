@@ -12,7 +12,27 @@ export const metadata: Metadata = {
     },
 };
 
-export default async function ActivityCategoriesPage() {
-    const categories = await getCategories();
-    return <CategoriesClient initialCategories={categories} />;
+type Status = "active" | "inactive" | "all";
+
+export default async function ActivityCategoriesPage({
+    searchParams,
+}: {
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+    const params = await searchParams;
+    const search = typeof params.search === "string" ? params.search : "";
+    const status = (["active", "inactive"].includes(params.status as string)
+        ? params.status
+        : "all") as Status;
+
+    const { categories, totalCount } = await getCategories({ search, status });
+
+    return (
+        <CategoriesClient
+            initialCategories={categories}
+            totalCount={totalCount}
+            search={search}
+            status={status}
+        />
+    );
 }
