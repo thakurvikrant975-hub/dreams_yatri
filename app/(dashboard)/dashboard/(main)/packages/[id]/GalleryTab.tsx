@@ -315,18 +315,16 @@ function RouteGalleryPanel({
   const openPicker = useCallback(
     async (position: number) => {
       setActiveSlot(position);
-      if (!sourceImages) {
-        setPickerLoading(true);
-        const res = await handleGetSourceImages(packageId);
-        setPickerLoading(false);
-        if (res.success) {
-          setSourceImages(res.data);
-        } else {
-          toast.error(res.message ?? "Failed to load images");
-        }
+      setPickerLoading(true);
+      const res = await handleGetSourceImages(packageId);
+      setPickerLoading(false);
+      if (res.success) {
+        setSourceImages(res.data);
+      } else {
+        toast.error(res.message ?? "Failed to load images");
       }
     },
-    [packageId, sourceImages],
+    [packageId],
   );
 
   async function handlePick(img: SourceImage, sourceType: SourceKey) {
