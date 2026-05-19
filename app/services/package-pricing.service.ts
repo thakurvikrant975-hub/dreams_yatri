@@ -215,7 +215,7 @@ export async function computePackagePrice(
     let hotel: DayHotelLine | null = null;
 
     if (stay) {
-      const maxOccupancy = stay.room_pricing.room?.max_occupancy ?? 2;
+      const maxOccupancy = stay.room_pricing.room?.max_occupancy || 2;
       const roomsNeeded = Math.ceil(Math.max(adults, 1) / maxOccupancy);
 
       // Occupancy-based price: find the entry with occupancy closest to (but not exceeding)
