@@ -320,10 +320,10 @@ export function PackagesTableClient({
             <SelectTrigger className="w-32 cursor-pointer h-10 border-dashboard-base-300 bg-dashboard-base-100 text-dashboard-base-content/70 rounded-lg">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="10">10 / Page</SelectItem>
-              <SelectItem value="20">20 / Page</SelectItem>
-              <SelectItem value="50">50 / Page</SelectItem>
+            <SelectContent className="rounded-lg cursor-pointer">
+              <SelectItem className="cursor-pointer" value="10">10 / Page</SelectItem>
+              <SelectItem className="cursor-pointer" value="20">20 / Page</SelectItem>
+              <SelectItem className="cursor-pointer" value="50">50 / Page</SelectItem>
             </SelectContent>
           </Select>
         </div>
