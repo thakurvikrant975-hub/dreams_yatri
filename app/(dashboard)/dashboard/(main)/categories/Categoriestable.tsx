@@ -308,7 +308,7 @@ export function CategoriesTable({
         {
             header: "Slug",
             cell: (cat) => (
-                <Badge variant="outline" className="font-mono text-xs border-dashboard-neutral/75 text-dashboard-neutral/75">{cat.slug}</Badge>
+                <Badge variant="outline" className="text-xs bg-dashboard-primary/10 text-dashboard-primary">{cat.slug}</Badge>
             ),
         },
         {
