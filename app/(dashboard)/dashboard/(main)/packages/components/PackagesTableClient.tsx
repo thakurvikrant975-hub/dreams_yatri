@@ -188,7 +188,7 @@ export function PackagesTableClient({
       header: "Destination",
       cell: (pkg) => (
         <div className="space-y-0.5">
-          <Badge variant="secondary" className="text-xs font-normal">
+          <Badge variant="secondary" className="text-xs font-normal bg-dashboard-primary/10 text-dashboard-primary">
             {pkg.destination.name}
           </Badge>
           {pkg.destination.region && (
