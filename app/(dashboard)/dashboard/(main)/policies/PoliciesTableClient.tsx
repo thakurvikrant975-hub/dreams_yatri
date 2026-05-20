@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { useRouter, useSearchParams }                  from "next/navigation";
-import { FileText, Pencil, Trash2, Package, Search }   from "lucide-react";
-import { Badge }   from "../components/ui/badge";
-import { Button }  from "../components/ui/button";
-import { Input }   from "../components/ui/input";
-import { Switch }  from "../components/ui/switch";
+import { useRouter, useSearchParams } from "next/navigation";
+import { FileText, Pencil, Trash2, Package, Search } from "lucide-react";
+import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Switch } from "../components/ui/switch";
 import {
     Select, SelectContent, SelectItem,
     SelectTrigger, SelectValue,
@@ -16,23 +16,24 @@ import {
     AlertDialogDescription, AlertDialogFooter,
     AlertDialogHeader, AlertDialogTitle,
 } from "../components/ui/alert-dialog";
-import { toast }   from "sonner";
-import { format }  from "date-fns";
-import { cn }      from "@/app/lib/utils";
+import { toast } from "sonner";
+import { format } from "date-fns";
+import { cn } from "@/app/lib/utils";
 import { togglePolicyActive, deletePolicy, type Policy } from "./actions";
-import { EditPolicyDialog }                              from "./PolicyDialog";
+import { EditPolicyDialog } from "./PolicyDialog";
 import {
     POLICY_TYPE_LABELS, POLICY_TYPES,
     POLICY_TYPE_COLORS, type PolicyType,
 } from "./constants";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
+import { TableEmptyState } from "../components/dashboard/TableEmptyState";
 
 // ── Points preview ────────────────────────────────────────────────────────
 
 function PointsPreview({ points }: { points: string[] }) {
-    const valid   = points.filter(p => p.trim());
+    const valid = points.filter(p => p.trim());
     const preview = valid.slice(0, 2);
-    const more    = valid.length - 2;
+    const more = valid.length - 2;
 
     if (valid.length === 0)
         return <span className="text-xs text-muted-foreground italic">No points</span>;
@@ -64,16 +65,16 @@ export function PoliciesTableClient({
     type,
     status,
 }: {
-    policies:    Policy[];
-    totalCount:  number;
-    limit:       number;
+    policies: Policy[];
+    totalCount: number;
+    limit: number;
     currentPage: number;
     isFiltering: boolean;
-    search:      string;
-    type:        PolicyType | "all";
-    status:      "active" | "inactive" | "all";
+    search: string;
+    type: PolicyType | "all";
+    status: "active" | "inactive" | "all";
 }) {
-    const router       = useRouter();
+    const router = useRouter();
     const searchParams = useSearchParams();
     const [isPending, startTransition] = useTransition();
 
@@ -87,7 +88,7 @@ export function PoliciesTableClient({
 
     // Delete dialog state
     const [deletePolicy_, setDeletePolicy] = useState<Policy | null>(null);
-    const [errorMsg,       setErrorMsg]     = useState<string | null>(null);
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
     // ── URL helpers ───────────────────────────────────────────────────────
 
@@ -153,16 +154,16 @@ export function PoliciesTableClient({
     // ── Pagination ────────────────────────────────────────────────────────
 
     const totalPages = Math.ceil(totalCount / limit);
-    const from       = totalCount === 0 ? 0 : (currentPage - 1) * limit + 1;
-    const to         = Math.min(currentPage * limit, totalCount);
-    const label      = `Showing ${from}–${to} of ${totalCount} polic${totalCount !== 1 ? "ies" : "y"}`;
+    const from = totalCount === 0 ? 0 : (currentPage - 1) * limit + 1;
+    const to = Math.min(currentPage * limit, totalCount);
+    const label = `Showing ${from}–${to} of ${totalCount} polic${totalCount !== 1 ? "ies" : "y"}`;
 
     // ── Columns ───────────────────────────────────────────────────────────
 
     const columns: ColumnDef<Policy>[] = [
         {
             header: "Title",
-            width:  "w-[200px]",
+            width: "w-[200px]",
             cell: (p) => <p className="font-medium text-sm">{p.title}</p>,
         },
         {
@@ -175,12 +176,12 @@ export function PoliciesTableClient({
         },
         {
             header: "Points Preview",
-            width:  "w-[260px]",
+            width: "w-[260px]",
             cell: (p) => <PointsPreview points={p.points} />,
         },
         {
             header: "Points",
-            align:  "center",
+            align: "center",
             cell: (p) => (
                 <span className="text-sm font-medium">
                     {p.points.filter(pt => pt.trim()).length}
@@ -189,7 +190,7 @@ export function PoliciesTableClient({
         },
         {
             header: "Packages",
-            align:  "center",
+            align: "center",
             cell: (p) => p._count.packages > 0 ? (
                 <Badge variant="secondary" className="text-xs">{p._count.packages}</Badge>
             ) : (
@@ -198,7 +199,7 @@ export function PoliciesTableClient({
         },
         {
             header: "Status",
-            align:  "center",
+            align: "center",
             cell: (p) => (
                 <Switch
                     checked={p.is_active}
@@ -217,8 +218,8 @@ export function PoliciesTableClient({
         },
         {
             header: "Actions",
-            align:  "right",
-            width:  "w-[80px]",
+            align: "right",
+            width: "w-[80px]",
             cell: (p) => (
                 <div className="flex items-center justify-end gap-1">
                     <Button
@@ -316,13 +317,11 @@ export function PoliciesTableClient({
 
             {/* Table */}
             {policies.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 border rounded-xl bg-muted/30">
-                    <FileText className="h-10 w-10 text-muted-foreground mb-3" />
-                    <p className="text-sm font-medium text-muted-foreground">No policies found</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                        {isFiltering ? "Try adjusting your filters" : "Create your first reusable policy"}
-                    </p>
-                </div>
+                <TableEmptyState
+                    title="No policies found"
+                    description={isFiltering ? "Try adjusting your filters" : "Create your first reusable policy"}
+                />
+
             ) : (
                 <DataTable
                     columns={columns}

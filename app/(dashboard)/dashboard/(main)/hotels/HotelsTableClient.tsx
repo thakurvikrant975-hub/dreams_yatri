@@ -22,7 +22,7 @@ import { toggleHotelActive, deleteHotel } from "./actions";
 import { TableFilters } from "../components/dashboard/Tablefilters";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { CATEGORIES } from "./constants";
-
+import { TableEmptyState } from "../components/dashboard/TableEmptyState";
 // ── Constants ─────────────────────────────────────────────────────────────
 
 const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
@@ -36,18 +36,18 @@ const base = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
 type Destination = { id: number; name: string };
 
 type HotelItem = {
-  id:          number;
-  name:        string;
-  slug:        string;
-  thumbnail:   string | null;
-  category:    string | null;
-  stay_type:   string | null;
-  is_active:   boolean;
-  created_at:  Date;
+  id: number;
+  name: string;
+  slug: string;
+  thumbnail: string | null;
+  category: string | null;
+  stay_type: string | null;
+  is_active: boolean;
+  created_at: Date;
   destination: { id: number; name: string };
   _count: {
-    hotelRooms:      number;
-    images:          number;
+    hotelRooms: number;
+    images: number;
     packageBookings: number;
   };
 };
@@ -65,17 +65,17 @@ export function HotelsTableClient({
   category,
   status,
 }: {
-  hotels:       HotelItem[];
+  hotels: HotelItem[];
   destinations: Destination[];
-  totalCount:   number;
-  limit:        number;
-  currentPage:  number;
-  search:       string;
-  destination:  number | "all";
-  category:     string | "all";
-  status:       "active" | "inactive" | "all";
+  totalCount: number;
+  limit: number;
+  currentPage: number;
+  search: string;
+  destination: number | "all";
+  category: string | "all";
+  status: "active" | "inactive" | "all";
 }) {
-  const router       = useRouter();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
@@ -87,7 +87,7 @@ export function HotelsTableClient({
   useEffect(() => { setLocalSearch(search); }, [search]);
 
   const [deleteTarget, setDeleteTarget] = useState<HotelItem | null>(null);
-  const [deleteError,  setDeleteError]  = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // ── URL helpers ───────────────────────────────────────────────────────
 
@@ -143,16 +143,16 @@ export function HotelsTableClient({
   // ── Pagination ────────────────────────────────────────────────────────
 
   const totalPages = Math.ceil(totalCount / limit);
-  const from       = totalCount === 0 ? 0 : (currentPage - 1) * limit + 1;
-  const to         = Math.min(currentPage * limit, totalCount);
-  const label      = `Showing ${from}–${to} of ${totalCount} hotel${totalCount !== 1 ? "s" : ""}`;
+  const from = totalCount === 0 ? 0 : (currentPage - 1) * limit + 1;
+  const to = Math.min(currentPage * limit, totalCount);
+  const label = `Showing ${from}–${to} of ${totalCount} hotel${totalCount !== 1 ? "s" : ""}`;
 
   // ── Columns ───────────────────────────────────────────────────────────
 
   const columns: ColumnDef<HotelItem>[] = [
     {
       header: "Hotel",
-      width:  "w-[260px]",
+      width: "w-[260px]",
       cell: (h) => (
         <div className="flex items-center gap-3">
           {h.thumbnail ? (
@@ -189,7 +189,7 @@ export function HotelsTableClient({
     },
     {
       header: "Rooms",
-      align:  "center",
+      align: "center",
       cell: (h) => (
         <span className="flex items-center justify-center gap-1 text-sm">
           <BedDouble className="h-3.5 w-3.5 text-muted-foreground" />
@@ -199,7 +199,7 @@ export function HotelsTableClient({
     },
     {
       header: "Images",
-      align:  "center",
+      align: "center",
       cell: (h) => (
         <span className="flex items-center justify-center gap-1 text-sm">
           <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />
@@ -209,7 +209,7 @@ export function HotelsTableClient({
     },
     {
       header: "Status",
-      align:  "center",
+      align: "center",
       cell: (h) => (
         <Switch
           checked={h.is_active}
@@ -220,8 +220,8 @@ export function HotelsTableClient({
     },
     {
       header: "Actions",
-      align:  "right",
-      width:  "w-[100px]",
+      align: "right",
+      width: "w-[100px]",
       cell: (h) => (
         <div className="flex items-center justify-end gap-1">
           <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
@@ -275,7 +275,7 @@ export function HotelsTableClient({
               placeholder: "All Statuses",
               width: "w-36",
               options: [
-                { label: "Active",   value: "active"   },
+                { label: "Active", value: "active" },
                 { label: "Inactive", value: "inactive" },
               ],
             },
@@ -298,13 +298,11 @@ export function HotelsTableClient({
 
       {/* Table or empty state */}
       {hotels.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 border rounded-xl bg-muted/30">
-          <Hotel className="h-10 w-10 text-muted-foreground mb-3" />
-          <p className="text-sm font-medium text-muted-foreground">No hotels found</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            {totalCount === 0 ? 'Click "Add Hotel" to get started' : "Try adjusting your filters"}
-          </p>
-        </div>
+
+        <TableEmptyState
+          title="No hotels found"
+          description={totalCount === 0 ? 'Click "Add Hotel" to get started' : "Try adjusting your filters"}
+        />
       ) : (
         <DataTable
           columns={columns}

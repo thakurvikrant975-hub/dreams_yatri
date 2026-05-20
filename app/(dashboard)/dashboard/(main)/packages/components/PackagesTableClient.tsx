@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { togglePackageActive, deletePackage } from "../actions";
 import { TableFilters } from "../../components/dashboard/Tablefilters";
 import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable";
+import { TableEmptyState } from "../../components/dashboard/TableEmptyState";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -331,13 +332,11 @@ export function PackagesTableClient({
 
       {/* Table or empty state */}
       {packages.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 border rounded-xl bg-muted/30">
-          <Package className="h-10 w-10 text-muted-foreground mb-3" />
-          <p className="text-sm font-medium text-muted-foreground">No packages found</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            {totalCount === 0 ? 'Click "New Package" to get started' : "Try adjusting your filters"}
-          </p>
-        </div>
+
+        <TableEmptyState
+          title="No packages found"
+          description={totalCount === 0 ? 'Click "New Package" to get started' : "Try adjusting your filters"}
+        />
       ) : (
         <DataTable
           columns={columns}

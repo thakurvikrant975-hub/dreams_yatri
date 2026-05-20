@@ -6,9 +6,7 @@ import { Badge }   from "../components/ui/badge";
 import { Switch }  from "../components/ui/switch";
 import { Button }  from "../components/ui/button";
 import { TableCell, TableRow } from "../components/ui/table";
-import {
-    Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "../components/ui/select";
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "../components/ui/select";
 import {
     Trash2, Tag, Package, GitBranch, ChevronDown, ChevronRight,
 } from "lucide-react";
@@ -388,13 +386,10 @@ export function CategoriesTable({
 
     if (!isFiltering && categories.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center py-20 border rounded-xl bg-muted/30">
-                <Tag className="h-10 w-10 text-muted-foreground mb-3" />
-                <p className="text-sm font-medium text-muted-foreground">No categories yet</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                    Create your first category to get started
-                </p>
-            </div>
+            <TableEmptyState
+                title="No categories yet"
+                description="Create your first category to get started"
+            />
         );
     }
 

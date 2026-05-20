@@ -27,32 +27,33 @@ import {
   createVehicleRate, updateVehicleRate, deleteVehicleRate,
   type VehicleFull, type VehicleRate,
 } from "./actions";
+import { TableEmptyState } from "../components/dashboard/TableEmptyState";
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const VEHICLE_TYPES = [
-  { value: "HATCHBACK",       label: "Hatchback" },
-  { value: "SEDAN",           label: "Sedan" },
-  { value: "SUV",             label: "SUV" },
-  { value: "LUXURY_SEDAN",    label: "Luxury Sedan" },
-  { value: "LUXURY_SUV",      label: "Luxury SUV" },
+  { value: "HATCHBACK", label: "Hatchback" },
+  { value: "SEDAN", label: "Sedan" },
+  { value: "SUV", label: "SUV" },
+  { value: "LUXURY_SEDAN", label: "Luxury Sedan" },
+  { value: "LUXURY_SUV", label: "Luxury SUV" },
   { value: "TEMPO_TRAVELLER", label: "Tempo Traveller" },
-  { value: "MINI_BUS",        label: "Mini Bus" },
-  { value: "BUS",             label: "Bus" },
+  { value: "MINI_BUS", label: "Mini Bus" },
+  { value: "BUS", label: "Bus" },
 ];
 
 const FUEL_TYPES = [
-  { value: "PETROL",   label: "Petrol" },
-  { value: "DIESEL",   label: "Diesel" },
-  { value: "CNG",      label: "CNG" },
+  { value: "PETROL", label: "Petrol" },
+  { value: "DIESEL", label: "Diesel" },
+  { value: "CNG", label: "CNG" },
   { value: "ELECTRIC", label: "Electric" },
-  { value: "HYBRID",   label: "Hybrid" },
+  { value: "HYBRID", label: "Hybrid" },
 ];
 
 const RATE_TYPES = [
-  { value: "PER_KM",     label: "Per KM" },
-  { value: "FLAT_TRIP",  label: "Flat Trip" },
-  { value: "PER_DAY",    label: "Per Day" },
+  { value: "PER_KM", label: "Per KM" },
+  { value: "FLAT_TRIP", label: "Flat Trip" },
+  { value: "PER_DAY", label: "Per Day" },
 ];
 
 // ── Vehicle form ───────────────────────────────────────────────────────────
@@ -582,11 +583,11 @@ export function VehiclesClient({ initialVehicles }: { initialVehicles: VehicleFu
             ))}
           </div>
         ) : !adding && (
-          <div className="text-center py-10 text-muted-foreground">
-            <Car className="h-8 w-8 mx-auto mb-2 opacity-30" />
-            <p className="text-sm">No vehicles defined</p>
-            <p className="text-xs mt-1">Add vehicles like Innova, Tempo Traveller, or Bus with capacity info</p>
-          </div>
+          <TableEmptyState
+            title="No vehicles defined"
+            description="Add vehicles like Innova, Tempo Traveller, or Bus with capacity info"
+          />
+
         )}
       </CardContent>
     </Card>
