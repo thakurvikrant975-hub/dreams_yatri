@@ -540,7 +540,7 @@ export function PackageForm({
                 "flex items-center gap-1.5 rounded-full px-3.5 py-1.25 text-[12px] font-semibold transition-all cursor-pointer",
                 isActive && "bg-dashboard-primary text-dashboard-base-100",
                 isDone && "bg-dashboard-success/15 text-dashboard-success",
-                !isActive && !isDone && "bg-dashboard-base-200 text-dashboard-base-content/75 hover:text-dashboard-base-content/70",
+                !isActive && !isDone && "bg-dashboard-base-100 text-dashboard-base-content/75 hover:text-dashboard-base-content/70",
               )}
             >
               <Icon className={cn("h-3 w-3",
