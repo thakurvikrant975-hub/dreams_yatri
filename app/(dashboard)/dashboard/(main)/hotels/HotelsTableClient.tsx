@@ -15,7 +15,7 @@ import {
   AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "../components/ui/alert-dialog";
-import { Hotel, BedDouble, ImageIcon, ExternalLink, Trash2 } from "lucide-react";
+import { Hotel, BedDouble, ImageIcon, ExternalLink, Trash2, Pencil } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
 import { toggleHotelActive, deleteHotel } from "./actions";
@@ -226,7 +226,7 @@ export function HotelsTableClient({
         <div className="flex items-center justify-end gap-1">
           <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
             <Link href={`/dashboard/hotels/${h.id}`}>
-              <ExternalLink className="h-3.5 w-3.5" />
+              <Pencil className="h-3.5 w-3.5" />
             </Link>
           </Button>
           <Button
