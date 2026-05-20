@@ -308,13 +308,13 @@ export function CategoriesTable({
         {
             header: "Slug",
             cell: (cat) => (
-                <Badge variant="outline" className="text-xs bg-dashboard-primary/10 text-dashboard-primary">{cat.slug}</Badge>
+                <Badge variant="outline" className="text-xs bg-dashboard-primary/10 text-dashboard-primary hover:underline cursor-pointer">{cat.slug}</Badge>
             ),
         },
         {
             header: "Parent",
             cell: (cat) => (
-                <Badge variant="secondary" className="text-xs bg-dashboard-primary/10 text-dashboard-primary">
+                <Badge variant="secondary" className="text-xs bg-dashboard-secondary/10 text-dashboard-secondary">
                     {cat.parent?.name ?? "Top Level"}
                 </Badge>
             ),
