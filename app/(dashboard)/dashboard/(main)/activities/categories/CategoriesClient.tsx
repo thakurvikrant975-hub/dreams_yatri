@@ -322,7 +322,7 @@ export function CategoriesClient({ initialCategories }: Props) {
         {
             header: "Slug",
             cell: (cat) => (
-                <code className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                <code className="text-xs text-dashboard-primary bg-dashboard-primary/10 px-1.5 py-0.5 rounded">
                     {cat.slug}
                 </code>
             ),
