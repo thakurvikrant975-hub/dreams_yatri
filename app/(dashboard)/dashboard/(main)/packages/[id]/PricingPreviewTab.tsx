@@ -116,7 +116,7 @@ function DayCard({ day }: { day: DayPricingBreakdown }) {
     day.hotel || included.length > 0 || optional.length > 0 || day.transfers.length > 0;
 
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-hidden bg-dashboard-base-100 rounded-xl shadow-lg border border-dashboard-base-content/20">
       <button
         type="button"
         onClick={() => setOpen((p) => !p)}
@@ -277,7 +277,7 @@ function SummaryCard({ breakdown }: { breakdown: FullPricingBreakdown }) {
   ];
 
   return (
-    <Card className="border-violet-200 bg-linear-to-b from-violet-50/40 to-background sticky top-4">
+    <Card className="border-violet-200 bg-linear-to-b from-violet-50/40 to-background sticky top-4 bg-dashboard-base-100 rounded-xl shadow-lg border border-dashboard-base-content/20">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-semibold flex items-center gap-2">
           <IndianRupee className="h-4 w-4 text-violet-600" />
@@ -435,7 +435,7 @@ export function PricingPreviewTab({
   return (
     <div className="space-y-6">
       {/* ── Controls ───────────────────────────────────────────────────────── */}
-      <Card>
+      <Card className="bg-dashboard-base-100 p-8 rounded-xl shadow-lg border border-dashboard-base-content/20">
         <CardContent className="pt-5 pb-4">
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-8 gap-3 items-end">
             {/* Duration */}
