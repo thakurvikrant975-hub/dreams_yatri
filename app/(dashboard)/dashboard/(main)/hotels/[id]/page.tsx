@@ -40,8 +40,6 @@ export default async function HotelEditPage({
     // Serialize Decimal fields and build tab-safe data
     const serializedHotel = {
         ...hotel,
-        latitude: hotel.latitude ? Number(hotel.latitude) : null,
-        longitude: hotel.longitude ? Number(hotel.longitude) : null,
         childPolicies: hotel.childPolicies.map((p) => ({
             ...p,
             price: p.price ? Number(p.price) : null,

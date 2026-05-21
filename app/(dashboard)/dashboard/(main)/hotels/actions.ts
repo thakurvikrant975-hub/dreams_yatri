@@ -96,11 +96,7 @@ export async function getHotels(params: GetHotelsParams = {}) {
     db.hotel_rooms.count(),
   ]);
 
-  const hotels = rows.map(h => ({
-    ...h,
-    latitude:  h.latitude  != null ? Number(h.latitude)  : null,
-    longitude: h.longitude != null ? Number(h.longitude) : null,
-  }));
+  const hotels = rows.map(h => ({ ...h }));
 
   return {
     hotels,
@@ -176,11 +172,7 @@ export async function getHotelById(id: number) {
     },
   });
   if (!hotel) return null;
-  return {
-    ...hotel,
-    latitude: hotel.latitude != null ? Number(hotel.latitude) : null,
-    longitude: hotel.longitude != null ? Number(hotel.longitude) : null,
-  };
+  return hotel;
 }
 
 export async function getRoomsByHotel(hotel_id: number) {

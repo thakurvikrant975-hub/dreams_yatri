@@ -21,8 +21,6 @@ export async function GET(
         meta_title:     true,
         meta_desc:      true,
         address:        true,
-        latitude:       true,
-        longitude:      true,
         category:       true,
         stay_type:      true,
         check_in_time:  true,
@@ -106,8 +104,6 @@ export async function GET(
 
     const data = {
       ...hotel,
-      latitude:  hotel.latitude  ? Number(hotel.latitude)  : null,
-      longitude: hotel.longitude ? Number(hotel.longitude) : null,
       room_pricing: hotel.room_pricing.map(r => ({
         ...r,
         price_per_night:   Number(r.price_per_night),

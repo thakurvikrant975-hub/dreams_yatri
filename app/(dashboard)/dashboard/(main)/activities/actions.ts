@@ -46,8 +46,7 @@ export type ActivityItem = {
     category_id:    number | null;
     difficulty:     string | null;
     duration_hours: number | null;
-    latitude:       number | null;
-    longitude:      number | null;
+    location_id:    bigint | null;
     address:        string | null;
     city:           string | null;
     state:          string | null;
@@ -164,8 +163,6 @@ export async function getActivities(params: GetActivitiesParams = {}) {
         activities: activities.map(a => ({
             ...a,
             duration_hours: a.duration_hours ? Number(a.duration_hours) : null,
-            latitude:       a.latitude  ? Number(a.latitude)  : null,
-            longitude:      a.longitude ? Number(a.longitude) : null,
         })) as ActivityItem[],
         totalCount,
         isFiltering,
@@ -198,8 +195,6 @@ export async function getActivityWithVariants(id: number) {
     return {
         ...activity,
         duration_hours: activity.duration_hours ? Number(activity.duration_hours) : null,
-        latitude:       activity.latitude  ? Number(activity.latitude)  : null,
-        longitude:      activity.longitude ? Number(activity.longitude) : null,
         variants: activity.variants.map(v => ({
             ...v,
             cost_price:     v.cost_price     ? Number(v.cost_price)     : null,

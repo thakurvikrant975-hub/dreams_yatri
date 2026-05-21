@@ -39,8 +39,7 @@ type Hotel = {
   meta_title:     string | null;
   meta_desc:      string | null;
   is_active:      boolean;
-  latitude:       number | null;
-  longitude:      number | null;
+  location_id:    bigint | null;
   destination:    { id: number; name: string };
 };
 

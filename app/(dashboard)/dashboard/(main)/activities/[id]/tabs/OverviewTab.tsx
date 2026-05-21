@@ -39,8 +39,7 @@ export type ActivityDetail = {
     category:       { id: number; name: string; slug: string } | null;
     difficulty:     string | null;
     duration_hours: number | null;
-    latitude:       number | null;
-    longitude:      number | null;
+    location_id:    bigint | null;
     address:        string | null;
     city:           string | null;
     state:          string | null;

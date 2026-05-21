@@ -368,6 +368,9 @@ enum LocationType {
   BUS_STATION
   TRAIN_STATION
   PORT
+  HOTEL
+  ACTIVITY
+  ROUTE_STOP
 }
 
 model Location {
@@ -447,6 +450,8 @@ model Location {
   city_children Location[] @relation("CityRelation")
 
   route_stops    route_stops[]
+  activities     activities[]
+  hotels         hotels[]
   pickup_routes  transfer_routes[] @relation("pickup_routes")
   drop_routes    transfer_routes[] @relation("drop_routes")
 
@@ -760,9 +765,8 @@ model hotels {
   meta_title       String?
   meta_desc        String?
   destination_id   Int
+  location_id      BigInt?
   address          String?
-  latitude         Decimal?                 @db.Decimal(10, 8)
-  longitude        Decimal?                 @db.Decimal(11, 8)
   category         String?
   stay_type        String?
   check_in_time    String?
@@ -784,9 +788,11 @@ model hotels {
   room_pricing     hotel_room_pricing[]
   hotelRooms       hotel_rooms[]
   destination      destinations             @relation(fields: [destination_id], references: [id])
+  location         Location?                @relation(fields: [location_id], references: [id], onDelete: SetNull)
   packageBookings  PackageBookingHotel[]
 
   @@index([destination_id, is_active])
+  @@index([location_id])
   @@index([slug])
 }
 
@@ -954,10 +960,9 @@ model activities {
   meta_desc            String?
   category_id          Int?
   destination_id       Int?
+  location_id          BigInt?
   duration_hours       Decimal?               @db.Decimal(4, 1)
   difficulty           String?
-  latitude             Decimal?               @db.Decimal(10, 8)
-  longitude            Decimal?               @db.Decimal(11, 8)
   address              String?
   city                 String?
   state                String?
@@ -970,6 +975,7 @@ model activities {
   updated_at           DateTime               @updatedAt
   category             activity_categories?   @relation(fields: [category_id], references: [id], onDelete: SetNull)
   destination          destinations?          @relation(fields: [destination_id], references: [id], onDelete: SetNull)
+  location             Location?              @relation(fields: [location_id], references: [id], onDelete: SetNull)
   images               activity_images[]
   itinerary_activities itinerary_activities[]
   variants             activity_variants[]
@@ -977,6 +983,7 @@ model activities {
 
   @@index([category_id, is_active])
   @@index([destination_id, is_active])
+  @@index([location_id])
   @@index([slug])
 }
 
