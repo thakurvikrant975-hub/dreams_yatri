@@ -230,17 +230,17 @@ export function StayTiersSection({ packageId, initialCategories, onCategoriesCha
   const sorted = [...categories].sort((a, b) => a.sort_order - b.sort_order);
 
   return (
-    <div className="rounded-xl border overflow-hidden">
+    <div className="rounded-xl border border-dashboard-base-content/30 overflow-hidden">
       {/* Collapsible header */}
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-muted/40 hover:bg-muted/60 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 text-dashboard-base-100 bg-dashboard-base-content transition-colors"
       >
         <div className="flex items-center gap-2">
           {expanded
-            ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+            ? <ChevronDown className="h-4 w-4" />
+            : <ChevronRight className="h-4 w-4" />}
           <Hotel className="h-4 w-4 text-primary" />
           <span className="font-semibold text-sm">Stay Tiers</span>
           {categories.length > 0 && (
@@ -295,17 +295,17 @@ export function StayTiersSection({ packageId, initialCategories, onCategoriesCha
                           />
                         </div>
                       ) : (
-                        <div className="flex items-center gap-2 px-3 py-2.5">
+                        <div className="flex items-center gap-2 px-3 py-2.5 border-dashboard-base-content/30 border rounded-md">
                           {/* Up/down reorder */}
                           <div className="flex flex-col gap-0.5 shrink-0">
                             <button
                               type="button"
-                              className="h-4 w-4 flex items-center justify-center rounded hover:bg-muted text-muted-foreground/30 hover:text-muted-foreground transition-colors disabled:opacity-20"
+                              className="h-4 w-4 flex items-center justify-center rounded hover:bg-muted transition-colors disabled:opacity-20"
                               onClick={() => handleMove(cat.id, "up")}
                               disabled={idx === 0}
                               aria-label="Move up"
                             >
-                              <ArrowUp className="h-2.5 w-2.5" />
+                              <ArrowUp className="h-2.5 w-2.5 text-dashboard-base-content" />
                             </button>
                             <button
                               type="button"
