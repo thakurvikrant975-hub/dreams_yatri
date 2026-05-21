@@ -120,15 +120,15 @@ function DayCard({ day }: { day: DayPricingBreakdown }) {
       <button
         type="button"
         onClick={() => setOpen((p) => !p)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors text-left"
+        className="w-full flex cursor-pointer items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors text-left"
       >
         <div className="flex items-center gap-2">
           {open ? (
-            <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+            <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 cursor-pointer" />
           ) : (
-            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 cursor-pointer" />
           )}
-          <Badge variant="outline" className="text-xs shrink-0">
+          <Badge variant="outline" className="text-xs shrink-0 bg-dashboard-primary text-dashboard-base-100">
             Day {day.day}
           </Badge>
           <span className="text-sm font-medium truncate">{day.day_title}</span>
@@ -435,7 +435,7 @@ export function PricingPreviewTab({
   return (
     <div className="space-y-6">
       {/* ── Controls ───────────────────────────────────────────────────────── */}
-      <Card className="bg-dashboard-base-100 p-8 rounded-xl shadow-lg border border-dashboard-base-content/20">
+      <Card className="bg-dashboard-base-100 rounded-xl shadow-lg border border-dashboard-base-content/20">
         <CardContent className="pt-5 pb-4">
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-8 gap-3 items-end">
             {/* Duration */}
