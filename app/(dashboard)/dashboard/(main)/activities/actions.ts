@@ -22,6 +22,7 @@ export type ActivityFormState = {
     message: string;
     errors?: Record<string, string[]>;
     id?:     number;
+    images?: ActivityImage[];
 };
 
 export type ActivityImage = {
@@ -480,9 +481,19 @@ export async function addActivityImages(
             })),
         });
 
+        const created = await db.activity_images.findMany({
+            where:   { activity_id, sort_order: { gte: existing } },
+            orderBy: { sort_order: "asc" },
+            select:  { id: true, url: true, thumbnail: true, is_primary: true, sort_order: true, label: true },
+        });
+
         revalidatePath("/dashboard/activities");
         revalidatePath(`/dashboard/activities/${activity_id}`);
-        return { success: true, message: `${images.length} image${images.length !== 1 ? "s" : ""} added` };
+        return {
+            success: true,
+            message: `${images.length} image${images.length !== 1 ? "s" : ""} added`,
+            images:  created,
+        };
     } catch (e) {
         console.error("[addActivityImages]", e);
         return actionError(e);
@@ -545,6 +556,27 @@ export async function updateActivityImageLabel(
         return { success: true, message: "Label saved" };
     } catch (e) {
         console.error("[updateActivityImageLabel]", e);
+        return actionError(e);
+    }
+}
+
+export async function batchSaveActivityImageLabels(
+    activity_id: number,
+    updates: { id: number; label: string }[],
+): Promise<ActivityFormState> {
+    const actor = await requireActor();
+    if (!actor) return { success: false, message: "Unauthorized" };
+
+    try {
+        await Promise.all(
+            updates.map(u =>
+                db.activity_images.update({ where: { id: u.id }, data: { label: u.label || null } })
+            )
+        );
+        revalidatePath(`/dashboard/activities/${activity_id}`);
+        return { success: true, message: "Labels saved" };
+    } catch (e) {
+        console.error("[batchSaveActivityImageLabels]", e);
         return actionError(e);
     }
 }

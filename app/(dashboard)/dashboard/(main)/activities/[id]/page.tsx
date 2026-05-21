@@ -85,7 +85,7 @@ export default async function ActivityDetailPage({
                 <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="overview">Overview</TabsTrigger>
                     <TabsTrigger value="images" className="gap-1.5">
-                        Images
+                        Highlights &amp; Images
                         {totalImages > 0 && (
                             <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{totalImages}</Badge>
                         )}
