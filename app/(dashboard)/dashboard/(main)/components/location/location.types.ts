@@ -4,7 +4,8 @@ export type LocationType =
   | "REGION" | "SUBREGION" | "COUNTRY" | "STATE" | "CITY"
   | "DISTRICT" | "AREA" | "NEIGHBORHOOD" | "VILLAGE" | "LANDMARK"
   | "AIRPORT" | "BEACH" | "MOUNTAIN" | "ISLAND" | "TOURISM_ZONE"
-  | "BUS_STATION" | "TRAIN_STATION" | "PORT";
+  | "BUS_STATION" | "TRAIN_STATION" | "PORT"
+  | "HOTEL" | "ACTIVITY" | "ROUTE_STOP";
 
 export const LOCATION_LABELS: Record<LocationType, string> = {
   REGION: "Region", SUBREGION: "Subregion", COUNTRY: "Country",
@@ -13,6 +14,7 @@ export const LOCATION_LABELS: Record<LocationType, string> = {
   LANDMARK: "Landmark", AIRPORT: "Airport", BEACH: "Beach",
   MOUNTAIN: "Mountain", ISLAND: "Island", TOURISM_ZONE: "Tourism Zone",
   BUS_STATION: "Bus Station", TRAIN_STATION: "Train Station", PORT: "Port",
+  HOTEL: "Hotel", ACTIVITY: "Activity", ROUTE_STOP: "Route Stop",
 };
 
 export const LOCATION_COLORS: Record<LocationType, string> = {
@@ -34,6 +36,9 @@ export const LOCATION_COLORS: Record<LocationType, string> = {
   BUS_STATION: "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300",
   TRAIN_STATION: "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300",
   PORT: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300",
+  HOTEL: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+  ACTIVITY: "bg-lime-100 text-lime-700 dark:bg-lime-900/30 dark:text-lime-300",
+  ROUTE_STOP: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300",
 };
 
 // Maps Mapbox place_type strings to our LocationType

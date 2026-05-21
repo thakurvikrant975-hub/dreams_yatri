@@ -42,8 +42,11 @@ export const ActivitySchema = z.object({
     .optional()
     .nullable(),
 
-  latitude:  z.coerce.number().min(-90).max(90).optional().nullable(),
-  longitude: z.coerce.number().min(-180).max(180).optional().nullable(),
+  location_id: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((v) => (v && v !== "" ? BigInt(v) : null)),
 
   address: z
     .string()

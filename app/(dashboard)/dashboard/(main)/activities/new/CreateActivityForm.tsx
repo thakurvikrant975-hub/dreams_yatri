@@ -229,8 +229,7 @@ export function CreateActivityForm({ categories }: { categories: CategoryOption[
             fd.append("difficulty",     difficulty);
             fd.append("duration_hours", duration);
             fd.append("is_active",      String(isActive));
-            fd.append("latitude",       location?.latitude  != null ? String(location.latitude)  : "");
-            fd.append("longitude",      location?.longitude != null ? String(location.longitude) : "");
+            fd.append("location_id",    location?.id ?? "");
             fd.append("address",        address);
             fd.append("city",           city);
             fd.append("state",          state);

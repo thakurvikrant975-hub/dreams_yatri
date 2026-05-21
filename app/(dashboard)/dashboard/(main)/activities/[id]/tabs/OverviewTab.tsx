@@ -39,7 +39,7 @@ export type ActivityDetail = {
     category:       { id: number; name: string; slug: string } | null;
     difficulty:     string | null;
     duration_hours: number | null;
-    location_id:    bigint | null;
+    location:       LocationValue | null;
     address:        string | null;
     city:           string | null;
     state:          string | null;
@@ -190,7 +190,7 @@ export function OverviewTab({
     const [isActive,   setIsActive]  = useState(activity.is_active);
 
     // Location & Contact
-    const [location, setLocation] = useState<LocationValue | null>(null);
+    const [location, setLocation] = useState<LocationValue | null>(activity.location);
     const [address, setAddress] = useState(activity.address ?? "");
     const [city,    setCity]    = useState(activity.city    ?? "");
     const [state,   setState]   = useState(activity.state   ?? "");
@@ -225,8 +225,7 @@ export function OverviewTab({
             fd.append("difficulty",     difficulty);
             fd.append("duration_hours", duration);
             fd.append("is_active",      String(isActive));
-            fd.append("latitude",       location?.latitude  != null ? String(location.latitude)  : "");
-            fd.append("longitude",      location?.longitude != null ? String(location.longitude) : "");
+            fd.append("location_id",    location?.id ?? "");
             fd.append("address",        address);
             fd.append("city",           city);
             fd.append("state",          state);

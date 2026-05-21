@@ -1,10 +1,11 @@
 "use server";
 
-import { db }             from "@/app/lib/db";
-import { deleteFromR2 }   from "@/app/lib/r2/r2delete";
-import { revalidatePath } from "next/cache";
-import { dashboardAuth }  from "@/app/lib/auth-dashboard";
+import { db }                  from "@/app/lib/db";
+import { deleteFromR2 }        from "@/app/lib/r2/r2delete";
+import { revalidatePath }      from "next/cache";
+import { dashboardAuth }       from "@/app/lib/auth-dashboard";
 import { ActivitySchema, ActivityUpdateSchema } from "@/app/lib/validators/activities";
+import { actionError }         from "@/app/lib/action-error";
 
 // ── Auth helper ───────────────────────────────────────────────────────────
 
@@ -46,7 +47,6 @@ export type ActivityItem = {
     category_id:    number | null;
     difficulty:     string | null;
     duration_hours: number | null;
-    location_id:    bigint | null;
     address:        string | null;
     city:           string | null;
     state:          string | null;
@@ -160,7 +160,7 @@ export async function getActivities(params: GetActivitiesParams = {}) {
         ]);
 
     return {
-        activities: activities.map(a => ({
+        activities: activities.map(({ location_id: _loc, ...a }) => ({
             ...a,
             duration_hours: a.duration_hours ? Number(a.duration_hours) : null,
         })) as ActivityItem[],
@@ -189,6 +189,18 @@ export async function getActivityWithVariants(id: number) {
                 include: { pricing: { orderBy: { sort_order: "asc" } } },
             },
             addons: { orderBy: { sort_order: "asc" } },
+            location: {
+                select: {
+                    id:        true,
+                    name:      true,
+                    type:      true,
+                    slug:      true,
+                    latitude:  true,
+                    longitude: true,
+                    state:   { select: { name: true } },
+                    country: { select: { name: true } },
+                },
+            },
         },
     });
     if (!activity) return null;
@@ -277,8 +289,7 @@ export async function createActivity(
         difficulty:     formData.get("difficulty")     || undefined,
         duration_hours: formData.get("duration_hours") || undefined,
         is_active:      formData.get("is_active") === "true",
-        latitude:       formData.get("latitude")  || undefined,
-        longitude:      formData.get("longitude") || undefined,
+        location_id:    (formData.get("location_id") as string) || undefined,
         address:        formData.get("address")   || undefined,
         city:           formData.get("city")      || undefined,
         state:          formData.get("state")     || undefined,
@@ -320,8 +331,9 @@ export async function createActivity(
         const activity = await db.activities.create({ data: parsed.data });
         revalidatePath("/dashboard/activities");
         return { success: true, message: "Activity created successfully", id: activity.id };
-    } catch {
-        return { success: false, message: "Database error. Please try again." };
+    } catch (e) {
+        console.error("[createActivity]", e);
+        return actionError(e);
     }
 }
 
@@ -342,8 +354,7 @@ export async function updateActivity(
         difficulty:     formData.get("difficulty")     || undefined,
         duration_hours: formData.get("duration_hours") || undefined,
         is_active:      formData.get("is_active") === "true",
-        latitude:       formData.get("latitude")  || undefined,
-        longitude:      formData.get("longitude") || undefined,
+        location_id:    (formData.get("location_id") as string) || undefined,
         address:        formData.get("address")   || undefined,
         city:           formData.get("city")      || undefined,
         state:          formData.get("state")     || undefined,
@@ -370,8 +381,9 @@ export async function updateActivity(
         revalidatePath("/dashboard/activities");
         revalidatePath(`/dashboard/activities/${id}`);
         return { success: true, message: "Activity updated successfully" };
-    } catch {
-        return { success: false, message: "Database error. Please try again." };
+    } catch (e) {
+        console.error("[updateActivity]", e);
+        return actionError(e);
     }
 }
 
@@ -391,8 +403,9 @@ export async function toggleActivityActive(
             success: true,
             message: `Activity ${is_active ? "activated" : "deactivated"}`,
         };
-    } catch {
-        return { success: false, message: "Database error. Please try again." };
+    } catch (e) {
+        console.error("[toggleActivityActive]", e);
+        return actionError(e);
     }
 }
 
@@ -438,8 +451,9 @@ export async function deleteActivity(id: number): Promise<ActivityFormState> {
 
         revalidatePath("/dashboard/activities");
         return { success: true, message: "Activity deleted successfully" };
-    } catch {
-        return { success: false, message: "Database error. Please try again." };
+    } catch (e) {
+        console.error("[deleteActivity]", e);
+        return actionError(e);
     }
 }
 
@@ -469,8 +483,9 @@ export async function addActivityImages(
         revalidatePath("/dashboard/activities");
         revalidatePath(`/dashboard/activities/${activity_id}`);
         return { success: true, message: `${images.length} image${images.length !== 1 ? "s" : ""} added` };
-    } catch {
-        return { success: false, message: "Database error." };
+    } catch (e) {
+        console.error("[addActivityImages]", e);
+        return actionError(e);
     }
 }
 
@@ -490,8 +505,9 @@ export async function deleteActivityImage(
         revalidatePath("/dashboard/activities");
         revalidatePath(`/dashboard/activities/${activity_id}`);
         return { success: true, message: "Image deleted" };
-    } catch {
-        return { success: false, message: "Database error." };
+    } catch (e) {
+        console.error("[deleteActivityImage]", e);
+        return actionError(e);
     }
 }
 
@@ -510,8 +526,9 @@ export async function setPrimaryActivityImage(
         revalidatePath("/dashboard/activities");
         revalidatePath(`/dashboard/activities/${activity_id}`);
         return { success: true, message: "Primary image set" };
-    } catch {
-        return { success: false, message: "Database error." };
+    } catch (e) {
+        console.error("[setPrimaryActivityImage]", e);
+        return actionError(e);
     }
 }
 
@@ -526,8 +543,9 @@ export async function updateActivityImageLabel(
         await db.activity_images.update({ where: { id }, data: { label: label || null } });
         revalidatePath("/dashboard/activities");
         return { success: true, message: "Label saved" };
-    } catch {
-        return { success: false, message: "Database error." };
+    } catch (e) {
+        console.error("[updateActivityImageLabel]", e);
+        return actionError(e);
     }
 }
 
@@ -558,8 +576,9 @@ export async function createVariant(
         });
         revalidatePath(`/dashboard/activities/${activity_id}`);
         return { success: true, message: "Variant created", id: variant.id };
-    } catch {
-        return { success: false, message: "Database error." };
+    } catch (e) {
+        console.error("[createVariant]", e);
+        return actionError(e);
     }
 }
 
@@ -586,8 +605,9 @@ export async function updateVariant(
         await db.activity_variants.update({ where: { id }, data });
         revalidatePath(`/dashboard/activities/${activity_id}`);
         return { success: true, message: "Variant updated" };
-    } catch {
-        return { success: false, message: "Database error." };
+    } catch (e) {
+        console.error("[updateVariant]", e);
+        return actionError(e);
     }
 }
 
@@ -617,8 +637,9 @@ export async function deleteVariant(
         await db.activity_variants.delete({ where: { id } });
         revalidatePath(`/dashboard/activities/${activity_id}`);
         return { success: true, message: "Variant deleted" };
-    } catch {
-        return { success: false, message: "Database error." };
+    } catch (e) {
+        console.error("[deleteVariant]", e);
+        return actionError(e);
     }
 }
 
@@ -673,8 +694,9 @@ export async function upsertVariantPricing(
         }
         revalidatePath(`/dashboard/activities/${activity_id}`);
         return { success: true, message: "Pricing saved" };
-    } catch {
-        return { success: false, message: "Database error." };
+    } catch (e) {
+        console.error("[upsertVariantPricing]", e);
+        return actionError(e);
     }
 }
 
@@ -689,8 +711,9 @@ export async function deleteVariantPricing(
         await db.activity_variant_pricing.delete({ where: { id } });
         revalidatePath(`/dashboard/activities/${activity_id}`);
         return { success: true, message: "Pricing deleted" };
-    } catch {
-        return { success: false, message: "Database error." };
+    } catch (e) {
+        console.error("[deleteVariantPricing]", e);
+        return actionError(e);
     }
 }
 
@@ -718,8 +741,9 @@ export async function createAddon(
         });
         revalidatePath(`/dashboard/activities/${activity_id}`);
         return { success: true, message: "Add-on created" };
-    } catch {
-        return { success: false, message: "Database error." };
+    } catch (e) {
+        console.error("[createAddon]", e);
+        return actionError(e);
     }
 }
 
@@ -743,8 +767,9 @@ export async function updateAddon(
         await db.activity_addons.update({ where: { id }, data });
         revalidatePath(`/dashboard/activities/${activity_id}`);
         return { success: true, message: "Add-on updated" };
-    } catch {
-        return { success: false, message: "Database error." };
+    } catch (e) {
+        console.error("[updateAddon]", e);
+        return actionError(e);
     }
 }
 
@@ -759,7 +784,8 @@ export async function deleteAddon(
         await db.activity_addons.delete({ where: { id } });
         revalidatePath(`/dashboard/activities/${activity_id}`);
         return { success: true, message: "Add-on deleted" };
-    } catch {
-        return { success: false, message: "Database error." };
+    } catch (e) {
+        console.error("[deleteAddon]", e);
+        return actionError(e);
     }
 }
