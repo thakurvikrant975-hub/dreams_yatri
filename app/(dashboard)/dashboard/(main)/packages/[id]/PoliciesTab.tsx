@@ -88,7 +88,7 @@ function PolicyRow({
   }
 
   return (
-    <div className="rounded-xl border bg-background p-4 space-y-3">
+    <div className="rounded-xl border border-dashboard-base-content/30 bg-background p-4 space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
