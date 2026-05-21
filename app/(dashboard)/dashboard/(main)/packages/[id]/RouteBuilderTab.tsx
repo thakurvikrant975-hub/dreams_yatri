@@ -278,7 +278,7 @@ export function RouteBuilderTab({ packageId, initialData, packageImages }: Props
   const totalVariants = data.reduce((s, d) => s + d.routes.length, 0);
 
   return (
-    <div className="space-y-5 bg-dashboard-base-100 p-8 rounded-xl shadow-lg">
+    <div className="space-y-5 bg-dashboard-base-100 p-8 rounded-xl shadow-lg border border-dashboard-base-content/20">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

@@ -147,7 +147,7 @@ function PolicyRow({
 
 export function PoliciesTab({ packageId, initialPolicies }: Props) {
   return (
-    <div className="space-y-4 bg-dashboard-base-100 p-8 rounded-xl shadow-lg">
+    <div className="space-y-4 bg-dashboard-base-100 p-8 rounded-xl shadow-lg border border-dashboard-base-content/20">
       <div>
         <h3 className="text-sm font-semibold">Package Policies</h3>
         <p className="text-xs text-muted-foreground mt-0.5">
