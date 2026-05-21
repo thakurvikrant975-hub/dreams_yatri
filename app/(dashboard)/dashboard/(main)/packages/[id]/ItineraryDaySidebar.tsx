@@ -102,6 +102,7 @@ import {
   Camera,
   Package,
   Zap,
+  ClipboardPaste,
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import type { OccupiedBy } from "./ItineraryBuilderTab";
@@ -499,20 +500,29 @@ function TransferEditForm({
 function ActivityEditForm({
   item,
   pending,
+  destinationId,
   onToggleOptional,
   onChangeVariant,
+  onChangeActivity,
   onCancel,
   onDelete,
 }: {
   item: ActivityItem;
   pending: boolean;
+  destinationId: number;
   onToggleOptional: (val: boolean) => void;
   onChangeVariant: (variantId: number | null) => void;
+  onChangeActivity: (activityId: number, variantId: number | null) => void;
   onCancel: () => void;
   onDelete: () => void;
 }) {
   const [variants, setVariants] = useState<ActivityVariantOption[]>([]);
   const [loadingVariants, setLoadingVariants] = useState(false);
+  const [isChanging, setIsChanging] = useState(false);
+  const [newActivityId, setNewActivityId] = useState<number | null>(null);
+  const [newVariants, setNewVariants] = useState<ActivityVariantOption[]>([]);
+  const [newVariantId, setNewVariantId] = useState<number | null>(null);
+  const [loadingNewVariants, setLoadingNewVariants] = useState(false);
 
   useEffect(() => {
     setLoadingVariants(true);
@@ -522,40 +532,128 @@ function ActivityEditForm({
     });
   }, [item.activity.id]);
 
+  const fetchActivities = useCallback(async (query: string): Promise<Option[]> => {
+    const res = await handleSearchActivities(destinationId, query);
+    if (!res.success) return [];
+    const items: Option[] = res.data.items.map((a) => ({
+      id: a.id,
+      label: a.name,
+      description: [
+        a.category,
+        a.duration_hours != null ? `${a.duration_hours}h` : null,
+        !a.has_pricing ? "⚠ No pricing set" : null,
+      ].filter(Boolean).join(" · "),
+    }));
+    if (res.data.has_more) items.push({ id: -1, label: "Showing top 20 — refine search to see more" });
+    return items;
+  }, [destinationId]);
+
+  async function handleNewActivitySelect(id: number | null) {
+    setNewActivityId(id);
+    setNewVariants([]);
+    setNewVariantId(null);
+    if (!id) return;
+    setLoadingNewVariants(true);
+    const res = await handleGetActivityVariants(id);
+    setLoadingNewVariants(false);
+    if (!res.success) return;
+    setNewVariants(res.data);
+    if (res.data.length === 1) setNewVariantId(res.data[0].id);
+  }
+
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border bg-muted/30 p-3">
-        <p className="text-sm font-medium">{item.activity.name}</p>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          {[item.activity.category, item.activity.duration_hours != null ? `${item.activity.duration_hours}h` : null].filter(Boolean).join(" · ")}
-        </p>
-      </div>
+      {!isChanging ? (
+        <div className="rounded-xl border bg-muted/30 p-3 flex items-start justify-between gap-2">
+          <div>
+            <p className="text-sm font-medium">{item.activity.name}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {[item.activity.category, item.activity.duration_hours != null ? `${item.activity.duration_hours}h` : null].filter(Boolean).join(" · ")}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsChanging(true)}
+            disabled={pending}
+            className="shrink-0 flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+          >
+            <Pencil className="h-3 w-3" /> Change
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">Select New Activity <span className="text-destructive">*</span></Label>
+              <button
+                type="button"
+                onClick={() => { setIsChanging(false); setNewActivityId(null); setNewVariants([]); setNewVariantId(null); }}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                Cancel
+              </button>
+            </div>
+            <SearchSelect value={newActivityId} onChange={handleNewActivitySelect} fetchOptions={fetchActivities} placeholder="Search activities…" />
+          </div>
+          {newActivityId && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Pricing Variant</Label>
+              {loadingNewVariants ? (
+                <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1"><Loader2 className="h-3 w-3 animate-spin" /> Loading variants…</p>
+              ) : newVariants.length === 0 ? (
+                <p className="text-xs text-muted-foreground/60 italic mt-1">No variants — will price at ₹0</p>
+              ) : (
+                <Select value={newVariantId ? String(newVariantId) : "none"} onValueChange={(v) => setNewVariantId(v === "none" ? null : Number(v))}>
+                  <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select variant…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No variant (₹0)</SelectItem>
+                    {newVariants.map((v) => {
+                      const adultTier = v.pricingTiers.find((t) => t.label.toLowerCase().includes("adult")) ?? v.pricingTiers[0];
+                      return <SelectItem key={v.id} value={String(v.id)}>{v.name}{adultTier ? ` · ₹${adultTier.price}` : ""}</SelectItem>;
+                    })}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
+          {newActivityId && (
+            <Button size="sm" onClick={() => onChangeActivity(newActivityId, newVariantId)} disabled={pending} className="w-full gap-1.5">
+              {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+              Confirm Change
+            </Button>
+          )}
+        </div>
+      )}
 
-      <div className="space-y-1.5">
-        <Label className="text-xs">Pricing Variant</Label>
-        {loadingVariants ? (
-          <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1"><Loader2 className="h-3 w-3 animate-spin" /> Loading variants…</p>
-        ) : variants.length === 0 ? (
-          <p className="text-xs text-muted-foreground/60 italic mt-1">No variants — will price at ₹0</p>
-        ) : (
-          <Select value={item.variant_id ? String(item.variant_id) : "none"} onValueChange={(v) => onChangeVariant(v === "none" ? null : Number(v))} disabled={pending}>
-            <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select variant…" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">No variant (₹0)</SelectItem>
-              {variants.map((v) => {
-                const adultTier = v.pricingTiers.find((t) => t.label.toLowerCase().includes("adult")) ?? v.pricingTiers[0];
-                return <SelectItem key={v.id} value={String(v.id)}>{v.name}{adultTier ? ` · ₹${adultTier.price}` : ""}</SelectItem>;
-              })}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
+      {!isChanging && (
+        <>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Pricing Variant</Label>
+            {loadingVariants ? (
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1"><Loader2 className="h-3 w-3 animate-spin" /> Loading variants…</p>
+            ) : variants.length === 0 ? (
+              <p className="text-xs text-muted-foreground/60 italic mt-1">No variants — will price at ₹0</p>
+            ) : (
+              <Select value={item.variant_id ? String(item.variant_id) : "none"} onValueChange={(v) => onChangeVariant(v === "none" ? null : Number(v))} disabled={pending}>
+                <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select variant…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No variant (₹0)</SelectItem>
+                  {variants.map((v) => {
+                    const adultTier = v.pricingTiers.find((t) => t.label.toLowerCase().includes("adult")) ?? v.pricingTiers[0];
+                    return <SelectItem key={v.id} value={String(v.id)}>{v.name}{adultTier ? ` · ₹${adultTier.price}` : ""}</SelectItem>;
+                  })}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
 
-      <div className="flex items-center gap-3">
-        <Switch id={`optional-${item.id}`} checked={item.is_optional} onCheckedChange={onToggleOptional} disabled={pending} />
-        <Label htmlFor={`optional-${item.id}`} className="text-sm">Mark as optional activity</Label>
-        {pending && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
-      </div>
+          <div className="flex items-center gap-3">
+            <Switch id={`optional-${item.id}`} checked={item.is_optional} onCheckedChange={onToggleOptional} disabled={pending} />
+            <Label htmlFor={`optional-${item.id}`} className="text-sm">Mark as optional activity</Label>
+            {pending && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+          </div>
+        </>
+      )}
 
       <div className="flex items-center justify-between pt-2">
         <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1.5" onClick={onDelete} disabled={pending}>
@@ -1538,6 +1636,21 @@ export function ItineraryDaySidebar({
     onSaved(currentDayData());
   }
 
+  async function changeActivityItem(id: number, newActivityId: number, isOptional: boolean, variantId: number | null) {
+    if (!itineraryId) return;
+    setPending(true);
+    const deleteRes = await handleDeleteActivity(id, packageId);
+    if (!deleteRes.success) { toast.error(deleteRes.message); setPending(false); return; }
+    const addRes = await handleAddActivity(itineraryId, newActivityId, isOptional, packageId, variantId);
+    setPending(false);
+    if (!addRes.success) { toast.error(addRes.message); return; }
+    const refreshed = await handleGetItinerary();
+    if (refreshed) setActivities(refreshed.activities);
+    setEditPanel(null);
+    toast.success("Activity changed");
+    onSaved(currentDayData());
+  }
+
   // ── Note CRUD ──────────────────────────────────────────────────────────
 
   async function addNote(data: { message: string; type: string; position: string; optional_link_text: string; optional_link_url: string }) {
@@ -1638,12 +1751,30 @@ export function ItineraryDaySidebar({
               <div className="px-5 pt-4 pb-4 border-b shrink-0">
                 <div className="flex flex-col gap-3">
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Title</Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Title</Label>
+                      <button
+                        type="button"
+                        onClick={async () => { try { setTitle(await navigator.clipboard.readText()); } catch {} }}
+                        className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors"
+                      >
+                        <ClipboardPaste className="h-3 w-3" /> Paste
+                      </button>
+                    </div>
                     <Input value={title} onChange={(e) => setTitle(e.target.value)} className="h-9" placeholder={`Day ${initialDay.day}`} />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Description</Label>
-                    <Input value={description} onChange={(e) => setDescription(e.target.value)} className="h-9" placeholder="Brief description of this day…" />
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Description</Label>
+                      <button
+                        type="button"
+                        onClick={async () => { try { setDescription(await navigator.clipboard.readText()); } catch {} }}
+                        className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors"
+                      >
+                        <ClipboardPaste className="h-3 w-3" /> Paste
+                      </button>
+                    </div>
+                    <Textarea value={description} onChange={(e) => setDescription(e.target.value)} className="text-sm min-h-18 resize-none" placeholder="Brief description of this day…" />
                   </div>
 
                   {/* Attractions row */}
@@ -1654,10 +1785,10 @@ export function ItineraryDaySidebar({
                       disabled={!itineraryId}
                       className={cn(
                         "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors shrink-0",
-                        "border-dashed border-muted-foreground/30 text-muted-foreground hover:border-primary/50 hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed",
+                        "border-dashed border-muted-foreground/30 text-muted-foreground hover:border-primary/50 hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer",
                       )}
                     >
-                      <Camera className="h-3 w-3" />
+                      <Camera className="h-3 w-3 " />
                       Attractions
                       {attractions.length > 0 && (
                         <span className="bg-primary/10 text-primary text-[10px] font-bold px-1 rounded">
@@ -1890,8 +2021,10 @@ export function ItineraryDaySidebar({
                 {editPanel?.mode === "edit" && editPanelItem?.kind === "activity" && (
                   <ActivityEditForm
                     item={editPanelItem.data} pending={pending}
+                    destinationId={destinationId}
                     onToggleOptional={(val) => toggleOptional(editPanelItem.data.id, val)}
                     onChangeVariant={(variantId) => changeVariant(editPanelItem.data.id, variantId)}
+                    onChangeActivity={(newId, variantId) => changeActivityItem(editPanelItem.data.id, newId, editPanelItem.data.is_optional, variantId)}
                     onCancel={() => setEditPanel(null)}
                     onDelete={() => deleteActivity(editPanelItem.data.id)}
                   />
