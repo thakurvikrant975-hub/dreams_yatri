@@ -14,8 +14,8 @@ import type {
 } from "./location.types";
 import { LOCATION_COLORS, LOCATION_LABELS } from "./location.types";
 
-const LocationManualModal = dynamic(
-  () => import("./LocationManualModal").then((m) => ({ default: m.LocationManualModal })),
+const LocationManualSheet = dynamic(
+  () => import("./LocationManualSheet").then((m) => ({ default: m.LocationManualSheet })),
   { ssr: false },
 );
 
@@ -89,8 +89,8 @@ function Row({
 
 // ── Flat navigation list builder ──────────────────────────────────────────────
 type NavItem =
-  | { kind: "recent";   item: LocationValue }
-  | { kind: "local";    item: LocalResult }
+  | { kind: "recent"; item: LocationValue }
+  | { kind: "local"; item: LocalResult }
   | { kind: "external"; item: ExternalResult }
   | { kind: "worldwide" }
   | { kind: "manual" };
@@ -106,7 +106,7 @@ function buildNav(
   if (!query.trim()) {
     for (const r of recent) items.push({ kind: "recent", item: r });
   }
-  for (const r of localResults)    items.push({ kind: "local",    item: r });
+  for (const r of localResults) items.push({ kind: "local", item: r });
   for (const r of externalResults) items.push({ kind: "external", item: r });
   if (query.trim() && !externalSearched) items.push({ kind: "worldwide" });
   items.push({ kind: "manual" });
@@ -126,20 +126,20 @@ export function LocationSearchSelect({
   id,
   error,
 }: LocationSearchSelectProps) {
-  const [open, setOpen]                       = useState(false);
-  const [query, setQuery]                     = useState("");
-  const [recent, setRecent]                   = useState<LocationValue[]>([]);
-  const [localResults, setLocalResults]       = useState<LocalResult[]>([]);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [recent, setRecent] = useState<LocationValue[]>([]);
+  const [localResults, setLocalResults] = useState<LocalResult[]>([]);
   const [externalResults, setExternalResults] = useState<ExternalResult[]>([]);
-  const [localLoading, setLocalLoading]       = useState(false);
-  const [extLoading, setExtLoading]           = useState(false);
-  const [extSearched, setExtSearched]         = useState(false);
-  const [savingId, setSavingId]               = useState<string | null>(null);
-  const [activeIdx, setActiveIdx]             = useState(-1);
-  const [manualOpen, setManualOpen]           = useState(false);
-  const [manualInitial, setManualInitial]     = useState("");
+  const [localLoading, setLocalLoading] = useState(false);
+  const [extLoading, setExtLoading] = useState(false);
+  const [extSearched, setExtSearched] = useState(false);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [activeIdx, setActiveIdx] = useState(-1);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualInitial, setManualInitial] = useState("");
 
-  const inputRef      = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const localTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Load recents on mount ─────────────────────────────────────────────────
@@ -201,13 +201,13 @@ export function LocationSearchSelect({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          mapbox_id:   ext.mapbox_id,
-          name:        ext.name,
-          full_name:   ext.full_name,
-          place_type:  ext.place_type,
+          mapbox_id: ext.mapbox_id,
+          name: ext.name,
+          full_name: ext.full_name,
+          place_type: ext.place_type,
           coordinates: ext.coordinates,
-          country:     ext.country,
-          region:      ext.region,
+          country: ext.country,
+          region: ext.region,
         }),
       });
       if (res.ok) pick((await res.json()) as LocationValue);
@@ -246,8 +246,8 @@ export function LocationSearchSelect({
   }
 
   function activateItem(nav: NavItem) {
-    if (nav.kind === "recent")   pick(nav.item);
-    if (nav.kind === "local")    pick(nav.item as LocationValue);
+    if (nav.kind === "recent") pick(nav.item);
+    if (nav.kind === "local") pick(nav.item as LocationValue);
     if (nav.kind === "external") selectExternal(nav.item);
     if (nav.kind === "worldwide") searchExternal();
     if (nav.kind === "manual") {
@@ -258,8 +258,8 @@ export function LocationSearchSelect({
   }
 
   // ── Derived display flags ─────────────────────────────────────────────────
-  const showRecent   = !query.trim() && recent.length > 0;
-  const showLocal    = !!query.trim();
+  const showRecent = !query.trim() && recent.length > 0;
+  const showLocal = !!query.trim();
   const showExternal = extSearched;
   const showWorldwide = !!query.trim() && !extSearched;
 
@@ -365,99 +365,100 @@ export function LocationSearchSelect({
               </div>
 
               {/* Results list */}
-              <div role="listbox" className="max-h-72 overflow-y-auto py-1">
+              <div >
+                <div role="listbox" className="max-h-68 overflow-y-auto py-1">
+                  {/* Recent */}
+                  {showRecent && (
+                    <>
+                      <SectionLabel>Recent</SectionLabel>
+                      {recent.map((r) => {
+                        const idx = navCounter++;
+                        return (
+                          <Row
+                            key={`recent-${r.id}`}
+                            icon={<ClockIcon className="size-3.5" />}
+                            primary={r.name}
+                            secondary={r.breadcrumb !== r.name ? r.breadcrumb : undefined}
+                            badge={<TypeBadge type={r.type} />}
+                            highlighted={activeIdx === idx}
+                            onClick={() => pick(r)}
+                          />
+                        );
+                      })}
+                    </>
+                  )}
 
-                {/* Recent */}
-                {showRecent && (
-                  <>
-                    <SectionLabel>Recent</SectionLabel>
-                    {recent.map((r) => {
-                      const idx = navCounter++;
-                      return (
-                        <Row
-                          key={`recent-${r.id}`}
-                          icon={<ClockIcon className="size-3.5" />}
-                          primary={r.name}
-                          secondary={r.breadcrumb !== r.name ? r.breadcrumb : undefined}
-                          badge={<TypeBadge type={r.type} />}
-                          highlighted={activeIdx === idx}
-                          onClick={() => pick(r)}
-                        />
-                      );
-                    })}
-                  </>
-                )}
+                  {/* Local DB results */}
+                  {showLocal && (
+                    <>
+                      <SectionLabel>Local Results</SectionLabel>
+                      {localLoading && localResults.length === 0 && (
+                        <p className="px-3 py-3 text-center text-[11px] text-muted-foreground">Searching…</p>
+                      )}
+                      {localResults.map((r) => {
+                        const idx = navCounter++;
+                        return (
+                          <Row
+                            key={`local-${r.id}`}
+                            icon={<MapPinIcon className="size-3.5" />}
+                            primary={r.name}
+                            secondary={r.breadcrumb !== r.name ? r.breadcrumb : undefined}
+                            badge={<TypeBadge type={r.type} />}
+                            highlighted={activeIdx === idx}
+                            onClick={() => pick(r as LocationValue)}
+                          />
+                        );
+                      })}
+                      {!localLoading && localResults.length === 0 && !extLoading && (
+                        <p className="px-3 py-2 text-center text-[11px] text-muted-foreground">
+                          No local results — search worldwide below
+                        </p>
+                      )}
+                    </>
+                  )}
 
-                {/* Local DB results */}
-                {showLocal && (
-                  <>
-                    <SectionLabel>Local Results</SectionLabel>
-                    {localLoading && localResults.length === 0 && (
-                      <p className="px-3 py-3 text-center text-[11px] text-muted-foreground">Searching…</p>
-                    )}
-                    {localResults.map((r) => {
-                      const idx = navCounter++;
-                      return (
-                        <Row
-                          key={`local-${r.id}`}
-                          icon={<MapPinIcon className="size-3.5" />}
-                          primary={r.name}
-                          secondary={r.breadcrumb !== r.name ? r.breadcrumb : undefined}
-                          badge={<TypeBadge type={r.type} />}
-                          highlighted={activeIdx === idx}
-                          onClick={() => pick(r as LocationValue)}
-                        />
-                      );
-                    })}
-                    {!localLoading && localResults.length === 0 && !extLoading && (
-                      <p className="px-3 py-2 text-center text-[11px] text-muted-foreground">
-                        No local results — search worldwide below
-                      </p>
-                    )}
-                  </>
-                )}
+                  {/* External (Mapbox) results */}
+                  {showExternal && (
+                    <>
+                      <SectionLabel>Worldwide Results</SectionLabel>
+                      {extLoading && externalResults.length === 0 && (
+                        <p className="px-3 py-3 text-center text-[11px] text-muted-foreground">
+                          Searching worldwide…
+                        </p>
+                      )}
+                      {externalResults.map((r) => {
+                        const isSaving = savingId === r.mapbox_id;
+                        const idx = navCounter++;
+                        return (
+                          <Row
+                            key={`ext-${r.mapbox_id}`}
+                            icon={isSaving
+                              ? <Loader2Icon className="size-3.5 animate-spin" />
+                              : <GlobeIcon className="size-3.5" />}
+                            primary={r.name}
+                            secondary={r.full_name !== r.name ? r.full_name : undefined}
+                            badge={<TypeBadge type={r.place_type} />}
+                            highlighted={activeIdx === idx}
+                            saving={isSaving}
+                            onClick={() => selectExternal(r)}
+                          />
+                        );
+                      })}
+                      {!extLoading && externalResults.length === 0 && (
+                        <p className="px-3 py-2 text-center text-[11px] text-muted-foreground">
+                          No worldwide results found
+                        </p>
+                      )}
+                    </>
+                  )}
 
-                {/* External (Mapbox) results */}
-                {showExternal && (
-                  <>
-                    <SectionLabel>Worldwide Results</SectionLabel>
-                    {extLoading && externalResults.length === 0 && (
-                      <p className="px-3 py-3 text-center text-[11px] text-muted-foreground">
-                        Searching worldwide…
-                      </p>
-                    )}
-                    {externalResults.map((r) => {
-                      const isSaving = savingId === r.mapbox_id;
-                      const idx = navCounter++;
-                      return (
-                        <Row
-                          key={`ext-${r.mapbox_id}`}
-                          icon={isSaving
-                            ? <Loader2Icon className="size-3.5 animate-spin" />
-                            : <GlobeIcon className="size-3.5" />}
-                          primary={r.name}
-                          secondary={r.full_name !== r.name ? r.full_name : undefined}
-                          badge={<TypeBadge type={r.place_type} />}
-                          highlighted={activeIdx === idx}
-                          saving={isSaving}
-                          onClick={() => selectExternal(r)}
-                        />
-                      );
-                    })}
-                    {!extLoading && externalResults.length === 0 && (
-                      <p className="px-3 py-2 text-center text-[11px] text-muted-foreground">
-                        No worldwide results found
-                      </p>
-                    )}
-                  </>
-                )}
-
-                {/* Empty state when nothing at all */}
-                {!showRecent && !query.trim() && (
-                  <p className="px-3 py-4 text-center text-[11px] text-muted-foreground">
-                    Start typing to search locations
-                  </p>
-                )}
+                  {/* Empty state when nothing at all */}
+                  {!showRecent && !query.trim() && (
+                    <p className="px-3 py-4 text-center text-[11px] text-muted-foreground">
+                      Start typing to search locations
+                    </p>
+                  )}
+                </div>
 
                 {/* Actions footer */}
                 <div className={cn(
@@ -506,12 +507,12 @@ export function LocationSearchSelect({
         {error && <p className="text-[10px] text-destructive">{error}</p>}
       </div>
 
-      {/* Manual creation modal — dynamically loaded */}
-      <LocationManualModal
+      {/* Manual creation sheet — dynamically loaded */}
+      <LocationManualSheet
         open={manualOpen}
         onOpenChange={setManualOpen}
         initialName={manualInitial}
-        onCreated={(loc) => pick(loc)}
+        onCreated={(loc: LocationValue) => pick(loc)}
       />
     </>
   );

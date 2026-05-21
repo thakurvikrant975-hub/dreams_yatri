@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const TOKEN = process.env.MAPBOX_TOKEN;
+const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
 // Mapbox place_type → our LocationType
 const TYPE_MAP: Record<string, string> = {

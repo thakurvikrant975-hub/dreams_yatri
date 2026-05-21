@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const TOKEN = process.env.MAPBOX_TOKEN;
+const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);

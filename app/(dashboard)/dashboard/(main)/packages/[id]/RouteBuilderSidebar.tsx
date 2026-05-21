@@ -122,7 +122,7 @@ function SortableStopRow({
           onChange={(e) => onChange(row.id, { stay_nights: Math.max(0, parseInt(e.target.value) || 0) })}
           className="w-full rounded-md border border-input bg-background text-sm py-2 pl-2 pr-6 focus:outline-none focus:ring-2 focus:ring-ring"
         />
-        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">n</span>
+        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">N</span>
       </div>
 
       <button type="button" disabled={total <= 1} onClick={() => onRemove(row.id)}
