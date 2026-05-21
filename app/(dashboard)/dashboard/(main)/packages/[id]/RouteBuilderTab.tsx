@@ -101,23 +101,23 @@ function DurationCard({
   const [expanded, setExpanded] = useState(true);
 
   return (
-    <div className="rounded-xl border overflow-hidden">
+    <div className="rounded-xl border border-dashboard-base-content/30 overflow-hidden">
       {/* Duration header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-muted/40">
+      <div className="flex items-center justify-between px-4 py-3 bg-dashboard-base-content text-dashboard-base-100">
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
           className="flex items-center gap-2 flex-1 min-w-0 hover:opacity-80 transition-opacity"
         >
           {expanded ? (
-            <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+            <ChevronDown className="h-4 w-4 text-dashboard-base-100 shrink-0" />
           ) : (
-            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+            <ChevronRight className="h-4 w-4 text-dashboard-base-100 shrink-0" />
           )}
-          <CalendarDays className="h-4 w-4 text-primary shrink-0" />
-          <span className="font-semibold text-sm">{duration.label}</span>
+          <CalendarDays className="h-4 w-4 text-dashboard-base-100 shrink-0" />
+          <span className="font-semibold text-sm text-dashboard-base-100">{duration.label}</span>
           {duration.is_default && (
-            <Badge className="gap-1 text-[10px] px-1.5 py-0 h-4 shrink-0">
+            <Badge className="gap-1 text-[10px] px-1.5 py-0 h-4 shrink-0 bg-dashboard-warning text-dashboard-base-100 border-0">
               <Star className="h-2.5 w-2.5" />
               Default
             </Badge>
@@ -128,7 +128,7 @@ function DurationCard({
             <Button
               size="sm"
               variant="outline"
-              className="h-6 text-[11px] px-2 py-0 gap-1"
+              className="h-6 text-[11px] px-2 py-0 gap-1 border-dashboard-warning text-dashboard-base-100 rounded-full hover:bg-dashboard-warning bg-dashboard-warning"
               disabled={settingDefault === duration.id}
               onClick={() => onSetDefault(duration.id)}
             >
@@ -140,7 +140,7 @@ function DurationCard({
               Set default
             </Button>
           )}
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs text-dashboard-base-content/50">
             {duration.routes.length} variant{duration.routes.length !== 1 ? "s" : ""}
           </span>
         </div>
@@ -148,22 +148,22 @@ function DurationCard({
 
       {/* Route rows */}
       {expanded && (
-        <div className="divide-y">
+        <div className="divide-y divide-dashboard-base-300">
           {duration.routes.length === 0 ? (
-            <p className="px-4 py-3 text-sm text-muted-foreground italic">No routes yet</p>
+            <p className="px-4 py-3 text-sm text-dashboard-base-content/50 italic">No routes yet</p>
           ) : (
             duration.routes.map((route) => (
-              <div key={route.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/20">
-                <Route className="h-4 w-4 text-muted-foreground shrink-0" />
+              <div key={route.id} className="flex items-center gap-3 px-4 py-3 hover:bg-dashboard-base-200 bg-dashboard-base-100">
+                <Route className="h-4 w-4 text-dashboard-base-content shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{route.name}</p>
+                  <p className="text-sm font-medium truncate text-dashboard-base-content">{route.name}</p>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                    <span className="flex items-center gap-1 text-[11px] text-dashboard-base-content/75">
                       <MapPin className="h-3 w-3" />
                       {route.stops.length} stop{route.stops.length !== 1 ? "s" : ""}
                     </span>
                     {route.stops.length > 0 && (
-                      <span className="text-[11px] text-muted-foreground truncate max-w-xs">
+                      <span className="text-[11px] text-dashboard-base-content/75 truncate max-w-xs">
                         {route.stops.map((s) => s.place_name).join(" → ")}
                       </span>
                     )}
@@ -173,7 +173,7 @@ function DurationCard({
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-7 w-7 p-0"
+                    className="h-7 w-7 p-0 rounded-md text-dashboard-base-content/60 hover:text-dashboard-primary hover:bg-dashboard-primary/10"
                     onClick={() =>
                       onEdit({
                         routeId: route.id,
@@ -197,7 +197,7 @@ function DurationCard({
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-7 w-7 p-0 hover:text-destructive"
+                    className="h-7 w-7 p-0 rounded-md text-dashboard-base-content/60 hover:text-dashboard-error hover:bg-dashboard-error/10"
                     disabled={deleting === route.id}
                     onClick={() => onDelete(route.id)}
                   >
@@ -278,18 +278,18 @@ export function RouteBuilderTab({ packageId, initialData, packageImages }: Props
   const totalVariants = data.reduce((s, d) => s + d.routes.length, 0);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 bg-dashboard-base-100 p-8 rounded-xl shadow-lg border border-dashboard-base-300">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold">Route Variants</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <h3 className="text-sm font-semibold text-dashboard-base-content">Route Variants</h3>
+          <p className="text-xs text-dashboard-base-content/50 mt-0.5">
             {totalVariants === 0
               ? "No variants yet — create one to define durations and routes"
               : `${data.length} duration${data.length !== 1 ? "s" : ""} · ${totalVariants} variant${totalVariants !== 1 ? "s" : ""}`}
           </p>
         </div>
-        <Button size="sm" onClick={openCreate} className="gap-1.5">
+        <Button size="lg" onClick={openCreate} className="gap-1.5 bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90 rounded-md shadow-lg">
           <Plus className="h-3.5 w-3.5" />
           Add Variant
         </Button>
@@ -312,16 +312,16 @@ export function RouteBuilderTab({ packageId, initialData, packageImages }: Props
         </div>
       ) : (
         <div className={cn(
-          "flex flex-col items-center justify-center py-20 rounded-xl border border-dashed bg-muted/30",
+          "flex flex-col items-center justify-center py-20 rounded-xl border border-dashed border-dashboard-base-300 bg-dashboard-base-200/50",
         )}>
-          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
-            <Route className="h-5 w-5 text-primary" />
+          <div className="h-10 w-10 rounded-xl bg-dashboard-primary/10 flex items-center justify-center mb-3">
+            <Route className="h-5 w-5 text-dashboard-primary" />
           </div>
-          <p className="text-sm font-medium text-muted-foreground">No route variants</p>
-          <p className="text-xs text-muted-foreground/60 mt-1 mb-4">
+          <p className="text-sm font-medium text-dashboard-base-content/60">No route variants</p>
+          <p className="text-xs text-dashboard-base-content/40 mt-1 mb-4">
             Add stops to auto-generate routes and durations
           </p>
-          <Button size="sm" variant="outline" onClick={openCreate} className="gap-1.5">
+          <Button size="sm" variant="outline" onClick={openCreate} className="gap-1.5 border-dashboard-base-300 text-dashboard-base-content hover:bg-dashboard-base-200">
             <Plus className="h-3.5 w-3.5" />
             Add First Variant
           </Button>
@@ -355,7 +355,7 @@ export function RouteBuilderTab({ packageId, initialData, packageImages }: Props
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
-              className="bg-destructive hover:bg-destructive/90"
+              className="bg-dashboard-error text-dashboard-error-content hover:bg-dashboard-error/90"
             >
               Delete
             </AlertDialogAction>

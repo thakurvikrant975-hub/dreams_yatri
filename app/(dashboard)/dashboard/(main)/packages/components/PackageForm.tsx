@@ -327,7 +327,7 @@ export function PackageForm({
   // ── Shared section blocks ─────────────────────────────────────────────────
 
   const sectionBasicInfo = (
-    <div className="flex flex-col gap-5 rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 p-5">
+    <div className="flex flex-col gap-5 rounded-2xl  bg-dashboard-base-100 p-6 border border-dashboard-base-content/20">
       <SectionLabel icon={<Info className="h-3.5 w-3.5" />}>Package details</SectionLabel>
       <div className="grid grid-cols-2 gap-4">
         <Field label="Title" icon={<AlignLeft className="h-3 w-3 text-dashboard-base-content" />} error={errors.title}>
@@ -373,7 +373,7 @@ export function PackageForm({
   );
 
   const sectionMedia = (
-    <div className="flex flex-col gap-4 rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 p-5">
+    <div className="flex flex-col gap-4 rounded-2xl border bg-dashboard-base-100 p-5 border-dashboard-base-content/20">
       <SectionLabel icon={<ImageIcon className="h-3.5 w-3.5" />}>Thumbnail image</SectionLabel>
       <div className="w-full">
         <ImageUpload
@@ -393,7 +393,7 @@ export function PackageForm({
   );
 
   const sectionCategorise = (
-    <div className="flex flex-col gap-5 rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 p-5">
+    <div className="flex flex-col gap-5 rounded-2xl border border-dashboard-base-content/20 bg-dashboard-base-100 p-5">
       <SectionLabel icon={<Tag className="h-3.5 w-3.5" />}>Tags &amp; Categories</SectionLabel>
       <div className="grid grid-cols-2 gap-4">
         <Field label="Tags" icon={<Hash className="h-3 w-3 text-dashboard-base-content" />} error={errors.tags}>
@@ -419,7 +419,7 @@ export function PackageForm({
   );
 
   const sectionInclusions = (
-    <div className="flex flex-col gap-5 rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 p-5">
+    <div className="flex flex-col gap-5 rounded-2xl border border-dashboard-base-content/20 bg-dashboard-base-100 p-5">
       <SectionLabel icon={<CheckCircle2 className="h-3.5 w-3.5" />}>
         What&apos;s included &amp; excluded
       </SectionLabel>
@@ -560,7 +560,7 @@ export function PackageForm({
       {step === 3 && sectionInclusions}
 
       {/* Footer */}
-      <div className="flex items-center justify-between rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 px-5 py-4">
+      <div className="flex items-center justify-between rounded-2xl border border-dashboard-base-content/20 bg-dashboard-base-100 px-5 py-4">
         <span className="flex items-center gap-1.5 text-[12.5px] text-dashboard-base-content/75">
           <Info className="h-3.5 w-3.5" />
           Step {step + 1} of {STEPS.length} — {STEPS[step].label.toLowerCase()}

@@ -88,7 +88,7 @@ function PolicyRow({
   }
 
   return (
-    <div className="rounded-xl border bg-background p-4 space-y-3">
+    <div className="rounded-xl border border-dashboard-base-content/30 bg-background p-4 space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
@@ -147,7 +147,7 @@ function PolicyRow({
 
 export function PoliciesTab({ packageId, initialPolicies }: Props) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 bg-dashboard-base-100 p-8 rounded-xl shadow-lg border border-dashboard-base-content/20">
       <div>
         <h3 className="text-sm font-semibold">Package Policies</h3>
         <p className="text-xs text-muted-foreground mt-0.5">

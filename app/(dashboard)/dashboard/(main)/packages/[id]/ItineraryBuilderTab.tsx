@@ -100,7 +100,7 @@ function DayCard({ day, occupiedBy, onClick }: { day: DayData; occupiedBy?: Occu
       type="button"
       onClick={onClick}
       className={cn(
-        "text-left p-3 rounded-xl border transition-all hover:border-primary/50 hover:shadow-sm group",
+        "text-left p-3 rounded-xl border border-dashboard-base-content/20 cursor-pointer transition-all hover:border-primary/50 hover:shadow-sm group",
         occupiedBy ? "bg-violet-50/60 border-violet-200" : day.id ? "bg-background" : "bg-muted/20 border-dashed",
       )}
     >
@@ -236,7 +236,7 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
 
   if (durations.length === 0) {
     return (
-      <div className="space-y-5">
+      <div className="space-y-5 ">
         <StayTiersSection
           packageId={packageId}
           initialCategories={stayCategories}
@@ -256,7 +256,7 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 bg-dashboard-base-100 p-8 rounded-xl shadow-lg border border-dashboard-base-content/20">
       {/* Stay Tiers setup section */}
       <StayTiersSection
         packageId={packageId}

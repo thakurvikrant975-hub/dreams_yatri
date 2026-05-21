@@ -230,17 +230,17 @@ export function StayTiersSection({ packageId, initialCategories, onCategoriesCha
   const sorted = [...categories].sort((a, b) => a.sort_order - b.sort_order);
 
   return (
-    <div className="rounded-xl border overflow-hidden">
+    <div className="rounded-xl border border-dashboard-base-content/30 overflow-hidden">
       {/* Collapsible header */}
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-muted/40 hover:bg-muted/60 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 text-dashboard-base-100 bg-dashboard-base-content transition-colors"
       >
         <div className="flex items-center gap-2">
           {expanded
-            ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+            ? <ChevronDown className="h-4 w-4" />
+            : <ChevronRight className="h-4 w-4" />}
           <Hotel className="h-4 w-4 text-primary" />
           <span className="font-semibold text-sm">Stay Tiers</span>
           {categories.length > 0 && (
@@ -295,17 +295,17 @@ export function StayTiersSection({ packageId, initialCategories, onCategoriesCha
                           />
                         </div>
                       ) : (
-                        <div className="flex items-center gap-2 px-3 py-2.5">
+                        <div className="flex items-center gap-2 px-3 py-2.5 border-dashboard-base-content/30 border rounded-md">
                           {/* Up/down reorder */}
                           <div className="flex flex-col gap-0.5 shrink-0">
                             <button
                               type="button"
-                              className="h-4 w-4 flex items-center justify-center rounded hover:bg-muted text-muted-foreground/30 hover:text-muted-foreground transition-colors disabled:opacity-20"
+                              className="h-4 w-4 flex items-center justify-center hover:bg-dashboard-base-content/20 hover:text-dashboard-base-content cursor-pointer hover:opacity-100 rounded-md transition-colors disabled:opacity-20"
                               onClick={() => handleMove(cat.id, "up")}
                               disabled={idx === 0}
                               aria-label="Move up"
                             >
-                              <ArrowUp className="h-2.5 w-2.5" />
+                              <ArrowUp className="h-2.5 w-2.5 text-dashboard-base-content" />
                             </button>
                             <button
                               type="button"
@@ -322,7 +322,7 @@ export function StayTiersSection({ packageId, initialCategories, onCategoriesCha
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="text-sm font-medium">{cat.label}</span>
-                              <span className="text-[10px] font-mono text-muted-foreground/50 bg-muted px-1 rounded">
+                              <span className="text-[10px] font-mono text-dashboard-base-content bg-dashboard-base-content/20 px-1 rounded">
                                 {cat.slug}
                               </span>
                               {cat.is_default && (
@@ -337,7 +337,7 @@ export function StayTiersSection({ packageId, initialCategories, onCategoriesCha
                                 </Badge>
                               )}
                               {cat.min_duration_days != null && (
-                                <span className="text-[10px] text-muted-foreground/60">
+                                <span className="text-[10px] text-dashboard-primary">
                                   Min: {cat.min_duration_days}D
                                 </span>
                               )}
@@ -393,7 +393,7 @@ export function StayTiersSection({ packageId, initialCategories, onCategoriesCha
                 <Button
                   size="sm"
                   variant="outline"
-                  className="gap-1.5"
+                  className="gap-1.5 border-dashboard-base-content rounded-md"
                   onClick={() => {
                     setAdding(true);
                     setEditingId(null);

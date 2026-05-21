@@ -25,11 +25,15 @@ function Tabs({
 }
 
 const tabsListVariants = cva(
-  "group/tabs-list inline-flex w-fit items-center justify-center rounded-none p-1 text-muted-foreground group-data-vertical/tabs:h-fit group-data-vertical/tabs:flex-col data-[variant=line]:rounded-none rounded-xl",
+  [
+    "group/tabs-list inline-flex w-fit items-center justify-center gap-1 p-1.5",
+    "group-data-vertical/tabs:h-fit group-data-vertical/tabs:flex-col",
+    "rounded-xl",
+  ].join(" "),
   {
     variants: {
       variant: {
-        default: "bg-muted",
+        default: "bg-dashboard-base-100",
         line: "gap-1 bg-transparent",
       },
     },
@@ -63,10 +67,59 @@ function TabsTrigger({
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
       className={cn(
-        "relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-lg border border-transparent px-2.5 py-1.5 text-xs font-medium whitespace-nowrap text-foreground/60 transition-all group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start group-data-vertical/tabs:py-[calc(--spacing(1.25))] hover:text-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 has-data-[icon=inline-end]:pr-1 has-data-[icon=inline-start]:pl-1 dark:text-muted-foreground dark:hover:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 ",
-        "group-data-[variant=line]/tabs-list:bg-transparent group-data-[variant=line]/tabs-list:data-active:bg-transparent dark:group-data-[variant=line]/tabs-list:data-active:border-transparent dark:group-data-[variant=line]/tabs-list:data-active:bg-transparent",
-        "data-active:bg-background data-active:text-foreground dark:data-active:border-input dark:data-active:bg-input/30 dark:data-active:text-foreground",
-        "after:absolute after:bg-foreground after:opacity-0 after:transition-opacity group-data-horizontal/tabs:after:inset-x-0 group-data-horizontal/tabs:after:bottom-[-5px] group-data-horizontal/tabs:after:h-0.5 group-data-vertical/tabs:after:inset-y-0 group-data-vertical/tabs:after:-right-1 group-data-vertical/tabs:after:w-0.5 group-data-[variant=line]/tabs-list:data-active:after:opacity-100",
+        // Base layout
+        "relative inline-flex flex-1 flex-col items-center justify-center",
+        "gap-0.5 rounded-xl border border-transparent px-4 py-2.5",
+        "text-xs font-semibold whitespace-nowrap transition-all duration-150 cursor-pointer",
+
+        // Vertical overrides
+        "group-data-vertical/tabs:w-full group-data-vertical/tabs:flex-row",
+        "group-data-vertical/tabs:justify-start",
+
+        // Inactive styles
+        "bg-transparent",
+        "text-dashboard-base-content cursor-pointer",
+        "[&_[data-day]]:text-dashboard-base-content/45",
+        "**:data-day:text-[11px] **:data-day:font-medium",
+
+        // Hover
+        "hover:bg-dashboard-base-200",
+
+        // Focus ring
+        "focus-visible:outline-none",
+        "focus-visible:ring-2",
+        "focus-visible:ring-dashboard-primary",
+        "focus-visible:ring-offset-1",
+
+        // Disabled
+        "disabled:pointer-events-none disabled:opacity-40",
+
+        // SVG defaults
+        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+
+        // ── Active state ─────────────────────────────────────────
+        "data-[state=active]:bg-dashboard-primary",
+        "data-[state=active]:text-dashboard-primary-content",
+        "cursor-pointer",
+        "rounded-md",
+        "data-[state=active]:**:data-day:text-dashboard-primary-content/75",
+        "data-[state=active]:border-transparent",
+
+        // ── Line variant overrides ────────────────────────────────
+        "group-data-[variant=line]/tabs-list:bg-transparent",
+        "group-data-[variant=line]/tabs-list:data-[state=active]:bg-transparent",
+        "group-data-[variant=line]/tabs-list:data-[state=active]:border-transparent",
+        // ── Underline bar (line variant only) ─────────────────────
+        "after:absolute after:opacity-0 after:transition-opacity after:rounded-full",
+        "after:bg-dashboard-primary",
+        "group-data-horizontal/tabs:after:inset-x-3",
+        "group-data-horizontal/tabs:after:bottom-[-4px]",
+        "group-data-horizontal/tabs:after:h-0.5",
+        "group-data-vertical/tabs:after:inset-y-3",
+        "group-data-vertical/tabs:after:-right-1",
+        "group-data-vertical/tabs:after:w-0.5",
+        "group-data-[variant=line]/tabs-list:data-[state=active]:after:opacity-100",
+
         className
       )}
       {...props}
@@ -81,7 +134,7 @@ function TabsContent({
   return (
     <TabsPrimitive.Content
       data-slot="tabs-content"
-      className={cn("flex-1 text-xs/relaxed outline-none", className)}
+      className={cn("flex-1 text-sm/relaxed outline-none", className)}
       {...props}
     />
   )
