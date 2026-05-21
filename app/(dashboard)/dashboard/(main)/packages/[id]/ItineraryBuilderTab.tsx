@@ -85,7 +85,7 @@ function DayCard({ day, occupiedBy, onClick }: { day: DayData; occupiedBy?: Occu
       type="button"
       onClick={onClick}
       className={cn(
-        "text-left p-3 rounded-xl border transition-all hover:border-primary/50 hover:shadow-sm group",
+        "text-left p-3 rounded-xl border border-dashboard-base-content/20 cursor-pointer transition-all hover:border-primary/50 hover:shadow-sm group",
         occupiedBy ? "bg-violet-50/60 border-violet-200" : day.id ? "bg-background" : "bg-muted/20 border-dashed",
       )}
     >

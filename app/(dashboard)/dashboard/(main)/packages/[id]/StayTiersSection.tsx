@@ -300,7 +300,7 @@ export function StayTiersSection({ packageId, initialCategories, onCategoriesCha
                           <div className="flex flex-col gap-0.5 shrink-0">
                             <button
                               type="button"
-                              className="h-4 w-4 flex items-center justify-center rounded hover:bg-muted transition-colors disabled:opacity-20"
+                              className="h-4 w-4 flex items-center justify-center hover:bg-dashboard-base-content/20 hover:text-dashboard-base-content cursor-pointer hover:opacity-100 rounded-md transition-colors disabled:opacity-20"
                               onClick={() => handleMove(cat.id, "up")}
                               disabled={idx === 0}
                               aria-label="Move up"
@@ -322,7 +322,7 @@ export function StayTiersSection({ packageId, initialCategories, onCategoriesCha
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="text-sm font-medium">{cat.label}</span>
-                              <span className="text-[10px] font-mono text-muted-foreground/50 bg-muted px-1 rounded">
+                              <span className="text-[10px] font-mono text-dashboard-base-content bg-dashboard-base-content/20 px-1 rounded">
                                 {cat.slug}
                               </span>
                               {cat.is_default && (
@@ -337,7 +337,7 @@ export function StayTiersSection({ packageId, initialCategories, onCategoriesCha
                                 </Badge>
                               )}
                               {cat.min_duration_days != null && (
-                                <span className="text-[10px] text-muted-foreground/60">
+                                <span className="text-[10px] text-dashboard-primary">
                                   Min: {cat.min_duration_days}D
                                 </span>
                               )}
@@ -393,7 +393,7 @@ export function StayTiersSection({ packageId, initialCategories, onCategoriesCha
                 <Button
                   size="sm"
                   variant="outline"
-                  className="gap-1.5"
+                  className="gap-1.5 border-dashboard-base-content rounded-md"
                   onClick={() => {
                     setAdding(true);
                     setEditingId(null);
