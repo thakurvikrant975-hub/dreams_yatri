@@ -104,8 +104,7 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
       formData.append("pincode",        pincode);
       formData.append("business_phone", businessPhone);
       formData.append("business_email", businessEmail);
-      formData.append("latitude",       location?.latitude  != null ? String(location.latitude)  : "");
-      formData.append("longitude",      location?.longitude != null ? String(location.longitude) : "");
+      formData.append("location_id",    location?.id ?? "");
       formData.append("description",    description);
       formData.append("is_active",      String(isActive));
       formData.append("meta_title",     metaTitle);

@@ -29,8 +29,8 @@ const HotelSchema = z.object({
   meta_title: z.string().max(60, "Meta title must be 60 characters or less").nullable().optional(),
   meta_desc: z.string().max(160, "Meta description must be 160 characters or less").nullable().optional(),
   is_active: z.boolean().default(true),
-  latitude: z.coerce.number().nullable().optional(),
-  longitude: z.coerce.number().nullable().optional(),
+  location_id: z.string().optional().nullable()
+    .transform((v) => (v && v !== "" ? BigInt(v) : null)),
 });
 
 export type HotelFormState = {
@@ -136,6 +136,14 @@ export async function getHotelById(id: number) {
     where: { id },
     include: {
       destination: { select: { id: true, name: true } },
+      location: {
+        select: {
+          id: true, name: true, type: true, slug: true,
+          latitude: true, longitude: true,
+          state:   { select: { name: true } },
+          country: { select: { name: true } },
+        },
+      },
       hotelRooms: {
         orderBy: { sort_order: "asc" },
         include: {
@@ -293,8 +301,7 @@ export async function createHotel(
     meta_title: formData.get("meta_title") || null,
     meta_desc: formData.get("meta_desc") || null,
     is_active: formData.get("is_active") === "true",
-    latitude: formData.get("latitude") || undefined,
-    longitude: formData.get("longitude") || undefined,
+    location_id: formData.get("location_id") || undefined,
   };
 
   const parsed = HotelSchema.safeParse(raw);
@@ -364,8 +371,7 @@ export async function updateHotelDetails(
     meta_title: formData.get("meta_title") || null,
     meta_desc: formData.get("meta_desc") || null,
     is_active: formData.get("is_active") === "true",
-    latitude: formData.get("latitude") || undefined,
-    longitude: formData.get("longitude") || undefined,
+    location_id: formData.get("location_id") || undefined,
   };
 
   const parsed = HotelSchema.safeParse(raw);

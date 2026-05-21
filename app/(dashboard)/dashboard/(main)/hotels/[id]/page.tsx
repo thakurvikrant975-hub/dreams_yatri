@@ -38,8 +38,23 @@ export default async function HotelEditPage({
     if (!hotel) notFound();
 
     // Serialize Decimal fields and build tab-safe data
+    const serializedLocation = hotel.location ? {
+        id:        String(hotel.location.id),
+        name:      hotel.location.name,
+        type:      hotel.location.type as import("../../components/location/location.types").LocationType,
+        breadcrumb: [
+            hotel.location.name,
+            (hotel.location as any).state?.name,
+            (hotel.location as any).country?.name,
+        ].filter(Boolean).join(", "),
+        slug:      hotel.location.slug,
+        latitude:  hotel.location.latitude  != null ? Number(hotel.location.latitude)  : null,
+        longitude: hotel.location.longitude != null ? Number(hotel.location.longitude) : null,
+    } : null;
+
     const serializedHotel = {
         ...hotel,
+        location: serializedLocation,
         childPolicies: hotel.childPolicies.map((p) => ({
             ...p,
             price: p.price ? Number(p.price) : null,

@@ -39,7 +39,7 @@ type Hotel = {
   meta_title:     string | null;
   meta_desc:      string | null;
   is_active:      boolean;
-  location_id:    bigint | null;
+  location:       LocationValue | null;
   destination:    { id: number; name: string };
 };
 
@@ -60,7 +60,7 @@ export function DetailsTab({
     { success: false, message: "" }
   );
 
-  const [location, setLocation] = useState<LocationValue | null>(null);
+  const [location, setLocation] = useState<LocationValue | null>(hotel.location);
   const [address,   setAddress]   = useState(hotel.address ?? "");
   const [metaTitle, setMetaTitle] = useState(hotel.meta_title ?? "");
   const [metaDesc,  setMetaDesc]  = useState(hotel.meta_desc  ?? "");
@@ -233,8 +233,7 @@ export function DetailsTab({
             </div>
           </div>
 
-          <input type="hidden" name="latitude"  value={location?.latitude  ?? ""} />
-          <input type="hidden" name="longitude" value={location?.longitude ?? ""} />
+          <input type="hidden" name="location_id" value={location?.id ?? ""} />
 
           <div className="space-y-1.5">
             <Label>Description</Label>
