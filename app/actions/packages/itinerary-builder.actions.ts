@@ -248,9 +248,14 @@ export async function handleSearchActivities(destinationId: number, query: strin
   }
 }
 
-export async function handleSearchRoomPricings(destinationId: number, query: string) {
+export async function handleSearchRoomPricings(
+  destinationId: number,
+  query: string,
+  itineraryId?: number,
+  stayBlockOrder?: number,
+) {
   try {
-    const data = await searchRoomPricings(destinationId, query);
+    const data = await searchRoomPricings(destinationId, query, itineraryId, stayBlockOrder);
     return { success: true as const, data };
   } catch (e) {
     console.error(e);

@@ -552,7 +552,65 @@ export async function searchActivities(destinationId: number, query: string) {
   };
 }
 
-export async function searchRoomPricings(destinationId: number, query: string) {
+export async function searchRoomPricings(
+  destinationId: number,
+  query: string,
+  itineraryId?: number,
+  stayBlockOrder?: number,
+) {
+  // When we know the itinerary's stop, try Haversine (50 km) first
+  if (itineraryId != null && stayBlockOrder != null) {
+    const itinerary = await db.package_itineraries.findUnique({
+      where: { id: itineraryId },
+      select: { route_id: true },
+    });
+    if (itinerary) {
+      const stop = await db.route_stops.findFirst({
+        where: { route_id: itinerary.route_id, sort_order: stayBlockOrder },
+        include: { location: { select: { latitude: true, longitude: true } } },
+      });
+      const lat = stop?.location?.latitude != null ? Number(stop.location.latitude) : null;
+      const lng = stop?.location?.longitude != null ? Number(stop.location.longitude) : null;
+      if (lat != null && lng != null) {
+        // Haversine proximity query — hotels within 50 km of the stop
+        type HotelId = { id: number };
+        const haversine = `6371 * acos(LEAST(1.0, cos(radians(${lat})) * cos(radians(l.latitude::float)) * cos(radians(l.longitude::float) - radians(${lng})) + sin(radians(${lat})) * sin(radians(l.latitude::float))))`;
+        const nearby: HotelId[] = query
+          ? await db.$queryRawUnsafe<HotelId[]>(
+              `SELECT h.id FROM hotels h JOIN locations l ON h.location_id = l.id WHERE h.is_active = true AND l.latitude IS NOT NULL AND l.longitude IS NOT NULL AND h.name ILIKE $1 AND (${haversine}) <= 50`,
+              `%${query}%`,
+            )
+          : await db.$queryRawUnsafe<HotelId[]>(
+              `SELECT h.id FROM hotels h JOIN locations l ON h.location_id = l.id WHERE h.is_active = true AND l.latitude IS NOT NULL AND l.longitude IS NOT NULL AND (${haversine}) <= 50`,
+            );
+        const nearbyIds = nearby.map((r) => r.id);
+        if (nearbyIds.length > 0) {
+          const list = await db.hotel_room_pricing.findMany({
+            where: {
+              is_active: true,
+              hotel: { id: { in: nearbyIds } },
+            },
+            select: {
+              id: true,
+              plan_name: true,
+              price_per_night: true,
+              hotel: { select: { id: true, name: true } },
+              room: { select: { id: true, name: true } },
+            },
+            take: 51,
+            orderBy: [{ hotel: { name: "asc" } }, { sort_order: "asc" }],
+          });
+          const has_more = list.length > 50;
+          return {
+            items: list.slice(0, 50).map((p) => ({ ...p, price_per_night: Number(p.price_per_night) })),
+            has_more,
+          };
+        }
+      }
+    }
+  }
+
+  // Fallback: destination-based search
   const list = await db.hotel_room_pricing.findMany({
     where: {
       is_active: true,

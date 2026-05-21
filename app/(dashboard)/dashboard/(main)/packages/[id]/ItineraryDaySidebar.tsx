@@ -885,7 +885,7 @@ function StayBlock({
   );
 
   const fetchRooms = useCallback(async (query: string): Promise<Option[]> => {
-    const res = await handleSearchRoomPricings(destinationId, query);
+    const res = await handleSearchRoomPricings(destinationId, query, itineraryId ?? undefined, stayBlockOrder);
     if (!res.success) return [];
     const items: Option[] = res.data.items.map((p) => ({
       id: p.id,
@@ -894,7 +894,7 @@ function StayBlock({
     }));
     if (res.data.has_more) items.push({ id: -1, label: "Showing top 50 — refine search to see more" });
     return items;
-  }, [destinationId]);
+  }, [destinationId, itineraryId, stayBlockOrder]);
 
   async function handleAssign(categoryId: number, roomPricingId: number) {
     if (!itineraryId) return;
@@ -902,7 +902,7 @@ function StayBlock({
     const res = await handleUpsertStay(itineraryId, categoryId, roomPricingId, stayBlockOrder, packageId, numNights);
     setSavingId(null);
     if (!res.success) { toast.error(res.message); return; }
-    const searchRes = await handleSearchRoomPricings(destinationId, "");
+    const searchRes = await handleSearchRoomPricings(destinationId, "", itineraryId ?? undefined, stayBlockOrder);
     const pricing = searchRes.success ? searchRes.data.items.find((p) => p.id === roomPricingId) : null;
     if (!pricing) { toast.success("Stay saved"); setAssigningCategoryId(null); return; }
     const category = stayCategories.find((c) => c.id === categoryId)!;
