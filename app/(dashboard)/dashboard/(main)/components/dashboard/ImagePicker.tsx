@@ -376,8 +376,8 @@ export function ImagePicker({
                         "relative border-2 border-dashed rounded-xl cursor-pointer transition-all",
                         "flex flex-col items-center justify-center gap-3 p-8",
                         isDragOver
-                            ? "border-primary bg-primary/5 scale-[1.01]"
-                            : "border-border hover:border-primary/50 hover:bg-muted/50",
+                            ? "border-dashboard-base-content bg-primary/5 scale-[1.01]"
+                            : "border-border hover:border-dashboard-base-content hover:bg-muted/50",
                     )}
                 >
                     <div className={cn(
