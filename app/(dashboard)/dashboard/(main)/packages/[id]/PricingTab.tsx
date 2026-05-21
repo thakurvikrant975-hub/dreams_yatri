@@ -275,7 +275,7 @@ function AddCabForm({
       if (res.success) {
         const vehicle = availableVehicles.find((v) => v.id === Number(vehicleId))!;
         onAdded({
-          id: Date.now(),
+          id: res.id,
           route_id: routeId,
           vehicle_id: Number(vehicleId),
           sell_price: Number(sellPrice),

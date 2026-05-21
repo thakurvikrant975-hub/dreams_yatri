@@ -31,7 +31,7 @@ import { type StopInput, type DurationMeta } from "@/app/services/route-builder.
 import { deriveRouteName } from "@/app/lib/route-builder-utils";
 import {
   GripVertical, Plus, Trash2, MapPin,
-  Route, CalendarDays, Map, RotateCcw,
+  Route, CalendarDays, RotateCcw,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -429,85 +429,6 @@ function DurationStep({
   );
 }
 
-// ── Step 4: Preview ────────────────────────────────────────────────────────
-
-function PreviewStep({ stops }: { stops: StopRow[] }) {
-  const { allData } = useMultiStepSheet();
-  const d = allData as {
-    name?: string;
-    days?: number; nights?: number; label?: string;
-    is_default?: boolean; thumbnail_url?: string | null;
-  };
-
-  const autoNights = stops.reduce((s, r) => s + r.stay_nights, 0);
-  const nights = d.nights ?? autoNights;
-  const days = d.days ?? (nights + 1);
-  const label = d.label || `${days}D / ${nights}N`;
-  const autoName = deriveRouteName(
-    stops.filter((s) => s.location).map((s) => ({ place_name: s.location!.name })),
-  );
-  const displayName = (d.name as string | undefined) || autoName;
-
-  const mapStops = stops
-    .filter((s) => s.location)
-    .map((s) => ({
-      place_name: s.location!.name,
-      latitude: s.location!.latitude ?? 0,
-      longitude: s.location!.longitude ?? 0,
-      stay_days: s.stay_nights,
-    }));
-
-  const R2_BASE = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? "";
-
-  return (
-    <div className="space-y-4">
-      <div className="rounded-lg border bg-muted/30 divide-y text-sm">
-        <div className="flex justify-between px-3 py-2.5">
-          <span className="text-muted-foreground flex items-center gap-1.5">
-            <Route className="h-3.5 w-3.5" /> Route
-          </span>
-          <span className="font-medium text-right max-w-[60%] truncate">{displayName || "—"}</span>
-        </div>
-        <div className="flex justify-between px-3 py-2.5">
-          <span className="text-muted-foreground flex items-center gap-1.5">
-            <CalendarDays className="h-3.5 w-3.5" /> Duration
-          </span>
-          <span className="font-semibold">{label}</span>
-        </div>
-        {d.is_default && (
-          <div className="px-3 py-2.5">
-            <Badge className="text-[10px]">Default duration</Badge>
-          </div>
-        )}
-        {d.thumbnail_url && (
-          <div className="flex items-center justify-between px-3 py-2.5">
-            <span className="text-muted-foreground text-xs">Thumbnail</span>
-            <img
-              src={d.thumbnail_url.startsWith("http") ? d.thumbnail_url : `${R2_BASE}/${d.thumbnail_url}`}
-              className="h-10 w-16 object-cover rounded border"
-              alt="thumbnail"
-            />
-          </div>
-        )}
-        <div className="flex justify-between px-3 py-2.5">
-          <span className="text-muted-foreground flex items-center gap-1.5">
-            <MapPin className="h-3.5 w-3.5" /> Stops
-          </span>
-          <div className="flex gap-1 flex-wrap justify-end max-w-[65%]">
-            {stops.filter((s) => s.location).map((s, i) => (
-              <Badge key={i} variant="secondary" className="text-[10px] px-1.5 py-0">
-                {s.location!.name} · {s.stay_nights}n
-              </Badge>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <RoutePreviewMap stops={mapStops} />
-    </div>
-  );
-}
-
 // ── Steps config ───────────────────────────────────────────────────────────
 
 const STEPS: SheetStep[] = [
@@ -534,12 +455,6 @@ const STEPS: SheetStep[] = [
     title: "Duration",
     description: "Duration settings and thumbnail",
     icon: <CalendarDays className="h-4 w-4" />,
-  },
-  {
-    id: "preview",
-    title: "Preview",
-    description: "Review before saving",
-    icon: <Map className="h-4 w-4" />,
   },
 ];
 
@@ -688,8 +603,6 @@ export function RouteBuilderSidebar({ packageId, editing, open, onClose, onSaved
         } : undefined}
       />
 
-      {/* Step 4: Preview */}
-      <PreviewStep stops={stops} />
     </MultiStepSheet>
   );
 }

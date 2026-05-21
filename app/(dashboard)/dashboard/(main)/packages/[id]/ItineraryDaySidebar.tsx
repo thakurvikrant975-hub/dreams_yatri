@@ -908,7 +908,7 @@ function StayBlock({
     const category = stayCategories.find((c) => c.id === categoryId)!;
     const existing = stays.find((s) => s.stay_category_id === categoryId);
     const newStay: StayItem = {
-      id: existing?.id ?? Date.now(),
+      id: res.id,  // Real DB ID returned by server — avoids Int overflow from Date.now()
       stay_category_id: categoryId,
       sort_order: stayBlockOrder,
       num_nights: numNights,

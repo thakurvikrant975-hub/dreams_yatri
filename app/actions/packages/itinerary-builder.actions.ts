@@ -197,9 +197,9 @@ export async function handleUpsertStay(
   numNights: number = 1,
 ) {
   try {
-    await upsertItineraryStay(itineraryId, stayCategoryId, roomPricingId, sortOrder, numNights);
+    const result = await upsertItineraryStay(itineraryId, stayCategoryId, roomPricingId, sortOrder, numNights);
     revalidatePath(p(packageId));
-    return { success: true as const };
+    return { success: true as const, id: result.id };
   } catch (e) {
     console.error(e);
     return { success: false as const, message: "Failed to save stay" };

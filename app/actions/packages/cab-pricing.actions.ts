@@ -19,7 +19,7 @@ export type CabPricingInput = {
 
 export async function upsertCabPricing(data: CabPricingInput) {
   try {
-    await db.package_cab_pricings.upsert({
+    const result = await db.package_cab_pricings.upsert({
       where: { route_id_vehicle_id: { route_id: data.route_id, vehicle_id: data.vehicle_id } },
       create: {
         package_id: data.package_id,
@@ -38,7 +38,7 @@ export async function upsertCabPricing(data: CabPricingInput) {
       },
     });
     revalidatePath(`/dashboard/packages/${data.package_id}`);
-    return { success: true as const };
+    return { success: true as const, id: result.id };
   } catch (e) {
     console.error(e);
     return { success: false as const, error: "Failed to save cab pricing" };
