@@ -78,7 +78,7 @@ function TabsTrigger({
 
         // Inactive styles
         "bg-transparent",
-        "text-dashboard-base-content",
+        "text-dashboard-base-content cursor-pointer",
         "[&_[data-day]]:text-dashboard-base-content/45",
         "**:data-day:text-[11px] **:data-day:font-medium",
 
@@ -100,17 +100,15 @@ function TabsTrigger({
         // ── Active state ─────────────────────────────────────────
         "data-[state=active]:bg-dashboard-primary",
         "data-[state=active]:text-dashboard-primary-content",
+        "cursor-pointer",
+        "rounded-md",
         "data-[state=active]:**:data-day:text-dashboard-primary-content/75",
         "data-[state=active]:border-transparent",
-        "data-[state=active]:shadow-lg",
-        "data-[state=active]:shadow-dashboard-primary/30",
 
         // ── Line variant overrides ────────────────────────────────
         "group-data-[variant=line]/tabs-list:bg-transparent",
         "group-data-[variant=line]/tabs-list:data-[state=active]:bg-transparent",
         "group-data-[variant=line]/tabs-list:data-[state=active]:border-transparent",
-        "group-data-[variant=line]/tabs-list:rounded-none",
-
         // ── Underline bar (line variant only) ─────────────────────
         "after:absolute after:opacity-0 after:transition-opacity after:rounded-full",
         "after:bg-dashboard-primary",

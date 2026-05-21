@@ -137,9 +137,9 @@ export default async function PackageBuilderPage({
 
       {/* Tabs */}
       <Tabs defaultValue={defaultTab}>
-        <TabsList variant="line" className="w-full justify-start border-b rounded-none pb-0 h-auto gap-0">
+        <TabsList className="w-full justify-start bg-dashboard-base-100 border-b h-auto gap-2 border border-dashboard-base-content/20 shadow-lg">
           {TABS.map(({ value, label, icon: Icon }) => (
-            <TabsTrigger key={value} value={value} className="gap-1.5 px-4 pb-3 rounded-none">
+            <TabsTrigger key={value} value={value} className="gap-1.5 px-4 pb-3">
               <Icon className="h-3.5 w-3.5" />
               {label}
             </TabsTrigger>
