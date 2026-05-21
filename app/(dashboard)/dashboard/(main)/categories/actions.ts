@@ -4,6 +4,7 @@ import { db }              from "@/app/lib/db";
 import { revalidatePath }  from "next/cache";
 import { dashboardAuth }   from "@/app/lib/auth-dashboard";
 import { CategorySchema }  from "@/app/lib/validators/categories";
+import { actionError }     from "@/app/lib/action-error";
 
 // ── Auth helper ───────────────────────────────────────────────────────────────
 
@@ -178,8 +179,9 @@ export async function createCategory(
 
         revalidatePath("/dashboard/categories");
         return { success: true, message: "Category created successfully" };
-    } catch {
-        return { success: false, message: "Database error. Please try again." };
+    } catch (e) {
+        console.error(e);
+        return actionError(e);
     }
 }
 
@@ -236,8 +238,9 @@ export async function updateCategory(
 
         revalidatePath("/dashboard/categories");
         return { success: true, message: "Category updated successfully" };
-    } catch {
-        return { success: false, message: "Database error. Please try again." };
+    } catch (e) {
+        console.error(e);
+        return actionError(e);
     }
 }
 
@@ -272,8 +275,9 @@ export async function deleteCategory(id: number): Promise<CategoryFormState> {
         await db.categories.delete({ where: { id } });
         revalidatePath("/dashboard/categories");
         return { success: true, message: "Category deleted successfully" };
-    } catch {
-        return { success: false, message: "Database error. Please try again." };
+    } catch (e) {
+        console.error(e);
+        return actionError(e);
     }
 }
 
@@ -293,8 +297,9 @@ export async function toggleCategoryActive(
             success: true,
             message: `Category ${is_active ? "activated" : "deactivated"}`,
         };
-    } catch {
-        return { success: false, message: "Database error. Please try again." };
+    } catch (e) {
+        console.error(e);
+        return actionError(e);
     }
 }
 
@@ -311,7 +316,8 @@ export async function updateSortOrder(
         await db.categories.update({ where: { id }, data: { sort_order } });
         revalidatePath("/dashboard/categories");
         return { success: true, message: "Sort order updated" };
-    } catch {
-        return { success: false, message: "Database error. Please try again." };
+    } catch (e) {
+        console.error(e);
+        return actionError(e);
     }
 }

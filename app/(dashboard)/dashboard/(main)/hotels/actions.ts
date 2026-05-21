@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { Prisma } from "@/app/generated/prisma";
 import { ALL_SYSTEM_HOTEL_CATEGORIES, REQUIRED_HOTEL_CATEGORIES } from "@/app/lib/hotelImageCategories";
+import { actionError } from "@/app/lib/action-error";
 
 // ── Schemas ───────────────────────────────────────────────────────────────
 
@@ -202,8 +203,9 @@ export async function createMealType(name: string): Promise<HotelFormState> {
     await db.meal_types.create({ data: { name: n } });
     revalidatePath("/dashboard/hotels/meal-types");
     return { success: true, message: "Meal type added" };
-  } catch {
-    return { success: false, message: "Name already exists or DB error." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -214,8 +216,9 @@ export async function updateMealType(id: number, name: string): Promise<HotelFor
     await db.meal_types.update({ where: { id }, data: { name: n } });
     revalidatePath("/dashboard/hotels/meal-types");
     return { success: true, message: "Meal type updated" };
-  } catch {
-    return { success: false, message: "Name already exists or DB error." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -224,8 +227,9 @@ export async function deleteMealType(id: number): Promise<HotelFormState> {
     await db.meal_types.delete({ where: { id } });
     revalidatePath("/dashboard/hotels/meal-types");
     return { success: true, message: "Meal type deleted" };
-  } catch {
-    return { success: false, message: "Cannot delete — may be in use by pricing plans." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -240,8 +244,9 @@ export async function createDietType(name: string): Promise<HotelFormState> {
     await db.diet_types.create({ data: { name: n } });
     revalidatePath("/dashboard/hotels/diet-types");
     return { success: true, message: "Diet type added" };
-  } catch {
-    return { success: false, message: "Name already exists or DB error." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -252,8 +257,9 @@ export async function updateDietType(id: number, name: string): Promise<HotelFor
     await db.diet_types.update({ where: { id }, data: { name: n } });
     revalidatePath("/dashboard/hotels/diet-types");
     return { success: true, message: "Diet type updated" };
-  } catch {
-    return { success: false, message: "Name already exists or DB error." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -262,8 +268,9 @@ export async function deleteDietType(id: number): Promise<HotelFormState> {
     await db.diet_types.delete({ where: { id } });
     revalidatePath("/dashboard/hotels/diet-types");
     return { success: true, message: "Diet type deleted" };
-  } catch {
-    return { success: false, message: "Cannot delete — may be in use by pricing plans." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -339,8 +346,9 @@ export async function createHotel(
 
     revalidatePath("/dashboard/hotels");
     return { success: true, message: "Hotel created successfully", id: newHotel.id };
-  } catch {
-    return { success: false, message: "Database error. Please try again." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -396,8 +404,9 @@ export async function updateHotelDetails(
     revalidatePath("/dashboard/hotels");
     revalidatePath(`/dashboard/hotels/${id}`);
     return { success: true, message: "Hotel details updated" };
-  } catch {
-    return { success: false, message: "Database error. Please try again." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -458,11 +467,12 @@ export async function deleteHotel(id: number): Promise<HotelFormState> {
     revalidatePath("/dashboard/hotels");
     return { success: true, message: "Hotel deleted" };
   } catch (err) {
+    console.error(err);
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2003") {
       const field = (err.meta?.field_name as string | undefined) ?? "unknown";
       return { success: false, message: `Cannot delete — hotel is still linked to other records (${field}). Remove those links first.` };
     }
-    return { success: false, message: "Database error. Please try again." };
+    return actionError(err);
   }
 }
 
@@ -512,8 +522,9 @@ export async function createRoom(hotel_id: number, formData: FormData): Promise<
 
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Room added", id: room.id };
-  } catch {
-    return { success: false, message: "Database error." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -545,8 +556,9 @@ export async function updateRoom(
 
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Room updated" };
-  } catch {
-    return { success: false, message: "Database error." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -573,8 +585,9 @@ export async function deleteRoom(id: number, hotel_id: number): Promise<HotelFor
 
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Room deleted" };
-  } catch {
-    return { success: false, message: "Database error." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -618,8 +631,9 @@ export async function createRoomPricing(
 
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Pricing plan added", id: plan.id };
-  } catch {
-    return { success: false, message: "Database error." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -660,8 +674,9 @@ export async function updateRoomPricing(
 
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Pricing plan updated" };
-  } catch {
-    return { success: false, message: "Database error." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -670,8 +685,9 @@ export async function deleteRoomPricing(id: number, hotel_id: number): Promise<H
     await db.hotel_room_pricing.delete({ where: { id } });
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Pricing plan deleted" };
-  } catch {
-    return { success: false, message: "Database error." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -692,8 +708,9 @@ export async function upsertOccupancyPrice(
     });
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Occupancy price saved" };
-  } catch {
-    return { success: false, message: "Database error." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -702,8 +719,9 @@ export async function deleteOccupancyPrice(id: number, hotel_id: number): Promis
     await db.hotel_room_occupancy_prices.delete({ where: { id } });
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Occupancy price removed" };
-  } catch {
-    return { success: false, message: "Database error." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -734,8 +752,9 @@ export async function createChildPolicy(
     });
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Child policy added" };
-  } catch {
-    return { success: false, message: "Database error." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -755,8 +774,9 @@ export async function updateChildPolicy(
     await db.hotel_child_policies.update({ where: { id }, data });
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Child policy updated" };
-  } catch {
-    return { success: false, message: "Database error." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -765,8 +785,9 @@ export async function deleteChildPolicy(id: number, hotel_id: number): Promise<H
     await db.hotel_child_policies.delete({ where: { id } });
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Child policy deleted" };
-  } catch {
-    return { success: false, message: "Database error." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -791,8 +812,9 @@ export async function createRoomImages(
     });
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Images added" };
-  } catch {
-    return { success: false, message: "Database error." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -809,8 +831,9 @@ export async function deleteRoomImage(
     await db.hotel_room_images.delete({ where: { id } });
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Image deleted" };
-  } catch {
-    return { success: false, message: "Database error." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -826,8 +849,9 @@ export async function setPrimaryRoomImage(
     ]);
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Primary image set" };
-  } catch {
-    return { success: false, message: "Database error." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -844,8 +868,9 @@ export async function createImageCategory(
     });
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Category added" };
-  } catch {
-    return { success: false, message: "Database error." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -876,8 +901,9 @@ export async function deleteImageCategory(
 
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Category deleted" };
-  } catch {
-    return { success: false, message: "Database error." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -906,8 +932,9 @@ export async function addHotelImages(
 
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Images added" };
-  } catch {
-    return { success: false, message: "Database error." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -923,8 +950,9 @@ export async function deleteHotelImage(
     await db.hotel_images.delete({ where: { id } });
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Image deleted" };
-  } catch {
-    return { success: false, message: "Database error." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -936,7 +964,8 @@ export async function setPrimaryImage(id: number, hotel_id: number): Promise<Hot
     ]);
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Primary image set" };
-  } catch {
-    return { success: false, message: "Database error." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }

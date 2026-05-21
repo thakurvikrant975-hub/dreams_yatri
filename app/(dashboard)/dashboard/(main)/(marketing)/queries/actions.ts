@@ -7,6 +7,7 @@ import { db } from "@/app/lib/db";
 import { dashboardAuth } from "@/app/lib/auth-dashboard";
 import { z } from "zod";
 import { Prisma } from "@/app/generated/prisma";
+import { actionError } from "@/app/lib/action-error";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -457,8 +458,9 @@ export async function markInProgress(queryId: string): Promise<ActionResult> {
         await logTimeline(queryId, "📞 Marked as In Progress — call attempted", actor?.id, actor?.name ?? undefined);
         revalidatePath("/dashboard/queries");
         return { success: true, data: undefined, message: "Query moved to In Progress" };
-    } catch {
-        return { success: false, message: "Failed to update status" };
+    } catch (e) {
+        console.error(e);
+        return actionError(e);
     }
 }
 
@@ -479,8 +481,9 @@ export async function verifyQuery(queryId: string): Promise<ActionResult> {
         await logTimeline(queryId, "✅ Lead Verified — confirmed interest", actor?.id, actor?.name ?? undefined);
         revalidatePath("/dashboard/queries");
         return { success: true, data: undefined, message: "Query verified successfully" };
-    } catch {
-        return { success: false, message: "Failed to verify query" };
+    } catch (e) {
+        console.error(e);
+        return actionError(e);
     }
 }
 
@@ -525,8 +528,9 @@ export async function rejectQuery(queryId: string, formData: FormData): Promise<
 
         revalidatePath("/dashboard/queries");
         return { success: true, data: undefined, message: "Query rejected" };
-    } catch {
-        return { success: false, message: "Failed to reject query" };
+    } catch (e) {
+        console.error(e);
+        return actionError(e);
     }
 }
 
@@ -572,8 +576,9 @@ export async function logCallAttempt(
 
         revalidatePath("/dashboard/queries");
         return { success: true, data: undefined, message: "Call attempt logged" };
-    } catch {
-        return { success: false, message: "Failed to log call attempt" };
+    } catch (e) {
+        console.error(e);
+        return actionError(e);
     }
 }
 
@@ -602,8 +607,9 @@ export async function addNote(queryId: string, formData: FormData): Promise<Acti
 
         revalidatePath("/dashboard/queries");
         return { success: true, data: undefined, message: "Note added" };
-    } catch {
-        return { success: false, message: "Failed to add note" };
+    } catch (e) {
+        console.error(e);
+        return actionError(e);
     }
 }
 
@@ -630,8 +636,9 @@ export async function createRejectionReason(
         revalidatePath("/dashboard/queries");
         revalidatePath("/dashboard/queries/rejection-reasons");
         return { success: true, message: "Rejection reason created" };
-    } catch {
-        return { success: false, message: "Failed to create reason" };
+    } catch (e) {
+        console.error(e);
+        return actionError(e);
     }
 }
 
@@ -643,8 +650,9 @@ export async function deleteRejectionReason(id: string): Promise<ActionResult> {
         revalidatePath("/dashboard/queries");
         revalidatePath("/dashboard/queries/rejection-reasons");
         return { success: true, data: undefined, message: "Reason deleted" };
-    } catch {
-        return { success: false, message: "Failed to delete reason" };
+    } catch (e) {
+        console.error(e);
+        return actionError(e);
     }
 }
 
@@ -653,8 +661,9 @@ export async function toggleRejectionReason(id: string, isActive: boolean): Prom
         await db.rejectionReason.update({ where: { id }, data: { isActive } });
         revalidatePath("/dashboard/queries");
         return { success: true, data: undefined, message: `Reason ${isActive ? "enabled" : "disabled"}` };
-    } catch {
-        return { success: false, message: "Failed to update reason" };
+    } catch (e) {
+        console.error(e);
+        return actionError(e);
     }
 }
 
@@ -732,8 +741,9 @@ export async function createManualQuery(
 
         revalidatePath("/dashboard/queries");
         return { success: true, message: `Query for ${parsed.data.name} saved successfully` };
-    } catch {
-        return { success: false, message: "Failed to save query" };
+    } catch (e) {
+        console.error(e);
+        return actionError(e);
     }
 }
 
@@ -797,7 +807,8 @@ export async function updateQuery(queryId: string, formData: FormData): Promise<
         await logTimeline(queryId, `✏️ Query details updated`, actor?.id, actor?.name ?? undefined);
         revalidatePath("/dashboard/queries");
         return { success: true, data: undefined, message: "Query updated successfully" };
-    } catch {
-        return { success: false, message: "Failed to update query" };
+    } catch (e) {
+        console.error(e);
+        return actionError(e);
     }
 }

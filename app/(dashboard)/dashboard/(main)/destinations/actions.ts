@@ -6,6 +6,7 @@ import { revalidatePath }      from "next/cache";
 import { dashboardAuth }       from "@/app/lib/auth-dashboard";
 import { DestinationSchema }   from "@/app/lib/validators/destinations";
 import { createLog }           from "../lib/logger";
+import { actionError }         from "@/app/lib/action-error";
 
 // ── Auth helper ───────────────────────────────────────────────────────────────
 
@@ -214,8 +215,9 @@ export async function createDestination(
 
     revalidatePath("/dashboard/destinations");
     return { success: true, message: "Destination created successfully" };
-  } catch {
-    return { success: false, message: "Database error. Please try again." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -291,8 +293,9 @@ export async function updateDestination(
 
     revalidatePath("/dashboard/destinations");
     return { success: true, message: "Destination updated successfully" };
-  } catch {
-    return { success: false, message: "Database error. Please try again." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -348,8 +351,9 @@ export async function deleteDestination(id: number): Promise<DestinationFormStat
 
     revalidatePath("/dashboard/destinations");
     return { success: true, message: "Destination deleted successfully" };
-  } catch {
-    return { success: false, message: "Database error. Please try again." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }
 
@@ -410,7 +414,8 @@ export async function toggleDestinationActive(
 
     revalidatePath("/dashboard/destinations");
     return { success: true, message: `Destination ${is_active ? "activated" : "deactivated"}` };
-  } catch {
-    return { success: false, message: "Database error. Please try again." };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
   }
 }

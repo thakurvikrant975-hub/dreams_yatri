@@ -4,6 +4,7 @@ import { z }             from "zod";
 import { db }            from "@/app/lib/db";
 import { revalidatePath } from "next/cache";
 import { dashboardAuth } from "@/app/lib/auth-dashboard";
+import { actionError }   from "@/app/lib/action-error";
 
 // ── Auth helper ───────────────────────────────────────────────────────────
 
@@ -125,8 +126,9 @@ export async function createCategory(
         revalidatePath("/dashboard/activities/categories");
         revalidatePath("/dashboard/activities");
         return { success: true, message: "Category created", id: cat.id };
-    } catch {
-        return { success: false, message: "Database error. Please try again." };
+    } catch (e) {
+        console.error(e);
+        return actionError(e);
     }
 }
 
@@ -182,8 +184,9 @@ export async function updateCategory(
         revalidatePath("/dashboard/activities/categories");
         revalidatePath("/dashboard/activities");
         return { success: true, message: "Category updated" };
-    } catch {
-        return { success: false, message: "Database error. Please try again." };
+    } catch (e) {
+        console.error(e);
+        return actionError(e);
     }
 }
 
@@ -201,8 +204,9 @@ export async function toggleCategoryActive(
         revalidatePath("/dashboard/activities/categories");
         revalidatePath("/dashboard/activities");
         return { success: true, message: `Category ${is_active ? "activated" : "deactivated"}` };
-    } catch {
-        return { success: false, message: "Database error. Please try again." };
+    } catch (e) {
+        console.error(e);
+        return actionError(e);
     }
 }
 
@@ -231,7 +235,8 @@ export async function deleteCategory(id: number): Promise<CategoryFormState> {
         revalidatePath("/dashboard/activities/categories");
         revalidatePath("/dashboard/activities");
         return { success: true, message: "Category deleted" };
-    } catch {
-        return { success: false, message: "Database error. Please try again." };
+    } catch (e) {
+        console.error(e);
+        return actionError(e);
     }
 }
