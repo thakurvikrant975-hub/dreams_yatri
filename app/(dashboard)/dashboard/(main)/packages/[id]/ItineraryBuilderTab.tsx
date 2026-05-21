@@ -220,7 +220,7 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
 
   if (durations.length === 0) {
     return (
-      <div className="space-y-5">
+      <div className="space-y-5 ">
         <StayTiersSection
           packageId={packageId}
           initialCategories={stayCategories}
@@ -240,7 +240,7 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 bg-dashboard-base-100 p-8 rounded-xl shadow-lg">
       {/* Stay Tiers setup section */}
       <StayTiersSection
         packageId={packageId}

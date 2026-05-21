@@ -1756,7 +1756,7 @@ export function ItineraryDaySidebar({
                       <button
                         type="button"
                         onClick={async () => { try { setTitle(await navigator.clipboard.readText()); } catch {} }}
-                        className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors"
+                        className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors cursor-pointer"
                       >
                         <ClipboardPaste className="h-3 w-3" /> Paste
                       </button>

@@ -5,10 +5,10 @@ import Link from "next/link";
 import {
     Tag, Plus, Pencil, Trash2, Loader2, Activity,
 } from "lucide-react";
-import { Button }   from "../../components/ui/button";
-import { Input }    from "../../components/ui/input";
-import { Label }    from "../../components/ui/label";
-import { Switch }   from "../../components/ui/switch";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import { Label } from "../../components/ui/label";
+import { Switch } from "../../components/ui/switch";
 import {
     Sheet, SheetContent, SheetHeader,
     SheetTitle, SheetDescription, SheetFooter,
@@ -61,18 +61,18 @@ function CategorySheet({
     onClose,
     category,
 }: {
-    open:      boolean;
-    onClose:   () => void;
+    open: boolean;
+    onClose: () => void;
     category?: CategoryRow;
 }) {
     const isEdit = !!category;
 
-    const [name,      setName]      = useState(category?.name      ?? "");
-    const [slug,      setSlug]      = useState(category?.slug      ?? "");
+    const [name, setName] = useState(category?.name ?? "");
+    const [slug, setSlug] = useState(category?.slug ?? "");
     const [sortOrder, setSortOrder] = useState(String(category?.sort_order ?? "0"));
-    const [isActive,  setIsActive]  = useState(category?.is_active ?? true);
+    const [isActive, setIsActive] = useState(category?.is_active ?? true);
     const [isPending, startTransition] = useTransition();
-    const [errors,    setErrors]    = useState<Record<string, string[]>>({});
+    const [errors, setErrors] = useState<Record<string, string[]>>({});
 
     function handleNameChange(val: string) {
         const titled = val.replace(/\b\w/g, c => c.toUpperCase());
@@ -91,10 +91,10 @@ function CategorySheet({
         setErrors({});
         startTransition(async () => {
             const fd = new FormData();
-            fd.set("name",       name);
-            fd.set("slug",       slug);
+            fd.set("name", name);
+            fd.set("slug", slug);
             fd.set("sort_order", sortOrder);
-            fd.set("is_active",  String(isActive));
+            fd.set("is_active", String(isActive));
 
             const result = isEdit
                 ? await updateCategory(category!.id, { success: false, message: "" }, fd)
@@ -271,15 +271,15 @@ export function CategoriesClient({ initialCategories }: Props) {
         return initialCategories.filter(cat => {
             const matchesSearch = !q || cat.name.toLowerCase().includes(q) || cat.slug.includes(q);
             const matchesStatus =
-                status === "all"      ? true :
-                status === "active"   ? cat.is_active :
-                                        !cat.is_active;
+                status === "all" ? true :
+                    status === "active" ? cat.is_active :
+                        !cat.is_active;
             return matchesSearch && matchesStatus;
         });
     }, [initialCategories, search, status]);
 
     const [deleteTarget, setDeleteTarget] = useState<CategoryRow | null>(null);
-    const [deleteError,  setDeleteError]  = useState<string | null>(null);
+    const [deleteError, setDeleteError] = useState<string | null>(null);
 
     function handleToggle(id: number, current: boolean) {
         startTransition(async () => {
@@ -329,7 +329,7 @@ export function CategoriesClient({ initialCategories }: Props) {
         },
         {
             header: "Activities",
-            align:  "center",
+            align: "center",
             cell: (cat) => cat._count.activities > 0 ? (
                 <Link
                     href={`/dashboard/activities?category_id=${cat.id}`}
@@ -345,14 +345,14 @@ export function CategoriesClient({ initialCategories }: Props) {
         },
         {
             header: "Order",
-            align:  "center",
-            width:  "w-20",
+            align: "center",
+            width: "w-20",
             cell: (cat) => <span className="text-xs text-muted-foreground">{cat.sort_order}</span>,
         },
         {
             header: "Status",
-            align:  "center",
-            width:  "w-24",
+            align: "center",
+            width: "w-24",
             cell: (cat) => (
                 <Switch
                     checked={cat.is_active}
@@ -364,8 +364,8 @@ export function CategoriesClient({ initialCategories }: Props) {
         },
         {
             header: "Actions",
-            align:  "right",
-            width:  "w-[80px]",
+            align: "right",
+            width: "w-[80px]",
             cell: (cat) => (
                 <div className="flex items-center justify-end gap-1">
                     <EditCategoryButton category={cat} />
@@ -418,12 +418,12 @@ export function CategoriesClient({ initialCategories }: Props) {
                 totalCount={initialCategories.length}
                 filters={[
                     {
-                        value:       status,
-                        onChange:    (v) => setStatus(v as "active" | "inactive" | "all"),
+                        value: status,
+                        onChange: (v) => setStatus(v as "active" | "inactive" | "all"),
                         placeholder: "All Statuses",
-                        width:       "w-38",
+                        width: "w-38",
                         options: [
-                            { label: "Active",   value: "active"   },
+                            { label: "Active", value: "active" },
                             { label: "Inactive", value: "inactive" },
                         ],
                     },

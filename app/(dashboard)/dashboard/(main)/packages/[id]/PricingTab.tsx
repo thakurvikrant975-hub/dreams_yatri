@@ -425,7 +425,7 @@ export function PricingTab({
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 bg-dashboard-base-100 p-8 rounded-xl shadow-lg border border-dashboard-base-content/20">
       {/* ── Margin & GST ── */}
       <div className="space-y-4">
         <div>

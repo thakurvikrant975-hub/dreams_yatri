@@ -459,7 +459,7 @@ export function GalleryTab({ packageId, routes }: Props) {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 bg-dashboard-base-100 p-8 rounded-xl shadow-lg">
       {/* Header */}
       <div>
         <h3 className="text-sm font-semibold">Gallery — Intro Section</h3>
