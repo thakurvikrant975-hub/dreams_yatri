@@ -726,6 +726,30 @@ export async function addItineraryAttraction(
   });
 }
 
+export async function bulkAddItineraryAttractions(
+  itineraryId: number,
+  imageKeys: string[],
+): Promise<AttractionItem[]> {
+  if (imageKeys.length === 0) return [];
+  const max = await db.itinerary_attractions.aggregate({
+    where: { itinerary_id: itineraryId },
+    _max: { sort_order: true },
+  });
+  const startOrder = (max._max.sort_order ?? -1) + 1;
+  await db.itinerary_attractions.createMany({
+    data: imageKeys.map((key, i) => ({
+      itinerary_id: itineraryId,
+      image_key: key,
+      caption: "",
+      sort_order: startOrder + i,
+    })),
+  });
+  return db.itinerary_attractions.findMany({
+    where: { itinerary_id: itineraryId, sort_order: { gte: startOrder } },
+    orderBy: { sort_order: "asc" },
+  });
+}
+
 export async function updateItineraryAttraction(id: number, caption: string): Promise<void> {
   await db.itinerary_attractions.update({ where: { id }, data: { caption } });
 }

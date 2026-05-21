@@ -54,6 +54,7 @@ import {
   handleGetVehicles,
   handleGetActivityVariants,
   handleAddAttraction,
+  handleBulkAddAttractions,
   handleUpdateAttraction,
   handleDeleteAttraction,
   handleReorderAttractions,
@@ -1090,8 +1091,7 @@ function AttractionsModal({
   const [sourceImages, setSourceImages] = useState<AttractionSourceImages | null>(null);
   const [loadingImages, setLoadingImages] = useState(false);
   const [activeSource, setActiveSource] = useState<AttractionSourceKey>("PACKAGE");
-  const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
-  const [caption, setCaption] = useState("");
+  const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
   const [addPending, setAddPending] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
@@ -1111,16 +1111,25 @@ function AttractionsModal({
     return acc;
   }, {});
 
-  async function handleAdd() {
-    if (!selectedUrl) return;
+  function toggleUrl(url: string) {
+    setSelectedUrls((prev) => {
+      const next = new Set(prev);
+      if (next.has(url)) next.delete(url);
+      else next.add(url);
+      return next;
+    });
+  }
+
+  async function handleAddSelected() {
+    const keys = Array.from(selectedUrls);
+    if (keys.length === 0) return;
     setAddPending(true);
-    const res = await handleAddAttraction(itineraryId, selectedUrl, caption.trim(), packageId);
+    const res = await handleBulkAddAttractions(itineraryId, keys, packageId);
     setAddPending(false);
-    if (!res.success) { toast.error(res.message ?? "Failed to add attraction"); return; }
-    onAttractionsChange([...attractions, res.data]);
-    setSelectedUrl(null);
-    setCaption("");
-    toast.success("Attraction added");
+    if (!res.success) { toast.error(res.message ?? "Failed to add attractions"); return; }
+    onAttractionsChange([...attractions, ...res.data]);
+    setSelectedUrls(new Set());
+    toast.success(`${res.data.length} attraction${res.data.length !== 1 ? "s" : ""} added`);
     onClose();
   }
 
@@ -1202,7 +1211,7 @@ function AttractionsModal({
                   <button
                     key={key}
                     type="button"
-                    onClick={() => { setActiveSource(key); setSelectedUrl(null); }}
+                    onClick={() => { setActiveSource(key); setSelectedUrls(new Set()); }}
                     className={cn(
                       "flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors",
                       activeSource === key
@@ -1243,12 +1252,12 @@ function AttractionsModal({
                         </p>
                         <div className="grid grid-cols-5 sm:grid-cols-6 gap-1.5">
                           {imgs.map((img) => {
-                            const isSelected = selectedUrl === img.url;
+                            const isSelected = selectedUrls.has(img.url);
                             return (
                               <button
                                 key={img.id}
                                 type="button"
-                                onClick={() => setSelectedUrl(isSelected ? null : img.url)}
+                                onClick={() => toggleUrl(img.url)}
                                 className={cn(
                                   "relative aspect-square rounded-lg overflow-hidden border-2 transition-all",
                                   isSelected
@@ -1276,27 +1285,17 @@ function AttractionsModal({
                 )}
               </div>
 
-              {/* Caption + add — shown when image selected */}
-              {selectedUrl && (
-                <div className="border-t px-4 py-3 flex items-center gap-3 bg-background">
-                  <div className="w-10 h-8 rounded-md overflow-hidden border shrink-0">
-                    <img src={`${R2}/${selectedUrl}`} alt="" className="w-full h-full object-cover" />
-                  </div>
-                  <input
-                    type="text"
-                    value={caption}
-                    maxLength={50}
-                    onChange={(e) => setCaption(e.target.value)}
-                    placeholder="Add a caption (optional)…"
-                    className="flex-1 h-8 px-2.5 text-xs rounded-md border bg-background outline-none focus:ring-1 focus:ring-primary/30"
-                    autoFocus
-                  />
-                  <span className={cn("text-[10px] shrink-0", caption.length > 50 ? "text-destructive" : "text-muted-foreground/50")}>
-                    {caption.length}/50
+              {/* Add selected — shown when any image is selected */}
+              {selectedUrls.size > 0 && (
+                <div className="border-t px-4 py-3 flex items-center justify-between gap-3 bg-background">
+                  <span className="text-xs text-muted-foreground">
+                    {selectedUrls.size} image{selectedUrls.size !== 1 ? "s" : ""} selected
                   </span>
-                  <Button size="sm" onClick={handleAdd} disabled={addPending} className="gap-1.5 shrink-0">
-                    {addPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                    Add
+                  <Button size="sm" onClick={handleAddSelected} disabled={addPending} className="gap-1.5 shrink-0">
+                    {addPending
+                      ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Adding…</>
+                      : <><Plus className="h-3.5 w-3.5" />Add {selectedUrls.size} Attraction{selectedUrls.size !== 1 ? "s" : ""}</>
+                    }
                   </Button>
                 </div>
               )}

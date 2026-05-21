@@ -26,6 +26,7 @@ import {
   reorderStayCategories,
   getVehicles,
   addItineraryAttraction,
+  bulkAddItineraryAttractions,
   updateItineraryAttraction,
   deleteItineraryAttraction,
   reorderItineraryAttractions,
@@ -349,6 +350,21 @@ export async function handleAddAttraction(
   } catch (e) {
     console.error(e);
     return { success: false as const, message: "Failed to add attraction" };
+  }
+}
+
+export async function handleBulkAddAttractions(
+  itineraryId: number,
+  imageKeys: string[],
+  packageId: number,
+) {
+  try {
+    const data = await bulkAddItineraryAttractions(itineraryId, imageKeys);
+    revalidatePath(p(packageId));
+    return { success: true as const, data };
+  } catch (e) {
+    console.error(e);
+    return { success: false as const, message: "Failed to add attractions" };
   }
 }
 
