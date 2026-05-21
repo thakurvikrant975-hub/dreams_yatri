@@ -92,6 +92,35 @@ export interface ManualLocationFormValues {
   is_featured: boolean;
 }
 
+// ── Type restriction constants ─────────────────────────────────────────────────
+// Used across multiple callsites — defined once here to avoid duplication.
+
+/** Locations valid as route stops (city-level geographic areas, no transport hubs) */
+export const ROUTE_STOP_TYPES: LocationType[] = [
+  "CITY", "STATE", "DISTRICT", "AREA", "NEIGHBORHOOD",
+  "VILLAGE", "SUBREGION", "REGION", "ISLAND", "TOURISM_ZONE",
+];
+
+/** Locations valid as transfer pickup/drop points (specific, sub-city granularity) */
+export const TRANSFER_TYPES: LocationType[] = [
+  "CITY", "DISTRICT", "AREA", "NEIGHBORHOOD", "VILLAGE",
+  "LANDMARK", "AIRPORT", "BUS_STATION", "TRAIN_STATION", "PORT",
+  "BEACH", "ISLAND", "TOURISM_ZONE",
+];
+
+/** Locations valid for destinations (state/region-level areas) */
+export const DESTINATION_TYPES: LocationType[] = [
+  "CITY", "STATE", "DISTRICT", "AREA", "SUBREGION",
+  "REGION", "ISLAND", "TOURISM_ZONE",
+];
+
+/** Locations valid for activities (any physical venue except meta/admin types) */
+export const ACTIVITY_TYPES: LocationType[] = [
+  "CITY", "STATE", "DISTRICT", "AREA", "NEIGHBORHOOD", "VILLAGE",
+  "LANDMARK", "AIRPORT", "BEACH", "MOUNTAIN", "ISLAND", "TOURISM_ZONE",
+  "BUS_STATION", "TRAIN_STATION", "PORT", "SUBREGION", "REGION",
+];
+
 // ── Component props ────────────────────────────────────────────────────────────
 export interface LocationSearchSelectProps {
   value: LocationValue | null;
@@ -99,6 +128,10 @@ export interface LocationSearchSelectProps {
   placeholder?: string;
   /** Restrict results to specific location types */
   types?: LocationType[];
+  /** Lock manual-creation type to this value (e.g. "HOTEL") */
+  lockedType?: LocationType;
+  /** Initial map center for manual creation (defaults to center of India) */
+  mapCenter?: { lat: number; lng: number };
   className?: string;
   disabled?: boolean;
   label?: string;

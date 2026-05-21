@@ -169,6 +169,11 @@ export default async function PackageBuilderPage({
             packageId={pkg.id}
             initialData={pkg.durations as never}
             packageImages={pkg.images.map(img => ({ id: img.id, url: img.url, is_primary: img.is_primary }))}
+            destinationCoords={
+              pkg.destination.latitude != null && pkg.destination.longitude != null
+                ? { lat: Number(pkg.destination.latitude), lng: Number(pkg.destination.longitude) }
+                : undefined
+            }
           />
         </TabsContent>
 
@@ -189,6 +194,9 @@ export default async function PackageBuilderPage({
                 stops: r.stops.map((s) => ({
                   place_name: s.place_name,
                   stay_days: s.stay_days,
+                  location: s.location
+                    ? { latitude: Number(s.location.latitude), longitude: Number(s.location.longitude) }
+                    : null,
                 })),
               })),
             }))}

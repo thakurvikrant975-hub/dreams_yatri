@@ -19,6 +19,20 @@ const LocationManualSheet = dynamic(
   { ssr: false },
 );
 
+// ── Countries preload cache ────────────────────────────────────────────────────
+// Countries are ~195 records, used in multiple places. Load once per session,
+// reuse everywhere. The singleton promise prevents duplicate in-flight requests.
+let _countriesPromise: Promise<LocalResult[]> | null = null;
+
+function getCountries(): Promise<LocalResult[]> {
+  if (!_countriesPromise) {
+    _countriesPromise = fetch("/api/locations/search?types=COUNTRY&limit=500")
+      .then((r) => (r.ok ? r.json() : []))
+      .catch(() => []);
+  }
+  return _countriesPromise;
+}
+
 // ── localStorage helpers ──────────────────────────────────────────────────────
 const RECENT_KEY = "location_recent";
 const MAX_RECENT = 5;
@@ -98,17 +112,26 @@ type NavItem =
 function buildNav(
   query: string,
   recent: LocationValue[],
+  types: LocationType[] | undefined,
   localResults: LocalResult[],
   externalResults: ExternalResult[],
   externalSearched: boolean,
+  isCountriesOnly: boolean,
 ): NavItem[] {
   const items: NavItem[] = [];
+
+  // Filter recents to only show entries matching the allowed types
+  const filteredRecent = types?.length
+    ? recent.filter((r) => types.includes(r.type))
+    : recent;
+
   if (!query.trim()) {
-    for (const r of recent) items.push({ kind: "recent", item: r });
+    for (const r of filteredRecent) items.push({ kind: "recent", item: r });
   }
   for (const r of localResults) items.push({ kind: "local", item: r });
   for (const r of externalResults) items.push({ kind: "external", item: r });
-  if (query.trim() && !externalSearched) items.push({ kind: "worldwide" });
+  // Countries are fully local — no worldwide search needed
+  if (!isCountriesOnly && query.trim() && !externalSearched) items.push({ kind: "worldwide" });
   items.push({ kind: "manual" });
   return items;
 }
@@ -119,6 +142,8 @@ export function LocationSearchSelect({
   onChange,
   placeholder = "Search location…",
   types,
+  lockedType,
+  mapCenter,
   className,
   disabled,
   label,
@@ -126,14 +151,24 @@ export function LocationSearchSelect({
   id,
   error,
 }: LocationSearchSelectProps) {
+  // Countries-only mode: preload all, filter client-side, skip debounced search
+  const isCountriesOnly = types?.length === 1 && types[0] === "COUNTRY";
+
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [recent, setRecent] = useState<LocationValue[]>([]);
+
+  // Normal search state
   const [localResults, setLocalResults] = useState<LocalResult[]>([]);
   const [externalResults, setExternalResults] = useState<ExternalResult[]>([]);
   const [localLoading, setLocalLoading] = useState(false);
   const [extLoading, setExtLoading] = useState(false);
   const [extSearched, setExtSearched] = useState(false);
+
+  // Countries-only state
+  const [allCountries, setAllCountries] = useState<LocalResult[]>([]);
+  const [countriesLoading, setCountriesLoading] = useState(false);
+
   const [savingId, setSavingId] = useState<string | null>(null);
   const [activeIdx, setActiveIdx] = useState(-1);
   const [manualOpen, setManualOpen] = useState(false);
@@ -145,6 +180,16 @@ export function LocationSearchSelect({
   // ── Load recents on mount ─────────────────────────────────────────────────
   useEffect(() => { setRecent(readRecent()); }, []);
 
+  // ── Preload countries on first open (countries-only mode) ─────────────────
+  useEffect(() => {
+    if (!isCountriesOnly || !open || allCountries.length > 0) return;
+    setCountriesLoading(true);
+    getCountries().then((data) => {
+      setAllCountries(data);
+      setCountriesLoading(false);
+    });
+  }, [isCountriesOnly, open, allCountries.length]);
+
   // ── Reset external when query changes ─────────────────────────────────────
   useEffect(() => {
     setExtSearched(false);
@@ -152,11 +197,11 @@ export function LocationSearchSelect({
   }, [query]);
 
   // ── Reset active index when results change ────────────────────────────────
-  useEffect(() => { setActiveIdx(-1); }, [localResults, externalResults, query]);
+  useEffect(() => { setActiveIdx(-1); }, [localResults, externalResults, allCountries, query]);
 
-  // ── Debounced local search ────────────────────────────────────────────────
+  // ── Debounced local search (skipped in countries-only mode) ───────────────
   useEffect(() => {
-    if (!open) return;
+    if (!open || isCountriesOnly) return;
     if (localTimerRef.current) clearTimeout(localTimerRef.current);
     if (!query.trim()) { setLocalResults([]); return; }
 
@@ -173,7 +218,7 @@ export function LocationSearchSelect({
     }, 300);
 
     return () => { if (localTimerRef.current) clearTimeout(localTimerRef.current); };
-  }, [query, open, types]);
+  }, [query, open, types, isCountriesOnly]);
 
   // ── External (Mapbox) search ──────────────────────────────────────────────
   const searchExternal = useCallback(async () => {
@@ -228,8 +273,30 @@ export function LocationSearchSelect({
     setExtSearched(false);
   }
 
+  // ── Derive what to display ────────────────────────────────────────────────
+  // In countries mode: client-side filter of preloaded list
+  // In normal mode: API-searched results
+  const displayedLocal: LocalResult[] = isCountriesOnly
+    ? (query.trim()
+        ? allCountries.filter((c) =>
+            c.name.toLowerCase().includes(query.toLowerCase())
+          )
+        : allCountries)
+    : localResults;
+
+  const isLocalLoading = isCountriesOnly ? countriesLoading : localLoading;
+
+  const showRecent    = !query.trim() && (types?.length
+    ? recent.filter((r) => types.includes(r.type)).length > 0
+    : recent.length > 0);
+  const showLocal     = isCountriesOnly ? true : !!query.trim();
+  const showExternal  = !isCountriesOnly && extSearched;
+  const showWorldwide = !isCountriesOnly && !!query.trim() && !extSearched;
+
   // ── Keyboard navigation ───────────────────────────────────────────────────
-  const navItems = buildNav(query, recent, localResults, externalResults, extSearched);
+  const navItems = buildNav(
+    query, recent, types, displayedLocal, externalResults, extSearched, isCountriesOnly,
+  );
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Escape") { setOpen(false); return; }
@@ -257,13 +324,12 @@ export function LocationSearchSelect({
     }
   }
 
-  // ── Derived display flags ─────────────────────────────────────────────────
-  const showRecent = !query.trim() && recent.length > 0;
-  const showLocal = !!query.trim();
-  const showExternal = extSearched;
-  const showWorldwide = !!query.trim() && !extSearched;
-
   let navCounter = 0;
+
+  // Filtered recents for rendering (mirrors buildNav filter)
+  const filteredRecent = types?.length
+    ? recent.filter((r) => types.includes(r.type))
+    : recent;
 
   return (
     <>
@@ -359,19 +425,20 @@ export function LocationSearchSelect({
                   placeholder={placeholder}
                   className="flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground/50"
                 />
-                {(localLoading || extLoading) && (
+                {isLocalLoading && (
                   <Loader2Icon className="size-3 animate-spin text-muted-foreground" />
                 )}
               </div>
 
               {/* Results list */}
-              <div >
+              <div>
                 <div role="listbox" className="max-h-68 overflow-y-auto py-1">
-                  {/* Recent */}
+
+                  {/* Recent — filtered by types */}
                   {showRecent && (
                     <>
                       <SectionLabel>Recent</SectionLabel>
-                      {recent.map((r) => {
+                      {filteredRecent.map((r) => {
                         const idx = navCounter++;
                         return (
                           <Row
@@ -388,14 +455,18 @@ export function LocationSearchSelect({
                     </>
                   )}
 
-                  {/* Local DB results */}
+                  {/* Local DB results (or preloaded countries) */}
                   {showLocal && (
                     <>
-                      <SectionLabel>Local Results</SectionLabel>
-                      {localLoading && localResults.length === 0 && (
-                        <p className="px-3 py-3 text-center text-[11px] text-muted-foreground">Searching…</p>
+                      <SectionLabel>
+                        {isCountriesOnly ? "Countries" : "Local Results"}
+                      </SectionLabel>
+                      {isLocalLoading && displayedLocal.length === 0 && (
+                        <p className="px-3 py-3 text-center text-[11px] text-muted-foreground">
+                          {isCountriesOnly ? "Loading countries…" : "Searching…"}
+                        </p>
                       )}
-                      {localResults.map((r) => {
+                      {displayedLocal.map((r) => {
                         const idx = navCounter++;
                         return (
                           <Row
@@ -409,9 +480,11 @@ export function LocationSearchSelect({
                           />
                         );
                       })}
-                      {!localLoading && localResults.length === 0 && !extLoading && (
+                      {!isLocalLoading && displayedLocal.length === 0 && !extLoading && (
                         <p className="px-3 py-2 text-center text-[11px] text-muted-foreground">
-                          No local results — search worldwide below
+                          {isCountriesOnly
+                            ? "No countries found"
+                            : "No local results — search worldwide below"}
                         </p>
                       )}
                     </>
@@ -452,8 +525,8 @@ export function LocationSearchSelect({
                     </>
                   )}
 
-                  {/* Empty state when nothing at all */}
-                  {!showRecent && !query.trim() && (
+                  {/* Empty state */}
+                  {!showRecent && !showLocal && !query.trim() && (
                     <p className="px-3 py-4 text-center text-[11px] text-muted-foreground">
                       Start typing to search locations
                     </p>
@@ -465,7 +538,7 @@ export function LocationSearchSelect({
                   "border-t border-border",
                   (showRecent || showLocal || showExternal) ? "mt-1 pt-1" : "pt-1",
                 )}>
-                  {/* Search worldwide */}
+                  {/* Search worldwide — hidden in countries mode */}
                   {showWorldwide && (() => {
                     const idx = navCounter++;
                     return (
@@ -481,8 +554,8 @@ export function LocationSearchSelect({
                     );
                   })()}
 
-                  {/* Add manually */}
-                  {(() => {
+                  {/* Add manually — hidden in countries-only mode */}
+                  {!isCountriesOnly && (() => {
                     const idx = navCounter++;
                     return (
                       <Row
@@ -512,6 +585,8 @@ export function LocationSearchSelect({
         open={manualOpen}
         onOpenChange={setManualOpen}
         initialName={manualInitial}
+        lockedType={lockedType}
+        mapCenter={mapCenter}
         onCreated={(loc: LocationValue) => pick(loc)}
       />
     </>

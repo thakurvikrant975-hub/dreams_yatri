@@ -85,6 +85,7 @@ import {
 } from "../../components/ui/tooltip";
 import { handleGetDaySourceImages } from "@/app/actions/packages/itinerary-builder.actions";
 import { LocationSearchSelect } from "../../components/location/LocationSearchSelect";
+import { TRANSFER_TYPES } from "../../components/location/location.types";
 import type { LocationValue, LocationType } from "../../components/location/location.types";
 import {
   Loader2,
@@ -129,8 +130,9 @@ type Props = {
   stayCategories: StayCategory[];
   onSaved: (updated: DayData) => void;
   stopLabel?: string;
+  stopCoords?: { lat: number; lng: number };
   occupiedBy?: OccupiedBy;
-  totalDays?: number;
+  maxNights?: number;
 };
 
 type DndItem =
@@ -439,11 +441,11 @@ function TransferEditForm({
     <div className="space-y-4">
       <div className="space-y-1.5">
         <Label className="text-xs">Pickup Location <span className="text-destructive">*</span></Label>
-        <LocationSearchSelect value={form.pickup} onChange={(v) => setForm(f => ({ ...f, pickup: v }))} placeholder="Search pickup point…" />
+        <LocationSearchSelect value={form.pickup} onChange={(v) => setForm(f => ({ ...f, pickup: v }))} placeholder="Search pickup point…" types={TRANSFER_TYPES} mapCenter={stopCoords} />
       </div>
       <div className="space-y-1.5">
         <Label className="text-xs">Drop Location <span className="text-destructive">*</span></Label>
-        <LocationSearchSelect value={form.drop} onChange={(v) => setForm(f => ({ ...f, drop: v }))} placeholder="Search drop point…" />
+        <LocationSearchSelect value={form.drop} onChange={(v) => setForm(f => ({ ...f, drop: v }))} placeholder="Search drop point…" types={TRANSFER_TYPES} mapCenter={stopCoords} />
       </div>
       {(displayKm != null || distLoading) && (
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
@@ -760,11 +762,11 @@ function AddTransferForm({
     <div className="space-y-4">
       <div className="space-y-1.5">
         <Label className="text-xs">Pickup Location <span className="text-destructive">*</span></Label>
-        <LocationSearchSelect value={form.pickup} onChange={(v) => setForm(f => ({ ...f, pickup: v }))} placeholder="Search pickup point…" />
+        <LocationSearchSelect value={form.pickup} onChange={(v) => setForm(f => ({ ...f, pickup: v }))} placeholder="Search pickup point…" types={TRANSFER_TYPES} mapCenter={stopCoords} />
       </div>
       <div className="space-y-1.5">
         <Label className="text-xs">Drop Location <span className="text-destructive">*</span></Label>
-        <LocationSearchSelect value={form.drop} onChange={(v) => setForm(f => ({ ...f, drop: v }))} placeholder="Search drop point…" />
+        <LocationSearchSelect value={form.drop} onChange={(v) => setForm(f => ({ ...f, drop: v }))} placeholder="Search drop point…" types={TRANSFER_TYPES} mapCenter={stopCoords} />
       </div>
       {(roadKm != null || distLoading) && (
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
@@ -978,9 +980,9 @@ function StayBlock({
 }) {
   const [assigningCategoryId, setAssigningCategoryId] = useState<number | null>(null);
   const [savingId, setSavingId] = useState<number | null>(null);
-  // Single shared num_nights for all categories (a stay covers the same nights across all tiers)
+  // Single shared num_nights — clamped to stop boundary
   const [numNights, setNumNights] = useState<number>(
-    stays[0]?.num_nights ?? 1,
+    Math.min(stays[0]?.num_nights ?? 1, Math.max(1, maxNights)),
   );
 
   const fetchRooms = useCallback(async (query: string): Promise<Option[]> => {
@@ -1050,6 +1052,16 @@ function StayBlock({
     return <p className="text-sm text-muted-foreground/60 italic">No stay categories configured for this package.</p>;
   }
 
+  // Departure day — last day of the last stop, no overnight stay possible
+  if (maxNights === 0) {
+    return (
+      <div className="rounded-xl border border-muted-foreground/20 bg-muted/30 p-5 text-center space-y-1">
+        <p className="text-sm font-medium text-muted-foreground">Departure Day</p>
+        <p className="text-xs text-muted-foreground/70">This is the last day of the trip — no overnight stay is needed.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
 
@@ -1058,7 +1070,9 @@ function StayBlock({
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-xs font-semibold text-violet-800">Number of Nights</p>
-            <p className="text-[10px] text-violet-600/70 mt-0.5">How many consecutive nights does this stay cover?</p>
+            <p className="text-[10px] text-violet-600/70 mt-0.5">
+              Max {maxNights} night{maxNights !== 1 ? "s" : ""} — limited to this stop&apos;s remaining days
+            </p>
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <Button
@@ -1440,7 +1454,7 @@ function TimelineDropZone({ children, isEmpty }: { children: React.ReactNode; is
 // ── Main sidebar ───────────────────────────────────────────────────────────
 
 export function ItineraryDaySidebar({
-  open, onClose, packageId, destinationId, durationId, routeId, day: initialDay, stayCategories, onSaved, stopLabel, occupiedBy, totalDays,
+  open, onClose, packageId, destinationId, durationId, routeId, day: initialDay, stayCategories, onSaved, stopLabel, stopCoords, occupiedBy, maxNights: maxNightsProp,
 }: Props) {
   const [itineraryId, setItineraryId] = useState<number | null>(initialDay.id);
   const [title, setTitle] = useState(initialDay.title);
@@ -1825,7 +1839,7 @@ export function ItineraryDaySidebar({
                 <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold mb-3">Add Elements</p>
                 <div className="flex gap-2">
                   <PaletteChip kind="transfer" disabled={!itineraryId} onClick={() => setEditPanel({ mode: "add", kind: "transfer" })} />
-                  <PaletteChip kind="stay" disabled={!itineraryId || !!occupiedBy} onClick={() => setEditPanel({ mode: "stay" })} />
+                  <PaletteChip kind="stay" disabled={!itineraryId || !!occupiedBy || maxNightsProp === 0} onClick={() => setEditPanel({ mode: "stay" })} />
                   <PaletteChip kind="activity" disabled={!itineraryId} onClick={() => setEditPanel({ mode: "add", kind: "activity" })} />
                   <PaletteChip kind="note" disabled={!itineraryId} onClick={() => setEditPanel({ mode: "add", kind: "note" })} />
                 </div>
@@ -2000,7 +2014,7 @@ export function ItineraryDaySidebar({
                     packageId={packageId} destinationId={destinationId}
                     pending={pending}
                     currentDay={initialDay.day}
-                    maxNights={(totalDays ?? 99) - initialDay.day + 1}
+                    maxNights={maxNightsProp ?? 99}
                     onStaysChange={(updated) => {
                       setStays(updated);
                       onSaved({ ...currentDayData(), stays: updated });

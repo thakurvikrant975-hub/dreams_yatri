@@ -223,6 +223,8 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
                 }
               }}
               placeholder="Search hotel location…"
+              types={["HOTEL"]}
+              lockedType="HOTEL"
             />
           </div>
 

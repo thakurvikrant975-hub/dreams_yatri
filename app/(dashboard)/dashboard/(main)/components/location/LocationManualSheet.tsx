@@ -61,21 +61,26 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   onCreated: (location: LocationValue) => void;
   initialName?: string;
+  /** Lock the type dropdown to a single value (e.g. "HOTEL") */
+  lockedType?: LocationType;
+  /** Open the map centered here instead of the default India center */
+  mapCenter?: { lat: number; lng: number };
 }
 
+// COUNTRY excluded — you never pin a country on a map
 const ALL_TYPES: LocationType[] = [
-  "CITY", "AREA", "DISTRICT", "NEIGHBORHOOD", "VILLAGE",
+  "CITY", "STATE", "DISTRICT", "AREA", "NEIGHBORHOOD", "VILLAGE",
   "LANDMARK", "AIRPORT", "BEACH", "MOUNTAIN", "ISLAND",
   "TOURISM_ZONE", "BUS_STATION", "TRAIN_STATION", "PORT",
-  "STATE", "COUNTRY",
+  "REGION", "SUBREGION",
 ];
 
 const DEFAULT_CENTER = { lat: 20.5937, lng: 78.9629 };
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export function LocationManualSheet({ open, onOpenChange, onCreated, initialName }: Props) {
-  const [coords, setCoords]               = useState(DEFAULT_CENTER);
+export function LocationManualSheet({ open, onOpenChange, onCreated, initialName, lockedType, mapCenter }: Props) {
+  const [coords, setCoords]               = useState(mapCenter ?? DEFAULT_CENTER);
   const [reverseLoading, setRevLoad]      = useState(false);
   const [submitting, setSubmitting]       = useState(false);
   const [serverError, setServerError]     = useState<string | null>(null);
@@ -89,7 +94,7 @@ export function LocationManualSheet({ open, onOpenChange, onCreated, initialName
     formState: { errors }, reset,
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { name: initialName ?? "", type: "CITY", is_featured: false },
+    defaultValues: { name: initialName ?? "", type: lockedType ?? "CITY", is_featured: false },
   });
 
   const nameVal     = watch("name");
@@ -109,15 +114,15 @@ export function LocationManualSheet({ open, onOpenChange, onCreated, initialName
     setValue("slug", slug, { shouldValidate: false });
   }, [nameVal, setValue]);
 
-  // Reset when sheet opens
+  // Reset when sheet opens; honour mapCenter if provided
   useEffect(() => {
     if (!open) return;
-    reset({ name: initialName ?? "", type: "CITY", is_featured: false });
-    setCoords(DEFAULT_CENTER);
+    reset({ name: initialName ?? "", type: lockedType ?? "CITY", is_featured: false });
+    setCoords(mapCenter ?? DEFAULT_CENTER);
     setServerError(null);
     setMapFullscreen(false);
     setCountryLoc(null);
-  }, [open, initialName, reset]);
+  }, [open, initialName, lockedType, mapCenter, reset]);
 
   // ── Reverse geocode (shared) ───────────────────────────────────────────────
   function fireReverseGeocode(lat: number, lng: number) {
@@ -199,8 +204,8 @@ export function LocationManualSheet({ open, onOpenChange, onCreated, initialName
   }
 
   function handleReset() {
-    reset({ name: initialName ?? "", type: "CITY", is_featured: false });
-    setCoords(DEFAULT_CENTER);
+    reset({ name: initialName ?? "", type: lockedType ?? "CITY", is_featured: false });
+    setCoords(mapCenter ?? DEFAULT_CENTER);
     setServerError(null);
     setCountryLoc(null);
   }
@@ -309,18 +314,28 @@ export function LocationManualSheet({ open, onOpenChange, onCreated, initialName
                 </Field>
 
                 <Field label="Location Type" error={errors.type?.message} required>
-                  <select
-                    {...register("type")}
-                    className={cn(
-                      "h-10 w-full rounded-lg border border-dashboard-base-content/85 bg-dashboard-base-100",
-                      "px-3 text-xs text-dashboard-base-content outline-none",
-                      "focus:border-dashboard-primary focus:ring-1 focus:ring-dashboard-primary/30",
-                    )}
-                  >
-                    {ALL_TYPES.map((t) => (
-                      <option key={t} value={t}>{LOCATION_LABELS[t]}</option>
-                    ))}
-                  </select>
+                  {lockedType ? (
+                    <div className={cn(
+                      "flex h-10 w-full items-center rounded-lg border border-dashboard-base-content/85 bg-muted/40",
+                      "px-3 text-xs text-dashboard-base-content/60 cursor-not-allowed select-none",
+                    )}>
+                      {LOCATION_LABELS[lockedType]}
+                      <input type="hidden" {...register("type")} value={lockedType} />
+                    </div>
+                  ) : (
+                    <select
+                      {...register("type")}
+                      className={cn(
+                        "h-10 w-full rounded-lg border border-dashboard-base-content/85 bg-dashboard-base-100",
+                        "px-3 text-xs text-dashboard-base-content outline-none",
+                        "focus:border-dashboard-primary focus:ring-1 focus:ring-dashboard-primary/30",
+                      )}
+                    >
+                      {ALL_TYPES.map((t) => (
+                        <option key={t} value={t}>{LOCATION_LABELS[t]}</option>
+                      ))}
+                    </select>
+                  )}
                 </Field>
 
                 <Field label="Country" error={errors.country?.message}>

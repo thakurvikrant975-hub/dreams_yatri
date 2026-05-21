@@ -24,7 +24,11 @@ import { cn } from "@/app/lib/utils";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-type RouteStop = { place_name: string; stay_days: number };
+type RouteStop = {
+  place_name: string;
+  stay_days: number;
+  location: { latitude: number | null; longitude: number | null } | null;
+};
 type RouteRow = { id: number; name: string; stops?: RouteStop[] };
 
 type Duration = {
@@ -52,6 +56,27 @@ export type OccupiedBy = {
   nightIndex: number; // 1-based: which night of that stay is this day
 };
 
+// ── Stop coords helper — returns the location coords of the stop for a day ──
+
+function getStopCoords(
+  dayNumber: number,
+  stops: RouteStop[],
+): { lat: number; lng: number } | undefined {
+  let cursor = 0;
+  for (const stop of stops) {
+    const isLast = stops[stops.length - 1] === stop;
+    const count = stop.stay_days + (isLast ? 1 : 0);
+    cursor += count;
+    if (dayNumber <= cursor) {
+      const lat = stop.location?.latitude;
+      const lng = stop.location?.longitude;
+      if (lat != null && lng != null) return { lat, lng };
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
 // ── Stop label helper ──────────────────────────────────────────────────────
 
 function getStopLabel(dayNumber: number, stops: RouteStop[]): string {
@@ -72,6 +97,31 @@ function getStopLabel(dayNumber: number, stops: RouteStop[]): string {
     }
   }
   return "";
+}
+
+// ── Max-nights-for-day helper ──────────────────────────────────────────────
+// Returns how many consecutive nights can be assigned starting from `dayNumber`,
+// limited to the remaining nights in the stop that owns that day.
+// The last stop gets +1 day for its departure day; that day itself returns 0.
+
+function getMaxNightsForDay(dayNumber: number, stops: RouteStop[]): number {
+  let cursor = 0;
+  for (let i = 0; i < stops.length; i++) {
+    const stop = stops[i];
+    const isLast = i === stops.length - 1;
+    const count = stop.stay_days + (isLast ? 1 : 0);
+    const startDay = cursor + 1;
+    const endDay   = cursor + count;
+    cursor += count;
+    if (dayNumber >= startDay && dayNumber <= endDay) {
+      if (isLast) {
+        // endDay is departure day → no overnight stay on that day
+        return Math.max(0, endDay - dayNumber);
+      }
+      return endDay - dayNumber + 1;
+    }
+  }
+  return 1; // fallback when no stops
 }
 
 // ── Stop group helper ──────────────────────────────────────────────────────
@@ -396,10 +446,13 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
 
       {/* Day sidebar */}
       {openDay && selectedDurationId && selectedRouteId && (() => {
-        const stopLabel = selectedRoute?.stops
-          ? getStopLabel(openDay.day, selectedRoute.stops)
-          : undefined;
-        const totalDays = selectedDuration?.days ?? 99;
+        const stops = selectedRoute?.stops ?? [];
+        const stopLabel  = stops.length ? getStopLabel(openDay.day, stops)  : undefined;
+        const stopCoords = stops.length ? getStopCoords(openDay.day, stops) : undefined;
+        const totalDays  = selectedDuration?.days ?? 99;
+        const maxNights  = stops.length > 0
+          ? getMaxNightsForDay(openDay.day, stops)
+          : totalDays - openDay.day + 1;
         return (
           <ItineraryDaySidebar
             key={`${selectedDurationId}-${selectedRouteId}-${openDay.day}`}
@@ -413,8 +466,9 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
             stayCategories={stayCategories}
             onSaved={handleDaySaved}
             stopLabel={stopLabel}
+            stopCoords={stopCoords}
             occupiedBy={occupiedDays.get(openDay.day)}
-            totalDays={totalDays}
+            maxNights={maxNights}
           />
         );
       })()}

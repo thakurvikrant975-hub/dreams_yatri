@@ -20,6 +20,7 @@ import { toast }  from "sonner";
 import { cn }     from "@/app/lib/utils";
 import { LocationSearchSelect } from "../../../components/location/LocationSearchSelect";
 import type { LocationValue } from "../../../components/location/location.types";
+import { ACTIVITY_TYPES }    from "../../../components/location/location.types";
 import { updateActivity } from "../../actions";
 
 // ── Constants ─────────────────────────────────────────────────────────────
@@ -332,6 +333,7 @@ export function OverviewTab({
                         value={location}
                         onChange={handleLocationChange}
                         placeholder="Search activity location…"
+                        types={ACTIVITY_TYPES}
                     />
                 </div>
 

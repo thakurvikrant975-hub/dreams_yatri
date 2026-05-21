@@ -19,7 +19,7 @@ export async function getPackageForBuilder(id: number) {
       exclusions: true,
       is_active: true,
       created_at: true,
-      destination: { select: { name: true } },
+      destination: { select: { name: true, latitude: true, longitude: true } },
       tags: { include: { tag: { select: { name: true } } } },
       categories: { include: { category: { select: { name: true } } } },
       images: {

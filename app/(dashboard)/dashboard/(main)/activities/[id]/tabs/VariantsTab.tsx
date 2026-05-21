@@ -21,6 +21,7 @@ import {
     Plus, Pencil, Trash2, Loader2, Check, X,
     ChevronDown, ChevronRight, Zap,
 } from "lucide-react";
+import { DateRangePicker } from "../../../components/ui/date-range-picker";
 import { toast } from "sonner";
 import { cn } from "@/app/lib/utils";
 import {
@@ -111,7 +112,8 @@ function VariantForm({
         setForm(prev => ({ ...prev, [key]: value }));
     }
 
-    const isValid = !!form.name && !!form.booking_mode && !!form.pricing_type;
+    const isValid = !!form.name && !!form.booking_mode && !!form.pricing_type
+        && !!form.valid_from && !!form.valid_to;
 
     return (
         <div className="border rounded-xl p-4 space-y-4 bg-muted/20">
@@ -187,15 +189,20 @@ function VariantForm({
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                    <Label>Valid From</Label>
-                    <Input type="date" value={form.valid_from} onChange={e => update("valid_from", e.target.value)} />
-                </div>
-                <div className="space-y-1.5">
-                    <Label>Valid To</Label>
-                    <Input type="date" value={form.valid_to} onChange={e => update("valid_to", e.target.value)} />
-                </div>
+            <div className="space-y-1.5">
+                <Label>
+                    Valid Period <span className="text-destructive">*</span>
+                </Label>
+                <DateRangePicker
+                    from={form.valid_from}
+                    to={form.valid_to}
+                    onFromChange={v => update("valid_from", v)}
+                    onToChange={v => update("valid_to", v)}
+                    error={!form.valid_from || !form.valid_to}
+                />
+                {(!form.valid_from || !form.valid_to) && (
+                    <p className="text-[10px] text-destructive">Both dates required to save</p>
+                )}
             </div>
 
             <div className="flex items-center justify-between pt-1">

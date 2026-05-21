@@ -24,6 +24,7 @@ import {
 
 import { LocationSearchSelect } from "../components/location/LocationSearchSelect";
 import type { LocationValue }   from "../components/location/location.types";
+import { DESTINATION_TYPES }   from "../components/location/location.types";
 import { createDestination, updateDestination, checkDestinationSlug } from "./actions";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -369,6 +370,7 @@ function BasicInfoStep({
           value={locationLoc}
           onChange={handleLocationSelect}
           placeholder="Search cities, towns, attractions…"
+          types={DESTINATION_TYPES}
         />
         <p className="text-xs text-muted-foreground">
           Search and select the location — country will auto-fill

@@ -190,6 +190,8 @@ export function DetailsTab({
                 if (loc) setAddress(loc.breadcrumb);
               }}
               placeholder="Search hotel location…"
+              types={["HOTEL"]}
+              lockedType="HOTEL"
             />
           </div>
 

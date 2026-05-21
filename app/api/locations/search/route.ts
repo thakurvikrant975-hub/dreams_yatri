@@ -10,9 +10,11 @@ export async function GET(req: NextRequest) {
     const types = typesParam
       ? (typesParam.split(",").filter(Boolean) as LocationType[])
       : undefined;
-    const limit = Math.min(Number(searchParams.get("limit") ?? "8"), 20);
+    // Higher cap for preload requests (e.g. countries list)
+    const limit = Math.min(Number(searchParams.get("limit") ?? "8"), 500);
 
-    if (q.length < 2) return NextResponse.json([]);
+    // Allow type-only queries (no text) so callers can preload all items of a type
+    if (q.length < 2 && !types?.length) return NextResponse.json([]);
 
     const rows = await db.location.findMany({
       where: {

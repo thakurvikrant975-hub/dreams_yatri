@@ -23,6 +23,7 @@ import { Badge } from "../../components/ui/badge";
 import { Switch } from "../../components/ui/switch";
 import { LocationSearchSelect } from "../../components/location/LocationSearchSelect";
 import type { LocationValue, LocationType } from "../../components/location/location.types";
+import { ROUTE_STOP_TYPES } from "../../components/location/location.types";
 import {
   DBImageSelector, type SelectableImage,
 } from "../../components/dashboard/DBImageSelector";
@@ -84,11 +85,12 @@ const RoutePreviewMap = dynamic(
 // ── Sortable stop row ──────────────────────────────────────────────────────
 
 function SortableStopRow({
-  row, index, total, onChange, onRemove,
+  row, index, total, onChange, onRemove, destinationCoords,
 }: {
   row: StopRow; index: number; total: number;
   onChange: (id: string, patch: Partial<StopRow>) => void;
   onRemove: (id: string) => void;
+  destinationCoords?: { lat: number; lng: number };
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: row.id });
@@ -113,6 +115,12 @@ function SortableStopRow({
           value={row.location}
           onChange={(loc) => onChange(row.id, { location: loc })}
           placeholder={`Stop ${index + 1} — search location`}
+          types={ROUTE_STOP_TYPES}
+          mapCenter={
+            row.location?.latitude != null && row.location?.longitude != null
+              ? { lat: Number(row.location.latitude), lng: Number(row.location.longitude) }
+              : destinationCoords
+          }
         />
       </div>
 
@@ -136,8 +144,12 @@ function SortableStopRow({
 // ── Step 1: Stops ──────────────────────────────────────────────────────────
 
 function StopsStep({
-  stops, setStops,
-}: { stops: StopRow[]; setStops: React.Dispatch<React.SetStateAction<StopRow[]>> }) {
+  stops, setStops, destinationCoords,
+}: {
+  stops: StopRow[];
+  setStops: React.Dispatch<React.SetStateAction<StopRow[]>>;
+  destinationCoords?: { lat: number; lng: number };
+}) {
   const { setStepData } = useMultiStepSheet();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -183,7 +195,7 @@ function StopsStep({
           <div className="space-y-2">
             {stops.map((row, i) => (
               <SortableStopRow key={row.id} row={row} index={i} total={stops.length}
-                onChange={updateStop} onRemove={removeStop} />
+                onChange={updateStop} onRemove={removeStop} destinationCoords={destinationCoords} />
             ))}
           </div>
         </SortableContext>
@@ -468,9 +480,10 @@ type Props = {
   onClose: () => void;
   onSaved: () => void;
   packageImages: SelectableImage[];
+  destinationCoords?: { lat: number; lng: number };
 };
 
-export function RouteBuilderSidebar({ packageId, editing, open, onClose, onSaved, packageImages }: Props) {
+export function RouteBuilderSidebar({ packageId, editing, open, onClose, onSaved, packageImages, destinationCoords }: Props) {
   const [isSaving, setIsSaving] = useState(false);
   const [stops, setStops] = useState<StopRow[]>([{ id: uid(), location: null, stay_nights: 1 }]);
 
@@ -615,7 +628,7 @@ export function RouteBuilderSidebar({ packageId, editing, open, onClose, onSaved
       initialStepData={initialStepData}
     >
       {/* Step 1: Stops */}
-      <StopsStep stops={stops} setStops={setStops} />
+      <StopsStep stops={stops} setStops={setStops} destinationCoords={destinationCoords} />
 
       {/* Step 2: Route Meta */}
       <RouteMetaStep
