@@ -18,6 +18,7 @@ import {
   StickyNote,
   ChevronRight,
   Camera,
+  MapPin,
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 
@@ -71,6 +72,20 @@ function getStopLabel(dayNumber: number, stops: RouteStop[]): string {
     }
   }
   return "";
+}
+
+// ── Stop group helper ──────────────────────────────────────────────────────
+
+function computeStopGroups(stops: RouteStop[]) {
+  let cursor = 0;
+  return stops.map((stop, i) => {
+    const isLast = i === stops.length - 1;
+    const count = stop.stay_days + (isLast ? 1 : 0);
+    const startDay = cursor + 1;
+    const endDay = cursor + count;
+    cursor += count;
+    return { name: stop.place_name, startDay, endDay };
+  });
 }
 
 // ── Day Card ───────────────────────────────────────────────────────────────
@@ -154,6 +169,7 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
   const [openDay, setOpenDay] = useState<DayData | null>(null);
 
   const selectedDuration = durations.find((d) => d.id === selectedDurationId) ?? null;
+  const selectedRoute = selectedDuration?.routes.find((r) => r.id === selectedRouteId) ?? null;
 
   const loadDays = useCallback(
     async (durationId: number, routeId: number) => {
@@ -327,26 +343,59 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           ) : days ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-              {days.map((day) => (
-                <DayCard
-                  key={day.day}
-                  day={day}
-                  occupiedBy={occupiedDays.get(day.day)}
-                  onClick={() => {
-                    setOpenDay(day);
-                    setSidebarOpen(true);
-                  }}
-                />
-              ))}
-            </div>
+            selectedRoute?.stops?.length ? (
+              <div className="space-y-5">
+                {computeStopGroups(selectedRoute.stops).map((group) => {
+                  const stopDays = days.filter((d) => d.day >= group.startDay && d.day <= group.endDay);
+                  return (
+                    <div key={`${group.name}-${group.startDay}`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <MapPin className="h-3 w-3 text-muted-foreground shrink-0" />
+                        <span className="text-xs font-semibold">{group.name}</span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {group.startDay === group.endDay
+                            ? `Day ${group.startDay}`
+                            : `Days ${group.startDay}–${group.endDay}`}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                        {stopDays.map((day) => (
+                          <DayCard
+                            key={day.day}
+                            day={day}
+                            occupiedBy={occupiedDays.get(day.day)}
+                            onClick={() => {
+                              setOpenDay(day);
+                              setSidebarOpen(true);
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                {days.map((day) => (
+                  <DayCard
+                    key={day.day}
+                    day={day}
+                    occupiedBy={occupiedDays.get(day.day)}
+                    onClick={() => {
+                      setOpenDay(day);
+                      setSidebarOpen(true);
+                    }}
+                  />
+                ))}
+              </div>
+            )
           ) : null}
         </div>
       )}
 
       {/* Day sidebar */}
       {openDay && selectedDurationId && selectedRouteId && (() => {
-        const selectedRoute = selectedDuration?.routes.find((r) => r.id === selectedRouteId);
         const stopLabel = selectedRoute?.stops
           ? getStopLabel(openDay.day, selectedRoute.stops)
           : undefined;

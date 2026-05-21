@@ -27,6 +27,7 @@ import {
   DBImageSelector, type SelectableImage,
 } from "../../components/dashboard/DBImageSelector";
 import { handleSaveRouteVariant } from "@/app/actions/packages/route-builder.actions";
+import { handleCheckItineraryDaysContent } from "@/app/actions/packages/itinerary-builder.actions";
 import { type StopInput, type DurationMeta } from "@/app/services/route-builder.service";
 import { deriveRouteName } from "@/app/lib/route-builder-utils";
 import {
@@ -540,6 +541,31 @@ export function RouteBuilderSidebar({ packageId, editing, open, onClose, onSaved
       thumbnail_url: dur.thumbnail_url ?? null,
     };
 
+    // Guard: if editing and total days would decrease, check for itinerary content
+    if (editing) {
+      const newAutoNights = stopInputs.reduce((s, r) => s + r.stay_days, 0);
+      const newDays = typeof dur.days === "number" ? dur.days : newAutoNights + 1;
+      const oldDays = editing.durationDays;
+
+      if (newDays < oldDays) {
+        setIsSaving(true);
+        const check = await handleCheckItineraryDaysContent(
+          packageId, editing.routeId, editing.durationId, newDays + 1, oldDays,
+        );
+        setIsSaving(false);
+        if (!check.success) {
+          toast.error(check.message ?? "Failed to verify days");
+          return;
+        }
+        if (check.hasContent) {
+          toast.error(
+            `Days ${newDays + 1}–${oldDays} have itinerary content. Clear those days in the Itinerary Builder before reducing.`,
+          );
+          return;
+        }
+      }
+    }
+
     setIsSaving(true);
     try {
       const res = await handleSaveRouteVariant(
@@ -555,7 +581,20 @@ export function RouteBuilderSidebar({ packageId, editing, open, onClose, onSaved
       );
 
       if (!res.success) { toast.error(res.message); return; }
-      toast.success(editing ? "Route updated" : "Route created");
+
+      // Warn if stop order/nights changed — itinerary day numbers may have shifted
+      if (editing) {
+        const newAutoNights = stopInputs.reduce((s, r) => s + r.stay_days, 0);
+        const newDays = typeof dur.days === "number" ? dur.days : newAutoNights + 1;
+        if (newDays !== editing.durationDays) {
+          toast.warning("Route saved. Day numbers may have shifted — review the Itinerary Builder.");
+        } else {
+          toast.success("Route updated");
+        }
+      } else {
+        toast.success("Route created");
+      }
+
       onSaved();
       onClose();
     } finally {

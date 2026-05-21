@@ -258,6 +258,26 @@ export async function getItineraryData(
   });
 }
 
+// ── Content check ─────────────────────────────────────────────────────────
+
+export async function checkItineraryDaysHaveContent(
+  packageId: number,
+  routeId: number,
+  durationId: number,
+  fromDay: number,
+  toDay: number,
+): Promise<boolean> {
+  const count = await db.package_itineraries.count({
+    where: {
+      package_id: packageId,
+      route_id: routeId,
+      duration_id: durationId,
+      day: { gte: fromDay, lte: toDay },
+    },
+  });
+  return count > 0;
+}
+
 // ── Day meta ───────────────────────────────────────────────────────────────
 
 export async function upsertDayMeta(

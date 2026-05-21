@@ -31,6 +31,7 @@ import {
   deleteItineraryAttraction,
   reorderItineraryAttractions,
   getDaySourceImages,
+  checkItineraryDaysHaveContent,
   type TransferInput,
   type NoteInput,
   type ReorderItem,
@@ -401,5 +402,21 @@ export async function handleReorderAttractions(
   } catch (e) {
     console.error(e);
     return { success: false as const, message: "Failed to reorder attractions" };
+  }
+}
+
+export async function handleCheckItineraryDaysContent(
+  packageId: number,
+  routeId: number,
+  durationId: number,
+  fromDay: number,
+  toDay: number,
+) {
+  try {
+    const hasContent = await checkItineraryDaysHaveContent(packageId, routeId, durationId, fromDay, toDay);
+    return { success: true as const, hasContent };
+  } catch (e) {
+    console.error(e);
+    return { success: false as const, message: "Failed to check days" };
   }
 }

@@ -212,6 +212,26 @@ export async function upsertRouteVariant(
     });
 
     if (prev && prev.duration_id !== duration.id) {
+      // Migrate itinerary rows to the new duration
+      await db.package_itineraries.updateMany({
+        where: { route_id: routeId, duration_id: prev.duration_id },
+        data: { duration_id: duration.id },
+      });
+
+      // Delete empty itinerary rows beyond new total days
+      await db.package_itineraries.deleteMany({
+        where: {
+          route_id: routeId,
+          duration_id: duration.id,
+          day: { gt: days },
+          itinerary_activities: { none: {} },
+          itinerary_transfers: { none: {} },
+          itinerary_notes: { none: {} },
+          itineraryStays: { none: {} },
+          itinerary_attractions: { none: {} },
+        },
+      });
+
       await cleanOrphanDuration(prev.duration_id);
     }
 
