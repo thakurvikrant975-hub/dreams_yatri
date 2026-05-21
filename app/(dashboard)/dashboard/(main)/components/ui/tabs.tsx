@@ -26,17 +26,15 @@ function Tabs({
 
 const tabsListVariants = cva(
   [
-    "group/tabs-list inline-flex w-fit items-center justify-center p-1",
-    "text-[var(--color-dashboard-base-content)]",
+    "group/tabs-list inline-flex w-fit items-center justify-center gap-1 p-1.5",
     "group-data-vertical/tabs:h-fit group-data-vertical/tabs:flex-col",
-    // default variant shape
-    "data-[variant=line]:rounded-none rounded-xl",
+    "rounded-xl",
   ].join(" "),
   {
     variants: {
       variant: {
-        default: "bg-[var(--color-dashboard-base-200)]",
-        line:    "gap-1 bg-transparent",
+        default: "bg-dashboard-base-100",
+        line: "gap-1 bg-transparent",
       },
     },
     defaultVariants: {
@@ -70,59 +68,59 @@ function TabsTrigger({
       data-slot="tabs-trigger"
       className={cn(
         // Base layout
-        "relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center",
-        "gap-1.5 rounded-lg border border-transparent px-2.5 py-1.5",
-        "text-xs font-medium whitespace-nowrap transition-all cursor-pointer",
+        "relative inline-flex flex-1 flex-col items-center justify-center",
+        "gap-0.5 rounded-xl border border-transparent px-4 py-2.5",
+        "text-xs font-semibold whitespace-nowrap transition-all duration-150 cursor-pointer",
 
         // Vertical overrides
-        "group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start",
-        "group-data-vertical/tabs:py-[calc(--spacing(1.25))]",
+        "group-data-vertical/tabs:w-full group-data-vertical/tabs:flex-row",
+        "group-data-vertical/tabs:justify-start",
 
-        // Inactive text — muted version of base-content
-        "text-[color-mix(in_oklch,var(--color-dashboard-base-content)_45%,transparent)]",
-        "hover:text-[var(--color-dashboard-base-content)]",
+        // Inactive styles
+        "bg-transparent",
+        "text-dashboard-base-content",
+        "[&_[data-day]]:text-dashboard-base-content/45",
+        "**:data-day:text-[11px] **:data-day:font-medium",
 
-        // Focus ring using primary
-        "focus-visible:border-[var(--color-dashboard-primary)]",
-        "focus-visible:ring-[3px]",
-        "focus-visible:ring-[color-mix(in_oklch,var(--color-dashboard-primary)_50%,transparent)]",
-        "focus-visible:outline-1 focus-visible:outline-[var(--color-dashboard-primary)]",
+        // Hover
+        "hover:bg-dashboard-base-200",
+
+        // Focus ring
+        "focus-visible:outline-none",
+        "focus-visible:ring-2",
+        "focus-visible:ring-dashboard-primary",
+        "focus-visible:ring-offset-1",
 
         // Disabled
-        "disabled:pointer-events-none disabled:opacity-50",
-
-        // Icon padding helpers
-        "has-data-[icon=inline-end]:pr-1 has-data-[icon=inline-start]:pl-1",
+        "disabled:pointer-events-none disabled:opacity-40",
 
         // SVG defaults
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
 
-        // ── Active state (default pill variant) ──────────────────────────
-        "data-active:bg-[var(--color-dashboard-base-100)]",
-        "data-active:text-[var(--color-dashboard-base-content)]",
-        "data-active:border-[var(--color-dashboard-base-300)]",
-        "data-active:shadow-sm",
+        // ── Active state ─────────────────────────────────────────
+        "data-[state=active]:bg-dashboard-primary",
+        "data-[state=active]:text-dashboard-primary-content",
+        "data-[state=active]:**:data-day:text-dashboard-primary-content/75",
+        "data-[state=active]:border-transparent",
+        "data-[state=active]:shadow-lg",
+        "data-[state=active]:shadow-dashboard-primary/30",
 
-        // ── Line variant overrides ───────────────────────────────────────
-        // Inactive in line variant: no bg
+        // ── Line variant overrides ────────────────────────────────
         "group-data-[variant=line]/tabs-list:bg-transparent",
-        // Active in line variant: also no bg fill, just the underline
-        "group-data-[variant=line]/tabs-list:data-active:bg-transparent",
-        "group-data-[variant=line]/tabs-list:data-active:border-transparent",
+        "group-data-[variant=line]/tabs-list:data-[state=active]:bg-transparent",
+        "group-data-[variant=line]/tabs-list:data-[state=active]:border-transparent",
+        "group-data-[variant=line]/tabs-list:rounded-none",
 
-        // ── Underline bar (line variant only) ───────────────────────────
-        "after:absolute after:opacity-0 after:transition-opacity",
-        "after:bg-[var(--color-dashboard-primary)]",
-        // Horizontal: bar at the bottom
-        "group-data-horizontal/tabs:after:inset-x-0",
-        "group-data-horizontal/tabs:after:bottom-[-5px]",
+        // ── Underline bar (line variant only) ─────────────────────
+        "after:absolute after:opacity-0 after:transition-opacity after:rounded-full",
+        "after:bg-dashboard-primary",
+        "group-data-horizontal/tabs:after:inset-x-3",
+        "group-data-horizontal/tabs:after:bottom-[-4px]",
         "group-data-horizontal/tabs:after:h-0.5",
-        // Vertical: bar on the right edge
-        "group-data-vertical/tabs:after:inset-y-0",
+        "group-data-vertical/tabs:after:inset-y-3",
         "group-data-vertical/tabs:after:-right-1",
         "group-data-vertical/tabs:after:w-0.5",
-        // Show bar only when active + line variant
-        "group-data-[variant=line]/tabs-list:data-active:after:opacity-100",
+        "group-data-[variant=line]/tabs-list:data-[state=active]:after:opacity-100",
 
         className
       )}
@@ -138,7 +136,7 @@ function TabsContent({
   return (
     <TabsPrimitive.Content
       data-slot="tabs-content"
-      className={cn("flex-1 text-xs/relaxed outline-none", className)}
+      className={cn("flex-1 text-sm/relaxed outline-none", className)}
       {...props}
     />
   )
