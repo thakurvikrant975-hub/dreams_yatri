@@ -1,13 +1,14 @@
 "use server";
 
-import { db }             from "@/app/lib/db";
-import { deleteFromR2 }   from "@/app/lib/r2/r2delete";
-import { revalidatePath } from "next/cache";
-import { Ok, Err, Result } from "@/app/lib/result";
-import { RegionSchema }   from "@/app/lib/validators/regions";
-import { RegionInput }    from "@/app/lib/validators/regions";
-import { dashboardAuth }  from "@/app/lib/auth-dashboard";
-import { createLog }      from "../lib/logger";
+import { db }                   from "@/app/lib/db";
+import { deleteFromR2 }         from "@/app/lib/r2/r2delete";
+import { revalidatePath }       from "next/cache";
+import { Ok, Result }           from "@/app/lib/result";
+import { RegionSchema }         from "@/app/lib/validators/regions";
+import { RegionInput }          from "@/app/lib/validators/regions";
+import { dashboardAuth }        from "@/app/lib/auth-dashboard";
+import { createLog }            from "../lib/logger";
+import { classifyActionError }  from "@/app/lib/action-error";
 
 // ── Shared FormState type ─────────────────────────────────────────────────────
 export type RegionFormState = {
@@ -205,7 +206,8 @@ async function createRegionRecord(
     revalidatePath("/dashboard/regions");
     return Ok("Region created successfully");
   } catch (e) {
-    return Result.dbError(e);
+    console.error("[createRegion]", e);
+    return { success: false, error: { code: "DB_ERROR" as const, message: classifyActionError(e).message } };
   }
 }
 
@@ -281,7 +283,8 @@ async function updateRegionRecord(
     revalidatePath("/dashboard/regions");
     return Ok("Region updated successfully");
   } catch (e) {
-    return Result.dbError(e);
+    console.error("[updateRegion]", e);
+    return { success: false, error: { code: "DB_ERROR" as const, message: classifyActionError(e).message } };
   }
 }
 
@@ -338,7 +341,8 @@ async function deleteRegionRecord(
     revalidatePath("/dashboard/regions");
     return Ok("Region deleted successfully");
   } catch (e) {
-    return Result.dbError(e);
+    console.error("[deleteRegion]", e);
+    return { success: false, error: { code: "DB_ERROR" as const, message: classifyActionError(e).message } };
   }
 }
 

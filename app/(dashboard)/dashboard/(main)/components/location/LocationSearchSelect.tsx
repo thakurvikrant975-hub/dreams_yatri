@@ -181,7 +181,9 @@ export function LocationSearchSelect({
     try {
       setExtLoading(true);
       setExtSearched(true);
-      const res = await fetch(`/api/locations/external?q=${encodeURIComponent(query.trim())}`);
+      const qs = new URLSearchParams({ q: query.trim() });
+      if (types?.length) qs.set("types", types.join(","));
+      const res = await fetch(`/api/locations/external?${qs}`);
       if (res.ok) {
         const data = await res.json();
         setExternalResults(data.results ?? []);
@@ -189,7 +191,7 @@ export function LocationSearchSelect({
     } finally {
       setExtLoading(false);
     }
-  }, [query, extLoading]);
+  }, [query, extLoading, types]);
 
   // ── Save external result to local DB ─────────────────────────────────────
   async function selectExternal(ext: ExternalResult) {

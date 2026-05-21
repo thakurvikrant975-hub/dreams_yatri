@@ -14,8 +14,23 @@ const TYPE_MAP: Record<string, string> = {
   poi:          "LANDMARK",
 };
 
+// Our LocationType → Mapbox place type(s) for API-level filtering
+const OUR_TYPE_TO_MAPBOX: Record<string, string[]> = {
+  COUNTRY:      ["country"],
+  STATE:        ["region"],
+  DISTRICT:     ["district"],
+  CITY:         ["place"],
+  AREA:         ["locality", "neighborhood"],
+  NEIGHBORHOOD: ["neighborhood"],
+  LANDMARK:     ["poi"],
+  AIRPORT:      ["poi"],
+};
+
 export async function GET(req: NextRequest) {
-  const q = new URL(req.url).searchParams.get("q")?.trim();
+  const { searchParams } = new URL(req.url);
+  const q          = searchParams.get("q")?.trim();
+  const typesParam = searchParams.get("types");
+  const ourTypes   = typesParam ? typesParam.split(",").filter(Boolean) : [];
 
   if (!q || q.length < 2) return NextResponse.json({ results: [] });
 
@@ -34,15 +49,21 @@ export async function GET(req: NextRequest) {
     url.searchParams.set("limit", "6");
     url.searchParams.set("language", "en");
 
+    // Map our types to Mapbox types and restrict the API call
+    if (ourTypes.length > 0) {
+      const mapboxTypes = [...new Set(ourTypes.flatMap((t) => OUR_TYPE_TO_MAPBOX[t] ?? []))];
+      if (mapboxTypes.length > 0) url.searchParams.set("types", mapboxTypes.join(","));
+    }
+
     const res = await fetch(url.toString(), {
-      next: { revalidate: 60 }, // cache for 1 minute
+      next: { revalidate: 60 },
     });
 
     if (!res.ok) return NextResponse.json({ results: [] });
 
     const data = await res.json();
 
-    const results = (data.features ?? []).map((f: {
+    const allResults = (data.features ?? []).map((f: {
       id: string;
       text: string;
       place_name: string;
@@ -61,12 +82,17 @@ export async function GET(req: NextRequest) {
         name:        f.text,
         full_name:   f.place_name,
         place_type:  TYPE_MAP[f.place_type?.[0]] ?? "AREA",
-        coordinates: f.center, // [lng, lat]
+        coordinates: f.center,
         country:     ctx.country,
         region:      ctx.region,
         place:       ctx.place,
       };
     });
+
+    // Secondary filter: if caller specified types, drop anything that doesn't match
+    const results = ourTypes.length > 0
+      ? allResults.filter((r: { place_type: string }) => ourTypes.includes(r.place_type))
+      : allResults;
 
     return NextResponse.json({ results, configured: true });
   } catch (e) {
