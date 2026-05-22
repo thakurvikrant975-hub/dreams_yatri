@@ -4,6 +4,7 @@ import { db }                  from "@/app/lib/db";
 import { revalidatePath }      from "next/cache";
 import { dashboardAuth }       from "@/app/lib/auth-dashboard";
 import { classifyActionError } from "@/app/lib/action-error";
+import { createLog }           from "../../lib/logger";
 
 const PATH = "/dashboard/cab-pricing";
 
@@ -19,7 +20,7 @@ export type CabSchedule = {
   pricing_type:  CabPricingType;
   price:         number;
   cost_price:    number | null;
-  valid_from:    string | null;  // ISO date string (YYYY-MM-DD)
+  valid_from:    string | null;
   valid_to:      string | null;
   is_active:     boolean;
 };
@@ -118,7 +119,6 @@ export async function getCabPricings(params: GetCabPricingsParams = {}) {
       })),
     }));
 
-    // Most recently updated record drives the group's updated_at / updated_by
     const latest = dest.cabPricings.reduce(
       (max, cp) => (cp.updated_at > max.updated_at ? cp : max),
       dest.cabPricings[0],
@@ -144,7 +144,7 @@ export async function getCabPricings(params: GetCabPricingsParams = {}) {
   const paginated  = rows.slice((page - 1) * limit, page * limit);
 
   return {
-    rows:        paginated,
+    rows: paginated,
     totalPages,
     currentPage: page,
     limit,
@@ -182,7 +182,7 @@ export async function getActiveVehicles() {
   });
 }
 
-// ── Upsert vehicle prices + schedules for a destination ────────────────────
+// ── Upsert vehicle prices + schedules ─────────────────────────────────────
 
 export type ScheduleInput = {
   label:        string;
@@ -190,7 +190,7 @@ export type ScheduleInput = {
   pricingType:  CabPricingType;
   price:        number;
   costPrice:    number | null;
-  validFrom:    string | null;  // YYYY-MM-DD
+  validFrom:    string | null;
   validTo:      string | null;
 };
 
@@ -210,15 +210,16 @@ export async function upsertCabPricingForDestination(
   if (!authorized) return { success: false, message: "Unauthorized" };
 
   try {
+    const dest = await db.destinations.findUnique({
+      where:  { id: destinationId },
+      select: { name: true, slug: true },
+    });
+
     await db.$transaction(async (tx) => {
       for (const e of entries) {
-        // 1. Upsert the base cab_pricing record
         const record = await tx.cab_pricing.upsert({
           where: {
-            destination_id_vehicle_id: {
-              destination_id: destinationId,
-              vehicle_id:     e.vehicleId,
-            },
+            destination_id_vehicle_id: { destination_id: destinationId, vehicle_id: e.vehicleId },
           },
           create: {
             destination_id: destinationId,
@@ -237,7 +238,6 @@ export async function upsertCabPricingForDestination(
           },
         });
 
-        // 2. Replace schedules: delete old, create new
         await tx.cab_pricing_schedule.deleteMany({ where: { pricing_id: record.id } });
 
         if (e.schedules.length > 0) {
@@ -256,6 +256,19 @@ export async function upsertCabPricingForDestination(
           });
         }
       }
+    });
+
+    await createLog({
+      action:      "UPDATE",
+      entity:      "CabPricing",
+      entityId:    String(destinationId),
+      entitySlug:  dest?.slug,
+      description: `Updated cab pricing for ${dest?.name ?? destinationId}`,
+      newData:     {
+        vehicles:   entries.length,
+        schedules:  entries.reduce((s, e) => s + e.schedules.length, 0),
+        destination: dest?.name,
+      },
     });
 
     revalidatePath(PATH);
@@ -280,6 +293,15 @@ export async function toggleCabPricingActive(
       where: { destination_id: destinationId },
       data:  { is_active: isActive },
     });
+
+    await createLog({
+      action:   "UPDATE",
+      entity:   "CabPricing",
+      entityId: String(destinationId),
+      metadata: { operation: "toggle_active", isActive },
+      newData:  { isActive },
+    });
+
     revalidatePath(PATH);
     return { success: true, message: `Pricing ${isActive ? "activated" : "deactivated"}` };
   } catch (e) {
@@ -296,7 +318,22 @@ export async function deleteCabPricingForDestination(
   if (!authorized) return { success: false, message: "Unauthorized" };
 
   try {
+    const dest = await db.destinations.findUnique({
+      where:  { id: destinationId },
+      select: { name: true, slug: true },
+    });
+
     await db.cab_pricing.deleteMany({ where: { destination_id: destinationId } });
+
+    await createLog({
+      action:      "DELETE",
+      entity:      "CabPricing",
+      entityId:    String(destinationId),
+      entitySlug:  dest?.slug,
+      description: `Deleted all cab pricing for ${dest?.name ?? destinationId}`,
+      severity:    "MEDIUM",
+    });
+
     revalidatePath(PATH);
     return { success: true, message: "Pricing deleted successfully" };
   } catch (e) {

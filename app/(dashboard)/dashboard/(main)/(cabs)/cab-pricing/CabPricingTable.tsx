@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams }                  from "next/navigation";
 import { Car, CalendarDays } from "lucide-react";
-import { Badge }        from "../../components/ui/badge";
 import { Switch }       from "../../components/ui/switch";
+import { cn }           from "@/app/lib/utils";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "../../components/ui/select";
@@ -120,11 +120,14 @@ export function CabPricingTable({
     {
       header: "Vehicle Prices",
       cell: (row) => (
-        <div className="flex flex-wrap gap-1.5">
-          {row.pricings.slice(0, 4).map((p) => (
+        <div className="flex flex-wrap gap-1">
+          {row.pricings.map((p) => (
             <div
               key={p.vehicle_id}
-              className="flex items-center gap-1 rounded-md border bg-muted/40 px-2 py-0.5"
+              className={cn(
+                "flex items-center gap-1 rounded-md border px-2 py-0.5",
+                p.is_active ? "bg-muted/40" : "bg-muted/20 opacity-60",
+              )}
             >
               <span className="text-[11px] font-medium text-muted-foreground">
                 {VEHICLE_TYPE_LABELS[p.vehicle_type] ?? p.vehicle_type}
@@ -135,13 +138,11 @@ export function CabPricingTable({
               <span className="text-[10px] text-muted-foreground">
                 {p.pricing_type === "PER_KM" ? "/km" : "/day"}
               </span>
+              {p.schedules.length > 0 && (
+                <CalendarDays className="h-2.5 w-2.5 text-dashboard-primary ml-0.5" />
+              )}
             </div>
           ))}
-          {row.pricings.length > 4 && (
-            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-              +{row.pricings.length - 4} more
-            </Badge>
-          )}
         </div>
       ),
     },

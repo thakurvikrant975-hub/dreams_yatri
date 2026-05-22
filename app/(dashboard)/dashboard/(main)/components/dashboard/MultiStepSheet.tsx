@@ -251,7 +251,7 @@ export function MultiStepSheet({
 
             <Progress value={progress} className="h-[0.2em] mt-2" />
 
-            <div className="mt-4 overflow-x-auto pb-1">
+            <div className="mt-4 pb-1">
               <StepIndicator
                 steps={steps}
                 currentStep={currentStep}
