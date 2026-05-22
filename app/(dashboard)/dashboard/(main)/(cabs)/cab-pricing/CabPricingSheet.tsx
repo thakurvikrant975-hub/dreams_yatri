@@ -297,6 +297,37 @@ function CalendarRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
   const vehicleSchedules = (data.vehicle_schedules as Record<string, ScheduleEntry[]>) ?? {};
 
   const [activeVehicleId, setActiveVehicleId] = useState<number | null>(vehicles[0]?.id ?? null);
+  const [dateErrors, setDateErrors]           = useState<Record<string, string>>({});
+
+  function setDateError(key: string, error: string | null) {
+    setDateErrors((prev) => {
+      if (!error) {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      }
+      return { ...prev, [key]: error };
+    });
+  }
+
+  function handleDateInput(
+    vehicleId: number,
+    tempId:    string,
+    field:     "valid_from" | "valid_to",
+    e:         React.ChangeEvent<HTMLInputElement>,
+  ) {
+    const { value, validity } = e.target;
+    const key = `${tempId}-${field}`;
+
+    if (!validity.valid && validity.badInput) {
+      // User typed a date that doesn't exist (e.g. Nov 31, Feb 30)
+      setDateError(key, "This date does not exist");
+      updateSchedule(vehicleId, tempId, { [field]: "" });
+    } else {
+      setDateError(key, null);
+      updateSchedule(vehicleId, tempId, { [field]: value });
+    }
+  }
 
   function getSchedules(vehicleId: number): ScheduleEntry[] {
     return vehicleSchedules[String(vehicleId)] ?? [];
@@ -472,17 +503,28 @@ function CalendarRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
                   {/* Row 2: date range (seasonal) OR weekend note */}
                   {!isWeekend ? (
                     <div className="grid grid-cols-2 gap-2">
+                      {/* From date */}
                       <div className="space-y-1">
                         <Label className="text-[11px] text-muted-foreground">From *</Label>
                         <Input
                           type="date"
                           value={s.valid_from}
                           onChange={(e) =>
-                            updateSchedule(activeVehicleId, s.tempId, { valid_from: e.target.value })
+                            handleDateInput(activeVehicleId, s.tempId, "valid_from", e)
                           }
-                          className={cn("h-8 text-sm", hasOverlap && "border-destructive")}
+                          className={cn(
+                            "h-8 text-sm",
+                            (hasOverlap || dateErrors[`${s.tempId}-valid_from`]) && "border-destructive focus-visible:ring-destructive",
+                          )}
                         />
+                        {dateErrors[`${s.tempId}-valid_from`] && (
+                          <p className="flex items-center gap-1 text-[11px] text-destructive">
+                            <AlertTriangle className="h-3 w-3 shrink-0" />
+                            {dateErrors[`${s.tempId}-valid_from`]}
+                          </p>
+                        )}
                       </div>
+                      {/* To date */}
                       <div className="space-y-1">
                         <Label className="text-[11px] text-muted-foreground">To *</Label>
                         <Input
@@ -490,10 +532,19 @@ function CalendarRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
                           value={s.valid_to}
                           min={s.valid_from || undefined}
                           onChange={(e) =>
-                            updateSchedule(activeVehicleId, s.tempId, { valid_to: e.target.value })
+                            handleDateInput(activeVehicleId, s.tempId, "valid_to", e)
                           }
-                          className={cn("h-8 text-sm", hasOverlap && "border-destructive")}
+                          className={cn(
+                            "h-8 text-sm",
+                            (hasOverlap || dateErrors[`${s.tempId}-valid_to`]) && "border-destructive focus-visible:ring-destructive",
+                          )}
                         />
+                        {dateErrors[`${s.tempId}-valid_to`] && (
+                          <p className="flex items-center gap-1 text-[11px] text-destructive">
+                            <AlertTriangle className="h-3 w-3 shrink-0" />
+                            {dateErrors[`${s.tempId}-valid_to`]}
+                          </p>
+                        )}
                       </div>
                     </div>
                   ) : (
