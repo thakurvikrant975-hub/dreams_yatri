@@ -250,12 +250,12 @@ export function StayTiersSection({ packageId, initialCategories, onCategoriesCha
           )}
         </div>
         {!expanded && categories.length > 0 && (
-          <span className="text-xs text-muted-foreground truncate max-w-xs hidden sm:block">
+          <span className="text-xs text-dashboard-base-100 truncate max-w-xs hidden sm:block">
             {sorted.map((c) => c.label).join(" · ")}
           </span>
         )}
         {!expanded && categories.length === 0 && (
-          <span className="text-xs text-muted-foreground/60 italic">None yet — click to add</span>
+          <span className="text-xs text-dashboard-base-100 italic">None yet — click to add</span>
         )}
       </button>
 
