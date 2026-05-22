@@ -1278,16 +1278,17 @@ model vehicle_rates {
 }
 
 model cab_pricing {
-  id             Int          @id @default(autoincrement())
+  id             Int             @id @default(autoincrement())
   destination_id Int
   vehicle_id     Int
-  per_day_price  Decimal      @db.Decimal(10, 2)
-  cost_price     Decimal?     @db.Decimal(10, 2)
-  is_active      Boolean      @default(true)
-  created_at     DateTime     @default(now())
-  updated_at     DateTime     @updatedAt
-  destination    destinations @relation(fields: [destination_id], references: [id], onDelete: Cascade)
-  vehicle        vehicles     @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
+  pricing_type   CabPricingType  @default(PER_DAY)
+  price          Decimal         @db.Decimal(10, 2)
+  cost_price     Decimal?        @db.Decimal(10, 2)
+  is_active      Boolean         @default(true)
+  created_at     DateTime        @default(now())
+  updated_at     DateTime        @updatedAt
+  destination    destinations    @relation(fields: [destination_id], references: [id], onDelete: Cascade)
+  vehicle        vehicles        @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
 
   @@unique([destination_id, vehicle_id])
   @@index([destination_id])
@@ -1834,4 +1835,9 @@ enum VehicleRateType {
   PER_KM
   FLAT_TRIP
   PER_DAY
+}
+
+enum CabPricingType {
+  PER_DAY
+  PER_KM
 }

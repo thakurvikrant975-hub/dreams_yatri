@@ -7,10 +7,10 @@ import {
   Breadcrumb, BreadcrumbItem,
   BreadcrumbLink, BreadcrumbList,
   BreadcrumbPage, BreadcrumbSeparator,
-} from "../components/ui/breadcrumb";
-import { Skeleton }          from "../components/ui/skeleton";
-import { PageHeader }        from "../components/dashboard/PageHeader";
-import { StatCard, StatGrid } from "../components/dashboard/Statcard";
+} from "../../components/ui/breadcrumb";
+import { Skeleton }          from "../../components/ui/skeleton";
+import { PageHeader }        from "../../components/dashboard/PageHeader";
+import { StatCard, StatGrid } from "../../components/dashboard/Statcard";
 
 type Status = "active" | "inactive" | "all";
 

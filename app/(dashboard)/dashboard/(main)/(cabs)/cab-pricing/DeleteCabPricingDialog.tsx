@@ -2,13 +2,13 @@
 
 import { useState, useTransition }    from "react";
 import { Trash2, Loader2, AlertTriangle } from "lucide-react";
-import { Button }  from "../components/ui/button";
+import { Button }  from "../../components/ui/button";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
-} from "../components/ui/alert-dialog";
+} from "../../components/ui/alert-dialog";
 import { deleteCabPricingForDestination } from "./actions";
 import { toast } from "sonner";
 

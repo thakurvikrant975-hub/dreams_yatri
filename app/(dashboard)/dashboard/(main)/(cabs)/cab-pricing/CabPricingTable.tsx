@@ -3,14 +3,14 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams }                  from "next/navigation";
 import { Car }          from "lucide-react";
-import { Badge }        from "../components/ui/badge";
-import { Switch }       from "../components/ui/switch";
+import { Badge }        from "../../components/ui/badge";
+import { Switch }       from "../../components/ui/switch";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "../components/ui/select";
-import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
-import { TableFilters }              from "../components/dashboard/Tablefilters";
-import { TableEmptyState }           from "../components/dashboard/TableEmptyState";
+} from "../../components/ui/select";
+import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable";
+import { TableFilters }              from "../../components/dashboard/Tablefilters";
+import { TableEmptyState }           from "../../components/dashboard/TableEmptyState";
 import { EditCabPricingSheet }       from "./CabPricingSheet";
 import { DeleteCabPricingDialog }    from "./DeleteCabPricingDialog";
 import { toggleCabPricingActive }    from "./actions";
@@ -130,7 +130,10 @@ export function CabPricingTable({
                 {VEHICLE_TYPE_LABELS[p.vehicle_type] ?? p.vehicle_type}
               </span>
               <span className="text-[11px] font-semibold text-foreground">
-                ₹{p.per_day_price.toLocaleString("en-IN")}
+                ₹{p.price.toLocaleString("en-IN")}
+              </span>
+              <span className="text-[10px] text-muted-foreground">
+                {p.pricing_type === "PER_KM" ? "/km" : "/day"}
               </span>
             </div>
           ))}

@@ -2,10 +2,10 @@ import { Car } from "lucide-react";
 import {
   Breadcrumb, BreadcrumbItem, BreadcrumbLink,
   BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
-} from "../components/ui/breadcrumb";
+} from "../../components/ui/breadcrumb";
 import { getVehiclesWithRates } from "./actions";
 import { VehiclesClient } from "./VehiclesClient";
-import { PageHeader } from "../components/dashboard/PageHeader";
+import { PageHeader } from "../../components/dashboard/PageHeader";
 
 export default async function VehiclesPage() {
   const vehicles = await getVehiclesWithRates();
