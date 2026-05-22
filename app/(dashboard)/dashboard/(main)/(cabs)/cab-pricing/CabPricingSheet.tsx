@@ -3,7 +3,7 @@
 import { useState, useTransition, useEffect } from "react";
 import {
   Plus, Pencil, Car, IndianRupee, Info, CalendarDays,
-  Trash2, Sun, Moon,
+  Trash2, Sun, Moon, AlertTriangle,
 } from "lucide-react";
 import { Button }  from "../../components/ui/button";
 import { Input }   from "../../components/ui/input";
@@ -118,7 +118,7 @@ function buildSteps(isEdit: boolean): SheetStep[] {
         const map = (data.vehicle_schedules as Record<string, ScheduleEntry[]>) ?? {};
         for (const entries of Object.values(map)) {
           for (const s of entries) {
-            if (!s.label.trim()) return "Each rate must have a label";
+            if (!s.label.trim()) return "Each rate override must have a label";
             const p = Number(s.price);
             if (!s.price || isNaN(p) || p <= 0) return "Each rate price must be greater than ₹0";
             if (s.schedule_type === "SEASONAL") {
@@ -126,6 +126,10 @@ function buildSteps(isEdit: boolean): SheetStep[] {
               if (!s.valid_to)   return "Seasonal rates need an end date";
               if (s.valid_from > s.valid_to) return "Start date must be before end date";
             }
+          }
+          // Check for overlapping seasonal date ranges within the same vehicle
+          if (overlappingIds(entries).size > 0) {
+            return "Some seasonal rates have overlapping date ranges — fix before saving";
           }
         }
         return null;
@@ -265,19 +269,35 @@ function BaseRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
   );
 }
 
+// ── Overlap detection helper ──────────────────────────────────────────────
+
+function overlappingIds(schedules: ScheduleEntry[]): Set<string> {
+  const seasonal = schedules.filter(
+    (s) => s.schedule_type === "SEASONAL" && s.valid_from && s.valid_to,
+  );
+  const bad = new Set<string>();
+  for (let i = 0; i < seasonal.length; i++) {
+    for (let j = i + 1; j < seasonal.length; j++) {
+      const a = seasonal[i], b = seasonal[j];
+      if (a.valid_from <= b.valid_to && b.valid_from <= a.valid_to) {
+        bad.add(a.tempId);
+        bad.add(b.tempId);
+      }
+    }
+  }
+  return bad;
+}
+
 // ── Step 3: Calendar Rates ────────────────────────────────────────────────
 
 function CalendarRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
   const { stepData, setStepData } = useMultiStepSheet();
-  const data              = stepData["schedules"] ?? {};
-  const baseData          = stepData["pricing"]   ?? {};
-  const baseEntries       = (baseData.entries as PriceEntry[]) ?? [];
-  const vehicleSchedules  = (data.vehicle_schedules as Record<string, ScheduleEntry[]>) ?? {};
+  const data             = stepData["schedules"] ?? {};
+  const baseData         = stepData["pricing"]   ?? {};
+  const baseEntries      = (baseData.entries as PriceEntry[]) ?? [];
+  const vehicleSchedules = (data.vehicle_schedules as Record<string, ScheduleEntry[]>) ?? {};
 
-  // Which vehicle is selected in the accordion
-  const [activeVehicleId, setActiveVehicleId] = useState<number | null>(
-    vehicles[0]?.id ?? null,
-  );
+  const [activeVehicleId, setActiveVehicleId] = useState<number | null>(vehicles[0]?.id ?? null);
 
   function getSchedules(vehicleId: number): ScheduleEntry[] {
     return vehicleSchedules[String(vehicleId)] ?? [];
@@ -295,23 +315,18 @@ function CalendarRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
     setSchedules(vehicleId, [
       ...getSchedules(vehicleId),
       {
-        tempId:        uid(),
-        label:         "",
+        tempId: uid(), label: "",
         schedule_type: "SEASONAL",
         pricing_type:  (base?.pricing_type ?? "PER_DAY") as CabPricingType,
-        price:         "",
-        cost_price:    "",
-        valid_from:    "",
-        valid_to:      "",
+        price: "", cost_price: "", valid_from: "", valid_to: "",
       },
     ]);
   }
 
   function updateSchedule(vehicleId: number, tempId: string, patch: Partial<ScheduleEntry>) {
-    setSchedules(
-      vehicleId,
-      getSchedules(vehicleId).map((s) => s.tempId === tempId ? { ...s, ...patch } : s),
-    );
+    setSchedules(vehicleId, getSchedules(vehicleId).map((s) =>
+      s.tempId === tempId ? { ...s, ...patch } : s,
+    ));
   }
 
   function removeSchedule(vehicleId: number, tempId: string) {
@@ -322,20 +337,23 @@ function CalendarRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
 
   return (
     <div className="space-y-3">
-      {/* Info */}
+      {/* Info banner */}
       <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5">
         <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-blue-600" />
         <p className="text-xs text-blue-700">
-          Override the base rate for specific seasons or weekends. Leave empty to use base rates.
-          {totalSchedules > 0 && <span className="font-medium"> {totalSchedules} override{totalSchedules !== 1 ? "s" : ""} added.</span>}
+          Override base rates for seasons or weekends. Leave empty to keep using base rates.
+          {totalSchedules > 0 && (
+            <span className="font-semibold"> {totalSchedules} override{totalSchedules !== 1 ? "s" : ""} configured.</span>
+          )}
         </p>
       </div>
 
-      {/* Vehicle tabs */}
+      {/* Vehicle selector tabs */}
       <div className="flex flex-wrap gap-1.5">
         {vehicles.map((v) => {
-          const count = getSchedules(v.id).length;
+          const count    = getSchedules(v.id).length;
           const isActive = activeVehicleId === v.id;
+          const hasOverlap = overlappingIds(getSchedules(v.id)).size > 0;
           return (
             <button
               key={v.id}
@@ -343,94 +361,127 @@ function CalendarRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
               onClick={() => setActiveVehicleId(v.id)}
               className={cn(
                 "flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
-                isActive
+                hasOverlap
+                  ? "border-destructive/50 bg-destructive/5 text-destructive"
+                  : isActive
                   ? "border-dashboard-primary/50 bg-dashboard-primary/10 text-dashboard-primary"
                   : "border-dashboard-base-300 bg-background text-muted-foreground hover:bg-muted",
               )}
             >
+              {hasOverlap && <AlertTriangle className="h-3 w-3" />}
               {v.name}
               {count > 0 && (
-                <Badge className="h-4 min-w-4 px-1 text-[10px] rounded-full bg-dashboard-primary text-white">
+                <span className={cn(
+                  "inline-flex items-center justify-center h-4 min-w-4 px-1 text-[10px] font-semibold rounded-full",
+                  hasOverlap ? "bg-destructive text-white" : "bg-dashboard-primary text-white",
+                )}>
                   {count}
-                </Badge>
+                </span>
               )}
             </button>
           );
         })}
       </div>
 
-      {/* Schedule list for selected vehicle */}
+      {/* Schedule cards for selected vehicle */}
       {activeVehicleId !== null && (() => {
         const vehicle   = vehicles.find((v) => v.id === activeVehicleId)!;
         const schedules = getSchedules(activeVehicleId);
         const base      = baseEntries.find((e) => e.vehicle_id === activeVehicleId);
+        const basePrice = base?.price ?? "";
+        const basePriceType = (base?.pricing_type ?? "PER_DAY") as CabPricingType;
+        const overlapSet = overlappingIds(schedules);
 
         return (
           <div className="space-y-2">
             {schedules.length === 0 && (
-              <p className="text-xs text-muted-foreground py-2 text-center">
-                No rate overrides for <strong>{vehicle.name}</strong>. Click below to add one.
+              <p className="text-xs text-muted-foreground py-3 text-center">
+                No overrides for <strong>{vehicle.name}</strong> yet.
               </p>
             )}
 
             {schedules.map((s) => {
-              const isWeekend = s.schedule_type === "WEEKEND";
-              const unit      = s.pricing_type === "PER_DAY" ? "/day" : "/km";
+              const isWeekend  = s.schedule_type === "WEEKEND";
+              const unit       = s.pricing_type === "PER_DAY" ? "/day" : "/km";
+              const hasOverlap = overlapSet.has(s.tempId);
 
               return (
-                <div key={s.tempId} className="rounded-lg border bg-muted/10 p-3 space-y-2.5">
-                  {/* Row 1: label + type toggle + delete */}
+                <div
+                  key={s.tempId}
+                  className={cn(
+                    "rounded-lg border p-3 space-y-2",
+                    hasOverlap
+                      ? "border-destructive/40 bg-destructive/5"
+                      : "border-border bg-muted/10",
+                  )}
+                >
+                  {/* Overlap warning */}
+                  {hasOverlap && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-destructive font-medium">
+                      <AlertTriangle className="h-3 w-3 shrink-0" />
+                      Date range overlaps with another seasonal rate — fix before saving.
+                    </div>
+                  )}
+
+                  {/* Row 1: label · Season/Weekend toggle · delete */}
                   <div className="flex items-center gap-2">
                     <Input
-                      placeholder="e.g. Peak Season, Monsoon, Weekend"
+                      placeholder="e.g. Peak Season, Monsoon, Diwali Weekend"
                       value={s.label}
                       onChange={(e) => updateSchedule(activeVehicleId, s.tempId, { label: e.target.value })}
                       className="h-8 text-sm flex-1"
                     />
-
-                    {/* Seasonal / Weekend toggle */}
                     <div className="flex rounded-md border overflow-hidden h-8 text-xs font-medium shrink-0">
                       <button
                         type="button"
-                        onClick={() => updateSchedule(activeVehicleId, s.tempId, { schedule_type: "SEASONAL", valid_from: "", valid_to: "" })}
+                        onClick={() => updateSchedule(activeVehicleId, s.tempId, {
+                          schedule_type: "SEASONAL", valid_from: "", valid_to: "",
+                        })}
                         className={cn(
                           "flex items-center gap-1 px-2.5 transition-colors",
-                          !isWeekend ? "bg-dashboard-primary text-white" : "bg-background text-muted-foreground hover:bg-muted",
+                          !isWeekend
+                            ? "bg-dashboard-primary text-white"
+                            : "bg-background text-muted-foreground hover:bg-muted",
                         )}
                       >
                         <Sun className="h-3 w-3" /> Season
                       </button>
                       <button
                         type="button"
-                        onClick={() => updateSchedule(activeVehicleId, s.tempId, { schedule_type: "WEEKEND", valid_from: "", valid_to: "" })}
+                        onClick={() => updateSchedule(activeVehicleId, s.tempId, {
+                          schedule_type: "WEEKEND", valid_from: "", valid_to: "",
+                        })}
                         className={cn(
                           "flex items-center gap-1 px-2.5 border-l transition-colors",
-                          isWeekend ? "bg-dashboard-primary text-white" : "bg-background text-muted-foreground hover:bg-muted",
+                          isWeekend
+                            ? "bg-dashboard-primary text-white"
+                            : "bg-background text-muted-foreground hover:bg-muted",
                         )}
                       >
                         <Moon className="h-3 w-3" /> Weekend
                       </button>
                     </div>
-
                     <button
                       type="button"
                       onClick={() => removeSchedule(activeVehicleId, s.tempId)}
-                      className="text-destructive/70 hover:text-destructive transition-colors shrink-0"
+                      className="text-destructive/60 hover:text-destructive transition-colors shrink-0"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
 
-                  {/* Row 2: date range (seasonal only) */}
-                  {!isWeekend && (
+                  {/* Row 2: date range (seasonal) OR weekend note */}
+                  {!isWeekend ? (
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1">
                         <Label className="text-[11px] text-muted-foreground">From *</Label>
                         <Input
                           type="date"
                           value={s.valid_from}
-                          onChange={(e) => updateSchedule(activeVehicleId, s.tempId, { valid_from: e.target.value })}
-                          className="h-8 text-sm"
+                          onChange={(e) =>
+                            updateSchedule(activeVehicleId, s.tempId, { valid_from: e.target.value })
+                          }
+                          className={cn("h-8 text-sm", hasOverlap && "border-destructive")}
                         />
                       </div>
                       <div className="space-y-1">
@@ -439,51 +490,62 @@ function CalendarRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
                           type="date"
                           value={s.valid_to}
                           min={s.valid_from || undefined}
-                          onChange={(e) => updateSchedule(activeVehicleId, s.tempId, { valid_to: e.target.value })}
-                          className="h-8 text-sm"
+                          onChange={(e) =>
+                            updateSchedule(activeVehicleId, s.tempId, { valid_to: e.target.value })
+                          }
+                          className={cn("h-8 text-sm", hasOverlap && "border-destructive")}
                         />
                       </div>
                     </div>
-                  )}
-
-                  {isWeekend && (
+                  ) : (
                     <p className="text-[11px] text-muted-foreground">
-                      Applies every <span className="font-medium">Saturday &amp; Sunday</span>
+                      Applies every <span className="font-semibold">Saturday &amp; Sunday</span> year-round
                     </p>
                   )}
 
-                  {/* Row 3: pricing type + price + cost */}
+                  {/* Row 3: /day·/km toggle · price (base as placeholder) · cost */}
                   <div className="flex items-center gap-2">
                     <PricingTypeToggle
                       value={s.pricing_type}
                       onChange={(v) => updateSchedule(activeVehicleId, s.tempId, { pricing_type: v })}
                     />
-
                     <div className="relative flex-1">
                       <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground select-none">₹</span>
                       <Input
-                        type="number" min={0} step={s.pricing_type === "PER_KM" ? 1 : 100}
-                        placeholder="0" value={s.price}
+                        type="number"
+                        min={0}
+                        step={s.pricing_type === "PER_KM" ? 1 : 100}
+                        placeholder={basePrice ? `${basePrice} (base)` : "0"}
+                        value={s.price}
                         onChange={(e) => updateSchedule(activeVehicleId, s.tempId, { price: e.target.value })}
                         className="h-8 pl-6 pr-9 text-sm"
                       />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">{unit}</span>
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">
+                        {unit}
+                      </span>
                     </div>
-
-                    <div className="relative w-28">
+                    <div className="relative w-24">
                       <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground select-none">₹</span>
                       <Input
-                        type="number" min={0} placeholder="cost opt."
+                        type="number"
+                        min={0}
+                        placeholder="cost"
                         value={s.cost_price}
                         onChange={(e) => updateSchedule(activeVehicleId, s.tempId, { cost_price: e.target.value })}
                         className="h-8 pl-6 text-sm"
                       />
                     </div>
-
-                    {base && (
-                      <p className="text-[10px] text-muted-foreground shrink-0 whitespace-nowrap">
-                        base ₹{base.price || "—"}
-                      </p>
+                    {/* Base rate comparison badge */}
+                    {basePrice && (
+                      <div className="flex items-center gap-1 rounded-md border bg-muted/50 px-2 py-0.5 shrink-0">
+                        <span className="text-[10px] text-muted-foreground">base</span>
+                        <span className="text-[11px] font-semibold text-foreground">
+                          ₹{Number(basePrice).toLocaleString("en-IN")}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {basePriceType === "PER_KM" ? "/km" : "/day"}
+                        </span>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -494,7 +556,7 @@ function CalendarRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
               type="button"
               variant="outline"
               size="sm"
-              className="w-full h-8 text-xs gap-1.5 border-dashed"
+              className="w-full h-8 text-xs gap-1.5 border-dashed mt-1"
               onClick={() => addSchedule(activeVehicleId)}
             >
               <Plus className="h-3.5 w-3.5" />
