@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Settings, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound,
   MessageCircleQuestion, ClockCheck, Mails, Forward, BadgePercent, Banknote,
   ChartSpline, BanknoteArrowDown, BanknoteX, Car, Bed, ChartNoAxesCombined,
-  BellRing, PackagePlus, ChartNoAxesGantt, Star,
+  BellRing, PackagePlus, ChartNoAxesGantt, Star, IndianRupee,
 } from "lucide-react";
 import {
   GlobeHemisphereEastIcon, MapPinIcon, BuildingIcon, PlusIcon, TagIcon,
@@ -58,7 +58,13 @@ const navGroups = [
     items: [
       { title: "All Packages", href: "/dashboard/packages",     icon: PackageIcon,        phosphor: true },
       { title: "New Package",  href: "/dashboard/packages/new", icon: PlusIcon,           phosphor: true },
-      { title: "Cabs",         href: "/dashboard/vehicles",     icon: SteeringWheelIcon,  phosphor: true },
+    ],
+  },
+  {
+    id: "cab", label: "Cab management",
+    items: [
+      { title: "Vehicle Types", href: "/dashboard/vehicles",    icon: SteeringWheelIcon, phosphor: true },
+      { title: "Cab Pricing",   href: "/dashboard/cab-pricing", icon: IndianRupee },
     ],
   },
   {

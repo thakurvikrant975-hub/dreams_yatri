@@ -708,6 +708,7 @@ model destinations {
   activities  activities[]
   hotels      hotels[]
   packages    packages[]
+  cabPricings cab_pricing[]
 
   @@index([region_id])
   @@index([slug])
@@ -1260,6 +1261,7 @@ model vehicles {
   rates              vehicle_rates[]
   transfers          itinerary_transfers[]
   cabPricings        package_cab_pricings[]
+  cabDestPricings    cab_pricing[]
 }
 
 model vehicle_rates {
@@ -1273,6 +1275,24 @@ model vehicle_rates {
   vehicle    vehicles        @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
 
   @@index([vehicle_id, is_active])
+}
+
+model cab_pricing {
+  id             Int          @id @default(autoincrement())
+  destination_id Int
+  vehicle_id     Int
+  per_day_price  Decimal      @db.Decimal(10, 2)
+  cost_price     Decimal?     @db.Decimal(10, 2)
+  is_active      Boolean      @default(true)
+  created_at     DateTime     @default(now())
+  updated_at     DateTime     @updatedAt
+  destination    destinations @relation(fields: [destination_id], references: [id], onDelete: Cascade)
+  vehicle        vehicles     @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
+
+  @@unique([destination_id, vehicle_id])
+  @@index([destination_id])
+  @@index([vehicle_id])
+  @@map("cab_pricings")
 }
 
 model transfer_routes {
