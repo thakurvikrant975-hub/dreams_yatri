@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams }                  from "next/navigation";
-import { Car }          from "lucide-react";
+import { Car, CalendarDays } from "lucide-react";
 import { Badge }        from "../../components/ui/badge";
 import { Switch }       from "../../components/ui/switch";
 import {
@@ -148,11 +148,19 @@ export function CabPricingTable({
     {
       header:  "Vehicles",
       align:   "center",
-      width:   "w-[100px]",
+      width:   "w-[110px]",
       cell: (row) => (
-        <div className="flex items-center justify-center gap-1 text-sm">
-          <span className="font-semibold">{row.active_count}</span>
-          <span className="text-muted-foreground">/ {row.total_count}</span>
+        <div className="flex flex-col items-center gap-0.5">
+          <div className="flex items-center gap-1 text-sm">
+            <span className="font-semibold">{row.active_count}</span>
+            <span className="text-muted-foreground">/ {row.total_count}</span>
+          </div>
+          {row.schedule_count > 0 && (
+            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+              <CalendarDays className="h-2.5 w-2.5" />
+              <span>{row.schedule_count} rate{row.schedule_count !== 1 ? "s" : ""}</span>
+            </div>
+          )}
         </div>
       ),
     },
@@ -169,12 +177,17 @@ export function CabPricingTable({
       ),
     },
     {
-      header: "Last Updated",
-      width:  "w-[140px]",
+      header: "Updated By",
+      width:  "w-[150px]",
       cell: (row) => (
-        <p className="text-xs text-muted-foreground">
-          {formatDistanceToNow(new Date(row.updated_at), { addSuffix: true })}
-        </p>
+        <div className="space-y-0.5">
+          <p className="text-xs font-medium text-foreground/80 truncate max-w-32.5">
+            {row.updated_by ?? "—"}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {formatDistanceToNow(new Date(row.updated_at), { addSuffix: true })}
+          </p>
+        </div>
       ),
     },
     {

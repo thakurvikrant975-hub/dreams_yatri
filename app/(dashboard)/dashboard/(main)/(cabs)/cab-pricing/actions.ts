@@ -9,16 +9,31 @@ const PATH = "/dashboard/cab-pricing";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-export type CabPricingType = "PER_DAY" | "PER_KM";
+export type CabPricingType  = "PER_DAY" | "PER_KM";
+export type CabScheduleType = "SEASONAL" | "WEEKEND";
 
-export type VehiclePricingEntry = {
-  vehicle_id:    number;
-  vehicle_name:  string;
-  vehicle_type:  string;
+export type CabSchedule = {
+  id:            number;
+  label:         string;
+  schedule_type: CabScheduleType;
   pricing_type:  CabPricingType;
   price:         number;
   cost_price:    number | null;
+  valid_from:    string | null;  // ISO date string (YYYY-MM-DD)
+  valid_to:      string | null;
   is_active:     boolean;
+};
+
+export type VehiclePricingEntry = {
+  vehicle_id:   number;
+  vehicle_name: string;
+  vehicle_type: string;
+  pricing_type: CabPricingType;
+  price:        number;
+  cost_price:   number | null;
+  is_active:    boolean;
+  updated_by:   string | null;
+  schedules:    CabSchedule[];
 };
 
 export type CabPricingGroup = {
@@ -28,20 +43,22 @@ export type CabPricingGroup = {
   pricings:         VehiclePricingEntry[];
   active_count:     number;
   total_count:      number;
+  schedule_count:   number;
   updated_at:       Date;
+  updated_by:       string | null;
 };
 
-export type CabPricingFormState = {
-  success: boolean;
-  message: string;
-};
+export type CabPricingFormState = { success: boolean; message: string };
 
 // ── Auth guard ─────────────────────────────────────────────────────────────
 
 async function requireSession() {
   const session = await dashboardAuth();
-  if (!session?.user?.email) return { authorized: false as const };
-  return { authorized: true as const };
+  if (!session?.user?.email) return { authorized: false as const, actorName: null };
+  return {
+    authorized: true as const,
+    actorName:  session.user.name ?? session.user.email,
+  };
 }
 
 // ── Read ───────────────────────────────────────────────────────────────────
@@ -66,8 +83,11 @@ export async function getCabPricings(params: GetCabPricingsParams = {}) {
       where,
       include: {
         cabPricings: {
-          include: { vehicle: { select: { id: true, name: true, type: true } } },
-          orderBy:  { vehicle: { name: "asc" } },
+          include: {
+            vehicle:   { select: { id: true, name: true, type: true } },
+            schedules: { orderBy: { created_at: "asc" } },
+          },
+          orderBy: { vehicle: { name: "asc" } },
         },
       },
       orderBy: { name: "asc" },
@@ -84,20 +104,36 @@ export async function getCabPricings(params: GetCabPricingsParams = {}) {
       price:        Number(cp.price),
       cost_price:   cp.cost_price != null ? Number(cp.cost_price) : null,
       is_active:    cp.is_active,
+      updated_by:   cp.updated_by,
+      schedules:    cp.schedules.map((s) => ({
+        id:            s.id,
+        label:         s.label,
+        schedule_type: s.schedule_type as CabScheduleType,
+        pricing_type:  s.pricing_type as CabPricingType,
+        price:         Number(s.price),
+        cost_price:    s.cost_price != null ? Number(s.cost_price) : null,
+        valid_from:    s.valid_from ? s.valid_from.toISOString().slice(0, 10) : null,
+        valid_to:      s.valid_to   ? s.valid_to.toISOString().slice(0, 10)   : null,
+        is_active:     s.is_active,
+      })),
     }));
 
-    const updated = dest.cabPricings.reduce<Date>((max, cp) => {
-      return cp.updated_at > max ? cp.updated_at : max;
-    }, dest.cabPricings[0]?.updated_at ?? new Date(0));
+    // Most recently updated record drives the group's updated_at / updated_by
+    const latest = dest.cabPricings.reduce(
+      (max, cp) => (cp.updated_at > max.updated_at ? cp : max),
+      dest.cabPricings[0],
+    );
 
     return {
       destination_id:   dest.id,
       destination_name: dest.name,
       destination_slug: dest.slug,
       pricings,
-      active_count: pricings.filter((p) => p.is_active).length,
-      total_count:  pricings.length,
-      updated_at:   updated,
+      active_count:   pricings.filter((p) => p.is_active).length,
+      total_count:    pricings.length,
+      schedule_count: pricings.reduce((s, p) => s + p.schedules.length, 0),
+      updated_at:     latest?.updated_at ?? new Date(0),
+      updated_by:     latest?.updated_by ?? null,
     };
   });
 
@@ -121,7 +157,7 @@ export async function getCabPricings(params: GetCabPricingsParams = {}) {
   };
 }
 
-// ── Search destinations for the sheet select ───────────────────────────────
+// ── Search destinations ────────────────────────────────────────────────────
 
 export async function searchDestinations(query: string) {
   const dests = await db.destinations.findMany({
@@ -146,42 +182,38 @@ export async function getActiveVehicles() {
   });
 }
 
-// ── Get existing pricings for a destination ────────────────────────────────
+// ── Upsert vehicle prices + schedules for a destination ────────────────────
 
-export async function getCabPricingsByDestination(destinationId: number) {
-  const pricings = await db.cab_pricing.findMany({
-    where:   { destination_id: destinationId },
-    include: { vehicle: { select: { id: true, name: true, type: true } } },
-  });
-  return pricings.map((cp) => ({
-    vehicle_id:   cp.vehicle_id,
-    vehicle_name: cp.vehicle.name,
-    vehicle_type: cp.vehicle.type,
-    pricing_type: cp.pricing_type as CabPricingType,
-    price:        Number(cp.price),
-    cost_price:   cp.cost_price != null ? Number(cp.cost_price) : null,
-    is_active:    cp.is_active,
-  }));
-}
+export type ScheduleInput = {
+  label:        string;
+  scheduleType: CabScheduleType;
+  pricingType:  CabPricingType;
+  price:        number;
+  costPrice:    number | null;
+  validFrom:    string | null;  // YYYY-MM-DD
+  validTo:      string | null;
+};
 
-// ── Upsert all vehicle prices for a destination ────────────────────────────
+export type VehicleEntryInput = {
+  vehicleId:   number;
+  pricingType: CabPricingType;
+  price:       number;
+  costPrice:   number | null;
+  schedules:   ScheduleInput[];
+};
 
 export async function upsertCabPricingForDestination(
   destinationId: number,
-  entries: {
-    vehicleId:   number;
-    pricingType: CabPricingType;
-    price:       number;
-    costPrice:   number | null;
-  }[],
+  entries: VehicleEntryInput[],
 ): Promise<CabPricingFormState> {
-  const { authorized } = await requireSession();
+  const { authorized, actorName } = await requireSession();
   if (!authorized) return { success: false, message: "Unauthorized" };
 
   try {
-    await db.$transaction(
-      entries.map((e) =>
-        db.cab_pricing.upsert({
+    await db.$transaction(async (tx) => {
+      for (const e of entries) {
+        // 1. Upsert the base cab_pricing record
+        const record = await tx.cab_pricing.upsert({
           where: {
             destination_id_vehicle_id: {
               destination_id: destinationId,
@@ -195,15 +227,36 @@ export async function upsertCabPricingForDestination(
             price:          e.price,
             cost_price:     e.costPrice,
             is_active:      true,
+            updated_by:     actorName,
           },
           update: {
             pricing_type: e.pricingType as never,
             price:        e.price,
             cost_price:   e.costPrice,
+            updated_by:   actorName,
           },
-        }),
-      ),
-    );
+        });
+
+        // 2. Replace schedules: delete old, create new
+        await tx.cab_pricing_schedule.deleteMany({ where: { pricing_id: record.id } });
+
+        if (e.schedules.length > 0) {
+          await tx.cab_pricing_schedule.createMany({
+            data: e.schedules.map((s) => ({
+              pricing_id:    record.id,
+              label:         s.label,
+              schedule_type: s.scheduleType as never,
+              pricing_type:  s.pricingType as never,
+              price:         s.price,
+              cost_price:    s.costPrice,
+              valid_from:    s.validFrom ? new Date(s.validFrom) : null,
+              valid_to:      s.validTo   ? new Date(s.validTo)   : null,
+              is_active:     true,
+            })),
+          });
+        }
+      }
+    });
 
     revalidatePath(PATH);
     return { success: true, message: "Pricing saved successfully" };
@@ -213,7 +266,7 @@ export async function upsertCabPricingForDestination(
   }
 }
 
-// ── Toggle active for all pricings of a destination ────────────────────────
+// ── Toggle active ──────────────────────────────────────────────────────────
 
 export async function toggleCabPricingActive(
   destinationId: number,
