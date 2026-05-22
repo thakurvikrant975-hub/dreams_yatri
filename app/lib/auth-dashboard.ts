@@ -1,6 +1,6 @@
 // app/lib/auth-dashboard.ts
 
-import NextAuth from "next-auth";
+import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { z } from "zod";
@@ -53,29 +53,55 @@ async authorize(credentials) {
 
   const { email, password } = parsed.data;
 
-  const member = await db.teamMember.findUnique({
-    where: { email },
-    select: {
-      id:           true,
-      name:         true,
-      email:        true,
-      password:     true,
-      isActive:     true,
-      departmentId: true,
-      teamRole: {
-        select: {
-          name:        true,
-          permissions: true,
+  let member;
+  try {
+    member = await db.teamMember.findUnique({
+      where: { email },
+      select: {
+        id:           true,
+        name:         true,
+        email:        true,
+        password:     true,
+        isActive:     true,
+        departmentId: true,
+        teamRole: {
+          select: {
+            name:        true,
+            permissions: true,
+          },
         },
       },
-    },
-  });
+    });
+  } catch (dbError) {
+    console.error("[Dashboard Auth] Database error during login:", dbError);
+    throw new Error("DB_CONNECTION_ERROR");
+  }
 
-  if (!member || !member.password) return null;
-  if (!member.isActive) return null;
+  if (!member || !member.password) {
+    const err = new CredentialsSignin("No account found");
+    err.code = "user_not_found";
+    throw err;
+  }
 
-  const valid = await compare(password, member.password);
-  if (!valid) return null;
+  if (!member.isActive) {
+    const err = new CredentialsSignin("Account deactivated");
+    err.code = "account_inactive";
+    throw err;
+  }
+
+  let valid = false;
+  try {
+    valid = await compare(password, member.password);
+  } catch (bcryptError) {
+    console.error("[Dashboard Auth] Password comparison error:", bcryptError);
+    throw new Error("PASSWORD_COMPARE_ERROR");
+  }
+
+  if (!valid) {
+    const err = new CredentialsSignin("Incorrect password");
+    err.code = "invalid_password";
+    throw err;
+  }
 
   db.teamMember.update({
     where: { id: member.id },
@@ -86,10 +112,10 @@ async authorize(credentials) {
     id:           member.id,
     name:         member.name,
     email:        member.email,
-    role:         member.teamRole?.name ?? "",   // ← null → "" to satisfy NextAuth User type
+    role:         member.teamRole?.name ?? "",
     permissions:  member.teamRole?.permissions ?? [],
     departmentId: member.departmentId ?? null,
-  } as any;  // ← cast to any so custom fields don't conflict with NextAuth's User
+  } as any;
 },
     }),
   ],

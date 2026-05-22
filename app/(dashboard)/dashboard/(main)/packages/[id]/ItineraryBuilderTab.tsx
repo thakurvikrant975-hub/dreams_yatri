@@ -327,7 +327,7 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors",
                 selectedDurationId === d.id
                   ? "bg-primary text-primary-foreground border-primary"
-                  : "border-border hover:bg-muted",
+                  : "border-dashboard-base-content cursor-pointer hover:bg-muted",
               )}
             >
               <CalendarDays className="h-3 w-3" />
@@ -382,7 +382,7 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
               {selectedDuration ? `${selectedDuration.days} days` : "Days"}
             </p>
             {days && (
-              <p className="text-[10px] text-muted-foreground/60">
+              <p className="text-[10px] text-dashboard-base-content/60">
                 Click a day to edit its itinerary
               </p>
             )}
