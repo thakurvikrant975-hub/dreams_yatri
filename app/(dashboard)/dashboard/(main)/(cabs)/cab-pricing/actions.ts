@@ -1,19 +1,22 @@
 "use server";
 
-import { db }              from "@/app/lib/db";
-import { revalidatePath }  from "next/cache";
-import { dashboardAuth }   from "@/app/lib/auth-dashboard";
+import { db }                  from "@/app/lib/db";
+import { revalidatePath }      from "next/cache";
+import { dashboardAuth }       from "@/app/lib/auth-dashboard";
 import { classifyActionError } from "@/app/lib/action-error";
 
 const PATH = "/dashboard/cab-pricing";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
+export type CabPricingType = "PER_DAY" | "PER_KM";
+
 export type VehiclePricingEntry = {
   vehicle_id:    number;
   vehicle_name:  string;
   vehicle_type:  string;
-  per_day_price: number;
+  pricing_type:  CabPricingType;
+  price:         number;
   cost_price:    number | null;
   is_active:     boolean;
 };
@@ -38,7 +41,7 @@ export type CabPricingFormState = {
 async function requireSession() {
   const session = await dashboardAuth();
   if (!session?.user?.email) return { authorized: false as const };
-  return { authorized: true as const, actorName: session.user.name ?? session.user.email };
+  return { authorized: true as const };
 }
 
 // ── Read ───────────────────────────────────────────────────────────────────
@@ -58,7 +61,7 @@ export async function getCabPricings(params: GetCabPricingsParams = {}) {
     ...(search ? { name: { contains: search, mode: "insensitive" as const } } : {}),
   };
 
-  const [destinations, totalCount, allStats] = await Promise.all([
+  const [destinations, allStats] = await Promise.all([
     db.destinations.findMany({
       where,
       include: {
@@ -69,19 +72,18 @@ export async function getCabPricings(params: GetCabPricingsParams = {}) {
       },
       orderBy: { name: "asc" },
     }),
-    db.destinations.count({ where }),
     db.cab_pricing.aggregate({ _count: { id: true } }),
   ]);
 
-  // Apply status filter in-memory (filter on whether any pricing record matches)
   let rows: CabPricingGroup[] = destinations.map((dest) => {
     const pricings: VehiclePricingEntry[] = dest.cabPricings.map((cp) => ({
-      vehicle_id:    cp.vehicle_id,
-      vehicle_name:  cp.vehicle.name,
-      vehicle_type:  cp.vehicle.type,
-      per_day_price: Number(cp.per_day_price),
-      cost_price:    cp.cost_price != null ? Number(cp.cost_price) : null,
-      is_active:     cp.is_active,
+      vehicle_id:   cp.vehicle_id,
+      vehicle_name: cp.vehicle.name,
+      vehicle_type: cp.vehicle.type,
+      pricing_type: cp.pricing_type as CabPricingType,
+      price:        Number(cp.price),
+      cost_price:   cp.cost_price != null ? Number(cp.cost_price) : null,
+      is_active:    cp.is_active,
     }));
 
     const updated = dest.cabPricings.reduce<Date>((max, cp) => {
@@ -93,9 +95,9 @@ export async function getCabPricings(params: GetCabPricingsParams = {}) {
       destination_name: dest.name,
       destination_slug: dest.slug,
       pricings,
-      active_count:  pricings.filter((p) => p.is_active).length,
-      total_count:   pricings.length,
-      updated_at:    updated,
+      active_count: pricings.filter((p) => p.is_active).length,
+      total_count:  pricings.length,
+      updated_at:   updated,
     };
   });
 
@@ -114,7 +116,7 @@ export async function getCabPricings(params: GetCabPricingsParams = {}) {
     stats: {
       total_destinations: rows.length,
       total_entries:      allStats._count.id,
-      active_entries:     rows.reduce((s, r) => s + r.active_count,  0),
+      active_entries:     rows.reduce((s, r) => s + r.active_count, 0),
     },
   };
 }
@@ -127,25 +129,24 @@ export async function searchDestinations(query: string) {
       is_active: true,
       ...(query ? { name: { contains: query, mode: "insensitive" as const } } : {}),
     },
-    select: { id: true, name: true, slug: true },
+    select:  { id: true, name: true, slug: true },
     orderBy: { name: "asc" },
-    take: 20,
+    take:    20,
   });
   return dests.map((d) => ({ id: d.id, label: d.name, description: d.slug }));
 }
 
-// ── Get active vehicles for the pricing form ───────────────────────────────
+// ── Get active vehicles ────────────────────────────────────────────────────
 
 export async function getActiveVehicles() {
-  const vehicles = await db.vehicles.findMany({
+  return db.vehicles.findMany({
     where:   { is_active: true },
     select:  { id: true, name: true, type: true },
     orderBy: { type: "asc" },
   });
-  return vehicles;
 }
 
-// ── Get existing pricings for a destination (for pre-filling edit form) ────
+// ── Get existing pricings for a destination ────────────────────────────────
 
 export async function getCabPricingsByDestination(destinationId: number) {
   const pricings = await db.cab_pricing.findMany({
@@ -153,12 +154,13 @@ export async function getCabPricingsByDestination(destinationId: number) {
     include: { vehicle: { select: { id: true, name: true, type: true } } },
   });
   return pricings.map((cp) => ({
-    vehicle_id:    cp.vehicle_id,
-    vehicle_name:  cp.vehicle.name,
-    vehicle_type:  cp.vehicle.type,
-    per_day_price: Number(cp.per_day_price),
-    cost_price:    cp.cost_price != null ? Number(cp.cost_price) : null,
-    is_active:     cp.is_active,
+    vehicle_id:   cp.vehicle_id,
+    vehicle_name: cp.vehicle.name,
+    vehicle_type: cp.vehicle.type,
+    pricing_type: cp.pricing_type as CabPricingType,
+    price:        Number(cp.price),
+    cost_price:   cp.cost_price != null ? Number(cp.cost_price) : null,
+    is_active:    cp.is_active,
   }));
 }
 
@@ -166,7 +168,12 @@ export async function getCabPricingsByDestination(destinationId: number) {
 
 export async function upsertCabPricingForDestination(
   destinationId: number,
-  entries: { vehicleId: number; perDayPrice: number; costPrice: number | null }[],
+  entries: {
+    vehicleId:   number;
+    pricingType: CabPricingType;
+    price:       number;
+    costPrice:   number | null;
+  }[],
 ): Promise<CabPricingFormState> {
   const { authorized } = await requireSession();
   if (!authorized) return { success: false, message: "Unauthorized" };
@@ -184,13 +191,15 @@ export async function upsertCabPricingForDestination(
           create: {
             destination_id: destinationId,
             vehicle_id:     e.vehicleId,
-            per_day_price:  e.perDayPrice,
+            pricing_type:   e.pricingType as never,
+            price:          e.price,
             cost_price:     e.costPrice,
             is_active:      true,
           },
           update: {
-            per_day_price: e.perDayPrice,
-            cost_price:    e.costPrice,
+            pricing_type: e.pricingType as never,
+            price:        e.price,
+            cost_price:   e.costPrice,
           },
         }),
       ),

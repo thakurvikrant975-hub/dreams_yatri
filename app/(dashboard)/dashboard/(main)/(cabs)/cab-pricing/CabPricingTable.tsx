@@ -130,7 +130,10 @@ export function CabPricingTable({
                 {VEHICLE_TYPE_LABELS[p.vehicle_type] ?? p.vehicle_type}
               </span>
               <span className="text-[11px] font-semibold text-foreground">
-                ₹{p.per_day_price.toLocaleString("en-IN")}
+                ₹{p.price.toLocaleString("en-IN")}
+              </span>
+              <span className="text-[10px] text-muted-foreground">
+                {p.pricing_type === "PER_KM" ? "/km" : "/day"}
               </span>
             </div>
           ))}
