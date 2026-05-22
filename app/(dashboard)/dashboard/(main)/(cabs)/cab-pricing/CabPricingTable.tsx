@@ -22,18 +22,6 @@ import type { CabPricingGroup }      from "./actions";
 
 type Vehicle = { id: number; name: string; type: string };
 
-const VEHICLE_TYPE_LABELS: Record<string, string> = {
-  HATCHBACK:       "Hatchback",
-  SEDAN:           "Sedan",
-  SUV:             "SUV",
-  LUXURY_SEDAN:    "Luxury Sedan",
-  LUXURY_SUV:      "Luxury SUV",
-  TEMPO_TRAVELLER: "Tempo Traveller",
-  MINI_BUS:        "Mini Bus",
-  BUS:             "Bus",
-  Rikshaw:         "Rickshaw",
-};
-
 // ── Component ─────────────────────────────────────────────────────────────
 
 export function CabPricingTable({
@@ -130,7 +118,7 @@ export function CabPricingTable({
               )}
             >
               <span className="text-[11px] font-medium text-muted-foreground">
-                {VEHICLE_TYPE_LABELS[p.vehicle_type] ?? p.vehicle_type}
+                {p.vehicle_name}
               </span>
               <span className="text-[11px] font-semibold text-foreground">
                 ₹{p.price.toLocaleString("en-IN")}
