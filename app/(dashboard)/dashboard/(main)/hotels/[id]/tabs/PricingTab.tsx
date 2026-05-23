@@ -44,6 +44,14 @@ type OccupancyPrice = {
   original_price: number | null;
 };
 
+type SeasonOccupancyPrice = {
+  id: number;
+  season_id: number;
+  occupancy: number;
+  price_per_night: number;
+  original_price: number | null;
+};
+
 type HotelSeason = {
   id: number;
   pricing_id: number;
@@ -52,8 +60,10 @@ type HotelSeason = {
   valid_to: Date | string;
   price_per_night: number;
   original_price: number | null;
+  extra_bed_rate: number | null;
   is_active: boolean;
   sort_order: number;
+  occupancy_prices: SeasonOccupancyPrice[];
 };
 
 type PricingPlan = {
@@ -79,15 +89,19 @@ type PricingPlan = {
   seasons: HotelSeason[];
 };
 
-// Season entry in the form (not yet saved — just local state)
+// Local season entry (before save)
+type OccupancySeasonEntry = { occupancy: number; price: string; original: string };
+
 type SeasonEntry = {
-  tempId:          string;
-  season_name:     string;
-  valid_from:      string;
-  valid_to:        string;
-  price_per_night: string;
-  original_price:  string;
-  is_active:       boolean;
+  tempId:           string;
+  season_name:      string;
+  valid_from:       string;
+  valid_to:         string;
+  price_per_night:  string;
+  original_price:   string;
+  extra_bed_rate:   string;
+  is_active:        boolean;
+  occupancy_prices: OccupancySeasonEntry[];
 };
 
 type OccupancyEntry = { occupancy: number; price: string; original: string };
@@ -119,12 +133,14 @@ const EMPTY_FORM: PricingFormState = {
 };
 
 const EMPTY_SEASON: Omit<SeasonEntry, "tempId"> = {
-  season_name:     "",
-  valid_from:      "",
-  valid_to:        "",
-  price_per_night: "",
-  original_price:  "",
-  is_active:       true,
+  season_name:      "",
+  valid_from:       "",
+  valid_to:         "",
+  price_per_night:  "",
+  original_price:   "",
+  extra_bed_rate:   "",
+  is_active:        true,
+  occupancy_prices: [],
 };
 
 const OCCUPANCY_LABELS: Record<number, string> = {
@@ -174,15 +190,140 @@ function toFormState(p: PricingPlan): PricingFormState {
     is_active:         p.is_active,
     occupancy_prices:  [],
     seasons:           (p.seasons ?? []).map(s => ({
-      tempId:          uid(),
-      season_name:     s.season_name,
-      valid_from:      toISODate(s.valid_from),
-      valid_to:        toISODate(s.valid_to),
-      price_per_night: String(s.price_per_night),
-      original_price:  s.original_price ? String(s.original_price) : "",
-      is_active:       s.is_active,
+      tempId:           uid(),
+      season_name:      s.season_name,
+      valid_from:       toISODate(s.valid_from),
+      valid_to:         toISODate(s.valid_to),
+      price_per_night:  String(s.price_per_night),
+      original_price:   s.original_price  ? String(s.original_price)  : "",
+      extra_bed_rate:   s.extra_bed_rate   ? String(s.extra_bed_rate)  : "",
+      is_active:        s.is_active,
+      occupancy_prices: (s.occupancy_prices ?? []).map(op => ({
+        occupancy: op.occupancy,
+        price:     String(op.price_per_night),
+        original:  op.original_price ? String(op.original_price) : "",
+      })),
     })),
   };
+}
+
+// ── Season Occupancy Mini-List (inside SeasonMiniForm) ────────────────────
+
+function SeasonOccupancyList({
+  entries,
+  onChange,
+}: {
+  entries:  OccupancySeasonEntry[];
+  onChange: (e: OccupancySeasonEntry[]) => void;
+}) {
+  const [addOcc, setAddOcc]     = useState("");
+  const [addPrice, setAddPrice] = useState("");
+  const [addOrig, setAddOrig]   = useState("");
+  const [editOcc, setEditOcc]   = useState<number | null>(null);
+  const [editPrice, setEditPrice] = useState("");
+  const [editOrig, setEditOrig]   = useState("");
+
+  const existing    = new Set(entries.map(e => e.occupancy));
+  const available   = [1, 2, 3, 4].filter(o => !existing.has(o));
+
+  function handleAdd() {
+    const p = Number(addPrice);
+    if (!addOcc || !p || p <= 0) { toast.error("Select occupancy and enter a valid price"); return; }
+    onChange([...entries, { occupancy: Number(addOcc), price: addPrice, original: addOrig }]);
+    setAddOcc(""); setAddPrice(""); setAddOrig("");
+  }
+
+  function handleEditSave(occ: number) {
+    const p = Number(editPrice);
+    if (!p || p <= 0) { toast.error("Valid price required"); return; }
+    onChange(entries.map(e => e.occupancy === occ ? { occupancy: occ, price: editPrice, original: editOrig } : e));
+    setEditOcc(null);
+  }
+
+  function handleRemove(occ: number) {
+    onChange(entries.filter(e => e.occupancy !== occ));
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        Occupancy Price Overrides{" "}
+        <span className="font-normal normal-case text-muted-foreground/60">(optional)</span>
+      </p>
+
+      {entries.map(e => (
+        <div key={e.occupancy} className="flex items-center gap-2 rounded bg-muted/30 px-2 py-1 text-xs">
+          {editOcc === e.occupancy ? (
+            <>
+              <span className="w-24 shrink-0 font-medium">{OCCUPANCY_LABELS[e.occupancy]}</span>
+              <Input type="number" className="h-6 text-xs w-24" value={editPrice}
+                onChange={ev => setEditPrice(ev.target.value)} autoFocus />
+              <Input type="number" className="h-6 text-xs w-24" placeholder="MRP"
+                value={editOrig} onChange={ev => setEditOrig(ev.target.value)} />
+              <Button type="button" size="icon" variant="ghost" className="h-5 w-5"
+                onClick={() => handleEditSave(e.occupancy)}>
+                <Check className="h-3 w-3" />
+              </Button>
+              <Button type="button" size="icon" variant="ghost" className="h-5 w-5"
+                onClick={() => setEditOcc(null)}>
+                <X className="h-3 w-3" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <span className="font-medium w-24 shrink-0">{OCCUPANCY_LABELS[e.occupancy]}</span>
+              <span className="font-semibold">₹{Number(e.price).toLocaleString()}/night</span>
+              {e.original && (
+                <span className="text-muted-foreground line-through">₹{Number(e.original).toLocaleString()}</span>
+              )}
+              <div className="ml-auto flex gap-1">
+                <Button type="button" size="icon" variant="ghost" className="h-5 w-5"
+                  onClick={() => { setEditOcc(e.occupancy); setEditPrice(e.price); setEditOrig(e.original); }}>
+                  <Pencil className="h-3 w-3" />
+                </Button>
+                <Button type="button" size="icon" variant="ghost"
+                  className="h-5 w-5 text-destructive hover:text-destructive"
+                  onClick={() => handleRemove(e.occupancy)}>
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      ))}
+
+      {available.length > 0 && editOcc === null && (
+        <div className="flex items-center gap-2">
+          <Select value={addOcc} onValueChange={setAddOcc}>
+            <SelectTrigger className="h-6 text-xs w-32"><SelectValue placeholder="Add…" /></SelectTrigger>
+            <SelectContent>
+              {available.map(o => (
+                <SelectItem key={o} value={String(o)}>{OCCUPANCY_LABELS[o]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {addOcc && (
+            <>
+              <Input type="number" className="h-6 text-xs w-24" placeholder="Price/night"
+                value={addPrice} onChange={e => setAddPrice(e.target.value)} autoFocus />
+              <Input type="number" className="h-6 text-xs w-24" placeholder="MRP (opt)"
+                value={addOrig} onChange={e => setAddOrig(e.target.value)} />
+              <Button type="button" size="icon" variant="outline" className="h-6 w-6"
+                onClick={handleAdd}>
+                <Plus className="h-3 w-3" />
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+
+      {entries.length === 0 && !addOcc && (
+        <p className="text-[10px] text-muted-foreground/50 italic">
+          None — base price applies to all occupancies.
+        </p>
+      )}
+    </div>
+  );
 }
 
 // ── Season Add/Edit mini-form ─────────────────────────────────────────────
@@ -208,28 +349,23 @@ function SeasonMiniForm({
     new Date(s.valid_to) > new Date(s.valid_from);
 
   return (
-    <div className="border border-dashed rounded-lg p-3 space-y-2 bg-muted/10">
+    <div className="border border-dashed rounded-lg p-3 space-y-3 bg-muted/10">
+      {/* Name + Price */}
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
           <Label className="text-xs">Season Name <span className="text-destructive">*</span></Label>
-          <Input
-            className="h-7 text-xs"
-            placeholder="e.g. Peak Season"
-            value={s.season_name}
-            onChange={e => upd("season_name", e.target.value)}
-            autoFocus
-          />
+          <Input className="h-7 text-xs" placeholder="e.g. Peak Season"
+            value={s.season_name} onChange={e => upd("season_name", e.target.value)} autoFocus />
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Price / Night (₹) <span className="text-destructive">*</span></Label>
-          <Input
-            type="number" className="h-7 text-xs" placeholder="4500"
-            value={s.price_per_night}
-            onChange={e => upd("price_per_night", e.target.value)}
-          />
+          <Input type="number" className="h-7 text-xs" placeholder="4500"
+            value={s.price_per_night} onChange={e => upd("price_per_night", e.target.value)} />
         </div>
       </div>
-      <div className="grid grid-cols-3 gap-2">
+
+      {/* Dates + MRP + Extra bed */}
+      <div className="grid grid-cols-4 gap-2">
         <div className="space-y-1">
           <Label className="text-xs">From <span className="text-destructive">*</span></Label>
           <Input type="date" className="h-7 text-xs" value={s.valid_from}
@@ -238,17 +374,28 @@ function SeasonMiniForm({
         <div className="space-y-1">
           <Label className="text-xs">To <span className="text-destructive">*</span></Label>
           <Input type="date" className="h-7 text-xs" value={s.valid_to}
-            min={s.valid_from}
-            onChange={e => upd("valid_to", e.target.value)} />
+            min={s.valid_from} onChange={e => upd("valid_to", e.target.value)} />
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">Original / MRP (₹)</Label>
+          <Label className="text-xs">MRP (₹)</Label>
           <Input type="number" className="h-7 text-xs" placeholder="6000"
-            value={s.original_price}
-            onChange={e => upd("original_price", e.target.value)} />
+            value={s.original_price} onChange={e => upd("original_price", e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Extra Bed (₹)</Label>
+          <Input type="number" className="h-7 text-xs" placeholder="1200"
+            value={s.extra_bed_rate} onChange={e => upd("extra_bed_rate", e.target.value)} />
         </div>
       </div>
-      <div className="flex items-center justify-between">
+
+      {/* Occupancy overrides */}
+      <SeasonOccupancyList
+        entries={s.occupancy_prices}
+        onChange={v => upd("occupancy_prices", v)}
+      />
+
+      {/* Footer */}
+      <div className="flex items-center justify-between pt-1">
         <div className="flex items-center gap-2">
           <Switch checked={s.is_active} onCheckedChange={v => upd("is_active", v)} />
           <span className="text-xs text-muted-foreground">Active</span>
@@ -259,7 +406,7 @@ function SeasonMiniForm({
           </Button>
           <Button type="button" size="sm" className="h-7 text-xs" disabled={!valid}
             onClick={() => { if (valid) onAdd(s); }}>
-            <Check className="mr-1 h-3 w-3" /> Add Season
+            <Check className="mr-1 h-3 w-3" /> {initial ? "Save Season" : "Add Season"}
           </Button>
         </div>
       </div>
@@ -308,7 +455,6 @@ function SeasonsInlineList({
         )}
       </div>
 
-      {/* Existing season rows */}
       {seasons.map(s => {
         const hasOverlap = overlapping.has(s.tempId);
         if (editTempId === s.tempId) {
@@ -334,14 +480,22 @@ function SeasonsInlineList({
           >
             {hasOverlap && <AlertTriangle className="h-3 w-3 text-orange-500 shrink-0" />}
             <span className="font-medium w-28 shrink-0 truncate">{s.season_name}</span>
-            <span className="text-muted-foreground shrink-0">
-              {s.valid_from} – {s.valid_to}
-            </span>
+            <span className="text-muted-foreground shrink-0">{s.valid_from} – {s.valid_to}</span>
             <span className="font-semibold ml-1">₹{Number(s.price_per_night).toLocaleString()}/night</span>
             {s.original_price && (
               <span className="text-muted-foreground line-through ml-1">
                 ₹{Number(s.original_price).toLocaleString()}
               </span>
+            )}
+            {s.extra_bed_rate && (
+              <span className="text-muted-foreground/70 shrink-0">
+                +₹{Number(s.extra_bed_rate).toLocaleString()} EB
+              </span>
+            )}
+            {s.occupancy_prices.length > 0 && (
+              <Badge variant="outline" className="text-[10px] px-1 py-0 shrink-0">
+                {s.occupancy_prices.length} occ
+              </Badge>
             )}
             {!s.is_active && <Badge variant="outline" className="text-[10px] px-1 py-0 ml-1">Inactive</Badge>}
             <div className="ml-auto flex gap-1">
@@ -359,7 +513,6 @@ function SeasonsInlineList({
         );
       })}
 
-      {/* Add form */}
       {adding ? (
         <SeasonMiniForm onAdd={handleAdd} onCancel={() => setAdding(false)} />
       ) : editTempId === null && (
@@ -463,14 +616,8 @@ function PricingForm({
         </div>
       </div>
 
-      {/* Row 3: Extra Bed + Margin + GST */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="space-y-1.5">
-          <Label>Extra Bed Rate (₹)</Label>
-          <Input type="number" placeholder="1200"
-            value={form.extra_bed_rate}
-            onChange={e => upd("extra_bed_rate", e.target.value)} />
-        </div>
+      {/* Row 3: Margin + GST (extra bed rate moved to per-season) */}
+      <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label>Margin %</Label>
           <Input type="number" min={0} max={100}
@@ -498,7 +645,8 @@ function PricingForm({
       {isNew && (
         <div className="border-t pt-3 space-y-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            Occupancy Prices <span className="font-normal normal-case">(optional — overrides season base price)</span>
+            Plan-level Occupancy Prices{" "}
+            <span className="font-normal normal-case">(optional fallback — overridden by season occupancy)</span>
           </p>
           {OCCUPANCY_OPTIONS.map(occ => {
             const entry = form.occupancy_prices.find(e => e.occupancy === occ.value);
@@ -608,7 +756,8 @@ function OccupancyPricesPanel({
   return (
     <div className="px-4 pb-4 pt-1 space-y-2">
       <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1">
-        <Users className="h-3 w-3" /> Occupancy Prices
+        <Users className="h-3 w-3" /> Plan-level Occupancy Prices
+        <span className="font-normal normal-case text-muted-foreground/60 ml-1">— fallback when season has no override</span>
       </p>
 
       {plan.occupancy_prices.map(op => (
@@ -679,7 +828,7 @@ function OccupancyPricesPanel({
 
       {plan.occupancy_prices.length === 0 && !addOccupancy && (
         <p className="text-[10px] text-muted-foreground/60 italic">
-          No occupancy overrides yet — season price will apply to all occupancies.
+          No plan-level occupancy prices — season prices apply directly.
         </p>
       )}
     </div>
@@ -706,16 +855,36 @@ function SeasonsSummaryPanel({ seasons }: { seasons: HotelSeason[] }) {
       {seasons.map(s => (
         <div key={s.id}
           className={cn(
-            "flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs bg-muted/30",
+            "border rounded-lg overflow-hidden",
             !s.is_active && "opacity-50",
           )}>
-          <span className="font-medium w-28 shrink-0 truncate">{s.season_name}</span>
-          <span className="text-muted-foreground">{toISODate(s.valid_from)} – {toISODate(s.valid_to)}</span>
-          <span className="font-semibold ml-2">₹{Number(s.price_per_night).toLocaleString()}/night</span>
-          {s.original_price && (
-            <span className="text-muted-foreground line-through ml-1">₹{Number(s.original_price).toLocaleString()}</span>
+          <div className="flex items-center gap-2 px-3 py-1.5 text-xs bg-muted/30">
+            <span className="font-medium w-28 shrink-0 truncate">{s.season_name}</span>
+            <span className="text-muted-foreground shrink-0">{toISODate(s.valid_from)} – {toISODate(s.valid_to)}</span>
+            <span className="font-semibold ml-2">₹{Number(s.price_per_night).toLocaleString()}/night</span>
+            {s.original_price && (
+              <span className="text-muted-foreground line-through ml-1">₹{Number(s.original_price).toLocaleString()}</span>
+            )}
+            {s.extra_bed_rate && (
+              <span className="text-muted-foreground/70 shrink-0">
+                +₹{Number(s.extra_bed_rate).toLocaleString()} EB
+              </span>
+            )}
+            {!s.is_active && <Badge variant="outline" className="text-[10px] px-1 py-0 ml-auto">Inactive</Badge>}
+          </div>
+          {s.occupancy_prices.length > 0 && (
+            <div className="px-3 py-1.5 border-t flex flex-wrap gap-3 bg-muted/10">
+              {s.occupancy_prices.map(op => (
+                <span key={op.occupancy} className="text-[10px] text-muted-foreground">
+                  {OCCUPANCY_LABELS[op.occupancy] ?? `${op.occupancy}P`}:{" "}
+                  <span className="font-semibold text-foreground">₹{Number(op.price_per_night).toLocaleString()}</span>
+                  {op.original_price && (
+                    <span className="line-through ml-1">₹{Number(op.original_price).toLocaleString()}</span>
+                  )}
+                </span>
+              ))}
+            </div>
           )}
-          {!s.is_active && <Badge variant="outline" className="text-[10px] px-1 py-0 ml-auto">Inactive</Badge>}
         </div>
       ))}
     </div>
@@ -889,23 +1058,59 @@ export function PricingTab({
   const [editId, setEditId]   = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  function buildSeasonsInput(form: PricingFormState): HotelSeasonInput[] {
+    return form.seasons.map(s => ({
+      season_name:      s.season_name,
+      valid_from:       s.valid_from,
+      valid_to:         s.valid_to,
+      price_per_night:  Number(s.price_per_night),
+      original_price:   s.original_price  ? Number(s.original_price)  : null,
+      extra_bed_rate:   s.extra_bed_rate   ? Number(s.extra_bed_rate)  : null,
+      is_active:        s.is_active,
+      occupancy_prices: s.occupancy_prices.map(op => ({
+        occupancy:       op.occupancy,
+        price_per_night: Number(op.price),
+        original_price:  op.original ? Number(op.original) : null,
+      })),
+    }));
+  }
+
+  function buildOptimisticSeasons(
+    seasonsInput: HotelSeasonInput[],
+    planId: number,
+    baseTime: number,
+  ): HotelSeason[] {
+    return seasonsInput.map((s, i) => ({
+      id:              baseTime + i,
+      pricing_id:      planId,
+      season_name:     s.season_name,
+      valid_from:      new Date(s.valid_from),
+      valid_to:        new Date(s.valid_to),
+      price_per_night: s.price_per_night,
+      original_price:  s.original_price  ?? null,
+      extra_bed_rate:  s.extra_bed_rate   ?? null,
+      is_active:       s.is_active,
+      sort_order:      i,
+      occupancy_prices: (s.occupancy_prices ?? []).map((op, j) => ({
+        id:              baseTime + i * 100 + j,
+        season_id:       baseTime + i,
+        occupancy:       op.occupancy,
+        price_per_night: op.price_per_night,
+        original_price:  op.original_price ?? null,
+      })),
+    }));
+  }
+
   function handleAdd(form: PricingFormState) {
     startTransition(async () => {
-      const seasons: HotelSeasonInput[] = form.seasons.map(s => ({
-        season_name:     s.season_name,
-        valid_from:      s.valid_from,
-        valid_to:        s.valid_to,
-        price_per_night: Number(s.price_per_night),
-        original_price:  s.original_price ? Number(s.original_price) : null,
-        is_active:       s.is_active,
-      }));
+      const seasons = buildSeasonsInput(form);
 
       const result = await createRoomPricingWithSeasons(hotel_id, {
         room_id:           Number(form.room_id),
         plan_name:         form.plan_name || null,
         meal_type_id:      form.meal_type_id && form.meal_type_id !== "none" ? Number(form.meal_type_id) : null,
         diet_type_id:      form.diet_type_id && form.diet_type_id !== "none" ? Number(form.diet_type_id) : null,
-        extra_bed_rate:    form.extra_bed_rate ? Number(form.extra_bed_rate) : null,
+        extra_bed_rate:    null, // extra bed rate is now per-season
         margin_percentage: Number(form.margin_percentage) || 10,
         gst_percentage:    Number(form.gst_percentage) || 18,
         is_active:         form.is_active,
@@ -914,7 +1119,7 @@ export function PricingTab({
 
       if (!result.success) { toast.error(result.message); return; }
 
-      // Save optional occupancy prices
+      // Save optional plan-level occupancy prices
       const planId = result.id!;
       const savedPrices: OccupancyPrice[] = [];
       for (const entry of form.occupancy_prices) {
@@ -939,6 +1144,7 @@ export function PricingTab({
       const roomId  = Number(form.room_id);
       const mealId  = form.meal_type_id && form.meal_type_id !== "none" ? Number(form.meal_type_id) : null;
       const dietId  = form.diet_type_id && form.diet_type_id !== "none" ? Number(form.diet_type_id) : null;
+      const now = Date.now();
 
       setPricing(prev => [
         ...prev,
@@ -949,9 +1155,9 @@ export function PricingTab({
           plan_name:         form.plan_name || null,
           meal_type_id:      mealId,
           diet_type_id:      dietId,
-          price_per_night:   Number(form.seasons[0]?.price_per_night) || 0,
+          price_per_night:   Number(seasons[0]?.price_per_night) || 0,
           original_price:    null,
-          extra_bed_rate:    form.extra_bed_rate ? Number(form.extra_bed_rate) : null,
+          extra_bed_rate:    null,
           margin_percentage: Number(form.margin_percentage),
           gst_percentage:    Number(form.gst_percentage),
           valid_from:        null,
@@ -962,17 +1168,7 @@ export function PricingTab({
           meal_type:         mealTypes.find(m => m.id === mealId) ?? null,
           diet_type:         dietTypes.find(d => d.id === dietId) ?? null,
           occupancy_prices:  savedPrices,
-          seasons:           seasons.map((s, i) => ({
-            id:              Date.now() + i,
-            pricing_id:      planId,
-            season_name:     s.season_name,
-            valid_from:      new Date(s.valid_from),
-            valid_to:        new Date(s.valid_to),
-            price_per_night: s.price_per_night,
-            original_price:  s.original_price ?? null,
-            is_active:       s.is_active,
-            sort_order:      i,
-          })),
+          seasons:           buildOptimisticSeasons(seasons, planId, now),
         },
       ]);
     });
@@ -980,21 +1176,14 @@ export function PricingTab({
 
   function handleEdit(id: number, form: PricingFormState) {
     startTransition(async () => {
-      const seasons: HotelSeasonInput[] = form.seasons.map(s => ({
-        season_name:     s.season_name,
-        valid_from:      s.valid_from,
-        valid_to:        s.valid_to,
-        price_per_night: Number(s.price_per_night),
-        original_price:  s.original_price ? Number(s.original_price) : null,
-        is_active:       s.is_active,
-      }));
+      const seasons = buildSeasonsInput(form);
 
       const result = await updateRoomPricingWithSeasons(id, hotel_id, {
         room_id:           Number(form.room_id),
         plan_name:         form.plan_name || null,
         meal_type_id:      form.meal_type_id && form.meal_type_id !== "none" ? Number(form.meal_type_id) : null,
         diet_type_id:      form.diet_type_id && form.diet_type_id !== "none" ? Number(form.diet_type_id) : null,
-        extra_bed_rate:    form.extra_bed_rate ? Number(form.extra_bed_rate) : null,
+        extra_bed_rate:    null,
         margin_percentage: Number(form.margin_percentage) || 10,
         gst_percentage:    Number(form.gst_percentage) || 18,
         is_active:         form.is_active,
@@ -1008,6 +1197,7 @@ export function PricingTab({
       const roomId = Number(form.room_id);
       const mealId = form.meal_type_id && form.meal_type_id !== "none" ? Number(form.meal_type_id) : null;
       const dietId = form.diet_type_id && form.diet_type_id !== "none" ? Number(form.diet_type_id) : null;
+      const now = Date.now();
 
       setPricing(prev =>
         prev.map(p =>
@@ -1017,25 +1207,15 @@ export function PricingTab({
             plan_name:         form.plan_name || null,
             meal_type_id:      mealId,
             diet_type_id:      dietId,
-            price_per_night:   Number(form.seasons[0]?.price_per_night) || p.price_per_night,
-            extra_bed_rate:    form.extra_bed_rate ? Number(form.extra_bed_rate) : null,
+            price_per_night:   Number(seasons[0]?.price_per_night) || p.price_per_night,
+            extra_bed_rate:    null,
             margin_percentage: Number(form.margin_percentage),
             gst_percentage:    Number(form.gst_percentage),
             is_active:         form.is_active,
             room:              rooms.find(r => r.id === roomId) ?? null,
             meal_type:         mealTypes.find(m => m.id === mealId) ?? null,
             diet_type:         dietTypes.find(d => d.id === dietId) ?? null,
-            seasons:           seasons.map((s, i) => ({
-              id:              Date.now() + i,
-              pricing_id:      id,
-              season_name:     s.season_name,
-              valid_from:      new Date(s.valid_from),
-              valid_to:        new Date(s.valid_to),
-              price_per_night: s.price_per_night,
-              original_price:  s.original_price ?? null,
-              is_active:       s.is_active,
-              sort_order:      i,
-            })),
+            seasons:           buildOptimisticSeasons(seasons, id, now),
           } : p,
         ),
       );
@@ -1074,7 +1254,7 @@ export function PricingTab({
           <div>
             <CardTitle className="text-base">Pricing Plans</CardTitle>
             <CardDescription>
-              {pricing.length} plan{pricing.length !== 1 ? "s" : ""} · Each plan requires at least one season · Expand to manage occupancy prices
+              {pricing.length} plan{pricing.length !== 1 ? "s" : ""} · Each plan requires at least one season · Expand to manage plan-level occupancy prices
             </CardDescription>
           </div>
           {!adding && editId === null && (

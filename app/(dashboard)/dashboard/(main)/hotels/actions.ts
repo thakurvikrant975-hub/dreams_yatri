@@ -166,7 +166,10 @@ export async function getHotelById(id: number) {
           meal_type:        { select: { id: true, name: true } },
           diet_type:        { select: { id: true, name: true } },
           occupancy_prices: { orderBy: { occupancy: "asc" } },
-          seasons:          { orderBy: { sort_order: "asc" } },
+          seasons: {
+            orderBy: { sort_order: "asc" },
+            include: { occupancy_prices: { orderBy: { occupancy: "asc" } } },
+          },
         },
       },
       childPolicies: {
@@ -728,13 +731,21 @@ export async function deleteOccupancyPrice(id: number, hotel_id: number): Promis
 
 // ── Pricing Seasons ───────────────────────────────────────────────────────
 
-export type HotelSeasonInput = {
-  season_name:     string;
-  valid_from:      string; // YYYY-MM-DD
-  valid_to:        string;
+export type HotelSeasonOccupancyInput = {
+  occupancy:       number;
   price_per_night: number;
   original_price?: number | null;
-  is_active:       boolean;
+};
+
+export type HotelSeasonInput = {
+  season_name:      string;
+  valid_from:       string; // YYYY-MM-DD
+  valid_to:         string;
+  price_per_night:  number;
+  original_price?:  number | null;
+  extra_bed_rate?:  number | null;
+  occupancy_prices?: HotelSeasonOccupancyInput[];
+  is_active:        boolean;
 };
 
 export async function createPricingSeason(
@@ -751,17 +762,31 @@ export async function createPricingSeason(
       return { success: false, message: "Valid price is required." };
 
     const count = await db.hotel_room_pricing_season.count({ where: { pricing_id } });
-    const season = await db.hotel_room_pricing_season.create({
-      data: {
-        pricing_id,
-        season_name:     data.season_name.trim(),
-        valid_from:      new Date(data.valid_from),
-        valid_to:        new Date(data.valid_to),
-        price_per_night: data.price_per_night,
-        original_price:  data.original_price ?? null,
-        is_active:       data.is_active,
-        sort_order:      count,
-      },
+    const season = await db.$transaction(async (tx) => {
+      const s = await tx.hotel_room_pricing_season.create({
+        data: {
+          pricing_id,
+          season_name:     data.season_name.trim(),
+          valid_from:      new Date(data.valid_from),
+          valid_to:        new Date(data.valid_to),
+          price_per_night: data.price_per_night,
+          original_price:  data.original_price  ?? null,
+          extra_bed_rate:  data.extra_bed_rate   ?? null,
+          is_active:       data.is_active,
+          sort_order:      count,
+        },
+      });
+      if (data.occupancy_prices && data.occupancy_prices.length > 0) {
+        await tx.hotel_room_pricing_season_occupancy.createMany({
+          data: data.occupancy_prices.map(op => ({
+            season_id:       s.id,
+            occupancy:       op.occupancy,
+            price_per_night: op.price_per_night,
+            original_price:  op.original_price ?? null,
+          })),
+        });
+      }
+      return s;
     });
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Season added", id: season.id };
@@ -784,16 +809,30 @@ export async function updatePricingSeason(
     if (!data.price_per_night || data.price_per_night <= 0)
       return { success: false, message: "Valid price is required." };
 
-    await db.hotel_room_pricing_season.update({
-      where: { id },
-      data: {
-        season_name:     data.season_name.trim(),
-        valid_from:      new Date(data.valid_from),
-        valid_to:        new Date(data.valid_to),
-        price_per_night: data.price_per_night,
-        original_price:  data.original_price ?? null,
-        is_active:       data.is_active,
-      },
+    await db.$transaction(async (tx) => {
+      await tx.hotel_room_pricing_season.update({
+        where: { id },
+        data: {
+          season_name:     data.season_name.trim(),
+          valid_from:      new Date(data.valid_from),
+          valid_to:        new Date(data.valid_to),
+          price_per_night: data.price_per_night,
+          original_price:  data.original_price  ?? null,
+          extra_bed_rate:  data.extra_bed_rate   ?? null,
+          is_active:       data.is_active,
+        },
+      });
+      await tx.hotel_room_pricing_season_occupancy.deleteMany({ where: { season_id: id } });
+      if (data.occupancy_prices && data.occupancy_prices.length > 0) {
+        await tx.hotel_room_pricing_season_occupancy.createMany({
+          data: data.occupancy_prices.map(op => ({
+            season_id:       id,
+            occupancy:       op.occupancy,
+            price_per_night: op.price_per_night,
+            original_price:  op.original_price ?? null,
+          })),
+        });
+      }
     });
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Season updated" };
@@ -856,18 +895,31 @@ export async function createRoomPricingWithSeasons(
           sort_order:        count,
         },
       });
-      await tx.hotel_room_pricing_season.createMany({
-        data: data.seasons.map((s, i) => ({
-          pricing_id:      p.id,
-          season_name:     s.season_name.trim(),
-          valid_from:      new Date(s.valid_from),
-          valid_to:        new Date(s.valid_to),
-          price_per_night: s.price_per_night,
-          original_price:  s.original_price ?? null,
-          is_active:       s.is_active,
-          sort_order:      i,
-        })),
-      });
+      for (const [i, s] of data.seasons.entries()) {
+        const season = await tx.hotel_room_pricing_season.create({
+          data: {
+            pricing_id:      p.id,
+            season_name:     s.season_name.trim(),
+            valid_from:      new Date(s.valid_from),
+            valid_to:        new Date(s.valid_to),
+            price_per_night: s.price_per_night,
+            original_price:  s.original_price  ?? null,
+            extra_bed_rate:  s.extra_bed_rate   ?? null,
+            is_active:       s.is_active,
+            sort_order:      i,
+          },
+        });
+        if (s.occupancy_prices && s.occupancy_prices.length > 0) {
+          await tx.hotel_room_pricing_season_occupancy.createMany({
+            data: s.occupancy_prices.map(op => ({
+              season_id:       season.id,
+              occupancy:       op.occupancy,
+              price_per_night: op.price_per_night,
+              original_price:  op.original_price ?? null,
+            })),
+          });
+        }
+      }
       return p;
     });
 
@@ -905,20 +957,33 @@ export async function updateRoomPricingWithSeasons(
           is_active:         data.is_active,
         },
       });
-      // Replace all seasons
+      // Replace all seasons (cascade deletes season occupancy_prices)
       await tx.hotel_room_pricing_season.deleteMany({ where: { pricing_id: id } });
-      await tx.hotel_room_pricing_season.createMany({
-        data: data.seasons.map((s, i) => ({
-          pricing_id:      id,
-          season_name:     s.season_name.trim(),
-          valid_from:      new Date(s.valid_from),
-          valid_to:        new Date(s.valid_to),
-          price_per_night: s.price_per_night,
-          original_price:  s.original_price ?? null,
-          is_active:       s.is_active,
-          sort_order:      i,
-        })),
-      });
+      for (const [i, s] of data.seasons.entries()) {
+        const season = await tx.hotel_room_pricing_season.create({
+          data: {
+            pricing_id:      id,
+            season_name:     s.season_name.trim(),
+            valid_from:      new Date(s.valid_from),
+            valid_to:        new Date(s.valid_to),
+            price_per_night: s.price_per_night,
+            original_price:  s.original_price  ?? null,
+            extra_bed_rate:  s.extra_bed_rate   ?? null,
+            is_active:       s.is_active,
+            sort_order:      i,
+          },
+        });
+        if (s.occupancy_prices && s.occupancy_prices.length > 0) {
+          await tx.hotel_room_pricing_season_occupancy.createMany({
+            data: s.occupancy_prices.map(op => ({
+              season_id:       season.id,
+              occupancy:       op.occupancy,
+              price_per_night: op.price_per_night,
+              original_price:  op.original_price ?? null,
+            })),
+          });
+        }
+      }
     });
 
     revalidatePath(`/dashboard/hotels/${hotel_id}`);

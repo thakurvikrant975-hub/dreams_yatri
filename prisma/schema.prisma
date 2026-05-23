@@ -901,21 +901,36 @@ model hotel_room_pricing {
 }
 
 model hotel_room_pricing_season {
-  id              Int                @id @default(autoincrement())
-  pricing_id      Int
-  season_name     String
-  valid_from      DateTime
-  valid_to        DateTime
-  price_per_night Decimal            @db.Decimal(10, 2)
-  original_price  Decimal?           @db.Decimal(10, 2)
-  is_active       Boolean            @default(true)
-  sort_order      Int                @default(0)
-  created_at      DateTime           @default(now())
-  updated_at      DateTime           @updatedAt
-  pricing         hotel_room_pricing @relation(fields: [pricing_id], references: [id], onDelete: Cascade)
+  id               Int                                   @id @default(autoincrement())
+  pricing_id       Int
+  season_name      String
+  valid_from       DateTime
+  valid_to         DateTime
+  price_per_night  Decimal                               @db.Decimal(10, 2)
+  original_price   Decimal?                              @db.Decimal(10, 2)
+  extra_bed_rate   Decimal?                              @db.Decimal(10, 2)
+  is_active        Boolean                               @default(true)
+  sort_order       Int                                   @default(0)
+  created_at       DateTime                              @default(now())
+  updated_at       DateTime                              @updatedAt
+  pricing          hotel_room_pricing                    @relation(fields: [pricing_id], references: [id], onDelete: Cascade)
+  occupancy_prices hotel_room_pricing_season_occupancy[]
 
   @@index([pricing_id])
   @@map("hotel_room_pricing_seasons")
+}
+
+model hotel_room_pricing_season_occupancy {
+  id              Int                       @id @default(autoincrement())
+  season_id       Int
+  occupancy       Int
+  price_per_night Decimal                   @db.Decimal(10, 2)
+  original_price  Decimal?                  @db.Decimal(10, 2)
+  season          hotel_room_pricing_season @relation(fields: [season_id], references: [id], onDelete: Cascade)
+
+  @@unique([season_id, occupancy])
+  @@index([season_id])
+  @@map("hotel_room_pricing_season_occupancy")
 }
 
 model hotel_room_occupancy_prices {
