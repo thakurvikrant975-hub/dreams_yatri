@@ -254,7 +254,7 @@ export default async function PackageBuilderPage({
                 durationLabel: d.label,
               }))
             )}
-            initialCabPricings={pkg.cabPricings}
+            cabTypes={pkg.cabTypes}
             availableVehicles={pkg.availableVehicles}
           />
         </TabsContent>
@@ -275,14 +275,26 @@ export default async function PackageBuilderPage({
               label: c.label,
               slug: c.slug,
             }))}
-            cabPricings={pkg.cabPricings
-              .filter((c) => c.is_active && c.vehicle)
-              .map((c) => ({
-                routeId: c.route_id,
-                vehicleId: c.vehicle_id,
-                sellPrice: c.sell_price,
-                vehicleName: c.vehicle!.name,
-                vehicleCapacity: c.vehicle!.passenger_capacity,
+            cabTypes={pkg.cabTypes
+              .filter((ct) => ct.is_active)
+              .map((ct) => ({
+                id: ct.id,
+                duration_id: ct.duration_id,
+                label: ct.label ?? ct.vehicle.name,
+                is_default: ct.is_default,
+                vehicle: {
+                  id: ct.vehicle.id,
+                  name: ct.vehicle.name,
+                  capacity: ct.vehicle.passenger_capacity,
+                },
+                segments: ct.segments.map((s) => ({
+                  day_from: s.day_from,
+                  day_to: s.day_to,
+                  pricing_type: s.cab_pricing.pricing_type,
+                  price: s.cab_pricing.price,
+                  destination_name: s.cab_pricing.destination.name,
+                  seasons: s.cab_pricing.seasons,
+                })),
               }))}
           />
         </TabsContent>

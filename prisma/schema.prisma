@@ -1140,7 +1140,7 @@ model packages {
   updated_at      DateTime                  @updatedAt
   bookings        Booking[]
   cabOptions      package_cab_options[]
-  cabPricings     package_cab_pricings[]
+  cabTypes        package_cab_types[]
   categories      package_categories[]
   durations       package_durations[]
   gallery         package_gallery[]
@@ -1188,6 +1188,7 @@ model package_durations {
   itineraries   package_itineraries[]
   pricing       package_pricing[]
   routes        package_routes[]
+  cabTypes      package_cab_types[]
 
   @@unique([package_id, slug])
   @@index([package_id, is_active])
@@ -1210,7 +1211,6 @@ model package_routes {
   duration           package_durations      @relation(fields: [duration_id], references: [id], onDelete: Cascade)
   packages           packages?              @relation(fields: [packagesId], references: [id])
   stops              route_stops[]
-  cabPricings        package_cab_pricings[]
   gallery            package_gallery[]
 
   @@unique([duration_id, slug])
@@ -1329,7 +1329,7 @@ model vehicles {
   created_at         DateTime               @default(now())
   rates              vehicle_rates[]
   transfers          itinerary_transfers[]
-  cabPricings        package_cab_pricings[]
+  cabTypes           package_cab_types[]
   cabDestPricings    cab_pricing[]
 }
 
@@ -1357,9 +1357,10 @@ model cab_pricing {
   updated_by     String?
   created_at     DateTime               @default(now())
   updated_at     DateTime               @updatedAt
-  destination    destinations           @relation(fields: [destination_id], references: [id], onDelete: Cascade)
-  vehicle        vehicles               @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
-  seasons        cab_pricing_season[]
+  destination     destinations            @relation(fields: [destination_id], references: [id], onDelete: Cascade)
+  vehicle         vehicles                @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
+  seasons         cab_pricing_season[]
+  packageSegments package_cab_segments[]
 
   @@unique([destination_id, vehicle_id])
   @@index([destination_id])
@@ -1485,21 +1486,40 @@ model package_cab_options {
   @@map("package_cab_options")
 }
 
-model package_cab_pricings {
-  id         Int            @id @default(autoincrement())
-  package_id Int
-  route_id   Int
-  vehicle_id Int
-  sell_price Decimal        @db.Decimal(10, 2)
-  cost_price Decimal?       @db.Decimal(10, 2)
-  sort_order Int            @default(0)
-  is_active  Boolean        @default(true)
-  package    packages       @relation(fields: [package_id], references: [id], onDelete: Cascade)
-  route      package_routes @relation(fields: [route_id], references: [id], onDelete: Cascade)
-  vehicle    vehicles       @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
+model package_cab_types {
+  id          Int                    @id @default(autoincrement())
+  package_id  Int
+  duration_id Int
+  vehicle_id  Int
+  label       String?
+  note        String?
+  is_default  Boolean                @default(false)
+  is_active   Boolean                @default(true)
+  sort_order  Int                    @default(0)
+  created_at  DateTime               @default(now())
+  updated_at  DateTime               @updatedAt
+  package     packages               @relation(fields: [package_id], references: [id], onDelete: Cascade)
+  duration    package_durations      @relation(fields: [duration_id], references: [id], onDelete: Cascade)
+  vehicle     vehicles               @relation(fields: [vehicle_id], references: [id], onDelete: Restrict)
+  segments    package_cab_segments[]
 
-  @@unique([route_id, vehicle_id])
-  @@map("package_cab_pricings")
+  @@unique([package_id, duration_id, vehicle_id])
+  @@index([package_id, duration_id])
+  @@map("package_cab_types")
+}
+
+model package_cab_segments {
+  id             Int               @id @default(autoincrement())
+  cab_type_id    Int
+  day_from       Int
+  day_to         Int
+  cab_pricing_id Int
+  sort_order     Int               @default(0)
+  cab_type       package_cab_types @relation(fields: [cab_type_id], references: [id], onDelete: Cascade)
+  cab_pricing    cab_pricing       @relation(fields: [cab_pricing_id], references: [id], onDelete: Restrict)
+
+  @@index([cab_type_id])
+  @@map("package_cab_segments")
 }
 
 model package_policy_map {

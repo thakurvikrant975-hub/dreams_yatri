@@ -13,7 +13,8 @@ export type PricingInput = {
   children: number;
   infants: number;
   child_ages?: number[];
-  vehicle_id_override?: number | null;
+  cab_type_id?: number | null;   // if null → use is_default cab type for duration
+  travel_date?: string | null;   // ISO date "YYYY-MM-DD"; null = use base price
 };
 
 export type DayHotelLine = {
@@ -47,11 +48,22 @@ export type DayTransferLine = {
   pickup_name: string | null;
   drop_name: string | null;
   vehicle_name: string | null;
-  vehicle_capacity: number | null;
-  configured_vehicles: number;
-  actual_vehicles: number;    // ceil(total_pax / capacity) or configured_vehicles if no vehicle
-  per_vehicle_price: number;
   distance_km: number | null;
+  included_in_cab: true;      // transfers are always display-only; cost in cab_subtotal
+  total: 0;
+};
+
+export type CabSegmentBreakdown = {
+  day_from: number;
+  day_to: number;
+  days: number;
+  km: number;
+  vehicle_name: string;
+  destination_name: string;
+  pricing_type: "PER_DAY" | "PER_KM";
+  price_used: number;         // effective price after seasonal resolution
+  is_seasonal: boolean;
+  num_vehicles: number;
   total: number;
 };
 
@@ -73,7 +85,9 @@ export type FullPricingBreakdown = {
   days: DayPricingBreakdown[];
   hotel_subtotal: number;
   activity_subtotal: number;
-  transfer_subtotal: number;
+  cab_type_label: string | null;
+  cab_subtotal: number;
+  cab_segments: CabSegmentBreakdown[];
   base_cost: number;
   margin_percentage: number;
   margin_amount: number;
@@ -95,14 +109,65 @@ function matchTier<T extends { label: string }>(
   );
 }
 
+/** Resolve the effective cab price for a segment given a travel date. */
+function resolveCabPrice(
+  basePricing: {
+    pricing_type: string;
+    price: unknown;
+    seasons: Array<{
+      pricing_type: string;
+      valid_from: Date;
+      valid_to: Date;
+      weekday_price: unknown;
+      weekend_price: unknown;
+      is_active: boolean;
+    }>;
+  },
+  travelDate: Date | null,
+): { price: number; is_seasonal: boolean; pricing_type: "PER_DAY" | "PER_KM" } {
+  const basePrice = Number(basePricing.price);
+  const basePricingType = basePricing.pricing_type as "PER_DAY" | "PER_KM";
+
+  if (!travelDate) {
+    return { price: basePrice, is_seasonal: false, pricing_type: basePricingType };
+  }
+
+  const activeSeason = basePricing.seasons.find((s) => {
+    if (!s.is_active) return false;
+    const from = new Date(s.valid_from);
+    const to = new Date(s.valid_to);
+    from.setHours(0, 0, 0, 0);
+    to.setHours(23, 59, 59, 999);
+    return travelDate >= from && travelDate <= to;
+  });
+
+  if (!activeSeason) {
+    return { price: basePrice, is_seasonal: false, pricing_type: basePricingType };
+  }
+
+  // Sat=6, Sun=0 in JS
+  const dayOfWeek = travelDate.getDay();
+  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+  const price = isWeekend ? Number(activeSeason.weekend_price) : Number(activeSeason.weekday_price);
+  const pricingType = activeSeason.pricing_type as "PER_DAY" | "PER_KM";
+
+  return { price, is_seasonal: true, pricing_type: pricingType };
+}
+
 // ── Core calculator ────────────────────────────────────────────────────────
 
 export async function computePackagePrice(
   input: PricingInput,
 ): Promise<FullPricingBreakdown> {
-  const { package_id, duration_id, route_id, stay_category_id, adults, children, infants, child_ages, vehicle_id_override } = input;
+  const {
+    package_id, duration_id, route_id, stay_category_id,
+    adults, children, infants, child_ages,
+    cab_type_id, travel_date,
+  } = input;
 
-  const [itineraries, pricingConfig, duration, stayCategory, cabPricings] = await Promise.all([
+  const travelDateObj = travel_date ? new Date(travel_date) : null;
+
+  const [itineraries, pricingConfig, duration, stayCategory, cabTypeData] = await Promise.all([
     db.package_itineraries.findMany({
       where: { package_id, duration_id, route_id },
       orderBy: { day: "asc" },
@@ -154,7 +219,7 @@ export async function computePackagePrice(
           orderBy: { sort_order: "asc" },
           include: {
             route: { select: { pickup_name: true, drop_name: true, distance_km: true } },
-            vehicle: { select: { name: true, type: true, passenger_capacity: true } },
+            vehicle: { select: { name: true } },
           },
         },
       },
@@ -166,19 +231,83 @@ export async function computePackagePrice(
     }),
     db.package_durations.findUnique({ where: { id: duration_id }, select: { label: true } }),
     db.package_stay_categories.findUnique({ where: { id: stay_category_id }, select: { label: true } }),
-    db.package_cab_pricings.findMany({
-      where: { package_id, route_id, is_active: true },
-      select: { vehicle_id: true, sell_price: true, vehicle: { select: { passenger_capacity: true } } },
-    }),
+    // Load selected cab type or the default one for this package+duration
+    cab_type_id != null
+      ? db.package_cab_types.findUnique({
+          where: { id: cab_type_id },
+          include: {
+            vehicle: { select: { name: true, passenger_capacity: true } },
+            segments: {
+              orderBy: { sort_order: "asc" },
+              include: {
+                cab_pricing: {
+                  select: {
+                    pricing_type: true,
+                    price: true,
+                    destination: { select: { name: true } },
+                    seasons: {
+                      where: { is_active: true },
+                      select: {
+                        pricing_type: true,
+                        valid_from: true,
+                        valid_to: true,
+                        weekday_price: true,
+                        weekend_price: true,
+                        is_active: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        })
+      : db.package_cab_types.findFirst({
+          where: { package_id, duration_id, is_default: true, is_active: true },
+          include: {
+            vehicle: { select: { name: true, passenger_capacity: true } },
+            segments: {
+              orderBy: { sort_order: "asc" },
+              include: {
+                cab_pricing: {
+                  select: {
+                    pricing_type: true,
+                    price: true,
+                    destination: { select: { name: true } },
+                    seasons: {
+                      where: { is_active: true },
+                      select: {
+                        pricing_type: true,
+                        valid_from: true,
+                        valid_to: true,
+                        weekday_price: true,
+                        weekend_price: true,
+                        is_active: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        }),
   ]);
-
-  const cabPriceMap = new Map(cabPricings.map((c) => [c.vehicle_id, Number(c.sell_price)]));
-  const cabCapacityMap = new Map(cabPricings.map((c) => [c.vehicle_id, c.vehicle?.passenger_capacity ?? null]));
 
   const margin_percentage = Number(pricingConfig?.margin_percentage ?? 10);
   const gst_percentage = Number(pricingConfig?.gst_percentage ?? 5);
 
-  // Fallback variants for activities saved without a variant_id
+  // ── Build day → km map from itinerary_transfers ────────────────────────
+  // Used for PER_KM segments: sum of transfer route distance_km per day
+  const dayKmMap = new Map<number, number>();
+  for (const itin of itineraries) {
+    let dayKm = 0;
+    for (const tr of itin.itinerary_transfers) {
+      if (tr.route?.distance_km) dayKm += Number(tr.route.distance_km);
+    }
+    dayKmMap.set(itin.day, dayKm);
+  }
+
+  // ── Fallback variants for activities saved without a variant_id ────────
   const noVariantActivityIds = [
     ...new Set(
       itineraries.flatMap((itin) =>
@@ -207,7 +336,6 @@ export async function computePackagePrice(
 
   let hotel_subtotal = 0;
   let activity_subtotal = 0;
-  let transfer_subtotal = 0;
 
   const days: DayPricingBreakdown[] = itineraries.map((itin) => {
 
@@ -219,8 +347,6 @@ export async function computePackagePrice(
       const maxOccupancy = stay.room_pricing.room?.max_occupancy || 2;
       const roomsNeeded = Math.ceil(Math.max(adults, 1) / maxOccupancy);
 
-      // Occupancy-based price: find the entry with occupancy closest to (but not exceeding)
-      // the typical people-per-room. Sort desc and take the first <= typicalOccupancy.
       const typicalOccupancy = Math.min(adults, maxOccupancy);
       const basePrice = Number(stay.room_pricing.price_per_night);
       let pricePerRoom = basePrice;
@@ -231,12 +357,10 @@ export async function computePackagePrice(
         pricePerRoom = Number(match.price_per_night);
       }
 
-      // Child charges from hotel_child_policies
       let childCharge = 0;
       const childPolicies = stay.room_pricing.hotel?.childPolicies ?? [];
       if (children > 0 && childPolicies.length > 0) {
         if (child_ages && child_ages.length === children) {
-          // Age-based: match each child to their correct policy bracket
           for (const age of child_ages) {
             const policy = childPolicies.find(p => age >= p.age_from && age <= p.age_to);
             if (policy) {
@@ -244,11 +368,9 @@ export async function computePackagePrice(
               const ct = policy.charge_type.toUpperCase();
               if (ct === "FIXED_PRICE" || ct === "FIXED") childCharge += pp;
               else if (ct === "PERCENTAGE") childCharge += (pricePerRoom * pp) / 100;
-              // FREE → 0
             }
           }
         } else {
-          // Fallback: apply first policy uniformly (legacy behaviour)
           const policy = childPolicies[0];
           const pp = Number(policy.price ?? 0);
           const ct = policy.charge_type.toUpperCase();
@@ -257,9 +379,7 @@ export async function computePackagePrice(
         }
       }
 
-      // Infants are typically free at hotels
       const infantCharge = 0;
-
       const total = roomsNeeded * pricePerRoom + childCharge + infantCharge;
       hotel = {
         hotel_name: stay.room_pricing.hotel.name,
@@ -294,11 +414,9 @@ export async function computePackagePrice(
 
       if (pricingTiers.length > 0) {
         if (pricingType === "PER_GROUP") {
-          // One flat price for the whole group — use first tier
           adult_price = Number(pricingTiers[0].price);
           total = ia.is_optional ? 0 : adult_price;
         } else {
-          // PER_PERSON — match tiers by label
           const adultTier =
             matchTier(pricingTiers, "adult") ??
             pricingTiers.find(
@@ -338,48 +456,77 @@ export async function computePackagePrice(
       };
     });
 
-    // ── Transfers ────────────────────────────────────────────────────────────
-    const effectiveVehicleId = vehicle_id_override ?? null;
-    const transfers: DayTransferLine[] = itin.itinerary_transfers.map((tr) => {
-      const lookupVehicleId = effectiveVehicleId ?? tr.vehicle_id;
-      const configuredVehicles = Math.max(tr.num_vehicles, 1);
-      const perVehiclePrice = lookupVehicleId != null ? (cabPriceMap.get(lookupVehicleId) ?? 0) : 0;
-
-      const vehicleCapacity = effectiveVehicleId != null
-        ? (cabCapacityMap.get(effectiveVehicleId) ?? null)
-        : (tr.vehicle?.passenger_capacity ?? null);
-      let actualVehicles = configuredVehicles;
-      if (vehicleCapacity && vehicleCapacity > 0) {
-        const totalPax = adults + children;
-        actualVehicles = Math.ceil(Math.max(totalPax, 1) / vehicleCapacity);
-      }
-
-      const total = actualVehicles * perVehiclePrice;
-      transfer_subtotal += total;
-
-      return {
-        id: tr.id,
-        pickup_name: tr.route?.pickup_name ?? null,
-        drop_name: tr.route?.drop_name ?? null,
-        vehicle_name: tr.vehicle?.name ?? null,
-        vehicle_capacity: vehicleCapacity,
-        configured_vehicles: configuredVehicles,
-        actual_vehicles: actualVehicles,
-        per_vehicle_price: perVehiclePrice,
-        distance_km: tr.route?.distance_km ? Number(tr.route.distance_km) : null,
-        total,
-      };
-    });
+    // ── Transfers — display only, cost captured at segment level ─────────────
+    const transfers: DayTransferLine[] = itin.itinerary_transfers.map((tr) => ({
+      id: tr.id,
+      pickup_name: tr.route?.pickup_name ?? null,
+      drop_name: tr.route?.drop_name ?? null,
+      vehicle_name: tr.vehicle?.name ?? null,
+      distance_km: tr.route?.distance_km ? Number(tr.route.distance_km) : null,
+      included_in_cab: true,
+      total: 0,
+    }));
 
     const day_total =
       (hotel?.total ?? 0) +
-      activities.filter((a) => !a.is_optional).reduce((s, a) => s + a.total, 0) +
-      transfers.reduce((s, t) => s + t.total, 0);
+      activities.filter((a) => !a.is_optional).reduce((s, a) => s + a.total, 0);
+    // Note: cab cost is not per-day; it's captured in cab_subtotal
 
     return { day: itin.day, day_title: itin.title, hotel, activities, transfers, day_total };
   });
 
-  const base_cost = hotel_subtotal + activity_subtotal + transfer_subtotal;
+  // ── Cab cost computation ──────────────────────────────────────────────────
+  const cab_type_label = cabTypeData?.label ?? cabTypeData?.vehicle?.name ?? null;
+  const cab_segments: CabSegmentBreakdown[] = [];
+  let cab_subtotal = 0;
+
+  if (cabTypeData && cabTypeData.segments.length > 0) {
+    const vehicleCapacity = Math.max(cabTypeData.vehicle.passenger_capacity, 1);
+    const numVehicles = Math.ceil(Math.max(adults + children, 1) / vehicleCapacity);
+
+    for (const seg of cabTypeData.segments) {
+      const resolved = resolveCabPrice(
+        {
+          pricing_type: seg.cab_pricing.pricing_type,
+          price: seg.cab_pricing.price,
+          seasons: seg.cab_pricing.seasons,
+        },
+        travelDateObj,
+      );
+
+      const segDays = seg.day_to - seg.day_from + 1;
+
+      // Sum km from all itinerary days within [day_from, day_to]
+      let segKm = 0;
+      for (let d = seg.day_from; d <= seg.day_to; d++) {
+        segKm += dayKmMap.get(d) ?? 0;
+      }
+
+      let segTotal = 0;
+      if (resolved.pricing_type === "PER_DAY") {
+        segTotal = resolved.price * segDays * numVehicles;
+      } else {
+        segTotal = resolved.price * segKm * numVehicles;
+      }
+      cab_subtotal += segTotal;
+
+      cab_segments.push({
+        day_from: seg.day_from,
+        day_to: seg.day_to,
+        days: segDays,
+        km: segKm,
+        vehicle_name: cabTypeData.vehicle.name,
+        destination_name: seg.cab_pricing.destination.name,
+        pricing_type: resolved.pricing_type,
+        price_used: resolved.price,
+        is_seasonal: resolved.is_seasonal,
+        num_vehicles: numVehicles,
+        total: segTotal,
+      });
+    }
+  }
+
+  const base_cost = hotel_subtotal + activity_subtotal + cab_subtotal;
   const margin_amount = Math.round((base_cost * margin_percentage) / 100 * 100) / 100;
   const taxable = base_cost + margin_amount;
   const gst_amount = Math.round((taxable * gst_percentage) / 100 * 100) / 100;
@@ -394,7 +541,9 @@ export async function computePackagePrice(
     days,
     hotel_subtotal,
     activity_subtotal,
-    transfer_subtotal,
+    cab_type_label,
+    cab_subtotal,
+    cab_segments,
     base_cost,
     margin_percentage,
     margin_amount,

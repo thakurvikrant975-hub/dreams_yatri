@@ -47,17 +47,33 @@ export async function getPackageForBuilder(id: number) {
           gst_percentage: true,
         },
       },
-      cabPricings: {
-        orderBy: [{ route_id: "asc" }, { sort_order: "asc" }],
-        select: {
-          id: true,
-          route_id: true,
-          vehicle_id: true,
-          sell_price: true,
-          cost_price: true,
-          sort_order: true,
-          is_active: true,
-          vehicle: { select: { id: true, name: true, type: true, passenger_capacity: true, has_ac: true, fuel_type: true } },
+      cabTypes: {
+        orderBy: [{ duration_id: "asc" }, { sort_order: "asc" }],
+        include: {
+          vehicle: {
+            select: { id: true, name: true, type: true, passenger_capacity: true, has_ac: true },
+          },
+          segments: {
+            orderBy: { sort_order: "asc" },
+            include: {
+              cab_pricing: {
+                include: {
+                  destination: { select: { id: true, name: true } },
+                  seasons: {
+                    where: { is_active: true },
+                    select: {
+                      id: true,
+                      valid_from: true,
+                      valid_to: true,
+                      pricing_type: true,
+                      weekday_price: true,
+                      weekend_price: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
       },
       durations: {
@@ -104,15 +120,36 @@ export async function getPackageForBuilder(id: number) {
       margin_percentage: Number(p.margin_percentage),
       gst_percentage: Number(p.gst_percentage),
     })),
-    cabPricings: pkg.cabPricings.map((c) => ({
-      id: c.id,
-      route_id: c.route_id,
-      vehicle_id: c.vehicle_id,
-      sell_price: Number(c.sell_price),
-      cost_price: c.cost_price != null ? Number(c.cost_price) : null,
-      sort_order: c.sort_order,
-      is_active: c.is_active,
-      vehicle: c.vehicle,
+    cabTypes: pkg.cabTypes.map((ct) => ({
+      id: ct.id,
+      duration_id: ct.duration_id,
+      vehicle_id: ct.vehicle_id,
+      label: ct.label,
+      note: ct.note,
+      is_default: ct.is_default,
+      is_active: ct.is_active,
+      sort_order: ct.sort_order,
+      vehicle: ct.vehicle,
+      segments: ct.segments.map((s) => ({
+        id: s.id,
+        day_from: s.day_from,
+        day_to: s.day_to,
+        sort_order: s.sort_order,
+        cab_pricing: {
+          id: s.cab_pricing.id,
+          pricing_type: s.cab_pricing.pricing_type as "PER_DAY" | "PER_KM",
+          price: Number(s.cab_pricing.price),
+          destination: s.cab_pricing.destination,
+          seasons: s.cab_pricing.seasons.map((se) => ({
+            id: se.id,
+            valid_from: se.valid_from,
+            valid_to: se.valid_to,
+            pricing_type: se.pricing_type as "PER_DAY" | "PER_KM",
+            weekday_price: Number(se.weekday_price),
+            weekend_price: Number(se.weekend_price),
+          })),
+        },
+      })),
     })),
     availableVehicles,
     durations: pkg.durations.map((d) => ({
