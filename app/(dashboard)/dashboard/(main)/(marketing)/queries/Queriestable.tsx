@@ -294,7 +294,7 @@ export function QueriesTable({ queries, reasons }: Props) {
                         </p>
                     )}
                 </div>
-            ),
+            ), 
         },
         {
             header: "Status",
