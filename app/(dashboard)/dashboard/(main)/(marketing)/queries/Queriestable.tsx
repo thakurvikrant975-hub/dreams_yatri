@@ -284,6 +284,14 @@ export function QueriesTable({ queries, reasons }: Props) {
             ),
         },
         {
+            header: "Ticket booked or not",
+            cell: (q) => (
+                <div className="space-y-1.5">
+                    Booked
+                </div>
+            ), 
+        },
+        { 
             header: "Status",
             cell: (q) => (
                 <div className="space-y-1.5">

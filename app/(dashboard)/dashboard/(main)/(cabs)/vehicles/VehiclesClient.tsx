@@ -28,6 +28,7 @@ import {
   type VehicleFull, type VehicleRate,
 } from "./actions";
 import { TableEmptyState } from "../../components/dashboard/TableEmptyState";
+import { PageHeader } from "../../components/dashboard/PageHeader";
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -40,6 +41,8 @@ const VEHICLE_TYPES = [
   { value: "TEMPO_TRAVELLER", label: "Tempo Traveller" },
   { value: "MINI_BUS", label: "Mini Bus" },
   { value: "BUS", label: "Bus" },
+  { value: "COUPE", label: "Coupe" },
+  { value: "HYBRID", label: "Hybrid" },
 ];
 
 const FUEL_TYPES = [
@@ -542,6 +545,19 @@ export function VehiclesClient({ initialVehicles }: { initialVehicles: VehicleFu
   }
 
   return (
+    <>
+     
+      <PageHeader
+        title="Vehicles"
+        description="Manage your vehicle catalog and rates"
+        icon={Car}
+        actions={
+          <Button size="lg"
+                className="rounded-md bg-dashboard-primary text-dashboard-base-100 py-2.5 px-4 hover:bg-dashboard-primary hover:scale-105 duration-300 hover:text-dashboard-base-100 border border-dashboard-primary" onClick={() => setAdding(true)}>
+            <Plus className="mr-1.5 h-3.5 w-3.5" /> Add Vehicle
+          </Button>
+        }
+      />
     <Card className="rounded-2xl">
       <CardHeader>
         <div className="flex items-center justify-between">
@@ -553,11 +569,6 @@ export function VehiclesClient({ initialVehicles }: { initialVehicles: VehicleFu
               Define vehicle types with capacity and base rates for itinerary transfers.
             </CardDescription>
           </div>
-          {!adding && (
-            <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
-              <Plus className="mr-1.5 h-3.5 w-3.5" /> Add Vehicle
-            </Button>
-          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -591,5 +602,19 @@ export function VehiclesClient({ initialVehicles }: { initialVehicles: VehicleFu
         )}
       </CardContent>
     </Card>
+    </>
   );
 }
+
+
+ 
+      // <PageHeader
+      //   title="Vehicles"
+      //   description="Manage your vehicle catalog and rates"
+      //   icon={Car}
+      //   actions={
+      //     <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
+      //       <Plus className="mr-1.5 h-3.5 w-3.5" /> Add Vehicle
+      //     </Button>
+      //   }
+      // />
