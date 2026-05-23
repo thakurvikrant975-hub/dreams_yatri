@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useRef, useCallback } from "react";
+import { Popover as PopoverPrimitive } from "radix-ui";
 import {
   Plus, Pencil, Car, IndianRupee,
   CalendarDays, Trash2, AlertTriangle,
-  Info, Check, Loader2,
+  Info, Check, Loader2, MapPin, X,
 } from "lucide-react";
 import { Button }  from "../../components/ui/button";
 import { Input }   from "../../components/ui/input";
@@ -15,16 +16,15 @@ import {
 import { toast }   from "sonner";
 import { cn }      from "@/app/lib/utils";
 
-import { LocationSearchSelect } from "../../components/location/LocationSearchSelect";
-import type { LocationValue }   from "../../components/location/location.types";
 import {
   PricingRangeCalendarPicker,
   type DateRange,
+  type SeasonRange,
 } from "../../components/ui/pricing-range-calendar";
 
 import {
   upsertCabPricingForDestination,
-  upsertCabPricingForCity,
+  searchDestinations,
   type CabPricingGroup,
   type CabPricingType,
   type SeasonInput,
@@ -208,20 +208,29 @@ function BaseRatesSection({
   );
 }
 
-// ── Date helpers ──────────────────────────────────────────────────────────
+// ── Date helpers (year-agnostic: all seasons stored as 2000-MM-DD) ────────
 
+/** Parse "2000-MM-DD" → local Date in year 2000. */
 function toDateObj(str: string): Date | undefined {
   if (!str) return undefined;
-  const d = new Date(str + "T00:00:00");
+  const normalized = "2000" + str.slice(4); // ensure year 2000
+  const d = new Date(normalized + "T00:00:00");
   return isNaN(d.getTime()) ? undefined : d;
 }
 
+/** Convert a Date to "2000-MM-DD" (ignores actual year). */
 function fromDateObj(d: Date | undefined): string {
   if (!d) return "";
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const m   = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return `2000-${m}-${day}`;
+}
+
+/** Format "2000-MM-DD" → "4 Jan" for display. */
+function fmtMonthDay(dateStr: string): string {
+  const d = toDateObj(dateStr);
+  if (!d) return dateStr;
+  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
 // ── Calendar Rates section ────────────────────────────────────────────────
@@ -349,11 +358,22 @@ function CalendarRatesSection({
                 to:   toDateObj(s.valid_to),
               };
 
-              // Summary label shown above calendar
+              // Build seasons array for calendar (all seasons with valid data)
+              const calendarSeasons: SeasonRange[] = seasons
+                .filter((x) => x.valid_from && x.valid_to && x.weekday_price)
+                .map((x) => ({
+                  from:           x.valid_from.slice(5), // "MM-DD"
+                  to:             x.valid_to.slice(5),
+                  weekdayPrice:   Number(x.weekday_price),
+                  weekendPrice:   x.weekend_enabled && x.weekend_price ? Number(x.weekend_price) : null,
+                  weekendEnabled: x.weekend_enabled,
+                }));
+
+              // Header label (no year)
               const rangeLabel = s.valid_from && s.valid_to
-                ? `${s.valid_from} → ${s.valid_to}`
+                ? `${fmtMonthDay(s.valid_from)} → ${fmtMonthDay(s.valid_to)}`
                 : s.valid_from
-                ? `From ${s.valid_from}`
+                ? `From ${fmtMonthDay(s.valid_from)}`
                 : "No dates selected";
 
               return (
@@ -471,9 +491,8 @@ function CalendarRatesSection({
                   <PricingRangeCalendarPicker
                     value={rangeValue}
                     onChange={(range) => handleRangeChange(activeVehicleId, s.tempId, range)}
-                    weekdayPrice={s.weekday_price}
-                    weekendPrice={s.weekend_price}
-                    weekendEnabled={s.weekend_enabled}
+                    seasons={calendarSeasons}
+                    basePrice={base?.price ? Number(base.price) : 0}
                     placeholder="Select season date range"
                     error={hasOverlap}
                   />
@@ -496,10 +515,112 @@ function CalendarRatesSection({
   );
 }
 
+// ── Destination search select ─────────────────────────────────────────────
+
+type DestinationOption = { id: number; name: string };
+
+function DestinationSearchSelect({
+  value,
+  onChange,
+}: {
+  value: DestinationOption | null;
+  onChange: (v: DestinationOption | null) => void;
+}) {
+  const [open, setOpen]       = useState(false);
+  const [query, setQuery]     = useState("");
+  const [results, setResults] = useState<DestinationOption[]>([]);
+  const [loading, setLoading] = useState(false);
+  const inputRef              = useRef<HTMLInputElement>(null);
+
+  const search = useCallback(async (q: string) => {
+    setLoading(true);
+    try {
+      const dests = await searchDestinations(q);
+      setResults(dests.map((d) => ({ id: d.id, name: d.label })));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(() => search(query), 300);
+    return () => clearTimeout(t);
+  }, [query, open, search]);
+
+  useEffect(() => {
+    if (open) setTimeout(() => inputRef.current?.focus(), 50);
+    else setQuery("");
+  }, [open]);
+
+  return (
+    <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
+      <PopoverPrimitive.Trigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "flex h-10 w-full items-center justify-between rounded-md border bg-background px-3 text-sm",
+            "hover:bg-muted/30 transition-colors",
+            !value && "text-muted-foreground",
+          )}
+        >
+          <span className="flex items-center gap-2 min-w-0">
+            <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <span className="truncate">{value?.name ?? "Search destination city…"}</span>
+          </span>
+          {value && (
+            <X
+              className="h-3.5 w-3.5 shrink-0 text-muted-foreground hover:text-foreground"
+              onPointerDown={(e) => { e.stopPropagation(); onChange(null); }}
+            />
+          )}
+        </button>
+      </PopoverPrimitive.Trigger>
+
+      <PopoverPrimitive.Portal>
+        <PopoverPrimitive.Content
+          align="start" sideOffset={4}
+          className="z-50 w-[var(--radix-popover-trigger-width)] rounded-md border bg-background shadow-md p-1.5"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
+          <Input
+            ref={inputRef}
+            placeholder="Type city name…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="h-8 text-sm mb-1"
+          />
+          {loading && (
+            <div className="flex items-center justify-center py-4 gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching…
+            </div>
+          )}
+          {!loading && results.length === 0 && (
+            <p className="py-4 text-center text-xs text-muted-foreground">
+              {query ? `No destinations found for "${query}"` : "Start typing to search"}
+            </p>
+          )}
+          {!loading && results.map((d) => (
+            <button
+              key={d.id}
+              type="button"
+              onMouseDown={() => { onChange(d); setOpen(false); }}
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted text-left"
+            >
+              <MapPin className="h-3 w-3 shrink-0 text-muted-foreground" />
+              {d.name}
+            </button>
+          ))}
+        </PopoverPrimitive.Content>
+      </PopoverPrimitive.Portal>
+    </PopoverPrimitive.Root>
+  );
+}
+
 // ── Shared form validation ────────────────────────────────────────────────
 
 function validateForm(
-  cityOrLocked: LocationValue | null | string,
+  cityOrLocked: DestinationOption | null | string,
   entries: PriceEntry[],
   vehicleSeasons: Record<string, SeasonEntry[]>,
 ): string | null {
@@ -532,7 +653,7 @@ export function CreateCabPricingSheet({ vehicles }: { vehicles: Vehicle[] }) {
   const [sheetKey,  setSheetKey]     = useState(0);
   const [isPending, startTransition] = useTransition();
 
-  const [cityValue,      setCityValue]      = useState<LocationValue | null>(null);
+  const [cityValue,      setCityValue]      = useState<DestinationOption | null>(null);
   const [entries,        setEntries]        = useState<PriceEntry[]>([]);
   const [vehicleSeasons, setVehicleSeasons] = useState<Record<string, SeasonEntry[]>>({});
   const [formError,      setFormError]      = useState<string | null>(null);
@@ -558,7 +679,7 @@ export function CreateCabPricingSheet({ vehicles }: { vehicles: Vehicle[] }) {
 
     const payload = buildPayload(entries, vehicleSeasons);
     startTransition(async () => {
-      const result = await upsertCabPricingForCity(cityValue!.id, cityValue!.name, payload);
+      const result = await upsertCabPricingForDestination(cityValue!.id, payload);
       if (result.success) {
         toast.success(result.message);
         reset();
@@ -598,11 +719,9 @@ export function CreateCabPricingSheet({ vehicles }: { vehicles: Vehicle[] }) {
               />
               <div className="space-y-1.5">
                 <Label>City <span className="text-destructive">*</span></Label>
-                <LocationSearchSelect
+                <DestinationSearchSelect
                   value={cityValue}
                   onChange={(v) => { setCityValue(v); setFormError(null); }}
-                  types={["CITY"]}
-                  placeholder="Search city…"
                 />
               </div>
             </div>
@@ -690,14 +809,15 @@ export function EditCabPricingSheet({ row, vehicles }: { row: CabPricingGroup; v
   }
 
   function buildInitialSeasons(): Record<string, SeasonEntry[]> {
+    const toYear2000 = (d: string) => (d ? "2000" + d.slice(4) : "");
     const map: Record<string, SeasonEntry[]> = {};
     for (const p of row.pricings) {
       if (p.seasons.length > 0) {
         map[String(p.vehicle_id)] = p.seasons.map((s) => ({
           tempId:          uid(),
           pricing_type:    s.pricing_type,
-          valid_from:      s.valid_from,
-          valid_to:        s.valid_to,
+          valid_from:      toYear2000(s.valid_from),
+          valid_to:        toYear2000(s.valid_to),
           weekday_price:   String(s.weekday_price),
           weekend_enabled: s.weekend_price != null,
           weekend_price:   s.weekend_price != null ? String(s.weekend_price) : "",
