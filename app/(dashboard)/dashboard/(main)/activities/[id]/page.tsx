@@ -152,7 +152,26 @@ export default async function ActivityDetailPage({
                 <TabsContent value="variants" className="mt-6">
                     <VariantsTab
                         activity_id={activity.id}
-                        initialVariants={activity.variants}
+                        initialVariants={activity.variants.map(v => ({
+                            ...v,
+                            cost_price:     v.cost_price     != null ? Number(v.cost_price)     : null,
+                            gst_percentage: Number(v.gst_percentage),
+                            pricing: v.pricing.map(p => ({
+                                ...p,
+                                price:             Number(p.price),
+                                original_price:    p.original_price    != null ? Number(p.original_price)    : null,
+                                margin_percentage: Number(p.margin_percentage),
+                            })),
+                            seasons: v.seasons.map(s => ({
+                                ...s,
+                                pricing: s.pricing.map(p => ({
+                                    ...p,
+                                    price:             Number(p.price),
+                                    original_price:    p.original_price    != null ? Number(p.original_price)    : null,
+                                    margin_percentage: Number(p.margin_percentage),
+                                })),
+                            })),
+                        }))}
                     />
                 </TabsContent>
 

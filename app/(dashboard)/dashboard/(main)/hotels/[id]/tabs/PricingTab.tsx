@@ -19,21 +19,22 @@ import {
 } from "../../../components/ui/alert-dialog";
 import {
   Plus, Pencil, Trash2, Loader2, Check, X,
-  ChevronDown, ChevronRight, Users,
+  ChevronDown, ChevronRight, Users, Calendar, AlertTriangle,
 } from "lucide-react";
-import { DateRangePicker } from "../../../components/ui/date-range-picker";
 import { toast } from "sonner";
 import { cn } from "@/app/lib/utils";
 import {
-  createRoomPricing, updateRoomPricing, deleteRoomPricing,
+  deleteRoomPricing,
   upsertOccupancyPrice, deleteOccupancyPrice,
+  createRoomPricingWithSeasons, updateRoomPricingWithSeasons,
+  type HotelSeasonInput,
 } from "../../actions";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
 type RoomOption = { id: number; name: string };
-type MealType  = { id: number; name: string };
-type DietType  = { id: number; name: string };
+type MealType   = { id: number; name: string };
+type DietType   = { id: number; name: string };
 
 type OccupancyPrice = {
   id: number;
@@ -41,6 +42,18 @@ type OccupancyPrice = {
   occupancy: number;
   price_per_night: number;
   original_price: number | null;
+};
+
+type HotelSeason = {
+  id: number;
+  pricing_id: number;
+  season_name: string;
+  valid_from: Date | string;
+  valid_to: Date | string;
+  price_per_night: number;
+  original_price: number | null;
+  is_active: boolean;
+  sort_order: number;
 };
 
 type PricingPlan = {
@@ -63,40 +76,55 @@ type PricingPlan = {
   meal_type: { id: number; name: string } | null;
   diet_type: { id: number; name: string } | null;
   occupancy_prices: OccupancyPrice[];
+  seasons: HotelSeason[];
+};
+
+// Season entry in the form (not yet saved — just local state)
+type SeasonEntry = {
+  tempId:          string;
+  season_name:     string;
+  valid_from:      string;
+  valid_to:        string;
+  price_per_night: string;
+  original_price:  string;
+  is_active:       boolean;
 };
 
 type OccupancyEntry = { occupancy: number; price: string; original: string };
 
 type PricingFormState = {
-  room_id: string;
-  plan_name: string;
-  meal_type_id: string;
-  diet_type_id: string;
-  price_per_night: string;
-  original_price: string;
-  extra_bed_rate: string;
+  room_id:           string;
+  plan_name:         string;
+  meal_type_id:      string;
+  diet_type_id:      string;
+  extra_bed_rate:    string;
   margin_percentage: string;
-  gst_percentage: string;
-  valid_from: string;
-  valid_to: string;
-  is_active: boolean;
-  occupancy_prices: OccupancyEntry[];
+  gst_percentage:    string;
+  is_active:         boolean;
+  occupancy_prices:  OccupancyEntry[];
+  seasons:           SeasonEntry[];
 };
 
 const EMPTY_FORM: PricingFormState = {
-  room_id: "",
-  plan_name: "",
-  meal_type_id: "",
-  diet_type_id: "",
-  price_per_night: "",
-  original_price: "",
-  extra_bed_rate: "",
+  room_id:           "",
+  plan_name:         "",
+  meal_type_id:      "",
+  diet_type_id:      "",
+  extra_bed_rate:    "",
   margin_percentage: "10",
-  gst_percentage: "18",
-  valid_from: "",
-  valid_to: "",
-  is_active: true,
-  occupancy_prices: [],
+  gst_percentage:    "18",
+  is_active:         true,
+  occupancy_prices:  [],
+  seasons:           [],
+};
+
+const EMPTY_SEASON: Omit<SeasonEntry, "tempId"> = {
+  season_name:     "",
+  valid_from:      "",
+  valid_to:        "",
+  price_per_night: "",
+  original_price:  "",
+  is_active:       true,
 };
 
 const OCCUPANCY_LABELS: Record<number, string> = {
@@ -112,45 +140,236 @@ const OCCUPANCY_OPTIONS = Object.entries(OCCUPANCY_LABELS)
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
-function toISODate(val: Date | string | null): string {
+function uid() { return Math.random().toString(36).slice(2); }
+
+function toISODate(val: Date | string | null | undefined): string {
   if (!val) return "";
   const d = typeof val === "string" ? new Date(val) : val;
-  return d.toISOString().split("T")[0];
+  return isNaN(d.getTime()) ? "" : d.toISOString().split("T")[0];
+}
+
+function overlappingIds(seasons: SeasonEntry[]): Set<string> {
+  const out = new Set<string>();
+  for (let i = 0; i < seasons.length; i++) {
+    for (let j = i + 1; j < seasons.length; j++) {
+      const a = seasons[i]; const b = seasons[j];
+      if (!a.valid_from || !a.valid_to || !b.valid_from || !b.valid_to) continue;
+      const aF = new Date(a.valid_from).getTime(), aT = new Date(a.valid_to).getTime();
+      const bF = new Date(b.valid_from).getTime(), bT = new Date(b.valid_to).getTime();
+      if (aF <= bT && aT >= bF) { out.add(a.tempId); out.add(b.tempId); }
+    }
+  }
+  return out;
 }
 
 function toFormState(p: PricingPlan): PricingFormState {
   return {
-    room_id: String(p.room_id),
-    plan_name: p.plan_name ?? "",
-    meal_type_id: p.meal_type_id ? String(p.meal_type_id) : "",
-    diet_type_id: p.diet_type_id ? String(p.diet_type_id) : "",
-    price_per_night: String(p.price_per_night),
-    original_price: p.original_price ? String(p.original_price) : "",
-    extra_bed_rate: p.extra_bed_rate ? String(p.extra_bed_rate) : "",
+    room_id:           String(p.room_id),
+    plan_name:         p.plan_name         ?? "",
+    meal_type_id:      p.meal_type_id      ? String(p.meal_type_id)  : "",
+    diet_type_id:      p.diet_type_id      ? String(p.diet_type_id)  : "",
+    extra_bed_rate:    p.extra_bed_rate     ? String(p.extra_bed_rate) : "",
     margin_percentage: String(p.margin_percentage),
-    gst_percentage: String(p.gst_percentage),
-    valid_from: toISODate(p.valid_from),
-    valid_to: toISODate(p.valid_to),
-    is_active: p.is_active,
-    occupancy_prices: [],
+    gst_percentage:    String(p.gst_percentage),
+    is_active:         p.is_active,
+    occupancy_prices:  [],
+    seasons:           (p.seasons ?? []).map(s => ({
+      tempId:          uid(),
+      season_name:     s.season_name,
+      valid_from:      toISODate(s.valid_from),
+      valid_to:        toISODate(s.valid_to),
+      price_per_night: String(s.price_per_night),
+      original_price:  s.original_price ? String(s.original_price) : "",
+      is_active:       s.is_active,
+    })),
   };
 }
 
-function buildFormData(form: PricingFormState): FormData {
-  const fd = new FormData();
-  fd.append("room_id",           form.room_id);
-  fd.append("plan_name",         form.plan_name);
-  fd.append("meal_type_id",      form.meal_type_id);
-  fd.append("diet_type_id",      form.diet_type_id);
-  fd.append("price_per_night",   form.price_per_night);
-  fd.append("original_price",    form.original_price);
-  fd.append("extra_bed_rate",    form.extra_bed_rate);
-  fd.append("margin_percentage", form.margin_percentage);
-  fd.append("gst_percentage",    form.gst_percentage);
-  fd.append("valid_from",        form.valid_from);
-  fd.append("valid_to",          form.valid_to);
-  fd.append("is_active",         String(form.is_active));
-  return fd;
+// ── Season Add/Edit mini-form ─────────────────────────────────────────────
+
+function SeasonMiniForm({
+  initial,
+  onAdd,
+  onCancel,
+}: {
+  initial?: Omit<SeasonEntry, "tempId">;
+  onAdd: (s: Omit<SeasonEntry, "tempId">) => void;
+  onCancel: () => void;
+}) {
+  const [s, setS] = useState<Omit<SeasonEntry, "tempId">>(
+    initial ?? { ...EMPTY_SEASON },
+  );
+  const upd = <K extends keyof typeof EMPTY_SEASON>(k: K, v: (typeof EMPTY_SEASON)[K]) =>
+    setS(prev => ({ ...prev, [k]: v }));
+
+  const valid =
+    !!s.season_name.trim() && !!s.valid_from && !!s.valid_to &&
+    !!s.price_per_night && Number(s.price_per_night) > 0 &&
+    new Date(s.valid_to) > new Date(s.valid_from);
+
+  return (
+    <div className="border border-dashed rounded-lg p-3 space-y-2 bg-muted/10">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <Label className="text-xs">Season Name <span className="text-destructive">*</span></Label>
+          <Input
+            className="h-7 text-xs"
+            placeholder="e.g. Peak Season"
+            value={s.season_name}
+            onChange={e => upd("season_name", e.target.value)}
+            autoFocus
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Price / Night (₹) <span className="text-destructive">*</span></Label>
+          <Input
+            type="number" className="h-7 text-xs" placeholder="4500"
+            value={s.price_per_night}
+            onChange={e => upd("price_per_night", e.target.value)}
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <div className="space-y-1">
+          <Label className="text-xs">From <span className="text-destructive">*</span></Label>
+          <Input type="date" className="h-7 text-xs" value={s.valid_from}
+            onChange={e => upd("valid_from", e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">To <span className="text-destructive">*</span></Label>
+          <Input type="date" className="h-7 text-xs" value={s.valid_to}
+            min={s.valid_from}
+            onChange={e => upd("valid_to", e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Original / MRP (₹)</Label>
+          <Input type="number" className="h-7 text-xs" placeholder="6000"
+            value={s.original_price}
+            onChange={e => upd("original_price", e.target.value)} />
+        </div>
+      </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Switch checked={s.is_active} onCheckedChange={v => upd("is_active", v)} />
+          <span className="text-xs text-muted-foreground">Active</span>
+        </div>
+        <div className="flex gap-2">
+          <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="button" size="sm" className="h-7 text-xs" disabled={!valid}
+            onClick={() => { if (valid) onAdd(s); }}>
+            <Check className="mr-1 h-3 w-3" /> Add Season
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Inline Season List (inside PricingForm) ───────────────────────────────
+
+function SeasonsInlineList({
+  seasons,
+  onChange,
+}: {
+  seasons: SeasonEntry[];
+  onChange: (s: SeasonEntry[]) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [editTempId, setEditTempId] = useState<string | null>(null);
+
+  const overlapping = overlappingIds(seasons);
+
+  function handleAdd(data: Omit<SeasonEntry, "tempId">) {
+    onChange([...seasons, { ...data, tempId: uid() }]);
+    setAdding(false);
+  }
+
+  function handleEdit(tempId: string, data: Omit<SeasonEntry, "tempId">) {
+    onChange(seasons.map(s => s.tempId === tempId ? { ...data, tempId } : s));
+    setEditTempId(null);
+  }
+
+  function handleRemove(tempId: string) {
+    onChange(seasons.filter(s => s.tempId !== tempId));
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+          <Calendar className="h-3.5 w-3.5" />
+          Seasonal Date Ranges
+          <span className="font-normal normal-case text-muted-foreground/60">— required, at least 1</span>
+        </p>
+        {seasons.length === 0 && !adding && (
+          <span className="text-[10px] text-destructive">Add at least one season to save</span>
+        )}
+      </div>
+
+      {/* Existing season rows */}
+      {seasons.map(s => {
+        const hasOverlap = overlapping.has(s.tempId);
+        if (editTempId === s.tempId) {
+          return (
+            <SeasonMiniForm
+              key={s.tempId}
+              initial={s}
+              onAdd={data => handleEdit(s.tempId, data)}
+              onCancel={() => setEditTempId(null)}
+            />
+          );
+        }
+        return (
+          <div
+            key={s.tempId}
+            className={cn(
+              "flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs",
+              hasOverlap
+                ? "border border-orange-300 bg-orange-50 dark:bg-orange-950/20"
+                : "bg-muted/30 border border-transparent",
+              !s.is_active && "opacity-60",
+            )}
+          >
+            {hasOverlap && <AlertTriangle className="h-3 w-3 text-orange-500 shrink-0" />}
+            <span className="font-medium w-28 shrink-0 truncate">{s.season_name}</span>
+            <span className="text-muted-foreground shrink-0">
+              {s.valid_from} – {s.valid_to}
+            </span>
+            <span className="font-semibold ml-1">₹{Number(s.price_per_night).toLocaleString()}/night</span>
+            {s.original_price && (
+              <span className="text-muted-foreground line-through ml-1">
+                ₹{Number(s.original_price).toLocaleString()}
+              </span>
+            )}
+            {!s.is_active && <Badge variant="outline" className="text-[10px] px-1 py-0 ml-1">Inactive</Badge>}
+            <div className="ml-auto flex gap-1">
+              <Button type="button" size="icon" variant="ghost" className="h-6 w-6"
+                onClick={() => { setEditTempId(s.tempId); setAdding(false); }}>
+                <Pencil className="h-3 w-3" />
+              </Button>
+              <Button type="button" size="icon" variant="ghost"
+                className="h-6 w-6 text-destructive hover:text-destructive"
+                onClick={() => handleRemove(s.tempId)}>
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Add form */}
+      {adding ? (
+        <SeasonMiniForm onAdd={handleAdd} onCancel={() => setAdding(false)} />
+      ) : editTempId === null && (
+        <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1.5"
+          onClick={() => setAdding(true)}>
+          <Plus className="h-3 w-3" /> Add Season
+        </Button>
+      )}
+    </div>
+  );
 }
 
 // ── Pricing Form ──────────────────────────────────────────────────────────
@@ -165,33 +384,39 @@ function PricingForm({
   isSaving,
   isNew = false,
 }: {
-  initial: PricingFormState;
-  rooms: RoomOption[];
+  initial:   PricingFormState;
+  rooms:     RoomOption[];
   mealTypes: MealType[];
   dietTypes: DietType[];
-  onSave: (form: PricingFormState) => void;
-  onCancel: () => void;
-  isSaving: boolean;
-  isNew?: boolean;
+  onSave:    (form: PricingFormState) => void;
+  onCancel:  () => void;
+  isSaving:  boolean;
+  isNew?:    boolean;
 }) {
   const [form, setForm] = useState<PricingFormState>(initial);
-  function update<K extends keyof PricingFormState>(key: K, value: PricingFormState[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }));
+  function upd<K extends keyof PricingFormState>(key: K, value: PricingFormState[K]) {
+    setForm(prev => ({ ...prev, [key]: value }));
   }
 
-  const isValid = !!form.room_id && !!form.price_per_night && Number(form.price_per_night) > 0
-    && !!form.valid_from && !!form.valid_to;
+  const isValid =
+    !!form.room_id &&
+    form.seasons.length > 0 &&
+    form.seasons.every(
+      s => !!s.season_name.trim() && !!s.valid_from && !!s.valid_to &&
+           !!s.price_per_night && Number(s.price_per_night) > 0,
+    );
 
   return (
     <div className="border rounded-xl p-4 space-y-4 bg-muted/20">
-      {/* Row 1: Room + Plan name */}
+
+      {/* Row 1: Room + Plan Name */}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label>Room <span className="text-destructive">*</span></Label>
-          <Select value={form.room_id} onValueChange={(v) => update("room_id", v)}>
+          <Select value={form.room_id} onValueChange={v => upd("room_id", v)}>
             <SelectTrigger><SelectValue placeholder="Select room" /></SelectTrigger>
             <SelectContent>
-              {rooms.map((r) => (
+              {rooms.map(r => (
                 <SelectItem key={r.id} value={String(r.id)}>{r.name}</SelectItem>
               ))}
             </SelectContent>
@@ -200,9 +425,12 @@ function PricingForm({
         <div className="space-y-1.5">
           <Label>Plan Name</Label>
           <Input
-            placeholder="e.g. Luxury Queen Room Riverside"
+            placeholder="e.g. Luxury Queen Riverside"
             value={form.plan_name}
-            onChange={(e) => { const v = e.target.value; update("plan_name", v.charAt(0).toUpperCase() + v.slice(1)); }}
+            onChange={e => {
+              const v = e.target.value;
+              upd("plan_name", v.charAt(0).toUpperCase() + v.slice(1));
+            }}
           />
         </div>
       </div>
@@ -211,11 +439,11 @@ function PricingForm({
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label>Meal Type</Label>
-          <Select value={form.meal_type_id} onValueChange={(v) => update("meal_type_id", v)}>
+          <Select value={form.meal_type_id} onValueChange={v => upd("meal_type_id", v)}>
             <SelectTrigger><SelectValue placeholder="None (EP)" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">None (EP — Room Only)</SelectItem>
-              {mealTypes.map((m) => (
+              {mealTypes.map(m => (
                 <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
               ))}
             </SelectContent>
@@ -223,11 +451,11 @@ function PricingForm({
         </div>
         <div className="space-y-1.5">
           <Label>Diet Type</Label>
-          <Select value={form.diet_type_id} onValueChange={(v) => update("diet_type_id", v)}>
+          <Select value={form.diet_type_id} onValueChange={v => upd("diet_type_id", v)}>
             <SelectTrigger><SelectValue placeholder="Any" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Any</SelectItem>
-              {dietTypes.map((d) => (
+              {dietTypes.map(d => (
                 <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
               ))}
             </SelectContent>
@@ -235,127 +463,72 @@ function PricingForm({
         </div>
       </div>
 
-      {/* Row 3: Base price + Extra bed + Margin */}
+      {/* Row 3: Extra Bed + Margin + GST */}
       <div className="grid grid-cols-3 gap-3">
         <div className="space-y-1.5">
-          <Label>Base Price / Night (₹) <span className="text-destructive">*</span></Label>
-          <Input
-            type="number"
-            placeholder="4500"
-            value={form.price_per_night}
-            onChange={(e) => update("price_per_night", e.target.value)}
-            autoFocus
-          />
-          <p className="text-[10px] text-muted-foreground">Used when no occupancy price set</p>
-        </div>
-        <div className="space-y-1.5">
-          <Label>Original Price (₹)</Label>
-          <Input
-            type="number"
-            placeholder="6000"
-            value={form.original_price}
-            onChange={(e) => update("original_price", e.target.value)}
-          />
-        </div>
-        <div className="space-y-1.5">
           <Label>Extra Bed Rate (₹)</Label>
-          <Input
-            type="number"
-            placeholder="1200"
+          <Input type="number" placeholder="1200"
             value={form.extra_bed_rate}
-            onChange={(e) => update("extra_bed_rate", e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* Row 4: Seasonal dates + Margin + GST */}
-      <div className="grid grid-cols-4 gap-3">
-        <div className="space-y-1.5 col-span-2">
-          <Label>
-            Valid Period <span className="text-destructive">*</span>
-          </Label>
-          <DateRangePicker
-            from={form.valid_from}
-            to={form.valid_to}
-            onFromChange={v => update("valid_from", v)}
-            onToChange={v => update("valid_to", v)}
-            error={!form.valid_from || !form.valid_to}
-          />
-          {(!form.valid_from || !form.valid_to) && (
-            <p className="text-[10px] text-destructive">Both dates required to save</p>
-          )}
+            onChange={e => upd("extra_bed_rate", e.target.value)} />
         </div>
         <div className="space-y-1.5">
           <Label>Margin %</Label>
-          <Input
-            type="number"
-            min={0}
-            max={100}
+          <Input type="number" min={0} max={100}
             value={form.margin_percentage}
-            onChange={(e) => update("margin_percentage", e.target.value)}
-          />
+            onChange={e => upd("margin_percentage", e.target.value)} />
         </div>
         <div className="space-y-1.5">
           <Label>GST %</Label>
-          <Input
-            type="number"
-            min={0}
-            max={28}
+          <Input type="number" min={0} max={28}
             value={form.gst_percentage}
-            onChange={(e) => update("gst_percentage", e.target.value)}
-          />
+            onChange={e => upd("gst_percentage", e.target.value)} />
           <p className="text-[10px] text-muted-foreground">12% (&lt;₹7500) / 18% (≥₹7500)</p>
         </div>
       </div>
 
+      {/* ── Seasons ─────────────────────────────────── */}
+      <div className="border-t pt-3">
+        <SeasonsInlineList
+          seasons={form.seasons}
+          onChange={s => upd("seasons", s)}
+        />
+      </div>
+
+      {/* Occupancy prices (only on new plan creation) */}
       {isNew && (
-        <div className="space-y-2">
+        <div className="border-t pt-3 space-y-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            Occupancy Prices <span className="font-normal normal-case">(optional — overrides base price)</span>
+            Occupancy Prices <span className="font-normal normal-case">(optional — overrides season base price)</span>
           </p>
-          {OCCUPANCY_OPTIONS.map((occ) => {
-            const entry = form.occupancy_prices.find((e) => e.occupancy === occ.value);
+          {OCCUPANCY_OPTIONS.map(occ => {
+            const entry = form.occupancy_prices.find(e => e.occupancy === occ.value);
             return (
               <div key={occ.value} className="flex items-center gap-2">
                 <span className="text-xs w-24 shrink-0 text-muted-foreground">{occ.label}</span>
-                <Input
-                  type="number"
-                  className="h-7 text-xs w-28"
-                  placeholder="Price"
+                <Input type="number" className="h-7 text-xs w-28" placeholder="Price"
                   value={entry?.price ?? ""}
-                  onChange={(e) => {
+                  onChange={e => {
                     const price = e.target.value;
-                    const existing = form.occupancy_prices.filter((x) => x.occupancy !== occ.value);
-                    if (price) {
-                      update("occupancy_prices", [...existing, { occupancy: occ.value, price, original: entry?.original ?? "" }]);
-                    } else {
-                      update("occupancy_prices", existing);
-                    }
-                  }}
-                />
-                <Input
-                  type="number"
-                  className="h-7 text-xs w-28"
-                  placeholder="MRP (optional)"
+                    const rest = form.occupancy_prices.filter(x => x.occupancy !== occ.value);
+                    upd("occupancy_prices", price ? [...rest, { occupancy: occ.value, price, original: entry?.original ?? "" }] : rest);
+                  }} />
+                <Input type="number" className="h-7 text-xs w-28" placeholder="MRP (optional)"
                   value={entry?.original ?? ""}
-                  onChange={(e) => {
+                  onChange={e => {
                     const original = e.target.value;
-                    const existing = form.occupancy_prices.filter((x) => x.occupancy !== occ.value);
-                    if (entry?.price) {
-                      update("occupancy_prices", [...existing, { occupancy: occ.value, price: entry.price, original }]);
-                    }
-                  }}
-                />
+                    const rest = form.occupancy_prices.filter(x => x.occupancy !== occ.value);
+                    if (entry?.price) upd("occupancy_prices", [...rest, { occupancy: occ.value, price: entry.price, original }]);
+                  }} />
               </div>
             );
           })}
         </div>
       )}
 
-      {/* Row 5: Active + Buttons */}
+      {/* Footer: Active toggle + Buttons */}
       <div className="flex items-center justify-between pt-1">
         <div className="flex items-center gap-2">
-          <Switch checked={form.is_active} onCheckedChange={(v) => update("is_active", v)} />
+          <Switch checked={form.is_active} onCheckedChange={v => upd("is_active", v)} />
           <span className="text-sm text-muted-foreground">Active</span>
         </div>
         <div className="flex gap-2">
@@ -363,13 +536,12 @@ function PricingForm({
             <X className="mr-1 h-3.5 w-3.5" /> Cancel
           </Button>
           <Button
-            type="button"
-            size="sm"
+            type="button" size="sm"
             disabled={!isValid || isSaving}
             onClick={() => onSave(form)}
           >
             {isSaving
-              ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Saving...</>
+              ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Saving…</>
               : <><Check className="mr-1.5 h-3.5 w-3.5" />Save Plan</>
             }
           </Button>
@@ -379,55 +551,48 @@ function PricingForm({
   );
 }
 
-// ── Occupancy Prices ──────────────────────────────────────────────────────
+// ── Occupancy Prices Panel ────────────────────────────────────────────────
 
 function OccupancyPricesPanel({
   plan,
   hotelId,
   onUpdated,
 }: {
-  plan: PricingPlan;
-  hotelId: number;
+  plan:     PricingPlan;
+  hotelId:  number;
   onUpdated: (prices: OccupancyPrice[]) => void;
 }) {
-  const [saving, setSaving] = useState<number | null>(null);
+  const [saving, setSaving]     = useState<number | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);
   const [editOccupancy, setEditOccupancy] = useState<number | null>(null);
-  const [addOccupancy, setAddOccupancy] = useState<string>("");
-  const [addPrice, setAddPrice] = useState("");
+  const [addOccupancy, setAddOccupancy]   = useState<string>("");
+  const [addPrice, setAddPrice]     = useState("");
   const [addOriginal, setAddOriginal] = useState("");
-  const [editPrice, setEditPrice] = useState("");
+  const [editPrice, setEditPrice]     = useState("");
   const [editOriginal, setEditOriginal] = useState("");
 
-  const existingOccupancies = new Set(plan.occupancy_prices.map((p) => p.occupancy));
-  const availableOccupancies = [1, 2, 3, 4].filter((o) => !existingOccupancies.has(o));
+  const existingOccupancies = new Set(plan.occupancy_prices.map(p => p.occupancy));
+  const availableOccupancies = [1, 2, 3, 4].filter(o => !existingOccupancies.has(o));
 
   async function handleUpsert(occupancy: number, price: string, original: string, existingId?: number) {
     const p = Number(price);
     if (!p || p <= 0) { toast.error("Valid price required"); return; }
     setSaving(occupancy);
-    const res = await upsertOccupancyPrice(
-      plan.id, hotelId, occupancy, p,
-      original ? Number(original) : null,
-    );
+    const res = await upsertOccupancyPrice(plan.id, hotelId, occupancy, p, original ? Number(original) : null);
     setSaving(null);
     if (!res.success) { toast.error(res.message); return; }
     const newEntry: OccupancyPrice = {
       id: existingId ?? Date.now(),
-      pricing_id: plan.id,
-      occupancy,
+      pricing_id: plan.id, occupancy,
       price_per_night: p,
       original_price: original ? Number(original) : null,
     };
     onUpdated(
       existingId
-        ? plan.occupancy_prices.map((op) => (op.occupancy === occupancy ? newEntry : op))
+        ? plan.occupancy_prices.map(op => op.occupancy === occupancy ? newEntry : op)
         : [...plan.occupancy_prices, newEntry].sort((a, b) => a.occupancy - b.occupancy),
     );
-    setEditOccupancy(null);
-    setAddOccupancy("");
-    setAddPrice("");
-    setAddOriginal("");
+    setEditOccupancy(null); setAddOccupancy(""); setAddPrice(""); setAddOriginal("");
     toast.success("Occupancy price saved");
   }
 
@@ -436,7 +601,7 @@ function OccupancyPricesPanel({
     const res = await deleteOccupancyPrice(entry.id, hotelId);
     setDeleting(null);
     if (!res.success) { toast.error(res.message); return; }
-    onUpdated(plan.occupancy_prices.filter((op) => op.id !== entry.id));
+    onUpdated(plan.occupancy_prices.filter(op => op.id !== entry.id));
     toast.success("Removed");
   }
 
@@ -446,36 +611,22 @@ function OccupancyPricesPanel({
         <Users className="h-3 w-3" /> Occupancy Prices
       </p>
 
-      {/* Existing rows */}
-      {plan.occupancy_prices.map((op) => (
+      {plan.occupancy_prices.map(op => (
         <div key={op.occupancy} className="flex items-center gap-2 rounded-lg bg-muted/30 px-3 py-1.5">
           <span className="text-xs font-medium w-24 shrink-0">{OCCUPANCY_LABELS[op.occupancy] ?? `${op.occupancy}P`}</span>
-
           {editOccupancy === op.occupancy ? (
             <>
-              <Input
-                type="number"
-                className="h-7 text-xs w-28"
-                placeholder="Price"
-                value={editPrice}
-                onChange={(e) => setEditPrice(e.target.value)}
-                autoFocus
-              />
-              <Input
-                type="number"
-                className="h-7 text-xs w-28"
-                placeholder="MRP (optional)"
-                value={editOriginal}
-                onChange={(e) => setEditOriginal(e.target.value)}
-              />
-              <Button
-                type="button" size="sm" variant="ghost" className="h-7 px-2"
+              <Input type="number" className="h-7 text-xs w-28" placeholder="Price"
+                value={editPrice} onChange={e => setEditPrice(e.target.value)} autoFocus />
+              <Input type="number" className="h-7 text-xs w-28" placeholder="MRP (optional)"
+                value={editOriginal} onChange={e => setEditOriginal(e.target.value)} />
+              <Button type="button" size="sm" variant="ghost" className="h-7 px-2"
                 disabled={saving === op.occupancy}
-                onClick={() => handleUpsert(op.occupancy, editPrice, editOriginal, op.id)}
-              >
+                onClick={() => handleUpsert(op.occupancy, editPrice, editOriginal, op.id)}>
                 {saving === op.occupancy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
               </Button>
-              <Button type="button" size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditOccupancy(null)}>
+              <Button type="button" size="sm" variant="ghost" className="h-7 px-2"
+                onClick={() => setEditOccupancy(null)}>
                 <X className="h-3 w-3" />
               </Button>
             </>
@@ -485,17 +636,14 @@ function OccupancyPricesPanel({
               {op.original_price && (
                 <span className="text-xs text-muted-foreground line-through">₹{op.original_price.toLocaleString()}</span>
               )}
-              <Button
-                type="button" size="icon" variant="ghost" className="h-6 w-6 ml-auto"
-                onClick={() => { setEditOccupancy(op.occupancy); setEditPrice(String(op.price_per_night)); setEditOriginal(op.original_price ? String(op.original_price) : ""); }}
-              >
+              <Button type="button" size="icon" variant="ghost" className="h-6 w-6 ml-auto"
+                onClick={() => { setEditOccupancy(op.occupancy); setEditPrice(String(op.price_per_night)); setEditOriginal(op.original_price ? String(op.original_price) : ""); }}>
                 <Pencil className="h-3 w-3" />
               </Button>
-              <Button
-                type="button" size="icon" variant="ghost" className="h-6 w-6 text-destructive hover:text-destructive"
+              <Button type="button" size="icon" variant="ghost"
+                className="h-6 w-6 text-destructive hover:text-destructive"
                 disabled={deleting === op.id}
-                onClick={() => handleDelete(op)}
-              >
+                onClick={() => handleDelete(op)}>
                 {deleting === op.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
               </Button>
             </>
@@ -503,41 +651,25 @@ function OccupancyPricesPanel({
         </div>
       ))}
 
-      {/* Add new occupancy row */}
       {availableOccupancies.length > 0 && (
         <div className="flex items-center gap-2">
           <Select value={addOccupancy} onValueChange={setAddOccupancy}>
-            <SelectTrigger className="h-7 text-xs w-32">
-              <SelectValue placeholder="Add…" />
-            </SelectTrigger>
+            <SelectTrigger className="h-7 text-xs w-32"><SelectValue placeholder="Add…" /></SelectTrigger>
             <SelectContent>
-              {availableOccupancies.map((o) => (
+              {availableOccupancies.map(o => (
                 <SelectItem key={o} value={String(o)}>{OCCUPANCY_LABELS[o] ?? `${o}P`}</SelectItem>
               ))}
             </SelectContent>
           </Select>
           {addOccupancy && (
             <>
-              <Input
-                type="number"
-                className="h-7 text-xs w-28"
-                placeholder="Price / night"
-                value={addPrice}
-                onChange={(e) => setAddPrice(e.target.value)}
-                autoFocus
-              />
-              <Input
-                type="number"
-                className="h-7 text-xs w-28"
-                placeholder="MRP (optional)"
-                value={addOriginal}
-                onChange={(e) => setAddOriginal(e.target.value)}
-              />
-              <Button
-                type="button" size="sm" variant="outline" className="h-7 px-2 text-xs"
+              <Input type="number" className="h-7 text-xs w-28" placeholder="Price / night"
+                value={addPrice} onChange={e => setAddPrice(e.target.value)} autoFocus />
+              <Input type="number" className="h-7 text-xs w-28" placeholder="MRP (optional)"
+                value={addOriginal} onChange={e => setAddOriginal(e.target.value)} />
+              <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs"
                 disabled={saving === Number(addOccupancy)}
-                onClick={() => handleUpsert(Number(addOccupancy), addPrice, addOriginal)}
-              >
+                onClick={() => handleUpsert(Number(addOccupancy), addPrice, addOriginal)}>
                 {saving === Number(addOccupancy) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
               </Button>
             </>
@@ -547,9 +679,45 @@ function OccupancyPricesPanel({
 
       {plan.occupancy_prices.length === 0 && !addOccupancy && (
         <p className="text-[10px] text-muted-foreground/60 italic">
-          No occupancy prices yet — base price will be used. Add occupancy prices for single/double/triple rates.
+          No occupancy overrides yet — season price will apply to all occupancies.
         </p>
       )}
+    </div>
+  );
+}
+
+// ── Read-only Seasons Summary (in expanded panel) ─────────────────────────
+
+function SeasonsSummaryPanel({ seasons }: { seasons: HotelSeason[] }) {
+  if (!seasons.length) return (
+    <div className="px-4 pb-3 pt-1">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1 mb-1">
+        <Calendar className="h-3 w-3" /> Seasonal Pricing
+      </p>
+      <p className="text-[10px] text-muted-foreground/60 italic">No seasons defined — edit the plan to add seasons.</p>
+    </div>
+  );
+
+  return (
+    <div className="px-4 pb-3 pt-1 space-y-1.5">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+        <Calendar className="h-3 w-3" /> Seasonal Pricing
+      </p>
+      {seasons.map(s => (
+        <div key={s.id}
+          className={cn(
+            "flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs bg-muted/30",
+            !s.is_active && "opacity-50",
+          )}>
+          <span className="font-medium w-28 shrink-0 truncate">{s.season_name}</span>
+          <span className="text-muted-foreground">{toISODate(s.valid_from)} – {toISODate(s.valid_to)}</span>
+          <span className="font-semibold ml-2">₹{Number(s.price_per_night).toLocaleString()}/night</span>
+          {s.original_price && (
+            <span className="text-muted-foreground line-through ml-1">₹{Number(s.original_price).toLocaleString()}</span>
+          )}
+          {!s.is_active && <Badge variant="outline" className="text-[10px] px-1 py-0 ml-auto">Inactive</Badge>}
+        </div>
+      ))}
     </div>
   );
 }
@@ -569,19 +737,21 @@ function PlanRow({
   onCancelEdit,
   onDelete,
   onOccupancyUpdated,
+  onSeasonsUpdated,
 }: {
-  plan: PricingPlan;
-  hotelId: number;
-  editId: number | null;
-  rooms: RoomOption[];
-  mealTypes: MealType[];
-  dietTypes: DietType[];
-  isPending: boolean;
-  onEdit: (id: number) => void;
-  onSaveEdit: (id: number, form: PricingFormState) => void;
-  onCancelEdit: () => void;
-  onDelete: (id: number) => void;
+  plan:               PricingPlan;
+  hotelId:            number;
+  editId:             number | null;
+  rooms:              RoomOption[];
+  mealTypes:          MealType[];
+  dietTypes:          DietType[];
+  isPending:          boolean;
+  onEdit:             (id: number) => void;
+  onSaveEdit:         (id: number, form: PricingFormState) => void;
+  onCancelEdit:       () => void;
+  onDelete:           (id: number) => void;
   onOccupancyUpdated: (planId: number, prices: OccupancyPrice[]) => void;
+  onSeasonsUpdated:   (planId: number, seasons: HotelSeason[]) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -593,7 +763,7 @@ function PlanRow({
           rooms={rooms}
           mealTypes={mealTypes}
           dietTypes={dietTypes}
-          onSave={(form) => onSaveEdit(plan.id, form)}
+          onSave={form => onSaveEdit(plan.id, form)}
           onCancel={onCancelEdit}
           isSaving={isPending}
         />
@@ -601,20 +771,18 @@ function PlanRow({
     );
   }
 
-  const hasSeason = plan.valid_from || plan.valid_to;
+  const seasonCount      = plan.seasons?.length ?? 0;
   const occupancySummary = plan.occupancy_prices
-    .map((op) => `${op.occupancy}P: ₹${op.price_per_night.toLocaleString()}`)
+    .map(op => `${op.occupancy}P: ₹${op.price_per_night.toLocaleString()}`)
     .join(" · ");
 
   return (
     <div className={cn("border rounded-lg overflow-hidden", !plan.is_active && "opacity-60")}>
-      {/* Plan header row */}
+      {/* Header row */}
       <div className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/20">
-        <button
-          type="button"
+        <button type="button"
           className="text-muted-foreground hover:text-foreground transition-colors"
-          onClick={() => setExpanded((v) => !v)}
-        >
+          onClick={() => setExpanded(v => !v)}>
           {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         </button>
 
@@ -634,22 +802,16 @@ function PlanRow({
             )}
           </div>
           <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-            <p className="text-xs text-muted-foreground">
-              Base: <span className="font-semibold text-foreground">₹{plan.price_per_night.toLocaleString()}</span>/night
-              {plan.original_price && (
-                <span className="line-through ml-1 text-muted-foreground/70">₹{plan.original_price.toLocaleString()}</span>
-              )}
-            </p>
-            {plan.extra_bed_rate && (
-              <p className="text-xs text-muted-foreground">Extra bed: ₹{plan.extra_bed_rate.toLocaleString()}</p>
-            )}
             {occupancySummary && (
               <p className="text-[10px] text-primary/80">{occupancySummary}</p>
             )}
-            {hasSeason && (
-              <p className="text-[10px] text-orange-600/80">
-                {plan.valid_from ? toISODate(plan.valid_from) : "∞"} – {plan.valid_to ? toISODate(plan.valid_to) : "∞"}
-              </p>
+            {seasonCount > 0 ? (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-orange-600 border-orange-300">
+                <Calendar className="h-2.5 w-2.5 mr-1" />
+                {seasonCount} season{seasonCount !== 1 ? "s" : ""}
+              </Badge>
+            ) : (
+              <span className="text-[10px] text-destructive/70 italic">no seasons — edit to add</span>
             )}
           </div>
         </div>
@@ -660,16 +822,15 @@ function PlanRow({
         </div>
 
         <div className="flex gap-1 shrink-0">
-          <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(plan.id)}>
+          <Button type="button" variant="ghost" size="icon" className="h-7 w-7"
+            onClick={() => onEdit(plan.id)}>
             <Pencil className="h-3 w-3" />
           </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button
-                type="button" variant="ghost" size="icon"
+              <Button type="button" variant="ghost" size="icon"
                 className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                disabled={isPending}
-              >
+                disabled={isPending}>
                 <Trash2 className="h-3 w-3" />
               </Button>
             </AlertDialogTrigger>
@@ -677,15 +838,14 @@ function PlanRow({
               <AlertDialogHeader>
                 <AlertDialogTitle>Delete Plan</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Delete <span className="font-semibold">{plan.plan_name || "this pricing plan"}</span>? All occupancy prices will also be deleted. This cannot be undone.
+                  Delete <span className="font-semibold">{plan.plan_name || "this pricing plan"}</span>? All seasons and occupancy prices will also be deleted.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={() => onDelete(plan.id)}
-                  className="bg-destructive text-white hover:bg-destructive/90"
-                >
+                  className="bg-destructive text-white hover:bg-destructive/90">
                   Delete
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -694,13 +854,14 @@ function PlanRow({
         </div>
       </div>
 
-      {/* Expanded: occupancy prices */}
+      {/* Expanded: seasons list (read-only) + occupancy prices */}
       {expanded && (
-        <div className="border-t bg-muted/10">
+        <div className="border-t bg-muted/10 divide-y divide-border/50">
+          <SeasonsSummaryPanel seasons={plan.seasons ?? []} />
           <OccupancyPricesPanel
             plan={plan}
             hotelId={hotelId}
-            onUpdated={(prices) => onOccupancyUpdated(plan.id, prices)}
+            onUpdated={prices => onOccupancyUpdated(plan.id, prices)}
           />
         </div>
       )}
@@ -717,114 +878,167 @@ export function PricingTab({
   mealTypes,
   dietTypes,
 }: {
-  hotel_id: number;
-  rooms: RoomOption[];
-  pricing: PricingPlan[];
+  hotel_id:  number;
+  rooms:     RoomOption[];
+  pricing:   PricingPlan[];
   mealTypes: MealType[];
   dietTypes: DietType[];
 }) {
   const [pricing, setPricing] = useState<PricingPlan[]>(initialPricing);
-  const [adding, setAdding] = useState(false);
-  const [editId, setEditId] = useState<number | null>(null);
+  const [adding, setAdding]   = useState(false);
+  const [editId, setEditId]   = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function handleAdd(form: PricingFormState) {
     startTransition(async () => {
-      const result = await createRoomPricing(hotel_id, buildFormData(form));
-      if (result.success) {
-        const planId = result.id!;
-        const savedPrices: OccupancyPrice[] = [];
-        for (const entry of form.occupancy_prices) {
-          if (entry.price && Number(entry.price) > 0) {
-            const r = await upsertOccupancyPrice(
-              planId,
-              hotel_id,
-              entry.occupancy,
-              Number(entry.price),
-              entry.original ? Number(entry.original) : null,
-            );
-            if (r.success) {
-              savedPrices.push({
-                id: Date.now() + savedPrices.length,
-                pricing_id: planId,
-                occupancy: entry.occupancy,
-                price_per_night: Number(entry.price),
-                original_price: entry.original ? Number(entry.original) : null,
-              });
-            }
+      const seasons: HotelSeasonInput[] = form.seasons.map(s => ({
+        season_name:     s.season_name,
+        valid_from:      s.valid_from,
+        valid_to:        s.valid_to,
+        price_per_night: Number(s.price_per_night),
+        original_price:  s.original_price ? Number(s.original_price) : null,
+        is_active:       s.is_active,
+      }));
+
+      const result = await createRoomPricingWithSeasons(hotel_id, {
+        room_id:           Number(form.room_id),
+        plan_name:         form.plan_name || null,
+        meal_type_id:      form.meal_type_id && form.meal_type_id !== "none" ? Number(form.meal_type_id) : null,
+        diet_type_id:      form.diet_type_id && form.diet_type_id !== "none" ? Number(form.diet_type_id) : null,
+        extra_bed_rate:    form.extra_bed_rate ? Number(form.extra_bed_rate) : null,
+        margin_percentage: Number(form.margin_percentage) || 10,
+        gst_percentage:    Number(form.gst_percentage) || 18,
+        is_active:         form.is_active,
+        seasons,
+      });
+
+      if (!result.success) { toast.error(result.message); return; }
+
+      // Save optional occupancy prices
+      const planId = result.id!;
+      const savedPrices: OccupancyPrice[] = [];
+      for (const entry of form.occupancy_prices) {
+        if (entry.price && Number(entry.price) > 0) {
+          const r = await upsertOccupancyPrice(planId, hotel_id, entry.occupancy, Number(entry.price),
+            entry.original ? Number(entry.original) : null);
+          if (r.success) {
+            savedPrices.push({
+              id: Date.now() + savedPrices.length,
+              pricing_id: planId,
+              occupancy: entry.occupancy,
+              price_per_night: Number(entry.price),
+              original_price: entry.original ? Number(entry.original) : null,
+            });
           }
         }
-        toast.success(result.message);
-        setAdding(false);
-        const roomId = Number(form.room_id);
-        const mealId = form.meal_type_id && form.meal_type_id !== "none" ? Number(form.meal_type_id) : null;
-        const dietId = form.diet_type_id && form.diet_type_id !== "none" ? Number(form.diet_type_id) : null;
-        setPricing((prev) => [
-          ...prev,
-          {
-            id: Date.now(),
-            hotel_id,
-            room_id: roomId,
-            plan_name: form.plan_name || null,
-            meal_type_id: mealId,
-            diet_type_id: dietId,
-            price_per_night: Number(form.price_per_night),
-            original_price: form.original_price ? Number(form.original_price) : null,
-            extra_bed_rate: form.extra_bed_rate ? Number(form.extra_bed_rate) : null,
-            margin_percentage: Number(form.margin_percentage),
-            gst_percentage: Number(form.gst_percentage),
-            valid_from: form.valid_from || null,
-            valid_to: form.valid_to || null,
-            is_active: form.is_active,
-            sort_order: prev.length,
-            room: rooms.find((r) => r.id === roomId) ?? null,
-            meal_type: mealTypes.find((m) => m.id === mealId) ?? null,
-            diet_type: dietTypes.find((d) => d.id === dietId) ?? null,
-            occupancy_prices: savedPrices,
-          },
-        ]);
-      } else {
-        toast.error(result.message);
       }
+
+      toast.success(result.message);
+      setAdding(false);
+
+      const roomId  = Number(form.room_id);
+      const mealId  = form.meal_type_id && form.meal_type_id !== "none" ? Number(form.meal_type_id) : null;
+      const dietId  = form.diet_type_id && form.diet_type_id !== "none" ? Number(form.diet_type_id) : null;
+
+      setPricing(prev => [
+        ...prev,
+        {
+          id:                planId,
+          hotel_id,
+          room_id:           roomId,
+          plan_name:         form.plan_name || null,
+          meal_type_id:      mealId,
+          diet_type_id:      dietId,
+          price_per_night:   Number(form.seasons[0]?.price_per_night) || 0,
+          original_price:    null,
+          extra_bed_rate:    form.extra_bed_rate ? Number(form.extra_bed_rate) : null,
+          margin_percentage: Number(form.margin_percentage),
+          gst_percentage:    Number(form.gst_percentage),
+          valid_from:        null,
+          valid_to:          null,
+          is_active:         form.is_active,
+          sort_order:        prev.length,
+          room:              rooms.find(r => r.id === roomId) ?? null,
+          meal_type:         mealTypes.find(m => m.id === mealId) ?? null,
+          diet_type:         dietTypes.find(d => d.id === dietId) ?? null,
+          occupancy_prices:  savedPrices,
+          seasons:           seasons.map((s, i) => ({
+            id:              Date.now() + i,
+            pricing_id:      planId,
+            season_name:     s.season_name,
+            valid_from:      new Date(s.valid_from),
+            valid_to:        new Date(s.valid_to),
+            price_per_night: s.price_per_night,
+            original_price:  s.original_price ?? null,
+            is_active:       s.is_active,
+            sort_order:      i,
+          })),
+        },
+      ]);
     });
   }
 
   function handleEdit(id: number, form: PricingFormState) {
     startTransition(async () => {
-      const result = await updateRoomPricing(id, hotel_id, buildFormData(form));
-      if (result.success) {
-        toast.success(result.message);
-        setEditId(null);
-        const roomId = Number(form.room_id);
-        const mealId = form.meal_type_id && form.meal_type_id !== "none" ? Number(form.meal_type_id) : null;
-        const dietId = form.diet_type_id && form.diet_type_id !== "none" ? Number(form.diet_type_id) : null;
-        setPricing((prev) =>
-          prev.map((p) =>
-            p.id === id
-              ? {
-                  ...p,
-                  room_id: roomId,
-                  plan_name: form.plan_name || null,
-                  meal_type_id: mealId,
-                  diet_type_id: dietId,
-                  price_per_night: Number(form.price_per_night),
-                  original_price: form.original_price ? Number(form.original_price) : null,
-                  extra_bed_rate: form.extra_bed_rate ? Number(form.extra_bed_rate) : null,
-                  margin_percentage: Number(form.margin_percentage),
-                  gst_percentage: Number(form.gst_percentage),
-                  valid_from: form.valid_from || null,
-                  valid_to: form.valid_to || null,
-                  is_active: form.is_active,
-                  room: rooms.find((r) => r.id === roomId) ?? null,
-                  meal_type: mealTypes.find((m) => m.id === mealId) ?? null,
-                  diet_type: dietTypes.find((d) => d.id === dietId) ?? null,
-                }
-              : p
-          )
-        );
-      } else {
-        toast.error(result.message);
-      }
+      const seasons: HotelSeasonInput[] = form.seasons.map(s => ({
+        season_name:     s.season_name,
+        valid_from:      s.valid_from,
+        valid_to:        s.valid_to,
+        price_per_night: Number(s.price_per_night),
+        original_price:  s.original_price ? Number(s.original_price) : null,
+        is_active:       s.is_active,
+      }));
+
+      const result = await updateRoomPricingWithSeasons(id, hotel_id, {
+        room_id:           Number(form.room_id),
+        plan_name:         form.plan_name || null,
+        meal_type_id:      form.meal_type_id && form.meal_type_id !== "none" ? Number(form.meal_type_id) : null,
+        diet_type_id:      form.diet_type_id && form.diet_type_id !== "none" ? Number(form.diet_type_id) : null,
+        extra_bed_rate:    form.extra_bed_rate ? Number(form.extra_bed_rate) : null,
+        margin_percentage: Number(form.margin_percentage) || 10,
+        gst_percentage:    Number(form.gst_percentage) || 18,
+        is_active:         form.is_active,
+        seasons,
+      });
+
+      if (!result.success) { toast.error(result.message); return; }
+      toast.success(result.message);
+      setEditId(null);
+
+      const roomId = Number(form.room_id);
+      const mealId = form.meal_type_id && form.meal_type_id !== "none" ? Number(form.meal_type_id) : null;
+      const dietId = form.diet_type_id && form.diet_type_id !== "none" ? Number(form.diet_type_id) : null;
+
+      setPricing(prev =>
+        prev.map(p =>
+          p.id === id ? {
+            ...p,
+            room_id:           roomId,
+            plan_name:         form.plan_name || null,
+            meal_type_id:      mealId,
+            diet_type_id:      dietId,
+            price_per_night:   Number(form.seasons[0]?.price_per_night) || p.price_per_night,
+            extra_bed_rate:    form.extra_bed_rate ? Number(form.extra_bed_rate) : null,
+            margin_percentage: Number(form.margin_percentage),
+            gst_percentage:    Number(form.gst_percentage),
+            is_active:         form.is_active,
+            room:              rooms.find(r => r.id === roomId) ?? null,
+            meal_type:         mealTypes.find(m => m.id === mealId) ?? null,
+            diet_type:         dietTypes.find(d => d.id === dietId) ?? null,
+            seasons:           seasons.map((s, i) => ({
+              id:              Date.now() + i,
+              pricing_id:      id,
+              season_name:     s.season_name,
+              valid_from:      new Date(s.valid_from),
+              valid_to:        new Date(s.valid_to),
+              price_per_night: s.price_per_night,
+              original_price:  s.original_price ?? null,
+              is_active:       s.is_active,
+              sort_order:      i,
+            })),
+          } : p,
+        ),
+      );
     });
   }
 
@@ -833,7 +1047,7 @@ export function PricingTab({
       const result = await deleteRoomPricing(id, hotel_id);
       if (result.success) {
         toast.success(result.message);
-        setPricing((prev) => prev.filter((p) => p.id !== id));
+        setPricing(prev => prev.filter(p => p.id !== id));
       } else {
         toast.error(result.message);
       }
@@ -841,15 +1055,17 @@ export function PricingTab({
   }
 
   function handleOccupancyUpdated(planId: number, prices: OccupancyPrice[]) {
-    setPricing((prev) =>
-      prev.map((p) => (p.id === planId ? { ...p, occupancy_prices: prices } : p))
-    );
+    setPricing(prev => prev.map(p => p.id === planId ? { ...p, occupancy_prices: prices } : p));
   }
 
-  const byRoom = rooms.map((room) => ({
+  function handleSeasonsUpdated(planId: number, seasons: HotelSeason[]) {
+    setPricing(prev => prev.map(p => p.id === planId ? { ...p, seasons } : p));
+  }
+
+  const byRoom = rooms.map(room => ({
     room,
-    plans: pricing.filter((p) => p.room_id === room.id),
-  })).filter((g) => g.plans.length > 0);
+    plans: pricing.filter(p => p.room_id === room.id),
+  })).filter(g => g.plans.length > 0);
 
   return (
     <Card className="rounded-2xl">
@@ -858,7 +1074,7 @@ export function PricingTab({
           <div>
             <CardTitle className="text-base">Pricing Plans</CardTitle>
             <CardDescription>
-              {pricing.length} plan{pricing.length !== 1 ? "s" : ""} · Room required · Expand a plan to set occupancy prices
+              {pricing.length} plan{pricing.length !== 1 ? "s" : ""} · Each plan requires at least one season · Expand to manage occupancy prices
             </CardDescription>
           </div>
           {!adding && editId === null && (
@@ -890,7 +1106,7 @@ export function PricingTab({
                   {room.name}
                 </p>
                 <div className="space-y-2">
-                  {plans.map((plan) => (
+                  {plans.map(plan => (
                     <PlanRow
                       key={plan.id}
                       plan={plan}
@@ -905,6 +1121,7 @@ export function PricingTab({
                       onCancelEdit={() => setEditId(null)}
                       onDelete={handleDelete}
                       onOccupancyUpdated={handleOccupancyUpdated}
+                      onSeasonsUpdated={handleSeasonsUpdated}
                     />
                   ))}
                 </div>
@@ -914,7 +1131,7 @@ export function PricingTab({
         ) : !adding && (
           <div className="text-center py-10 text-muted-foreground">
             <p className="text-sm">No pricing plans yet</p>
-            <p className="text-xs mt-1">Click "Add Plan" to create your first pricing plan</p>
+            <p className="text-xs mt-1">Click "Add Plan" to create your first pricing plan with seasons</p>
           </div>
         )}
       </CardContent>

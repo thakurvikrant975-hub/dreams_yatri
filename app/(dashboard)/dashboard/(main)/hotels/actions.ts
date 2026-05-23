@@ -162,10 +162,11 @@ export async function getHotelById(id: number) {
       room_pricing: {
         orderBy: { sort_order: "asc" },
         include: {
-          room: { select: { id: true, name: true } },
-          meal_type: { select: { id: true, name: true } },
-          diet_type: { select: { id: true, name: true } },
+          room:             { select: { id: true, name: true } },
+          meal_type:        { select: { id: true, name: true } },
+          diet_type:        { select: { id: true, name: true } },
           occupancy_prices: { orderBy: { occupancy: "asc" } },
+          seasons:          { orderBy: { sort_order: "asc" } },
         },
       },
       childPolicies: {
@@ -719,6 +720,209 @@ export async function deleteOccupancyPrice(id: number, hotel_id: number): Promis
     await db.hotel_room_occupancy_prices.delete({ where: { id } });
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Occupancy price removed" };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
+  }
+}
+
+// ── Pricing Seasons ───────────────────────────────────────────────────────
+
+export type HotelSeasonInput = {
+  season_name:     string;
+  valid_from:      string; // YYYY-MM-DD
+  valid_to:        string;
+  price_per_night: number;
+  original_price?: number | null;
+  is_active:       boolean;
+};
+
+export async function createPricingSeason(
+  pricing_id: number,
+  hotel_id:   number,
+  data:       HotelSeasonInput,
+): Promise<HotelFormState & { id?: number }> {
+  try {
+    if (!data.season_name?.trim()) return { success: false, message: "Season name is required." };
+    if (!data.valid_from || !data.valid_to) return { success: false, message: "Date range is required." };
+    if (new Date(data.valid_to) <= new Date(data.valid_from))
+      return { success: false, message: "End date must be after start date." };
+    if (!data.price_per_night || data.price_per_night <= 0)
+      return { success: false, message: "Valid price is required." };
+
+    const count = await db.hotel_room_pricing_season.count({ where: { pricing_id } });
+    const season = await db.hotel_room_pricing_season.create({
+      data: {
+        pricing_id,
+        season_name:     data.season_name.trim(),
+        valid_from:      new Date(data.valid_from),
+        valid_to:        new Date(data.valid_to),
+        price_per_night: data.price_per_night,
+        original_price:  data.original_price ?? null,
+        is_active:       data.is_active,
+        sort_order:      count,
+      },
+    });
+    revalidatePath(`/dashboard/hotels/${hotel_id}`);
+    return { success: true, message: "Season added", id: season.id };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
+  }
+}
+
+export async function updatePricingSeason(
+  id:       number,
+  hotel_id: number,
+  data:     HotelSeasonInput,
+): Promise<HotelFormState> {
+  try {
+    if (!data.season_name?.trim()) return { success: false, message: "Season name is required." };
+    if (!data.valid_from || !data.valid_to) return { success: false, message: "Date range is required." };
+    if (new Date(data.valid_to) <= new Date(data.valid_from))
+      return { success: false, message: "End date must be after start date." };
+    if (!data.price_per_night || data.price_per_night <= 0)
+      return { success: false, message: "Valid price is required." };
+
+    await db.hotel_room_pricing_season.update({
+      where: { id },
+      data: {
+        season_name:     data.season_name.trim(),
+        valid_from:      new Date(data.valid_from),
+        valid_to:        new Date(data.valid_to),
+        price_per_night: data.price_per_night,
+        original_price:  data.original_price ?? null,
+        is_active:       data.is_active,
+      },
+    });
+    revalidatePath(`/dashboard/hotels/${hotel_id}`);
+    return { success: true, message: "Season updated" };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
+  }
+}
+
+export async function deletePricingSeason(id: number, hotel_id: number): Promise<HotelFormState> {
+  try {
+    await db.hotel_room_pricing_season.delete({ where: { id } });
+    revalidatePath(`/dashboard/hotels/${hotel_id}`);
+    return { success: true, message: "Season deleted" };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
+  }
+}
+
+// ── Combined plan + seasons (create / update in one call) ─────────────────
+
+export type PlanInput = {
+  room_id:           number;
+  plan_name?:        string | null;
+  meal_type_id?:     number | null;
+  diet_type_id?:     number | null;
+  extra_bed_rate?:   number | null;
+  margin_percentage: number;
+  gst_percentage:    number;
+  is_active:         boolean;
+  seasons:           HotelSeasonInput[];
+};
+
+export async function createRoomPricingWithSeasons(
+  hotel_id: number,
+  data:     PlanInput,
+): Promise<HotelFormState & { id?: number }> {
+  try {
+    if (!data.room_id) return { success: false, message: "Room is required." };
+    if (!data.seasons.length) return { success: false, message: "At least one season is required." };
+
+    const count = await db.hotel_room_pricing.count({ where: { hotel_id } });
+    // Fallback price = first season's price (keeps public API working)
+    const fallback = data.seasons[0].price_per_night;
+
+    const plan = await db.$transaction(async (tx) => {
+      const p = await tx.hotel_room_pricing.create({
+        data: {
+          hotel_id,
+          room_id:           data.room_id,
+          plan_name:         data.plan_name         ?? null,
+          meal_type_id:      data.meal_type_id      ?? null,
+          diet_type_id:      data.diet_type_id      ?? null,
+          price_per_night:   fallback,
+          extra_bed_rate:    data.extra_bed_rate     ?? null,
+          margin_percentage: data.margin_percentage,
+          gst_percentage:    data.gst_percentage,
+          is_active:         data.is_active,
+          sort_order:        count,
+        },
+      });
+      await tx.hotel_room_pricing_season.createMany({
+        data: data.seasons.map((s, i) => ({
+          pricing_id:      p.id,
+          season_name:     s.season_name.trim(),
+          valid_from:      new Date(s.valid_from),
+          valid_to:        new Date(s.valid_to),
+          price_per_night: s.price_per_night,
+          original_price:  s.original_price ?? null,
+          is_active:       s.is_active,
+          sort_order:      i,
+        })),
+      });
+      return p;
+    });
+
+    revalidatePath(`/dashboard/hotels/${hotel_id}`);
+    return { success: true, message: "Pricing plan added", id: plan.id };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
+  }
+}
+
+export async function updateRoomPricingWithSeasons(
+  id:       number,
+  hotel_id: number,
+  data:     PlanInput,
+): Promise<HotelFormState> {
+  try {
+    if (!data.room_id) return { success: false, message: "Room is required." };
+    if (!data.seasons.length) return { success: false, message: "At least one season is required." };
+
+    const fallback = data.seasons[0].price_per_night;
+
+    await db.$transaction(async (tx) => {
+      await tx.hotel_room_pricing.update({
+        where: { id },
+        data: {
+          room_id:           data.room_id,
+          plan_name:         data.plan_name         ?? null,
+          meal_type_id:      data.meal_type_id      ?? null,
+          diet_type_id:      data.diet_type_id      ?? null,
+          price_per_night:   fallback,
+          extra_bed_rate:    data.extra_bed_rate     ?? null,
+          margin_percentage: data.margin_percentage,
+          gst_percentage:    data.gst_percentage,
+          is_active:         data.is_active,
+        },
+      });
+      // Replace all seasons
+      await tx.hotel_room_pricing_season.deleteMany({ where: { pricing_id: id } });
+      await tx.hotel_room_pricing_season.createMany({
+        data: data.seasons.map((s, i) => ({
+          pricing_id:      id,
+          season_name:     s.season_name.trim(),
+          valid_from:      new Date(s.valid_from),
+          valid_to:        new Date(s.valid_to),
+          price_per_night: s.price_per_night,
+          original_price:  s.original_price ?? null,
+          is_active:       s.is_active,
+          sort_order:      i,
+        })),
+      });
+    });
+
+    revalidatePath(`/dashboard/hotels/${hotel_id}`);
+    return { success: true, message: "Pricing plan updated" };
   } catch (e) {
     console.error(e);
     return actionError(e);

@@ -62,6 +62,30 @@ export type ActivityItem = {
     _count:         { images: number; variants: number };
 };
 
+export type ActivityVariantSeasonPricing = {
+    id:                number;
+    season_id:         number;
+    label:             string;
+    age_from:          number | null;
+    age_to:            number | null;
+    price:             number;
+    original_price:    number | null;
+    margin_percentage: number;
+    is_active:         boolean;
+    sort_order?:       number;
+};
+
+export type ActivityVariantSeason = {
+    id:          number;
+    variant_id:  number;
+    season_name: string;
+    valid_from:  Date | string;
+    valid_to:    Date | string;
+    is_active:   boolean;
+    sort_order:  number;
+    pricing:     ActivityVariantSeasonPricing[];
+};
+
 export type ActivityVariant = {
     id:             number;
     activity_id:    number;
@@ -77,6 +101,7 @@ export type ActivityVariant = {
     is_active:      boolean;
     sort_order:     number;
     pricing:        ActivityVariantPricing[];
+    seasons:        ActivityVariantSeason[];
 };
 
 export type ActivityVariantPricing = {
@@ -187,7 +212,13 @@ export async function getActivityWithVariants(id: number) {
             },
             variants: {
                 orderBy: { sort_order: "asc" },
-                include: { pricing: { orderBy: { sort_order: "asc" } } },
+                include: {
+                    pricing: { orderBy: { sort_order: "asc" } },
+                    seasons:  {
+                        orderBy: { sort_order: "asc" },
+                        include: { pricing: { orderBy: { sort_order: "asc" } } },
+                    },
+                },
             },
             addons: { orderBy: { sort_order: "asc" } },
             location: {
@@ -745,6 +776,300 @@ export async function deleteVariantPricing(
         return { success: true, message: "Pricing deleted" };
     } catch (e) {
         console.error("[deleteVariantPricing]", e);
+        return actionError(e);
+    }
+}
+
+// ── Variant Seasons ───────────────────────────────────────────────────────
+
+export type ActivitySeasonPricingInput = {
+    label:              string;
+    age_from?:          number | null;
+    age_to?:            number | null;
+    price:              number;
+    original_price?:    number | null;
+    margin_percentage?: number;
+    is_active:          boolean;
+};
+
+export type ActivitySeasonInput = {
+    season_name: string;
+    valid_from:  string; // YYYY-MM-DD
+    valid_to:    string;
+    is_active:   boolean;
+    pricing:     ActivitySeasonPricingInput[];
+};
+
+export async function createVariantSeason(
+    variant_id:  number,
+    activity_id: number,
+    data:        ActivitySeasonInput,
+): Promise<ActivityFormState & { id?: number }> {
+    const actor = await requireActor();
+    if (!actor) return { success: false, message: "Unauthorized" };
+
+    try {
+        if (!data.season_name?.trim()) return { success: false, message: "Season name is required." };
+        if (!data.valid_from || !data.valid_to) return { success: false, message: "Date range is required." };
+        if (new Date(data.valid_to) <= new Date(data.valid_from))
+            return { success: false, message: "End date must be after start date." };
+
+        const count = await db.activity_variant_season.count({ where: { variant_id } });
+
+        const season = await db.$transaction(async (tx) => {
+            const s = await tx.activity_variant_season.create({
+                data: {
+                    variant_id,
+                    season_name: data.season_name.trim(),
+                    valid_from:  new Date(data.valid_from),
+                    valid_to:    new Date(data.valid_to),
+                    is_active:   data.is_active,
+                    sort_order:  count,
+                },
+            });
+            if (data.pricing.length > 0) {
+                await tx.activity_variant_season_pricing.createMany({
+                    data: data.pricing.map((p, i) => ({
+                        season_id:         s.id,
+                        label:             p.label,
+                        age_from:          p.age_from  ?? null,
+                        age_to:            p.age_to    ?? null,
+                        price:             p.price,
+                        original_price:    p.original_price ?? null,
+                        margin_percentage: p.margin_percentage ?? 0,
+                        is_active:         p.is_active,
+                        sort_order:        i,
+                    })),
+                });
+            }
+            return s;
+        });
+
+        revalidatePath(`/dashboard/activities/${activity_id}`);
+        return { success: true, message: "Season added", id: season.id };
+    } catch (e) {
+        console.error("[createVariantSeason]", e);
+        return actionError(e);
+    }
+}
+
+export async function updateVariantSeason(
+    id:          number,
+    activity_id: number,
+    data:        ActivitySeasonInput,
+): Promise<ActivityFormState> {
+    const actor = await requireActor();
+    if (!actor) return { success: false, message: "Unauthorized" };
+
+    try {
+        if (!data.season_name?.trim()) return { success: false, message: "Season name is required." };
+        if (!data.valid_from || !data.valid_to) return { success: false, message: "Date range is required." };
+        if (new Date(data.valid_to) <= new Date(data.valid_from))
+            return { success: false, message: "End date must be after start date." };
+
+        await db.$transaction(async (tx) => {
+            await tx.activity_variant_season.update({
+                where: { id },
+                data: {
+                    season_name: data.season_name.trim(),
+                    valid_from:  new Date(data.valid_from),
+                    valid_to:    new Date(data.valid_to),
+                    is_active:   data.is_active,
+                },
+            });
+            // Replace pricing rows
+            await tx.activity_variant_season_pricing.deleteMany({ where: { season_id: id } });
+            if (data.pricing.length > 0) {
+                await tx.activity_variant_season_pricing.createMany({
+                    data: data.pricing.map((p, i) => ({
+                        season_id:         id,
+                        label:             p.label,
+                        age_from:          p.age_from  ?? null,
+                        age_to:            p.age_to    ?? null,
+                        price:             p.price,
+                        original_price:    p.original_price ?? null,
+                        margin_percentage: p.margin_percentage ?? 0,
+                        is_active:         p.is_active,
+                        sort_order:        i,
+                    })),
+                });
+            }
+        });
+
+        revalidatePath(`/dashboard/activities/${activity_id}`);
+        return { success: true, message: "Season updated" };
+    } catch (e) {
+        console.error("[updateVariantSeason]", e);
+        return actionError(e);
+    }
+}
+
+export async function deleteVariantSeason(id: number, activity_id: number): Promise<ActivityFormState> {
+    const actor = await requireActor();
+    if (!actor) return { success: false, message: "Unauthorized" };
+
+    try {
+        await db.activity_variant_season.delete({ where: { id } });
+        revalidatePath(`/dashboard/activities/${activity_id}`);
+        return { success: true, message: "Season deleted" };
+    } catch (e) {
+        console.error("[deleteVariantSeason]", e);
+        return actionError(e);
+    }
+}
+
+// ── Combined variant + seasons (create / update in one call) ─────────────
+
+export type VariantInput = {
+    name:           string;
+    booking_mode:   string;
+    pricing_type:   string;
+    min_persons?:   number | null;
+    max_persons?:   number | null;
+    cost_price?:    number | null;
+    gst_percentage: number;
+    is_active:      boolean;
+    seasons:        ActivitySeasonInput[];
+};
+
+export async function createVariantWithSeasons(
+    activity_id: number,
+    data:        VariantInput,
+): Promise<ActivityFormState & { id?: number }> {
+    const actor = await requireActor();
+    if (!actor) return { success: false, message: "Unauthorized" };
+
+    try {
+        if (!data.name?.trim()) return { success: false, message: "Variant name is required." };
+        if (!data.seasons.length) return { success: false, message: "At least one season is required." };
+
+        const count = await db.activity_variants.count({ where: { activity_id } });
+
+        const variant = await db.$transaction(async (tx) => {
+            const v = await tx.activity_variants.create({
+                data: {
+                    activity_id,
+                    name:           data.name.trim(),
+                    booking_mode:   data.booking_mode,
+                    pricing_type:   data.pricing_type,
+                    min_persons:    data.min_persons  ?? null,
+                    max_persons:    data.max_persons  ?? null,
+                    cost_price:     data.cost_price   ?? null,
+                    gst_percentage: data.gst_percentage,
+                    is_active:      data.is_active,
+                    sort_order:     count,
+                },
+            });
+
+            for (const [i, s] of data.seasons.entries()) {
+                const season = await tx.activity_variant_season.create({
+                    data: {
+                        variant_id:  v.id,
+                        season_name: s.season_name.trim(),
+                        valid_from:  new Date(s.valid_from),
+                        valid_to:    new Date(s.valid_to),
+                        is_active:   s.is_active,
+                        sort_order:  i,
+                    },
+                });
+                if (s.pricing.length > 0) {
+                    await tx.activity_variant_season_pricing.createMany({
+                        data: s.pricing.map((p, j) => ({
+                            season_id:         season.id,
+                            label:             p.label,
+                            age_from:          p.age_from  ?? null,
+                            age_to:            p.age_to    ?? null,
+                            price:             p.price,
+                            original_price:    p.original_price ?? null,
+                            margin_percentage: p.margin_percentage ?? 0,
+                            is_active:         p.is_active,
+                            sort_order:        j,
+                        })),
+                    });
+                }
+            }
+
+            return v;
+        });
+
+        revalidatePath(`/dashboard/activities/${activity_id}`);
+        return { success: true, message: "Variant added", id: variant.id };
+    } catch (e) {
+        console.error("[createVariantWithSeasons]", e);
+        return actionError(e);
+    }
+}
+
+export async function updateVariantWithSeasons(
+    id:          number,
+    activity_id: number,
+    data:        VariantInput,
+): Promise<ActivityFormState> {
+    const actor = await requireActor();
+    if (!actor) return { success: false, message: "Unauthorized" };
+
+    try {
+        if (!data.name?.trim()) return { success: false, message: "Variant name is required." };
+        if (!data.seasons.length) return { success: false, message: "At least one season is required." };
+
+        await db.$transaction(async (tx) => {
+            await tx.activity_variants.update({
+                where: { id },
+                data: {
+                    name:           data.name.trim(),
+                    booking_mode:   data.booking_mode,
+                    pricing_type:   data.pricing_type,
+                    min_persons:    data.min_persons  ?? null,
+                    max_persons:    data.max_persons  ?? null,
+                    cost_price:     data.cost_price   ?? null,
+                    gst_percentage: data.gst_percentage,
+                    is_active:      data.is_active,
+                },
+            });
+
+            // Replace all seasons
+            const existing = await tx.activity_variant_season.findMany({
+                where: { variant_id: id },
+                select: { id: true },
+            });
+            await tx.activity_variant_season_pricing.deleteMany({
+                where: { season_id: { in: existing.map(s => s.id) } },
+            });
+            await tx.activity_variant_season.deleteMany({ where: { variant_id: id } });
+
+            for (const [i, s] of data.seasons.entries()) {
+                const season = await tx.activity_variant_season.create({
+                    data: {
+                        variant_id:  id,
+                        season_name: s.season_name.trim(),
+                        valid_from:  new Date(s.valid_from),
+                        valid_to:    new Date(s.valid_to),
+                        is_active:   s.is_active,
+                        sort_order:  i,
+                    },
+                });
+                if (s.pricing.length > 0) {
+                    await tx.activity_variant_season_pricing.createMany({
+                        data: s.pricing.map((p, j) => ({
+                            season_id:         season.id,
+                            label:             p.label,
+                            age_from:          p.age_from  ?? null,
+                            age_to:            p.age_to    ?? null,
+                            price:             p.price,
+                            original_price:    p.original_price ?? null,
+                            margin_percentage: p.margin_percentage ?? 0,
+                            is_active:         p.is_active,
+                            sort_order:        j,
+                        })),
+                    });
+                }
+            }
+        });
+
+        revalidatePath(`/dashboard/activities/${activity_id}`);
+        return { success: true, message: "Variant updated" };
+    } catch (e) {
+        console.error("[updateVariantWithSeasons]", e);
         return actionError(e);
     }
 }

@@ -889,6 +889,7 @@ model hotel_room_pricing {
   updated_at           DateTime                      @updatedAt
   hotelImageCategories hotel_image_categories[]
   occupancy_prices     hotel_room_occupancy_prices[]
+  seasons              hotel_room_pricing_season[]
   diet_type            diet_types?                   @relation(fields: [diet_type_id], references: [id])
   hotel                hotels                        @relation(fields: [hotel_id], references: [id])
   meal_type            meal_types?                   @relation(fields: [meal_type_id], references: [id])
@@ -897,6 +898,24 @@ model hotel_room_pricing {
 
   @@index([hotel_id])
   @@index([room_id])
+}
+
+model hotel_room_pricing_season {
+  id              Int                @id @default(autoincrement())
+  pricing_id      Int
+  season_name     String
+  valid_from      DateTime
+  valid_to        DateTime
+  price_per_night Decimal            @db.Decimal(10, 2)
+  original_price  Decimal?           @db.Decimal(10, 2)
+  is_active       Boolean            @default(true)
+  sort_order      Int                @default(0)
+  created_at      DateTime           @default(now())
+  updated_at      DateTime           @updatedAt
+  pricing         hotel_room_pricing @relation(fields: [pricing_id], references: [id], onDelete: Cascade)
+
+  @@index([pricing_id])
+  @@map("hotel_room_pricing_seasons")
 }
 
 model hotel_room_occupancy_prices {
@@ -1020,6 +1039,7 @@ model activity_variants {
   sort_order           Int                        @default(0)
   activity             activities                 @relation(fields: [activity_id], references: [id], onDelete: Cascade)
   pricing              activity_variant_pricing[]
+  seasons              activity_variant_season[]
   itinerary_activities itinerary_activities[]
 
   @@index([activity_id])
@@ -1039,6 +1059,40 @@ model activity_variant_pricing {
   variant           activity_variants @relation(fields: [variant_id], references: [id], onDelete: Cascade)
 
   @@index([variant_id])
+}
+
+model activity_variant_season {
+  id          Int                               @id @default(autoincrement())
+  variant_id  Int
+  season_name String
+  valid_from  DateTime
+  valid_to    DateTime
+  is_active   Boolean                           @default(true)
+  sort_order  Int                               @default(0)
+  created_at  DateTime                          @default(now())
+  updated_at  DateTime                          @updatedAt
+  variant     activity_variants                 @relation(fields: [variant_id], references: [id], onDelete: Cascade)
+  pricing     activity_variant_season_pricing[]
+
+  @@index([variant_id])
+  @@map("activity_variant_seasons")
+}
+
+model activity_variant_season_pricing {
+  id                Int                     @id @default(autoincrement())
+  season_id         Int
+  label             String
+  age_from          Int?
+  age_to            Int?
+  price             Decimal                 @db.Decimal(10, 2)
+  original_price    Decimal?                @db.Decimal(10, 2)
+  margin_percentage Decimal                 @default(0) @db.Decimal(5, 2)
+  is_active         Boolean                 @default(true)
+  sort_order        Int                     @default(0)
+  season            activity_variant_season @relation(fields: [season_id], references: [id], onDelete: Cascade)
+
+  @@index([season_id])
+  @@map("activity_variant_season_pricing")
 }
 
 model activity_addons {
