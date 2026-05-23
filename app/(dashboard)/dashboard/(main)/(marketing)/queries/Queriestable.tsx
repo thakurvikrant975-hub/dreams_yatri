@@ -291,7 +291,7 @@ export function QueriesTable({ queries, reasons }: Props) {
                 </div>
             ), 
         },
-        {
+        { 
             header: "Status",
             cell: (q) => (
                 <div className="space-y-1.5">
