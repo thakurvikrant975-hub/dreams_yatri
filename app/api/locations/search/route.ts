@@ -13,8 +13,52 @@ export async function GET(req: NextRequest) {
     // Higher cap for preload requests (e.g. countries list)
     const limit = Math.min(Number(searchParams.get("limit") ?? "8"), 500);
 
+    const destinationsOnly  = searchParams.get("destinationsOnly")  === "true";
+    const excludePricedCabs = searchParams.get("excludePricedCabs") === "true";
+
     // Allow type-only queries (no text) so callers can preload all items of a type
     if (q.length < 2 && !types?.length) return NextResponse.json([]);
+
+    // Compute location ID filters when destination-scoping is requested.
+    // destinationsOnly=true  → only show locations that have a destination record.
+    // excludePricedCabs=true → additionally exclude destinations that already have cab pricing.
+    // Both params are always used together in the cab-pricing form.
+    let includeLocationIds: bigint[] | undefined;
+    let excludeLocationIds: bigint[] | undefined;
+
+    if (destinationsOnly || excludePricedCabs) {
+      const toBigInt = (s: string | null): bigint | null => {
+        try { return s ? BigInt(s) : null; } catch { return null; }
+      };
+
+      const [allDests, pricedDests] = await Promise.all([
+        db.destinations.findMany({
+          where:  { is_active: true, location_id: { not: null } },
+          select: { location_id: true },
+        }),
+        excludePricedCabs
+          ? db.destinations.findMany({
+              where:  { is_active: true, location_id: { not: null }, cabPricings: { some: {} } },
+              select: { location_id: true },
+            })
+          : Promise.resolve([] as { location_id: string | null }[]),
+      ]);
+
+      const pricedSet = new Set(pricedDests.map((d) => d.location_id));
+
+      if (destinationsOnly) {
+        // Keep only locations whose id appears in the destinations table, minus already-priced ones
+        includeLocationIds = allDests
+          .filter((d) => !excludePricedCabs || !pricedSet.has(d.location_id))
+          .map((d) => toBigInt(d.location_id))
+          .filter((id): id is bigint => id !== null);
+      } else {
+        // excludePricedCabs only — exclude locations of priced destinations
+        excludeLocationIds = pricedDests
+          .map((d) => toBigInt(d.location_id))
+          .filter((id): id is bigint => id !== null);
+      }
+    }
 
     const rows = await db.location.findMany({
       where: {
@@ -24,6 +68,8 @@ export async function GET(req: NextRequest) {
           { official_name: { contains: q, mode: "insensitive" } },
         ],
         ...(types?.length ? { type: { in: types } } : {}),
+        ...(includeLocationIds   ? { id: { in:    includeLocationIds   } } : {}),
+        ...(excludeLocationIds?.length ? { id: { notIn: excludeLocationIds } } : {}),
       },
       select: {
         id: true, name: true, type: true, slug: true,

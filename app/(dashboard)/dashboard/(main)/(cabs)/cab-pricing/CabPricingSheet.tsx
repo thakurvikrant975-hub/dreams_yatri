@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useTransition, useEffect, useRef, useCallback } from "react";
-import { Popover as PopoverPrimitive } from "radix-ui";
+import { useState, useTransition, useEffect } from "react";
 import {
   Plus, Pencil, Car, IndianRupee,
   CalendarDays, Trash2, AlertTriangle,
-  Info, Check, Loader2, MapPin, X,
+  Info, Check, Loader2,
 } from "lucide-react";
 import { Button }  from "../../components/ui/button";
 import { Input }   from "../../components/ui/input";
@@ -16,6 +15,8 @@ import {
 import { toast }   from "sonner";
 import { cn }      from "@/app/lib/utils";
 
+import { LocationSearchSelect } from "../../components/location/LocationSearchSelect";
+import type { LocationValue }   from "../../components/location/location.types";
 import {
   PricingRangeCalendarPicker,
   type DateRange,
@@ -24,7 +25,7 @@ import {
 
 import {
   upsertCabPricingForDestination,
-  searchDestinations,
+  upsertCabPricingForCity,
   type CabPricingGroup,
   type CabPricingType,
   type SeasonInput,
@@ -515,112 +516,10 @@ function CalendarRatesSection({
   );
 }
 
-// ── Destination search select ─────────────────────────────────────────────
-
-type DestinationOption = { id: number; name: string };
-
-function DestinationSearchSelect({
-  value,
-  onChange,
-}: {
-  value: DestinationOption | null;
-  onChange: (v: DestinationOption | null) => void;
-}) {
-  const [open, setOpen]       = useState(false);
-  const [query, setQuery]     = useState("");
-  const [results, setResults] = useState<DestinationOption[]>([]);
-  const [loading, setLoading] = useState(false);
-  const inputRef              = useRef<HTMLInputElement>(null);
-
-  const search = useCallback(async (q: string) => {
-    setLoading(true);
-    try {
-      const dests = await searchDestinations(q);
-      setResults(dests.map((d) => ({ id: d.id, name: d.label })));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!open) return;
-    const t = setTimeout(() => search(query), 300);
-    return () => clearTimeout(t);
-  }, [query, open, search]);
-
-  useEffect(() => {
-    if (open) setTimeout(() => inputRef.current?.focus(), 50);
-    else setQuery("");
-  }, [open]);
-
-  return (
-    <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
-      <PopoverPrimitive.Trigger asChild>
-        <button
-          type="button"
-          className={cn(
-            "flex h-10 w-full items-center justify-between rounded-md border bg-background px-3 text-sm",
-            "hover:bg-muted/30 transition-colors",
-            !value && "text-muted-foreground",
-          )}
-        >
-          <span className="flex items-center gap-2 min-w-0">
-            <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            <span className="truncate">{value?.name ?? "Search destination city…"}</span>
-          </span>
-          {value && (
-            <X
-              className="h-3.5 w-3.5 shrink-0 text-muted-foreground hover:text-foreground"
-              onPointerDown={(e) => { e.stopPropagation(); onChange(null); }}
-            />
-          )}
-        </button>
-      </PopoverPrimitive.Trigger>
-
-      <PopoverPrimitive.Portal>
-        <PopoverPrimitive.Content
-          align="start" sideOffset={4}
-          className="z-50 w-[var(--radix-popover-trigger-width)] rounded-md border bg-background shadow-md p-1.5"
-          onOpenAutoFocus={(e) => e.preventDefault()}
-        >
-          <Input
-            ref={inputRef}
-            placeholder="Type city name…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="h-8 text-sm mb-1"
-          />
-          {loading && (
-            <div className="flex items-center justify-center py-4 gap-2 text-xs text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching…
-            </div>
-          )}
-          {!loading && results.length === 0 && (
-            <p className="py-4 text-center text-xs text-muted-foreground">
-              {query ? `No destinations found for "${query}"` : "Start typing to search"}
-            </p>
-          )}
-          {!loading && results.map((d) => (
-            <button
-              key={d.id}
-              type="button"
-              onMouseDown={() => { onChange(d); setOpen(false); }}
-              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted text-left"
-            >
-              <MapPin className="h-3 w-3 shrink-0 text-muted-foreground" />
-              {d.name}
-            </button>
-          ))}
-        </PopoverPrimitive.Content>
-      </PopoverPrimitive.Portal>
-    </PopoverPrimitive.Root>
-  );
-}
-
 // ── Shared form validation ────────────────────────────────────────────────
 
 function validateForm(
-  cityOrLocked: DestinationOption | null | string,
+  cityOrLocked: LocationValue | null | string,
   entries: PriceEntry[],
   vehicleSeasons: Record<string, SeasonEntry[]>,
 ): string | null {
@@ -653,7 +552,7 @@ export function CreateCabPricingSheet({ vehicles }: { vehicles: Vehicle[] }) {
   const [sheetKey,  setSheetKey]     = useState(0);
   const [isPending, startTransition] = useTransition();
 
-  const [cityValue,      setCityValue]      = useState<DestinationOption | null>(null);
+  const [cityValue,      setCityValue]      = useState<LocationValue | null>(null);
   const [entries,        setEntries]        = useState<PriceEntry[]>([]);
   const [vehicleSeasons, setVehicleSeasons] = useState<Record<string, SeasonEntry[]>>({});
   const [formError,      setFormError]      = useState<string | null>(null);
@@ -679,7 +578,7 @@ export function CreateCabPricingSheet({ vehicles }: { vehicles: Vehicle[] }) {
 
     const payload = buildPayload(entries, vehicleSeasons);
     startTransition(async () => {
-      const result = await upsertCabPricingForDestination(cityValue!.id, payload);
+      const result = await upsertCabPricingForCity(cityValue!.id, cityValue!.name, payload);
       if (result.success) {
         toast.success(result.message);
         reset();
@@ -719,9 +618,13 @@ export function CreateCabPricingSheet({ vehicles }: { vehicles: Vehicle[] }) {
               />
               <div className="space-y-1.5">
                 <Label>City <span className="text-destructive">*</span></Label>
-                <DestinationSearchSelect
+                <LocationSearchSelect
                   value={cityValue}
                   onChange={(v) => { setCityValue(v); setFormError(null); }}
+                  types={["CITY"]}
+                  placeholder="Search city…"
+                  extraParams={{ destinationsOnly: "true", excludePricedCabs: "true" }}
+                  disableExternalSearch
                 />
               </div>
             </div>
@@ -921,7 +824,6 @@ export function EditCabPricingSheet({ row, vehicles }: { row: CabPricingGroup; v
                 onChange={setVehicleSeasons}
               />
             </div>
-
           </div>
 
           <div className="px-5 py-4 border-t bg-muted/30 shrink-0 space-y-3">

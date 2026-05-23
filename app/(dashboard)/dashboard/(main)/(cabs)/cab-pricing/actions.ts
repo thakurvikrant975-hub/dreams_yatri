@@ -286,7 +286,77 @@ export async function upsertCabPricingForDestination(
   }
 }
 
-// ── City-based upsert (looks up destination by location_id or name) ────────
+// ── City-based upsert (looks up or auto-creates destination) ─────────────
+
+async function _findOrCreateDestination(
+  cityLocationId: string,
+  cityName: string,
+  actorName: string,
+): Promise<{ id: number; name: string; slug: string }> {
+  // 1. Match by location_id
+  const byLocationId = await db.destinations.findFirst({
+    where:  { location_id: cityLocationId, is_active: true },
+    select: { id: true, name: true, slug: true },
+  });
+  if (byLocationId) return byLocationId;
+
+  // 2. Match by name (case-insensitive)
+  const byName = await db.destinations.findFirst({
+    where:  { name: { equals: cityName, mode: "insensitive" }, is_active: true },
+    select: { id: true, name: true, slug: true },
+  });
+  if (byName) return byName;
+
+  // 3. Auto-create: look up the location record for its slug + coordinates
+  let locationSlug = cityName.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+  let locationLat: string | null = null;
+  let locationLng: string | null = null;
+
+  try {
+    const locId = BigInt(cityLocationId);
+    const loc = await db.location.findUnique({
+      where:  { id: locId },
+      select: { slug: true, latitude: true, longitude: true },
+    });
+    if (loc) {
+      locationSlug = loc.slug || locationSlug;
+      locationLat  = loc.latitude  != null ? String(loc.latitude)  : null;
+      locationLng  = loc.longitude != null ? String(loc.longitude) : null;
+    }
+  } catch { /* cityLocationId not a valid BigInt — use name-derived slug */ }
+
+  // Ensure slug is unique among destinations
+  let slug = locationSlug;
+  let suffix = 1;
+  while (await db.destinations.findUnique({ where: { slug }, select: { id: true } })) {
+    slug = `${locationSlug}-${suffix++}`;
+  }
+
+  // Use the first active region as the default for auto-created destinations
+  const defaultRegion = await db.custom_regions.findFirst({
+    where:   { is_active: true, is_deleted: false },
+    select:  { id: true },
+    orderBy: { id: "asc" },
+  });
+  if (!defaultRegion) throw new Error("No active region found — cannot auto-create destination.");
+
+  const created = await db.destinations.create({
+    data: {
+      name:        cityName,
+      slug,
+      country:     "India",
+      region_id:   defaultRegion.id,
+      location_id: cityLocationId,
+      latitude:    locationLat != null ? parseFloat(locationLat) : null,
+      longitude:   locationLng != null ? parseFloat(locationLng) : null,
+      is_active:   true,
+      created_by:  actorName,
+    },
+    select: { id: true, name: true, slug: true },
+  });
+
+  return created;
+}
 
 export async function upsertCabPricingForCity(
   cityLocationId: string,
@@ -297,26 +367,7 @@ export async function upsertCabPricingForCity(
   if (!authorized) return { success: false, message: "Unauthorized" };
 
   try {
-    // Find destination by location_id first, then by name
-    let dest = await db.destinations.findFirst({
-      where:  { location_id: cityLocationId, is_active: true },
-      select: { id: true, name: true, slug: true },
-    });
-
-    if (!dest) {
-      dest = await db.destinations.findFirst({
-        where:  { name: { equals: cityName, mode: "insensitive" }, is_active: true },
-        select: { id: true, name: true, slug: true },
-      });
-    }
-
-    if (!dest) {
-      return {
-        success: false,
-        message: `No destination found for "${cityName}". Please add this city as a destination first.`,
-      };
-    }
-
+    const dest = await _findOrCreateDestination(cityLocationId, cityName, actorName);
     return await _performUpsert(dest.id, entries, actorName, dest);
   } catch (e) {
     console.error("[upsertCabPricingForCity]", e);
