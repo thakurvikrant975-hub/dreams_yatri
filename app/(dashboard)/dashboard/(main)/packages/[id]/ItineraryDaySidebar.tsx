@@ -85,7 +85,6 @@ import {
 } from "../../components/ui/tooltip";
 import { handleGetDaySourceImages } from "@/app/actions/packages/itinerary-builder.actions";
 import { LocationSearchSelect } from "../../components/location/LocationSearchSelect";
-import { TRANSFER_TYPES } from "../../components/location/location.types";
 import type { LocationValue, LocationType } from "../../components/location/location.types";
 import {
   Loader2,
@@ -395,6 +394,7 @@ function TransferEditForm({
   onSave,
   onCancel,
   onDelete,
+  stopCoords,
 }: {
   item: TransferItem;
   vehicles: VehicleOption[];
@@ -402,6 +402,7 @@ function TransferEditForm({
   onSave: (data: TransferFormData) => void;
   onCancel: () => void;
   onDelete: () => void;
+  stopCoords?: { lat: number; lng: number };
 }) {
   const [form, setForm] = useState<TransferFormData>({
     pickup: item.route
@@ -441,11 +442,11 @@ function TransferEditForm({
     <div className="space-y-4">
       <div className="space-y-1.5">
         <Label className="text-xs">Pickup Location <span className="text-destructive">*</span></Label>
-        <LocationSearchSelect value={form.pickup} onChange={(v) => setForm(f => ({ ...f, pickup: v }))} placeholder="Search pickup point…" types={TRANSFER_TYPES} mapCenter={stopCoords} />
+        <LocationSearchSelect value={form.pickup} onChange={(v) => setForm(f => ({ ...f, pickup: v }))} placeholder="Search pickup point…" mapCenter={stopCoords} />
       </div>
       <div className="space-y-1.5">
         <Label className="text-xs">Drop Location <span className="text-destructive">*</span></Label>
-        <LocationSearchSelect value={form.drop} onChange={(v) => setForm(f => ({ ...f, drop: v }))} placeholder="Search drop point…" types={TRANSFER_TYPES} mapCenter={stopCoords} />
+        <LocationSearchSelect value={form.drop} onChange={(v) => setForm(f => ({ ...f, drop: v }))} placeholder="Search drop point…" mapCenter={stopCoords} />
       </div>
       {(displayKm != null || distLoading) && (
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
@@ -743,12 +744,13 @@ function NoteEditForm({
 // ── Add forms ──────────────────────────────────────────────────────────────
 
 function AddTransferForm({
-  vehicles, pending, onSave, onCancel,
+  vehicles, pending, onSave, onCancel, stopCoords,
 }: {
   vehicles: VehicleOption[];
   pending: boolean;
   onSave: (data: TransferFormData) => void;
   onCancel: () => void;
+  stopCoords?: { lat: number; lng: number };
 }) {
   const [form, setForm] = useState<TransferFormData>({
     pickup: null, drop: null, vehicle_id: null,
@@ -762,11 +764,11 @@ function AddTransferForm({
     <div className="space-y-4">
       <div className="space-y-1.5">
         <Label className="text-xs">Pickup Location <span className="text-destructive">*</span></Label>
-        <LocationSearchSelect value={form.pickup} onChange={(v) => setForm(f => ({ ...f, pickup: v }))} placeholder="Search pickup point…" types={TRANSFER_TYPES} mapCenter={stopCoords} />
+        <LocationSearchSelect value={form.pickup} onChange={(v) => setForm(f => ({ ...f, pickup: v }))} placeholder="Search pickup point…" mapCenter={stopCoords} />
       </div>
       <div className="space-y-1.5">
         <Label className="text-xs">Drop Location <span className="text-destructive">*</span></Label>
-        <LocationSearchSelect value={form.drop} onChange={(v) => setForm(f => ({ ...f, drop: v }))} placeholder="Search drop point…" types={TRANSFER_TYPES} mapCenter={stopCoords} />
+        <LocationSearchSelect value={form.drop} onChange={(v) => setForm(f => ({ ...f, drop: v }))} placeholder="Search drop point…" mapCenter={stopCoords} />
       </div>
       {(roadKm != null || distLoading) && (
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
@@ -1997,7 +1999,7 @@ export function ItineraryDaySidebar({
               <div className="flex-1 overflow-y-auto px-5 py-5">
                 {/* Add forms */}
                 {editPanel?.mode === "add" && editPanel.kind === "transfer" && (
-                  <AddTransferForm vehicles={vehicles} pending={pending} onSave={addTransfer} onCancel={() => setEditPanel(null)} />
+                  <AddTransferForm vehicles={vehicles} pending={pending} onSave={addTransfer} onCancel={() => setEditPanel(null)} stopCoords={stopCoords} />
                 )}
                 {editPanel?.mode === "add" && editPanel.kind === "activity" && (
                   <AddActivityForm destinationId={destinationId} pending={pending} onSave={addActivity} onCancel={() => setEditPanel(null)} />
@@ -2029,6 +2031,7 @@ export function ItineraryDaySidebar({
                     onSave={(data) => saveTransfer(editPanelItem.data.id, data)}
                     onCancel={() => setEditPanel(null)}
                     onDelete={() => deleteTransfer(editPanelItem.data.id)}
+                    stopCoords={stopCoords}
                   />
                 )}
                 {editPanel?.mode === "edit" && editPanelItem?.kind === "activity" && (

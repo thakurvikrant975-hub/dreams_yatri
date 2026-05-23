@@ -497,7 +497,8 @@ function SEOStep() {
     const currentTitle = (data.meta_title as string) ?? "";
     const currentDesc  = (data.meta_desc  as string) ?? "";
 
-    const autoTitle = currentTitle || ((basicData.name   as string) ?? "").slice(0, 60).trim();
+    const regionName = ((basicData.name as string) ?? "").trim();
+    const autoTitle = currentTitle || (regionName ? `Explore ${regionName} Travel Packages | Dreams Yatri` : "").slice(0, 60);
     const autoDesc  = currentDesc  || ((detailData.description as string) ?? "").slice(0, 160).trim();
 
     if (autoTitle !== currentTitle || autoDesc !== currentDesc) {
@@ -526,7 +527,7 @@ function SEOStep() {
         </div>
         <Input
           id="r-meta-title"
-          placeholder="North India Tour Packages | Dreams Yatri"
+          placeholder="Explore North India Packages | Dreams Yatri"
           value={meta_title}
           onChange={(e) =>
             setStepData("seo", { ...data, meta_title: e.target.value.slice(0, 60) })

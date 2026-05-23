@@ -90,20 +90,20 @@ export default function PackageHero({
             {title}
           </Heading>
 
-          {/* Duration + stops */}
-          <div className="flex items-center gap-4 mt-2 flex-wrap">
-              <span className="inline-flex items-center px-3 py-1.5 rounded-pill bg-white border border-neutral-200">
+          {/* Duration + stops — single scrollable row on all screens */}
+          <div className="flex items-center gap-3 sm:gap-4 mt-2 overflow-x-auto scrollbar-none">
+              <span className="inline-flex shrink-0 items-center px-3 py-1.5 rounded-pill bg-white border border-neutral-200">
                 <Text as="span" size="sm" weight="bold" intent="secondary">
                   {duration}
                 </Text>
               </span>
 
-              <div className="h-6 w-px bg-(--border-muted)" />
+              <div className="h-6 w-px shrink-0 bg-(--border-muted)" />
 
-              <div className="flex items-center gap-4 flex-wrap">
+              <div className="flex items-center gap-3 sm:gap-4">
                 {itinerary.map((stop, i) => (
-                  <div key={i} className="flex items-center gap-1.5">
-                    <Text as="span" size="3xl" intent="muted" weight="bold" className="leading-none font-heading">
+                  <div key={i} className="flex items-center gap-1.5 shrink-0">
+                    <Text as="span" intent="muted" weight="bold" className="leading-none font-heading text-xl sm:text-3xl">
                       {stop.days}
                     </Text>
                     <div className="flex flex-col leading-tight">
@@ -115,7 +115,7 @@ export default function PackageHero({
                       </Text>
                     </div>
                     {i < itinerary.length - 1 && (
-                      <div className="ml-2 h-6 w-px bg-(--border-default)" />
+                      <div className="ml-2 h-6 w-px shrink-0 bg-(--border-default)" />
                     )}
                   </div>
                 ))}
@@ -144,8 +144,55 @@ export default function PackageHero({
         })}
       </div>
 
-      {/* ── Photo grid — scrolls under the sticky band ── */}
-      <div className="grid grid-cols-4 grid-rows-2 gap-2 h-[420px] md:h-[480px] rounded-2xl overflow-hidden mt-2">
+      {/* ── Mobile photo layout: full-width hero + 2-col grid ── */}
+      <div className="md:hidden mt-2 flex flex-col gap-2">
+        <div className="relative w-full aspect-4/3 rounded-2xl overflow-hidden group cursor-pointer">
+          <Image
+            src={heroImage}
+            alt={title}
+            fill
+            className={[
+              'object-cover transition-all duration-500',
+              heroLoaded ? 'opacity-100' : 'opacity-0',
+              'group-hover:scale-[1.02]',
+            ].join(' ')}
+            onLoad={() => setHeroLoaded(true)}
+            priority
+            sizes="100vw"
+          />
+          {!heroLoaded && <div className="skeleton-box absolute inset-0" />}
+          <button
+            onClick={onViewGallery}
+            className="absolute bottom-3 left-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-black/50 backdrop-blur-sm text-white text-xs font-semibold hover:bg-black/75 transition-colors"
+          >
+            <ImagesIcon weight="duotone" className="size-5" />
+            View Gallery
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {Array.from({ length: 4 }).map((_, i) => {
+            const src = gridImages[i]
+            return (
+              <div key={i} className="relative aspect-square rounded-xl overflow-hidden group cursor-pointer">
+                {src ? (
+                  <Image
+                    src={src}
+                    alt={`${title} photo ${i + 2}`}
+                    fill
+                    className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                    sizes="50vw"
+                  />
+                ) : (
+                  <div className="skeleton-box absolute inset-0" />
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* ── Desktop photo grid — scrolls under the sticky band ── */}
+      <div className="hidden md:grid grid-cols-4 grid-rows-2 gap-2 h-120 rounded-2xl overflow-hidden mt-2">
 
         <div className="col-span-2 row-span-2 relative group cursor-pointer">
           <Image
@@ -159,7 +206,7 @@ export default function PackageHero({
             ].join(' ')}
             onLoad={() => setHeroLoaded(true)}
             priority
-            sizes="(max-width: 768px) 100vw, 50vw"
+            sizes="50vw"
           />
           {!heroLoaded && <div className="skeleton-box absolute inset-0" />}
 
@@ -182,7 +229,7 @@ export default function PackageHero({
                   alt={`${title} photo ${i + 2}`}
                   fill
                   className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-                  sizes="(max-width: 768px) 50vw, 25vw"
+                  sizes="25vw"
                 />
               ) : (
                 <div className="skeleton-box absolute inset-0" />

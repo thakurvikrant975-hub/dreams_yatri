@@ -1,7 +1,6 @@
 'use client'
 import React from 'react';
 import { cva } from 'class-variance-authority';
-import { ChevronDown } from 'lucide-react';
 import { cn } from '@/app/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -55,24 +54,28 @@ const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onTabChange, trailing }) =
   return (
     <>
 
-      {/* Mobile — select dropdown */}
-      <div className="grid grid-cols-1 sm:hidden">
-        <select
-          value={activeTab}
-          onChange={(e) => onTabChange(e.target.value)}
-          aria-label="Select a tab"
-          className="col-start-1 row-start-1 w-full appearance-none rounded-xl bg-surface py-2 pr-8 pl-3 text-sm font-medium text-primary ring-[0.09em] ring-inset ring-neutral-300 outline-none focus:ring-2 focus:ring-primary-400 cursor-pointer"
-        >
-          {tabs.map((tab) => (
-            <option key={tab.id} value={tab.id}>
-              {tab.label}
-            </option>
-          ))}
-        </select>
-        <ChevronDown
-          aria-hidden="true"
-          className="pointer-events-none col-start-1 row-start-1 mr-2 size-4 self-center justify-self-end text-muted"
-        />
+      {/* Mobile — scrollable pill tabs */}
+      <div className="sm:hidden overflow-x-auto scrollbar-none border-b border-neutral-200">
+        <nav aria-label="Tabs" className="flex items-center gap-1 pb-0">
+          {tabs.map((tab) => {
+            const isActive = tab.id === activeTab;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => onTabChange(tab.id)}
+                aria-current={isActive ? 'page' : undefined}
+                className={cn(
+                  'shrink-0 px-4 py-3 text-sm border-b-2 transition-colors duration-200',
+                  isActive
+                    ? 'border-primary-500 text-brand font-semibold'
+                    : 'border-transparent text-secondary font-medium hover:text-primary'
+                )}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </nav>
       </div>
 
       {/* Desktop — tab bar */}

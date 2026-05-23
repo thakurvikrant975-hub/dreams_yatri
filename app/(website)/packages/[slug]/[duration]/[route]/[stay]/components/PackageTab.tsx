@@ -7,8 +7,12 @@ import {
     ShieldCheckIcon,
 } from '@heroicons/react/24/solid';
 import { ShareNetworkIcon } from '@phosphor-icons/react';
+import dynamic from 'next/dynamic';
 import Tabs from '@/app/components/ui/Tabs';
 import Button from '@/app/components/ui/Button';
+
+const MobileFooterBar = dynamic(() => import('./SidebarCards/MobileFooterBar'), { ssr: false });
+const EnquiryFab      = dynamic(() => import('./SidebarCards/EnquiryFab'),      { ssr: false });
 
 const TABS = [
     { id: 'itinerary',  label: 'Itinerary',  icon: CalendarDateRangeIcon },
@@ -135,14 +139,14 @@ export default function PackageTab({
             <div className="flex gap-10 py-section-sm">
 
                 {/* Main content */}
-                <div className="flex-1 min-w-0 py-2">
+                <div className="flex-1 min-w-0 py-2 pb-20 lg:pb-2">
                     {activeTab === 'itinerary'  && itinerary}
                     {activeTab === 'highlights' && highlights}
                     {activeTab === 'policies'   && policies}
                 </div>
 
-                {/* Sidebar */}
-                <aside className="w-[27%] flex flex-col gap-3">
+                {/* Sidebar — desktop only */}
+                <aside className="hidden lg:flex w-[27%] flex-col gap-3">
                     {/* Pricing + enquiry: sticky below both info band and tab bar */}
                     <div
                         className="sticky z-200 flex flex-col gap-3 bg-white"
@@ -157,6 +161,10 @@ export default function PackageTab({
                 </aside>
 
             </div>
+
+            {/* Mobile: fixed bottom pricing bar + enquiry FAB */}
+            <MobileFooterBar />
+            <EnquiryFab>{enquiry}</EnquiryFab>
         </>
     );
 }

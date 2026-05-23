@@ -176,7 +176,7 @@ export function RadioRoute({ value, stops, disabled, className }: RadioRouteProp
       onClick={() => !isDisabled && setValue(value)}
       disabled={isDisabled}
       className={cn(
-        'w-full flex items-center justify-between px-4 py-3.5 rounded-2xl border transition-all duration-150 cursor-pointer shadow-md shadow-neutral-200/85',
+        'w-full flex items-center justify-between gap-2 px-3 sm:px-4 py-3 sm:py-3.5 rounded-2xl border transition-all duration-150 cursor-pointer shadow-md shadow-neutral-200/85',
         isSelected
           ? 'border-primary-300 bg-primary-50'
           : 'border-(--border-muted) bg-surface hover:bg-neutral-50',
@@ -184,19 +184,19 @@ export function RadioRoute({ value, stops, disabled, className }: RadioRouteProp
         className
       )}
     >
-      {/* Stops with arrows */}
-      <div className="flex items-center gap-2">
+      {/* Stops with arrows — wraps on mobile if needed */}
+      <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap min-w-0">
         {stops.map((stop, i) => (
-          <span key={i} className="flex items-center gap-2">
+          <span key={i} className="flex items-center gap-1.5 sm:gap-2">
             <span className={cn(
-              'text-sm font-semibold',
+              'text-xs sm:text-sm font-semibold',
               isSelected ? 'text-brand' : 'text-primary'
             )}>
               {stop}
             </span>
             {i < stops.length - 1 && (
               <ArrowRightIcon className={cn(
-                'size-3.5 shrink-0',
+                'size-3 shrink-0',
                 isSelected ? 'text-brand' : 'text-muted'
               )} />
             )}
