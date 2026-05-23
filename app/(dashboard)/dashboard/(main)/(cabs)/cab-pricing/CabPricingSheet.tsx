@@ -17,6 +17,10 @@ import { cn }      from "@/app/lib/utils";
 
 import { LocationSearchSelect } from "../../components/location/LocationSearchSelect";
 import type { LocationValue }   from "../../components/location/location.types";
+import {
+  PricingRangeCalendarPicker,
+  type DateRange,
+} from "../../components/ui/pricing-range-calendar";
 
 import {
   upsertCabPricingForDestination,
@@ -204,6 +208,22 @@ function BaseRatesSection({
   );
 }
 
+// ── Date helpers ──────────────────────────────────────────────────────────
+
+function toDateObj(str: string): Date | undefined {
+  if (!str) return undefined;
+  const d = new Date(str + "T00:00:00");
+  return isNaN(d.getTime()) ? undefined : d;
+}
+
+function fromDateObj(d: Date | undefined): string {
+  if (!d) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 // ── Calendar Rates section ────────────────────────────────────────────────
 
 function CalendarRatesSection({
@@ -218,14 +238,6 @@ function CalendarRatesSection({
   onChange: (seasons: Record<string, SeasonEntry[]>) => void;
 }) {
   const [activeVehicleId, setActiveVehicleId] = useState<number | null>(vehicles[0]?.id ?? null);
-  const [dateErrors, setDateErrors]           = useState<Record<string, string>>({});
-
-  function setDateError(key: string, error: string | null) {
-    setDateErrors((prev) => {
-      if (!error) { const n = { ...prev }; delete n[key]; return n; }
-      return { ...prev, [key]: error };
-    });
-  }
 
   function getSeasons(vehicleId: number): SeasonEntry[] {
     return vehicleSeasons[String(vehicleId)] ?? [];
@@ -235,30 +247,15 @@ function CalendarRatesSection({
     onChange({ ...vehicleSeasons, [String(vehicleId)]: seasons });
   }
 
-  function handleDateInput(
-    vehicleId: number, tempId: string,
-    field: "valid_from" | "valid_to",
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) {
-    const { value, validity } = e.target;
-    const key = `${tempId}-${field}`;
-    if (!validity.valid && validity.badInput) {
-      setDateError(key, "This date does not exist");
-      updateSeason(vehicleId, tempId, { [field]: "" });
-    } else {
-      setDateError(key, null);
-      updateSeason(vehicleId, tempId, { [field]: value });
-    }
-  }
-
   function addSeason(vehicleId: number) {
     const base = entries.find((e) => e.vehicle_id === vehicleId);
     setSeasons(vehicleId, [
       ...getSeasons(vehicleId),
       {
-        tempId: uid(),
+        tempId:          uid(),
         pricing_type:    (base?.pricing_type ?? "PER_DAY") as CabPricingType,
-        valid_from: "", valid_to: "",
+        valid_from:      "",
+        valid_to:        "",
         weekday_price:   "",
         weekend_enabled: false,
         weekend_price:   "",
@@ -274,11 +271,12 @@ function CalendarRatesSection({
 
   function removeSeason(vehicleId: number, tempId: string) {
     setSeasons(vehicleId, getSeasons(vehicleId).filter((s) => s.tempId !== tempId));
-    setDateErrors((prev) => {
-      const n = { ...prev };
-      delete n[`${tempId}-valid_from`];
-      delete n[`${tempId}-valid_to`];
-      return n;
+  }
+
+  function handleRangeChange(vehicleId: number, tempId: string, range: DateRange | undefined) {
+    updateSeason(vehicleId, tempId, {
+      valid_from: fromDateObj(range?.from),
+      valid_to:   fromDateObj(range?.to),
     });
   }
 
@@ -289,7 +287,7 @@ function CalendarRatesSection({
       <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5">
         <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-blue-600" />
         <p className="text-xs text-blue-700">
-          Define date-range seasons with a weekday rate. Optionally add a weekend override.
+          Click a start date then an end date on the calendar to set the season range.
           {totalSeasons > 0 && <span className="font-semibold"> {totalSeasons} season{totalSeasons !== 1 ? "s" : ""} configured.</span>}
         </p>
       </div>
@@ -297,9 +295,9 @@ function CalendarRatesSection({
       {/* Vehicle tabs */}
       <div className="flex flex-wrap gap-1.5">
         {vehicles.map((v) => {
-          const count      = getSeasons(v.id).length;
+          const count       = getSeasons(v.id).length;
           const hasConflict = overlappingSeasonIds(getSeasons(v.id)).size > 0;
-          const isActive   = activeVehicleId === v.id;
+          const isActive    = activeVehicleId === v.id;
           return (
             <button
               key={v.id} type="button"
@@ -336,7 +334,7 @@ function CalendarRatesSection({
         const overlapSet = overlappingSeasonIds(seasons);
 
         return (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {seasons.length === 0 && (
               <p className="text-xs text-muted-foreground py-3 text-center">
                 No seasons for <strong>{vehicle.name}</strong> yet.
@@ -346,56 +344,38 @@ function CalendarRatesSection({
             {seasons.map((s) => {
               const unit       = s.pricing_type === "PER_DAY" ? "/day" : "/km";
               const hasOverlap = overlapSet.has(s.tempId);
-              const fromErr    = dateErrors[`${s.tempId}-valid_from`];
-              const toErr      = dateErrors[`${s.tempId}-valid_to`];
+              const rangeValue: DateRange = {
+                from: toDateObj(s.valid_from),
+                to:   toDateObj(s.valid_to),
+              };
+
+              // Summary label shown above calendar
+              const rangeLabel = s.valid_from && s.valid_to
+                ? `${s.valid_from} → ${s.valid_to}`
+                : s.valid_from
+                ? `From ${s.valid_from}`
+                : "No dates selected";
 
               return (
                 <div
                   key={s.tempId}
                   className={cn(
-                    "rounded-lg border p-3 space-y-2.5",
+                    "rounded-xl border p-4 space-y-3",
                     hasOverlap ? "border-destructive/40 bg-destructive/5" : "border-border bg-muted/10",
                   )}
                 >
-                  {hasOverlap && (
-                    <div className="flex items-center gap-1.5 text-[11px] text-destructive font-medium">
-                      <AlertTriangle className="h-3 w-3 shrink-0" />
-                      Date range overlaps with another season — fix before saving.
+                  {/* Header row: summary + type toggle + delete */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <CalendarDays className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <span className={cn(
+                        "text-xs font-medium truncate",
+                        s.valid_from ? "text-foreground" : "text-muted-foreground",
+                      )}>
+                        {rangeLabel}
+                      </span>
                     </div>
-                  )}
-
-                  {/* Dates row */}
-                  <div className="flex items-start gap-2">
-                    <div className="flex-1 space-y-1">
-                      <Label className="text-[11px] text-muted-foreground">From *</Label>
-                      <Input
-                        type="date" value={s.valid_from}
-                        onChange={(e) => handleDateInput(activeVehicleId, s.tempId, "valid_from", e)}
-                        className={cn("h-8 text-sm", (hasOverlap || fromErr) && "border-destructive")}
-                      />
-                      {fromErr && (
-                        <p className="flex items-center gap-1 text-[11px] text-destructive">
-                          <AlertTriangle className="h-3 w-3 shrink-0" />{fromErr}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex-1 space-y-1">
-                      <Label className="text-[11px] text-muted-foreground">To *</Label>
-                      <Input
-                        type="date" value={s.valid_to}
-                        min={s.valid_from || undefined}
-                        onChange={(e) => handleDateInput(activeVehicleId, s.tempId, "valid_to", e)}
-                        className={cn("h-8 text-sm", (hasOverlap || toErr) && "border-destructive")}
-                      />
-                      {toErr && (
-                        <p className="flex items-center gap-1 text-[11px] text-destructive">
-                          <AlertTriangle className="h-3 w-3 shrink-0" />{toErr}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex items-end gap-2 pb-0.5 mt-5">
+                    <div className="flex items-center gap-2 shrink-0">
                       <PricingTypeToggle
                         value={s.pricing_type}
                         onChange={(v) => updateSeason(activeVehicleId, s.tempId, { pricing_type: v })}
@@ -410,58 +390,64 @@ function CalendarRatesSection({
                     </div>
                   </div>
 
-                  {/* Weekday rate */}
-                  <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">
-                      Weekday Rate *
-                      {base?.price && (
-                        <span className="ml-1.5 text-muted-foreground/60">
-                          (base: ₹{base.price}{base.pricing_type === "PER_KM" ? "/km" : "/day"})
-                        </span>
-                      )}
-                    </Label>
-                    <div className="relative">
-                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground select-none">₹</span>
-                      <Input
-                        type="number" min={0} step={s.pricing_type === "PER_KM" ? 1 : 100}
-                        placeholder={base?.price || "0"}
-                        value={s.weekday_price}
-                        onChange={(e) => updateSeason(activeVehicleId, s.tempId, { weekday_price: e.target.value })}
-                        className="h-8 pl-6 pr-9 text-sm"
-                      />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">{unit}</span>
+                  {hasOverlap && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-destructive font-medium">
+                      <AlertTriangle className="h-3 w-3 shrink-0" />
+                      Date range overlaps with another season — fix before saving.
                     </div>
-                  </div>
+                  )}
 
-                  {/* Weekend toggle */}
-                  <div className="space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => updateSeason(activeVehicleId, s.tempId, {
-                        weekend_enabled: !s.weekend_enabled,
-                        weekend_price: "",
-                      })}
-                      className="flex items-center gap-2 group"
-                    >
-                      <div className={cn(
-                        "h-4 w-4 rounded border-2 flex items-center justify-center transition-colors",
-                        s.weekend_enabled
-                          ? "border-dashboard-primary bg-dashboard-primary"
-                          : "border-muted-foreground/40 group-hover:border-dashboard-primary",
-                      )}>
-                        {s.weekend_enabled && (
-                          <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
+                  {/* Pricing inputs row */}
+                  <div className="flex items-end gap-3">
+                    {/* Weekday rate */}
+                    <div className="flex-1 space-y-1">
+                      <Label className="text-[11px] text-muted-foreground">
+                        Weekday Rate *
+                        {base?.price && (
+                          <span className="ml-1.5 text-muted-foreground/60">
+                            (base ₹{base.price}{base.pricing_type === "PER_KM" ? "/km" : "/day"})
+                          </span>
                         )}
+                      </Label>
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground select-none">₹</span>
+                        <Input
+                          type="number" min={0} step={s.pricing_type === "PER_KM" ? 1 : 100}
+                          placeholder={base?.price || "0"}
+                          value={s.weekday_price}
+                          onChange={(e) => updateSeason(activeVehicleId, s.tempId, { weekday_price: e.target.value })}
+                          className="h-8 pl-6 pr-9 text-sm"
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">{unit}</span>
                       </div>
-                      <span className="text-xs font-medium text-foreground">
-                        Different rate for weekends (Sat &amp; Sun)
-                      </span>
-                    </button>
+                    </div>
 
-                    {s.weekend_enabled && (
-                      <div className="pl-6">
+                    {/* Weekend toggle + rate */}
+                    <div className="flex-1 space-y-1">
+                      <button
+                        type="button"
+                        onClick={() => updateSeason(activeVehicleId, s.tempId, {
+                          weekend_enabled: !s.weekend_enabled,
+                          weekend_price: "",
+                        })}
+                        className="flex items-center gap-1.5 group"
+                      >
+                        <div className={cn(
+                          "h-3.5 w-3.5 rounded border-2 flex items-center justify-center transition-colors shrink-0",
+                          s.weekend_enabled
+                            ? "border-dashboard-primary bg-dashboard-primary"
+                            : "border-muted-foreground/40 group-hover:border-dashboard-primary",
+                        )}>
+                          {s.weekend_enabled && (
+                            <svg className="h-2 w-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </div>
+                        <span className="text-[11px] font-medium text-muted-foreground">Weekend rate</span>
+                      </button>
+
+                      {s.weekend_enabled ? (
                         <div className="relative">
                           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground select-none">₹</span>
                           <Input
@@ -473,9 +459,24 @@ function CalendarRatesSection({
                           />
                           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">{unit}</span>
                         </div>
-                      </div>
-                    )}
+                      ) : (
+                        <div className="h-8 rounded-md border border-dashed bg-muted/20 flex items-center px-3">
+                          <span className="text-[11px] text-muted-foreground/50">Same as weekday</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
+
+                  {/* Range picker */}
+                  <PricingRangeCalendarPicker
+                    value={rangeValue}
+                    onChange={(range) => handleRangeChange(activeVehicleId, s.tempId, range)}
+                    weekdayPrice={s.weekday_price}
+                    weekendPrice={s.weekend_price}
+                    weekendEnabled={s.weekend_enabled}
+                    placeholder="Select season date range"
+                    error={hasOverlap}
+                  />
                 </div>
               );
             })}
