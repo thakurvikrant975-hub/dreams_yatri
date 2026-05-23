@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useTransition, useEffect, useRef } from "react";
-import { Plus, MapPin, ImageIcon, Search, Settings2, Pencil, AlertTriangle, Info, ChevronsUpDown, Check, CheckCircle2, Loader2 } from "lucide-react";
+import { Plus, MapPin, ImageIcon, Search, Settings2, Pencil, AlertTriangle, Info, CheckCircle2, Loader2 } from "lucide-react";
 import { Button }   from "../components/ui/button";
 import { Input }    from "../components/ui/input";
 import { Label }    from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
 import { Switch } from "../components/ui/switch";
-import { Popover as PopoverPrimitive } from "radix-ui";
 import { toast } from "sonner";
+import { SearchSelect } from "../components/dashboard/SearchSelect";
 import { cn }    from "@/app/lib/utils";
 
 import {
@@ -59,87 +59,6 @@ function toSlug(s: string) {
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .replace(/(^-|-$)/g, "");
-}
-
-// ── Region Combobox ───────────────────────────────────────────────────────────
-
-function RegionCombobox({
-  regions,
-  value,
-  onChange,
-}: {
-  regions:  Region[];
-  value:    string;
-  onChange: (v: string) => void;
-}) {
-  const [open,   setOpen]   = useState(false);
-  const [query,  setQuery]  = useState("");
-  const inputRef            = useRef<HTMLInputElement>(null);
-
-  const selected = regions.find((r) => String(r.id) === value);
-  const filtered = query
-    ? regions.filter((r) => r.name.toLowerCase().includes(query.toLowerCase()))
-    : regions;
-
-  return (
-    <PopoverPrimitive.Root open={open} onOpenChange={(o) => { setOpen(o); if (o) setTimeout(() => inputRef.current?.focus(), 0); }}>
-      <PopoverPrimitive.Trigger asChild>
-        <button
-          type="button"
-          role="combobox"
-          aria-expanded={open}
-          className={cn(
-            "flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs",
-            "hover:bg-accent/30 transition-colors",
-            !selected && "text-muted-foreground"
-          )}
-        >
-          <span className="truncate">{selected ? selected.name : "Select a region"}</span>
-          <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground ml-2" />
-        </button>
-      </PopoverPrimitive.Trigger>
-      <PopoverPrimitive.Portal>
-        <PopoverPrimitive.Content
-          className="z-50 w-full rounded-md border bg-popover shadow-md outline-none"
-          align="start"
-          sideOffset={4}
-        >
-          <div className="p-2 border-b">
-            <div className="flex items-center gap-2 px-1">
-              <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              <input
-                ref={inputRef}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search regions…"
-                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-              />
-            </div>
-          </div>
-          <div className="max-h-48 overflow-y-auto p-1">
-            {filtered.length === 0 ? (
-              <p className="py-4 text-center text-sm text-muted-foreground">No regions found</p>
-            ) : (
-              filtered.map((r) => (
-                <button
-                  key={r.id}
-                  type="button"
-                  onClick={() => { onChange(String(r.id)); setOpen(false); setQuery(""); }}
-                  className={cn(
-                    "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground",
-                    value === String(r.id) && "bg-accent/50"
-                  )}
-                >
-                  <Check className={cn("h-3.5 w-3.5 shrink-0", value === String(r.id) ? "opacity-100" : "opacity-0")} />
-                  {r.name}
-                </button>
-              ))
-            )}
-          </div>
-        </PopoverPrimitive.Content>
-      </PopoverPrimitive.Portal>
-    </PopoverPrimitive.Root>
-  );
 }
 
 // ── Initial data seed for edit mode ──────────────────────────────────────────
@@ -447,10 +366,16 @@ function BasicInfoStep({
         <Label>
           Region <span className="text-destructive">*</span>
         </Label>
-        <RegionCombobox
-          regions={regions}
-          value={region_id}
-          onChange={(v) => setStepData("basic", { ...data, region_id: v })}
+        <SearchSelect
+          value={region_id ? Number(region_id) : null}
+          onChange={(v) => setStepData("basic", { ...data, region_id: v ? String(v) : "" })}
+          fetchOptions={async (q) => {
+            const lower = q.toLowerCase();
+            return (q ? regions.filter((r) => r.name.toLowerCase().includes(lower)) : regions)
+              .map((r) => ({ id: r.id, label: r.name }));
+          }}
+          placeholder="Select a region…"
+          initialLabel={regions.find((r) => String(r.id) === region_id)?.name ?? ""}
         />
       </div>
 

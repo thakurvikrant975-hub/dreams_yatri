@@ -42,7 +42,7 @@ export interface BookingContextValue {
     packageName: string;
 }
 
-const BookingContext = createContext<BookingContextValue | null>(null);
+export const BookingContext = createContext<BookingContextValue | null>(null);
 
 export function useBooking(): BookingContextValue {
     const ctx = useContext(BookingContext);
