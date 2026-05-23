@@ -22,18 +22,6 @@ import type { CabPricingGroup }      from "./actions";
 
 type Vehicle = { id: number; name: string; type: string };
 
-const VEHICLE_TYPE_LABELS: Record<string, string> = {
-  HATCHBACK:       "Hatchback",
-  SEDAN:           "Sedan",
-  SUV:             "SUV",
-  LUXURY_SEDAN:    "Luxury Sedan",
-  LUXURY_SUV:      "Luxury SUV",
-  TEMPO_TRAVELLER: "Tempo Traveller",
-  MINI_BUS:        "Mini Bus",
-  BUS:             "Bus",
-  Rikshaw:         "Rickshaw",
-};
-
 // ── Component ─────────────────────────────────────────────────────────────
 
 export function CabPricingTable({
@@ -130,7 +118,7 @@ export function CabPricingTable({
               )}
             >
               <span className="text-[11px] font-medium text-muted-foreground">
-                {VEHICLE_TYPE_LABELS[p.vehicle_type] ?? p.vehicle_type}
+                {p.vehicle_name}
               </span>
               <span className="text-[11px] font-semibold text-foreground">
                 ₹{p.price.toLocaleString("en-IN")}
@@ -138,7 +126,7 @@ export function CabPricingTable({
               <span className="text-[10px] text-muted-foreground">
                 {p.pricing_type === "PER_KM" ? "/km" : "/day"}
               </span>
-              {p.schedules.length > 0 && (
+              {p.seasons.length > 0 && (
                 <CalendarDays className="h-2.5 w-2.5 text-dashboard-primary ml-0.5" />
               )}
             </div>
@@ -156,10 +144,10 @@ export function CabPricingTable({
             <span className="font-semibold">{row.active_count}</span>
             <span className="text-muted-foreground">/ {row.total_count}</span>
           </div>
-          {row.schedule_count > 0 && (
+          {row.season_count > 0 && (
             <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
               <CalendarDays className="h-2.5 w-2.5" />
-              <span>{row.schedule_count} rate{row.schedule_count !== 1 ? "s" : ""}</span>
+              <span>{row.season_count} rate{row.season_count !== 1 ? "s" : ""}</span>
             </div>
           )}
         </div>

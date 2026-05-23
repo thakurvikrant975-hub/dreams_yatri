@@ -1290,7 +1290,7 @@ model cab_pricing {
   updated_at     DateTime               @updatedAt
   destination    destinations           @relation(fields: [destination_id], references: [id], onDelete: Cascade)
   vehicle        vehicles               @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
-  schedules      cab_pricing_schedule[]
+  seasons        cab_pricing_season[]
 
   @@unique([destination_id, vehicle_id])
   @@index([destination_id])
@@ -1298,23 +1298,23 @@ model cab_pricing {
   @@map("cab_pricings")
 }
 
-model cab_pricing_schedule {
-  id            Int             @id @default(autoincrement())
+model cab_pricing_season {
+  id            Int            @id @default(autoincrement())
   pricing_id    Int
-  label         String
-  schedule_type CabScheduleType @default(SEASONAL)
-  pricing_type  CabPricingType  @default(PER_DAY)
-  price         Decimal         @db.Decimal(10, 2)
-  cost_price    Decimal?        @db.Decimal(10, 2)
-  valid_from    DateTime?
-  valid_to      DateTime?
-  is_active     Boolean         @default(true)
-  created_at    DateTime        @default(now())
-  updated_at    DateTime        @updatedAt
-  pricing       cab_pricing     @relation(fields: [pricing_id], references: [id], onDelete: Cascade)
+  pricing_type  CabPricingType @default(PER_DAY)
+  valid_from    DateTime
+  valid_to      DateTime
+  weekday_price Decimal        @db.Decimal(10, 2)
+  weekday_cost  Decimal?       @db.Decimal(10, 2)
+  weekend_price Decimal?       @db.Decimal(10, 2)
+  weekend_cost  Decimal?       @db.Decimal(10, 2)
+  is_active     Boolean        @default(true)
+  created_at    DateTime       @default(now())
+  updated_at    DateTime       @updatedAt
+  pricing       cab_pricing    @relation(fields: [pricing_id], references: [id], onDelete: Cascade)
 
   @@index([pricing_id])
-  @@map("cab_pricing_schedules")
+  @@map("cab_pricing_seasons")
 }
 
 model transfer_routes {
@@ -1861,9 +1861,4 @@ enum VehicleRateType {
 enum CabPricingType {
   PER_DAY
   PER_KM
-}
-
-enum CabScheduleType {
-  SEASONAL
-  WEEKEND
 }

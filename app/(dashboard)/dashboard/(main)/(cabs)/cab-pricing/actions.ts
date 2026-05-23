@@ -10,18 +10,17 @@ const PATH = "/dashboard/cab-pricing";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-export type CabPricingType  = "PER_DAY" | "PER_KM";
-export type CabScheduleType = "SEASONAL" | "WEEKEND";
+export type CabPricingType = "PER_DAY" | "PER_KM";
 
-export type CabSchedule = {
+export type CabSeason = {
   id:            number;
-  label:         string;
-  schedule_type: CabScheduleType;
   pricing_type:  CabPricingType;
-  price:         number;
-  cost_price:    number | null;
-  valid_from:    string | null;
-  valid_to:      string | null;
+  valid_from:    string;        // YYYY-MM-DD
+  valid_to:      string;
+  weekday_price: number;
+  weekday_cost:  number | null;
+  weekend_price: number | null; // null = no weekend override
+  weekend_cost:  number | null;
   is_active:     boolean;
 };
 
@@ -34,7 +33,7 @@ export type VehiclePricingEntry = {
   cost_price:   number | null;
   is_active:    boolean;
   updated_by:   string | null;
-  schedules:    CabSchedule[];
+  seasons:      CabSeason[];
 };
 
 export type CabPricingGroup = {
@@ -44,7 +43,7 @@ export type CabPricingGroup = {
   pricings:         VehiclePricingEntry[];
   active_count:     number;
   total_count:      number;
-  schedule_count:   number;
+  season_count:     number;
   updated_at:       Date;
   updated_by:       string | null;
 };
@@ -85,8 +84,8 @@ export async function getCabPricings(params: GetCabPricingsParams = {}) {
       include: {
         cabPricings: {
           include: {
-            vehicle:   { select: { id: true, name: true, type: true } },
-            schedules: { orderBy: { created_at: "asc" } },
+            vehicle:  { select: { id: true, name: true, type: true } },
+            seasons:  { orderBy: { valid_from: "asc" } },
           },
           orderBy: { vehicle: { name: "asc" } },
         },
@@ -106,15 +105,15 @@ export async function getCabPricings(params: GetCabPricingsParams = {}) {
       cost_price:   cp.cost_price != null ? Number(cp.cost_price) : null,
       is_active:    cp.is_active,
       updated_by:   cp.updated_by,
-      schedules:    cp.schedules.map((s) => ({
+      seasons:      cp.seasons.map((s) => ({
         id:            s.id,
-        label:         s.label,
-        schedule_type: s.schedule_type as CabScheduleType,
         pricing_type:  s.pricing_type as CabPricingType,
-        price:         Number(s.price),
-        cost_price:    s.cost_price != null ? Number(s.cost_price) : null,
-        valid_from:    s.valid_from ? s.valid_from.toISOString().slice(0, 10) : null,
-        valid_to:      s.valid_to   ? s.valid_to.toISOString().slice(0, 10)   : null,
+        valid_from:    s.valid_from.toISOString().slice(0, 10),
+        valid_to:      s.valid_to.toISOString().slice(0, 10),
+        weekday_price: Number(s.weekday_price),
+        weekday_cost:  s.weekday_cost  != null ? Number(s.weekday_cost)  : null,
+        weekend_price: s.weekend_price != null ? Number(s.weekend_price) : null,
+        weekend_cost:  s.weekend_cost  != null ? Number(s.weekend_cost)  : null,
         is_active:     s.is_active,
       })),
     }));
@@ -129,11 +128,11 @@ export async function getCabPricings(params: GetCabPricingsParams = {}) {
       destination_name: dest.name,
       destination_slug: dest.slug,
       pricings,
-      active_count:   pricings.filter((p) => p.is_active).length,
-      total_count:    pricings.length,
-      schedule_count: pricings.reduce((s, p) => s + p.schedules.length, 0),
-      updated_at:     latest?.updated_at ?? new Date(0),
-      updated_by:     latest?.updated_by ?? null,
+      active_count:  pricings.filter((p) => p.is_active).length,
+      total_count:   pricings.length,
+      season_count:  pricings.reduce((s, p) => s + p.seasons.length, 0),
+      updated_at:    latest?.updated_at ?? new Date(0),
+      updated_by:    latest?.updated_by ?? null,
     };
   });
 
@@ -144,7 +143,7 @@ export async function getCabPricings(params: GetCabPricingsParams = {}) {
   const paginated  = rows.slice((page - 1) * limit, page * limit);
 
   return {
-    rows: paginated,
+    rows:        paginated,
     totalPages,
     currentPage: page,
     limit,
@@ -157,12 +156,13 @@ export async function getCabPricings(params: GetCabPricingsParams = {}) {
   };
 }
 
-// ── Search destinations ────────────────────────────────────────────────────
+// ── Search destinations (excludes already-priced when requested) ───────────
 
-export async function searchDestinations(query: string) {
+export async function searchDestinations(query: string, excludeAlreadyPriced = false) {
   const dests = await db.destinations.findMany({
     where: {
       is_active: true,
+      ...(excludeAlreadyPriced ? { cabPricings: { none: {} } } : {}),
       ...(query ? { name: { contains: query, mode: "insensitive" as const } } : {}),
     },
     select:  { id: true, name: true, slug: true },
@@ -182,16 +182,16 @@ export async function getActiveVehicles() {
   });
 }
 
-// ── Upsert vehicle prices + schedules ─────────────────────────────────────
+// ── Upsert vehicle prices + seasons ───────────────────────────────────────
 
-export type ScheduleInput = {
-  label:        string;
-  scheduleType: CabScheduleType;
-  pricingType:  CabPricingType;
-  price:        number;
-  costPrice:    number | null;
-  validFrom:    string | null;
-  validTo:      string | null;
+export type SeasonInput = {
+  pricingType:   CabPricingType;
+  validFrom:     string;        // YYYY-MM-DD
+  validTo:       string;
+  weekdayPrice:  number;
+  weekdayCost:   number | null;
+  weekendPrice:  number | null; // null = no override
+  weekendCost:   number | null;
 };
 
 export type VehicleEntryInput = {
@@ -199,7 +199,7 @@ export type VehicleEntryInput = {
   pricingType: CabPricingType;
   price:       number;
   costPrice:   number | null;
-  schedules:   ScheduleInput[];
+  seasons:     SeasonInput[];
 };
 
 export async function upsertCabPricingForDestination(
@@ -238,19 +238,20 @@ export async function upsertCabPricingForDestination(
           },
         });
 
-        await tx.cab_pricing_schedule.deleteMany({ where: { pricing_id: record.id } });
+        // Replace all seasons for this vehicle/destination
+        await tx.cab_pricing_season.deleteMany({ where: { pricing_id: record.id } });
 
-        if (e.schedules.length > 0) {
-          await tx.cab_pricing_schedule.createMany({
-            data: e.schedules.map((s) => ({
+        if (e.seasons.length > 0) {
+          await tx.cab_pricing_season.createMany({
+            data: e.seasons.map((s) => ({
               pricing_id:    record.id,
-              label:         s.label,
-              schedule_type: s.scheduleType as never,
               pricing_type:  s.pricingType as never,
-              price:         s.price,
-              cost_price:    s.costPrice,
-              valid_from:    s.validFrom ? new Date(s.validFrom) : null,
-              valid_to:      s.validTo   ? new Date(s.validTo)   : null,
+              valid_from:    new Date(s.validFrom),
+              valid_to:      new Date(s.validTo),
+              weekday_price: s.weekdayPrice,
+              weekday_cost:  s.weekdayCost,
+              weekend_price: s.weekendPrice,
+              weekend_cost:  s.weekendCost,
               is_active:     true,
             })),
           });
@@ -264,10 +265,9 @@ export async function upsertCabPricingForDestination(
       entityId:    String(destinationId),
       entitySlug:  dest?.slug,
       description: `Updated cab pricing for ${dest?.name ?? destinationId}`,
-      newData:     {
-        vehicles:   entries.length,
-        schedules:  entries.reduce((s, e) => s + e.schedules.length, 0),
-        destination: dest?.name,
+      newData: {
+        vehicles: entries.length,
+        seasons:  entries.reduce((s, e) => s + e.seasons.length, 0),
       },
     });
 
@@ -293,7 +293,6 @@ export async function toggleCabPricingActive(
       where: { destination_id: destinationId },
       data:  { is_active: isActive },
     });
-
     await createLog({
       action:   "UPDATE",
       entity:   "CabPricing",
@@ -301,7 +300,6 @@ export async function toggleCabPricingActive(
       metadata: { operation: "toggle_active", isActive },
       newData:  { isActive },
     });
-
     revalidatePath(PATH);
     return { success: true, message: `Pricing ${isActive ? "activated" : "deactivated"}` };
   } catch (e) {
@@ -309,7 +307,7 @@ export async function toggleCabPricingActive(
   }
 }
 
-// ── Delete all pricings for a destination ─────────────────────────────────
+// ── Delete ─────────────────────────────────────────────────────────────────
 
 export async function deleteCabPricingForDestination(
   destinationId: number,
@@ -322,9 +320,7 @@ export async function deleteCabPricingForDestination(
       where:  { id: destinationId },
       select: { name: true, slug: true },
     });
-
     await db.cab_pricing.deleteMany({ where: { destination_id: destinationId } });
-
     await createLog({
       action:      "DELETE",
       entity:      "CabPricing",
@@ -333,7 +329,6 @@ export async function deleteCabPricingForDestination(
       description: `Deleted all cab pricing for ${dest?.name ?? destinationId}`,
       severity:    "MEDIUM",
     });
-
     revalidatePath(PATH);
     return { success: true, message: "Pricing deleted successfully" };
   } catch (e) {
