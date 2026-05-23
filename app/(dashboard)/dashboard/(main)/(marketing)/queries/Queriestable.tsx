@@ -287,12 +287,7 @@ export function QueriesTable({ queries, reasons }: Props) {
             header: "Ticket booked or not",
             cell: (q) => (
                 <div className="space-y-1.5">
-                    <QueryStatusBadge status={q.status} />
-                    {q.status === "REJECTED" && q.rejectionReason && (
-                        <p className="text-[10px] text-dashboard-base-content/35 max-w-[120px] truncate">
-                            {q.rejectionReason.label}
-                        </p>
-                    )}
+                    Booked
                 </div>
             ), 
         },
