@@ -117,6 +117,7 @@ function buildNav(
   externalResults: ExternalResult[],
   externalSearched: boolean,
   isCountriesOnly: boolean,
+  disableExternalSearch: boolean,
 ): NavItem[] {
   const items: NavItem[] = [];
 
@@ -131,8 +132,9 @@ function buildNav(
   for (const r of localResults) items.push({ kind: "local", item: r });
   for (const r of externalResults) items.push({ kind: "external", item: r });
   // Countries are fully local — no worldwide search needed
-  if (!isCountriesOnly && query.trim() && !externalSearched) items.push({ kind: "worldwide" });
-  items.push({ kind: "manual" });
+  if (!disableExternalSearch && !isCountriesOnly && query.trim() && !externalSearched)
+    items.push({ kind: "worldwide" });
+  if (!disableExternalSearch) items.push({ kind: "manual" });
   return items;
 }
 
@@ -150,6 +152,8 @@ export function LocationSearchSelect({
   required,
   id,
   error,
+  extraParams,
+  disableExternalSearch = false,
 }: LocationSearchSelectProps) {
   // Countries-only mode: preload all, filter client-side, skip debounced search
   const isCountriesOnly = types?.length === 1 && types[0] === "COUNTRY";
@@ -210,6 +214,7 @@ export function LocationSearchSelect({
         setLocalLoading(true);
         const qs = new URLSearchParams({ q: query.trim(), limit: "8" });
         if (types?.length) qs.set("types", types.join(","));
+        if (extraParams) Object.entries(extraParams).forEach(([k, v]) => qs.set(k, v));
         const res = await fetch(`/api/locations/search?${qs}`);
         if (res.ok) setLocalResults((await res.json()) as LocalResult[]);
       } finally {
@@ -295,7 +300,7 @@ export function LocationSearchSelect({
 
   // ── Keyboard navigation ───────────────────────────────────────────────────
   const navItems = buildNav(
-    query, recent, types, displayedLocal, externalResults, extSearched, isCountriesOnly,
+    query, recent, types, displayedLocal, externalResults, extSearched, isCountriesOnly, disableExternalSearch,
   );
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {

@@ -138,4 +138,8 @@ export interface LocationSearchSelectProps {
   required?: boolean;
   id?: string;
   error?: string;
+  /** Extra query params forwarded to /api/locations/search (e.g. destinationsOnly, excludePricedCabs) */
+  extraParams?: Record<string, string>;
+  /** Hide the worldwide (Mapbox) search and "Add manually" options */
+  disableExternalSearch?: boolean;
 }
