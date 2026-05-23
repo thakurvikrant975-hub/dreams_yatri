@@ -2,25 +2,25 @@
 
 import { useState, useTransition, useEffect } from "react";
 import {
-  Plus, Pencil, Car, IndianRupee, Info,
+  Plus, Pencil, Car, IndianRupee,
   CalendarDays, Trash2, AlertTriangle,
+  Info, Check, Loader2,
 } from "lucide-react";
 import { Button }  from "../../components/ui/button";
 import { Input }   from "../../components/ui/input";
 import { Label }   from "../../components/ui/label";
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle,
+} from "../../components/ui/sheet";
 import { toast }   from "sonner";
 import { cn }      from "@/app/lib/utils";
 
-import {
-  MultiStepSheet,
-  useMultiStepSheet,
-  type SheetStep,
-} from "../../components/dashboard/MultiStepSheet";
+import { LocationSearchSelect } from "../../components/location/LocationSearchSelect";
+import type { LocationValue }   from "../../components/location/location.types";
 
-import { SearchSelect } from "../../components/dashboard/SearchSelect";
 import {
-  searchDestinations,
   upsertCabPricingForDestination,
+  upsertCabPricingForCity,
   type CabPricingGroup,
   type CabPricingType,
   type SeasonInput,
@@ -35,7 +35,6 @@ type PriceEntry = {
   vehicle_id:   number;
   pricing_type: CabPricingType;
   price:        string;
-  cost_price:   string;
 };
 
 type SeasonEntry = {
@@ -44,10 +43,8 @@ type SeasonEntry = {
   valid_from:      string;
   valid_to:        string;
   weekday_price:   string;
-  weekday_cost:    string;
   weekend_enabled: boolean;
   weekend_price:   string;
-  weekend_cost:    string;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -76,6 +73,28 @@ function overlappingSeasonIds(seasons: SeasonEntry[]): Set<string> {
   return bad;
 }
 
+function buildPayload(entries: PriceEntry[], vehicleSeasons: Record<string, SeasonEntry[]>): VehicleEntryInput[] {
+  return entries
+    .filter((e) => e.price !== "")
+    .map((e) => ({
+      vehicleId:   e.vehicle_id,
+      pricingType: e.pricing_type,
+      price:       Number(e.price),
+      costPrice:   null,
+      seasons:     (vehicleSeasons[String(e.vehicle_id)] ?? [])
+        .filter((s) => s.valid_from && s.valid_to && s.weekday_price)
+        .map<SeasonInput>((s) => ({
+          pricingType:  s.pricing_type,
+          validFrom:    s.valid_from,
+          validTo:      s.valid_to,
+          weekdayPrice: Number(s.weekday_price),
+          weekdayCost:  null,
+          weekendPrice: s.weekend_enabled && s.weekend_price ? Number(s.weekend_price) : null,
+          weekendCost:  null,
+        })),
+    }));
+}
+
 // ── /day | /km toggle ─────────────────────────────────────────────────────
 
 function PricingTypeToggle({ value, onChange }: { value: CabPricingType; onChange: (v: CabPricingType) => void }) {
@@ -96,122 +115,35 @@ function PricingTypeToggle({ value, onChange }: { value: CabPricingType; onChang
   );
 }
 
-// ── Step definitions ──────────────────────────────────────────────────────
+// ── Section header ────────────────────────────────────────────────────────
 
-function buildSteps(isEdit: boolean): SheetStep[] {
-  return [
-    {
-      id: "destination", title: "Destination",
-      description: "Select the destination to configure pricing for",
-      icon: <Car className="h-4 w-4" />,
-      validate: (data) => data.destination_id ? null : "Please select a destination",
-    },
-    {
-      id: "pricing", title: "Base Rates",
-      description: "Set default price for each vehicle type",
-      icon: <IndianRupee className="h-4 w-4" />,
-      validate: (data) => {
-        const entries = (data.entries as PriceEntry[]) ?? [];
-        if (!entries.length) return "No active vehicles — add vehicles first";
-        for (const e of entries) {
-          const p = Number(e.price);
-          if (!e.price || isNaN(p) || p <= 0) return "All base prices must be greater than ₹0";
-        }
-        return null;
-      },
-    },
-    {
-      id: "seasons", title: "Calendar Rates",
-      description: "Add seasonal pricing with weekend overrides (optional)",
-      icon: <CalendarDays className="h-4 w-4" />,
-      optional: true,
-      validate: (data) => {
-        const map = (data.vehicle_seasons as Record<string, SeasonEntry[]>) ?? {};
-        for (const seasons of Object.values(map)) {
-          for (const s of seasons) {
-            if (!s.valid_from) return "Each season needs a start date";
-            if (!s.valid_to)   return "Each season needs an end date";
-            if (s.valid_from > s.valid_to) return "Start date must be before end date";
-            if (!s.weekday_price || Number(s.weekday_price) <= 0)
-              return "Each season needs a weekday price greater than ₹0";
-            if (s.weekend_enabled) {
-              if (!s.weekend_price || Number(s.weekend_price) <= 0)
-                return "Weekend price must be greater than ₹0 when enabled";
-            }
-          }
-          if (overlappingSeasonIds(seasons).size > 0)
-            return "Some seasons have overlapping date ranges — fix before saving";
-        }
-        return null;
-      },
-    },
-  ];
-}
-
-// ── Step 1: Destination ───────────────────────────────────────────────────
-
-function DestinationStep({ isEdit, lockedName, forCreate }: {
-  isEdit: boolean; lockedName?: string; forCreate: boolean;
-}) {
-  const { stepData, setStepData } = useMultiStepSheet();
-  const data          = stepData["destination"] ?? {};
-  const destinationId = (data.destination_id as number | null) ?? null;
-
-  if (isEdit) {
-    return (
-      <div className="space-y-1.5">
-        <Label>Destination</Label>
-        <div className="h-10 rounded-md border bg-muted px-3 flex items-center text-sm text-muted-foreground cursor-not-allowed">
-          {lockedName}
-        </div>
-        <p className="text-xs text-muted-foreground">Delete and recreate to change destination.</p>
-      </div>
-    );
-  }
-
+function SectionHeader({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
   return (
-    <div className="space-y-1.5">
-      <Label>Destination <span className="text-destructive">*</span></Label>
-      <SearchSelect
-        value={destinationId}
-        onChange={(id) => setStepData("destination", { ...data, destination_id: id })}
-        fetchOptions={(q) => searchDestinations(q, forCreate)}
-        placeholder="Search destination…"
-        initialLabel={(data._destinationLabel as string) ?? ""}
-      />
-      {forCreate && (
-        <p className="text-xs text-muted-foreground">
-          Only destinations without existing pricing are shown.
-        </p>
-      )}
+    <div className="flex items-center gap-2.5 mb-3">
+      <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+        {icon}
+      </div>
+      <div>
+        <h3 className="font-semibold text-sm">{title}</h3>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
     </div>
   );
 }
 
-// ── Step 2: Base Rates ────────────────────────────────────────────────────
+// ── Base Rates section ────────────────────────────────────────────────────
 
-function BaseRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
-  const { stepData, setStepData } = useMultiStepSheet();
-  const data    = stepData["pricing"] ?? {};
-  const entries = (data.entries as PriceEntry[]) ?? [];
-
-  useEffect(() => {
-    if (!entries.length && vehicles.length) {
-      setStepData("pricing", {
-        ...data,
-        entries: vehicles.map((v) => ({
-          vehicle_id: v.id, pricing_type: "PER_DAY" as CabPricingType, price: "", cost_price: "",
-        })),
-      });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vehicles]);
-
+function BaseRatesSection({
+  vehicles,
+  entries,
+  onChange,
+}: {
+  vehicles: Vehicle[];
+  entries: PriceEntry[];
+  onChange: (entries: PriceEntry[]) => void;
+}) {
   function update<K extends keyof PriceEntry>(vehicleId: number, field: K, value: PriceEntry[K]) {
-    setStepData("pricing", {
-      ...data,
-      entries: entries.map((e) => e.vehicle_id === vehicleId ? { ...e, [field]: value } : e),
-    });
+    onChange(entries.map((e) => e.vehicle_id === vehicleId ? { ...e, [field]: value } : e));
   }
 
   if (!vehicles.length) {
@@ -227,28 +159,24 @@ function BaseRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
     <div className="space-y-3">
       <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5">
         <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-blue-600" />
-        <p className="text-xs text-blue-700">
-          These are the default rates used when no season is configured for the travel date.
-        </p>
+        <p className="text-xs text-blue-700">Default rates used when no season is active for the travel date.</p>
       </div>
 
-      <div className="grid grid-cols-[1fr_80px_130px_110px] gap-2 px-1">
+      <div className="grid grid-cols-[1fr_80px_140px] gap-2 px-1">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Vehicle</p>
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Type</p>
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Price (₹) *</p>
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Cost (₹)</p>
       </div>
 
       {vehicles.map((vehicle) => {
         const entry       = entries.find((e) => e.vehicle_id === vehicle.id);
         const priceVal    = entry?.price        ?? "";
-        const costVal     = entry?.cost_price   ?? "";
         const pricingType = (entry?.pricing_type ?? "PER_DAY") as CabPricingType;
         const unit        = pricingType === "PER_DAY" ? "/day" : "/km";
         const isInvalid   = priceVal !== "" && (isNaN(Number(priceVal)) || Number(priceVal) <= 0);
 
         return (
-          <div key={vehicle.id} className="grid grid-cols-[1fr_80px_130px_110px] gap-2 items-center rounded-lg border bg-muted/20 px-3 py-2.5">
+          <div key={vehicle.id} className="grid grid-cols-[1fr_80px_140px] gap-2 items-center rounded-lg border bg-muted/20 px-3 py-2.5">
             <div className="flex items-center gap-2 min-w-0">
               <Car className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               <div className="min-w-0">
@@ -269,13 +197,6 @@ function BaseRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
               />
               <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">{unit}</span>
             </div>
-            <div className="relative">
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground select-none">₹</span>
-              <Input type="number" min={0} placeholder="opt." value={costVal}
-                onChange={(e) => update(vehicle.id, "cost_price", e.target.value)}
-                className="h-8 pl-6 text-sm"
-              />
-            </div>
           </div>
         );
       })}
@@ -283,15 +204,19 @@ function BaseRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
   );
 }
 
-// ── Step 3: Calendar Rates ────────────────────────────────────────────────
+// ── Calendar Rates section ────────────────────────────────────────────────
 
-function CalendarRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
-  const { stepData, setStepData } = useMultiStepSheet();
-  const data           = stepData["seasons"]  ?? {};
-  const baseData       = stepData["pricing"]  ?? {};
-  const baseEntries    = (baseData.entries as PriceEntry[]) ?? [];
-  const vehicleSeasons = (data.vehicle_seasons as Record<string, SeasonEntry[]>) ?? {};
-
+function CalendarRatesSection({
+  vehicles,
+  entries,
+  vehicleSeasons,
+  onChange,
+}: {
+  vehicles: Vehicle[];
+  entries: PriceEntry[];
+  vehicleSeasons: Record<string, SeasonEntry[]>;
+  onChange: (seasons: Record<string, SeasonEntry[]>) => void;
+}) {
   const [activeVehicleId, setActiveVehicleId] = useState<number | null>(vehicles[0]?.id ?? null);
   const [dateErrors, setDateErrors]           = useState<Record<string, string>>({});
 
@@ -300,6 +225,14 @@ function CalendarRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
       if (!error) { const n = { ...prev }; delete n[key]; return n; }
       return { ...prev, [key]: error };
     });
+  }
+
+  function getSeasons(vehicleId: number): SeasonEntry[] {
+    return vehicleSeasons[String(vehicleId)] ?? [];
+  }
+
+  function setSeasons(vehicleId: number, seasons: SeasonEntry[]) {
+    onChange({ ...vehicleSeasons, [String(vehicleId)]: seasons });
   }
 
   function handleDateInput(
@@ -318,25 +251,17 @@ function CalendarRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
     }
   }
 
-  function getSeasons(vehicleId: number): SeasonEntry[] {
-    return vehicleSeasons[String(vehicleId)] ?? [];
-  }
-
-  function setSeasons(vehicleId: number, seasons: SeasonEntry[]) {
-    setStepData("seasons", { ...data, vehicle_seasons: { ...vehicleSeasons, [String(vehicleId)]: seasons } });
-  }
-
   function addSeason(vehicleId: number) {
-    const base = baseEntries.find((e) => e.vehicle_id === vehicleId);
+    const base = entries.find((e) => e.vehicle_id === vehicleId);
     setSeasons(vehicleId, [
       ...getSeasons(vehicleId),
       {
         tempId: uid(),
         pricing_type:    (base?.pricing_type ?? "PER_DAY") as CabPricingType,
         valid_from: "", valid_to: "",
-        weekday_price: "", weekday_cost: "",
+        weekday_price:   "",
         weekend_enabled: false,
-        weekend_price: "", weekend_cost: "",
+        weekend_price:   "",
       },
     ]);
   }
@@ -364,17 +289,17 @@ function CalendarRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
       <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5">
         <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-blue-600" />
         <p className="text-xs text-blue-700">
-          Define date-range seasons with a weekday rate. Optionally add a higher weekend rate within the same season.
+          Define date-range seasons with a weekday rate. Optionally add a weekend override.
           {totalSeasons > 0 && <span className="font-semibold"> {totalSeasons} season{totalSeasons !== 1 ? "s" : ""} configured.</span>}
         </p>
       </div>
 
-      {/* Vehicle selector tabs */}
+      {/* Vehicle tabs */}
       <div className="flex flex-wrap gap-1.5">
         {vehicles.map((v) => {
-          const count     = getSeasons(v.id).length;
+          const count      = getSeasons(v.id).length;
           const hasConflict = overlappingSeasonIds(getSeasons(v.id)).size > 0;
-          const isActive  = activeVehicleId === v.id;
+          const isActive   = activeVehicleId === v.id;
           return (
             <button
               key={v.id} type="button"
@@ -405,9 +330,9 @@ function CalendarRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
 
       {/* Season cards */}
       {activeVehicleId !== null && (() => {
-        const vehicle  = vehicles.find((v) => v.id === activeVehicleId)!;
-        const seasons  = getSeasons(activeVehicleId);
-        const base     = baseEntries.find((e) => e.vehicle_id === activeVehicleId);
+        const vehicle    = vehicles.find((v) => v.id === activeVehicleId)!;
+        const seasons    = getSeasons(activeVehicleId);
+        const base       = entries.find((e) => e.vehicle_id === activeVehicleId);
         const overlapSet = overlappingSeasonIds(seasons);
 
         return (
@@ -419,10 +344,10 @@ function CalendarRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
             )}
 
             {seasons.map((s) => {
-              const unit        = s.pricing_type === "PER_DAY" ? "/day" : "/km";
-              const hasOverlap  = overlapSet.has(s.tempId);
-              const fromErr     = dateErrors[`${s.tempId}-valid_from`];
-              const toErr       = dateErrors[`${s.tempId}-valid_to`];
+              const unit       = s.pricing_type === "PER_DAY" ? "/day" : "/km";
+              const hasOverlap = overlapSet.has(s.tempId);
+              const fromErr    = dateErrors[`${s.tempId}-valid_from`];
+              const toErr      = dateErrors[`${s.tempId}-valid_to`];
 
               return (
                 <div
@@ -432,7 +357,6 @@ function CalendarRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
                     hasOverlap ? "border-destructive/40 bg-destructive/5" : "border-border bg-muted/10",
                   )}
                 >
-                  {/* Overlap warning */}
                   {hasOverlap && (
                     <div className="flex items-center gap-1.5 text-[11px] text-destructive font-medium">
                       <AlertTriangle className="h-3 w-3 shrink-0" />
@@ -440,9 +364,8 @@ function CalendarRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
                     </div>
                   )}
 
-                  {/* Row 1: dates · pricing type · delete */}
+                  {/* Dates row */}
                   <div className="flex items-start gap-2">
-                    {/* From */}
                     <div className="flex-1 space-y-1">
                       <Label className="text-[11px] text-muted-foreground">From *</Label>
                       <Input
@@ -457,7 +380,6 @@ function CalendarRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
                       )}
                     </div>
 
-                    {/* To */}
                     <div className="flex-1 space-y-1">
                       <Label className="text-[11px] text-muted-foreground">To *</Label>
                       <Input
@@ -473,7 +395,6 @@ function CalendarRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
                       )}
                     </div>
 
-                    {/* Pricing type + delete */}
                     <div className="flex items-end gap-2 pb-0.5 mt-5">
                       <PricingTypeToggle
                         value={s.pricing_type}
@@ -489,7 +410,7 @@ function CalendarRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
                     </div>
                   </div>
 
-                  {/* Row 2: weekday rate */}
+                  {/* Weekday rate */}
                   <div className="space-y-1">
                     <Label className="text-[11px] text-muted-foreground">
                       Weekday Rate *
@@ -499,38 +420,26 @@ function CalendarRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
                         </span>
                       )}
                     </Label>
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground select-none">₹</span>
-                        <Input
-                          type="number" min={0} step={s.pricing_type === "PER_KM" ? 1 : 100}
-                          placeholder={base?.price || "0"}
-                          value={s.weekday_price}
-                          onChange={(e) => updateSeason(activeVehicleId, s.tempId, { weekday_price: e.target.value })}
-                          className="h-8 pl-6 pr-9 text-sm"
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">{unit}</span>
-                      </div>
-                      <div className="relative w-28">
-                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground select-none">₹</span>
-                        <Input
-                          type="number" min={0} placeholder="cost opt."
-                          value={s.weekday_cost}
-                          onChange={(e) => updateSeason(activeVehicleId, s.tempId, { weekday_cost: e.target.value })}
-                          className="h-8 pl-6 text-sm"
-                        />
-                      </div>
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground select-none">₹</span>
+                      <Input
+                        type="number" min={0} step={s.pricing_type === "PER_KM" ? 1 : 100}
+                        placeholder={base?.price || "0"}
+                        value={s.weekday_price}
+                        onChange={(e) => updateSeason(activeVehicleId, s.tempId, { weekday_price: e.target.value })}
+                        className="h-8 pl-6 pr-9 text-sm"
+                      />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">{unit}</span>
                     </div>
                   </div>
 
-                  {/* Row 3: weekend toggle + rate */}
+                  {/* Weekend toggle */}
                   <div className="space-y-2">
                     <button
                       type="button"
                       onClick={() => updateSeason(activeVehicleId, s.tempId, {
                         weekend_enabled: !s.weekend_enabled,
                         weekend_price: "",
-                        weekend_cost: "",
                       })}
                       className="flex items-center gap-2 group"
                     >
@@ -552,8 +461,8 @@ function CalendarRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
                     </button>
 
                     {s.weekend_enabled && (
-                      <div className="flex gap-2 pl-6">
-                        <div className="relative flex-1">
+                      <div className="pl-6">
+                        <div className="relative">
                           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground select-none">₹</span>
                           <Input
                             type="number" min={0} step={s.pricing_type === "PER_KM" ? 1 : 100}
@@ -563,15 +472,6 @@ function CalendarRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
                             className="h-8 pl-6 pr-9 text-sm"
                           />
                           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">{unit}</span>
-                        </div>
-                        <div className="relative w-28">
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground select-none">₹</span>
-                          <Input
-                            type="number" min={0} placeholder="cost opt."
-                            value={s.weekend_cost}
-                            onChange={(e) => updateSeason(activeVehicleId, s.tempId, { weekend_cost: e.target.value })}
-                            className="h-8 pl-6 text-sm"
-                          />
                         </div>
                       </div>
                     )}
@@ -595,31 +495,33 @@ function CalendarRatesStep({ vehicles }: { vehicles: Vehicle[] }) {
   );
 }
 
-// ── Build payload from all step data ──────────────────────────────────────
+// ── Shared form validation ────────────────────────────────────────────────
 
-function buildPayload(data: Record<string, unknown>): VehicleEntryInput[] {
-  const entries      = (data.entries as PriceEntry[]) ?? [];
-  const vehicleSeasonsMap = (data.vehicle_seasons as Record<string, SeasonEntry[]>) ?? {};
-
-  return entries
-    .filter((e) => e.price !== "")
-    .map((e) => ({
-      vehicleId:   e.vehicle_id,
-      pricingType: e.pricing_type,
-      price:       Number(e.price),
-      costPrice:   e.cost_price ? Number(e.cost_price) : null,
-      seasons:     (vehicleSeasonsMap[String(e.vehicle_id)] ?? [])
-        .filter((s) => s.valid_from && s.valid_to && s.weekday_price)
-        .map<SeasonInput>((s) => ({
-          pricingType:  s.pricing_type,
-          validFrom:    s.valid_from,
-          validTo:      s.valid_to,
-          weekdayPrice: Number(s.weekday_price),
-          weekdayCost:  s.weekday_cost  ? Number(s.weekday_cost)  : null,
-          weekendPrice: s.weekend_enabled && s.weekend_price ? Number(s.weekend_price) : null,
-          weekendCost:  s.weekend_enabled && s.weekend_cost  ? Number(s.weekend_cost)  : null,
-        })),
-    }));
+function validateForm(
+  cityOrLocked: LocationValue | null | string,
+  entries: PriceEntry[],
+  vehicleSeasons: Record<string, SeasonEntry[]>,
+): string | null {
+  if (!cityOrLocked) return "Please select a city";
+  if (!entries.length) return "No active vehicles — add them in Vehicle Types first";
+  for (const e of entries) {
+    const p = Number(e.price);
+    if (!e.price || isNaN(p) || p <= 0) return "All base prices must be greater than ₹0";
+  }
+  for (const [, seasons] of Object.entries(vehicleSeasons)) {
+    for (const s of seasons) {
+      if (!s.valid_from) return "Each season needs a start date";
+      if (!s.valid_to)   return "Each season needs an end date";
+      if (s.valid_from > s.valid_to) return "Start date must be before end date";
+      if (!s.weekday_price || Number(s.weekday_price) <= 0)
+        return "Each season needs a weekday price greater than ₹0";
+      if (s.weekend_enabled && (!s.weekend_price || Number(s.weekend_price) <= 0))
+        return "Weekend price must be greater than ₹0 when enabled";
+    }
+    if (overlappingSeasonIds(seasons).size > 0)
+      return "Some seasons have overlapping date ranges — fix before saving";
+  }
+  return null;
 }
 
 // ── Create Sheet ──────────────────────────────────────────────────────────
@@ -629,16 +531,39 @@ export function CreateCabPricingSheet({ vehicles }: { vehicles: Vehicle[] }) {
   const [sheetKey,  setSheetKey]     = useState(0);
   const [isPending, startTransition] = useTransition();
 
-  async function handleComplete(data: Record<string, unknown>) {
-    const destinationId = data.destination_id as number;
-    const payload       = buildPayload(data);
+  const [cityValue,      setCityValue]      = useState<LocationValue | null>(null);
+  const [entries,        setEntries]        = useState<PriceEntry[]>([]);
+  const [vehicleSeasons, setVehicleSeasons] = useState<Record<string, SeasonEntry[]>>({});
+  const [formError,      setFormError]      = useState<string | null>(null);
+
+  useEffect(() => {
+    setEntries(
+      vehicles.map((v) => ({ vehicle_id: v.id, pricing_type: "PER_DAY" as CabPricingType, price: "" })),
+    );
+  }, [vehicles]);
+
+  function reset() {
+    setCityValue(null);
+    setEntries(vehicles.map((v) => ({ vehicle_id: v.id, pricing_type: "PER_DAY" as CabPricingType, price: "" })));
+    setVehicleSeasons({});
+    setFormError(null);
+    setSheetKey((k) => k + 1);
+  }
+
+  function handleSubmit() {
+    const error = validateForm(cityValue, entries, vehicleSeasons);
+    if (error) { setFormError(error); return; }
+    setFormError(null);
+
+    const payload = buildPayload(entries, vehicleSeasons);
     startTransition(async () => {
-      const result = await upsertCabPricingForDestination(destinationId, payload);
+      const result = await upsertCabPricingForCity(cityValue!.id, cityValue!.name, payload);
       if (result.success) {
         toast.success(result.message);
-        setSheetKey((k) => k + 1);
+        reset();
         setOpen(false);
       } else {
+        setFormError(result.message);
         toast.error(result.message);
       }
     });
@@ -653,20 +578,92 @@ export function CreateCabPricingSheet({ vehicles }: { vehicles: Vehicle[] }) {
         <Plus className="mr-2 h-4 w-4" /> Add Pricing
       </Button>
 
-      <MultiStepSheet
-        key={sheetKey} open={open} onOpenChange={setOpen}
-        title="Add Cab Pricing"
-        description="Set vehicle rates and seasonal pricing for a destination"
-        steps={buildSteps(false)}
-        onComplete={handleComplete}
-        isSubmitting={isPending}
-        submitLabel="Save Pricing"
-        initialStepData={{}}
-      >
-        <DestinationStep isEdit={false} forCreate />
-        <BaseRatesStep vehicles={vehicles} />
-        <CalendarRatesStep vehicles={vehicles} />
-      </MultiStepSheet>
+      <Sheet key={sheetKey} open={open} onOpenChange={(o) => { if (!o) reset(); setOpen(o); }}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl flex flex-col gap-0 p-0">
+
+          <SheetHeader className="px-5 pt-5 pb-4 border-b shrink-0">
+            <SheetTitle className="text-base">Add Cab Pricing</SheetTitle>
+            <p className="text-xs text-muted-foreground mt-0.5">Set vehicle rates and seasonal pricing for a city</p>
+          </SheetHeader>
+
+          <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
+
+            {/* City */}
+            <div>
+              <SectionHeader
+                icon={<Car className="h-4 w-4" />}
+                title="City"
+                description="Select the city to configure cab pricing for"
+              />
+              <div className="space-y-1.5">
+                <Label>City <span className="text-destructive">*</span></Label>
+                <LocationSearchSelect
+                  value={cityValue}
+                  onChange={(v) => { setCityValue(v); setFormError(null); }}
+                  types={["CITY"]}
+                  placeholder="Search city…"
+                />
+              </div>
+            </div>
+
+            <div className="border-t" />
+
+            {/* Base Rates */}
+            <div>
+              <SectionHeader
+                icon={<IndianRupee className="h-4 w-4" />}
+                title="Base Rates"
+                description="Set default price for each vehicle type"
+              />
+              <BaseRatesSection
+                vehicles={vehicles}
+                entries={entries}
+                onChange={setEntries}
+              />
+            </div>
+
+            <div className="border-t" />
+
+            {/* Calendar Rates */}
+            <div>
+              <SectionHeader
+                icon={<CalendarDays className="h-4 w-4" />}
+                title="Calendar Rates"
+                description="Add seasonal pricing with weekend overrides (optional)"
+              />
+              <CalendarRatesSection
+                vehicles={vehicles}
+                entries={entries}
+                vehicleSeasons={vehicleSeasons}
+                onChange={setVehicleSeasons}
+              />
+            </div>
+
+          </div>
+
+          <div className="px-5 py-4 border-t bg-muted/30 shrink-0 space-y-3">
+            {formError && (
+              <div className="flex items-start gap-2 bg-destructive/10 border border-destructive/20 text-destructive rounded-lg px-3 py-2.5 text-sm">
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>{formError}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <Button variant="ghost" onClick={() => setOpen(false)} disabled={isPending}>
+                Cancel
+              </Button>
+              <Button onClick={handleSubmit} disabled={isPending} className="gap-2 min-w-28">
+                {isPending ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" />Saving…</>
+                ) : (
+                  <><Check className="h-4 w-4" />Save Pricing</>
+                )}
+              </Button>
+            </div>
+          </div>
+
+        </SheetContent>
+      </Sheet>
     </>
   );
 }
@@ -678,49 +675,53 @@ export function EditCabPricingSheet({ row, vehicles }: { row: CabPricingGroup; v
   const [sheetKey,  setSheetKey]     = useState(0);
   const [isPending, startTransition] = useTransition();
 
-  function buildInitial(): Record<string, Record<string, unknown>> {
-    const entries: PriceEntry[] = vehicles.map((v) => {
+  const [formError, setFormError] = useState<string | null>(null);
+
+  function buildInitialEntries(): PriceEntry[] {
+    return vehicles.map((v) => {
       const ex = row.pricings.find((p) => p.vehicle_id === v.id);
       return {
         vehicle_id:   v.id,
         pricing_type: (ex?.pricing_type ?? "PER_DAY") as CabPricingType,
         price:        ex ? String(ex.price) : "",
-        cost_price:   ex?.cost_price != null ? String(ex.cost_price) : "",
       };
     });
+  }
 
-    const vehicle_seasons: Record<string, SeasonEntry[]> = {};
+  function buildInitialSeasons(): Record<string, SeasonEntry[]> {
+    const map: Record<string, SeasonEntry[]> = {};
     for (const p of row.pricings) {
       if (p.seasons.length > 0) {
-        vehicle_seasons[String(p.vehicle_id)] = p.seasons.map((s) => ({
+        map[String(p.vehicle_id)] = p.seasons.map((s) => ({
           tempId:          uid(),
           pricing_type:    s.pricing_type,
           valid_from:      s.valid_from,
           valid_to:        s.valid_to,
           weekday_price:   String(s.weekday_price),
-          weekday_cost:    s.weekday_cost  != null ? String(s.weekday_cost)  : "",
           weekend_enabled: s.weekend_price != null,
           weekend_price:   s.weekend_price != null ? String(s.weekend_price) : "",
-          weekend_cost:    s.weekend_cost  != null ? String(s.weekend_cost)  : "",
         }));
       }
     }
-
-    return {
-      destination: { destination_id: row.destination_id, _destinationLabel: row.destination_name },
-      pricing:     { entries },
-      seasons:     { vehicle_seasons },
-    };
+    return map;
   }
 
-  async function handleComplete(data: Record<string, unknown>) {
-    const payload = buildPayload(data);
+  const [entries,        setEntries]        = useState<PriceEntry[]>(() => buildInitialEntries());
+  const [vehicleSeasons, setVehicleSeasons] = useState<Record<string, SeasonEntry[]>>(() => buildInitialSeasons());
+
+  function handleSubmit() {
+    const error = validateForm(row.destination_name, entries, vehicleSeasons);
+    if (error) { setFormError(error); return; }
+    setFormError(null);
+
+    const payload = buildPayload(entries, vehicleSeasons);
     startTransition(async () => {
       const result = await upsertCabPricingForDestination(row.destination_id, payload);
       if (result.success) {
         toast.success(result.message);
         setOpen(false);
       } else {
+        setFormError(result.message);
         toast.error(result.message);
       }
     });
@@ -728,26 +729,103 @@ export function EditCabPricingSheet({ row, vehicles }: { row: CabPricingGroup; v
 
   return (
     <>
-      <Button variant="ghost" size="icon" className="h-8 w-8"
-        onClick={() => { setSheetKey((k) => k + 1); setOpen(true); }}
+      <Button
+        variant="ghost" size="icon" className="h-8 w-8"
+        onClick={() => {
+          setSheetKey((k) => k + 1);
+          setEntries(buildInitialEntries());
+          setVehicleSeasons(buildInitialSeasons());
+          setFormError(null);
+          setOpen(true);
+        }}
       >
         <Pencil className="h-3.5 w-3.5" />
       </Button>
 
-      <MultiStepSheet
-        key={sheetKey} open={open} onOpenChange={setOpen}
-        title="Edit Cab Pricing"
-        description={`Editing pricing for: ${row.destination_name}`}
-        steps={buildSteps(true)}
-        onComplete={handleComplete}
-        isSubmitting={isPending}
-        submitLabel="Save Changes"
-        initialStepData={buildInitial()}
-      >
-        <DestinationStep isEdit lockedName={row.destination_name} forCreate={false} />
-        <BaseRatesStep vehicles={vehicles} />
-        <CalendarRatesStep vehicles={vehicles} />
-      </MultiStepSheet>
+      <Sheet key={sheetKey} open={open} onOpenChange={setOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl flex flex-col gap-0 p-0">
+
+          <SheetHeader className="px-5 pt-5 pb-4 border-b shrink-0">
+            <SheetTitle className="text-base">Edit Cab Pricing</SheetTitle>
+            <p className="text-xs text-muted-foreground mt-0.5">Editing pricing for: {row.destination_name}</p>
+          </SheetHeader>
+
+          <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
+
+            {/* Locked city */}
+            <div>
+              <SectionHeader
+                icon={<Car className="h-4 w-4" />}
+                title="City"
+                description="City for which pricing is configured"
+              />
+              <div className="space-y-1.5">
+                <Label>City</Label>
+                <div className="h-10 rounded-md border bg-muted px-3 flex items-center text-sm text-muted-foreground cursor-not-allowed">
+                  {row.destination_name}
+                </div>
+                <p className="text-xs text-muted-foreground">Delete and recreate to change the city.</p>
+              </div>
+            </div>
+
+            <div className="border-t" />
+
+            {/* Base Rates */}
+            <div>
+              <SectionHeader
+                icon={<IndianRupee className="h-4 w-4" />}
+                title="Base Rates"
+                description="Set default price for each vehicle type"
+              />
+              <BaseRatesSection
+                vehicles={vehicles}
+                entries={entries}
+                onChange={setEntries}
+              />
+            </div>
+
+            <div className="border-t" />
+
+            {/* Calendar Rates */}
+            <div>
+              <SectionHeader
+                icon={<CalendarDays className="h-4 w-4" />}
+                title="Calendar Rates"
+                description="Add seasonal pricing with weekend overrides (optional)"
+              />
+              <CalendarRatesSection
+                vehicles={vehicles}
+                entries={entries}
+                vehicleSeasons={vehicleSeasons}
+                onChange={setVehicleSeasons}
+              />
+            </div>
+
+          </div>
+
+          <div className="px-5 py-4 border-t bg-muted/30 shrink-0 space-y-3">
+            {formError && (
+              <div className="flex items-start gap-2 bg-destructive/10 border border-destructive/20 text-destructive rounded-lg px-3 py-2.5 text-sm">
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>{formError}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <Button variant="ghost" onClick={() => setOpen(false)} disabled={isPending}>
+                Cancel
+              </Button>
+              <Button onClick={handleSubmit} disabled={isPending} className="gap-2 min-w-28">
+                {isPending ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" />Saving…</>
+                ) : (
+                  <><Check className="h-4 w-4" />Save Changes</>
+                )}
+              </Button>
+            </div>
+          </div>
+
+        </SheetContent>
+      </Sheet>
     </>
   );
 }

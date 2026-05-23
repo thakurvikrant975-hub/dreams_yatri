@@ -202,6 +202,71 @@ export type VehicleEntryInput = {
   seasons:     SeasonInput[];
 };
 
+async function _performUpsert(
+  destinationId: number,
+  entries: VehicleEntryInput[],
+  actorName: string,
+  destMeta: { name: string; slug: string } | null,
+): Promise<CabPricingFormState> {
+  await db.$transaction(async (tx) => {
+    for (const e of entries) {
+      const record = await tx.cab_pricing.upsert({
+        where: {
+          destination_id_vehicle_id: { destination_id: destinationId, vehicle_id: e.vehicleId },
+        },
+        create: {
+          destination_id: destinationId,
+          vehicle_id:     e.vehicleId,
+          pricing_type:   e.pricingType as never,
+          price:          e.price,
+          cost_price:     e.costPrice,
+          is_active:      true,
+          updated_by:     actorName,
+        },
+        update: {
+          pricing_type: e.pricingType as never,
+          price:        e.price,
+          cost_price:   e.costPrice,
+          updated_by:   actorName,
+        },
+      });
+
+      await tx.cab_pricing_season.deleteMany({ where: { pricing_id: record.id } });
+
+      if (e.seasons.length > 0) {
+        await tx.cab_pricing_season.createMany({
+          data: e.seasons.map((s) => ({
+            pricing_id:    record.id,
+            pricing_type:  s.pricingType as never,
+            valid_from:    new Date(s.validFrom),
+            valid_to:      new Date(s.validTo),
+            weekday_price: s.weekdayPrice,
+            weekday_cost:  s.weekdayCost,
+            weekend_price: s.weekendPrice,
+            weekend_cost:  s.weekendCost,
+            is_active:     true,
+          })),
+        });
+      }
+    }
+  });
+
+  await createLog({
+    action:      "UPDATE",
+    entity:      "CabPricing",
+    entityId:    String(destinationId),
+    entitySlug:  destMeta?.slug,
+    description: `Updated cab pricing for ${destMeta?.name ?? destinationId}`,
+    newData: {
+      vehicles: entries.length,
+      seasons:  entries.reduce((s, e) => s + e.seasons.length, 0),
+    },
+  });
+
+  revalidatePath(PATH);
+  return { success: true, message: "Pricing saved successfully" };
+}
+
 export async function upsertCabPricingForDestination(
   destinationId: number,
   entries: VehicleEntryInput[],
@@ -214,67 +279,47 @@ export async function upsertCabPricingForDestination(
       where:  { id: destinationId },
       select: { name: true, slug: true },
     });
-
-    await db.$transaction(async (tx) => {
-      for (const e of entries) {
-        const record = await tx.cab_pricing.upsert({
-          where: {
-            destination_id_vehicle_id: { destination_id: destinationId, vehicle_id: e.vehicleId },
-          },
-          create: {
-            destination_id: destinationId,
-            vehicle_id:     e.vehicleId,
-            pricing_type:   e.pricingType as never,
-            price:          e.price,
-            cost_price:     e.costPrice,
-            is_active:      true,
-            updated_by:     actorName,
-          },
-          update: {
-            pricing_type: e.pricingType as never,
-            price:        e.price,
-            cost_price:   e.costPrice,
-            updated_by:   actorName,
-          },
-        });
-
-        // Replace all seasons for this vehicle/destination
-        await tx.cab_pricing_season.deleteMany({ where: { pricing_id: record.id } });
-
-        if (e.seasons.length > 0) {
-          await tx.cab_pricing_season.createMany({
-            data: e.seasons.map((s) => ({
-              pricing_id:    record.id,
-              pricing_type:  s.pricingType as never,
-              valid_from:    new Date(s.validFrom),
-              valid_to:      new Date(s.validTo),
-              weekday_price: s.weekdayPrice,
-              weekday_cost:  s.weekdayCost,
-              weekend_price: s.weekendPrice,
-              weekend_cost:  s.weekendCost,
-              is_active:     true,
-            })),
-          });
-        }
-      }
-    });
-
-    await createLog({
-      action:      "UPDATE",
-      entity:      "CabPricing",
-      entityId:    String(destinationId),
-      entitySlug:  dest?.slug,
-      description: `Updated cab pricing for ${dest?.name ?? destinationId}`,
-      newData: {
-        vehicles: entries.length,
-        seasons:  entries.reduce((s, e) => s + e.seasons.length, 0),
-      },
-    });
-
-    revalidatePath(PATH);
-    return { success: true, message: "Pricing saved successfully" };
+    return await _performUpsert(destinationId, entries, actorName, dest);
   } catch (e) {
     console.error("[upsertCabPricing]", e);
+    return { success: false, message: classifyActionError(e).message };
+  }
+}
+
+// ── City-based upsert (looks up destination by location_id or name) ────────
+
+export async function upsertCabPricingForCity(
+  cityLocationId: string,
+  cityName: string,
+  entries: VehicleEntryInput[],
+): Promise<CabPricingFormState> {
+  const { authorized, actorName } = await requireSession();
+  if (!authorized) return { success: false, message: "Unauthorized" };
+
+  try {
+    // Find destination by location_id first, then by name
+    let dest = await db.destinations.findFirst({
+      where:  { location_id: cityLocationId, is_active: true },
+      select: { id: true, name: true, slug: true },
+    });
+
+    if (!dest) {
+      dest = await db.destinations.findFirst({
+        where:  { name: { equals: cityName, mode: "insensitive" }, is_active: true },
+        select: { id: true, name: true, slug: true },
+      });
+    }
+
+    if (!dest) {
+      return {
+        success: false,
+        message: `No destination found for "${cityName}". Please add this city as a destination first.`,
+      };
+    }
+
+    return await _performUpsert(dest.id, entries, actorName, dest);
+  } catch (e) {
+    console.error("[upsertCabPricingForCity]", e);
     return { success: false, message: classifyActionError(e).message };
   }
 }
