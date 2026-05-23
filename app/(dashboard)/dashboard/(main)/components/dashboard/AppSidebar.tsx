@@ -43,7 +43,7 @@ const navGroups = [
       { title: "New Activity",   href: "/dashboard/activities/new",        icon: PlusIcon,      phosphor: true },
       { title: "Categories",     href: "/dashboard/activities/categories", icon: TagIcon,       phosphor: true },
     ],
-  },
+  },  
   {
     id: "hotels", label: "Hotels",
     items: [
