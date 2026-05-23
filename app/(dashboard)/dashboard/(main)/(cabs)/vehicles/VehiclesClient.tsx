@@ -40,6 +40,8 @@ const VEHICLE_TYPES = [
   { value: "TEMPO_TRAVELLER", label: "Tempo Traveller" },
   { value: "MINI_BUS", label: "Mini Bus" },
   { value: "BUS", label: "Bus" },
+  { value: "COUPE", label: "Coupe" },
+  { value: "HYBRID", label: "Hybrid" },
 ];
 
 const FUEL_TYPES = [

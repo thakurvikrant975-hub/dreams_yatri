@@ -25,7 +25,7 @@ export default async function VehiclesPage() {
         description="Manage your vehicle catalog and rates"
         icon={Car}
       />
-
+ 
       <VehiclesClient initialVehicles={vehicles} />
     </div>
   );
