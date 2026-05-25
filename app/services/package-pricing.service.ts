@@ -13,7 +13,7 @@ export type PricingInput = {
   children: number;
   infants: number;
   child_ages?: number[];
-  cab_type_id?: number | null;   // if null → use is_default cab type for duration
+  cab_type_ids?: number[] | null; // if null/empty → use is_default cab types for duration (one per group)
   travel_date?: string | null;   // ISO date "YYYY-MM-DD"; null = use base price
 };
 
@@ -162,12 +162,12 @@ export async function computePackagePrice(
   const {
     package_id, duration_id, route_id, stay_category_id,
     adults, children, infants, child_ages,
-    cab_type_id, travel_date,
+    cab_type_ids, travel_date,
   } = input;
 
   const travelDateObj = travel_date ? new Date(travel_date) : null;
 
-  const [itineraries, pricingConfig, duration, stayCategory, cabTypeData] = await Promise.all([
+  const [itineraries, pricingConfig, duration, stayCategory, loadedCabTypes] = await Promise.all([
     db.package_itineraries.findMany({
       where: { package_id, duration_id, route_id },
       orderBy: { day: "asc" },
@@ -231,66 +231,39 @@ export async function computePackagePrice(
     }),
     db.package_durations.findUnique({ where: { id: duration_id }, select: { label: true } }),
     db.package_stay_categories.findUnique({ where: { id: stay_category_id }, select: { label: true } }),
-    // Load selected cab type or the default one for this package+duration
-    cab_type_id != null
-      ? db.package_cab_types.findUnique({
-          where: { id: cab_type_id },
+    // Load selected cab types or all is_default=true cabs for the duration (one per group)
+    db.package_cab_types.findMany({
+      where:
+        cab_type_ids && cab_type_ids.length > 0
+          ? { id: { in: cab_type_ids } }
+          : { package_id, duration_id, is_default: true, is_active: true },
+      include: {
+        vehicle: { select: { name: true, passenger_capacity: true } },
+        segments: {
+          orderBy: { sort_order: "asc" },
           include: {
-            vehicle: { select: { name: true, passenger_capacity: true } },
-            segments: {
-              orderBy: { sort_order: "asc" },
-              include: {
-                cab_pricing: {
+            cab_pricing: {
+              select: {
+                pricing_type: true,
+                price: true,
+                destination: { select: { name: true } },
+                seasons: {
+                  where: { is_active: true },
                   select: {
                     pricing_type: true,
-                    price: true,
-                    destination: { select: { name: true } },
-                    seasons: {
-                      where: { is_active: true },
-                      select: {
-                        pricing_type: true,
-                        valid_from: true,
-                        valid_to: true,
-                        weekday_price: true,
-                        weekend_price: true,
-                        is_active: true,
-                      },
-                    },
+                    valid_from: true,
+                    valid_to: true,
+                    weekday_price: true,
+                    weekend_price: true,
+                    is_active: true,
                   },
                 },
               },
             },
           },
-        })
-      : db.package_cab_types.findFirst({
-          where: { package_id, duration_id, is_default: true, is_active: true },
-          include: {
-            vehicle: { select: { name: true, passenger_capacity: true } },
-            segments: {
-              orderBy: { sort_order: "asc" },
-              include: {
-                cab_pricing: {
-                  select: {
-                    pricing_type: true,
-                    price: true,
-                    destination: { select: { name: true } },
-                    seasons: {
-                      where: { is_active: true },
-                      select: {
-                        pricing_type: true,
-                        valid_from: true,
-                        valid_to: true,
-                        weekday_price: true,
-                        weekend_price: true,
-                        is_active: true,
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        }),
+        },
+      },
+    }),
   ]);
 
   const margin_percentage = Number(pricingConfig?.margin_percentage ?? 10);
@@ -476,11 +449,16 @@ export async function computePackagePrice(
   });
 
   // ── Cab cost computation ──────────────────────────────────────────────────
-  const cab_type_label = cabTypeData?.label ?? cabTypeData?.vehicle?.name ?? null;
+  const cab_type_label =
+    loadedCabTypes.length > 0
+      ? loadedCabTypes.map((ct) => ct.label ?? ct.vehicle.name).join(" + ")
+      : null;
   const cab_segments: CabSegmentBreakdown[] = [];
   let cab_subtotal = 0;
 
-  if (cabTypeData && cabTypeData.segments.length > 0) {
+  for (const cabTypeData of loadedCabTypes) {
+    if (!cabTypeData.segments.length) continue;
+
     const vehicleCapacity = Math.max(cabTypeData.vehicle.passenger_capacity, 1);
     const numVehicles = Math.ceil(Math.max(adults + children, 1) / vehicleCapacity);
 

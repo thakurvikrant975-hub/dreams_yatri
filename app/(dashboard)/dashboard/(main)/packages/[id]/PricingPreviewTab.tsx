@@ -67,6 +67,44 @@ type PricingPreviewTabProps = {
   cabTypes: CabTypePreview[];
 };
 
+// ── Cab group helpers ──────────────────────────────────────────────────────
+
+type CabGroup = {
+  groupKey: string;  // `${dayFrom}-${dayTo}`
+  dayFrom: number;
+  dayTo: number;
+  cabTypes: CabTypePreview[];
+};
+
+function groupCabTypesByRange(cabTypes: CabTypePreview[]): CabGroup[] {
+  const map = new Map<string, CabGroup>();
+  for (const ct of cabTypes) {
+    const seg = ct.segments[0];
+    if (!seg) continue;
+    const key = `${seg.day_from}-${seg.day_to}`;
+    if (!map.has(key)) {
+      map.set(key, { groupKey: key, dayFrom: seg.day_from, dayTo: seg.day_to, cabTypes: [] });
+    }
+    map.get(key)!.cabTypes.push(ct);
+  }
+  return Array.from(map.values()).sort((a, b) => a.dayFrom - b.dayFrom);
+}
+
+/** Build initial group → selected cab type ID map (defaults to is_default entry per group). */
+function initGroupSelections(
+  cabTypes: CabTypePreview[],
+  durationId: string,
+): Map<string, number | null> {
+  const durationCabs = cabTypes.filter((ct) => ct.duration_id.toString() === durationId);
+  const groups = groupCabTypesByRange(durationCabs);
+  const map = new Map<string, number | null>();
+  for (const group of groups) {
+    const defaultCt = group.cabTypes.find((ct) => ct.is_default) ?? group.cabTypes[0];
+    map.set(group.groupKey, defaultCt?.id ?? null);
+  }
+  return map;
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function fmt(n: number) {
@@ -327,7 +365,9 @@ function CabBreakdown({ segments }: { segments: CabSegmentBreakdown[] }) {
         <div className="mt-2 space-y-1.5 pl-1 border-l-2 border-orange-200">
           {segments.map((seg, i) => (
             <div key={i} className="text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">Day {seg.day_from}–{seg.day_to}</span>
+              <span className="font-medium text-foreground">
+                {seg.vehicle_name} · Day {seg.day_from}–{seg.day_to}
+              </span>
               {" · "}{seg.destination_name}
               {" · "}{seg.pricing_type === "PER_DAY" ? "Per Day" : "Per Km"}
               {seg.is_seasonal && (
@@ -460,7 +500,9 @@ export function PricingPreviewTab({
   const [durationId, setDurationId] = useState(initDurationId);
   const [routeId, setRouteId] = useState(initRouteId);
   const [categoryId, setCategoryId] = useState(initCategoryId);
-  const [cabTypeId, setCabTypeId] = useState<string>("default");
+  const [groupCabSelections, setGroupCabSelections] = useState<Map<string, number | null>>(
+    () => initGroupSelections(cabTypes, initDurationId),
+  );
   const [travelDate, setTravelDate] = useState(todayISODate());
   const [adults, setAdults] = useState("1");
   const [children, setChildren] = useState("0");
@@ -471,17 +513,17 @@ export function PricingPreviewTab({
   const selectedDuration = durations.find((d) => d.id.toString() === durationId);
   const routes = selectedDuration?.routes ?? [];
 
-  // Cab types filtered by selected duration
+  // Cab groups for selected duration
   const durationCabTypes = cabTypes.filter((ct) => ct.duration_id.toString() === durationId);
-  const defaultCabType = durationCabTypes.find((ct) => ct.is_default) ?? durationCabTypes[0];
+  const durationCabGroups = groupCabTypesByRange(durationCabTypes);
 
   const adultsNum = Math.max(1, parseInt(adults) || 1);
   const childrenNum = Math.max(0, parseInt(children) || 0);
 
-  // Reset route + cab type when duration changes
+  // Reset route + cab selections when duration changes
   useEffect(() => {
     setRouteId(routes[0]?.id.toString() ?? "");
-    setCabTypeId("default");
+    setGroupCabSelections(initGroupSelections(cabTypes, durationId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [durationId]);
 
@@ -509,7 +551,9 @@ export function PricingPreviewTab({
   function handleCalculate() {
     if (!canCalculate) return;
     startTransition(async () => {
-      const selectedCabTypeId = cabTypeId !== "default" ? parseInt(cabTypeId) : null;
+      const selectedCabTypeIds = Array.from(groupCabSelections.values()).filter(
+        (id): id is number => id != null,
+      );
       const result = await handleComputePackagePrice({
         package_id: packageId,
         duration_id: parseInt(durationId),
@@ -518,7 +562,7 @@ export function PricingPreviewTab({
         adults: adultsNum,
         children: childrenNum,
         infants: Math.max(0, parseInt(infants) || 0),
-        cab_type_id: selectedCabTypeId,
+        cab_type_ids: selectedCabTypeIds.length > 0 ? selectedCabTypeIds : null,
         travel_date: travelDate || null,
       });
       if (result.success) {
@@ -535,7 +579,7 @@ export function PricingPreviewTab({
       {/* ── Controls ───────────────────────────────────────────────────────── */}
       <Card className="bg-dashboard-base-100 rounded-xl shadow-lg border border-dashboard-base-content/20">
         <CardContent className="pt-5 pb-4">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-3 items-end">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 items-end">
             {/* Duration */}
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Duration</label>
@@ -573,35 +617,6 @@ export function PricingPreviewTab({
                   {stayCategories.map((c) => (
                     <SelectItem key={c.id} value={c.id.toString()}>{c.label}</SelectItem>
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Cab Type */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Cab Type</label>
-              <Select
-                value={cabTypeId}
-                onValueChange={setCabTypeId}
-                disabled={durationCabTypes.length === 0}
-              >
-                <SelectTrigger className="text-sm h-9">
-                  <SelectValue placeholder={durationCabTypes.length === 0 ? "None configured" : "Select…"} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="default">
-                    {defaultCabType ? `${defaultCabType.label} (default)` : "Default"}
-                  </SelectItem>
-                  {durationCabTypes.map((ct) => {
-                    const est = estimateCabCost(ct, travelDate, adultsNum, childrenNum);
-                    return (
-                      <SelectItem key={ct.id} value={ct.id.toString()}>
-                        {ct.label}
-                        {ct.is_default ? " ★" : ""}
-                        {est > 0 ? ` · est. ₹${fmt(est)}` : ""}
-                      </SelectItem>
-                    );
-                  })}
                 </SelectContent>
               </Select>
             </div>
@@ -652,6 +667,61 @@ export function PricingPreviewTab({
               <Sparkles className="h-3 w-3" />
               Travel date used for seasonal cab pricing lookup
             </p>
+          )}
+
+          {/* ── Cab Group Selections ───────────────────────────────────── */}
+          {durationCabGroups.length > 0 ? (
+            <div className="mt-4 pt-4 border-t">
+              <p className="text-xs font-medium text-muted-foreground mb-3 flex items-center gap-1.5">
+                <Car className="h-3 w-3" />
+                Cab Selection
+                {durationCabGroups.length > 1 && (
+                  <span className="font-normal text-muted-foreground/70">— one per group</span>
+                )}
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {durationCabGroups.map((group) => (
+                  <div key={group.groupKey} className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground">
+                      Day {group.dayFrom}–{group.dayTo}
+                    </label>
+                    <Select
+                      value={groupCabSelections.get(group.groupKey)?.toString() ?? ""}
+                      onValueChange={(val) =>
+                        setGroupCabSelections((prev) => {
+                          const next = new Map(prev);
+                          next.set(group.groupKey, parseInt(val));
+                          return next;
+                        })
+                      }
+                    >
+                      <SelectTrigger className="text-sm h-9">
+                        <SelectValue placeholder="Select cab…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {group.cabTypes.map((ct) => {
+                          const est = estimateCabCost(ct, travelDate, adultsNum, childrenNum);
+                          return (
+                            <SelectItem key={ct.id} value={ct.id.toString()}>
+                              {ct.label}
+                              {ct.is_default ? " ★" : ""}
+                              {est > 0 ? ` · est. ₹${fmt(est)}` : ""}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="mt-4 pt-4 border-t">
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <Car className="h-3 w-3" />
+                No cab types configured for this duration. Add them in the Pricing tab.
+              </p>
+            </div>
           )}
         </CardContent>
       </Card>
