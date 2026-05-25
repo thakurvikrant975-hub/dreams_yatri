@@ -110,6 +110,7 @@ export function PackageBookingProvider({
                     children:         childCount,
                     infants,
                     child_ages:       childAges.length === childCount ? childAges : undefined,
+                    travel_date:      travelDate || null,   // ← was silently ignored before
                 });
                 if (res.success) {
                     setPricing({
@@ -126,7 +127,7 @@ export function PackageBookingProvider({
 
         return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [adults, childCount, infants, childAges, packageId, durationId, routeId, stayCategoryId]);
+    }, [adults, childCount, infants, childAges, travelDate, packageId, durationId, routeId, stayCategoryId]);
 
     return (
         <BookingContext.Provider value={{

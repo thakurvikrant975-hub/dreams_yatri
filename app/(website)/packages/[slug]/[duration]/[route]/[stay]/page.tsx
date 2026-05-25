@@ -43,6 +43,47 @@ export default async function PackagePage({
     const pageData = await fetchPackagePageData(_slug, _duration, _route, _stay);
     if (!pageData) notFound();
 
+    // ── DEV: log updated data shape ────────────────────────────────────────────
+    console.log("\n=== PACKAGE PAGE DATA ===");
+    console.log(`Package: "${pageData.title}" (id=${pageData.id})`);
+    console.log(`Duration: ${pageData.currentDuration.label} (id=${pageData.currentDuration.id})`);
+    console.log(`Route: ${pageData.selectedRoute?.name} (id=${pageData.selectedRoute?.id})`);
+    console.log(`Stay: ${pageData.selectedStay?.label} (id=${pageData.selectedStay?.id})`);
+
+    // Cab types — the key new data
+    console.log(`\n── Cab Types (${pageData.cabTypes.length}) ──`);
+    if (pageData.cabTypes.length === 0) {
+        console.log("  ⚠ No active cab types configured for this duration.");
+        console.log("  → Pricing card will show ₹0 for cab cost until cab types are added in the admin.");
+    } else {
+        for (const ct of pageData.cabTypes) {
+            console.log(`  [${ct.id}] ${ct.label} — ${ct.vehicle.type}, ${ct.vehicle.passenger_capacity} pax${ct.vehicle.has_ac ? " AC" : ""}${ct.is_default ? " ★ DEFAULT" : ""}`);
+            for (const seg of ct.segments) {
+                const seasonLabel = seg.seasons.length > 0 ? ` (${seg.seasons.length} season${seg.seasons.length !== 1 ? "s" : ""})` : " (no seasons)";
+                console.log(`      Day ${seg.day_from}–${seg.day_to} · ${seg.destination.name} · ${seg.pricing_type} · ₹${seg.price}${seasonLabel}`);
+            }
+        }
+    }
+
+    // Pricing config
+    console.log(`\n── Pricing Config ──`);
+    if (pageData.pricingConfig) {
+        console.log(`  Margin: ${pageData.pricingConfig.margin_percentage}%  GST: ${pageData.pricingConfig.gst_percentage}%`);
+    } else {
+        console.log("  ⚠ No pricing config — defaults (10% margin, 5% GST) will be used.");
+    }
+
+    // Transfers — check if vehicle info is still present (new transfers won't have vehicle)
+    const transfersWithVehicle = pageData.itinerary.flatMap(d => d.transfers).filter(t => t.vehicle_name);
+    const transfersTotal = pageData.itinerary.flatMap(d => d.transfers).length;
+    console.log(`\n── Transfers: ${transfersTotal} total, ${transfersWithVehicle.length} with vehicle info ──`);
+    if (transfersTotal > transfersWithVehicle.length) {
+        console.log("  ℹ Some transfers have no vehicle set (created via new admin form which no longer requires it).");
+        console.log("  → These show as generic 'Transfer' rows in the itinerary — OK.");
+    }
+
+    console.log("=== END PAGE DATA ===\n");
+
     const R2 = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? "";
     const imgUrl = (key: string | null | undefined): string =>
         !key ? "" : key.startsWith("http") ? key : `${R2}/${key}`;

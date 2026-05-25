@@ -98,6 +98,48 @@ export type ItineraryDayData = {
   notes: { message: string; type: string; position: string }[];
 };
 
+// ── Cab type types ──────────────────────────────────────────────────────────
+
+export type CabSeasonOption = {
+  id: number;
+  valid_from: string;         // ISO string (serialized from Date)
+  valid_to: string;           // ISO string
+  pricing_type: "PER_DAY" | "PER_KM";
+  weekday_price: number;
+  weekend_price: number;
+};
+
+export type CabSegmentOption = {
+  id: number;
+  day_from: number;
+  day_to: number;
+  sort_order: number;
+  cab_pricing_id: number;
+  pricing_type: "PER_DAY" | "PER_KM";
+  price: number;
+  destination: { id: number; name: string };
+  seasons: CabSeasonOption[];
+};
+
+export type CabTypeOption = {
+  id: number;
+  vehicle_id: number;
+  /** Resolved: label if set, otherwise vehicle.name */
+  label: string;
+  note: string | null;
+  is_default: boolean;
+  sort_order: number;
+  vehicle: {
+    name: string;
+    type: string;
+    passenger_capacity: number;
+    has_ac: boolean;
+  };
+  segments: CabSegmentOption[];
+};
+
+// ── Page data ───────────────────────────────────────────────────────────────
+
 export type PackagePageData = {
   id: number;
   title: string;
@@ -137,6 +179,13 @@ export type PackagePageData = {
     margin_percentage: number;
     gst_percentage: number;
   } | null;
+
+  /**
+   * Active cab types for the current package + duration.
+   * Segments hold per-day-range pricing (PER_DAY or PER_KM) with seasonal overrides.
+   * Grouped by `segments[0].day_from – segments[0].day_to` on the frontend for display.
+   */
+  cabTypes: CabTypeOption[];
 
   tags: { name: string; slug: string }[];
   categories: { name: string; slug: string }[];
@@ -284,8 +333,8 @@ export async function fetchPackagePageData(
 
   if (!selectedRoute || !selectedStay) return null;
 
-  // ── Step 3: parallel fetch — itinerary + pricing config ───────────────────
-  const [itineraries, pricingConfig] = await Promise.all([
+  // ── Step 3: parallel fetch — itinerary + pricing config + cab types ────────
+  const [itineraries, pricingConfig, rawCabTypes] = await Promise.all([
     db.package_itineraries.findMany({
       where: {
         package_id: pkg.id,
@@ -415,6 +464,61 @@ export async function fetchPackagePageData(
       },
       select: { margin_percentage: true, gst_percentage: true },
     }),
+
+    // ── Active cab types for this package + duration ─────────────────────────
+    db.package_cab_types.findMany({
+      where: {
+        package_id: pkg.id,
+        duration_id: currentDuration.id,
+        is_active: true,
+      },
+      orderBy: { sort_order: "asc" },
+      select: {
+        id: true,
+        vehicle_id: true,
+        label: true,
+        note: true,
+        is_default: true,
+        sort_order: true,
+        vehicle: {
+          select: {
+            name: true,
+            type: true,
+            passenger_capacity: true,
+            has_ac: true,
+          },
+        },
+        segments: {
+          orderBy: { sort_order: "asc" },
+          select: {
+            id: true,
+            day_from: true,
+            day_to: true,
+            sort_order: true,
+            cab_pricing: {
+              select: {
+                id: true,
+                pricing_type: true,
+                price: true,
+                destination: { select: { id: true, name: true } },
+                seasons: {
+                  where: { is_active: true },
+                  orderBy: { valid_from: "asc" },
+                  select: {
+                    id: true,
+                    valid_from: true,
+                    valid_to: true,
+                    pricing_type: true,
+                    weekday_price: true,
+                    weekend_price: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    }),
   ]);
 
   // ── Step 4: shape itinerary ────────────────────────────────────────────────
@@ -503,6 +607,42 @@ export async function fetchPackagePageData(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   }).map(({ _numNights, ...d }) => d);
 
+  // ── Step 4b: shape cab types ──────────────────────────────────────────────
+  // Decimal fields are converted to numbers; Date fields to ISO strings so the
+  // object can safely be passed from the server component to any client component.
+  const cabTypes: CabTypeOption[] = rawCabTypes.map((ct) => ({
+    id: ct.id,
+    vehicle_id: ct.vehicle_id,
+    label: ct.label ?? ct.vehicle.name,
+    note: ct.note,
+    is_default: ct.is_default,
+    sort_order: ct.sort_order,
+    vehicle: {
+      name: ct.vehicle.name,
+      type: ct.vehicle.type,
+      passenger_capacity: ct.vehicle.passenger_capacity,
+      has_ac: ct.vehicle.has_ac,
+    },
+    segments: ct.segments.map((seg) => ({
+      id: seg.id,
+      day_from: seg.day_from,
+      day_to: seg.day_to,
+      sort_order: seg.sort_order,
+      cab_pricing_id: seg.cab_pricing.id,
+      pricing_type: seg.cab_pricing.pricing_type as "PER_DAY" | "PER_KM",
+      price: Number(seg.cab_pricing.price),
+      destination: seg.cab_pricing.destination,
+      seasons: seg.cab_pricing.seasons.map((s) => ({
+        id: s.id,
+        valid_from: s.valid_from.toISOString(),
+        valid_to: s.valid_to.toISOString(),
+        pricing_type: s.pricing_type as "PER_DAY" | "PER_KM",
+        weekday_price: Number(s.weekday_price),
+        weekend_price: Number(s.weekend_price),
+      })),
+    })),
+  }));
+
   // ── Step 5: assemble final shape ──────────────────────────────────────────
   return {
     id: pkg.id,
@@ -532,6 +672,7 @@ export async function fetchPackagePageData(
     selectedRoute,
     selectedStay,
     itinerary,
+    cabTypes,
     pricingConfig: pricingConfig
       ? {
           margin_percentage: Number(pricingConfig.margin_percentage),
