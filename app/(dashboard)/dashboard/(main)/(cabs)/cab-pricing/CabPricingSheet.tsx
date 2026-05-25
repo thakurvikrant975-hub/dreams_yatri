@@ -210,7 +210,7 @@ function BaseRatesSection({
         />
 
         {filtered.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5 p-3 border rounded-xl bg-muted/20 max-h-44 overflow-y-auto">
+          <div className="flex flex-wrap gap-1.5 p-3 border rounded-xl bg-muted/20 max-h-60 overflow-y-auto">
             {filtered.map((v) => {
               const selected = selectedIds.has(v.id);
               return (
@@ -755,6 +755,7 @@ export function CreateCabPricingSheet({ vehicles }: { vehicles: Vehicle[] }) {
                   placeholder="Search city…"
                   extraParams={{ destinationsOnly: "true", excludePricedCabs: "true" }}
                   disableExternalSearch
+                  hideRecent
                 />
               </div>
             </div>
