@@ -8,7 +8,7 @@ import { z } from "zod";
 import {
   MapPinIcon, Loader2Icon, PlusIcon, RefreshCwIcon,
   ToggleRightIcon, ArrowLeftIcon, Maximize2Icon, Minimize2Icon,
-  XIcon, LocateFixedIcon,
+  XIcon, LocateFixedIcon, Link2Icon, CheckCircle2Icon,
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import type { LocationType, LocationValue } from "./location.types";
@@ -77,6 +77,31 @@ const ALL_TYPES: LocationType[] = [
 
 const DEFAULT_CENTER = { lat: 20.5937, lng: 78.9629 };
 
+// ── Google Maps URL parser ────────────────────────────────────────────────────
+// Handles: /maps/place/Name/@lat,lng,zoom  and  ?q=lat,lng
+function parseGoogleMapsUrl(url: string): { lat: number; lng: number; name?: string } | null {
+  const atMatch = url.match(/@(-?\d{1,3}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)/);
+  if (atMatch) {
+    const lat = parseFloat(atMatch[1]);
+    const lng = parseFloat(atMatch[2]);
+    if (!isNaN(lat) && !isNaN(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+      const nameMatch = url.match(/\/maps\/place\/([^/@?]+)/);
+      const name = nameMatch
+        ? decodeURIComponent(nameMatch[1].replace(/\+/g, " ")).replace(/\s+\d{5,}$/, "").trim()
+        : undefined;
+      return { lat, lng, name: name || undefined };
+    }
+  }
+  const qMatch = url.match(/[?&]q=(-?\d{1,3}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)/);
+  if (qMatch) {
+    const lat = parseFloat(qMatch[1]);
+    const lng = parseFloat(qMatch[2]);
+    if (!isNaN(lat) && !isNaN(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180)
+      return { lat, lng };
+  }
+  return null;
+}
+
 // ── Component ────────────────────────────────────────────────────────────────
 
 export function LocationManualSheet({ open, onOpenChange, onCreated, initialName, lockedType, mapCenter }: Props) {
@@ -86,6 +111,8 @@ export function LocationManualSheet({ open, onOpenChange, onCreated, initialName
   const [serverError, setServerError]     = useState<string | null>(null);
   const [mapFullscreen, setMapFullscreen] = useState(false);
   const [countryLoc, setCountryLoc]       = useState<LocationValue | null>(null);
+  const [mapsUrl, setMapsUrl]             = useState("");
+  const [mapsUrlState, setMapsUrlState]   = useState<"idle" | "success" | "error">("idle");
 
   const reverseDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -122,6 +149,8 @@ export function LocationManualSheet({ open, onOpenChange, onCreated, initialName
     setServerError(null);
     setMapFullscreen(false);
     setCountryLoc(null);
+    setMapsUrl("");
+    setMapsUrlState("idle");
   }, [open, initialName, lockedType, mapCenter, reset]);
 
   // ── Reverse geocode (shared) ───────────────────────────────────────────────
@@ -172,6 +201,17 @@ export function LocationManualSheet({ open, onOpenChange, onCreated, initialName
     }
   }
 
+  // ── Google Maps URL import ────────────────────────────────────────────────
+  function handleMapsUrl(url: string) {
+    setMapsUrl(url);
+    if (!url.trim()) { setMapsUrlState("idle"); return; }
+    const parsed = parseGoogleMapsUrl(url);
+    if (!parsed) { setMapsUrlState("error"); return; }
+    setMapsUrlState("success");
+    handlePin(parsed.lat, parsed.lng);
+    if (parsed.name && !watch("name")) setValue("name", parsed.name);
+  }
+
   // ── Country select ────────────────────────────────────────────────────────
   function handleCountryChange(loc: LocationValue | null) {
     setCountryLoc(loc);
@@ -208,6 +248,8 @@ export function LocationManualSheet({ open, onOpenChange, onCreated, initialName
     setCoords(mapCenter ?? DEFAULT_CENTER);
     setServerError(null);
     setCountryLoc(null);
+    setMapsUrl("");
+    setMapsUrlState("idle");
   }
 
   // ── Map block (reused in both normal + fullscreen) ────────────────────────
@@ -300,7 +342,55 @@ export function LocationManualSheet({ open, onOpenChange, onCreated, initialName
           {/* Normal view: map + scrollable form */}
           {!mapFullscreen && (
             <div className="h-full overflow-y-auto flex flex-col">
-              <div className="px-5 pt-5">
+              <div className="px-5 pt-5 space-y-4">
+                {/* Google Maps URL import */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-medium text-muted-foreground">
+                    Import from Google Maps URL
+                  </label>
+                  <div className="relative">
+                    <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center">
+                      <Link2Icon className="size-3.5 text-muted-foreground" />
+                    </div>
+                    <input
+                      type="text"
+                      value={mapsUrl}
+                      onChange={(e) => handleMapsUrl(e.target.value)}
+                      placeholder="Paste Google Maps URL — coordinates auto-fill"
+                      className={cn(
+                        "h-10 w-full rounded-lg border bg-dashboard-base-100 pl-8 pr-3 text-xs text-dashboard-base-content",
+                        "placeholder:text-dashboard-base-content/35 outline-none transition-colors",
+                        "focus:border-dashboard-primary focus:ring-1 focus:ring-dashboard-primary/30",
+                        mapsUrlState === "error"
+                          ? "border-destructive ring-1 ring-destructive/20"
+                          : mapsUrlState === "success"
+                          ? "border-green-500 ring-1 ring-green-500/20"
+                          : "border-dashboard-base-content/85",
+                      )}
+                    />
+                    {mapsUrl && (
+                      <button
+                        type="button"
+                        onClick={() => { setMapsUrl(""); setMapsUrlState("idle"); }}
+                        className="absolute inset-y-0 right-2 flex items-center text-muted-foreground hover:text-foreground"
+                      >
+                        <XIcon className="size-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  {mapsUrlState === "success" && (
+                    <p className="flex items-center gap-1 text-[10px] text-green-600">
+                      <CheckCircle2Icon className="size-3" />
+                      Coordinates extracted · map pin and fields updated
+                    </p>
+                  )}
+                  {mapsUrlState === "error" && (
+                    <p className="text-[10px] text-destructive">
+                      No coordinates found — make sure it&apos;s a valid Google Maps URL
+                    </p>
+                  )}
+                </div>
+
                 <MapBlock fullscreen={false} />
               </div>
 

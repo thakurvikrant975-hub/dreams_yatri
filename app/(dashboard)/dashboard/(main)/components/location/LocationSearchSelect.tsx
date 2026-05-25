@@ -6,7 +6,7 @@ import { Popover as PopoverPrimitive } from "radix-ui";
 import {
   MapPinIcon, SearchIcon, Loader2Icon, XIcon,
   PlusIcon, GlobeIcon, ClockIcon, ChevronDownIcon,
-} from "lucide-react";
+} from "lucide-react";  
 import { cn } from "@/app/lib/utils";
 import type {
   ExternalResult, LocalResult, LocationSearchSelectProps,
