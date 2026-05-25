@@ -8,7 +8,8 @@ import { toast } from "sonner";
 import {
   Car, Users, UserCheck, UserX, Phone, MapPin, Pencil, Trash2,
   CreditCard, Shield, Banknote, X, Star, Clock, TrendingUp,
-  CheckCircle2, AlertCircle, ChevronRight, Wallet,
+  CheckCircle2, AlertCircle, ChevronRight, Wallet, BadgeCheck,
+  ShieldOff,
 } from "lucide-react";
 import { SteeringWheelIcon } from "@phosphor-icons/react";
 
@@ -40,7 +41,7 @@ import {
 
 import { CreateDriverSheet, EditDriverSheet } from "./CabDriverSheet";
 import {
-  getCabDrivers, toggleDriverActive, deleteCabDriver,
+  getCabDrivers, toggleDriverActive, toggleDriverVerified, deleteCabDriver,
   type CabDriverFull, type CabDriverVehicle,
 } from "./actions";
 
@@ -196,7 +197,16 @@ function TripSummaryPanel() {
   );
 }
 
-function RatingPanel({ driverName }: { driverName: string }) {
+function RatingPanel({
+  avgRating,
+  ratingCount,
+}: {
+  driverName:  string;
+  avgRating:   number | null;
+  ratingCount: number;
+}) {
+  const hasRatings = avgRating != null && ratingCount > 0;
+
   return (
     <div className="space-y-3">
       {/* Overall rating row */}
@@ -204,17 +214,21 @@ function RatingPanel({ driverName }: { driverName: string }) {
         <div>
           <p className="text-xs text-muted-foreground">Average Rating</p>
           <div className="flex items-center gap-2 mt-1">
-            <StarRating rating={0} />
-            <span className="text-xs text-muted-foreground">No ratings yet</span>
+            <StarRating rating={avgRating ?? 0} />
+            <span className="text-xs text-muted-foreground">
+              {hasRatings ? `${ratingCount} review${ratingCount !== 1 ? "s" : ""}` : "No ratings yet"}
+            </span>
           </div>
         </div>
         <div className="text-right">
-          <p className="text-2xl font-bold text-muted-foreground/40">—</p>
-          <p className="text-[10px] text-muted-foreground">0 reviews</p>
+          <p className={`text-2xl font-bold ${hasRatings ? "text-foreground" : "text-muted-foreground/40"}`}>
+            {hasRatings ? (avgRating ?? 0).toFixed(1) : "—"}
+          </p>
+          <p className="text-[10px] text-muted-foreground">out of 5</p>
         </div>
       </div>
 
-      {/* Rating breakdown placeholder */}
+      {/* Rating breakdown bars */}
       <div className="space-y-1.5">
         {[5, 4, 3, 2, 1].map((stars) => (
           <div key={stars} className="flex items-center gap-2">
@@ -229,13 +243,15 @@ function RatingPanel({ driverName }: { driverName: string }) {
       </div>
 
       {/* Empty state */}
-      <div className="rounded-lg border border-dashed bg-muted/20 px-4 py-5 text-center">
-        <Star className="h-7 w-7 mx-auto text-amber-300/50 mb-2" />
-        <p className="text-sm font-medium text-muted-foreground">No customer reviews yet</p>
-        <p className="text-xs text-muted-foreground/70 mt-1">
-          Ratings from customers will appear here after completed trips.
-        </p>
-      </div>
+      {!hasRatings && (
+        <div className="rounded-lg border border-dashed bg-muted/20 px-4 py-5 text-center">
+          <Star className="h-7 w-7 mx-auto text-amber-300/50 mb-2" />
+          <p className="text-sm font-medium text-muted-foreground">No customer reviews yet</p>
+          <p className="text-xs text-muted-foreground/70 mt-1">
+            Ratings from customers will appear here after completed trips.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -286,7 +302,7 @@ function DriverViewSheet({
                     {[driver.city, driver.state].filter(Boolean).join(", ")}
                   </p>
                 )}
-                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                   <Badge
                     variant={driver.is_active ? "default" : "secondary"}
                     className={`text-[10px] px-2 py-0.5 border-0 ${
@@ -297,6 +313,18 @@ function DriverViewSheet({
                   >
                     {driver.is_active ? "Active" : "Inactive"}
                   </Badge>
+                  {driver.is_verified && (
+                    <Badge variant="outline" className="text-[10px] px-2 py-0.5 gap-1 border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-400">
+                      <BadgeCheck className="h-2.5 w-2.5" />
+                      Verified
+                    </Badge>
+                  )}
+                  {driver.avg_rating != null && (
+                    <Badge variant="outline" className="text-[10px] px-2 py-0.5 gap-1 border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400">
+                      <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
+                      {driver.avg_rating.toFixed(1)} ({driver.rating_count})
+                    </Badge>
+                  )}
                   {driver.vehicle && (
                     <Badge variant="outline" className="text-[10px] px-2 py-0.5 gap-1 border-dashboard-neutral/60">
                       <Car className="h-2.5 w-2.5" />
@@ -524,7 +552,11 @@ function DriverViewSheet({
           {tab === "ratings" && (
             <div>
               <SectionTitle icon={Star} title="Customer Ratings" />
-              <RatingPanel driverName={driver.name} />
+              <RatingPanel
+                driverName={driver.name}
+                avgRating={driver.avg_rating}
+                ratingCount={driver.rating_count}
+              />
             </div>
           )}
 
@@ -587,11 +619,13 @@ export function CabDriversClient({
   vehicles,
   search: initSearch,
   status: initStatus,
+  verified: initVerified,
 }: {
   initialData: PageData;
   vehicles:    CabDriverVehicle[];
   search:      string;
   status:      string;
+  verified:    string;
 }) {
   const router       = useRouter();
   const searchParams = useSearchParams();
@@ -635,6 +669,15 @@ export function CabDriversClient({
     });
   }
 
+  // ── Toggle verified ──────────────────────────────────────────────────────────
+  function handleVerify(id: number, current: boolean) {
+    startTransition(async () => {
+      const res = await toggleDriverVerified(id, !current);
+      if (res.success) toast.success(res.message);
+      else toast.error(res.message ?? "Failed to update verification");
+    });
+  }
+
   const { rows, total, totalPages, currentPage, limit } = data;
 
   // ── Page-level stats ─────────────────────────────────────────────────────────
@@ -666,6 +709,10 @@ export function CabDriversClient({
                 {[d.city, d.state].filter(Boolean).join(", ")}
               </p>
             )}
+            <p className="text-xs text-muted-foreground tabular-nums mt-0.5 flex items-center gap-1">
+              <Phone className="h-2.5 w-2.5 shrink-0" />
+              {d.mobile}
+            </p>
           </div>
         </button>
       ),
@@ -686,17 +733,6 @@ export function CabDriversClient({
         ),
     },
     {
-      header: "Mobile",
-      cell: (d) => (
-        <div>
-          <p className="text-sm font-medium tabular-nums">{d.mobile}</p>
-          {d.mobile_secondary && (
-            <p className="text-xs text-muted-foreground tabular-nums">{d.mobile_secondary}</p>
-          )}
-        </div>
-      ),
-    },
-    {
       header: "Licence",
       cell: (d) =>
         d.license_number ? (
@@ -713,7 +749,60 @@ export function CabDriversClient({
         ),
     },
     {
-      header: "Status",
+      header: "Verified",
+      align:  "center",
+      width:  "w-[100px]",
+      cell: (d) => (
+        <button
+          onClick={() => handleVerify(d.id, d.is_verified)}
+          disabled={isPending}
+          title={d.is_verified ? "Click to remove verification" : "Click to verify driver"}
+          className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors disabled:opacity-50 cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+          style={d.is_verified ? {
+            background: "color-mix(in oklch, var(--color-dashboard-success, #22c55e) 12%, transparent)",
+            color:      "var(--color-dashboard-success, #16a34a)",
+          } : {
+            background: "color-mix(in oklch, var(--color-dashboard-neutral, #6b7280) 10%, transparent)",
+            color:      "var(--color-dashboard-neutral, #6b7280)",
+          }}
+        >
+          {d.is_verified
+            ? <><BadgeCheck className="h-3.5 w-3.5" /> Verified</>
+            : <><ShieldOff  className="h-3 w-3" /> Not verified</>
+          }
+        </button>
+      ),
+    },
+    {
+      header: "Rating",
+      align:  "center",
+      width:  "w-[100px]",
+      cell: (d) =>
+        d.avg_rating != null ? (
+          <div className="flex flex-col items-center gap-0.5">
+            <div className="flex items-center gap-1">
+              <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+              <span className="text-sm font-semibold tabular-nums">
+                {d.avg_rating.toFixed(1)}
+              </span>
+            </div>
+            <span className="text-[10px] text-muted-foreground">
+              {d.rating_count} review{d.rating_count !== 1 ? "s" : ""}
+            </span>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-0.5">
+            <div className="flex items-center gap-0.5">
+              {[0,1,2,3,4].map((i) => (
+                <Star key={i} className="h-3 w-3 text-muted-foreground/25" />
+              ))}
+            </div>
+            <span className="text-[10px] text-muted-foreground">No ratings</span>
+          </div>
+        ),
+    },
+    {
+      header: "Active",
       align:  "center",
       cell: (d) => (
         <Switch
@@ -726,7 +815,7 @@ export function CabDriversClient({
     {
       header: "Actions",
       align:  "right",
-      width:  "w-[110px]",
+      width:  "w-[100px]",
       cell: (d) => (
         <div className="flex items-center justify-end gap-1">
           <Button
@@ -788,10 +877,20 @@ export function CabDriversClient({
               value:       initStatus,
               onChange:    (v) => updateParam("status", v),
               placeholder: "All Statuses",
-              width:       "w-38",
+              width:       "w-36",
               options: [
                 { label: "Active",   value: "active"   },
                 { label: "Inactive", value: "inactive" },
+              ],
+            },
+            {
+              value:       initVerified,
+              onChange:    (v) => updateParam("verified", v),
+              placeholder: "All Verifications",
+              width:       "w-42",
+              options: [
+                { label: "Verified",     value: "verified"   },
+                { label: "Not Verified", value: "unverified" },
               ],
             },
           ]}

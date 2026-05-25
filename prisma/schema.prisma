@@ -1369,6 +1369,11 @@ model cab_drivers {
   salary_type           SalaryType?
   salary_amount         Decimal?    @db.Decimal(10, 2)
 
+  // Verification & rating
+  is_verified           Boolean     @default(false)
+  avg_rating            Decimal?    @db.Decimal(3, 2)  // 0.00 – 5.00, updated on trip completion
+  rating_count          Int         @default(0)
+
   is_active             Boolean     @default(true)
   created_at            DateTime    @default(now())
   updated_at            DateTime    @updatedAt

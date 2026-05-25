@@ -26,7 +26,7 @@ export type CabDriverFull = {
   vehicle_id: number | null;
   vehicle: CabDriverVehicle | null;
   license_number: string | null;
-  license_expiry: string | null;   // ISO date string
+  license_expiry: string | null;
   license_image_key: string | null;
   vehicle_reg_number: string | null;
   vehicle_reg_expiry: string | null;
@@ -39,6 +39,9 @@ export type CabDriverFull = {
   upi_id: string | null;
   salary_type: string | null;
   salary_amount: number | null;
+  is_verified: boolean;
+  avg_rating: number | null;
+  rating_count: number;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -66,6 +69,7 @@ export type CabDriverInput = {
   upi_id?: string | null;
   salary_type?: string | null;
   salary_amount?: number | null;
+  is_active?: boolean;
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -79,6 +83,7 @@ function serializeDriver(d: {
   vehicle_image_keys: string[]; bank_name: string | null; bank_account_number: string | null;
   bank_ifsc: string | null; bank_account_holder: string | null; upi_id: string | null;
   salary_type: string | null; salary_amount: { toNumber(): number } | null;
+  is_verified: boolean; avg_rating: { toNumber(): number } | null; rating_count: number;
   is_active: boolean; created_at: Date; updated_at: Date;
 }): CabDriverFull {
   return {
@@ -97,6 +102,9 @@ function serializeDriver(d: {
     upi_id: d.upi_id,
     salary_type: d.salary_type,
     salary_amount: d.salary_amount != null ? d.salary_amount.toNumber() : null,
+    is_verified: d.is_verified,
+    avg_rating: d.avg_rating != null ? d.avg_rating.toNumber() : null,
+    rating_count: d.rating_count,
     is_active: d.is_active,
     created_at: d.created_at.toISOString(),
     updated_at: d.updated_at.toISOString(),
@@ -112,9 +120,11 @@ function toDate(s?: string | null): Date | null {
 // ── Read ───────────────────────────────────────────────────────────────────
 
 export async function getCabDrivers(params: {
-  page?: number; limit?: number; search?: string; status?: "active" | "inactive" | "all";
+  page?: number; limit?: number; search?: string;
+  status?: "active" | "inactive" | "all";
+  verified?: "verified" | "unverified" | "all";
 } = {}) {
-  const { page = 1, limit = 20, search = "", status = "all" } = params;
+  const { page = 1, limit = 20, search = "", status = "all", verified = "all" } = params;
 
   const where = {
     ...(search ? {
@@ -124,7 +134,8 @@ export async function getCabDrivers(params: {
         { city: { contains: search, mode: "insensitive" as const } },
       ],
     } : {}),
-    ...(status === "active" ? { is_active: true } : status === "inactive" ? { is_active: false } : {}),
+    ...(status === "active"   ? { is_active:   true  } : status === "inactive"  ? { is_active:   false } : {}),
+    ...(verified === "verified" ? { is_verified: true  } : verified === "unverified" ? { is_verified: false } : {}),
   };
 
   const [drivers, total] = await Promise.all([
@@ -185,6 +196,7 @@ export async function createCabDriver(data: CabDriverInput) {
         upi_id: data.upi_id ?? null,
         salary_type: (data.salary_type as never) ?? null,
         salary_amount: data.salary_amount ?? null,
+        is_active: data.is_active ?? true,
       },
       include: { vehicle: { select: { id: true, name: true, type: true, image_key: true } } },
     });
@@ -227,6 +239,7 @@ export async function updateCabDriver(id: number, data: CabDriverInput) {
         upi_id: data.upi_id ?? null,
         salary_type: (data.salary_type as never) ?? null,
         salary_amount: data.salary_amount ?? null,
+        is_active: data.is_active,
         updated_at: new Date(),
       },
       include: { vehicle: { select: { id: true, name: true, type: true, image_key: true } } },
@@ -249,6 +262,22 @@ export async function toggleDriverActive(id: number, value: boolean) {
   } catch (e) {
     console.error("[toggleDriverActive]", e);
     return { success: false as const, message: "Failed to update status" };
+  }
+}
+
+// ── Toggle verified ────────────────────────────────────────────────────────
+
+export async function toggleDriverVerified(id: number, value: boolean) {
+  const session = await dashboardAuth();
+  if (!session?.user) return { success: false as const, message: "Unauthorized" };
+
+  try {
+    await db.cab_drivers.update({ where: { id }, data: { is_verified: value, updated_at: new Date() } });
+    revalidatePath(PATH);
+    return { success: true as const, message: value ? "Driver verified" : "Verification removed" };
+  } catch (e) {
+    console.error("[toggleDriverVerified]", e);
+    return { success: false as const, message: "Failed to update verification" };
   }
 }
 
