@@ -449,11 +449,11 @@ model Location {
 
   city_children Location[] @relation("CityRelation")
 
-  route_stops    route_stops[]
-  activities     activities[]
-  hotels         hotels[]
-  pickup_routes  transfer_routes[] @relation("pickup_routes")
-  drop_routes    transfer_routes[] @relation("drop_routes")
+  route_stops   route_stops[]
+  activities    activities[]
+  hotels        hotels[]
+  pickup_routes transfer_routes[] @relation("pickup_routes")
+  drop_routes   transfer_routes[] @relation("drop_routes")
 
   @@index([type])
   @@index([parent_id])
@@ -1195,21 +1195,21 @@ model package_durations {
 }
 
 model package_routes {
-  id                 Int                    @id @default(autoincrement())
+  id                 Int                   @id @default(autoincrement())
   duration_id        Int
   name               String
   slug               String
   meta_title         String?
   meta_desc          String?
-  sort_order         Int                    @default(0)
-  is_active          Boolean                @default(true)
+  sort_order         Int                   @default(0)
+  is_active          Boolean               @default(true)
   polyline           Json?
   total_distance_km  Float?
   total_duration_min Int?
   packagesId         Int?
   itineraries        package_itineraries[]
-  duration           package_durations      @relation(fields: [duration_id], references: [id], onDelete: Cascade)
-  packages           packages?              @relation(fields: [packagesId], references: [id])
+  duration           package_durations     @relation(fields: [duration_id], references: [id], onDelete: Cascade)
+  packages           packages?             @relation(fields: [packagesId], references: [id])
   stops              route_stops[]
   gallery            package_gallery[]
 
@@ -1316,17 +1316,17 @@ model itinerary_activities {
 }
 
 model vehicles {
-  id                 Int                    @id @default(autoincrement())
+  id                 Int                   @id @default(autoincrement())
   name               String
   type               VehicleType
   passenger_capacity Int
-  luggage_bags       Int                    @default(0)
-  has_ac             Boolean                @default(false)
+  luggage_bags       Int                   @default(0)
+  has_ac             Boolean               @default(false)
   image_key          String?
   fuel_type          FuelType?
   description        String?
-  is_active          Boolean                @default(true)
-  created_at         DateTime               @default(now())
+  is_active          Boolean               @default(true)
+  created_at         DateTime              @default(now())
   rates              vehicle_rates[]
   transfers          itinerary_transfers[]
   cabTypes           package_cab_types[]
@@ -1347,18 +1347,18 @@ model vehicle_rates {
 }
 
 model cab_pricing {
-  id             Int                    @id @default(autoincrement())
-  destination_id Int
-  vehicle_id     Int
-  pricing_type   CabPricingType         @default(PER_DAY)
-  price          Decimal                @db.Decimal(10, 2)
-  cost_price     Decimal?               @db.Decimal(10, 2)
-  is_active      Boolean                @default(true)
-  updated_by     String?
-  created_at     DateTime               @default(now())
-  updated_at     DateTime               @updatedAt
-  destination     destinations            @relation(fields: [destination_id], references: [id], onDelete: Cascade)
-  vehicle         vehicles                @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
+  id              Int                    @id @default(autoincrement())
+  destination_id  Int
+  vehicle_id      Int
+  pricing_type    CabPricingType         @default(PER_DAY)
+  price           Decimal                @db.Decimal(10, 2)
+  cost_price      Decimal?               @db.Decimal(10, 2)
+  is_active       Boolean                @default(true)
+  updated_by      String?
+  created_at      DateTime               @default(now())
+  updated_at      DateTime               @updatedAt
+  destination     destinations           @relation(fields: [destination_id], references: [id], onDelete: Cascade)
+  vehicle         vehicles               @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
   seasons         cab_pricing_season[]
   packageSegments package_cab_segments[]
 
@@ -1388,23 +1388,23 @@ model cab_pricing_season {
 }
 
 model transfer_routes {
-  id                  Int                   @id @default(autoincrement())
-  pickup_name         String
-  pickup_place_id     String?
-  pickup_location_id  BigInt?
-  pickup_lat          Decimal?              @db.Decimal(10, 7)
-  pickup_lng          Decimal?              @db.Decimal(10, 7)
-  drop_name           String
-  drop_place_id       String?
-  drop_location_id    BigInt?
-  drop_lat            Decimal?              @db.Decimal(10, 7)
-  drop_lng            Decimal?              @db.Decimal(10, 7)
-  distance_km         Decimal?              @db.Decimal(8, 2)
-  duration_min        Int?
-  created_at          DateTime              @default(now())
-  transfers           itinerary_transfers[]
-  pickup_location     Location?             @relation("pickup_routes", fields: [pickup_location_id], references: [id], onDelete: SetNull)
-  drop_location       Location?             @relation("drop_routes", fields: [drop_location_id], references: [id], onDelete: SetNull)
+  id                 Int                   @id @default(autoincrement())
+  pickup_name        String
+  pickup_place_id    String?
+  pickup_location_id BigInt?
+  pickup_lat         Decimal?              @db.Decimal(10, 7)
+  pickup_lng         Decimal?              @db.Decimal(10, 7)
+  drop_name          String
+  drop_place_id      String?
+  drop_location_id   BigInt?
+  drop_lat           Decimal?              @db.Decimal(10, 7)
+  drop_lng           Decimal?              @db.Decimal(10, 7)
+  distance_km        Decimal?              @db.Decimal(8, 2)
+  duration_min       Int?
+  created_at         DateTime              @default(now())
+  transfers          itinerary_transfers[]
+  pickup_location    Location?             @relation("pickup_routes", fields: [pickup_location_id], references: [id], onDelete: SetNull)
+  drop_location      Location?             @relation("drop_routes", fields: [drop_location_id], references: [id], onDelete: SetNull)
 
   @@index([pickup_location_id, drop_location_id])
   @@index([pickup_name, drop_name])

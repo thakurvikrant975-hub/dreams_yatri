@@ -140,9 +140,9 @@ export async function toggleVehicleActive(id: number, value: boolean) {
 
 export async function deleteVehicle(id: number) {
   try {
-    const inUse = await db.itinerary_transfers.count({ where: { vehicle_id: id } });
+    const inUse = await db.cab_pricing.count({ where: { vehicle_id: id } });
     if (inUse > 0) {
-      return { success: false as const, message: `Cannot delete — vehicle is used in ${inUse} transfer(s)` };
+      return { success: false as const, message: `Cannot delete — vehicle is used in ${inUse} cab pricing record(s)` };
     }
     await db.vehicles.delete({ where: { id } });
     revalidatePath(PATH);

@@ -477,8 +477,6 @@ async function main() {
     data: {
       itinerary_id: itin1.id,
       route_id: trDelhiManali.id,
-      vehicle_id: vehicleInnova.id,
-      num_vehicles: 1,
       notes: "Pickup from Delhi at 6:00 PM. Estimated arrival at Manali ~8:00 AM next day.",
       sort_order: 0,
     },
@@ -545,8 +543,6 @@ async function main() {
     data: {
       itinerary_id: itin3.id,
       route_id: trSolang.id,
-      vehicle_id: vehicleInnova.id,
-      num_vehicles: 1,
       notes: "Round trip from hotel to Solang Valley. Departure at 9:00 AM.",
       sort_order: 0,
     },
@@ -619,8 +615,6 @@ async function main() {
     data: {
       itinerary_id: itin5.id,
       route_id: trManaliDelhi.id,
-      vehicle_id: vehicleInnova.id,
-      num_vehicles: 1,
       notes: "Departure from Manali at 8:00 AM. Estimated arrival in Delhi by 8:00–10:00 PM.",
       sort_order: 0,
     },
