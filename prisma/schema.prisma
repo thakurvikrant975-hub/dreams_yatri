@@ -1331,6 +1331,49 @@ model vehicles {
   transfers          itinerary_transfers[]
   cabTypes           package_cab_types[]
   cabDestPricings    cab_pricing[]
+  drivers            cab_drivers[]
+}
+
+model cab_drivers {
+  id                    Int         @id @default(autoincrement())
+  name                  String
+  mobile                String
+  mobile_secondary      String?
+  profile_image_key     String?
+  city                  String?
+  state                 String?
+
+  // Vehicle assignment
+  vehicle_id            Int?
+  vehicle               vehicles?   @relation(fields: [vehicle_id], references: [id], onDelete: SetNull)
+
+  // License
+  license_number        String?
+  license_expiry        DateTime?
+  license_image_key     String?
+
+  // Vehicle docs
+  vehicle_reg_number    String?
+  vehicle_reg_expiry    DateTime?
+  insurance_expiry      DateTime?
+  vehicle_image_keys    String[]
+
+  // Bank / payment
+  bank_name             String?
+  bank_account_number   String?
+  bank_ifsc             String?
+  bank_account_holder   String?
+  upi_id                String?
+
+  // Salary
+  salary_type           SalaryType?
+  salary_amount         Decimal?    @db.Decimal(10, 2)
+
+  is_active             Boolean     @default(true)
+  created_at            DateTime    @default(now())
+  updated_at            DateTime    @updatedAt
+
+  @@index([vehicle_id])
 }
 
 model vehicle_rates {
@@ -1950,4 +1993,11 @@ enum VehicleRateType {
 enum CabPricingType {
   PER_DAY
   PER_KM
+}
+
+enum SalaryType {
+  FIXED_MONTHLY
+  PER_TRIP
+  PER_DAY
+  COMMISSION
 }
