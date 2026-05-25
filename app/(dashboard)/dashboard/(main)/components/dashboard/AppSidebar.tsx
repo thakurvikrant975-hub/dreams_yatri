@@ -9,6 +9,7 @@ import {
   MessageCircleQuestion, ClockCheck, Mails, Forward, BadgePercent, Banknote,
   ChartSpline, BanknoteArrowDown, BanknoteX, Car, Bed, ChartNoAxesCombined,
   BellRing, PackagePlus, ChartNoAxesGantt, Star, IndianRupee,
+  UserRound,
 } from "lucide-react";
 import {
   GlobeHemisphereEastIcon, MapPinIcon, BuildingIcon, PlusIcon, TagIcon,
@@ -63,8 +64,10 @@ const navGroups = [
   {
     id: "cab", label: "Cab management",
     items: [
-      { title: "Vehicle Types", href: "/dashboard/vehicles",    icon: SteeringWheelIcon, phosphor: true },
+      { title: "Vehicle Types", href: "/dashboard/vehicles",    icon: Car, phosphor: true },
       { title: "Cab Pricing",   href: "/dashboard/cab-pricing", icon: IndianRupee },
+      { title: "Cab Drivers",   href: "/dashboard/cab-drivers", icon: SteeringWheelIcon, phosphor: true },
+      { title: "Assign Drivers",   href: "/dashboard/assign-drivers", icon: SteeringWheelIcon, phosphor: true },
     ],
   },
   {
