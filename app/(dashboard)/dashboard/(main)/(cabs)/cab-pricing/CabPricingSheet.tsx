@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition } from "react";
 import {
   Plus, Pencil, Car, IndianRupee,
   CalendarDays, Trash2, AlertTriangle,
-  Info, Check, Loader2,
+  Info, Check, Loader2, X,
 } from "lucide-react";
 import { Button }  from "../../components/ui/button";
 import { Input }   from "../../components/ui/input";
@@ -109,7 +109,7 @@ function PricingTypeToggle({ value, onChange }: { value: CabPricingType; onChang
         <button
           key={t} type="button" onClick={() => onChange(t)}
           className={cn(
-            "px-2.5 transition-colors", i > 0 && "border-l",
+            "px-2.5 transition-colors cursor-pointer", i > 0 && "border-l",
             value === t ? "bg-dashboard-primary text-white" : "bg-background text-muted-foreground hover:bg-muted",
           )}
         >
@@ -142,84 +142,189 @@ function BaseRatesSection({
   vehicles,
   entries,
   onChange,
+  onToggleVehicle,
 }: {
   vehicles: Vehicle[];
   entries: PriceEntry[];
   onChange: (entries: PriceEntry[]) => void;
+  onToggleVehicle: (vehicle: Vehicle) => void;
 }) {
+  const [search, setSearch] = useState("");
+
+  const selectedIds = new Set(entries.map((e) => e.vehicle_id));
+
+  const filtered = search.trim()
+    ? vehicles.filter((v) => {
+        const q = search.toLowerCase();
+        return (
+          v.name.toLowerCase().includes(q) ||
+          (VEHICLE_TYPE_LABELS[v.type] ?? v.type).toLowerCase().includes(q)
+        );
+      })
+    : vehicles;
+
   function update<K extends keyof PriceEntry>(vehicleId: number, field: K, value: PriceEntry[K]) {
-    onChange(entries.map((e) => e.vehicle_id === vehicleId ? { ...e, [field]: value } : e));
+    onChange(entries.map((e) => (e.vehicle_id === vehicleId ? { ...e, [field]: value } : e)));
   }
 
   if (!vehicles.length) {
     return (
       <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3">
         <Info className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
-        <p className="text-xs text-amber-700">No active vehicles. Add them in <strong>Vehicle Types</strong> first.</p>
+        <p className="text-xs text-amber-700">
+          No active vehicles. Add them in <strong>Vehicle Types</strong> first.
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+
+      {/* Info */}
       <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5">
         <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-blue-600" />
-        <p className="text-xs text-blue-700">Default rates used when no season is active for the travel date.</p>
+        <p className="text-xs text-blue-700">
+          Default rates used when no season is active for the travel date.
+        </p>
       </div>
 
-      <div className="grid grid-cols-[1fr_80px_140px] gap-2 px-1">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Vehicle</p>
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Type</p>
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Price (₹) *</p>
-      </div>
+      {/* Vehicle search & picker */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Select Vehicles
+          </Label>
+          {selectedIds.size > 0 && (
+            <span className="text-[11px] text-muted-foreground">
+              {selectedIds.size} of {vehicles.length} selected
+            </span>
+          )}
+        </div>
 
-      {vehicles.map((vehicle) => {
-        const entry       = entries.find((e) => e.vehicle_id === vehicle.id);
-        const priceVal    = entry?.price        ?? "";
-        const pricingType = (entry?.pricing_type ?? "PER_DAY") as CabPricingType;
-        const unit        = pricingType === "PER_DAY" ? "/day" : "/km";
-        const isInvalid   = priceVal !== "" && (isNaN(Number(priceVal)) || Number(priceVal) <= 0);
+        <Input
+          placeholder="Search by name or type…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="h-8 text-sm"
+        />
 
-        return (
-          <div key={vehicle.id} className="grid grid-cols-[1fr_80px_140px] gap-2 items-center rounded-lg border bg-muted/20 px-3 py-2.5">
-            <div className="flex items-center gap-2 min-w-0">
-              <Car className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              <div className="min-w-0">
-                <p className="text-sm font-medium truncate leading-tight">{vehicle.name}</p>
-                <span className="text-[10px] text-muted-foreground">
-                  {VEHICLE_TYPE_LABELS[vehicle.type] ?? vehicle.type}
-                </span>
-              </div>
-            </div>
-            <PricingTypeToggle value={pricingType} onChange={(v) => update(vehicle.id, "pricing_type", v)} />
-            <div className="relative">
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground select-none">₹</span>
-              <Input
-                type="number" min={0} step={pricingType === "PER_KM" ? 1 : 100}
-                placeholder="0" value={priceVal}
-                onChange={(e) => update(vehicle.id, "price", e.target.value)}
-                className={cn("h-8 pl-6 pr-9 text-sm", isInvalid && "border-destructive")}
-              />
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">{unit}</span>
-            </div>
+        {filtered.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5 p-3 border rounded-xl bg-muted/20 max-h-60 overflow-y-auto">
+            {filtered.map((v) => {
+              const selected = selectedIds.has(v.id);
+              return (
+                <button
+                  key={v.id}
+                  type="button"
+                  onClick={() => onToggleVehicle(v)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium transition-all cursor-pointer",
+                    selected
+                      ? "bg-green-100 border-green-400 text-green-800 dark:bg-green-900/40 dark:border-green-600 dark:text-green-300"
+                      : "bg-background border-border text-muted-foreground hover:border-dashboard-primary/60 hover:text-foreground",
+                  )}
+                >
+                  {selected && <Check className="h-3 w-3 shrink-0" />}
+                  <span>{v.name}</span>
+                  <span className="opacity-50">·</span>
+                  <span className="opacity-60">{VEHICLE_TYPE_LABELS[v.type] ?? v.type}</span>
+                </button>
+              );
+            })}
           </div>
-        );
-      })}
+        ) : search ? (
+          <p className="text-xs text-center text-muted-foreground py-3 border rounded-xl">
+            No vehicles match &ldquo;{search}&rdquo;
+          </p>
+        ) : null}
+      </div>
+
+      {/* Selected vehicles — price inputs */}
+      {entries.length > 0 ? (
+        <div className="space-y-2">
+          <div className="grid grid-cols-[1fr_80px_144px_28px] gap-2 px-1">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Vehicle ({entries.length})
+            </p>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Type</p>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Price (₹) *</p>
+            <span />
+          </div>
+
+          {entries.map((entry) => {
+            const vehicle = vehicles.find((v) => v.id === entry.vehicle_id);
+            if (!vehicle) return null;
+
+            const priceVal    = entry.price ?? "";
+            const pricingType = (entry.pricing_type ?? "PER_DAY") as CabPricingType;
+            const unit        = pricingType === "PER_DAY" ? "/day" : "/km";
+            const isInvalid   = priceVal !== "" && (isNaN(Number(priceVal)) || Number(priceVal) <= 0);
+
+            return (
+              <div
+                key={vehicle.id}
+                className="grid grid-cols-[1fr_80px_144px_28px] gap-2 items-center rounded-lg border bg-muted/20 px-3 py-2.5"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <Car className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate leading-tight">{vehicle.name}</p>
+                    <span className="text-[10px] text-muted-foreground">
+                      {VEHICLE_TYPE_LABELS[vehicle.type] ?? vehicle.type}
+                    </span>
+                  </div>
+                </div>
+
+                <PricingTypeToggle
+                  value={pricingType}
+                  onChange={(v) => update(vehicle.id, "pricing_type", v)}
+                />
+
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground select-none">₹</span>
+                  <Input
+                    type="number" min={0} step={pricingType === "PER_KM" ? 1 : 100}
+                    placeholder="0" value={priceVal}
+                    onChange={(e) => update(vehicle.id, "price", e.target.value)}
+                    className={cn("h-8 pl-6 pr-9 text-sm", isInvalid && "border-destructive")}
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">
+                    {unit}
+                  </span>
+                </div>
+
+                {/* Quick-deselect */}
+                <button
+                  type="button"
+                  onClick={() => onToggleVehicle(vehicle)}
+                  className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                  title="Remove vehicle"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground text-center py-4 border border-dashed rounded-xl">
+          Search and click vehicles above to configure their base rates
+        </p>
+      )}
     </div>
   );
 }
 
 // ── Date helpers (year-agnostic: all seasons stored as 2000-MM-DD) ────────
 
-/** Parse "2000-MM-DD" → local Date in year 2000. */
 function toDateObj(str: string): Date | undefined {
   if (!str) return undefined;
-  const normalized = "2000" + str.slice(4); // ensure year 2000
+  const normalized = "2000" + str.slice(4);
   const d = new Date(normalized + "T00:00:00");
   return isNaN(d.getTime()) ? undefined : d;
 }
 
-/** Convert a Date to "2000-MM-DD" (ignores actual year). */
 function fromDateObj(d: Date | undefined): string {
   if (!d) return "";
   const m   = String(d.getMonth() + 1).padStart(2, "0");
@@ -227,7 +332,6 @@ function fromDateObj(d: Date | undefined): string {
   return `2000-${m}-${day}`;
 }
 
-/** Format "2000-MM-DD" → "4 Jan" for display. */
 function fmtMonthDay(dateStr: string): string {
   const d = toDateObj(dateStr);
   if (!d) return dateStr;
@@ -247,7 +351,16 @@ function CalendarRatesSection({
   vehicleSeasons: Record<string, SeasonEntry[]>;
   onChange: (seasons: Record<string, SeasonEntry[]>) => void;
 }) {
-  const [activeVehicleId, setActiveVehicleId] = useState<number | null>(vehicles[0]?.id ?? null);
+  // Only show vehicles that the user has selected in Base Rates
+  const selectedVehicles = vehicles.filter((v) => entries.some((e) => e.vehicle_id === v.id));
+
+  const [_activeId, setActiveVehicleId] = useState<number | null>(null);
+
+  // If the explicitly chosen tab was deselected, fall back to first available
+  const activeVehicleId =
+    selectedVehicles.some((v) => v.id === _activeId)
+      ? _activeId
+      : selectedVehicles[0]?.id ?? null;
 
   function getSeasons(vehicleId: number): SeasonEntry[] {
     return vehicleSeasons[String(vehicleId)] ?? [];
@@ -292,19 +405,29 @@ function CalendarRatesSection({
 
   const totalSeasons = Object.values(vehicleSeasons).reduce((s, arr) => s + arr.length, 0);
 
+  if (!selectedVehicles.length) {
+    return (
+      <p className="text-xs text-muted-foreground text-center py-4 border border-dashed rounded-xl">
+        Select vehicles in Base Rates above to configure seasonal pricing
+      </p>
+    );
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5">
         <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-blue-600" />
         <p className="text-xs text-blue-700">
           Click a start date then an end date on the calendar to set the season range.
-          {totalSeasons > 0 && <span className="font-semibold"> {totalSeasons} season{totalSeasons !== 1 ? "s" : ""} configured.</span>}
+          {totalSeasons > 0 && (
+            <span className="font-semibold"> {totalSeasons} season{totalSeasons !== 1 ? "s" : ""} configured.</span>
+          )}
         </p>
       </div>
 
-      {/* Vehicle tabs */}
+      {/* Vehicle tabs — only selected vehicles */}
       <div className="flex flex-wrap gap-1.5">
-        {vehicles.map((v) => {
+        {selectedVehicles.map((v) => {
           const count       = getSeasons(v.id).length;
           const hasConflict = overlappingSeasonIds(getSeasons(v.id)).size > 0;
           const isActive    = activeVehicleId === v.id;
@@ -313,7 +436,7 @@ function CalendarRatesSection({
               key={v.id} type="button"
               onClick={() => setActiveVehicleId(v.id)}
               className={cn(
-                "flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
+                "flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer",
                 hasConflict
                   ? "border-destructive/50 bg-destructive/5 text-destructive"
                   : isActive
@@ -336,9 +459,9 @@ function CalendarRatesSection({
         })}
       </div>
 
-      {/* Season cards */}
+      {/* Season cards for active vehicle */}
       {activeVehicleId !== null && (() => {
-        const vehicle    = vehicles.find((v) => v.id === activeVehicleId)!;
+        const vehicle    = selectedVehicles.find((v) => v.id === activeVehicleId)!;
         const seasons    = getSeasons(activeVehicleId);
         const base       = entries.find((e) => e.vehicle_id === activeVehicleId);
         const overlapSet = overlappingSeasonIds(seasons);
@@ -359,18 +482,16 @@ function CalendarRatesSection({
                 to:   toDateObj(s.valid_to),
               };
 
-              // Build seasons array for calendar (all seasons with valid data)
               const calendarSeasons: SeasonRange[] = seasons
                 .filter((x) => x.valid_from && x.valid_to && x.weekday_price)
                 .map((x) => ({
-                  from:           x.valid_from.slice(5), // "MM-DD"
+                  from:           x.valid_from.slice(5),
                   to:             x.valid_to.slice(5),
                   weekdayPrice:   Number(x.weekday_price),
                   weekendPrice:   x.weekend_enabled && x.weekend_price ? Number(x.weekend_price) : null,
                   weekendEnabled: x.weekend_enabled,
                 }));
 
-              // Header label (no year)
               const rangeLabel = s.valid_from && s.valid_to
                 ? `${fmtMonthDay(s.valid_from)} → ${fmtMonthDay(s.valid_to)}`
                 : s.valid_from
@@ -385,7 +506,6 @@ function CalendarRatesSection({
                     hasOverlap ? "border-destructive/40 bg-destructive/5" : "border-border bg-muted/10",
                   )}
                 >
-                  {/* Header row: summary + type toggle + delete */}
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <CalendarDays className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -404,7 +524,7 @@ function CalendarRatesSection({
                       <button
                         type="button"
                         onClick={() => removeSeason(activeVehicleId, s.tempId)}
-                        className="text-destructive/60 hover:text-destructive transition-colors"
+                        className="text-destructive/60 hover:text-destructive transition-colors cursor-pointer"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
@@ -418,7 +538,6 @@ function CalendarRatesSection({
                     </div>
                   )}
 
-                  {/* Pricing inputs row */}
                   <div className="flex items-end gap-3">
                     {/* Weekday rate */}
                     <div className="flex-1 space-y-1">
@@ -451,7 +570,7 @@ function CalendarRatesSection({
                           weekend_enabled: !s.weekend_enabled,
                           weekend_price: "",
                         })}
-                        className="flex items-center gap-1.5 group"
+                        className="flex items-center gap-1.5 group cursor-pointer"
                       >
                         <div className={cn(
                           "h-3.5 w-3.5 rounded border-2 flex items-center justify-center transition-colors shrink-0",
@@ -488,7 +607,6 @@ function CalendarRatesSection({
                     </div>
                   </div>
 
-                  {/* Range picker */}
                   <PricingRangeCalendarPicker
                     value={rangeValue}
                     onChange={(range) => handleRangeChange(activeVehicleId, s.tempId, range)}
@@ -502,8 +620,8 @@ function CalendarRatesSection({
             })}
 
             <Button
-              type="button" variant="outline" size="sm"
-              className="w-full h-8 text-xs gap-1.5 border-dashed mt-1"
+              type="button" variant="outline" size="lg"
+              className="w-full cursor-pointer h-8 text-xs gap-1.5 border-dashed mt-1 bg-dashboard-base-300 hover:bg-dashboard-base-300 py-3 rounded-md"
               onClick={() => addSeason(activeVehicleId)}
             >
               <Plus className="h-3.5 w-3.5" />
@@ -524,10 +642,10 @@ function validateForm(
   vehicleSeasons: Record<string, SeasonEntry[]>,
 ): string | null {
   if (!cityOrLocked) return "Please select a city";
-  if (!entries.length) return "No active vehicles — add them in Vehicle Types first";
+  if (!entries.length) return "Please select at least one vehicle to configure pricing";
   for (const e of entries) {
     const p = Number(e.price);
-    if (!e.price || isNaN(p) || p <= 0) return "All base prices must be greater than ₹0";
+    if (!e.price || isNaN(p) || p <= 0) return "All selected vehicles must have a base price greater than ₹0";
   }
   for (const [, seasons] of Object.entries(vehicleSeasons)) {
     for (const s of seasons) {
@@ -557,15 +675,27 @@ export function CreateCabPricingSheet({ vehicles }: { vehicles: Vehicle[] }) {
   const [vehicleSeasons, setVehicleSeasons] = useState<Record<string, SeasonEntry[]>>({});
   const [formError,      setFormError]      = useState<string | null>(null);
 
-  useEffect(() => {
-    setEntries(
-      vehicles.map((v) => ({ vehicle_id: v.id, pricing_type: "PER_DAY" as CabPricingType, price: "" })),
-    );
-  }, [vehicles]);
+  function handleToggleVehicle(vehicle: Vehicle) {
+    const isSelected = entries.some((e) => e.vehicle_id === vehicle.id);
+    if (isSelected) {
+      setEntries((prev) => prev.filter((e) => e.vehicle_id !== vehicle.id));
+      setVehicleSeasons((prev) => {
+        const next = { ...prev };
+        delete next[String(vehicle.id)];
+        return next;
+      });
+    } else {
+      setEntries((prev) => [
+        ...prev,
+        { vehicle_id: vehicle.id, pricing_type: "PER_DAY" as CabPricingType, price: "" },
+      ]);
+    }
+    setFormError(null);
+  }
 
   function reset() {
     setCityValue(null);
-    setEntries(vehicles.map((v) => ({ vehicle_id: v.id, pricing_type: "PER_DAY" as CabPricingType, price: "" })));
+    setEntries([]);
     setVehicleSeasons({});
     setFormError(null);
     setSheetKey((k) => k + 1);
@@ -625,6 +755,7 @@ export function CreateCabPricingSheet({ vehicles }: { vehicles: Vehicle[] }) {
                   placeholder="Search city…"
                   extraParams={{ destinationsOnly: "true", excludePricedCabs: "true" }}
                   disableExternalSearch
+                  hideRecent
                 />
               </div>
             </div>
@@ -636,12 +767,13 @@ export function CreateCabPricingSheet({ vehicles }: { vehicles: Vehicle[] }) {
               <SectionHeader
                 icon={<IndianRupee className="h-4 w-4" />}
                 title="Base Rates"
-                description="Set default price for each vehicle type"
+                description="Search and select vehicles, then set their default rates"
               />
               <BaseRatesSection
                 vehicles={vehicles}
                 entries={entries}
                 onChange={setEntries}
+                onToggleVehicle={handleToggleVehicle}
               />
             </div>
 
@@ -701,14 +833,14 @@ export function EditCabPricingSheet({ row, vehicles }: { row: CabPricingGroup; v
   const [formError, setFormError] = useState<string | null>(null);
 
   function buildInitialEntries(): PriceEntry[] {
-    return vehicles.map((v) => {
-      const ex = row.pricings.find((p) => p.vehicle_id === v.id);
-      return {
-        vehicle_id:   v.id,
-        pricing_type: (ex?.pricing_type ?? "PER_DAY") as CabPricingType,
-        price:        ex ? String(ex.price) : "",
-      };
-    });
+    // Only include vehicles that actually have existing pricing data
+    return row.pricings
+      .filter((p) => vehicles.some((v) => v.id === p.vehicle_id))
+      .map((p) => ({
+        vehicle_id:   p.vehicle_id,
+        pricing_type: p.pricing_type as CabPricingType,
+        price:        String(p.price),
+      }));
   }
 
   function buildInitialSeasons(): Record<string, SeasonEntry[]> {
@@ -732,6 +864,24 @@ export function EditCabPricingSheet({ row, vehicles }: { row: CabPricingGroup; v
 
   const [entries,        setEntries]        = useState<PriceEntry[]>(() => buildInitialEntries());
   const [vehicleSeasons, setVehicleSeasons] = useState<Record<string, SeasonEntry[]>>(() => buildInitialSeasons());
+
+  function handleToggleVehicle(vehicle: Vehicle) {
+    const isSelected = entries.some((e) => e.vehicle_id === vehicle.id);
+    if (isSelected) {
+      setEntries((prev) => prev.filter((e) => e.vehicle_id !== vehicle.id));
+      setVehicleSeasons((prev) => {
+        const next = { ...prev };
+        delete next[String(vehicle.id)];
+        return next;
+      });
+    } else {
+      setEntries((prev) => [
+        ...prev,
+        { vehicle_id: vehicle.id, pricing_type: "PER_DAY" as CabPricingType, price: "" },
+      ]);
+    }
+    setFormError(null);
+  }
 
   function handleSubmit() {
     const error = validateForm(row.destination_name, entries, vehicleSeasons);
@@ -799,12 +949,13 @@ export function EditCabPricingSheet({ row, vehicles }: { row: CabPricingGroup; v
               <SectionHeader
                 icon={<IndianRupee className="h-4 w-4" />}
                 title="Base Rates"
-                description="Set default price for each vehicle type"
+                description="Search and select vehicles, then set their default rates"
               />
               <BaseRatesSection
                 vehicles={vehicles}
                 entries={entries}
                 onChange={setEntries}
+                onToggleVehicle={handleToggleVehicle}
               />
             </div>
 

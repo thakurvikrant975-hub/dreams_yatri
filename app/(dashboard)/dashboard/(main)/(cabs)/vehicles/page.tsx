@@ -5,7 +5,21 @@ import {
 } from "../../components/ui/breadcrumb";
 import { getVehiclesWithRates } from "./actions";
 import { VehiclesClient } from "./VehiclesClient";
+import type { Metadata } from "next";
 
+export const metadata: Metadata = {
+  title: "Vehicles - Dashboard",
+  description: "Vehicles management page",
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    googleBot: {
+      index: false,
+      follow: false,
+    },
+  },
+};
 
 export default async function VehiclesPage() {
   const vehicles = await getVehiclesWithRates();

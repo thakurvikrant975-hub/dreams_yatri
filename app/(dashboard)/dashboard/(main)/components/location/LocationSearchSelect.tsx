@@ -6,7 +6,7 @@ import { Popover as PopoverPrimitive } from "radix-ui";
 import {
   MapPinIcon, SearchIcon, Loader2Icon, XIcon,
   PlusIcon, GlobeIcon, ClockIcon, ChevronDownIcon,
-} from "lucide-react";
+} from "lucide-react";  
 import { cn } from "@/app/lib/utils";
 import type {
   ExternalResult, LocalResult, LocationSearchSelectProps,
@@ -154,6 +154,7 @@ export function LocationSearchSelect({
   error,
   extraParams,
   disableExternalSearch = false,
+  hideRecent = false,
 }: LocationSearchSelectProps) {
   // Countries-only mode: preload all, filter client-side, skip debounced search
   const isCountriesOnly = types?.length === 1 && types[0] === "COUNTRY";
@@ -291,7 +292,7 @@ export function LocationSearchSelect({
 
   const isLocalLoading = isCountriesOnly ? countriesLoading : localLoading;
 
-  const showRecent    = !query.trim() && (types?.length
+  const showRecent    = !hideRecent && !query.trim() && (types?.length
     ? recent.filter((r) => types.includes(r.type)).length > 0
     : recent.length > 0);
   const showLocal     = isCountriesOnly ? true : !!query.trim();
@@ -411,7 +412,7 @@ export function LocationSearchSelect({
               align="start"
               sideOffset={4}
               className={cn(
-                "z-50 w-[var(--radix-popover-trigger-width)] overflow-hidden",
+                "z-50 w-(--radix-popover-trigger-width) overflow-hidden",
                 "rounded-xl border border-border bg-popover shadow-xl shadow-black/10",
                 "data-[state=open]:animate-in data-[state=closed]:animate-out",
                 "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",

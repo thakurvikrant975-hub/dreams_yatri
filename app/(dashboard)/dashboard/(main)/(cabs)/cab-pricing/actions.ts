@@ -139,6 +139,8 @@ export async function getCabPricings(params: GetCabPricingsParams = {}) {
   if (status === "active")   rows = rows.filter((r) => r.active_count  > 0);
   if (status === "inactive") rows = rows.filter((r) => r.active_count === 0);
 
+  rows.sort((a, b) => b.updated_at.getTime() - a.updated_at.getTime());
+
   const totalPages = Math.ceil(rows.length / limit);
   const paginated  = rows.slice((page - 1) * limit, page * limit);
 

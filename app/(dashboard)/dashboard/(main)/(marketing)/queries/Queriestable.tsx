@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { formatDistanceToNow, format } from "date-fns";
 import {
-    CheckCircle2, XCircle, Eye,
+    CheckCircle2, XCircle,
     Phone, MapPin, StickyNote,
     Inbox, UserCheck, Send, Clock, TrendingUp
 } from "lucide-react";
@@ -14,10 +14,10 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "../../
 import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable";
 import { TableFilters } from "../../components/dashboard/Tablefilters";
 import { StatCard, StatGrid } from "../../components/dashboard/Statcard";
-import { QueryStatusBadge, QuerySourceBadge, CallAttemptsDots } from "../../components/dashboard/CustomBadges";
+import { QueryStatusBadge, QuerySourceBadge } from "../../components/dashboard/CustomBadges";
 import { RejectQueryDialog } from "./Rejectquerydialog";
 import { QueryDetailSheet } from "./Querydetailsheet";
-import { verifyQuery, markInProgress, getQueryById } from "./actions";
+import { verifyQuery, getQueryById } from "./actions";
 import type { PackageQuery, RejectionReason } from "./actions";
 import { Pencil } from "lucide-react";
 import { EditQueryDialog } from "./Editquerydialog";

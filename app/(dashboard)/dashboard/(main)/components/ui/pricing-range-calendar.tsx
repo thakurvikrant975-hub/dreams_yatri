@@ -120,7 +120,7 @@ export function PricingRangeCalendarPicker({
         <button
           type="button"
           className={cn(
-            "flex w-full items-center gap-2 rounded-md border bg-background px-3 h-9 text-sm",
+            "flex w-full cursor-pointer items-center gap-2 rounded-md border bg-background px-3 h-9 text-sm",
             "hover:bg-muted/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             error && "border-destructive",
             open  && "ring-2 ring-ring",
@@ -164,7 +164,7 @@ export function PricingRangeCalendarPicker({
             size="sm"
             disabled={!hasRange}
             onClick={() => setOpen(false)}
-            className="ml-auto h-7 px-3 text-xs gap-1.5 bg-dashboard-primary text-white hover:bg-dashboard-primary/90"
+            className="ml-auto h-7 px-3 text-xs gap-1.5 bg-dashboard-primary text-white hover:bg-dashboard-primary/90 cursor-pointer"
           >
             <Check className="h-3 w-3" />
             Done

@@ -75,7 +75,7 @@ export async function createVehicle(data: {
   description?: string | null;
 }) {
   try {
-    await db.vehicles.create({
+    const created = await db.vehicles.create({
       data: {
         name: data.name,
         type: data.type as never,
@@ -88,8 +88,9 @@ export async function createVehicle(data: {
       },
     });
     revalidatePath(PATH);
-    return { success: true as const, message: "Vehicle created" };
-  } catch {
+    return { success: true as const, message: "Vehicle created", id: created.id };
+  } catch (e) {
+    console.error("[createVehicle]", e);
     return { success: false as const, message: "Failed to create vehicle" };
   }
 }
@@ -123,7 +124,8 @@ export async function updateVehicle(
     });
     revalidatePath(PATH);
     return { success: true as const, message: "Vehicle updated" };
-  } catch {
+  } catch (e) {
+    console.error("[updateVehicle]", e);
     return { success: false as const, message: "Failed to update vehicle" };
   }
 }
@@ -133,7 +135,8 @@ export async function toggleVehicleActive(id: number, value: boolean) {
     await db.vehicles.update({ where: { id }, data: { is_active: value } });
     revalidatePath(PATH);
     return { success: true as const };
-  } catch {
+  } catch (e) {
+    console.error("[toggleVehicleActive]", e);
     return { success: false as const, message: "Failed to update status" };
   }
 }
@@ -147,7 +150,8 @@ export async function deleteVehicle(id: number) {
     await db.vehicles.delete({ where: { id } });
     revalidatePath(PATH);
     return { success: true as const, message: "Vehicle deleted" };
-  } catch {
+  } catch (e) {
+    console.error("[deleteVehicle]", e);
     return { success: false as const, message: "Failed to delete vehicle" };
   }
 }
@@ -164,7 +168,7 @@ export async function createVehicleRate(
   },
 ) {
   try {
-    await db.vehicle_rates.create({
+    const created = await db.vehicle_rates.create({
       data: {
         vehicle_id: vehicleId,
         label: data.label,
@@ -174,7 +178,18 @@ export async function createVehicleRate(
       },
     });
     revalidatePath(PATH);
-    return { success: true as const, message: "Rate added" };
+    return {
+      success: true as const,
+      message: "Rate added",
+      rate: {
+        id: created.id,
+        label: created.label,
+        rate_type: created.rate_type,
+        price: Number(created.price),
+        cost_price: created.cost_price != null ? Number(created.cost_price) : null,
+        is_active: created.is_active,
+      } satisfies VehicleRate,
+    };
   } catch {
     return { success: false as const, message: "Failed to add rate" };
   }
