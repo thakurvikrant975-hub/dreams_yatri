@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useMemo } from "react";
 import {
-  Car, Plus, Pencil, Trash2, Loader2, Check, X,
+  Car, Plus, Pencil, Trash2, Loader2, Check,
   Flame, Wind, Users, Briefcase,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
@@ -43,8 +43,7 @@ const VEHICLE_TYPES = [
   { value: "TEMPO_TRAVELLER", label: "Tempo Traveller" },
   { value: "MINI_BUS",        label: "Mini Bus" },
   { value: "BUS",             label: "Bus" },
-  { value: "COUPE",           label: "Coupe" },
-  { value: "HYBRID",          label: "Hybrid" },
+  { value: "Rikshaw",         label: "Rikshaw" },
 ];
 
 const FUEL_TYPES = [
@@ -590,7 +589,7 @@ export function VehiclesClient({ initialVehicles }: { initialVehicles: VehicleFu
           toast.success(res.message);
           setSheetOpen(false);
           const newVehicle: VehicleFull = {
-            id: Date.now(), ...payload, is_active: true, rates: [],
+            id: res.id, ...payload, is_active: true, rates: [],
           };
           setVehicles(prev => [...prev, newVehicle]);
         } else {
