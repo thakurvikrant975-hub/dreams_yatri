@@ -281,6 +281,25 @@ export async function toggleDriverVerified(id: number, value: boolean) {
   }
 }
 
+// ── Cab pricing rate lookup ────────────────────────────────────────────────
+
+export async function getCabPricingRateForDriver(
+  destinationId: number,
+  vehicleId: number,
+): Promise<{ price: number; pricing_type: string } | null> {
+  if (!destinationId || !vehicleId) return null;
+  try {
+    const row = await db.cab_pricing.findFirst({
+      where: { destination_id: destinationId, vehicle_id: vehicleId, is_active: true },
+      select: { price: true, pricing_type: true },
+    });
+    if (!row) return null;
+    return { price: row.price.toNumber(), pricing_type: row.pricing_type };
+  } catch {
+    return null;
+  }
+}
+
 // ── Delete ─────────────────────────────────────────────────────────────────
 
 export async function deleteCabDriver(id: number) {

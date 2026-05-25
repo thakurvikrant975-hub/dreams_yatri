@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useEffect, useTransition } from "react";
 import {
   User, Car, FileText, Banknote, Plus, Pencil,
-  Phone, MapPin, CreditCard, Shield, Info,
+  Phone, CreditCard, Shield, Info,
 } from "lucide-react";
 import { Button }   from "../../components/ui/button";
 import { Input }    from "../../components/ui/input";
@@ -25,11 +25,47 @@ import {
   ImagePicker,
   type PickedImage,
 } from "../../components/dashboard/ImagePicker";
+import { LocationSearchSelect } from "../../components/location/LocationSearchSelect";
+import type { LocationValue }   from "../../components/location/location.types";
 
 import {
-  createCabDriver, updateCabDriver,
+  createCabDriver, updateCabDriver, getCabPricingRateForDriver,
   type CabDriverFull, type CabDriverVehicle,
 } from "./actions";
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const COUNTRY_CODES = [
+  { code: "+91",  label: "+91 India" },
+  { code: "+1",   label: "+1 USA/Canada" },
+  { code: "+44",  label: "+44 UK" },
+  { code: "+61",  label: "+61 Australia" },
+  { code: "+971", label: "+971 UAE" },
+  { code: "+966", label: "+966 Saudi Arabia" },
+  { code: "+65",  label: "+65 Singapore" },
+  { code: "+60",  label: "+60 Malaysia" },
+  { code: "+49",  label: "+49 Germany" },
+  { code: "+33",  label: "+33 France" },
+  { code: "+81",  label: "+81 Japan" },
+  { code: "+86",  label: "+86 China" },
+  { code: "+7",   label: "+7 Russia" },
+  { code: "+55",  label: "+55 Brazil" },
+  { code: "+27",  label: "+27 South Africa" },
+  { code: "+977", label: "+977 Nepal" },
+  { code: "+94",  label: "+94 Sri Lanka" },
+  { code: "+880", label: "+880 Bangladesh" },
+];
+
+const INDIAN_STATES = [
+  "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
+  "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka",
+  "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram",
+  "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu",
+  "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal",
+  "Andaman and Nicobar Islands", "Chandigarh",
+  "Dadra and Nagar Haveli and Daman and Diu", "Delhi",
+  "Jammu and Kashmir", "Ladakh", "Lakshadweep", "Puducherry",
+];
 
 // ── Native date input styled to match dashboard Input ─────────────────────────
 
@@ -73,7 +109,12 @@ const DRIVER_STEPS: SheetStep[] = [
     validate: (data) => {
       if (!data.name || !(data.name as string).trim()) return "Driver name is required";
       if (!data.mobile || !(data.mobile as string).trim()) return "Mobile number is required";
-      if ((data.mobile as string).replace(/\D/g, "").length < 10) return "Enter a valid 10-digit mobile number";
+      const countryCode = (data.mobile_country_code as string) ?? "+91";
+      const digits = (data.mobile as string).replace(/\D/g, "");
+      if (countryCode === "+91" && digits.length !== 10) return "Enter a valid 10-digit mobile number";
+      if (countryCode !== "+91" && digits.length < 5) return "Enter a valid mobile number";
+      if (!data.cityValue) return "City is required";
+      if (!data.state || !(data.state as string).trim()) return "State is required";
       return null;
     },
   },
@@ -82,14 +123,23 @@ const DRIVER_STEPS: SheetStep[] = [
     title:       "Vehicle",
     description: "Assign a vehicle to this driver",
     icon:        <Car className="h-4 w-4" />,
-    optional:    true,
+    validate: (data) => {
+      if (!data.vehicle_id || data.vehicle_id === "none") return "Please assign a vehicle to this driver";
+      return null;
+    },
   },
   {
     id:          "documents",
     title:       "Documents",
     description: "Licence, registration, insurance & vehicle photos",
     icon:        <FileText className="h-4 w-4" />,
-    optional:    true,
+    validate: (data) => {
+      if (!data.vehicle_reg_number || !(data.vehicle_reg_number as string).trim())
+        return "Vehicle registration number is required";
+      if (!((data.vehicleImages as PickedImage[])?.length))
+        return "At least one vehicle photo is required";
+      return null;
+    },
   },
   {
     id:          "payment",
@@ -121,19 +171,36 @@ function toPickedImages(keys: string[]): PickedImage[] {
   }));
 }
 
+function parseMobile(stored: string): { code: string; number: string } {
+  if (!stored) return { code: "+91", number: "" };
+  // Normalize: always work with a leading +
+  const withPlus = stored.startsWith("+") ? stored : `+${stored}`;
+  // Try country codes longest-first to avoid greedy partial matches (e.g. +91 vs +971)
+  const sorted = [...COUNTRY_CODES].sort((a, b) => b.code.length - a.code.length);
+  for (const { code } of sorted) {
+    if (withPlus.startsWith(code)) {
+      return { code, number: withPlus.slice(code.length).replace(/\D/g, "") };
+    }
+  }
+  // Fallback: plain digits with no recognisable prefix → assume India
+  return { code: "+91", number: stored.replace(/\D/g, "") };
+}
+
 // ── Step 1: Identity ──────────────────────────────────────────────────────────
 
 function IdentityStep() {
   const { stepData, setStepData } = useMultiStepSheet();
   const data = stepData["identity"] ?? {};
 
-  const name      = (data.name      as string)  ?? "";
-  const mobile    = (data.mobile    as string)  ?? "";
-  const mobile2   = (data.mobile2   as string)  ?? "";
-  const city      = (data.city      as string)  ?? "";
-  const state     = (data.state     as string)  ?? "";
-  const is_active = (data.is_active as boolean) ?? true;
-  const profileImages = (data.profileImages as PickedImage[]) ?? [];
+  const name              = (data.name              as string)        ?? "";
+  const mobile            = (data.mobile            as string)        ?? "";
+  const mobile2           = (data.mobile2           as string)        ?? "";
+  const mobile_country_code  = (data.mobile_country_code  as string)  ?? "+91";
+  const mobile2_country_code = (data.mobile2_country_code as string)  ?? "+91";
+  const cityValue         = (data.cityValue         as LocationValue | null) ?? null;
+  const state             = (data.state             as string)        ?? "";
+  const is_active         = (data.is_active         as boolean)       ?? true;
+  const profileImages     = (data.profileImages     as PickedImage[]) ?? [];
 
   function set(key: string, value: unknown) {
     setStepData("identity", { ...data, [key]: value });
@@ -168,65 +235,114 @@ function IdentityStep() {
         />
       </div>
 
-      {/* Mobile */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label>Mobile <span className="text-destructive">*</span></Label>
-          <div className="relative">
+      {/* Primary Mobile */}
+      <div className="space-y-1.5">
+        <Label>Mobile <span className="text-destructive">*</span></Label>
+        <div className="flex gap-2">
+          <Select
+            value={mobile_country_code}
+            onValueChange={(v) => set("mobile_country_code", v)}
+          >
+            <SelectTrigger className="w-36 shrink-0 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {COUNTRY_CODES.map((c) => (
+                <SelectItem key={c.code} value={c.code} className="text-xs">
+                  {c.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="relative flex-1">
             <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             <Input
-              placeholder="9876543210"
+              placeholder={mobile_country_code === "+91" ? "9876543210" : "Enter number"}
               value={mobile}
-              onChange={(e) => set("mobile", e.target.value.replace(/\D/g, "").slice(0, 10))}
-              className="pl-8"
-            />
-          </div>
-        </div>
-        <div className="space-y-1.5">
-          <Label>
-            Secondary Mobile{" "}
-            <span className="text-xs text-muted-foreground font-normal">(optional)</span>
-          </Label>
-          <div className="relative">
-            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-            <Input
-              placeholder="9876543210"
-              value={mobile2}
-              onChange={(e) => set("mobile2", e.target.value.replace(/\D/g, "").slice(0, 10))}
+              onChange={(e) =>
+                set("mobile", e.target.value.replace(/\D/g, "").slice(0, mobile_country_code === "+91" ? 10 : 15))
+              }
               className="pl-8"
             />
           </div>
         </div>
       </div>
 
-      {/* City / State */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label>
-            City{" "}
-            <span className="text-xs text-muted-foreground font-normal">(optional)</span>
-          </Label>
-          <div className="relative">
-            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+      {/* Secondary Mobile */}
+      <div className="space-y-1.5">
+        <Label>
+          Secondary Mobile{" "}
+          <span className="text-xs text-muted-foreground font-normal">(optional)</span>
+        </Label>
+        <div className="flex gap-2">
+          <Select
+            value={mobile2_country_code}
+            onValueChange={(v) => set("mobile2_country_code", v)}
+          >
+            <SelectTrigger className="w-36 shrink-0 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {COUNTRY_CODES.map((c) => (
+                <SelectItem key={c.code} value={c.code} className="text-xs">
+                  {c.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="relative flex-1">
+            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
             <Input
-              placeholder="Jaipur"
-              value={city}
-              onChange={(e) => set("city", e.target.value)}
+              placeholder={mobile2_country_code === "+91" ? "9876543210" : "Enter number"}
+              value={mobile2}
+              onChange={(e) =>
+                set("mobile2", e.target.value.replace(/\D/g, "").slice(0, mobile2_country_code === "+91" ? 10 : 15))
+              }
               className="pl-8"
             />
           </div>
         </div>
-        <div className="space-y-1.5">
-          <Label>
-            State{" "}
-            <span className="text-xs text-muted-foreground font-normal">(optional)</span>
-          </Label>
-          <Input
-            placeholder="Rajasthan"
-            value={state}
-            onChange={(e) => set("state", e.target.value)}
-          />
-        </div>
+      </div>
+
+      {/* City */}
+      <div className="space-y-1.5">
+        <Label>City <span className="text-destructive">*</span></Label>
+        <LocationSearchSelect
+          value={cityValue}
+          onChange={(v) => {
+            const update: Record<string, unknown> = { ...data, cityValue: v };
+            if (v?.breadcrumb) {
+              // breadcrumb format: "City, State, Country"
+              const statePart = v.breadcrumb.split(",")[1]?.trim() ?? "";
+              const matched = INDIAN_STATES.find(
+                (s) => s.toLowerCase() === statePart.toLowerCase(),
+              );
+              if (matched) update.state = matched;
+            }
+            setStepData("identity", update);
+          }}
+          types={["CITY"]}
+          placeholder="Search city…"
+          disableExternalSearch
+          hideRecent
+        />
+      </div>
+
+      {/* State */}
+      <div className="space-y-1.5">
+        <Label>State <span className="text-destructive">*</span></Label>
+        <Select value={state} onValueChange={(v) => set("state", v)}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select state…" />
+          </SelectTrigger>
+          <SelectContent className="max-h-60">
+            {INDIAN_STATES.map((s) => (
+              <SelectItem key={s} value={s} className="text-xs">
+                {s}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Active toggle */}
@@ -254,8 +370,7 @@ function VehicleStep({ vehicles }: { vehicles: CabDriverVehicle[] }) {
     <div className="space-y-4">
       <div className="space-y-1.5">
         <Label>
-          Assigned Vehicle{" "}
-          <span className="text-xs text-muted-foreground font-normal">(optional)</span>
+          Assigned Vehicle <span className="text-destructive">*</span>
         </Label>
         <Select
           value={vehicle_id}
@@ -265,7 +380,6 @@ function VehicleStep({ vehicles }: { vehicles: CabDriverVehicle[] }) {
             <SelectValue placeholder="Select a vehicle…" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="none">None / Unassigned</SelectItem>
             {vehicles.map((v) => (
               <SelectItem key={v.id} value={String(v.id)}>
                 {v.name}{" "}
@@ -331,7 +445,10 @@ function DocumentsStep() {
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label>Licence Number</Label>
+            <Label>
+              Licence Number{" "}
+              <span className="text-xs text-muted-foreground font-normal">(optional)</span>
+            </Label>
             <Input
               placeholder="RJ14 20200012345"
               value={license_number}
@@ -339,7 +456,10 @@ function DocumentsStep() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label>Licence Expiry</Label>
+            <Label>
+              Licence Expiry{" "}
+              <span className="text-xs text-muted-foreground font-normal">(optional)</span>
+            </Label>
             <DateInput
               value={license_expiry}
               onChange={(v) => set("license_expiry", v)}
@@ -372,7 +492,7 @@ function DocumentsStep() {
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label>Registration Number</Label>
+            <Label>Registration Number <span className="text-destructive">*</span></Label>
             <Input
               placeholder="RJ 14 CA 1234"
               value={vehicle_reg_number}
@@ -380,7 +500,10 @@ function DocumentsStep() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label>Registration Expiry</Label>
+            <Label>
+              Registration Expiry{" "}
+              <span className="text-xs text-muted-foreground font-normal">(optional)</span>
+            </Label>
             <DateInput
               value={vehicle_reg_expiry}
               onChange={(v) => set("vehicle_reg_expiry", v)}
@@ -397,7 +520,10 @@ function DocumentsStep() {
         </div>
 
         <div className="space-y-1.5">
-          <Label>Insurance Expiry</Label>
+          <Label>
+            Insurance Expiry{" "}
+            <span className="text-xs text-muted-foreground font-normal">(optional)</span>
+          </Label>
           <DateInput
             value={insurance_expiry}
             onChange={(v) => set("insurance_expiry", v)}
@@ -409,7 +535,9 @@ function DocumentsStep() {
       <div className="space-y-3">
         <div className="flex items-center gap-2 pb-1 border-b">
           <Car className="h-4 w-4 text-primary" />
-          <p className="text-sm font-semibold">Vehicle Photos</p>
+          <p className="text-sm font-semibold">
+            Vehicle Photos <span className="text-destructive">*</span>
+          </p>
         </div>
         <ImagePicker
           folder="cab-drivers"
@@ -417,7 +545,7 @@ function DocumentsStep() {
           onChange={(imgs) => set("vehicleImages", imgs)}
           maxFiles={6}
           label="Upload Vehicle Photos"
-          hint="Up to 6 photos · JPG, PNG, WebP"
+          hint="Up to 6 photos · JPG, PNG, WebP · At least 1 required"
         />
       </div>
     </div>
@@ -426,7 +554,7 @@ function DocumentsStep() {
 
 // ── Step 4: Payment Details ───────────────────────────────────────────────────
 
-function PaymentStep() {
+function PaymentStep({ vehicles }: { vehicles: CabDriverVehicle[] }) {
   const { stepData, setStepData } = useMultiStepSheet();
   const data = stepData["payment"] ?? {};
 
@@ -435,7 +563,28 @@ function PaymentStep() {
   const bank_account_holder  = (data.bank_account_holder  as string) ?? "";
   const bank_account_number  = (data.bank_account_number  as string) ?? "";
   const bank_ifsc            = (data.bank_ifsc            as string) ?? "";
-  const upi_id               = (data.upi_id               as string) ?? "";
+  const upi_id               = (data.upi_id              as string)  ?? "";
+
+  // Cross-step reads for placeholder
+  const cityValue  = (stepData["identity"]?.cityValue  as LocationValue | undefined);
+  const vehicleId  = (stepData["vehicle"]?.vehicle_id  as string | undefined);
+  const vehicle    = vehicles.find((v) => String(v.id) === vehicleId);
+
+  const [pricingRate, setPricingRate] = useState<{ price: number; pricing_type: string } | null>(null);
+
+  useEffect(() => {
+    const destId = cityValue?.id ? Number(cityValue.id) : 0;
+    const vId    = vehicleId && vehicleId !== "none" ? Number(vehicleId) : 0;
+    if (!destId || !vId) { setPricingRate(null); return; }
+    getCabPricingRateForDriver(destId, vId).then(setPricingRate);
+  }, [cityValue?.id, vehicleId]);
+
+  const rateUnit = pricingRate?.pricing_type === "PER_KM" ? "/km" : "/day";
+  const ratePlaceholder = pricingRate && vehicle && cityValue
+    ? `e.g. ₹${pricingRate.price}${rateUnit} — ${cityValue.name} · ${vehicle.name}`
+    : vehicle && cityValue
+    ? `Rate for ${cityValue.name} · ${vehicle.name} not found`
+    : "Enter agreed rate";
 
   function set(key: string, value: unknown) {
     setStepData("payment", { ...data, [key]: value });
@@ -462,12 +611,17 @@ function PaymentStep() {
             </span>
             <Input
               type="number"
-              placeholder="0"
+              placeholder={ratePlaceholder}
               value={per_trip_rate}
               onChange={(e) => set("per_trip_rate", e.target.value)}
               className="pl-7"
             />
           </div>
+          {pricingRate && vehicle && cityValue && (
+            <p className="text-xs text-muted-foreground">
+              Cab pricing: ₹{pricingRate.price}{rateUnit} for {vehicle.name} in {cityValue.name}
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">
             Base rate agreed with this driver for each trip.
           </p>
@@ -548,15 +702,24 @@ function PaymentStep() {
 // ── Build initial data from existing driver ───────────────────────────────────
 
 function buildInitialData(d: CabDriverFull): Record<string, Record<string, unknown>> {
+  const { code: mobileCode, number: mobileNumber }   = parseMobile(d.mobile ?? "");
+  const { code: mobile2Code, number: mobile2Number } = parseMobile(d.mobile_secondary ?? "");
+
+  const cityValue: LocationValue | null = d.city
+    ? { id: "0", name: d.city, type: "CITY", breadcrumb: d.city, slug: "" }
+    : null;
+
   return {
     identity: {
-      name:          d.name,
-      mobile:        d.mobile,
-      mobile2:       d.mobile_secondary ?? "",
-      city:          d.city ?? "",
-      state:         d.state ?? "",
-      is_active:     d.is_active,
-      profileImages: toPickedImage(d.profile_image_key),
+      name:                 d.name,
+      mobile:               mobileNumber,
+      mobile_country_code:  mobileCode,
+      mobile2:              mobile2Number,
+      mobile2_country_code: mobile2Code,
+      cityValue,
+      state:                d.state ?? "",
+      is_active:            d.is_active,
+      profileImages:        toPickedImage(d.profile_image_key),
     },
     vehicle: {
       vehicle_id: d.vehicle_id ? String(d.vehicle_id) : "",
@@ -582,20 +745,26 @@ function buildInitialData(d: CabDriverFull): Record<string, Record<string, unkno
 }
 
 function buildCreateInitialData(): Record<string, Record<string, unknown>> {
-  return { identity: { is_active: true } };
+  return { identity: { is_active: true, mobile_country_code: "+91", mobile2_country_code: "+91" } };
 }
 
 // ── Collect input helper ──────────────────────────────────────────────────────
 
 function collectInput(data: Record<string, unknown>) {
-  const vehicleId   = (data.vehicle_id as string);
-  const perTripRate = (data.per_trip_rate as string);
+  const cityValue    = data.cityValue as LocationValue | undefined;
+  const countryCode  = (data.mobile_country_code  as string) ?? "+91";
+  const countryCode2 = (data.mobile2_country_code as string) ?? "+91";
+  const mobileRaw    = (data.mobile  as string)?.trim() ?? "";
+  const mobile2Raw   = (data.mobile2 as string)?.trim() ?? "";
+  const vehicleId    = (data.vehicle_id as string);
+  const perTripRate  = (data.per_trip_rate as string);
+
   return {
     name:                (data.name    as string)?.trim() ?? "",
-    mobile:              (data.mobile  as string)?.trim() ?? "",
-    mobile_secondary:    (data.mobile2 as string)?.trim() || null,
+    mobile:              mobileRaw ? `${countryCode}${mobileRaw}` : "",
+    mobile_secondary:    mobile2Raw ? `${countryCode2}${mobile2Raw}` : null,
     profile_image_key:   ((data.profileImages as PickedImage[])?.[0]?.key) ?? null,
-    city:                (data.city   as string)?.trim() || null,
+    city:                cityValue?.name?.trim() || null,
     state:               (data.state  as string)?.trim() || null,
     vehicle_id:          vehicleId && vehicleId !== "none" ? Number(vehicleId) : null,
     license_number:      (data.license_number     as string)?.trim() || null,
@@ -662,7 +831,7 @@ export function CreateDriverSheet({ vehicles }: { vehicles: CabDriverVehicle[] }
         <IdentityStep />
         <VehicleStep vehicles={vehicles} />
         <DocumentsStep />
-        <PaymentStep />
+        <PaymentStep vehicles={vehicles} />
       </MultiStepSheet>
     </>
   );
@@ -723,7 +892,7 @@ export function EditDriverSheet({
         <IdentityStep />
         <VehicleStep vehicles={vehicles} />
         <DocumentsStep />
-        <PaymentStep />
+        <PaymentStep vehicles={vehicles} />
       </MultiStepSheet>
     </>
   );
