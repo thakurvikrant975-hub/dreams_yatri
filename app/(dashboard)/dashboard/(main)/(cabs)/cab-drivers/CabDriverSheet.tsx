@@ -56,16 +56,6 @@ const COUNTRY_CODES = [
   { code: "+880", label: "+880 Bangladesh" },
 ];
 
-const INDIAN_STATES = [
-  "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
-  "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka",
-  "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram",
-  "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu",
-  "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal",
-  "Andaman and Nicobar Islands", "Chandigarh",
-  "Dadra and Nagar Haveli and Daman and Diu", "Delhi",
-  "Jammu and Kashmir", "Ladakh", "Lakshadweep", "Puducherry",
-];
 
 // ── Native date input styled to match dashboard Input ─────────────────────────
 
@@ -114,7 +104,7 @@ const DRIVER_STEPS: SheetStep[] = [
       if (countryCode === "+91" && digits.length !== 10) return "Enter a valid 10-digit mobile number";
       if (countryCode !== "+91" && digits.length < 5) return "Enter a valid mobile number";
       if (!data.cityValue) return "City is required";
-      if (!data.state || !(data.state as string).trim()) return "State is required";
+      if (!data.stateValue) return "State is required";
       return null;
     },
   },
@@ -198,7 +188,8 @@ function IdentityStep() {
   const mobile_country_code  = (data.mobile_country_code  as string)  ?? "+91";
   const mobile2_country_code = (data.mobile2_country_code as string)  ?? "+91";
   const cityValue         = (data.cityValue         as LocationValue | null) ?? null;
-  const state             = (data.state             as string)        ?? "";
+  const stateValue        = (data.stateValue        as LocationValue | null) ?? null;
+  const countryValue      = (data.countryValue      as LocationValue | null) ?? null;
   const is_active         = (data.is_active         as boolean)       ?? true;
   const profileImages     = (data.profileImages     as PickedImage[]) ?? [];
 
@@ -310,16 +301,29 @@ function IdentityStep() {
         <LocationSearchSelect
           value={cityValue}
           onChange={(v) => {
-            const update: Record<string, unknown> = { ...data, cityValue: v };
-            if (v?.breadcrumb) {
-              // breadcrumb format: "City, State, Country"
-              const statePart = v.breadcrumb.split(",")[1]?.trim() ?? "";
-              const matched = INDIAN_STATES.find(
-                (s) => s.toLowerCase() === statePart.toLowerCase(),
-              );
-              if (matched) update.state = matched;
-            }
-            setStepData("identity", update);
+            const base: Record<string, unknown> = { ...data, cityValue: v };
+            setStepData("identity", base);
+            if (!v?.breadcrumb) return;
+            // breadcrumb: "City, State, Country"
+            const parts       = v.breadcrumb.split(",").map((p) => p.trim());
+            const stateName   = parts[1] ?? "";
+            const countryName = parts[2] ?? "";
+            const search = (q: string, type: string) =>
+              q
+                ? fetch(`/api/locations/search?q=${encodeURIComponent(q)}&types=${type}&limit=1`)
+                    .then((r) => (r.ok ? r.json() : []))
+                    .catch(() => [] as LocationValue[])
+                : Promise.resolve([] as LocationValue[]);
+            // Fetch both in parallel, then set once to avoid overwrites
+            Promise.all([search(stateName, "STATE"), search(countryName, "COUNTRY")]).then(
+              ([stateRes, countryRes]) => {
+                setStepData("identity", {
+                  ...base,
+                  ...(stateRes[0]   ? { stateValue:   stateRes[0]   } : {}),
+                  ...(countryRes[0] ? { countryValue: countryRes[0] } : {}),
+                });
+              },
+            );
           }}
           types={["CITY"]}
           placeholder="Search city…"
@@ -331,18 +335,29 @@ function IdentityStep() {
       {/* State */}
       <div className="space-y-1.5">
         <Label>State <span className="text-destructive">*</span></Label>
-        <Select value={state} onValueChange={(v) => set("state", v)}>
-          <SelectTrigger>
-            <SelectValue placeholder="Select state…" />
-          </SelectTrigger>
-          <SelectContent className="max-h-60">
-            {INDIAN_STATES.map((s) => (
-              <SelectItem key={s} value={s} className="text-xs">
-                {s}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <LocationSearchSelect
+          value={stateValue}
+          onChange={(v) => set("stateValue", v)}
+          types={["STATE"]}
+          placeholder="Search state…"
+          disableExternalSearch
+          hideRecent
+        />
+      </div>
+
+      {/* Country */}
+      <div className="space-y-1.5">
+        <Label>
+          Country{" "}
+          <span className="text-xs text-muted-foreground font-normal">(optional)</span>
+        </Label>
+        <LocationSearchSelect
+          value={countryValue}
+          onChange={(v) => set("countryValue", v)}
+          types={["COUNTRY"]}
+          placeholder="Search country…"
+          hideRecent
+        />
       </div>
 
       {/* Active toggle */}
@@ -705,9 +720,9 @@ function buildInitialData(d: CabDriverFull): Record<string, Record<string, unkno
   const { code: mobileCode, number: mobileNumber }   = parseMobile(d.mobile ?? "");
   const { code: mobile2Code, number: mobile2Number } = parseMobile(d.mobile_secondary ?? "");
 
-  const cityValue: LocationValue | null = d.city
-    ? { id: "0", name: d.city, type: "CITY", breadcrumb: d.city, slug: "" }
-    : null;
+  const fakeLocation = (name: string, type: LocationValue["type"]): LocationValue => ({
+    id: "0", name, type, breadcrumb: name, slug: "",
+  });
 
   return {
     identity: {
@@ -716,8 +731,9 @@ function buildInitialData(d: CabDriverFull): Record<string, Record<string, unkno
       mobile_country_code:  mobileCode,
       mobile2:              mobile2Number,
       mobile2_country_code: mobile2Code,
-      cityValue,
-      state:                d.state ?? "",
+      cityValue:            d.city  ? fakeLocation(d.city,  "CITY")  : null,
+      stateValue:           d.state ? fakeLocation(d.state, "STATE") : null,
+      countryValue:         null,
       is_active:            d.is_active,
       profileImages:        toPickedImage(d.profile_image_key),
     },
@@ -765,7 +781,7 @@ function collectInput(data: Record<string, unknown>) {
     mobile_secondary:    mobile2Raw ? `${countryCode2}${mobile2Raw}` : null,
     profile_image_key:   ((data.profileImages as PickedImage[])?.[0]?.key) ?? null,
     city:                cityValue?.name?.trim() || null,
-    state:               (data.state  as string)?.trim() || null,
+    state:               ((data.stateValue as LocationValue)?.name)?.trim() || null,
     vehicle_id:          vehicleId && vehicleId !== "none" ? Number(vehicleId) : null,
     license_number:      (data.license_number     as string)?.trim() || null,
     license_expiry:      (data.license_expiry     as string) || null,
