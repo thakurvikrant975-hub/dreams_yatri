@@ -51,7 +51,6 @@ import {
   handleReorderItems,
   handleSearchActivities,
   handleSearchRoomPricings,
-  handleGetVehicles,
   handleGetActivityVariants,
   handleAddAttraction,
   handleBulkAddAttractions,
@@ -68,7 +67,6 @@ import type {
   AttractionItem,
   AttractionSourceImages,
   ReorderItem,
-  VehicleOption,
   ActivityVariantOption,
 } from "@/app/services/itinerary-builder.service";
 import {
@@ -364,8 +362,6 @@ function useRoadDistance(pickup: LocationValue | null, drop: LocationValue | nul
 type TransferFormData = {
   pickup: LocationValue | null;
   drop: LocationValue | null;
-  vehicle_id: number | null;
-  num_vehicles: string;
   notes: string;
 };
 
@@ -379,8 +375,8 @@ function transferFormToInput(data: TransferFormData) {
     drop_location_id: data.drop?.id ?? null,
     drop_lat: data.drop?.latitude ?? null,
     drop_lng: data.drop?.longitude ?? null,
-    vehicle_id: data.vehicle_id,
-    num_vehicles: Number(data.num_vehicles) || 1,
+    vehicle_id: null,
+    num_vehicles: 1,
     notes: data.notes || null,
   };
 }
@@ -389,7 +385,6 @@ function transferFormToInput(data: TransferFormData) {
 
 function TransferEditForm({
   item,
-  vehicles,
   pending,
   onSave,
   onCancel,
@@ -397,7 +392,6 @@ function TransferEditForm({
   stopCoords,
 }: {
   item: TransferItem;
-  vehicles: VehicleOption[];
   pending: boolean;
   onSave: (data: TransferFormData) => void;
   onCancel: () => void;
@@ -427,8 +421,6 @@ function TransferEditForm({
           longitude: item.route.drop_lng ?? undefined,
         }
       : null,
-    vehicle_id: item.vehicle_id,
-    num_vehicles: String(item.num_vehicles),
     notes: item.notes ?? "",
   });
 
@@ -465,22 +457,6 @@ function TransferEditForm({
           )}
         </div>
       )}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label className="text-xs">Vehicle</Label>
-          <Select value={form.vehicle_id ? String(form.vehicle_id) : "none"} onValueChange={(v) => setForm(f => ({ ...f, vehicle_id: v === "none" ? null : Number(v) }))}>
-            <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select…" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">No vehicle</SelectItem>
-              {vehicles.map((v) => <SelectItem key={v.id} value={String(v.id)}>{v.name} ({v.passenger_capacity} pax)</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">No. of Vehicles</Label>
-          <Input type="number" min={1} value={form.num_vehicles} onChange={(e) => setForm(f => ({ ...f, num_vehicles: e.target.value }))} className="h-9 text-xs" />
-        </div>
-      </div>
       <div className="space-y-1.5">
         <Label className="text-xs">Notes</Label>
         <Input value={form.notes} onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))} className="h-9 text-xs" placeholder="Optional note…" />
@@ -744,17 +720,15 @@ function NoteEditForm({
 // ── Add forms ──────────────────────────────────────────────────────────────
 
 function AddTransferForm({
-  vehicles, pending, onSave, onCancel, stopCoords,
+  pending, onSave, onCancel, stopCoords,
 }: {
-  vehicles: VehicleOption[];
   pending: boolean;
   onSave: (data: TransferFormData) => void;
   onCancel: () => void;
   stopCoords?: { lat: number; lng: number };
 }) {
   const [form, setForm] = useState<TransferFormData>({
-    pickup: null, drop: null, vehicle_id: null,
-    num_vehicles: "1", notes: "",
+    pickup: null, drop: null, notes: "",
   });
   const isValid = !!form.pickup && !!form.drop;
 
@@ -787,22 +761,6 @@ function AddTransferForm({
           )}
         </div>
       )}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label className="text-xs">Vehicle</Label>
-          <Select value={form.vehicle_id ? String(form.vehicle_id) : "none"} onValueChange={(v) => setForm(f => ({ ...f, vehicle_id: v === "none" ? null : Number(v) }))}>
-            <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select vehicle…" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">No vehicle</SelectItem>
-              {vehicles.map((v) => <SelectItem key={v.id} value={String(v.id)}>{v.name} ({v.passenger_capacity} pax)</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">No. of Vehicles</Label>
-          <Input type="number" min={1} value={form.num_vehicles} onChange={(e) => setForm(f => ({ ...f, num_vehicles: e.target.value }))} className="h-9 text-xs" />
-        </div>
-      </div>
       <div className="space-y-1.5">
         <Label className="text-xs">Notes</Label>
         <Input value={form.notes} onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))} className="h-9 text-xs" placeholder="Optional note…" />
@@ -1470,14 +1428,10 @@ export function ItineraryDaySidebar({
   const [savingMeta, setSavingMeta] = useState(false);
   const [pending, setPending] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [vehicles, setVehicles] = useState<VehicleOption[]>([]);
   const [editPanel, setEditPanel] = useState<EditPanelState>(null);
   const [activeDragKind, setActiveDragKind] = useState<string | null>(null);
   const [attractionsOpen, setAttractionsOpen] = useState(false);
 
-  useEffect(() => {
-    handleGetVehicles().then((res) => { if (res.success) setVehicles(res.data); });
-  }, []);
 
   const timeline = useMemo(
     () => buildTimeline(transfers, activities, notes, stays, stayBlockOrder),
@@ -1881,10 +1835,9 @@ export function ItineraryDaySidebar({
                                     {item.data.route ? `${item.data.route.pickup_name} → ${item.data.route.drop_name}` : "Route not set"}
                                   </p>
                                   <p className="text-[10px] text-muted-foreground/60 truncate">
-                                    {[
-                                      item.data.vehicle?.name,
-                                      item.data.route?.distance_km != null ? `${item.data.route.distance_km} km` : null,
-                                    ].filter(Boolean).join(" · ") || "No details"}
+                                    {item.data.route?.distance_km != null
+                                      ? `${item.data.route.distance_km} km by road`
+                                      : "No details"}
                                   </p>
                                 </TimelineRowCard>
                               )}
@@ -1999,7 +1952,7 @@ export function ItineraryDaySidebar({
               <div className="flex-1 overflow-y-auto px-5 py-5">
                 {/* Add forms */}
                 {editPanel?.mode === "add" && editPanel.kind === "transfer" && (
-                  <AddTransferForm vehicles={vehicles} pending={pending} onSave={addTransfer} onCancel={() => setEditPanel(null)} stopCoords={stopCoords} />
+                  <AddTransferForm pending={pending} onSave={addTransfer} onCancel={() => setEditPanel(null)} stopCoords={stopCoords} />
                 )}
                 {editPanel?.mode === "add" && editPanel.kind === "activity" && (
                   <AddActivityForm destinationId={destinationId} pending={pending} onSave={addActivity} onCancel={() => setEditPanel(null)} />
@@ -2027,7 +1980,7 @@ export function ItineraryDaySidebar({
                 {/* Edit forms */}
                 {editPanel?.mode === "edit" && editPanelItem?.kind === "transfer" && (
                   <TransferEditForm
-                    item={editPanelItem.data} vehicles={vehicles} pending={pending}
+                    item={editPanelItem.data} pending={pending}
                     onSave={(data) => saveTransfer(editPanelItem.data.id, data)}
                     onCancel={() => setEditPanel(null)}
                     onDelete={() => deleteTransfer(editPanelItem.data.id)}

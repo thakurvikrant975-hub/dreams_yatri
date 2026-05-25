@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition, useCallback } from "react";
+import { useState, useTransition, useCallback, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Card, CardContent, CardHeader, CardTitle,
 } from "../../components/ui/card";
@@ -9,27 +10,30 @@ import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { Switch } from "../../components/ui/switch";
 import { Label } from "../../components/ui/label";
-import { Textarea } from "../../components/ui/textarea";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "../../components/ui/select";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
 } from "../../components/ui/alert-dialog";
 import {
+  Popover, PopoverContent, PopoverTrigger,
+} from "@/app/components/ui/popover";
+import {
   Loader2, Check, Percent, Settings2, Car, Plus, Trash2,
-  Wind, AlertTriangle, ChevronDown, ChevronRight, Pencil, MapPin,
+  Wind, AlertTriangle, Pencil,
+  CalendarDays, X, Star,
 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/app/lib/utils";
 import { handleUpsertPackagePricing } from "@/app/actions/packages/pricing.actions";
 import {
   createCabType, updateCabType, deleteCabType,
-  upsertCabSegment, deleteCabSegment,
+  upsertCabSegment, setDefaultCabType,
   getCabPricingOptionsForVehicle,
-  type CabPricingOption,
+  getAllCabPricingOptions,
+  type FullCabPricingOption,
 } from "@/app/actions/packages/cab-pricing.actions";
+import { SearchSelect, type Option } from "../../components/dashboard/SearchSelect";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -79,13 +83,14 @@ type CabType = {
   segments: CabSegment[];
 };
 
-type VehicleOption = {
-  id: number;
-  name: string;
-  type: string;
-  passenger_capacity: number;
-  has_ac: boolean;
-  fuel_type: string | null;
+type DayRange = { from: number; to: number };
+
+/** A group = all cab types whose first segment shares the same day range within a duration. */
+type CabGroup = {
+  groupKey: string; // `${dayFrom}-${dayTo}`
+  dayFrom: number;
+  dayTo: number;
+  cabTypes: CabType[];
 };
 
 type PricingTabProps = {
@@ -95,7 +100,7 @@ type PricingTabProps = {
   initialPricings: SavedPricing[];
   routes: { id: number; name: string; durationLabel: string }[];
   cabTypes: CabType[];
-  availableVehicles: VehicleOption[];
+  stopCoords: Array<{ lat: number; lng: number }>;
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -107,6 +112,26 @@ function overlaps(aFrom: number, aTo: number, bFrom: number, bTo: number) {
 function fmt(n: number) {
   return n.toLocaleString("en-IN");
 }
+
+/** Group flat cab-type list by first-segment day range, sorted by dayFrom. */
+function groupCabTypesByRange(cabTypes: CabType[]): CabGroup[] {
+  const map = new Map<string, CabGroup>();
+  for (const ct of cabTypes) {
+    const seg = ct.segments[0];
+    if (!seg) continue; // skip orphans
+    const key = `${seg.day_from}-${seg.day_to}`;
+    if (!map.has(key)) {
+      map.set(key, { groupKey: key, dayFrom: seg.day_from, dayTo: seg.day_to, cabTypes: [] });
+    }
+    map.get(key)!.cabTypes.push(ct);
+  }
+  return Array.from(map.values()).sort((a, b) => a.dayFrom - b.dayFrom);
+}
+
+// ── uid helper ─────────────────────────────────────────────────────────────
+
+let _uidSeq = 0;
+function uid() { return String(++_uidSeq); }
 
 // ── Margin/GST row ─────────────────────────────────────────────────────────
 
@@ -201,334 +226,414 @@ function PricingRow({
   );
 }
 
-// ── Segment pricing selector (loads options on demand) ─────────────────────
+// ── Day range picker ───────────────────────────────────────────────────────
 
-function SegmentPricingSelector({
-  vehicleId,
+function DayRangePicker({
+  totalDays,
   value,
   onChange,
-  disabled,
+  occupiedRanges = [],
+  disabled = false,
 }: {
-  vehicleId: number;
-  value: string;
-  onChange: (val: string) => void;
+  totalDays: number;
+  value: DayRange | undefined;
+  onChange: (range: DayRange | undefined) => void;
+  occupiedRanges?: Array<{ from: number; to: number }>;
   disabled?: boolean;
 }) {
-  const [options, setOptions] = useState<CabPricingOption[] | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [selecting, setSelecting] = useState<number | null>(null);
+  const [hoverDay, setHoverDay] = useState<number | null>(null);
 
-  async function handleOpen(open: boolean) {
-    if (open && options === null) {
-      setLoading(true);
-      const res = await getCabPricingOptionsForVehicle(vehicleId);
-      setLoading(false);
-      if (res.success) setOptions(res.data);
-      else toast.error(res.error);
+  function isOccupied(day: number): boolean {
+    return occupiedRanges.some((r) => r.from <= day && day <= r.to);
+  }
+
+  function isInRange(day: number): boolean {
+    if (!value || selecting !== null) return false;
+    return value.from <= day && day <= value.to;
+  }
+
+  function rangeHasOccupied(from: number, to: number): boolean {
+    for (let d = from; d <= to; d++) {
+      if (isOccupied(d)) return true;
+    }
+    return false;
+  }
+
+  const pendingFrom =
+    selecting !== null && hoverDay !== null ? Math.min(selecting, hoverDay) : null;
+  const pendingTo =
+    selecting !== null && hoverDay !== null ? Math.max(selecting, hoverDay) : null;
+  const pendingHasOccupied =
+    pendingFrom !== null && pendingTo !== null && rangeHasOccupied(pendingFrom, pendingTo);
+
+  function isInPendingRange(day: number): boolean {
+    if (pendingFrom === null || pendingTo === null) return false;
+    return pendingFrom <= day && day <= pendingTo;
+  }
+
+  function handleDayClick(day: number) {
+    if (isOccupied(day) || disabled) return;
+    if (selecting === null) {
+      setSelecting(day);
+    } else {
+      const from = Math.min(selecting, day);
+      const to = Math.max(selecting, day);
+      if (rangeHasOccupied(from, to)) {
+        setSelecting(day);
+        setHoverDay(null);
+        toast.error("Range crosses occupied days — pick a different end day");
+        return;
+      }
+      onChange({ from, to });
+      setSelecting(null);
+      setHoverDay(null);
+      setOpen(false);
     }
   }
 
+  function handleOpenChange(v: boolean) {
+    if (!disabled) {
+      setOpen(v);
+      if (!v) { setSelecting(null); setHoverDay(null); }
+    }
+  }
+
+  const triggerLabel = value ? `Day ${value.from} – Day ${value.to}` : undefined;
+
+  const rows: number[][] = [];
+  for (let i = 1; i <= totalDays; i += 7) {
+    rows.push(Array.from({ length: Math.min(7, totalDays - i + 1) }, (_, j) => i + j));
+  }
+
   return (
-    <Select value={value} onValueChange={onChange} onOpenChange={handleOpen} disabled={disabled}>
-      <SelectTrigger className="h-8 text-sm">
-        {loading
-          ? <span className="flex items-center gap-1 text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />Loading…</span>
-          : <SelectValue placeholder="Select pricing source…" />}
-      </SelectTrigger>
-      <SelectContent>
-        {options === null ? null : options.length === 0 ? (
-          <SelectItem value="__none" disabled>No pricing configured for this vehicle</SelectItem>
-        ) : (
-          options.map((o) => (
-            <SelectItem key={o.cab_pricing_id} value={String(o.cab_pricing_id)}>
-              {o.destination_name} · {o.pricing_type === "PER_DAY" ? "Per Day" : "Per Km"} · ₹{fmt(o.price)}
-              {o.seasons_count > 0 && ` · ${o.seasons_count} season${o.seasons_count > 1 ? "s" : ""}`}
-            </SelectItem>
-          ))
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          disabled={disabled}
+          className={cn(
+            "flex h-8 w-full items-center gap-2 rounded-md border bg-background px-3 text-sm",
+            "hover:bg-muted/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            "disabled:cursor-not-allowed disabled:opacity-50",
+            open && "ring-2 ring-ring",
+          )}
+        >
+          <CalendarDays className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <span className={cn("flex-1 text-left truncate", !triggerLabel && "text-muted-foreground")}>
+            {triggerLabel ?? `All days (1–${totalDays})`}
+          </span>
+          {value && (
+            <span
+              role="button"
+              tabIndex={-1}
+              onClick={(e) => { e.stopPropagation(); onChange(undefined); }}
+              className="ml-auto text-muted-foreground/50 hover:text-foreground transition-colors shrink-0 cursor-pointer"
+            >
+              <X className="h-3.5 w-3.5" />
+            </span>
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        sideOffset={6}
+        className="w-auto p-3 rounded-xl shadow-lg space-y-2.5"
+        style={{ minWidth: Math.min(7, totalDays) * 36 + 24 + "px" }}
+      >
+        <p className="text-[11px] text-muted-foreground leading-snug">
+          {selecting !== null ? (
+            <span>
+              <span className="text-dashboard-primary font-semibold">Day {selecting}</span>
+              {" "}selected — click end day
+            </span>
+          ) : "Click a day to begin selecting range"}
+        </p>
+        <div className="space-y-1">
+          {rows.map((row, ri) => (
+            <div key={ri} className="flex gap-1">
+              {row.map((day) => {
+                const occupied  = isOccupied(day);
+                const inSel     = isInRange(day);
+                const isStart   = value?.from === day;
+                const isEnd     = value?.to === day;
+                const isAnchor  = selecting === day;
+                const inPending = isInPendingRange(day);
+                const pendingOk  = inPending && !pendingHasOccupied;
+                const pendingBad = inPending && pendingHasOccupied;
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    disabled={occupied}
+                    onClick={() => handleDayClick(day)}
+                    onMouseEnter={() => !occupied && setHoverDay(day)}
+                    onMouseLeave={() => setHoverDay(null)}
+                    title={`Day ${day}${occupied ? " (occupied)" : ""}`}
+                    className={cn(
+                      "h-8 w-8 rounded-md text-[11px] font-medium transition-colors flex items-center justify-center select-none shrink-0",
+                      occupied && "opacity-30 line-through cursor-not-allowed text-muted-foreground bg-muted",
+                      !occupied && !inSel && !pendingOk && !pendingBad && !isAnchor
+                        && "bg-muted/50 hover:bg-dashboard-primary/20 cursor-pointer",
+                      !occupied && isAnchor && "bg-dashboard-primary text-white cursor-pointer shadow-sm",
+                      !occupied && !isAnchor && inSel && (isStart || isEnd)
+                        && "bg-dashboard-primary text-white cursor-pointer",
+                      !occupied && !isAnchor && inSel && !isStart && !isEnd
+                        && "bg-dashboard-primary/20 rounded-none cursor-pointer text-foreground",
+                      !occupied && !inSel && pendingOk && !isAnchor
+                        && "bg-dashboard-primary/15 cursor-pointer",
+                      !occupied && pendingBad
+                        && "bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 cursor-pointer",
+                    )}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+        {occupiedRanges.length > 0 && (
+          <p className="text-[10px] text-muted-foreground/70">
+            Greyed-out days are already assigned to other groups.
+          </p>
         )}
-      </SelectContent>
-    </Select>
+        <div className="flex items-center justify-between gap-2 pt-1 border-t">
+          <p className="text-[10px] text-muted-foreground">
+            {value
+              ? `Day ${value.from}–${value.to} · ${value.to - value.from + 1} day${value.to - value.from + 1 !== 1 ? "s" : ""}`
+              : "No range selected"}
+          </p>
+          <Button
+            type="button" size="sm"
+            disabled={!value}
+            onClick={() => { setOpen(false); setSelecting(null); }}
+            className="h-6 px-2.5 text-[11px] gap-1 bg-dashboard-primary text-white hover:bg-dashboard-primary/90"
+          >
+            <Check className="h-2.5 w-2.5" />Done
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
-// ── Segment form (inline add / edit) ──────────────────────────────────────
+// ── CabPricingSearchSelect — all vehicle+pricing combos (for creating new group) ──
 
-function SegmentForm({
-  packageId,
-  cabTypeId,
-  vehicleId,
-  durationDays,
-  existingSegments,
-  editingSegment,
-  onSaved,
-  onCancel,
+function CabPricingSearchSelect({
+  stopCoords,
+  excludeVehicleIds,
+  value,
+  onSelect,
+  disabled,
 }: {
-  packageId: number;
-  cabTypeId: number;
-  vehicleId: number;
-  durationDays: number;
-  existingSegments: CabSegment[];
-  editingSegment?: CabSegment;
-  onSaved: (seg: CabSegment) => void;
-  onCancel: () => void;
+  stopCoords: Array<{ lat: number; lng: number }>;
+  excludeVehicleIds: number[];
+  value: number | null;
+  onSelect: (option: FullCabPricingOption | null) => void;
+  disabled?: boolean;
 }) {
-  const [dayFrom, setDayFrom] = useState(String(editingSegment?.day_from ?? 1));
-  const [dayTo, setDayTo] = useState(String(editingSegment?.day_to ?? durationDays));
-  const [cabPricingId, setCabPricingId] = useState(
-    editingSegment ? String(editingSegment.cab_pricing.id) : ""
+  const optionsMapRef = useRef<Map<number, FullCabPricingOption>>(new Map());
+  const coordsRef     = useRef(stopCoords);
+  const excludeRef    = useRef(excludeVehicleIds);
+  useEffect(() => { coordsRef.current = stopCoords; });
+  useEffect(() => { excludeRef.current = excludeVehicleIds; });
+
+  const fetchOptions = useCallback(async (query: string): Promise<Option[]> => {
+    const res = await getAllCabPricingOptions({
+      stopCoords:        coordsRef.current,
+      excludeVehicleIds: excludeRef.current,
+      query:             query || undefined,
+    });
+    if (!res.success) return [];
+    const map = new Map<number, FullCabPricingOption>();
+    const opts = res.data.map((o) => {
+      map.set(o.cab_pricing_id, o);
+      return {
+        id:          o.cab_pricing_id,
+        label:       `${o.vehicle_name}${o.has_ac ? " · AC" : ""} · ${o.passenger_capacity} pax`,
+        description: `${o.destination_name} · ${o.pricing_type === "PER_DAY" ? "Per Day" : "Per Km"} · ₹${fmt(o.price)}`,
+      };
+    });
+    optionsMapRef.current = map;
+    return opts;
+  }, []);
+
+  function handleChange(val: number | null) {
+    if (val === null) { onSelect(null); return; }
+    onSelect(optionsMapRef.current.get(val) ?? null);
+  }
+
+  return (
+    <SearchSelect
+      value={value}
+      onChange={handleChange}
+      fetchOptions={fetchOptions}
+      placeholder="Search vehicle + destination…"
+      disabled={disabled}
+    />
   );
-  const [isPending, startTransition] = useTransition();
+}
 
-  const df = parseInt(dayFrom);
-  const dt = parseInt(dayTo);
-  const isValid = !isNaN(df) && !isNaN(dt) && df >= 1 && dt <= durationDays && df <= dt && !!cabPricingId;
+// ── VehiclePricingSearchSelect — pricing options for a known vehicle ───────
 
-  // Overlap detection (excluding self when editing)
-  const hasOverlap = !isNaN(df) && !isNaN(dt) && existingSegments.some((s) => {
-    if (editingSegment && s.id === editingSegment.id) return false;
-    return overlaps(df, dt, s.day_from, s.day_to);
-  });
+type VehiclePricingMeta = {
+  pricing_type: "PER_DAY" | "PER_KM";
+  price: number;
+  destination: { id: number; name: string };
+};
 
-  function handleSave() {
-    if (!isValid) return;
-    startTransition(async () => {
-      const res = await upsertCabSegment({
-        id: editingSegment?.id,
-        cab_type_id: cabTypeId,
-        package_id: packageId,
-        day_from: df,
-        day_to: dt,
-        cab_pricing_id: parseInt(cabPricingId),
+function VehiclePricingSearchSelect({
+  vehicleId,
+  value,
+  onChange,
+  initialLabel,
+  disabled,
+}: {
+  vehicleId: number;
+  value: number | null;
+  onChange: (val: number | null, meta: VehiclePricingMeta | null) => void;
+  initialLabel?: string;
+  disabled?: boolean;
+}) {
+  const vehicleIdRef  = useRef(vehicleId);
+  const optionsMapRef = useRef<Map<number, VehiclePricingMeta>>(new Map());
+  useEffect(() => { vehicleIdRef.current = vehicleId; });
+
+  const fetchOptions = useCallback(async (query: string): Promise<Option[]> => {
+    const res = await getCabPricingOptionsForVehicle(vehicleIdRef.current);
+    if (!res.success) return [];
+    let data = res.data;
+    if (query) {
+      const q = query.toLowerCase();
+      data = data.filter((o) => o.destination_name.toLowerCase().includes(q));
+    }
+    const map = new Map<number, VehiclePricingMeta>();
+    const opts = data.map((o) => {
+      map.set(o.cab_pricing_id, {
+        pricing_type: o.pricing_type,
+        price:        o.price,
+        destination:  { id: o.destination_id, name: o.destination_name },
       });
+      return {
+        id:          o.cab_pricing_id,
+        label:       o.destination_name,
+        description: `${o.pricing_type === "PER_DAY" ? "Per Day" : "Per Km"} · ₹${fmt(o.price)}${
+          o.seasons_count > 0 ? ` · ${o.seasons_count} season${o.seasons_count > 1 ? "s" : ""}` : ""
+        }`,
+      };
+    });
+    optionsMapRef.current = map;
+    return opts;
+  }, []);
+
+  function handleChange(val: number | null) {
+    onChange(val, val !== null ? (optionsMapRef.current.get(val) ?? null) : null);
+  }
+
+  return (
+    <SearchSelect
+      value={value}
+      onChange={handleChange}
+      fetchOptions={fetchOptions}
+      placeholder="Select pricing source…"
+      initialLabel={initialLabel}
+      disabled={disabled}
+    />
+  );
+}
+
+// ── CabOptionRow ───────────────────────────────────────────────────────────
+// One cab type row inside a CabGroupCard.
+// Editing changes only the pricing source (segment cab_pricing_id).
+
+function CabOptionRow({
+  cabType,
+  packageId,
+  onUpdated,
+  onDeleted,
+  onSetDefault,
+}: {
+  cabType: CabType;
+  packageId: number;
+  onUpdated: (updated: CabType) => void;
+  onDeleted: (id: number) => void;
+  onSetDefault: (id: number) => void;
+}) {
+  const [editing,         setEditing]         = useState(false);
+  const [editPricingId,   setEditPricingId]   = useState<number | null>(null);
+  const [editPricingMeta, setEditPricingMeta] = useState<VehiclePricingMeta | null>(null);
+  const [isPending,       startTransition]    = useTransition();
+  const router = useRouter();
+
+  const v   = cabType.vehicle;
+  const seg = cabType.segments[0];
+
+  function handleSetDefault() {
+    if (cabType.is_default || isPending) return;
+    startTransition(async () => {
+      // setDefaultCabType clears is_default ONLY for other members of the same
+      // group (same day range), so other groups keep their own defaults.
+      const res = await setDefaultCabType(cabType.id, packageId);
       if (res.success) {
-        // Build optimistic segment — we need to re-fetch or pass info back
-        // For now, trigger a page revalidation (server action does revalidatePath)
-        toast.success(editingSegment ? "Segment updated" : "Segment added");
-        // We'll get the updated data on next render via revalidation
-        // Pass back a partial shape so optimistic update works
-        onSaved({
-          id: res.id,
-          day_from: df,
-          day_to: dt,
-          sort_order: editingSegment?.sort_order ?? 0,
-          cab_pricing: editingSegment?.cab_pricing ?? {
-            id: parseInt(cabPricingId),
-            pricing_type: "PER_DAY",
-            price: 0,
-            destination: { id: 0, name: "—" },
-            seasons: [],
-          },
-        });
+        onSetDefault(cabType.id);
+        // Refresh server component so initialCabTypes is up-to-date.
+        // If the user switches tabs and comes back, the remounted component
+        // will receive the fresh default rather than the stale page-load snapshot.
+        router.refresh();
       } else {
         toast.error(res.error);
       }
     });
   }
-
-  return (
-    <div className="border rounded-lg p-3 space-y-3 bg-muted/10 mt-2">
-      {hasOverlap && (
-        <div className="flex items-center gap-2 text-amber-600 text-xs bg-amber-50 dark:bg-amber-950/30 rounded px-2 py-1.5">
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-          Day range overlaps with another segment
-        </div>
-      )}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        <div className="space-y-1">
-          <Label className="text-xs">Day From <span className="text-destructive">*</span></Label>
-          <Input
-            className="h-8 text-sm" type="number" min={1} max={durationDays}
-            value={dayFrom} onChange={(e) => setDayFrom(e.target.value)}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">Day To <span className="text-destructive">*</span></Label>
-          <Input
-            className="h-8 text-sm" type="number" min={1} max={durationDays}
-            value={dayTo} onChange={(e) => setDayTo(e.target.value)}
-          />
-        </div>
-        <div className="space-y-1 col-span-2">
-          <Label className="text-xs">Pricing Source <span className="text-destructive">*</span></Label>
-          <SegmentPricingSelector
-            vehicleId={vehicleId}
-            value={cabPricingId}
-            onChange={setCabPricingId}
-            disabled={isPending}
-          />
-        </div>
-      </div>
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={isPending}>Cancel</Button>
-        <Button
-          type="button" size="sm"
-          disabled={!isValid || hasOverlap || isPending}
-          onClick={handleSave}
-        >
-          {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Check className="h-3.5 w-3.5 mr-1" />{editingSegment ? "Update" : "Add"}</>}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-// ── Single segment row ─────────────────────────────────────────────────────
-
-function SegmentRow({
-  segment,
-  packageId,
-  durationDays,
-  allSegments,
-  vehicleId,
-  cabTypeId,
-  onDeleted,
-  onUpdated,
-}: {
-  segment: CabSegment;
-  packageId: number;
-  durationDays: number;
-  allSegments: CabSegment[];
-  vehicleId: number;
-  cabTypeId: number;
-  onDeleted: (id: number) => void;
-  onUpdated: (seg: CabSegment) => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [isPending, startTransition] = useTransition();
-
-  if (editing) {
-    return (
-      <SegmentForm
-        packageId={packageId}
-        cabTypeId={cabTypeId}
-        vehicleId={vehicleId}
-        durationDays={durationDays}
-        existingSegments={allSegments}
-        editingSegment={segment}
-        onSaved={(updated) => { onUpdated(updated); setEditing(false); }}
-        onCancel={() => setEditing(false)}
-      />
-    );
-  }
-
-  const { cab_pricing: cp } = segment;
-
-  return (
-    <div className="flex items-center gap-3 py-2 border-b last:border-0 text-sm">
-      <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-      <div className="flex-1 min-w-0">
-        <span className="font-medium">Day {segment.day_from}–{segment.day_to}</span>
-        <span className="text-muted-foreground mx-1.5">·</span>
-        <span className="text-muted-foreground">{cp.destination.name}</span>
-        <span className="text-muted-foreground mx-1.5">·</span>
-        <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-          {cp.pricing_type === "PER_DAY" ? "Per Day" : "Per Km"}
-        </Badge>
-        <span className="text-muted-foreground mx-1.5">·</span>
-        <span className="font-semibold text-green-700">₹{fmt(cp.price)}</span>
-        {cp.pricing_type === "PER_DAY" ? "/day" : "/km"}
-        {cp.seasons.length > 0 && (
-          <Badge variant="secondary" className="ml-2 text-[10px] px-1.5 py-0">
-            {cp.seasons.length} season{cp.seasons.length > 1 ? "s" : ""}
-          </Badge>
-        )}
-      </div>
-      <Button
-        type="button" variant="ghost" size="icon" className="h-7 w-7"
-        onClick={() => setEditing(true)} disabled={isPending}
-      >
-        <Pencil className="h-3 w-3" />
-      </Button>
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button
-            type="button" variant="ghost" size="icon"
-            className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-            disabled={isPending}
-          >
-            <Trash2 className="h-3 w-3" />
-          </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove Segment</AlertDialogTitle>
-            <AlertDialogDescription>
-              Remove day {segment.day_from}–{segment.day_to} ({cp.destination.name}) from this cab type?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                startTransition(async () => {
-                  const res = await deleteCabSegment(segment.id, packageId);
-                  if (res.success) onDeleted(segment.id);
-                  else toast.error(res.error);
-                });
-              }}
-              className="bg-destructive text-white hover:bg-destructive/90"
-            >
-              Remove
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
-  );
-}
-
-// ── Cab type card ──────────────────────────────────────────────────────────
-
-function CabTypeCard({
-  cabType,
-  packageId,
-  durationDays,
-  durationLabel,
-  onDeleted,
-  onUpdated,
-}: {
-  cabType: CabType;
-  packageId: number;
-  durationDays: number;
-  durationLabel: string;
-  onDeleted: (id: number) => void;
-  onUpdated: (updated: CabType) => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const [addingSegment, setAddingSegment] = useState(false);
-  const [editingLabel, setEditingLabel] = useState(false);
-  const [labelVal, setLabelVal] = useState(cabType.label ?? "");
-  const [noteVal, setNoteVal] = useState(cabType.note ?? "");
-  const [segments, setSegments] = useState(cabType.segments);
-  const [isPending, startTransition] = useTransition();
-
-  const v = cabType.vehicle;
 
   function handleToggleActive(val: boolean) {
     startTransition(async () => {
       const res = await updateCabType(cabType.id, packageId, { is_active: val });
-      if (res.success) onUpdated({ ...cabType, is_active: val, segments });
-      else toast.error(res.error);
+      if (res.success) {
+        onUpdated({ ...cabType, is_active: val });
+        router.refresh();
+      } else {
+        toast.error(res.error);
+      }
     });
   }
 
-  function handleToggleDefault() {
-    startTransition(async () => {
-      const res = await updateCabType(cabType.id, packageId, { is_default: !cabType.is_default });
-      if (res.success) onUpdated({ ...cabType, is_default: !cabType.is_default, segments });
-      else toast.error(res.error);
-    });
+  function startEdit() {
+    setEditPricingId(seg?.cab_pricing.id ?? null);
+    setEditPricingMeta(null);
+    setEditing(true);
   }
 
-  function handleSaveLabelNote() {
+  function cancelEdit() {
+    setEditing(false);
+    setEditPricingId(null);
+    setEditPricingMeta(null);
+  }
+
+  function handleSaveEdit() {
+    if (!editPricingId || !seg) return;
     startTransition(async () => {
-      const res = await updateCabType(cabType.id, packageId, {
-        label: labelVal.trim() || null,
-        note: noteVal.trim() || null,
+      const res = await upsertCabSegment({
+        id:             seg.id,
+        cab_type_id:    cabType.id,
+        package_id:     packageId,
+        day_from:       seg.day_from,
+        day_to:         seg.day_to,
+        cab_pricing_id: editPricingId,
       });
       if (res.success) {
-        onUpdated({ ...cabType, label: labelVal.trim() || null, note: noteVal.trim() || null, segments });
-        setEditingLabel(false);
-        toast.success("Updated");
+        toast.success("Pricing source updated");
+        const updatedSeg: CabSegment = {
+          ...seg,
+          cab_pricing: editPricingMeta
+            ? { id: editPricingId, pricing_type: editPricingMeta.pricing_type, price: editPricingMeta.price, destination: editPricingMeta.destination, seasons: seg.cab_pricing.seasons }
+            : { ...seg.cab_pricing, id: editPricingId },
+        };
+        onUpdated({ ...cabType, segments: [updatedSeg, ...cabType.segments.slice(1)] });
+        setEditing(false);
+        router.refresh();
       } else {
         toast.error(res.error);
       }
@@ -536,253 +641,221 @@ function CabTypeCard({
   }
 
   return (
-    <Card className="mb-3">
-      {/* Header row */}
-      <div
-        className="flex items-center gap-3 px-4 py-3 cursor-pointer select-none"
-        onClick={() => setExpanded((e) => !e)}
+    <div
+      className={cn(
+        "flex items-center gap-2 px-4 py-3 transition-colors border-t first:border-t-0",
+        cabType.is_default && "bg-dashboard-primary/5",
+        !cabType.is_active && "opacity-60",
+      )}
+    >
+      {/* Default star */}
+      <button
+        type="button"
+        disabled={isPending || cabType.is_default}
+        onClick={handleSetDefault}
+        title={cabType.is_default ? "Default option" : "Set as default"}
+        className={cn(
+          "shrink-0 rounded-md p-1 transition-colors",
+          cabType.is_default
+            ? "text-dashboard-primary cursor-default"
+            : "text-muted-foreground/30 hover:text-dashboard-primary cursor-pointer",
+        )}
       >
-        {expanded ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
-        <Car className="h-4 w-4 text-primary shrink-0" />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-semibold">{cabType.label ?? v.name}</span>
-            {cabType.label && <span className="text-xs text-muted-foreground">({v.name})</span>}
-            {v.has_ac && <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-0.5"><Wind className="h-2.5 w-2.5" />AC</Badge>}
-            <span className="text-xs text-muted-foreground">{v.passenger_capacity} pax</span>
-            {cabType.is_default && <Badge className="text-[10px] px-1.5 py-0 bg-primary/10 text-primary border-primary/20">Default</Badge>}
-            {!cabType.is_active && <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Inactive</Badge>}
-          </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {segments.length} segment{segments.length !== 1 ? "s" : ""} · {durationLabel}
-          </p>
+        <Star className={cn("h-4 w-4", cabType.is_default && "fill-dashboard-primary")} />
+      </button>
+
+      {/* Vehicle + pricing info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-sm font-medium leading-tight">{cabType.label ?? v.name}</span>
+          {v.has_ac && (
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-0.5">
+              <Wind className="h-2.5 w-2.5" />AC
+            </Badge>
+          )}
+          <span className="text-[11px] text-muted-foreground">{v.passenger_capacity} pax</span>
+          {cabType.is_default && (
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-dashboard-primary/40 text-dashboard-primary">
+              Default
+            </Badge>
+          )}
+          {!cabType.is_active && (
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Inactive</Badge>
+          )}
         </div>
-        {/* Right-side controls (stop propagation so card click doesn't toggle expand) */}
-        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          <Switch
-            checked={cabType.is_active}
-            onCheckedChange={handleToggleActive}
-            disabled={isPending}
-          />
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                type="button" variant="ghost" size="icon"
-                className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+
+        {editing ? (
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <div className="flex-1 min-w-0">
+              <VehiclePricingSearchSelect
+                vehicleId={v.id}
+                value={editPricingId}
+                onChange={(val, meta) => { setEditPricingId(val); setEditPricingMeta(meta); }}
+                initialLabel={seg?.cab_pricing.destination.name}
                 disabled={isPending}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Remove Cab Type</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Remove <span className="font-semibold">{cabType.label ?? v.name}</span> from {durationLabel}? All its segments will be deleted.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => {
-                    startTransition(async () => {
-                      const res = await deleteCabType(cabType.id, packageId);
-                      if (res.success) onDeleted(cabType.id);
-                      else toast.error(res.error);
-                    });
-                  }}
-                  className="bg-destructive text-white hover:bg-destructive/90"
-                >
-                  Remove
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
+              />
+            </div>
+            <Button
+              type="button" size="sm"
+              className="h-7 px-2.5 text-xs shrink-0 gap-1"
+              onClick={handleSaveEdit}
+              disabled={isPending || !editPricingId || editPricingId === seg?.cab_pricing.id}
+            >
+              {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Check className="h-3 w-3" />Save</>}
+            </Button>
+            <Button
+              type="button" variant="ghost" size="sm"
+              className="h-7 px-2 shrink-0"
+              onClick={cancelEdit}
+              disabled={isPending}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        ) : (
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            {seg
+              ? `${seg.cab_pricing.destination.name} · ${seg.cab_pricing.pricing_type === "PER_DAY" ? "Per Day" : "Per Km"} · ₹${fmt(seg.cab_pricing.price)}${seg.cab_pricing.seasons.length > 0 ? ` · ${seg.cab_pricing.seasons.length} season${seg.cab_pricing.seasons.length > 1 ? "s" : ""}` : ""}`
+              : "No pricing configured"}
+          </p>
+        )}
       </div>
 
-      {/* Expanded body */}
-      {expanded && (
-        <CardContent className="px-4 pt-0 pb-4 border-t space-y-4">
-          {/* Label / Note editor */}
-          {editingLabel ? (
-            <div className="space-y-2 pt-2">
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <Label className="text-xs">Display Label</Label>
-                  <Input
-                    className="h-8 text-sm" placeholder={v.name}
-                    value={labelVal} onChange={(e) => setLabelVal(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Set as Default</Label>
-                  <div className="flex items-center gap-2 h-8">
-                    <Switch
-                      checked={cabType.is_default}
-                      onCheckedChange={handleToggleDefault}
-                      disabled={isPending}
-                    />
-                    <span className="text-xs text-muted-foreground">
-                      {cabType.is_default ? "Default option" : "Not default"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Restriction Note <span className="text-muted-foreground">(optional)</span></Label>
-                <Textarea
-                  className="text-sm min-h-[60px] resize-none"
-                  placeholder="e.g. 4x4 required in border areas; standard cab available elsewhere"
-                  value={noteVal}
-                  onChange={(e) => setNoteVal(e.target.value)}
-                />
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="ghost" size="sm" onClick={() => { setEditingLabel(false); setLabelVal(cabType.label ?? ""); setNoteVal(cabType.note ?? ""); }}>
-                  Cancel
-                </Button>
-                <Button type="button" size="sm" onClick={handleSaveLabelNote} disabled={isPending}>
-                  {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-start justify-between gap-2 pt-2">
-              <div>
-                {cabType.note && (
-                  <p className="text-xs text-muted-foreground italic">
-                    📌 {cabType.note}
-                  </p>
-                )}
-              </div>
-              <Button
-                type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 shrink-0"
-                onClick={() => setEditingLabel(true)}
-              >
-                <Pencil className="h-3 w-3" />Edit
-              </Button>
-            </div>
-          )}
-
-          {/* Segments */}
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Day Segments</p>
-            {segments.length === 0 ? (
-              <p className="text-xs text-muted-foreground py-2">No segments yet. Add one below.</p>
-            ) : (
-              segments.map((seg) => (
-                <SegmentRow
-                  key={seg.id}
-                  segment={seg}
-                  packageId={packageId}
-                  durationDays={durationDays}
-                  allSegments={segments}
-                  vehicleId={cabType.vehicle_id}
-                  cabTypeId={cabType.id}
-                  onDeleted={(id) => setSegments((prev) => prev.filter((s) => s.id !== id))}
-                  onUpdated={(updated) => setSegments((prev) => prev.map((s) => s.id === updated.id ? updated : s))}
-                />
-              ))
-            )}
-
-            {addingSegment ? (
-              <SegmentForm
-                packageId={packageId}
-                cabTypeId={cabType.id}
-                vehicleId={cabType.vehicle_id}
-                durationDays={durationDays}
-                existingSegments={segments}
-                onSaved={(seg) => { setSegments((prev) => [...prev, seg]); setAddingSegment(false); }}
-                onCancel={() => setAddingSegment(false)}
-              />
-            ) : (
-              <Button
-                type="button" variant="outline" size="sm" className="mt-2 h-7 text-xs gap-1"
-                onClick={() => setAddingSegment(true)}
-              >
-                <Plus className="h-3 w-3" />Add Segment
-              </Button>
-            )}
-          </div>
-        </CardContent>
+      {/* Active toggle */}
+      {!editing && (
+        <Switch
+          checked={cabType.is_active}
+          onCheckedChange={handleToggleActive}
+          disabled={isPending}
+          className="shrink-0"
+        />
       )}
-    </Card>
+
+      {/* Edit button */}
+      {!editing && (
+        <button
+          type="button"
+          onClick={startEdit}
+          disabled={isPending}
+          title="Edit pricing source"
+          className="shrink-0 rounded-md p-1.5 text-muted-foreground/40 hover:bg-muted hover:text-foreground transition-colors disabled:cursor-not-allowed"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+      )}
+
+      {/* Delete */}
+      {!editing && (
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <button
+              type="button"
+              disabled={isPending}
+              className="shrink-0 rounded-md p-1.5 text-muted-foreground/40 hover:bg-destructive/10 hover:text-destructive transition-colors disabled:cursor-not-allowed disabled:opacity-30"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remove Cab Option</AlertDialogTitle>
+              <AlertDialogDescription>
+                Remove <span className="font-semibold">{cabType.label ?? v.name}</span> from this group?
+                This cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  startTransition(async () => {
+                    const res = await deleteCabType(cabType.id, packageId);
+                    if (res.success) { onDeleted(cabType.id); router.refresh(); }
+                    else toast.error(res.error);
+                  });
+                }}
+                className="bg-destructive text-white hover:bg-destructive/90"
+              >
+                Remove
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+    </div>
   );
 }
 
-// ── Add cab type form ──────────────────────────────────────────────────────
+// ── AddOptionToGroupForm ───────────────────────────────────────────────────
+// Adds one more cab option to an existing group (day range is pre-set).
 
-function AddCabTypeForm({
+function AddOptionToGroupForm({
   packageId,
   duration,
-  availableVehicles,
+  groupRange,
+  stopCoords,
   existingVehicleIds,
   onAdded,
   onCancel,
 }: {
   packageId: number;
-  duration: Duration;
-  availableVehicles: VehicleOption[];
+  duration: { id: number; days: number };
+  groupRange: { from: number; to: number };
+  stopCoords: Array<{ lat: number; lng: number }>;
   existingVehicleIds: Set<number>;
   onAdded: (cabType: CabType) => void;
   onCancel: () => void;
 }) {
-  const [vehicleId, setVehicleId] = useState<string>("");
-  const [cabPricingId, setCabPricingId] = useState<string>("");
-  const [label, setLabel] = useState("");
-  const [isPending, startTransition] = useTransition();
-
-  const eligible = availableVehicles.filter((v) => !existingVehicleIds.has(v.id));
-  const selectedVehicle = eligible.find((v) => v.id === parseInt(vehicleId));
-  const isValid = !!vehicleId && !!cabPricingId;
+  const [option,     setOption]     = useState<FullCabPricingOption | null>(null);
+  const [isPending,  startTransition] = useTransition();
+  const router = useRouter();
+  const dayCount = groupRange.to - groupRange.from + 1;
 
   function handleCreate() {
-    if (!isValid || !selectedVehicle) return;
+    if (!option) return;
     startTransition(async () => {
       const res = await createCabType({
-        package_id: packageId,
+        package_id:  packageId,
         duration_id: duration.id,
-        vehicle_id: selectedVehicle.id,
-        label: label.trim() || null,
-        is_default: false,
+        vehicle_id:  option.vehicle_id,
+        is_default:  false,
         segments: [{
-          day_from: 1,
-          day_to: duration.days,
-          cab_pricing_id: parseInt(cabPricingId),
-          sort_order: 0,
+          day_from:       groupRange.from,
+          day_to:         groupRange.to,
+          cab_pricing_id: option.cab_pricing_id,
+          sort_order:     0,
         }],
       });
       if (res.success) {
-        toast.success("Cab type added");
+        toast.success("Option added to group");
+        router.refresh();
         onAdded({
-          id: res.id,
+          id:          res.id,
           duration_id: duration.id,
-          vehicle_id: selectedVehicle.id,
-          label: label.trim() || null,
-          note: null,
-          is_default: false,
-          is_active: true,
-          sort_order: 0,
+          vehicle_id:  option.vehicle_id,
+          label:       null,
+          note:        null,
+          is_default:  false,
+          is_active:   true,
+          sort_order:  0,
           vehicle: {
-            id: selectedVehicle.id,
-            name: selectedVehicle.name,
-            type: selectedVehicle.type,
-            passenger_capacity: selectedVehicle.passenger_capacity,
-            has_ac: selectedVehicle.has_ac,
+            id:                 option.vehicle_id,
+            name:               option.vehicle_name,
+            type:               option.vehicle_type,
+            passenger_capacity: option.passenger_capacity,
+            has_ac:             option.has_ac,
           },
-          // Segments will be updated after revalidation — show placeholder
           segments: [{
-            id: 0,
-            day_from: 1,
-            day_to: duration.days,
+            id:         res.id,
+            day_from:   groupRange.from,
+            day_to:     groupRange.to,
             sort_order: 0,
             cab_pricing: {
-              id: parseInt(cabPricingId),
-              pricing_type: "PER_DAY",
-              price: 0,
-              destination: { id: 0, name: "—" },
-              seasons: [],
+              id:           option.cab_pricing_id,
+              pricing_type: option.pricing_type,
+              price:        option.price,
+              destination:  { id: option.destination_id, name: option.destination_name },
+              seasons:      [],
             },
           }],
         });
@@ -793,77 +866,547 @@ function AddCabTypeForm({
   }
 
   return (
-    <div className="border rounded-lg p-3 space-y-3 bg-muted/10">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-        <div className="space-y-1">
-          <Label className="text-xs">Vehicle <span className="text-destructive">*</span></Label>
-          <Select value={vehicleId} onValueChange={(v) => { setVehicleId(v); setCabPricingId(""); }}>
-            <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select vehicle…" /></SelectTrigger>
-            <SelectContent>
-              {eligible.length === 0
-                ? <SelectItem value="__none" disabled>All vehicles already added</SelectItem>
-                : eligible.map((v) => (
-                    <SelectItem key={v.id} value={String(v.id)}>
-                      {v.name} ({v.passenger_capacity} pax{v.has_ac ? " · AC" : ""})
-                    </SelectItem>
-                  ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">Pricing Source (Day 1–{duration.days}) <span className="text-destructive">*</span></Label>
-          {vehicleId ? (
-            <SegmentPricingSelector
-              vehicleId={parseInt(vehicleId)}
-              value={cabPricingId}
-              onChange={setCabPricingId}
-              disabled={isPending}
-            />
-          ) : (
-            <Select disabled>
-              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select vehicle first…" /></SelectTrigger>
-              <SelectContent />
-            </Select>
-          )}
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">Display Label <span className="text-muted-foreground">(optional)</span></Label>
-          <Input
-            className="h-8 text-sm" placeholder={selectedVehicle?.name ?? "e.g. Standard SUV"}
-            value={label} onChange={(e) => setLabel(e.target.value)}
+    <div className="px-4 py-3 border-t bg-muted/10">
+      <div className="flex items-start gap-2">
+        <div className="flex-1 min-w-0 space-y-1.5">
+          <div className="flex items-center gap-1.5">
+            <Badge variant="secondary" className="text-[10px] gap-1">
+              <CalendarDays className="h-2.5 w-2.5" />
+              Day {groupRange.from}–{groupRange.to} · {dayCount} day{dayCount !== 1 ? "s" : ""}
+            </Badge>
+            <span className="text-[10px] text-muted-foreground">inherited from group</span>
+          </div>
+          <CabPricingSearchSelect
+            stopCoords={stopCoords}
+            excludeVehicleIds={Array.from(existingVehicleIds)}
+            value={option?.cab_pricing_id ?? null}
+            onSelect={setOption}
+            disabled={isPending}
           />
         </div>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        A single segment (Day 1–{duration.days}) will be created. You can add more segments after saving.
-      </p>
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={isPending}>Cancel</Button>
-        <Button type="button" size="sm" disabled={!isValid || isPending} onClick={handleCreate}>
-          {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Check className="h-3.5 w-3.5 mr-1" />Add Cab Type</>}
-        </Button>
+        <div className="flex gap-1.5 pt-6 shrink-0">
+          <Button type="button" variant="ghost" size="sm" className="h-8" onClick={onCancel} disabled={isPending}>
+            Cancel
+          </Button>
+          <Button type="button" size="sm" className="h-8 gap-1" onClick={handleCreate} disabled={!option || isPending}>
+            {isPending
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              : <><Check className="h-3 w-3" />Add</>}
+          </Button>
+        </div>
       </div>
     </div>
   );
 }
 
-// ── Cab types section per duration ─────────────────────────────────────────
+// ── CabGroupCard ───────────────────────────────────────────────────────────
+// Displays one group: shared day range header + list of CabOptionRow.
+
+function CabGroupCard({
+  group,
+  packageId,
+  duration,
+  stopCoords,
+  otherGroupRanges,
+  onGroupRangeChanged,
+  onCabTypeDeleted,
+  onCabTypeUpdated,
+  onSetDefault,
+  onOptionAdded,
+}: {
+  group: CabGroup;
+  packageId: number;
+  duration: Duration;
+  stopCoords: Array<{ lat: number; lng: number }>;
+  otherGroupRanges: Array<{ from: number; to: number }>;
+  onGroupRangeChanged: (groupKey: string, newFrom: number, newTo: number) => void;
+  onCabTypeDeleted: (cabTypeId: number) => void;
+  onCabTypeUpdated: (updated: CabType) => void;
+  onSetDefault: (cabTypeId: number) => void;
+  onOptionAdded: (cabType: CabType) => void;
+}) {
+  const [editingRange,  setEditingRange]  = useState(false);
+  const [pendingRange,  setPendingRange]  = useState<DayRange>({ from: group.dayFrom, to: group.dayTo });
+  const [addingOption,  setAddingOption]  = useState(false);
+  const [isPending,     startTransition]  = useTransition();
+  const router = useRouter();
+
+  const dayCount = group.dayTo - group.dayFrom + 1;
+  const existingVehicleIds = new Set(group.cabTypes.map((ct) => ct.vehicle_id));
+
+  function handleSaveRange() {
+    startTransition(async () => {
+      const results = await Promise.all(
+        group.cabTypes.flatMap((ct) => {
+          const seg = ct.segments[0];
+          if (!seg) return [];
+          return [upsertCabSegment({
+            id:             seg.id,
+            cab_type_id:    ct.id,
+            package_id:     packageId,
+            day_from:       pendingRange.from,
+            day_to:         pendingRange.to,
+            cab_pricing_id: seg.cab_pricing.id,
+          })];
+        }),
+      );
+      const failed = results.filter((r) => !r.success).length;
+      if (failed > 0) {
+        toast.error(`${failed} update${failed > 1 ? "s" : ""} failed`);
+      } else {
+        toast.success(
+          group.cabTypes.length > 1
+            ? `Day range updated for all ${group.cabTypes.length} options in this group`
+            : "Day range updated",
+        );
+        onGroupRangeChanged(group.groupKey, pendingRange.from, pendingRange.to);
+        setEditingRange(false);
+        router.refresh();
+      }
+    });
+  }
+
+  function cancelRangeEdit() {
+    setEditingRange(false);
+    setPendingRange({ from: group.dayFrom, to: group.dayTo });
+  }
+
+  const rangeChanged =
+    pendingRange.from !== group.dayFrom || pendingRange.to !== group.dayTo;
+
+  return (
+    <div className="rounded-xl border overflow-hidden mb-3 bg-background shadow-sm">
+      {/* ── Group header ── */}
+      <div className="flex items-center gap-3 px-4 py-2.5 bg-muted/30 border-b">
+        <CalendarDays className="h-4 w-4 text-primary shrink-0" />
+
+        {editingRange ? (
+          /* Range editor mode */
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <div className="w-52 shrink-0">
+              <DayRangePicker
+                totalDays={duration.days}
+                value={pendingRange}
+                onChange={(r) => r && setPendingRange(r)}
+                occupiedRanges={otherGroupRanges}
+                disabled={isPending}
+              />
+            </div>
+            {group.cabTypes.length > 1 && (
+              <span className="text-[10px] text-muted-foreground shrink-0 hidden sm:block">
+                Updates all {group.cabTypes.length} options
+              </span>
+            )}
+            {rangeChanged && (
+              <Badge variant="outline" className="text-[10px] shrink-0 gap-1 text-amber-600 border-amber-400/50">
+                <AlertTriangle className="h-2.5 w-2.5" />Changed
+              </Badge>
+            )}
+            <div className="flex gap-1.5 ml-auto shrink-0">
+              <Button
+                type="button" size="sm"
+                className="h-7 px-2.5 text-xs gap-1"
+                onClick={handleSaveRange}
+                disabled={!rangeChanged || isPending}
+              >
+                {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Check className="h-3 w-3" />Save</>}
+              </Button>
+              <Button
+                type="button" variant="ghost" size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={cancelRangeEdit}
+                disabled={isPending}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          /* Display mode */
+          <>
+            <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+              <span className="font-semibold text-sm">
+                Day {group.dayFrom}–{group.dayTo}
+              </span>
+              <span className="text-[11px] text-muted-foreground">
+                {dayCount} day{dayCount !== 1 ? "s" : ""}
+              </span>
+              <Badge variant="secondary" className="text-[10px]">
+                {group.cabTypes.length} option{group.cabTypes.length !== 1 ? "s" : ""}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-0.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => { setPendingRange({ from: group.dayFrom, to: group.dayTo }); setEditingRange(true); }}
+                className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              >
+                <Pencil className="h-3 w-3" />Edit Range
+              </button>
+              {!addingOption && (
+                <button
+                  type="button"
+                  onClick={() => setAddingOption(true)}
+                  className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                >
+                  <Plus className="h-3 w-3" />Add Option
+                </button>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* ── Options list ── */}
+      <div>
+        {group.cabTypes.length === 0 && !addingOption ? (
+          <p className="text-xs text-muted-foreground text-center py-4 px-4">
+            No options. Use <strong>Add Option</strong> above.
+          </p>
+        ) : (
+          group.cabTypes.map((ct) => (
+            <CabOptionRow
+              key={ct.id}
+              cabType={ct}
+              packageId={packageId}
+              onUpdated={onCabTypeUpdated}
+              onDeleted={onCabTypeDeleted}
+              onSetDefault={onSetDefault}
+            />
+          ))
+        )}
+
+        {addingOption && (
+          <AddOptionToGroupForm
+            packageId={packageId}
+            duration={duration}
+            groupRange={{ from: group.dayFrom, to: group.dayTo }}
+            stopCoords={stopCoords}
+            existingVehicleIds={existingVehicleIds}
+            onAdded={(ct) => { onOptionAdded(ct); setAddingOption(false); }}
+            onCancel={() => setAddingOption(false)}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── AddCabTypeForm ─────────────────────────────────────────────────────────
+// Creates a NEW group: shared day range + one or more cab options at once.
+
+type SelectedCab = {
+  uid: string;
+  option: FullCabPricingOption | null;
+  isDefault: boolean;
+};
+
+function AddCabTypeForm({
+  packageId,
+  duration,
+  stopCoords,
+  existingVehicleIds,
+  occupiedRanges,
+  onAdded,
+  onCancel,
+}: {
+  packageId: number;
+  duration: Duration;
+  stopCoords: Array<{ lat: number; lng: number }>;
+  existingVehicleIds: Set<number>;
+  occupiedRanges: Array<{ from: number; to: number }>;
+  onAdded: (cabTypes: CabType[]) => void;
+  onCancel: () => void;
+}) {
+  const [rows, setRows] = useState<SelectedCab[]>(() => [
+    { uid: uid(), option: null, isDefault: true },
+  ]);
+  const [dayRange, setDayRange] = useState<DayRange | undefined>(() => {
+    const full = { from: 1, to: duration.days };
+    const hasConflict = occupiedRanges.some((r) => overlaps(1, duration.days, r.from, r.to));
+    return hasConflict ? undefined : full;
+  });
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
+
+  function setRowOption(rowUid: string, option: FullCabPricingOption | null) {
+    setRows((prev) => prev.map((r) => r.uid === rowUid ? { ...r, option } : r));
+  }
+
+  function setRowDefault(rowUid: string) {
+    setRows((prev) => prev.map((r) => ({ ...r, isDefault: r.uid === rowUid })));
+  }
+
+  function addRow() {
+    setRows((prev) => [...prev, { uid: uid(), option: null, isDefault: false }]);
+  }
+
+  function removeRow(rowUid: string) {
+    setRows((prev) => {
+      const next = prev.filter((r) => r.uid !== rowUid);
+      if (next.length > 0 && !next.some((r) => r.isDefault)) {
+        next[0] = { ...next[0], isDefault: true };
+      }
+      return next;
+    });
+  }
+
+  function excludeFor(rowUid: string): number[] {
+    return [
+      ...Array.from(existingVehicleIds),
+      ...rows
+        .filter((r) => r.uid !== rowUid && r.option !== null)
+        .map((r) => r.option!.vehicle_id),
+    ];
+  }
+
+  const validRows = rows.filter((r) => r.option !== null);
+  const isValid   = validRows.length > 0 && dayRange !== undefined;
+
+  function handleCreate() {
+    if (!isValid || !dayRange) return;
+    startTransition(async () => {
+      const results = await Promise.all(
+        validRows.map((r) =>
+          createCabType({
+            package_id:  packageId,
+            duration_id: duration.id,
+            vehicle_id:  r.option!.vehicle_id,
+            is_default:  r.isDefault,
+            segments: [{
+              day_from:       dayRange.from,
+              day_to:         dayRange.to,
+              cab_pricing_id: r.option!.cab_pricing_id,
+              sort_order:     0,
+            }],
+          }),
+        ),
+      );
+
+      const failed    = results.filter((r) => !r.success).length;
+      const newTypes: CabType[] = results
+        .map((res, i) => ({ res, row: validRows[i] }))
+        .filter(({ res }) => res.success)
+        .map(({ res, row }) => {
+          if (!res.success) return null as never;
+          return {
+            id:          res.id,
+            duration_id: duration.id,
+            vehicle_id:  row.option!.vehicle_id,
+            label:       null,
+            note:        null,
+            is_default:  row.isDefault,
+            is_active:   true,
+            sort_order:  0,
+            vehicle: {
+              id:                 row.option!.vehicle_id,
+              name:               row.option!.vehicle_name,
+              type:               row.option!.vehicle_type,
+              passenger_capacity: row.option!.passenger_capacity,
+              has_ac:             row.option!.has_ac,
+            },
+            segments: [{
+              id:         0,
+              day_from:   dayRange.from,
+              day_to:     dayRange.to,
+              sort_order: 0,
+              cab_pricing: {
+                id:           row.option!.cab_pricing_id,
+                pricing_type: row.option!.pricing_type,
+                price:        row.option!.price,
+                destination:  { id: row.option!.destination_id, name: row.option!.destination_name },
+                seasons:      [],
+              },
+            }],
+          };
+        });
+
+      if (failed > 0)          toast.error(`${failed} option${failed > 1 ? "s" : ""} failed to save`);
+      if (newTypes.length > 0) {
+        toast.success(`Group created · ${newTypes.length} option${newTypes.length > 1 ? "s" : ""} added`);
+        router.refresh();
+        onAdded(newTypes);
+      }
+    });
+  }
+
+  return (
+    <div className="border rounded-xl p-3 space-y-3 bg-muted/10">
+      {/* Shared day range */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-1">
+        <div className="space-y-1">
+          <Label className="text-xs">
+            Group Day Range <span className="text-destructive">*</span>
+          </Label>
+          <DayRangePicker
+            totalDays={duration.days}
+            value={dayRange}
+            onChange={(r) => setDayRange(r)}
+            occupiedRanges={occupiedRanges}
+            disabled={isPending}
+          />
+          <p className="text-[10px] text-muted-foreground">
+            All options below share this range and form one group.
+          </p>
+        </div>
+      </div>
+
+      {/* Cab option rows */}
+      <div className="space-y-2">
+        <Label className="text-xs">
+          Cab Options <span className="text-destructive">*</span>
+          <span className="text-muted-foreground font-normal ml-1">— vehicles customers can choose from</span>
+        </Label>
+
+        {rows.map((row, idx) => (
+          <div
+            key={row.uid}
+            className={cn(
+              "flex items-start gap-2 rounded-lg border p-2.5 transition-colors",
+              row.isDefault
+                ? "border-dashboard-primary/40 bg-dashboard-primary/5"
+                : "border-border bg-background",
+            )}
+          >
+            <span className="mt-2 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground">
+              {idx + 1}
+            </span>
+
+            <div className="flex-1 min-w-0 space-y-1">
+              <CabPricingSearchSelect
+                stopCoords={stopCoords}
+                excludeVehicleIds={excludeFor(row.uid)}
+                value={row.option?.cab_pricing_id ?? null}
+                onSelect={(opt) => setRowOption(row.uid, opt)}
+                disabled={isPending}
+              />
+              {row.option && (
+                <p className="text-[10px] text-muted-foreground leading-snug pl-0.5">
+                  {row.option.vehicle_type} · {row.option.passenger_capacity} pax
+                  {row.option.has_ac ? " · AC" : ""}
+                </p>
+              )}
+            </div>
+
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => setRowDefault(row.uid)}
+              title={row.isDefault ? "Default option" : "Set as default"}
+              className={cn(
+                "mt-1.5 flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-medium transition-colors",
+                row.isDefault
+                  ? "border-dashboard-primary/40 bg-dashboard-primary/10 text-dashboard-primary"
+                  : "border-border text-muted-foreground hover:border-dashboard-primary/30 hover:text-dashboard-primary/80",
+              )}
+            >
+              <Star className={cn("h-3 w-3", row.isDefault && "fill-dashboard-primary text-dashboard-primary")} />
+              {row.isDefault ? "Default" : "Set default"}
+            </button>
+
+            <button
+              type="button"
+              disabled={isPending || rows.length === 1}
+              onClick={() => removeRow(row.uid)}
+              className="mt-1.5 shrink-0 rounded-md p-1 text-muted-foreground/50 transition-colors hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-30"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ))}
+
+        <button
+          type="button"
+          disabled={isPending}
+          onClick={addRow}
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed py-2 text-xs text-muted-foreground transition-colors hover:border-dashboard-primary/40 hover:text-dashboard-primary disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Add another cab option
+        </button>
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between gap-2 pt-1">
+        <p className="text-[10px] text-muted-foreground">
+          {validRows.length > 0
+            ? `${validRows.length} option${validRows.length > 1 ? "s" : ""} · star marks default shown to customers`
+            : "Select at least one cab option"}
+        </p>
+        <div className="flex gap-2">
+          <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={isPending}>
+            Cancel
+          </Button>
+          <Button type="button" size="sm" disabled={!isValid || isPending} onClick={handleCreate}>
+            {isPending
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              : <><Check className="h-3.5 w-3.5 mr-1" />Create Group</>}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── CabTypesSection ────────────────────────────────────────────────────────
 
 function CabTypesSection({
   packageId,
   duration,
   initialCabTypes,
-  availableVehicles,
+  stopCoords,
 }: {
   packageId: number;
   duration: Duration;
   initialCabTypes: CabType[];
-  availableVehicles: VehicleOption[];
+  stopCoords: Array<{ lat: number; lng: number }>;
 }) {
-  const [cabTypes, setCabTypes] = useState(initialCabTypes);
-  const [adding, setAdding] = useState(false);
+  const [cabTypes,     setCabTypes]     = useState(initialCabTypes);
+  const [addingGroup,  setAddingGroup]  = useState(false);
 
-  const existingVehicleIds = new Set(cabTypes.map((ct) => ct.vehicle_id));
+  const groups          = groupCabTypesByRange(cabTypes);
+  const allGroupRanges  = groups.map((g) => ({ from: g.dayFrom, to: g.dayTo }));
+
+  // ── handlers ────────────────────────────────────────────────────────────
+
+  /** When a cab type is set as default, clear default on all OTHER cab types in the same group. */
+  function handleSetDefault(cabTypeId: number) {
+    setCabTypes((prev) => {
+      const target = prev.find((ct) => ct.id === cabTypeId);
+      if (!target) return prev;
+      const tSeg = target.segments[0];
+      if (!tSeg) return prev;
+      return prev.map((ct) => {
+        if (ct.id === cabTypeId) return { ...ct, is_default: true };
+        const s = ct.segments[0];
+        // Clear default for others in the same group (same duration + same day range)
+        if (s && ct.duration_id === target.duration_id &&
+            s.day_from === tSeg.day_from && s.day_to === tSeg.day_to) {
+          return { ...ct, is_default: false };
+        }
+        return ct;
+      });
+    });
+  }
+
+  /** When group range changes, update segments in state. */
+  function handleGroupRangeChanged(groupKey: string, newFrom: number, newTo: number) {
+    const parts   = groupKey.split("-");
+    const oldFrom = parseInt(parts[0]);
+    const oldTo   = parseInt(parts[1]);
+    setCabTypes((prev) =>
+      prev.map((ct) => {
+        const seg = ct.segments[0];
+        if (!seg || seg.day_from !== oldFrom || seg.day_to !== oldTo) return ct;
+        return {
+          ...ct,
+          segments: ct.segments.map((s, i) =>
+            i === 0 ? { ...s, day_from: newFrom, day_to: newTo } : s,
+          ),
+        };
+      }),
+    );
+  }
 
   return (
     <Card className="mb-3">
@@ -873,48 +1416,60 @@ function CabTypesSection({
             <Car className="h-4 w-4 text-primary" />
             <CardTitle className="text-sm font-semibold">Cab Options — {duration.label}</CardTitle>
             <Badge variant="outline" className="text-xs">{duration.nights}N / {duration.days}D</Badge>
-            {cabTypes.length > 0 && (
-              <Badge variant="secondary" className="text-xs">{cabTypes.length} type{cabTypes.length !== 1 ? "s" : ""}</Badge>
+            {groups.length > 0 && (
+              <Badge variant="secondary" className="text-xs">
+                {groups.length} group{groups.length !== 1 ? "s" : ""} · {cabTypes.length} option{cabTypes.length !== 1 ? "s" : ""}
+              </Badge>
             )}
           </div>
-          {!adding && (
+          {!addingGroup && (
             <Button
               size="sm" variant="outline" className="h-6 text-xs gap-1"
-              onClick={() => setAdding(true)}
+              onClick={() => setAddingGroup(true)}
             >
-              <Plus className="h-3 w-3" />Add Cab Type
+              <Plus className="h-3 w-3" />Add Cab Group
             </Button>
           )}
         </div>
       </CardHeader>
       <CardContent className="px-4 pt-0 pb-3">
-        {adding && (
+        {addingGroup && (
           <div className="mb-3">
             <AddCabTypeForm
               packageId={packageId}
               duration={duration}
-              availableVehicles={availableVehicles}
-              existingVehicleIds={existingVehicleIds}
-              onAdded={(ct) => { setCabTypes((prev) => [...prev, ct]); setAdding(false); }}
-              onCancel={() => setAdding(false)}
+              stopCoords={stopCoords}
+              existingVehicleIds={new Set(cabTypes.map((ct) => ct.vehicle_id))}
+              occupiedRanges={allGroupRanges}
+              onAdded={(cts) => { setCabTypes((prev) => [...prev, ...cts]); setAddingGroup(false); }}
+              onCancel={() => setAddingGroup(false)}
             />
           </div>
         )}
-        {cabTypes.length > 0 ? (
-          cabTypes.map((ct) => (
-            <CabTypeCard
-              key={ct.id}
-              cabType={ct}
+
+        {groups.length > 0 ? (
+          groups.map((group) => (
+            <CabGroupCard
+              key={group.groupKey}
+              group={group}
               packageId={packageId}
-              durationDays={duration.days}
-              durationLabel={duration.label}
-              onDeleted={(id) => setCabTypes((prev) => prev.filter((c) => c.id !== id))}
-              onUpdated={(updated) => setCabTypes((prev) => prev.map((c) => c.id === updated.id ? updated : c))}
+              duration={duration}
+              stopCoords={stopCoords}
+              otherGroupRanges={allGroupRanges.filter(
+                (r) => !(r.from === group.dayFrom && r.to === group.dayTo),
+              )}
+              onGroupRangeChanged={handleGroupRangeChanged}
+              onCabTypeDeleted={(id) => setCabTypes((prev) => prev.filter((ct) => ct.id !== id))}
+              onCabTypeUpdated={(updated) =>
+                setCabTypes((prev) => prev.map((ct) => ct.id === updated.id ? updated : ct))
+              }
+              onSetDefault={handleSetDefault}
+              onOptionAdded={(ct) => setCabTypes((prev) => [...prev, ct])}
             />
           ))
-        ) : !adding && (
+        ) : !addingGroup && (
           <p className="text-xs text-muted-foreground py-3 text-center">
-            No cab types configured for this duration. Add one to give customers cab options.
+            No cab groups configured. Add one to give customers cab options for this duration.
           </p>
         )}
       </CardContent>
@@ -930,14 +1485,16 @@ export function PricingTab({
   stayCategories,
   initialPricings,
   cabTypes,
-  availableVehicles,
+  stopCoords,
 }: PricingTabProps) {
   if (durations.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 rounded-xl border border-dashed bg-muted/30">
         <Settings2 className="h-8 w-8 text-muted-foreground/40 mb-3" />
         <p className="text-sm font-medium text-muted-foreground">No durations found</p>
-        <p className="text-xs text-muted-foreground/60 mt-1">Add durations in the Route Builder tab first.</p>
+        <p className="text-xs text-muted-foreground/60 mt-1">
+          Add durations in the Route Builder tab first.
+        </p>
       </div>
     );
   }
@@ -947,7 +1504,9 @@ export function PricingTab({
       <div className="flex flex-col items-center justify-center py-24 rounded-xl border border-dashed bg-muted/30">
         <Settings2 className="h-8 w-8 text-muted-foreground/40 mb-3" />
         <p className="text-sm font-medium text-muted-foreground">No stay categories found</p>
-        <p className="text-xs text-muted-foreground/60 mt-1">Add stay categories in the Itinerary Builder tab first.</p>
+        <p className="text-xs text-muted-foreground/60 mt-1">
+          Add stay categories in the Itinerary Builder tab first.
+        </p>
       </div>
     );
   }
@@ -983,7 +1542,7 @@ export function PricingTab({
             <CardContent className="px-4 pt-0 pb-1">
               {stayCategories.map((cat) => {
                 const existing = initialPricings.find(
-                  (p) => p.duration_id === duration.id && p.stay_category_id === cat.id
+                  (p) => p.duration_id === duration.id && p.stay_category_id === cat.id,
                 );
                 return (
                   <PricingRow
@@ -1009,26 +1568,21 @@ export function PricingTab({
             <Car className="h-4 w-4" /> Cab Options
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Configure the cab types customers can choose from for each duration. Pricing pulls from the destination-based cab pricing system.
+            Configure cab groups for each duration. Each group covers a day range and contains
+            one or more vehicle options customers can choose from. Only one option per group can
+            be the default.
           </p>
         </div>
 
-        {availableVehicles.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-10 rounded-xl border border-dashed bg-muted/30">
-            <Car className="h-7 w-7 text-muted-foreground/40 mb-2" />
-            <p className="text-xs text-muted-foreground">No active vehicles found. Add vehicles in the Vehicles page first.</p>
-          </div>
-        ) : (
-          durations.map((duration) => (
-            <CabTypesSection
-              key={duration.id}
-              packageId={packageId}
-              duration={duration}
-              initialCabTypes={cabTypes.filter((ct) => ct.duration_id === duration.id)}
-              availableVehicles={availableVehicles}
-            />
-          ))
-        )}
+        {durations.map((duration) => (
+          <CabTypesSection
+            key={duration.id}
+            packageId={packageId}
+            duration={duration}
+            initialCabTypes={cabTypes.filter((ct) => ct.duration_id === duration.id)}
+            stopCoords={stopCoords}
+          />
+        ))}
       </div>
     </div>
   );

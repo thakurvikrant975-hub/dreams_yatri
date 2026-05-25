@@ -255,7 +255,19 @@ export default async function PackageBuilderPage({
               }))
             )}
             cabTypes={pkg.cabTypes}
-            availableVehicles={pkg.availableVehicles}
+            stopCoords={
+              pkg.durations
+                .flatMap((d) => d.routes.flatMap((r) => r.stops))
+                .filter((s) => s.location?.latitude != null && s.location?.longitude != null)
+                .map((s) => ({
+                  lat: s.location!.latitude as number,
+                  lng: s.location!.longitude as number,
+                }))
+                .filter(
+                  (c, i, arr) =>
+                    arr.findIndex((x) => x.lat === c.lat && x.lng === c.lng) === i,
+                )
+            }
           />
         </TabsContent>
 
