@@ -109,7 +109,7 @@ function PricingTypeToggle({ value, onChange }: { value: CabPricingType; onChang
         <button
           key={t} type="button" onClick={() => onChange(t)}
           className={cn(
-            "px-2.5 transition-colors", i > 0 && "border-l",
+            "px-2.5 transition-colors cursor-pointer", i > 0 && "border-l",
             value === t ? "bg-dashboard-primary text-white" : "bg-background text-muted-foreground hover:bg-muted",
           )}
         >
@@ -219,7 +219,7 @@ function BaseRatesSection({
                   type="button"
                   onClick={() => onToggleVehicle(v)}
                   className={cn(
-                    "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium transition-all",
+                    "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium transition-all cursor-pointer",
                     selected
                       ? "bg-green-100 border-green-400 text-green-800 dark:bg-green-900/40 dark:border-green-600 dark:text-green-300"
                       : "bg-background border-border text-muted-foreground hover:border-dashboard-primary/60 hover:text-foreground",
@@ -436,7 +436,7 @@ function CalendarRatesSection({
               key={v.id} type="button"
               onClick={() => setActiveVehicleId(v.id)}
               className={cn(
-                "flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
+                "flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer",
                 hasConflict
                   ? "border-destructive/50 bg-destructive/5 text-destructive"
                   : isActive
@@ -524,7 +524,7 @@ function CalendarRatesSection({
                       <button
                         type="button"
                         onClick={() => removeSeason(activeVehicleId, s.tempId)}
-                        className="text-destructive/60 hover:text-destructive transition-colors"
+                        className="text-destructive/60 hover:text-destructive transition-colors cursor-pointer"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
@@ -570,7 +570,7 @@ function CalendarRatesSection({
                           weekend_enabled: !s.weekend_enabled,
                           weekend_price: "",
                         })}
-                        className="flex items-center gap-1.5 group"
+                        className="flex items-center gap-1.5 group cursor-pointer"
                       >
                         <div className={cn(
                           "h-3.5 w-3.5 rounded border-2 flex items-center justify-center transition-colors shrink-0",
@@ -620,8 +620,8 @@ function CalendarRatesSection({
             })}
 
             <Button
-              type="button" variant="outline" size="sm"
-              className="w-full h-8 text-xs gap-1.5 border-dashed mt-1"
+              type="button" variant="outline" size="lg"
+              className="w-full cursor-pointer h-8 text-xs gap-1.5 border-dashed mt-1 bg-dashboard-base-300 hover:bg-dashboard-base-300 py-3 rounded-md"
               onClick={() => addSeason(activeVehicleId)}
             >
               <Plus className="h-3.5 w-3.5" />
