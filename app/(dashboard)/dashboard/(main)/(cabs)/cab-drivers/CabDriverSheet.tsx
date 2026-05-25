@@ -304,26 +304,44 @@ function IdentityStep() {
             const base: Record<string, unknown> = { ...data, cityValue: v };
             setStepData("identity", base);
             if (!v?.breadcrumb) return;
+
             // breadcrumb: "City, State, Country"
             const parts       = v.breadcrumb.split(",").map((p) => p.trim());
             const stateName   = parts[1] ?? "";
             const countryName = parts[2] ?? "";
-            const search = (q: string, type: string) =>
+
+            const searchLocal = (q: string, type: string): Promise<LocationValue[]> =>
               q
                 ? fetch(`/api/locations/search?q=${encodeURIComponent(q)}&types=${type}&limit=1`)
                     .then((r) => (r.ok ? r.json() : []))
-                    .catch(() => [] as LocationValue[])
-                : Promise.resolve([] as LocationValue[]);
-            // Fetch both in parallel, then set once to avoid overwrites
-            Promise.all([search(stateName, "STATE"), search(countryName, "COUNTRY")]).then(
-              ([stateRes, countryRes]) => {
-                setStepData("identity", {
-                  ...base,
-                  ...(stateRes[0]   ? { stateValue:   stateRes[0]   } : {}),
-                  ...(countryRes[0] ? { countryValue: countryRes[0] } : {}),
-                });
-              },
-            );
+                    .catch(() => [])
+                : Promise.resolve([]);
+
+            // Countries are preloaded in full — use the same endpoint & filter client-side
+            const findCountry = (name: string, all: LocationValue[]) =>
+              all.find((c) => c.name.toLowerCase() === name.toLowerCase()) ?? null;
+
+            Promise.all([
+              searchLocal(stateName, "STATE"),
+              fetch("/api/locations/search?types=COUNTRY&limit=500")
+                .then((r) => (r.ok ? r.json() : []))
+                .catch(() => [] as LocationValue[]),
+            ]).then(async ([stateRes, allCountries]) => {
+              const stateLocation = stateRes[0] ?? null;
+
+              // Try country from city breadcrumb first, then from state breadcrumb as fallback
+              let countryLocation = findCountry(countryName, allCountries);
+              if (!countryLocation && stateLocation?.breadcrumb) {
+                const stateCountry = stateLocation.breadcrumb.split(",").map((p: string) => p.trim())[1] ?? "";
+                countryLocation = findCountry(stateCountry, allCountries);
+              }
+
+              setStepData("identity", {
+                ...base,
+                ...(stateLocation   ? { stateValue:   stateLocation   } : {}),
+                ...(countryLocation ? { countryValue: countryLocation } : {}),
+              });
+            });
           }}
           types={["CITY"]}
           placeholder="Search city…"
