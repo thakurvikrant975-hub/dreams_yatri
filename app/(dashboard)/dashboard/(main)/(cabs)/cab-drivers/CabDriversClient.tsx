@@ -96,7 +96,7 @@ function Avatar({ src, name, size = "md" }: { src?: string | null; name: string;
         alt={name}
         width={64}
         height={64}
-        className={`${dim} rounded-full object-cover shrink-0 ring-1 ring-border`}
+        className={`${dim} rounded-sm object-cover shrink-0 ring-1 ring-border`}
       />
     );
   }
@@ -721,8 +721,20 @@ export function CabDriversClient({
       header: "Vehicle",
       cell: (d) =>
         d.vehicle ? (
-          <div className="flex items-center gap-1.5">
-            <Car className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <div className="flex items-center gap-2">
+            {d.vehicle.image_key ? (
+              <Image
+                src={`${R2}/${d.vehicle.image_key}`}
+                alt={d.vehicle.name}
+                width={48}
+                height={32}
+                className="rounded-md object-cover border shrink-0 h-8 w-12"
+              />
+            ) : (
+              <div className="h-8 w-12 rounded-md bg-muted flex items-center justify-center shrink-0 border">
+                <Car className="h-4 w-4 text-muted-foreground" />
+              </div>
+            )}
             <div>
               <p className="text-sm font-medium">{d.vehicle.name}</p>
               <p className="text-[11px] text-muted-foreground">{d.vehicle.type.replace(/_/g, " ")}</p>
@@ -730,6 +742,22 @@ export function CabDriversClient({
           </div>
         ) : (
           <span className="text-xs text-muted-foreground italic">Unassigned</span>
+        ),
+    },
+    {
+      header: "Reg. No.",
+      cell: (d) =>
+        d.vehicle_reg_number ? (
+          <div>
+            <p className="text-xs font-mono font-medium">{d.vehicle_reg_number}</p>
+            {d.vehicle_reg_expiry && (
+              <div className="mt-0.5">
+                <ExpiryBadge iso={d.vehicle_reg_expiry} />
+              </div>
+            )}
+          </div>
+        ) : (
+          <span className="text-xs text-muted-foreground italic">—</span>
         ),
     },
     {
