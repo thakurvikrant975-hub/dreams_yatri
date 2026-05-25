@@ -164,7 +164,7 @@ export async function createVehicleRate(
   },
 ) {
   try {
-    await db.vehicle_rates.create({
+    const created = await db.vehicle_rates.create({
       data: {
         vehicle_id: vehicleId,
         label: data.label,
@@ -174,7 +174,18 @@ export async function createVehicleRate(
       },
     });
     revalidatePath(PATH);
-    return { success: true as const, message: "Rate added" };
+    return {
+      success: true as const,
+      message: "Rate added",
+      rate: {
+        id: created.id,
+        label: created.label,
+        rate_type: created.rate_type,
+        price: Number(created.price),
+        cost_price: created.cost_price != null ? Number(created.cost_price) : null,
+        is_active: created.is_active,
+      } satisfies VehicleRate,
+    };
   } catch {
     return { success: false as const, message: "Failed to add rate" };
   }

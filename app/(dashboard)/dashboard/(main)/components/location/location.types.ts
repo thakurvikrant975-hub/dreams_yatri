@@ -142,4 +142,6 @@ export interface LocationSearchSelectProps {
   extraParams?: Record<string, string>;
   /** Hide the worldwide (Mapbox) search and "Add manually" options */
   disableExternalSearch?: boolean;
+  /** Suppress the "Recent" section entirely (use when showing a filtered set like unpriced cities) */
+  hideRecent?: boolean;
 }
