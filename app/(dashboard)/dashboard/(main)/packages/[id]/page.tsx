@@ -201,7 +201,6 @@ export default async function PackageBuilderPage({
               })),
             }))}
             stayCategories={pkg.stay_categories}
-            availableVehicles={pkg.availableVehicles}
           />
         </TabsContent>
 

@@ -116,13 +116,6 @@ type StayCategory = {
   sort_order: number;
 };
 
-type VehicleOption = {
-  id: number;
-  name: string;
-  type: string;
-  passenger_capacity: number;
-};
-
 type Props = {
   open: boolean;
   onClose: () => void;
@@ -132,7 +125,6 @@ type Props = {
   routeId: number;
   day: DayData;
   stayCategories: StayCategory[];
-  availableVehicles: VehicleOption[];
   onSaved: (updated: DayData) => void;
   stopLabel?: string;
   stopCoords?: { lat: number; lng: number };
@@ -371,7 +363,6 @@ type TransferFormData = {
   pickup: LocationValue | null;
   drop: LocationValue | null;
   notes: string;
-  vehicle_id: number | null;
 };
 
 function transferFormToInput(data: TransferFormData) {
@@ -384,7 +375,7 @@ function transferFormToInput(data: TransferFormData) {
     drop_location_id: data.drop?.id ?? null,
     drop_lat: data.drop?.latitude ?? null,
     drop_lng: data.drop?.longitude ?? null,
-    vehicle_id: data.vehicle_id ?? null,
+    vehicle_id: null,
     num_vehicles: 1,
     notes: data.notes || null,
   };
@@ -399,7 +390,6 @@ function TransferEditForm({
   onCancel,
   onDelete,
   stopCoords,
-  availableVehicles,
 }: {
   item: TransferItem;
   pending: boolean;
@@ -407,7 +397,6 @@ function TransferEditForm({
   onCancel: () => void;
   onDelete: () => void;
   stopCoords?: { lat: number; lng: number };
-  availableVehicles: VehicleOption[];
 }) {
   const [form, setForm] = useState<TransferFormData>({
     pickup: item.route
@@ -433,7 +422,6 @@ function TransferEditForm({
         }
       : null,
     notes: item.notes ?? "",
-    vehicle_id: item.vehicle_id,
   });
 
   const isValid = !!form.pickup && !!form.drop;
@@ -469,25 +457,6 @@ function TransferEditForm({
           )}
         </div>
       )}
-      <div className="space-y-1.5">
-        <Label className="text-xs">Vehicle</Label>
-        <Select
-          value={form.vehicle_id?.toString() ?? "none"}
-          onValueChange={(v) => setForm(f => ({ ...f, vehicle_id: v === "none" ? null : Number(v) }))}
-        >
-          <SelectTrigger className="h-9 text-xs">
-            <SelectValue placeholder="Select vehicle…" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">No vehicle assigned</SelectItem>
-            {availableVehicles.map((v) => (
-              <SelectItem key={v.id} value={String(v.id)}>
-                {v.name} · {v.type} · {v.passenger_capacity} pax
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
       <div className="space-y-1.5">
         <Label className="text-xs">Notes</Label>
         <Input value={form.notes} onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))} className="h-9 text-xs" placeholder="Optional note…" />
@@ -751,16 +720,15 @@ function NoteEditForm({
 // ── Add forms ──────────────────────────────────────────────────────────────
 
 function AddTransferForm({
-  pending, onSave, onCancel, stopCoords, availableVehicles,
+  pending, onSave, onCancel, stopCoords,
 }: {
   pending: boolean;
   onSave: (data: TransferFormData) => void;
   onCancel: () => void;
   stopCoords?: { lat: number; lng: number };
-  availableVehicles: VehicleOption[];
 }) {
   const [form, setForm] = useState<TransferFormData>({
-    pickup: null, drop: null, notes: "", vehicle_id: null,
+    pickup: null, drop: null, notes: "",
   });
   const isValid = !!form.pickup && !!form.drop;
 
@@ -793,25 +761,6 @@ function AddTransferForm({
           )}
         </div>
       )}
-      <div className="space-y-1.5">
-        <Label className="text-xs">Vehicle</Label>
-        <Select
-          value={form.vehicle_id?.toString() ?? "none"}
-          onValueChange={(v) => setForm(f => ({ ...f, vehicle_id: v === "none" ? null : Number(v) }))}
-        >
-          <SelectTrigger className="h-9 text-xs">
-            <SelectValue placeholder="Select vehicle…" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">No vehicle assigned</SelectItem>
-            {availableVehicles.map((v) => (
-              <SelectItem key={v.id} value={String(v.id)}>
-                {v.name} · {v.type} · {v.passenger_capacity} pax
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
       <div className="space-y-1.5">
         <Label className="text-xs">Notes</Label>
         <Input value={form.notes} onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))} className="h-9 text-xs" placeholder="Optional note…" />
@@ -1535,7 +1484,7 @@ function TimelineDropZone({ children, isEmpty }: { children: React.ReactNode; is
 // ── Main sidebar ───────────────────────────────────────────────────────────
 
 export function ItineraryDaySidebar({
-  open, onClose, packageId, destinationId, durationId, routeId, day: initialDay, stayCategories, availableVehicles, onSaved, stopLabel, stopCoords, occupiedBy, maxNights: maxNightsProp,
+  open, onClose, packageId, destinationId, durationId, routeId, day: initialDay, stayCategories, onSaved, stopLabel, stopCoords, occupiedBy, maxNights: maxNightsProp,
 }: Props) {
   const [itineraryId, setItineraryId] = useState<number | null>(initialDay.id);
   const [title, setTitle] = useState(initialDay.title);
@@ -2073,7 +2022,7 @@ export function ItineraryDaySidebar({
               <div className="flex-1 overflow-y-auto px-5 py-5">
                 {/* Add forms */}
                 {editPanel?.mode === "add" && editPanel.kind === "transfer" && (
-                  <AddTransferForm pending={pending} onSave={addTransfer} onCancel={() => setEditPanel(null)} stopCoords={stopCoords} availableVehicles={availableVehicles} />
+                  <AddTransferForm pending={pending} onSave={addTransfer} onCancel={() => setEditPanel(null)} stopCoords={stopCoords} />
                 )}
                 {editPanel?.mode === "add" && editPanel.kind === "activity" && (
                   <AddActivityForm destinationId={destinationId} pending={pending} onSave={addActivity} onCancel={() => setEditPanel(null)} />
@@ -2106,7 +2055,6 @@ export function ItineraryDaySidebar({
                     onCancel={() => setEditPanel(null)}
                     onDelete={() => deleteTransfer(editPanelItem.data.id)}
                     stopCoords={stopCoords}
-                    availableVehicles={availableVehicles}
                   />
                 )}
                 {editPanel?.mode === "edit" && editPanelItem?.kind === "activity" && (
