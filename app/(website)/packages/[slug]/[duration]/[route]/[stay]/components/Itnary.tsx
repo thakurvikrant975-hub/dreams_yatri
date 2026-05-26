@@ -34,6 +34,14 @@ import {
   ArrowDownIcon,
   SealWarningIcon,
   NotePencilIcon,
+  RoadHorizonIcon,
+  BusIcon,
+  TrainSimpleIcon,
+  BankIcon,
+  WavesIcon,
+  TreeIcon,
+  BinocularsIcon,
+  BuildingsIcon,
 } from '@phosphor-icons/react';
 import { CheckInIcon, CheckOutIcon } from '@/app/components/icons/cusomIcon';
 import Image from 'next/image';
@@ -49,6 +57,7 @@ type NoteType = 'warning' | 'info' | 'error' | 'success' | 'neutral';
 interface RouteStop {
   label: string;
   value: string;
+  locationType?: string | null;
   note?: string;
   noteVariant?: NoteVariant;
   notePill?: {
@@ -199,59 +208,59 @@ function NoteBlock({
   );
 }
 
+// ─── Location icon inference (uses DB LocationType enum) ─────────────────────
+// Returns null for generic/administrative types — no extra icon shown for those.
+
+function getLocationIcon(locationType: string | null | undefined): React.ElementType | null {
+  switch (locationType) {
+    case 'AIRPORT':       return AirplaneTiltIcon;
+    case 'BUS_STATION':   return BusIcon;
+    case 'TRAIN_STATION': return TrainSimpleIcon;
+    case 'HOTEL':         return BedIcon;
+    case 'BEACH':         return WavesIcon;
+    case 'MOUNTAIN':      return BinocularsIcon;
+    case 'LANDMARK':      return BankIcon;
+    case 'ACTIVITY':      return ParachuteIcon;
+    case 'PORT':          return WavesIcon;
+    case 'ISLAND':        return WavesIcon;
+    case 'TOURISM_ZONE':  return TreeIcon;
+    default:              return BuildingsIcon; // CITY, AREA, ROUTE_STOP, VILLAGE, etc.
+  }
+}
+
 // ─── Cab Route Display ────────────────────────────────────────────────────────
 
 function CabRoute({
   from,
   to,
   distance_km,
+  fromLocationType,
+  toLocationType,
 }: {
   from: string;
   to: string;
   distance_km?: number | null;
+  fromLocationType?: string | null;
+  toLocationType?: string | null;
 }) {
+  const FromIcon = getLocationIcon(fromLocationType);
+  const ToIcon   = getLocationIcon(toLocationType);
+
   return (
-    // <div className="flex items-stretch gap-3.5">
-    //   {/* Timeline spine */}
-    //   <div className="flex flex-col items-center w-4 shrink-0 pt-1.5">
-    //     <div className="size-2.5 rounded-full bg-primary-500 shrink-0" />
-    //     <div className="w-px flex-1 bg-gradient-to-b from-primary-400 to-primary-200 min-h-6 my-1" />
-    //     {distance_km && (
-    //       <ArrowDownIcon weight="bold" className="size-3 text-primary-300 mb-1" />
-    //     )}
-    //     <div className="w-px flex-1 bg-gradient-to-b from-primary-200 to-primary-400 min-h-6 my-1" />
-    //     <div className="size-2.5 rounded-full border-2 border-primary-500 bg-white shrink-0" />
-    //   </div>
 
-    //   {/* Labels */}
-    //   <div className="flex-1 flex flex-col justify-between gap-2">
-    //     <div>
-    //       <Text size="xs" intent="secondary" className="font-heading leading-none mb-0.5">Pickup</Text>
-    //       <Text size="sm" weight="semibold" intent="primary" className="font-heading">{from}</Text>
-    //     </div>
-
-    //     {distance_km && (
-    //       <span className="self-start text-[11px] text-secondary bg-neutral-100 px-2 py-0.5 rounded-full font-medium">
-    //         {distance_km} km
-    //       </span>
-    //     )}
-
-    //     <div>
-    //       <Text size="xs" intent="secondary" className="font-heading leading-none mb-0.5">Drop</Text>
-    //       <Text size="sm" weight="semibold" intent="primary" className="font-heading">{to}</Text>
-    //     </div>
-    //   </div>
-    // </div>
     <div className="w-full border-l-[0.2em] border-l-(--border-default) flex-1 flex flex-col gap-2 mb-3">
-      {/* Check In */}
+      {/* Pickup */}
       <div className="relative after:absolute after:w-[0.2em] after:h-full after:max-h-8 after:left-0 after:top-0 after:bg-primary-400 after:-translate-x-[0.2em]">
-        <div className="flex items-center  gap-3">
-           <div className="size-7 flex items-center justify-center ml-3 shrink-0">
-            <span className='text-muted '><MapPinIcon weight='duotone' className='size-5.5' /></span>
+        <div className="flex items-center gap-3">
+          <div className="size-7 flex items-center justify-center ml-3 shrink-0">
+            <span className='text-muted'><MapPinIcon weight='duotone' className='size-5.5' /></span>
           </div>
           <div className="flex gap-3 w-full mt-0.5">
             <Text size="sm" intent="primary" className="w-max mb-0.5 font-heading shrink-0">Pickup Point:</Text>
-            <Text size="sm" intent="primary" weight="semibold" className="font-heading">{from}</Text>
+            <div className="flex items-center gap-1.5">
+              {FromIcon && <FromIcon weight="duotone" className="size-7 p-1 ring-1 ring-neutral-300/80 text-muted shrink-0 bg-neutral-50 rounded-md" />}
+              <Text size="sm" intent="primary" weight="semibold" className="font-heading">{from}</Text>
+            </div>
           </div>
         </div>
       </div>
@@ -262,19 +271,20 @@ function CabRoute({
           <Text as='span' size="sm" weight='medium' intent='secondary'>
             {distance_km ? `${distance_km} km` : 'In-city transfer'}
           </Text>
-          <ArrowDownIcon weight='duotone' className="size-5 text-muted ml-2" />
+          <RoadHorizonIcon weight='duotone' className="size-5 text-muted ml-2" />
         </div>
       </div>
 
-      {/* Check Out */}
+      {/* Drop */}
       <div className="relative after:absolute after:w-[0.2em] after:h-full after:max-h-8 after:left-0 after:top-0 after:bg-primary-400 after:-translate-x-[0.2em]">
         <div className="flex gap-3 items-center">
           <div className="size-7 flex items-center justify-center ml-3 shrink-0">
-            <span className='text-muted '><MapPinIcon weight='duotone' className='size-5.5' /></span>
+            <span className='text-muted'><MapPinIcon weight='duotone' className='size-5.5' /></span>
           </div>
           <div className="flex gap-3 w-full">
             <Text size="sm" intent="primary" className="w-max mb-0.5 font-heading shrink-0">Drop Point:</Text>
-            <div className="flex-1">
+            <div className="flex items-center gap-1.5">
+              {ToIcon && <ToIcon weight="duotone" className="size-7 p-1 ring-1 ring-neutral-300/80 text-muted shrink-0 bg-neutral-50 rounded-md" />}
               <Text size="sm" intent="primary" weight="semibold" className="font-heading">{to}</Text>
             </div>
           </div>
@@ -425,12 +435,12 @@ function SectionTrigger({
   subtitle?: string;
 }) {
   return (
-    <div className="flex items-center gap-5 w-full">
-      <div className="flex items-center gap-2">
-        <Icon weight='duotone' className="size-7 duo_icons" />
-        <Text size='sm' weight='bold' intent='primary' className="font-heading">{title}</Text>
+    <div className="flex items-center gap-5 w-full min-w-0 overflow-hidden">
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        <Icon weight='duotone' className="size-7 duo_icons shrink-0" />
+        <Text size='sm' weight='bold' intent='primary' className="font-heading shrink-0">{title}</Text>
         {subtitle && (
-          <Text size='xs' className=" text-secondary">{subtitle}</Text>
+          <Text size='xs' className="text-secondary truncate min-w-0">{subtitle}</Text>
         )}
       </div>
       <Accordion.Chevron className="size-4 text-neutral-400" />
@@ -462,7 +472,7 @@ function CabContent({ section }: { section: CabSection }) {
         <div className='flex-1'>
           {/* Vehicle details pill */}
           {hasVehicleInfo && (
-            <div className="flex items-center gap-2.5 bg-neutral-50 ring-1 ring-inset ring-neutral-100 shadow-sm rounded-xl px-3.5 py-2.5 mb-2">
+            <div className="flex items-center gap-2.5 bg-neutral-50 ring-1 ring-inset ring-neutral-100 shadow-sm rounded-xl px-3.5 py-2.5 mb-3">
               <CarIcon weight="duotone" className="size-5 text-brand shrink-0" />
               <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                 {section.vehicle_name && (
@@ -472,19 +482,19 @@ function CabContent({ section }: { section: CabSection }) {
                 )}
                 {section.vehicle_type && (
                   <>
-                    <span className="text-neutral-300 text-xs">·</span>
+                    <span className="text-muted text-sm">·</span>
                     <Text size="sm" intent="secondary">{section.vehicle_type}</Text>
                   </>
                 )}
                 {section.vehicle_capacity && (
                   <>
-                    <span className="text-neutral-300 text-xs">·</span>
+                    <span className="text-muted text-sm">·</span>
                     <Text size="sm" intent="secondary">{section.vehicle_capacity} Seats</Text>
                   </>
                 )}
                 {section.num_vehicles && section.num_vehicles > 1 && (
                   <>
-                    <span className="text-neutral-300 text-xs">·</span>
+                    <span className="text-muted text-sm">·</span>
                     <Text size="sm" intent="secondary">×{section.num_vehicles} Vehicles</Text>
                   </>
                 )}
@@ -497,6 +507,8 @@ function CabContent({ section }: { section: CabSection }) {
             from={section.from.value}
             to={section.to.value}
             distance_km={section.distance_km}
+            fromLocationType={section.from.locationType}
+            toLocationType={section.to.locationType}
           />
 
           {/* Transfer-level note */}
@@ -881,6 +893,12 @@ function AttractionStories({
 
 // ─── Day Section Block ────────────────────────────────────────────────────────
 
+// Truncate a place name to `max` visible chars, appending "…" when cut
+function truncatePlace(name: string, max = 15): string {
+  const trimmed = name.trim();
+  return trimmed.length > max ? trimmed.slice(0, max - 1).trimEnd() + '…' : trimmed;
+}
+
 const SECTION_CONFIG: {
   [K in DaySection['type']]: {
     icon: React.ElementType;
@@ -898,7 +916,16 @@ const SECTION_CONFIG: {
     icon: CarIcon,
     // Use the exact assigned vehicle name; fall back to generic "Transfer"
     title: (s) => s.vehicle_name ?? 'Transfer',
-    subtitle: (s) => s.distance_km ? `· ${s.distance_km} km` : undefined,
+    subtitle: (s) => {
+      const parts: string[] = [];
+      if (s.distance_km) parts.push(`${s.distance_km} km`);
+      const from = s.from?.value;
+      const to   = s.to?.value;
+      if (from && to && from !== '–' && to !== '–') {
+        parts.push(`${truncatePlace(from)} → ${truncatePlace(to)}`);
+      }
+      return parts.length ? `· ${parts.join('  ·  ')}` : undefined;
+    },
     content: (s) => <CabContent section={s} />,
   },
   stay: {

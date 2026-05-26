@@ -79,6 +79,8 @@ export type TransferDay = {
   sort_order: number;
   pickup_name: string | null;
   drop_name: string | null;
+  pickup_location_type: string | null;
+  drop_location_type: string | null;
   distance_km: number | null;
   vehicle_name: string | null;
   vehicle_type: string | null;
@@ -445,6 +447,8 @@ export async function fetchPackagePageData(
                 pickup_name: true,
                 drop_name: true,
                 distance_km: true,
+                pickup_location: { select: { type: true } },
+                drop_location:   { select: { type: true } },
               },
             },
             vehicle: {
@@ -587,6 +591,8 @@ export async function fetchPackagePageData(
       sort_order: tr.sort_order,
       pickup_name: tr.route?.pickup_name ?? null,
       drop_name: tr.route?.drop_name ?? null,
+      pickup_location_type: tr.route?.pickup_location?.type ?? null,
+      drop_location_type:   tr.route?.drop_location?.type   ?? null,
       distance_km: tr.route?.distance_km ? Number(tr.route.distance_km) : null,
       vehicle_name: tr.vehicle?.name ?? null,
       vehicle_type: tr.vehicle?.type ?? null,

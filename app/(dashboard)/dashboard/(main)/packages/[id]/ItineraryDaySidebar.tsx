@@ -401,9 +401,9 @@ function TransferEditForm({
   const [form, setForm] = useState<TransferFormData>({
     pickup: item.route
       ? {
-          id: "",
+          id: item.route.pickup_location_id ?? "",
           name: item.route.pickup_name,
-          type: "CITY" as LocationType,
+          type: (item.route.pickup_location_type ?? "CITY") as LocationType,
           breadcrumb: item.route.pickup_name,
           slug: "",
           latitude: item.route.pickup_lat ?? undefined,
@@ -412,9 +412,9 @@ function TransferEditForm({
       : null,
     drop: item.route
       ? {
-          id: "",
+          id: item.route.drop_location_id ?? "",
           name: item.route.drop_name,
-          type: "CITY" as LocationType,
+          type: (item.route.drop_location_type ?? "CITY") as LocationType,
           breadcrumb: item.route.drop_name,
           slug: "",
           latitude: item.route.drop_lat ?? undefined,

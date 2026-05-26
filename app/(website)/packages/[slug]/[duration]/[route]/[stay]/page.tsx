@@ -13,7 +13,8 @@ import TravelerInputBar from "./components/TravelerInputBar";
 import { CheckIcon, XMarkIcon } from "@heroicons/react/24/solid";
 import { Card, CardBody } from "@/app/components/ui/Card";
 
-export const revalidate = 3600;
+// export const revalidate = 3600; // TODO: re-enable ISR for production
+export const dynamic = 'force-dynamic';
 
 export async function generateStaticParams() {
     return getActivePackageParams();
@@ -108,8 +109,8 @@ export default async function PackagePage({
         const transferSections: SortableSection[] = d.transfers.map(t => ({
             _sort: t.sort_order,
             type: "cab" as const,
-            from: { label: "Pickup", value: t.pickup_name ?? "–" },
-            to:   { label: "Drop",   value: t.drop_name   ?? "–" },
+            from: { label: "Pickup", value: t.pickup_name ?? "–", locationType: t.pickup_location_type },
+            to:   { label: "Drop",   value: t.drop_name   ?? "–", locationType: t.drop_location_type   },
             distance_km:      t.distance_km,
             vehicle_name:     t.vehicle_name,
             vehicle_type:     t.vehicle_type,

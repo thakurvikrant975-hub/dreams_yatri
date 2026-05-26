@@ -56,9 +56,13 @@ export type TransferItem = {
   route: {
     id: number;
     pickup_name: string;
+    pickup_location_id: string | null;   // BigInt serialised to string
+    pickup_location_type: string | null;
     pickup_lat: number | null;
     pickup_lng: number | null;
     drop_name: string;
+    drop_location_id: string | null;
+    drop_location_type: string | null;
     drop_lat: number | null;
     drop_lng: number | null;
     distance_km: number | null;
@@ -165,7 +169,20 @@ export async function getItineraryData(
       itinerary_transfers: {
           orderBy: { sort_order: "asc" },
           include: {
-            route: { select: { id: true, pickup_name: true, pickup_lat: true, pickup_lng: true, drop_name: true, drop_lat: true, drop_lng: true, distance_km: true, duration_min: true } },
+            route: {
+              select: {
+                id: true,
+                pickup_name: true,
+                pickup_location_id: true,
+                pickup_location: { select: { type: true } },
+                pickup_lat: true, pickup_lng: true,
+                drop_name: true,
+                drop_location_id: true,
+                drop_location: { select: { type: true } },
+                drop_lat: true, drop_lng: true,
+                distance_km: true, duration_min: true,
+              },
+            },
             vehicle: { select: { id: true, name: true, type: true, passenger_capacity: true } },
           },
         },
@@ -223,9 +240,13 @@ export async function getItineraryData(
           route: t.route ? {
             id: t.route.id,
             pickup_name: t.route.pickup_name,
+            pickup_location_id:   t.route.pickup_location_id?.toString() ?? null,
+            pickup_location_type: t.route.pickup_location?.type ?? null,
             pickup_lat: t.route.pickup_lat != null ? Number(t.route.pickup_lat) : null,
             pickup_lng: t.route.pickup_lng != null ? Number(t.route.pickup_lng) : null,
             drop_name: t.route.drop_name,
+            drop_location_id:   t.route.drop_location_id?.toString() ?? null,
+            drop_location_type: t.route.drop_location?.type ?? null,
             drop_lat: t.route.drop_lat != null ? Number(t.route.drop_lat) : null,
             drop_lng: t.route.drop_lng != null ? Number(t.route.drop_lng) : null,
             distance_km: t.route.distance_km != null ? Number(t.route.distance_km) : null,
