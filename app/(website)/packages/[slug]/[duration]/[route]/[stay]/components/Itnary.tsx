@@ -1,7 +1,7 @@
 // ItinerarySection.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { cn } from '@/app/lib/utils';
 import Accordion from '@/app/components/ui/Accordian';
 import { Heading, Text } from '@/app/components/ui/Typography';
@@ -691,7 +691,15 @@ function StayContent({ section }: { section: StaySection }) {
 
 function ActivityContent({ section }: { section: ActivitySection }) {
   const [descExpanded, setDescExpanded] = useState(false);
+  const [descOverflows, setDescOverflows] = useState(false);
+  const descRef = useRef<HTMLDivElement>(null);
   const hasPricing = section.pricingTiers && section.pricingTiers.length > 0;
+
+  // Measure once on mount (element is clamped) to know if text actually overflows
+  useEffect(() => {
+    const el = descRef.current;
+    if (el) setDescOverflows(el.scrollHeight > el.clientHeight + 1);
+  }, []);
 
   return (
     <div className="mt-2 flex">
@@ -706,20 +714,35 @@ function ActivityContent({ section }: { section: ActivitySection }) {
         {/* Description */}
         {section.description && (
           <div>
-            <Text
-              size="sm"
-              intent="secondary"
-              className={cn('leading-relaxed', !descExpanded && 'line-clamp-2')}
-            >
-              {section.description}
-            </Text>
-            <button
-              type="button"
-              onClick={() => setDescExpanded(e => !e)}
-              className="mt-1 text-xs font-semibold text-brand hover:text-primary transition-colors"
-            >
-              {descExpanded ? 'Show less' : 'Read more'}
-            </button>
+            <div ref={descRef} className="relative">
+              <Text
+                size="sm"
+                intent="secondary"
+                className={cn('leading-relaxed', !descExpanded && 'line-clamp-2')}
+              >
+                {section.description}
+              </Text>
+              {/* Inline "Read more" — fades over the last line's tail */}
+              {!descExpanded && descOverflows && (
+                <button
+                  type="button"
+                  onClick={() => setDescExpanded(true)}
+                  className="absolute bottom-0 right-0 pl-8 bg-linear-to-r from-transparent via-white to-white text-xs font-semibold text-brand hover:text-primary transition-colors"
+                >
+                  Read more
+                </button>
+              )}
+            </div>
+            {/* "Show less" appears below once expanded */}
+            {descExpanded && (
+              <button
+                type="button"
+                onClick={() => setDescExpanded(false)}
+                className="mt-0.5 text-xs font-semibold text-brand hover:text-primary transition-colors"
+              >
+                Show less
+              </button>
+            )}
           </div>
         )}
 
