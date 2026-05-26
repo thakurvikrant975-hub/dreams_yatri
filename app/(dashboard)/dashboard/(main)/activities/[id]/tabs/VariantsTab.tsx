@@ -20,6 +20,7 @@ import {
 import {
     Plus, Pencil, Trash2, Loader2, Check, X,
     ChevronDown, ChevronRight, Zap, Calendar, AlertTriangle,
+    CalendarDays, Info,
 } from "lucide-react";
 import {
     PricingRangeCalendarPicker,
@@ -52,8 +53,8 @@ type ActivitySeasonEntry = {
     tempId:     string;
     valid_from: string;
     valid_to:   string;
+    price:      string;
     is_active:  boolean;
-    pricing:    PricingFormState[];
 };
 
 type VariantFormState = {
@@ -89,7 +90,7 @@ const EMPTY_VARIANT_FORM: VariantFormState = {
 };
 
 const EMPTY_SEASON: Omit<ActivitySeasonEntry, "tempId"> = {
-    valid_from: "", valid_to: "", is_active: true, pricing: [],
+    valid_from: "", valid_to: "", price: "", is_active: true,
 };
 
 const EMPTY_PRICING: PricingFormState = {
@@ -160,16 +161,8 @@ function toVariantFormState(v: ActivityVariant): VariantFormState {
             tempId:     uid(),
             valid_from: toISODate(s.valid_from),
             valid_to:   toISODate(s.valid_to),
+            price:      s.pricing.length > 0 ? String(s.pricing[0].price) : "",
             is_active:  s.is_active,
-            pricing:     s.pricing.map(p => ({
-                label:             p.label,
-                age_from:          p.age_from  != null ? String(p.age_from) : "",
-                age_to:            p.age_to    != null ? String(p.age_to)   : "",
-                price:             String(p.price),
-                original_price:    p.original_price ? String(p.original_price) : "",
-                margin_percentage: String(p.margin_percentage),
-                is_active:         p.is_active,
-            })),
         })),
     };
 }
@@ -259,304 +252,144 @@ function PricingRowForm({
     );
 }
 
-// ── Activity Season Mini-Form (inside SeasonsInlineList) ──────────────────
-
-function ActivitySeasonMiniForm({
-    initial,
-    onAdd,
-    onCancel,
-    allSeasons = [],
-    hasOverlap = false,
-}: {
-    initial?: Omit<ActivitySeasonEntry, "tempId">;
-    onAdd: (s: Omit<ActivitySeasonEntry, "tempId">) => void;
-    onCancel: () => void;
-    allSeasons?: ActivitySeasonEntry[];
-    hasOverlap?: boolean;
-}) {
-    const [s, setS] = useState<Omit<ActivitySeasonEntry, "tempId">>(initial ?? { ...EMPTY_SEASON });
-    const [showPricingForm, setShowPricingForm]     = useState(false);
-    const [pricingDraft, setPricingDraft]           = useState<PricingFormState>(EMPTY_PRICING);
-    const [editPricingIdx, setEditPricingIdx]       = useState<number | null>(null);
-    const [editPricingDraft, setEditPricingDraft]   = useState<PricingFormState>(EMPTY_PRICING);
-
-    function upd<K extends keyof typeof EMPTY_SEASON>(k: K, v: (typeof EMPTY_SEASON)[K]) {
-        setS(prev => ({ ...prev, [k]: v }));
-    }
-
-    function addPricingRow() {
-        if (!pricingDraft.label || !pricingDraft.price || Number(pricingDraft.price) <= 0) {
-            toast.error("Label and valid price required");
-            return;
-        }
-        upd("pricing", [...s.pricing, pricingDraft]);
-        setPricingDraft(EMPTY_PRICING);
-        setShowPricingForm(false);
-    }
-
-    function savePricingEdit(index: number) {
-        if (!editPricingDraft.label || !editPricingDraft.price || Number(editPricingDraft.price) <= 0) {
-            toast.error("Label and valid price required");
-            return;
-        }
-        upd("pricing", s.pricing.map((p, i) => i === index ? editPricingDraft : p));
-        setEditPricingIdx(null);
-    }
-
-    function removePricingRow(index: number) {
-        upd("pricing", s.pricing.filter((_, i) => i !== index));
-    }
-
-    function startEditPricing(index: number) {
-        setEditPricingIdx(index);
-        setEditPricingDraft(s.pricing[index]);
-        setShowPricingForm(false);
-    }
-
-    // Build SeasonRange[] from all other seasons for calendar price overlays
-    const calendarSeasons: SeasonRange[] = allSeasons
-        .filter(x => x.valid_from && x.valid_to)
-        .map(x => {
-            const activePrices = x.pricing
-                .filter(p => p.is_active && Number(p.price) > 0)
-                .map(p => Number(p.price));
-            return {
-                from:         x.valid_from.slice(5),
-                to:           x.valid_to.slice(5),
-                weekdayPrice: activePrices.length > 0 ? Math.min(...activePrices) : 0,
-            };
-        })
-        .filter(x => x.weekdayPrice > 0);
-
-    // Lowest active price from current season's tiers as base price for calendar
-    const activeTierPrices = s.pricing
-        .filter(p => p.is_active && Number(p.price) > 0)
-        .map(p => Number(p.price));
-    const basePrice = activeTierPrices.length > 0 ? Math.min(...activeTierPrices) : 0;
-
-    const rangeValue: DateRange = {
-        from: toDateObj(s.valid_from),
-        to:   toDateObj(s.valid_to),
-    };
-
-    const valid = !!s.valid_from && !!s.valid_to;
-
-    return (
-        <div className={cn(
-            "border border-dashed rounded-lg p-3 space-y-3 bg-muted/10",
-            hasOverlap && "border-destructive/40 bg-destructive/5",
-        )}>
-            {/* Calendar date range picker */}
-            <div className="space-y-1">
-                <Label className="text-xs">Date Range <span className="text-destructive">*</span></Label>
-                {hasOverlap && (
-                    <div className="flex items-center gap-1.5 text-[11px] text-destructive font-medium">
-                        <AlertTriangle className="h-3 w-3 shrink-0" />
-                        Date range overlaps with another season — fix before saving.
-                    </div>
-                )}
-                <PricingRangeCalendarPicker
-                    value={rangeValue}
-                    onChange={(range) => setS(prev => ({
-                        ...prev,
-                        valid_from: fromDateObj(range?.from),
-                        valid_to:   fromDateObj(range?.to),
-                    }))}
-                    seasons={calendarSeasons}
-                    basePrice={basePrice}
-                    placeholder="Select season date range"
-                    error={hasOverlap}
-                />
-            </div>
-
-            {/* Pricing tiers */}
-            <div className="space-y-1.5">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Pricing Tiers{" "}
-                    <span className="font-normal normal-case text-muted-foreground/60">(Adult, Child, Infant…)</span>
-                </p>
-                {s.pricing.map((p, i) => (
-                    editPricingIdx === i ? (
-                        <PricingRowForm
-                            key={i}
-                            form={editPricingDraft}
-                            onChange={setEditPricingDraft}
-                            onSave={() => savePricingEdit(i)}
-                            onCancel={() => setEditPricingIdx(null)}
-                            isSaving={false}
-                        />
-                    ) : (
-                        <div key={i} className="flex items-center gap-2 rounded bg-muted/30 px-2 py-1 text-xs">
-                            <span className="font-medium w-16 shrink-0">{p.label}</span>
-                            <span className="font-semibold">₹{Number(p.price).toLocaleString()}</span>
-                            {p.original_price && (
-                                <span className="text-muted-foreground line-through">
-                                    ₹{Number(p.original_price).toLocaleString()}
-                                </span>
-                            )}
-                            {(p.age_from || p.age_to) && (
-                                <span className="text-muted-foreground">{p.age_from || 0}–{p.age_to || "∞"} yrs</span>
-                            )}
-                            <div className="ml-auto flex items-center gap-0.5">
-                                <Button type="button" size="icon" variant="ghost" className="h-5 w-5"
-                                    onClick={() => startEditPricing(i)}>
-                                    <Pencil className="h-3 w-3" />
-                                </Button>
-                                <Button type="button" size="icon" variant="ghost" className="h-5 w-5"
-                                    onClick={() => removePricingRow(i)}>
-                                    <X className="h-3 w-3" />
-                                </Button>
-                            </div>
-                        </div>
-                    )
-                ))}
-                {editPricingIdx === null && (
-                    showPricingForm ? (
-                        <PricingRowForm
-                            form={pricingDraft}
-                            onChange={setPricingDraft}
-                            onSave={addPricingRow}
-                            onCancel={() => { setShowPricingForm(false); setPricingDraft(EMPTY_PRICING); }}
-                            isSaving={false}
-                            suggestedLabels={DEFAULT_LABELS.filter(l => !s.pricing.some(p => p.label === l))}
-                        />
-                    ) : (
-                        <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1.5"
-                            onClick={() => setShowPricingForm(true)}>
-                            <Plus className="h-3 w-3" /> Add Price Category
-                        </Button>
-                    )
-                )}
-            </div>
-
-            {/* Footer */}
-            <div className="flex items-center justify-between pt-1">
-                <div className="flex items-center gap-2">
-                    <Switch checked={s.is_active} onCheckedChange={v => upd("is_active", v)} />
-                    <span className="text-xs text-muted-foreground">Active</span>
-                </div>
-                <div className="flex gap-2">
-                    <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={onCancel}>
-                        Cancel
-                    </Button>
-                    <Button type="button" size="sm" className="h-7 text-xs" disabled={!valid}
-                        onClick={() => { if (valid) onAdd(s); }}>
-                        <Check className="mr-1 h-3 w-3" /> {initial ? "Save Season" : "Add Season"}
-                    </Button>
-                </div>
-            </div>
-        </div>
-    );
-}
-
 // ── Seasons Inline List (inside VariantForm) ──────────────────────────────
 
 function SeasonsInlineList({
-    seasons, onChange,
+    seasons, onChange, costPrice = 0,
 }: {
-    seasons: ActivitySeasonEntry[];
-    onChange: (s: ActivitySeasonEntry[]) => void;
+    seasons:   ActivitySeasonEntry[];
+    onChange:  (s: ActivitySeasonEntry[]) => void;
+    costPrice?: number;
 }) {
-    const [adding, setAdding] = useState(false);
-    const [editTempId, setEditTempId] = useState<string | null>(null);
-
     const overlapping = overlappingIds(seasons);
 
-    function handleAdd(data: Omit<ActivitySeasonEntry, "tempId">) {
-        onChange([...seasons, { ...data, tempId: uid() }]);
-        setAdding(false);
+    function addSeason() {
+        onChange([...seasons, { ...EMPTY_SEASON, tempId: uid() }]);
     }
 
-    function handleEdit(tempId: string, data: Omit<ActivitySeasonEntry, "tempId">) {
-        onChange(seasons.map(s => s.tempId === tempId ? { ...data, tempId } : s));
-        setEditTempId(null);
+    function updateSeason(tempId: string, patch: Partial<Omit<ActivitySeasonEntry, "tempId">>) {
+        onChange(seasons.map(s => s.tempId === tempId ? { ...s, ...patch } : s));
     }
 
-    function handleRemove(tempId: string) {
+    function removeSeason(tempId: string) {
         onChange(seasons.filter(s => s.tempId !== tempId));
     }
 
     return (
-        <div className="space-y-2">
+        <div className="space-y-3">
             <div className="flex items-center justify-between">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
                     <Calendar className="h-3.5 w-3.5" />
-                    Seasonal Date Ranges
+                    Seasonal Pricing
                     <span className="font-normal normal-case text-muted-foreground/60">— required, at least 1</span>
                 </p>
-                {seasons.length === 0 && !adding && (
+                {seasons.length === 0 && (
                     <span className="text-[10px] text-destructive">Add at least one season to save</span>
                 )}
             </div>
 
+            {seasons.length > 0 && (
+                <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5">
+                    <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-blue-600" />
+                    <p className="text-xs text-blue-700">
+                        Click a start date then an end date to set the season range.
+                        <span className="font-semibold"> {seasons.length} season{seasons.length !== 1 ? "s" : ""} configured.</span>
+                    </p>
+                </div>
+            )}
+
             {seasons.map(s => {
-                const hasOverlap = overlapping.has(s.tempId);
-                if (editTempId === s.tempId) {
-                    return (
-                        <ActivitySeasonMiniForm
-                            key={s.tempId}
-                            initial={s}
-                            onAdd={data => handleEdit(s.tempId, data)}
-                            onCancel={() => setEditTempId(null)}
-                            allSeasons={seasons.filter(x => x.tempId !== s.tempId)}
-                            hasOverlap={hasOverlap}
-                        />
-                    );
-                }
+                const hasOverlap  = overlapping.has(s.tempId);
+                const rangeValue: DateRange = {
+                    from: toDateObj(s.valid_from),
+                    to:   toDateObj(s.valid_to),
+                };
+                const calendarSeasons: SeasonRange[] = seasons
+                    .filter(x => x.valid_from && x.valid_to && Number(x.price) > 0)
+                    .map(x => ({
+                        from:         x.valid_from.slice(5),
+                        to:           x.valid_to.slice(5),
+                        weekdayPrice: Number(x.price),
+                    }));
+                const rangeLabel = s.valid_from && s.valid_to
+                    ? `${fmtMonthDay(s.valid_from)} → ${fmtMonthDay(s.valid_to)}`
+                    : s.valid_from ? `From ${fmtMonthDay(s.valid_from)}` : "No dates selected";
+                const priceInvalid = s.price !== "" && (isNaN(Number(s.price)) || Number(s.price) <= 0);
+
                 return (
                     <div
                         key={s.tempId}
                         className={cn(
-                            "flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs",
-                            hasOverlap
-                                ? "border border-orange-300 bg-orange-50 dark:bg-orange-950/20"
-                                : "bg-muted/30 border border-transparent",
-                            !s.is_active && "opacity-60",
+                            "rounded-xl border p-4 space-y-3",
+                            hasOverlap ? "border-destructive/40 bg-destructive/5" : "border-border bg-muted/10",
                         )}
                     >
-                        {hasOverlap && <AlertTriangle className="h-3 w-3 text-orange-500 shrink-0" />}
-                        <span className="font-medium shrink-0">
-                            {s.valid_from ? fmtMonthDay(s.valid_from) : "?"} → {s.valid_to ? fmtMonthDay(s.valid_to) : "?"}
-                        </span>
-                        {s.pricing.length > 0 ? (
-                            <span className="text-muted-foreground/70 shrink-0 ml-1 truncate max-w-48">
-                                {s.pricing.filter(p => p.is_active).map(p =>
-                                    `${p.label}: ₹${Number(p.price).toLocaleString()}`
-                                ).join(" · ")}
-                            </span>
-                        ) : (
-                            <span className="text-muted-foreground/40 italic shrink-0">no pricing tiers</span>
-                        )}
-                        {!s.is_active && (
-                            <Badge variant="outline" className="text-[10px] px-1 py-0 ml-1">Inactive</Badge>
-                        )}
-                        <div className="ml-auto flex gap-1">
-                            <Button type="button" size="icon" variant="ghost" className="h-6 w-6"
-                                onClick={() => { setEditTempId(s.tempId); setAdding(false); }}>
-                                <Pencil className="h-3 w-3" />
-                            </Button>
-                            <Button type="button" size="icon" variant="ghost"
-                                className="h-6 w-6 text-destructive hover:text-destructive"
-                                onClick={() => handleRemove(s.tempId)}>
-                                <X className="h-3 w-3" />
-                            </Button>
+                        {/* Header */}
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                                <CalendarDays className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                <span className={cn(
+                                    "text-xs font-medium truncate",
+                                    s.valid_from ? "text-foreground" : "text-muted-foreground",
+                                )}>
+                                    {rangeLabel}
+                                </span>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => removeSeason(s.tempId)}
+                                className="text-destructive/60 hover:text-destructive transition-colors cursor-pointer shrink-0"
+                            >
+                                <Trash2 className="h-3.5 w-3.5" />
+                            </button>
                         </div>
+
+                        {hasOverlap && (
+                            <div className="flex items-center gap-1.5 text-[11px] text-destructive font-medium">
+                                <AlertTriangle className="h-3 w-3 shrink-0" />
+                                Date range overlaps with another season — fix before saving.
+                            </div>
+                        )}
+
+                        {/* Price */}
+                        <div className="space-y-1">
+                            <Label className="text-[11px] text-muted-foreground">Price *</Label>
+                            <div className="relative">
+                                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground select-none">₹</span>
+                                <Input
+                                    type="number" min={0} step={100}
+                                    placeholder="0"
+                                    value={s.price}
+                                    onChange={e => updateSeason(s.tempId, { price: e.target.value })}
+                                    className={cn("h-8 pl-6 text-sm", priceInvalid && "border-destructive")}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Calendar picker */}
+                        <PricingRangeCalendarPicker
+                            value={rangeValue}
+                            onChange={range => updateSeason(s.tempId, {
+                                valid_from: fromDateObj(range?.from),
+                                valid_to:   fromDateObj(range?.to),
+                            })}
+                            seasons={calendarSeasons}
+                            basePrice={costPrice}
+                            placeholder="Select season date range"
+                            error={hasOverlap}
+                        />
                     </div>
                 );
             })}
 
-            {adding ? (
-                <ActivitySeasonMiniForm
-                    onAdd={handleAdd}
-                    onCancel={() => setAdding(false)}
-                    allSeasons={seasons}
-                />
-            ) : editTempId === null && (
-                <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1.5"
-                    onClick={() => setAdding(true)}>
-                    <Plus className="h-3 w-3" /> Add Season
-                </Button>
-            )}
+            <Button
+                type="button" variant="outline"
+                className="w-full h-8 text-xs gap-1.5 border-dashed bg-muted/20 hover:bg-muted/40 rounded-md cursor-pointer"
+                onClick={addSeason}
+            >
+                <Plus className="h-3.5 w-3.5" />
+                Add Season
+            </Button>
         </div>
     );
 }
@@ -576,10 +409,12 @@ function VariantForm({
         setForm(prev => ({ ...prev, [k]: v }));
     }
 
+    const seasonOverlaps = overlappingIds(form.seasons);
     const isValid =
         !!form.name && !!form.booking_mode && !!form.pricing_type &&
         form.seasons.length > 0 &&
-        form.seasons.every(s => !!s.valid_from && !!s.valid_to);
+        seasonOverlaps.size === 0 &&
+        form.seasons.every(s => !!s.valid_from && !!s.valid_to && !!s.price && Number(s.price) > 0);
 
     return (
         <div className="border rounded-xl p-4 space-y-4 bg-muted/20">
@@ -643,7 +478,11 @@ function VariantForm({
 
             {/* Seasons inline */}
             <div className="border-t pt-3">
-                <SeasonsInlineList seasons={form.seasons} onChange={s => upd("seasons", s)} />
+                <SeasonsInlineList
+                    seasons={form.seasons}
+                    onChange={s => upd("seasons", s)}
+                    costPrice={Number(form.cost_price) || 0}
+                />
             </div>
 
             {/* Footer */}
@@ -837,10 +676,8 @@ function SeasonsSummaryPanel({ seasons }: { seasons: ActivityVariant["seasons"] 
                             {toISODate(s.valid_from) ? fmtMonthDay(toISODate(s.valid_from)) : ""} → {toISODate(s.valid_to) ? fmtMonthDay(toISODate(s.valid_to)) : ""}
                         </span>
                         {s.pricing.length > 0 && (
-                            <span className="text-muted-foreground/70 ml-1 truncate">
-                                {s.pricing.filter(p => p.is_active).map(p =>
-                                    `${p.label}: ₹${Number(p.price).toLocaleString()}`
-                                ).join(" · ")}
+                            <span className="text-primary/80 font-semibold ml-1">
+                                ₹{Number(s.pricing[0].price).toLocaleString()}
                             </span>
                         )}
                         {!s.is_active && (
@@ -1001,20 +838,16 @@ export function VariantsTab({
             season_name: s.valid_from && s.valid_to
                 ? `${fmtMonthDay(s.valid_from)} → ${fmtMonthDay(s.valid_to)}`
                 : "Season",
-            valid_from:  s.valid_from,
-            valid_to:    s.valid_to,
-            is_active:   s.is_active,
-            pricing: s.pricing
-                .filter(p => !!p.label && !!p.price && Number(p.price) > 0)
-                .map(p => ({
-                    label:             p.label,
-                    age_from:          p.age_from  ? Number(p.age_from)  : null,
-                    age_to:            p.age_to    ? Number(p.age_to)    : null,
-                    price:             Number(p.price),
-                    original_price:    p.original_price ? Number(p.original_price) : null,
-                    margin_percentage: Number(p.margin_percentage) || 0,
-                    is_active:         p.is_active,
-                })),
+            valid_from: s.valid_from,
+            valid_to:   s.valid_to,
+            is_active:  s.is_active,
+            pricing: s.price && Number(s.price) > 0 ? [{
+                label:             "Base",
+                price:             Number(s.price),
+                original_price:    null,
+                margin_percentage: 0,
+                is_active:         true,
+            }] : [],
         }));
     }
 
