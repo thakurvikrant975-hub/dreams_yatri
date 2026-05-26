@@ -102,9 +102,22 @@ export default async function PackagePage({
         pageData.selectedRoute?.stops[0]?.place_name ??
         pageData.destination.name;
 
+    // ── Default cab type lookup ────────────────────────────────────────────────
+    // For each day, find the default cab type whose segment covers that day.
+    // Used as fallback when a transfer has no per-transfer vehicle assigned.
+    const getCabForDay = (day: number) => {
+        const covering = pageData.cabTypes.filter(ct =>
+            ct.segments.some(s => s.day_from <= day && day <= s.day_to)
+        );
+        return covering.find(ct => ct.is_default) ?? covering[0] ?? null;
+    };
+
     // ── Itinerary ──────────────────────────────────────────────────────────────
     const itinerary: ItineraryDay[] = pageData.itinerary.map(d => {
         type SortableSection = DaySection & { _sort: number };
+
+        // Default cab type for this day (from PricingTab cab options)
+        const dayCab = getCabForDay(d.day);
 
         const transferSections: SortableSection[] = d.transfers.map(t => ({
             _sort: t.sort_order,
@@ -112,10 +125,11 @@ export default async function PackagePage({
             from: { label: "Pickup", value: t.pickup_name ?? "–", locationType: t.pickup_location_type },
             to:   { label: "Drop",   value: t.drop_name   ?? "–", locationType: t.drop_location_type   },
             distance_km:      t.distance_km,
-            vehicle_name:     t.vehicle_name,
-            vehicle_type:     t.vehicle_type,
-            vehicle_capacity: t.vehicle_capacity,
-            vehicle_image:    imgUrl(t.vehicle_image_key),
+            // Prefer per-transfer vehicle; fall back to default cab type for this day
+            vehicle_name:     t.vehicle_name     ?? dayCab?.label                        ?? null,
+            vehicle_type:     t.vehicle_type     ?? dayCab?.vehicle.type                 ?? null,
+            vehicle_capacity: t.vehicle_capacity ?? dayCab?.vehicle.passenger_capacity   ?? null,
+            vehicle_image:    imgUrl(t.vehicle_image_key) || imgUrl(dayCab?.vehicle.image_key),
             num_vehicles:     t.num_vehicles,
             transfer_notes:   t.notes,
         }));

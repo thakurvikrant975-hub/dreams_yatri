@@ -145,6 +145,7 @@ export type CabTypeOption = {
     type: string;
     passenger_capacity: number;
     has_ac: boolean;
+    image_key: string | null;
   };
   segments: CabSegmentOption[];
 };
@@ -504,6 +505,7 @@ export async function fetchPackagePageData(
             type: true,
             passenger_capacity: true,
             has_ac: true,
+            image_key: true,
           },
         },
         segments: {
@@ -644,6 +646,7 @@ export async function fetchPackagePageData(
       type: ct.vehicle.type,
       passenger_capacity: ct.vehicle.passenger_capacity,
       has_ac: ct.vehicle.has_ac,
+      image_key: ct.vehicle.image_key ?? null,
     },
     segments: ct.segments.map((seg) => ({
       id: seg.id,
