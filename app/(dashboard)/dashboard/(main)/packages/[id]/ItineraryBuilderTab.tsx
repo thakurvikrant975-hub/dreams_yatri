@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { toast } from "sonner";
-import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { StayTiersSection } from "./StayTiersSection";
 import { ItineraryDaySidebar } from "./ItineraryDaySidebar";
@@ -20,6 +19,7 @@ import {
   Camera,
   MapPin,
 } from "lucide-react";
+
 import { cn } from "@/app/lib/utils";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -468,6 +468,12 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
         const maxNights  = stops.length > 0
           ? getMaxNightsForDay(openDay.day, stops)
           : totalDays - openDay.day + 1;
+        const handleNavigateDay = (direction: "prev" | "next") => {
+          if (!days) return;
+          const targetDay = direction === "prev" ? openDay.day - 1 : openDay.day + 1;
+          const target = days.find((d) => d.day === targetDay);
+          if (target) setOpenDay(target);
+        };
         return (
           <ItineraryDaySidebar
             key={`${selectedDurationId}-${selectedRouteId}-${openDay.day}`}
@@ -485,6 +491,8 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
             stopIndex={stopIndex}
             occupiedBy={occupiedDays.get(openDay.day)}
             maxNights={maxNights}
+            totalDays={totalDays}
+            onNavigateDay={handleNavigateDay}
           />
         );
       })()}

@@ -102,6 +102,8 @@ import {
   Package,
   Zap,
   ClipboardPaste,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import type { OccupiedBy } from "./ItineraryBuilderTab";
@@ -131,6 +133,8 @@ type Props = {
   stopIndex?: number;
   occupiedBy?: OccupiedBy;
   maxNights?: number;
+  totalDays: number;
+  onNavigateDay: (direction: "prev" | "next") => void;
 };
 
 type DndItem =
@@ -1431,7 +1435,7 @@ function TimelineDropZone({ children, isEmpty }: { children: React.ReactNode; is
 // ── Main sidebar ───────────────────────────────────────────────────────────
 
 export function ItineraryDaySidebar({
-  open, onClose, packageId, destinationId, durationId, routeId, day: initialDay, stayCategories, onSaved, stopLabel, stopCoords, stopIndex, occupiedBy, maxNights: maxNightsProp,
+  open, onClose, packageId, destinationId, durationId, routeId, day: initialDay, stayCategories, onSaved, stopLabel, stopCoords, stopIndex, occupiedBy, maxNights: maxNightsProp, totalDays, onNavigateDay,
 }: Props) {
   const [itineraryId, setItineraryId] = useState<number | null>(initialDay.id);
   const [title, setTitle] = useState(initialDay.title);
@@ -1728,9 +1732,29 @@ export function ItineraryDaySidebar({
                     {stopLabel ?? "Itinerary Builder"}
                   </p>
                 </div>
-                <button type="button" onClick={onClose} className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors">
-                  <X className="h-4 w-4" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => onNavigateDay("prev")}
+                    disabled={initialDay.day <= 1}
+                    className="h-8 w-8 rounded-lg flex items-center justify-center cursor-pointer text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="Previous day"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onNavigateDay("next")}
+                    disabled={initialDay.day >= totalDays}
+                    className="h-8 w-8 rounded-lg flex items-center justify-center cursor-pointer text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="Next day"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                  <button type="button" onClick={onClose} className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground cursor-pointer hover:bg-muted/60 hover:text-foreground transition-colors">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
 
               {/* Day meta — shrink-0 */}
