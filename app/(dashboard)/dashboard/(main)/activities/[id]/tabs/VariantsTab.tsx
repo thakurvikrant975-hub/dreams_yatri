@@ -289,13 +289,23 @@ function SeasonsInlineList({
             </div>
 
             {seasons.length > 0 && (
-                <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5">
-                    <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-blue-600" />
-                    <p className="text-xs text-blue-700">
-                        Click a start date then an end date to set the season range.
-                        <span className="font-semibold"> {seasons.length} season{seasons.length !== 1 ? "s" : ""} configured.</span>
-                    </p>
-                </div>
+                overlapping.size > 0 ? (
+                    <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5">
+                        <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-destructive" />
+                        <p className="text-xs text-destructive">
+                            <span className="font-semibold">Overlapping seasons detected.</span>{" "}
+                            Date ranges must not overlap — fix the highlighted seasons before saving.
+                        </p>
+                    </div>
+                ) : (
+                    <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5">
+                        <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-blue-600" />
+                        <p className="text-xs text-blue-700">
+                            Click a start date then an end date to set the season range.
+                            <span className="font-semibold"> {seasons.length} season{seasons.length !== 1 ? "s" : ""} configured.</span>
+                        </p>
+                    </div>
+                )
             )}
 
             {seasons.map(s => {
@@ -486,22 +496,30 @@ function VariantForm({
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-between pt-1">
-                <div className="flex items-center gap-2">
-                    <Switch checked={form.is_active} onCheckedChange={v => upd("is_active", v)} />
-                    <span className="text-sm text-muted-foreground">Active</span>
-                </div>
-                <div className="flex gap-2">
-                    <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={isSaving}>
-                        <X className="mr-1 h-3.5 w-3.5" /> Cancel
-                    </Button>
-                    <Button type="button" size="sm" disabled={!isValid || isSaving}
-                        onClick={() => onSave(form)}>
-                        {isSaving
-                            ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Saving…</>
-                            : <><Check className="mr-1.5 h-3.5 w-3.5" />Save Variant</>
-                        }
-                    </Button>
+            <div className="space-y-2 pt-1">
+                {seasonOverlaps.size > 0 && (
+                    <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                        Overlapping season date ranges — fix the highlighted seasons before saving.
+                    </div>
+                )}
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Switch checked={form.is_active} onCheckedChange={v => upd("is_active", v)} />
+                        <span className="text-sm text-muted-foreground">Active</span>
+                    </div>
+                    <div className="flex gap-2">
+                        <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={isSaving}>
+                            <X className="mr-1 h-3.5 w-3.5" /> Cancel
+                        </Button>
+                        <Button type="button" size="sm" disabled={!isValid || isSaving}
+                            onClick={() => onSave(form)}>
+                            {isSaving
+                                ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Saving…</>
+                                : <><Check className="mr-1.5 h-3.5 w-3.5" />Save Variant</>
+                            }
+                        </Button>
+                    </div>
                 </div>
             </div>
         </div>
