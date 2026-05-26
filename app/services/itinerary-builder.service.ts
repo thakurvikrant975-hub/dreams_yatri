@@ -101,7 +101,7 @@ export type StayItem = {
     id: number;
     plan_name: string | null;
     price_per_night: number;
-    hotel: { id: number; name: string };
+    hotel: { id: number; name: string; category: string | null; stay_type: string | null };
     room: { id: number; name: string } | null;
   };
   stay_category: { id: number; label: string; slug: string };
@@ -178,7 +178,7 @@ export async function getItineraryData(
               id: true,
               plan_name: true,
               price_per_night: true,
-              hotel: { select: { id: true, name: true } },
+              hotel: { select: { id: true, name: true, category: true, stay_type: true } },
               room: { select: { id: true, name: true } },
             },
           },
@@ -572,65 +572,98 @@ export async function searchActivities(destinationId: number, query: string) {
   };
 }
 
+const HOTEL_SELECT = {
+  id: true,
+  plan_name: true,
+  price_per_night: true,
+  hotel: { select: { id: true, name: true, category: true, stay_type: true } },
+  room: { select: { id: true, name: true } },
+} as const;
+
+function toItems(list: { id: number; plan_name: string | null; price_per_night: unknown; hotel: { id: number; name: string; category: string | null; stay_type: string | null }; room: { id: number; name: string } | null }[]) {
+  return list.slice(0, 50).map((p) => ({ ...p, price_per_night: Number(p.price_per_night) }));
+}
+
 export async function searchRoomPricings(
   destinationId: number,
   query: string,
   itineraryId?: number,
   stayBlockOrder?: number,
+  stopIndex?: number,
 ) {
-  // When we know the itinerary's stop, try Haversine (50 km) first
-  if (itineraryId != null && stayBlockOrder != null) {
+  const lookupOrder = stopIndex ?? stayBlockOrder;
+
+  // Resolve the current stop when we have itinerary context
+  let stopPlaceName: string | null = null;
+  let stopLat: number | null = null;
+  let stopLng: number | null = null;
+
+  if (itineraryId != null && lookupOrder != null) {
     const itinerary = await db.package_itineraries.findUnique({
       where: { id: itineraryId },
       select: { route_id: true },
     });
     if (itinerary) {
       const stop = await db.route_stops.findFirst({
-        where: { route_id: itinerary.route_id, sort_order: stayBlockOrder },
+        where: { route_id: itinerary.route_id, sort_order: lookupOrder },
         include: { location: { select: { latitude: true, longitude: true } } },
       });
-      const lat = stop?.location?.latitude != null ? Number(stop.location.latitude) : null;
-      const lng = stop?.location?.longitude != null ? Number(stop.location.longitude) : null;
-      if (lat != null && lng != null) {
-        // Haversine proximity query — hotels within 50 km of the stop
-        type HotelId = { id: number };
-        const haversine = `6371 * acos(LEAST(1.0, cos(radians(${lat})) * cos(radians(l.latitude::float)) * cos(radians(l.longitude::float) - radians(${lng})) + sin(radians(${lat})) * sin(radians(l.latitude::float))))`;
-        const nearby: HotelId[] = query
-          ? await db.$queryRawUnsafe<HotelId[]>(
-              `SELECT h.id FROM hotels h JOIN locations l ON h.location_id = l.id WHERE h.is_active = true AND l.latitude IS NOT NULL AND l.longitude IS NOT NULL AND h.name ILIKE $1 AND (${haversine}) <= 50`,
-              `%${query}%`,
-            )
-          : await db.$queryRawUnsafe<HotelId[]>(
-              `SELECT h.id FROM hotels h JOIN locations l ON h.location_id = l.id WHERE h.is_active = true AND l.latitude IS NOT NULL AND l.longitude IS NOT NULL AND (${haversine}) <= 50`,
-            );
-        const nearbyIds = nearby.map((r) => r.id);
-        if (nearbyIds.length > 0) {
-          const list = await db.hotel_room_pricing.findMany({
-            where: {
-              is_active: true,
-              hotel: { id: { in: nearbyIds } },
-            },
-            select: {
-              id: true,
-              plan_name: true,
-              price_per_night: true,
-              hotel: { select: { id: true, name: true } },
-              room: { select: { id: true, name: true } },
-            },
-            take: 51,
-            orderBy: [{ hotel: { name: "asc" } }, { sort_order: "asc" }],
-          });
-          const has_more = list.length > 50;
-          return {
-            items: list.slice(0, 50).map((p) => ({ ...p, price_per_night: Number(p.price_per_night) })),
-            has_more,
-          };
-        }
+      if (stop) {
+        stopPlaceName = stop.place_name;
+        stopLat = stop.location?.latitude != null ? Number(stop.location.latitude) : null;
+        stopLng = stop.location?.longitude != null ? Number(stop.location.longitude) : null;
       }
     }
   }
 
-  // Fallback: destination-based search
+  // ── 1. Haversine proximity (requires coordinates) ──────────────────────
+  if (stopLat != null && stopLng != null) {
+    type HotelId = { id: number };
+    const haversine = `6371 * acos(LEAST(1.0, cos(radians(${stopLat})) * cos(radians(l.latitude::float)) * cos(radians(l.longitude::float) - radians(${stopLng})) + sin(radians(${stopLat})) * sin(radians(l.latitude::float))))`;
+    const nearby: HotelId[] = query
+      ? await db.$queryRawUnsafe<HotelId[]>(
+          `SELECT h.id FROM hotels h JOIN locations l ON h.location_id = l.id WHERE h.is_active = true AND l.latitude IS NOT NULL AND l.longitude IS NOT NULL AND h.name ILIKE $1 AND (${haversine}) <= 50`,
+          `%${query}%`,
+        )
+      : await db.$queryRawUnsafe<HotelId[]>(
+          `SELECT h.id FROM hotels h JOIN locations l ON h.location_id = l.id WHERE h.is_active = true AND l.latitude IS NOT NULL AND l.longitude IS NOT NULL AND (${haversine}) <= 50`,
+        );
+    const nearbyIds = nearby.map((r) => r.id);
+    if (nearbyIds.length > 0) {
+      const list = await db.hotel_room_pricing.findMany({
+        where: { is_active: true, hotel: { id: { in: nearbyIds } } },
+        select: HOTEL_SELECT,
+        take: 51,
+        orderBy: [{ hotel: { name: "asc" } }, { sort_order: "asc" }],
+      });
+      return { items: toItems(list), has_more: list.length > 50 };
+    }
+  }
+
+  // ── 2. Place-name city match (when stop has no coords or Haversine empty) ─
+  if (stopPlaceName) {
+    const cityFilter = {
+      is_active: true,
+      hotel: {
+        is_active: true,
+        OR: [
+          { city:  { contains: stopPlaceName, mode: "insensitive" as const } },
+          { name:  { contains: query || stopPlaceName, mode: "insensitive" as const } },
+        ],
+      },
+    };
+    const list = await db.hotel_room_pricing.findMany({
+      where: cityFilter,
+      select: HOTEL_SELECT,
+      take: 51,
+      orderBy: [{ hotel: { name: "asc" } }, { sort_order: "asc" }],
+    });
+    if (list.length > 0) {
+      return { items: toItems(list), has_more: list.length > 50 };
+    }
+  }
+
+  // ── 3. Fallback: destination-wide search ───────────────────────────────
   const list = await db.hotel_room_pricing.findMany({
     where: {
       is_active: true,
@@ -640,21 +673,11 @@ export async function searchRoomPricings(
         ...(query ? { name: { contains: query, mode: "insensitive" as const } } : {}),
       },
     },
-    select: {
-      id: true,
-      plan_name: true,
-      price_per_night: true,
-      hotel: { select: { id: true, name: true } },
-      room: { select: { id: true, name: true } },
-    },
+    select: HOTEL_SELECT,
     take: 51,
     orderBy: [{ hotel: { name: "asc" } }, { sort_order: "asc" }],
   });
-  const has_more = list.length > 50;
-  return {
-    items: list.slice(0, 50).map((p) => ({ ...p, price_per_night: Number(p.price_per_night) })),
-    has_more,
-  };
+  return { items: toItems(list), has_more: list.length > 50 };
 }
 
 // ── Day source images (for attraction picker) ──────────────────────────────

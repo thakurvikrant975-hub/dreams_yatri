@@ -56,6 +56,20 @@ export type OccupiedBy = {
   nightIndex: number; // 1-based: which night of that stay is this day
 };
 
+// ── Stop index helper — returns the 0-based index of the stop that owns a day ──
+
+function getStopIndex(dayNumber: number, stops: RouteStop[]): number {
+  let cursor = 0;
+  for (let i = 0; i < stops.length; i++) {
+    const stop = stops[i];
+    const isLast = i === stops.length - 1;
+    const count = stop.stay_days + (isLast ? 1 : 0);
+    cursor += count;
+    if (dayNumber <= cursor) return i;
+  }
+  return 0;
+}
+
 // ── Stop coords helper — returns the location coords of the stop for a day ──
 
 function getStopCoords(
@@ -449,6 +463,7 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
         const stops = selectedRoute?.stops ?? [];
         const stopLabel  = stops.length ? getStopLabel(openDay.day, stops)  : undefined;
         const stopCoords = stops.length ? getStopCoords(openDay.day, stops) : undefined;
+        const stopIndex  = stops.length ? getStopIndex(openDay.day, stops)  : undefined;
         const totalDays  = selectedDuration?.days ?? 99;
         const maxNights  = stops.length > 0
           ? getMaxNightsForDay(openDay.day, stops)
@@ -467,6 +482,7 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
             onSaved={handleDaySaved}
             stopLabel={stopLabel}
             stopCoords={stopCoords}
+            stopIndex={stopIndex}
             occupiedBy={occupiedDays.get(openDay.day)}
             maxNights={maxNights}
           />
