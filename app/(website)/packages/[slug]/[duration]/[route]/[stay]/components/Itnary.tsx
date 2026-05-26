@@ -699,6 +699,11 @@ function ActivityContent({ section }: { section: ActivitySection }) {
       <div className="w-10 shrink-0" />
       <div className="flex-1 space-y-3">
 
+        {/* Activity name */}
+        <Text size="base" weight="semibold" className="font-heading text-primary leading-tight">
+          {section.name}
+        </Text>
+
         {/* Meta badges: optional / category / difficulty / duration */}
         {hasMeta && (
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -1007,7 +1012,7 @@ const SECTION_CONFIG: {
   },
   activity: {
     icon: ParachuteIcon,
-    title: (s) => s.name,
+    title: 'Activity',
     subtitle: (s) => {
       const parts: string[] = [];
       if (s.is_optional) parts.push('Optional');
