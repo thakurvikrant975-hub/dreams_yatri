@@ -22,7 +22,6 @@ import {
 import {
   CarIcon,
   BedIcon,
-  ClockIcon,
   ForkKnifeIcon,
   ParachuteIcon,
   AirplaneTiltIcon,
@@ -96,7 +95,17 @@ interface StaySection {
   mealType: string | null;
   planName: string | null;
 }
-interface ActivitySection { type: 'activity'; startTime?: string; duration?: string; name: string; images: { src: string; label: string }[] }
+interface ActivitySection {
+  type: 'activity';
+  name: string;
+  description?: string | null;
+  duration_hours?: number | null;
+  difficulty?: string | null;
+  category?: string | null;
+  is_optional?: boolean;
+  pricingTiers?: { label: string; price: number }[];
+  images: { src: string; label: string }[];
+}
 interface FoodSection { type: 'food'; meals: { meal: MealType; restaurant: string; items: string }[] }
 
 export type DaySection = FlightSection | CabSection | StaySection | ActivitySection | FoodSection;
@@ -258,13 +267,13 @@ function CabRoute({
           <div className="flex gap-3 w-full mt-0.5">
             <Text size="sm" intent="primary" className="w-max mb-0.5 font-heading shrink-0">Pickup Point:</Text>
             <div className="flex items-center gap-1.5">
-              {FromIcon && <FromIcon weight="duotone" className="size-7 p-1 ring-1 ring-neutral-300/80 text-muted shrink-0 bg-neutral-50 rounded-md" />}
+              {FromIcon && <FromIcon weight="duotone" className="size-7 p-1 ring-1 ring-neutral-300/80 text-muted shrink-0 bg-neutral-50 rounded-sm" />}
               <Text size="sm" intent="primary" weight="semibold" className="font-heading">{from}</Text>
             </div>
           </div>
         </div>
       </div>
-
+    
       <div className="h-8 w-full flex items-stretch">
         <div className="w-18" />
         <div className="h-full flex-1 border-l-[0.2em] border-l-(--border-default) px-3 flex items-center gap-0.5">
@@ -472,11 +481,10 @@ function CabContent({ section }: { section: CabSection }) {
         <div className='flex-1'>
           {/* Vehicle details pill */}
           {hasVehicleInfo && (
-            <div className="flex items-center gap-2.5 bg-neutral-50 ring-1 ring-inset ring-neutral-100 shadow-sm rounded-xl px-3.5 py-2.5 mb-3">
-              <CarIcon weight="duotone" className="size-5 text-brand shrink-0" />
+            <div className="flex items-center gap-2.5  mb-3">
               <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                 {section.vehicle_name && (
-                  <Text size="sm" weight="semibold" intent="primary" className="font-heading">
+                  <Text size="base" weight="semibold" intent="primary" className="font-heading">
                     {section.vehicle_name}
                   </Text>
                 )}
@@ -522,7 +530,7 @@ function CabContent({ section }: { section: CabSection }) {
 
         {/* Vehicle image */}
         {(section.vehicle_image || section.vehicle_name) && (
-          <div className="relative h-36 w-36 shrink-0 rounded-2xl overflow-hidden bg-neutral-100">
+          <div className="relative h-36 aspect-video shrink-0 rounded-2xl overflow-hidden bg-neutral-100">
             <img
               src={section.vehicle_image || CAB_PLACEHOLDER}
               alt={section.vehicle_name ?? "Vehicle"}
@@ -683,24 +691,79 @@ function StayContent({ section }: { section: StaySection }) {
 }
 
 function ActivityContent({ section }: { section: ActivitySection }) {
+  const hasMeta = section.is_optional || section.category || section.difficulty || section.duration_hours;
+  const hasPricing = section.pricingTiers && section.pricingTiers.length > 0;
+
   return (
     <div className="mt-2 flex">
-      <div className="w-10"></div>
-      <div className='flex-1'>
-        <Text size='base' weight='semibold' className="font-heading text-primary leading-tight mb-3">{section.name}</Text>
-        <Carousel
-          items={section.images}
-          perView={3}
-          gap={6}
-          renderItem={({ src, label }) => (
-            <div className="relative rounded-xl overflow-hidden">
-              <Image src={src} alt={label} width={1000} height={600} className="w-full aspect-5/3 object-cover" />
-              <div className="absolute inset-x-0 bottom-0 bg-linear-to-r from-black/60 to-transparent px-2 py-1.5">
-                <p className="text-[10px] text-white font-medium">{label}</p>
+      <div className="w-10 shrink-0" />
+      <div className="flex-1 space-y-3">
+
+        {/* Meta badges: optional / category / difficulty / duration */}
+        {hasMeta && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {section.is_optional && (
+              <span className="inline-flex items-center bg-warning-50 text-warning-700 ring-1 ring-inset ring-warning-200 rounded-full px-2.5 py-0.5 text-[11px] font-semibold">
+                Optional
+              </span>
+            )}
+            {section.category && (
+              <span className="inline-flex items-center bg-brand-50 text-brand ring-1 ring-inset ring-primary-200 rounded-full px-2.5 py-0.5 text-[11px] font-medium">
+                {section.category}
+              </span>
+            )}
+            {section.difficulty && (
+              <span className="inline-flex items-center bg-neutral-100 text-secondary ring-1 ring-inset ring-neutral-200 rounded-full px-2.5 py-0.5 text-[11px] font-medium">
+                {section.difficulty}
+              </span>
+            )}
+            {section.duration_hours && (
+              <span className="inline-flex items-center gap-1 bg-neutral-100 text-secondary ring-1 ring-inset ring-neutral-200 rounded-full px-2.5 py-0.5 text-[11px] font-medium">
+                <ArrowDownIcon weight="duotone" className="size-3 -rotate-90 shrink-0" />
+                {formatDuration(section.duration_hours)}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Description */}
+        {section.description && (
+          <Text size="sm" intent="secondary" className="leading-relaxed">
+            {section.description}
+          </Text>
+        )}
+
+        {/* Pricing tiers */}
+        {hasPricing && (
+          <div className="flex flex-wrap gap-2">
+            {section.pricingTiers!.map((tier, i) => (
+              <div key={i} className="flex items-baseline gap-1.5 bg-neutral-50 ring-1 ring-inset ring-neutral-200 rounded-xl px-3 py-1.5">
+                <Text size="xs" intent="secondary">{tier.label}</Text>
+                <Text size="sm" weight="bold" intent="primary" className="font-heading">
+                  ₹{tier.price.toLocaleString('en-IN')}
+                </Text>
               </div>
-            </div>
-          )}
-        />
+            ))}
+          </div>
+        )}
+
+        {/* Image carousel */}
+        {section.images.length > 0 && (
+          <Carousel
+            items={section.images}
+            perView={3}
+            gap={6}
+            renderItem={({ src, label }) => (
+              <div className="relative rounded-xl overflow-hidden">
+                <Image src={src} alt={label} width={1000} height={600} className="w-full aspect-5/3 object-cover" />
+                <div className="absolute inset-x-0 bottom-0 bg-linear-to-r from-black/60 to-transparent px-2 py-1.5">
+                  <p className="text-[10px] text-white font-medium">{label}</p>
+                </div>
+              </div>
+            )}
+          />
+        )}
+
       </div>
     </div>
   );
@@ -893,6 +956,14 @@ function AttractionStories({
 
 // ─── Day Section Block ────────────────────────────────────────────────────────
 
+// Format decimal hours → "3h", "1h 30m", "45m"
+function formatDuration(hours: number): string {
+  const h = Math.floor(hours);
+  const m = Math.round((hours - h) * 60);
+  if (h === 0) return `${m}m`;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
 // Truncate a place name to `max` visible chars, appending "…" when cut
 function truncatePlace(name: string, max = 15): string {
   const trimmed = name.trim();
@@ -915,7 +986,7 @@ const SECTION_CONFIG: {
   cab: {
     icon: CarIcon,
     // Use the exact assigned vehicle name; fall back to generic "Transfer"
-    title: (s) => s.vehicle_name ?? 'Transfer',
+    title: 'Transfer',
     subtitle: (s) => {
       const parts: string[] = [];
       if (s.distance_km) parts.push(`${s.distance_km} km`);
@@ -935,12 +1006,14 @@ const SECTION_CONFIG: {
     content: (s) => <StayContent section={s} />,
   },
   activity: {
-    icon: ClockIcon,
-    title: 'Activity',
-    subtitle: (s) => [
-      s.startTime && `· Start At ${s.startTime}`,
-      s.duration && `· For ${s.duration}`,
-    ].filter(Boolean).join(' ') || undefined,
+    icon: ParachuteIcon,
+    title: (s) => s.name,
+    subtitle: (s) => {
+      const parts: string[] = [];
+      if (s.is_optional) parts.push('Optional');
+      if (s.duration_hours) parts.push(formatDuration(s.duration_hours));
+      return parts.length ? `· ${parts.join(' · ')}` : undefined;
+    },
     content: (s) => <ActivityContent section={s} />,
   },
   food: {

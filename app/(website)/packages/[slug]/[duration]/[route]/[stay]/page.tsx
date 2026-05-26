@@ -160,6 +160,12 @@ export default async function PackagePage({
             _sort: a.sort_order,
             type: "activity" as const,
             name: a.name,
+            description:    a.description,
+            duration_hours: a.duration_hours,
+            difficulty:     a.difficulty,
+            category:       a.category,
+            is_optional:    a.is_optional,
+            pricingTiers:   a.pricingTiers,
             images: a.images.map(img => ({
                 src: imgUrl(img.url),
                 label: img.label ?? img.alt ?? a.category ?? a.name,
