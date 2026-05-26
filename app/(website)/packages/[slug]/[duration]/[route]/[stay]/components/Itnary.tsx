@@ -30,7 +30,6 @@ import {
   CoffeeIcon,
   BowlSteamIcon,
   CheersIcon,
-  ArrowDownIcon,
   SealWarningIcon,
   NotePencilIcon,
   RoadHorizonIcon,
@@ -691,7 +690,6 @@ function StayContent({ section }: { section: StaySection }) {
 }
 
 function ActivityContent({ section }: { section: ActivitySection }) {
-  const hasMeta = section.is_optional || section.category || section.difficulty || section.duration_hours;
   const hasPricing = section.pricingTiers && section.pricingTiers.length > 0;
 
   return (
@@ -703,33 +701,6 @@ function ActivityContent({ section }: { section: ActivitySection }) {
         <Text size="base" weight="semibold" className="font-heading text-primary leading-tight">
           {section.name}
         </Text>
-
-        {/* Meta badges: optional / category / difficulty / duration */}
-        {hasMeta && (
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {section.is_optional && (
-              <span className="inline-flex items-center bg-warning-50 text-warning-700 ring-1 ring-inset ring-warning-200 rounded-full px-2.5 py-0.5 text-[11px] font-semibold">
-                Optional
-              </span>
-            )}
-            {section.category && (
-              <span className="inline-flex items-center bg-brand-50 text-brand ring-1 ring-inset ring-primary-200 rounded-full px-2.5 py-0.5 text-[11px] font-medium">
-                {section.category}
-              </span>
-            )}
-            {section.difficulty && (
-              <span className="inline-flex items-center bg-neutral-100 text-secondary ring-1 ring-inset ring-neutral-200 rounded-full px-2.5 py-0.5 text-[11px] font-medium">
-                {section.difficulty}
-              </span>
-            )}
-            {section.duration_hours && (
-              <span className="inline-flex items-center gap-1 bg-neutral-100 text-secondary ring-1 ring-inset ring-neutral-200 rounded-full px-2.5 py-0.5 text-[11px] font-medium">
-                <ArrowDownIcon weight="duotone" className="size-3 -rotate-90 shrink-0" />
-                {formatDuration(section.duration_hours)}
-              </span>
-            )}
-          </div>
-        )}
 
         {/* Description */}
         {section.description && (
@@ -1016,6 +987,8 @@ const SECTION_CONFIG: {
     subtitle: (s) => {
       const parts: string[] = [];
       if (s.is_optional) parts.push('Optional');
+      if (s.category) parts.push(s.category);
+      if (s.difficulty) parts.push(s.difficulty);
       if (s.duration_hours) parts.push(formatDuration(s.duration_hours));
       return parts.length ? `· ${parts.join(' · ')}` : undefined;
     },
