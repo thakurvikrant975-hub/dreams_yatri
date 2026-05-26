@@ -1163,8 +1163,7 @@ function AttractionsModal({
   const [sourceImages, setSourceImages] = useState<AttractionSourceImages | null>(null);
   const [loadingImages, setLoadingImages] = useState(false);
   const [activeSource, setActiveSource] = useState<AttractionSourceKey>("PACKAGE");
-  const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
-  const [addPending, setAddPending] = useState(false);
+  const [addingUrl, setAddingUrl] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
   // Caption editing state — map of id → draft caption
@@ -1195,32 +1194,24 @@ function AttractionsModal({
     });
   }, [open, itineraryId, packageId, sourceImages]);
 
-  const images = sourceImages?.[activeSource] ?? [];
+  // Keys of already-added attractions — used to hide them from the picker
+  const addedKeys = new Set(attractions.map((a) => a.image_key));
+
+  const allImages = sourceImages?.[activeSource] ?? [];
+  // Filter out images already added so they can't be selected again
+  const images = allImages.filter((img) => !addedKeys.has(img.url));
   const grouped = images.reduce<Record<string, typeof images[0][]>>((acc, img) => {
     (acc[img.group_label] ??= []).push(img);
     return acc;
   }, {});
 
-  function toggleUrl(url: string) {
-    setSelectedUrls((prev) => {
-      const next = new Set(prev);
-      if (next.has(url)) next.delete(url);
-      else next.add(url);
-      return next;
-    });
-  }
-
-  async function handleAddSelected() {
-    const keys = Array.from(selectedUrls);
-    if (keys.length === 0) return;
-    setAddPending(true);
-    const res = await handleBulkAddAttractions(itineraryId, keys, packageId);
-    setAddPending(false);
-    if (!res.success) { toast.error(res.message ?? "Failed to add attractions"); return; }
+  async function handleAddOne(imageKey: string) {
+    if (addingUrl || atLimit) return;
+    setAddingUrl(imageKey);
+    const res = await handleBulkAddAttractions(itineraryId, [imageKey], packageId);
+    setAddingUrl(null);
+    if (!res.success) { toast.error(res.message ?? "Failed to add attraction"); return; }
     onAttractionsChange([...attractions, ...res.data]);
-    setSelectedUrls(new Set());
-    toast.success(`${res.data.length} attraction${res.data.length !== 1 ? "s" : ""} added`);
-    onClose();
   }
 
   async function handleDelete(id: number) {
@@ -1329,7 +1320,7 @@ function AttractionsModal({
                   <button
                     key={key}
                     type="button"
-                    onClick={() => { setActiveSource(key); setSelectedUrls(new Set()); }}
+                    onClick={() => setActiveSource(key)}
                     className={cn(
                       "flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors",
                       activeSource === key
@@ -1343,7 +1334,7 @@ function AttractionsModal({
                 ))}
               </div>
 
-              {/* Image grid */}
+              {/* Image grid — click to add immediately */}
               <div className="flex-1 overflow-y-auto p-4">
                 {loadingImages ? (
                   <div className="flex items-center justify-center py-10">
@@ -1352,13 +1343,17 @@ function AttractionsModal({
                 ) : images.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-10 text-center">
                     <Camera className="h-7 w-7 text-muted-foreground/30 mb-2" />
-                    <p className="text-sm text-muted-foreground">No images available</p>
+                    <p className="text-sm text-muted-foreground">
+                      {allImages.length > 0 ? "All images already added" : "No images available"}
+                    </p>
                     <p className="text-xs text-muted-foreground/60 mt-1">
-                      {activeSource === "PACKAGE"
-                        ? "Upload images in the Images tab first"
-                        : activeSource === "HOTEL"
-                          ? hasStay ? "No hotel images uploaded yet" : "Assign a hotel stay to this day first"
-                          : hasActivity ? "No activity images uploaded yet" : "Add an activity to this day first"}
+                      {allImages.length > 0
+                        ? "Remove one above to add a different image"
+                        : activeSource === "PACKAGE"
+                          ? "Upload images in the Images tab first"
+                          : activeSource === "HOTEL"
+                            ? hasStay ? "No hotel images uploaded yet" : "Assign a hotel stay to this day first"
+                            : hasActivity ? "No activity images uploaded yet" : "Add an activity to this day first"}
                     </p>
                   </div>
                 ) : (
@@ -1370,17 +1365,18 @@ function AttractionsModal({
                         </p>
                         <div className="grid grid-cols-5 sm:grid-cols-6 gap-1.5">
                           {imgs.map((img) => {
-                            const isSelected = selectedUrls.has(img.url);
+                            const isAdding = addingUrl === img.url;
                             return (
                               <button
                                 key={img.id}
                                 type="button"
-                                onClick={() => toggleUrl(img.url)}
+                                onClick={() => handleAddOne(img.url)}
+                                disabled={!!addingUrl || atLimit}
                                 className={cn(
                                   "relative aspect-square rounded-lg overflow-hidden border-2 transition-all",
-                                  isSelected
-                                    ? "border-primary ring-2 ring-primary/30"
-                                    : "border-transparent hover:border-primary/50",
+                                  "border-transparent hover:border-primary/50 hover:ring-2 hover:ring-primary/20",
+                                  (!!addingUrl || atLimit) && "cursor-not-allowed opacity-60",
+                                  isAdding && "opacity-100",
                                 )}
                               >
                                 <img
@@ -1388,9 +1384,9 @@ function AttractionsModal({
                                   alt=""
                                   className="absolute inset-0 w-full h-full object-cover"
                                 />
-                                {isSelected && (
-                                  <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
-                                    <Check className="h-4 w-4 text-white drop-shadow" />
+                                {isAdding && (
+                                  <div className="absolute inset-0 bg-primary/30 flex items-center justify-center">
+                                    <Loader2 className="h-4 w-4 text-white drop-shadow animate-spin" />
                                   </div>
                                 )}
                               </button>
@@ -1402,21 +1398,6 @@ function AttractionsModal({
                   </div>
                 )}
               </div>
-
-              {/* Add selected — shown when any image is selected */}
-              {selectedUrls.size > 0 && (
-                <div className="border-t px-4 py-3 flex items-center justify-between gap-3 bg-background">
-                  <span className="text-xs text-muted-foreground">
-                    {selectedUrls.size} image{selectedUrls.size !== 1 ? "s" : ""} selected
-                  </span>
-                  <Button size="sm" onClick={handleAddSelected} disabled={addPending} className="gap-1.5 shrink-0">
-                    {addPending
-                      ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Adding…</>
-                      : <><Plus className="h-3.5 w-3.5" />Add {selectedUrls.size} Attraction{selectedUrls.size !== 1 ? "s" : ""}</>
-                    }
-                  </Button>
-                </div>
-              )}
             </div>
           ) : (
             <div className="flex items-center justify-center py-8">
