@@ -195,34 +195,6 @@ export function DetailsTab({
             />
           </div>
 
-          <div className="space-y-1.5">
-            <Label>Address <span className="text-xs text-muted-foreground">(editable)</span></Label>
-            <Input
-              name="address"
-              value={address}
-              onChange={e => setAddress(e.target.value)}
-              placeholder="Dal Lake, Srinagar..."
-            />
-          </div>
-
-          <div className="grid grid-cols-4 gap-3">
-            <div className="space-y-1.5">
-              <Label>City</Label>
-              <Input name="city" defaultValue={hotel.city ?? ""} placeholder="Srinagar" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>State</Label>
-              <Input name="state" defaultValue={hotel.state ?? ""} placeholder="Jammu & Kashmir" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Country</Label>
-              <Input name="country" defaultValue={hotel.country ?? ""} placeholder="India" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Pincode</Label>
-              <Input name="pincode" defaultValue={hotel.pincode ?? ""} placeholder="190001" />
-            </div>
-          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
