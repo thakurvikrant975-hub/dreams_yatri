@@ -690,6 +690,7 @@ function StayContent({ section }: { section: StaySection }) {
 }
 
 function ActivityContent({ section }: { section: ActivitySection }) {
+  const [descExpanded, setDescExpanded] = useState(false);
   const hasPricing = section.pricingTiers && section.pricingTiers.length > 0;
 
   return (
@@ -704,29 +705,30 @@ function ActivityContent({ section }: { section: ActivitySection }) {
 
         {/* Description */}
         {section.description && (
-          <Text size="sm" intent="secondary" className="leading-relaxed">
-            {section.description}
-          </Text>
-        )}
-
-        {/* Pricing tiers */}
-        {hasPricing && (
-          <div className="flex flex-wrap gap-2">
-            {section.pricingTiers!.map((tier, i) => (
-              <div key={i} className="flex items-baseline gap-1.5 bg-neutral-50 ring-1 ring-inset ring-neutral-200 rounded-xl px-3 py-1.5">
-                <Text size="xs" intent="secondary">{tier.label}</Text>
-                <Text size="sm" weight="bold" intent="primary" className="font-heading">
-                  ₹{tier.price.toLocaleString('en-IN')}
-                </Text>
-              </div>
-            ))}
+          <div>
+            <Text
+              size="sm"
+              intent="secondary"
+              className={cn('leading-relaxed', !descExpanded && 'line-clamp-2')}
+            >
+              {section.description}
+            </Text>
+            <button
+              type="button"
+              onClick={() => setDescExpanded(e => !e)}
+              className="mt-1 text-xs font-semibold text-brand hover:text-primary transition-colors"
+            >
+              {descExpanded ? 'Show less' : 'Read more'}
+            </button>
           </div>
         )}
+
+
 
         {/* Image carousel */}
         {section.images.length > 0 && (
           <div className="space-y-2">
-            <p className="text-xs font-bold text-muted uppercase tracking-widest">Glimpses of the experience</p>
+            <p className="text-xs font-semibold text-primary uppercase tracking-widest">Glimpses of the experience</p>
             <Carousel
               items={section.images}
               perView={3}
@@ -734,8 +736,8 @@ function ActivityContent({ section }: { section: ActivitySection }) {
               renderItem={({ src, label }) => (
                 <div className="relative rounded-xl overflow-hidden">
                   <Image src={src} alt={label} width={1000} height={600} className="w-full aspect-5/3 object-cover" />
-                  <div className="absolute inset-x-0 bottom-0 bg-linear-to-r from-black/60 to-transparent px-2 py-1.5">
-                    <p className="text-[10px] text-white font-medium">{label}</p>
+                  <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-neutral-900/80 via-neutral-900/60 to-transparent px-2 py-1.5 pt-3">
+                    <p className="text-sm text-white font-medium truncate">{label}</p>
                   </div>
                 </div>
               )}
