@@ -406,7 +406,7 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
             <div className="flex items-center justify-center py-16">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
-          ) : days ? (
+          ) : days ? (  
             selectedRoute?.stops?.length ? (
               <div className="space-y-5">
                 {computeStopGroups(selectedRoute.stops).map((group) => {
