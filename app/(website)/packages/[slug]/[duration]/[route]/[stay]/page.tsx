@@ -114,6 +114,7 @@ export default async function PackagePage({
             vehicle_name:     t.vehicle_name,
             vehicle_type:     t.vehicle_type,
             vehicle_capacity: t.vehicle_capacity,
+            vehicle_image:    imgUrl(t.vehicle_image_key),
             num_vehicles:     t.num_vehicles,
             transfer_notes:   t.notes,
         }));

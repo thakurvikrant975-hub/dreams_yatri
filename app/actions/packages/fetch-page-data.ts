@@ -83,6 +83,7 @@ export type TransferDay = {
   vehicle_name: string | null;
   vehicle_type: string | null;
   vehicle_capacity: number | null;
+  vehicle_image_key: string | null;
   num_vehicles: number;
   notes: string | null;
 };
@@ -451,6 +452,7 @@ export async function fetchPackagePageData(
                 name: true,
                 type: true,
                 passenger_capacity: true,
+                image_key: true,
               },
             },
           },
@@ -589,6 +591,7 @@ export async function fetchPackagePageData(
       vehicle_name: tr.vehicle?.name ?? null,
       vehicle_type: tr.vehicle?.type ?? null,
       vehicle_capacity: tr.vehicle?.passenger_capacity ?? null,
+      vehicle_image_key: tr.vehicle?.image_key ?? null,
       num_vehicles: tr.num_vehicles,
       notes: tr.notes,
     }));

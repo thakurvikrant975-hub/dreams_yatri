@@ -1,7 +1,7 @@
 // ItinerarySection.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { cn } from '@/app/lib/utils';
 import Accordion from '@/app/components/ui/Accordian';
 import { Heading, Text } from '@/app/components/ui/Typography';
@@ -68,6 +68,7 @@ interface CabSection {
   vehicle_name?: string | null;
   vehicle_type?: string | null;
   vehicle_capacity?: number | null;
+  vehicle_image?: string | null;
   num_vehicles?: number;
   transfer_notes?: string | null;
 }
@@ -508,22 +509,26 @@ function CabContent({ section }: { section: CabSection }) {
         </div>
 
         {/* Vehicle image */}
-        <div className="relative h-36 rounded-2xl overflow-hidden bg-neutral-100">
-          <img
-            src={CAB_PLACEHOLDER}
-            alt={section.vehicle_name ?? "Vehicle"}
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
-          <span className="absolute bottom-2 right-3 text-[10px] text-white/60 font-medium tracking-wide">
-            photo · placeholder
-          </span>
-          {section.vehicle_name && (
-            <span className="absolute bottom-2 left-3 text-sm font-semibold text-white drop-shadow-sm">
-              {section.vehicle_name}
-            </span>
-          )}
-        </div>
+        {(section.vehicle_image || section.vehicle_name) && (
+          <div className="relative h-36 w-36 shrink-0 rounded-2xl overflow-hidden bg-neutral-100">
+            <img
+              src={section.vehicle_image || CAB_PLACEHOLDER}
+              alt={section.vehicle_name ?? "Vehicle"}
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-linear-to-t from-black/55 via-black/10 to-transparent" />
+            {!section.vehicle_image && (
+              <span className="absolute top-2 right-2 text-[9px] text-white/50 font-medium tracking-wide bg-black/30 rounded px-1 py-0.5">
+                placeholder
+              </span>
+            )}
+            {section.vehicle_name && (
+              <span className="absolute bottom-2 left-2 right-2 text-xs font-semibold text-white drop-shadow-sm leading-tight line-clamp-2">
+                {section.vehicle_name}
+              </span>
+            )}
+          </div>
+        )}
 
       </div>
     </div>
@@ -715,41 +720,161 @@ function FoodContent({ section }: { section: FoodSection }) {
   );
 }
 
-// ─── Attraction Strip ─────────────────────────────────────────────────────────
+// ─── Attraction Stories ───────────────────────────────────────────────────────
 
-function AttractionStrip({ items }: { items: { imageUrl: string; caption: string }[] }) {
-  if (!items || items.length === 0) return null;
+function AttractionStories({
+  items,
+  className,
+}: {
+  items: { imageUrl: string; caption: string }[];
+  className?: string;
+}) {
+  const [activeIdx, setActiveIdx] = useState<number | null>(null);
+
+  // Keyboard navigation + scroll lock while lightbox is open
+  useEffect(() => {
+    if (activeIdx === null) return;
+    document.body.style.overflow = 'hidden';
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setActiveIdx(null);
+      if (e.key === 'ArrowRight') setActiveIdx(i => (i !== null && i < items.length - 1 ? i + 1 : i));
+      if (e.key === 'ArrowLeft')  setActiveIdx(i => (i !== null && i > 0             ? i - 1 : i));
+    }
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
+  }, [activeIdx, items.length]);
+
+  if (!items?.length) return null;
+
+  const active = activeIdx !== null ? items[activeIdx] : null;
+
   return (
-    <div className="mt-4 pt-4 border-t border-(--border-muted)">
-      <div className="flex items-center gap-1.5 mb-2.5">
+    <div className={className ?? "mt-4 pt-4 border-t border-(--border-muted)"}>
+
+      {/* Header */}
+      <div className="flex items-center gap-1.5 mb-3">
         <CameraIcon className="size-3.5 text-muted shrink-0" />
         <Text size="xs" intent="secondary" weight="medium">Highlights</Text>
       </div>
-      <div className={cn(
-        'grid gap-1',
-        items.length === 1 ? 'grid-cols-1' :
-        items.length === 2 ? 'grid-cols-2' :
-        'grid-cols-3',
-      )}>
+
+      {/* Story circles row */}
+      <div className="flex gap-4 overflow-x-auto no-scrollbar pb-1">
         {items.map((item, i) => (
-          <div key={i} className="relative rounded-xl overflow-hidden aspect-video bg-neutral-100">
-            <Image
-              src={item.imageUrl}
-              alt={item.caption || ''}
-              fill
-              className="object-cover"
-              sizes="(max-width: 768px) 33vw, 20vw"
+          <button
+            key={i}
+            type="button"
+            onClick={() => setActiveIdx(i)}
+            className="flex flex-col items-center gap-1.5 shrink-0 group focus:outline-none"
+          >
+            {/* Gradient ring — Instagram-style */}
+            <div className="p-[2.5px] rounded-full bg-linear-to-tr from-yellow-400 via-red-500 to-violet-600 group-active:scale-95 transition-transform duration-150 shadow-sm">
+              <div className="p-0.5 rounded-full bg-white ">
+                <div className="size-16 rounded-full overflow-hidden">
+                  <img
+                    src={item.imageUrl}
+                    alt={item.caption || ''}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              </div>
+            </div>
+            {/* Caption label */}
+            <p className="text-[10px] text-secondary text-center leading-snug max-w-18 line-clamp-2 font-medium">
+              {item.caption || ' '}
+            </p>
+          </button>
+        ))}
+      </div>
+
+      {/* ── Lightbox ─────────────────────────────────────────────────────── */}
+      {active !== null && activeIdx !== null && (
+        <div
+          className="fixed inset-0 z-9999 flex items-center justify-center bg-black/90 backdrop-blur-md"
+          onClick={() => setActiveIdx(null)}
+        >
+          {/* Center panel — stops propagation so clicks inside don't close */}
+          <div
+            className="relative flex flex-col items-center px-4"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Image — browser keeps natural aspect ratio */}
+            <img
+              src={active.imageUrl}
+              alt={active.caption || ''}
+              className="max-w-[90vw] max-h-[78vh] rounded-2xl object-contain shadow-2xl ring-1 ring-white/10"
             />
-            {item.caption && (
-              <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/60 to-transparent px-2 py-1.5">
-                <p className="text-[10px] text-white font-medium leading-tight line-clamp-1">
-                  {item.caption}
-                </p>
+
+            {/* Caption */}
+            {active.caption && (
+              <p className="mt-3 text-sm text-white/80 text-center max-w-[80vw] leading-snug">
+                {active.caption}
+              </p>
+            )}
+
+            {/* Dot indicators */}
+            {items.length > 1 && (
+              <div className="flex items-center gap-1.5 mt-3">
+                {items.map((_, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setActiveIdx(i)}
+                    className={cn(
+                      'h-1.5 rounded-full transition-all duration-200',
+                      i === activeIdx ? 'w-5 bg-white' : 'w-1.5 bg-white/35 hover:bg-white/60',
+                    )}
+                  />
+                ))}
               </div>
             )}
           </div>
-        ))}
-      </div>
+
+          {/* Close button */}
+          <button
+            type="button"
+            onClick={() => setActiveIdx(null)}
+            className="absolute top-4 right-4 size-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/80 hover:text-white transition-colors"
+          >
+            <XMarkIcon className="size-5" />
+          </button>
+
+          {/* Prev arrow */}
+          {activeIdx > 0 && (
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); setActiveIdx(activeIdx - 1); }}
+              className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 size-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+            >
+              <svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+              </svg>
+            </button>
+          )}
+
+          {/* Next arrow */}
+          {activeIdx < items.length - 1 && (
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); setActiveIdx(activeIdx + 1); }}
+              className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 size-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+            >
+              <svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+              </svg>
+            </button>
+          )}
+
+          {/* Counter badge */}
+          {items.length > 1 && (
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 text-[11px] text-white/50 tabular-nums">
+              {activeIdx + 1} / {items.length}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -759,7 +884,7 @@ function AttractionStrip({ items }: { items: { imageUrl: string; caption: string
 const SECTION_CONFIG: {
   [K in DaySection['type']]: {
     icon: React.ElementType;
-    title: string;
+    title: string | ((section: Extract<DaySection, { type: K }>) => string);
     subtitle?: (section: Extract<DaySection, { type: K }>) => string | undefined;
     content: (section: Extract<DaySection, { type: K }>) => React.ReactNode;
   }
@@ -771,14 +896,9 @@ const SECTION_CONFIG: {
   },
   cab: {
     icon: CarIcon,
-    title: 'Transfer',
-    subtitle: (s) => {
-      const parts = [
-        s.vehicle_name,
-        s.distance_km ? `${s.distance_km} km` : null,
-      ].filter(Boolean);
-      return parts.length ? `· ${parts.join(' · ')}` : s.subtitle ? `· ${s.subtitle}` : undefined;
-    },
+    // Use the exact assigned vehicle name; fall back to generic "Transfer"
+    title: (s) => s.vehicle_name ?? 'Transfer',
+    subtitle: (s) => s.distance_km ? `· ${s.distance_km} km` : undefined,
     content: (s) => <CabContent section={s} />,
   },
   stay: {
@@ -806,10 +926,13 @@ const SECTION_CONFIG: {
 function DaySectionBlock({ section, id }: { section: DaySection; id: string }) {
   const config = SECTION_CONFIG[section.type] as {
     icon: React.ElementType;
-    title: string;
+    title: string | ((s: typeof section) => string);
     subtitle?: (s: typeof section) => string | undefined;
     content: (s: typeof section) => React.ReactNode;
   };
+
+  const resolvedTitle =
+    typeof config.title === 'function' ? config.title(section) : config.title;
 
   return (
     <Accordion variant="ghost" defaultOpen={[id]}>
@@ -817,7 +940,7 @@ function DaySectionBlock({ section, id }: { section: DaySection; id: string }) {
         <Accordion.Trigger className="py-2">
           <SectionTrigger
             icon={config.icon}
-            title={config.title}
+            title={resolvedTitle}
             subtitle={config.subtitle?.(section)}
           />
         </Accordion.Trigger>
@@ -901,6 +1024,14 @@ export default function ItinerarySection({ days }: ItineraryProps) {
                   </div>
                 )}
 
+                {/* Attraction stories — just below title, above description */}
+                {activeTab === 'Plan' && attractions && attractions.length > 0 && (
+                  <AttractionStories
+                    items={attractions}
+                    className="pt-3 pb-3 border-b border-(--border-muted)"
+                  />
+                )}
+
                 {activeTab === 'Plan' && description && (
                   <Text size='sm' intent='secondary' className="py-3 border-b border-(--border-muted)">
                     {description}
@@ -914,11 +1045,6 @@ export default function ItinerarySection({ days }: ItineraryProps) {
                     </div>
                   ))}
                 </div>
-
-                {/* Attraction strip — Plan tab only */}
-                {activeTab === 'Plan' && attractions && attractions.length > 0 && (
-                  <AttractionStrip items={attractions} />
-                )}
 
                 {/* Bottom notes */}
                 {notes && notes.length > 0 && (

@@ -1170,7 +1170,7 @@ function AttractionsModal({
   const [editCaptions, setEditCaptions] = useState<Record<number, string>>(
     () => Object.fromEntries(attractions.map((a) => [a.id, a.caption])),
   );
-  const [savingCaptionId, setSavingCaptionId] = useState<number | null>(null);
+  const [savingAll, setSavingAll] = useState(false);
 
   // Sync newly-added attractions into the caption map
   useEffect(() => {
@@ -1223,15 +1223,37 @@ function AttractionsModal({
     toast.success("Removed");
   }
 
-  async function handleSaveCaption(id: number) {
-    const caption = (editCaptions[id] ?? "").trim();
-    const original = attractions.find((a) => a.id === id)?.caption ?? "";
-    if (caption === original) return;
-    setSavingCaptionId(id);
-    const res = await handleUpdateAttraction(id, caption, packageId);
-    setSavingCaptionId(null);
-    if (!res.success) { toast.error(res.message ?? "Failed to save caption"); return; }
-    onAttractionsChange(attractions.map((a) => (a.id === id ? { ...a, caption } : a)));
+  // Changed captions = attractions whose draft differs from committed value
+  const changedCaptions = attractions.filter(
+    (a) => (editCaptions[a.id] ?? "").trim() !== a.caption,
+  );
+  const hasUnsavedCaptions = changedCaptions.length > 0;
+
+  async function handleSaveAll() {
+    if (!hasUnsavedCaptions || savingAll) return;
+    setSavingAll(true);
+    const results = await Promise.all(
+      changedCaptions.map((a) =>
+        handleUpdateAttraction(a.id, (editCaptions[a.id] ?? "").trim(), packageId).then(
+          (res) => ({ id: a.id, caption: (editCaptions[a.id] ?? "").trim(), res }),
+        ),
+      ),
+    );
+    setSavingAll(false);
+    const failed = results.filter((r) => !r.res.success);
+    if (failed.length) {
+      toast.error(`Failed to save ${failed.length} caption(s)`);
+    }
+    const saved = results.filter((r) => r.res.success);
+    if (saved.length) {
+      onAttractionsChange(
+        attractions.map((a) => {
+          const s = saved.find((r) => r.id === a.id);
+          return s ? { ...a, caption: s.caption } : a;
+        }),
+      );
+      toast.success(`${saved.length} caption(s) saved`);
+    }
   }
 
   const atLimit = attractions.length >= MAX_ATTRACTIONS;
@@ -1266,7 +1288,7 @@ function AttractionsModal({
               </p>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
                 {attractions.map((a) => (
-                  <div key={a.id}>
+                  <div key={a.id} className="flex flex-col">
                     {/* Thumbnail + delete button */}
                     <div className="relative group">
                       <div className="aspect-video rounded-lg overflow-hidden border bg-muted">
@@ -1286,28 +1308,49 @@ function AttractionsModal({
                           ? <Loader2 className="h-2.5 w-2.5 animate-spin" />
                           : <X className="h-2.5 w-2.5" />}
                       </button>
-                      {savingCaptionId === a.id && (
-                        <div className="absolute bottom-1 right-1">
-                          <Loader2 className="h-3 w-3 animate-spin text-white drop-shadow" />
-                        </div>
-                      )}
                     </div>
                     {/* Caption inline input */}
-                    <input
-                      type="text"
-                      value={editCaptions[a.id] ?? ""}
-                      onChange={(e) =>
-                        setEditCaptions((prev) => ({ ...prev, [a.id]: e.target.value.slice(0, 50) }))
-                      }
-                      onBlur={() => handleSaveCaption(a.id)}
-                      onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-                      placeholder="Add caption…"
-                      maxLength={50}
-                      className="mt-1 w-full text-[11px] px-1.5 py-0.5 rounded border border-transparent hover:border-input focus:border-input bg-transparent focus:bg-background outline-none transition-colors placeholder:text-muted-foreground/40"
-                    />
+                    {(() => {
+                      const isDirty = (editCaptions[a.id] ?? "").trim() !== a.caption;
+                      return (
+                        <input
+                          type="text"
+                          value={editCaptions[a.id] ?? ""}
+                          onChange={(e) =>
+                            setEditCaptions((prev) => ({ ...prev, [a.id]: e.target.value.slice(0, 50) }))
+                          }
+                          placeholder="Add caption…"
+                          maxLength={50}
+                          className={cn(
+                            "mt-1 w-full text-[11px] px-1.5 py-0.5 rounded border bg-transparent outline-none transition-colors placeholder:text-muted-foreground/40",
+                            isDirty
+                              ? "border-primary/50 ring-1 ring-primary/30 focus:ring-primary/50"
+                              : "border-transparent hover:border-input focus:border-input focus:bg-background",
+                          )}
+                        />
+                      );
+                    })()}
                   </div>
                 ))}
               </div>
+
+              {/* Save captions footer — only when there are unsaved changes */}
+              {hasUnsavedCaptions && (
+                <div className="mt-3 flex items-center justify-between gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+                  <p className="text-[11px] text-primary/80">
+                    {changedCaptions.length} caption{changedCaptions.length > 1 ? "s" : ""} with unsaved changes
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleSaveAll}
+                    disabled={savingAll}
+                    className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-[11px] font-medium text-primary-foreground shadow-sm transition-opacity hover:opacity-90 disabled:opacity-60"
+                  >
+                    {savingAll && <Loader2 className="h-3 w-3 animate-spin" />}
+                    {savingAll ? "Saving…" : "Save Captions"}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
