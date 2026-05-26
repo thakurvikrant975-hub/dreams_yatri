@@ -17,6 +17,7 @@ import {
   InformationCircleIcon,
   CheckCircleIcon,
   XCircleIcon,
+  CameraIcon,
 } from '@heroicons/react/24/solid';
 import {
   CarIcon,
@@ -102,6 +103,7 @@ export interface ItineraryDay {
   description?: string | null;
   sections: DaySection[];
   notes?: ItineraryNote[];
+  attractions?: { imageUrl: string; caption: string }[];
 }
 
 interface ItineraryProps {
@@ -713,6 +715,45 @@ function FoodContent({ section }: { section: FoodSection }) {
   );
 }
 
+// ─── Attraction Strip ─────────────────────────────────────────────────────────
+
+function AttractionStrip({ items }: { items: { imageUrl: string; caption: string }[] }) {
+  if (!items || items.length === 0) return null;
+  return (
+    <div className="mt-4 pt-4 border-t border-(--border-muted)">
+      <div className="flex items-center gap-1.5 mb-2.5">
+        <CameraIcon className="size-3.5 text-muted shrink-0" />
+        <Text size="xs" intent="secondary" weight="medium">Highlights</Text>
+      </div>
+      <div className={cn(
+        'grid gap-1',
+        items.length === 1 ? 'grid-cols-1' :
+        items.length === 2 ? 'grid-cols-2' :
+        'grid-cols-3',
+      )}>
+        {items.map((item, i) => (
+          <div key={i} className="relative rounded-xl overflow-hidden aspect-video bg-neutral-100">
+            <Image
+              src={item.imageUrl}
+              alt={item.caption || ''}
+              fill
+              className="object-cover"
+              sizes="(max-width: 768px) 33vw, 20vw"
+            />
+            {item.caption && (
+              <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/60 to-transparent px-2 py-1.5">
+                <p className="text-[10px] text-white font-medium leading-tight line-clamp-1">
+                  {item.caption}
+                </p>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Day Section Block ────────────────────────────────────────────────────────
 
 const SECTION_CONFIG: {
@@ -830,7 +871,7 @@ export default function ItinerarySection({ days }: ItineraryProps) {
         </div>
       ) : (
         <Accordion variant="ghost" multiple defaultOpen={visibleDays.map(d => `day-${d.day}-${activeTab}`)}>
-          {visibleDays.map(({ day, title, description, sections, notes }) => (
+          {visibleDays.map(({ day, title, description, sections, notes, attractions }) => (
             <Accordion.Item key={`${day}-${activeTab}`} id={`day-${day}-${activeTab}`} className="mb-2">
 
               {/* Day Trigger */}
@@ -873,6 +914,11 @@ export default function ItinerarySection({ days }: ItineraryProps) {
                     </div>
                   ))}
                 </div>
+
+                {/* Attraction strip — Plan tab only */}
+                {activeTab === 'Plan' && attractions && attractions.length > 0 && (
+                  <AttractionStrip items={attractions} />
+                )}
 
                 {/* Bottom notes */}
                 {notes && notes.length > 0 && (

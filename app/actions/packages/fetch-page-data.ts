@@ -87,6 +87,13 @@ export type TransferDay = {
   notes: string | null;
 };
 
+export type AttractionDayItem = {
+  id: number;
+  image_key: string;
+  caption: string;
+  sort_order: number;
+};
+
 export type ItineraryDayData = {
   id: number;
   day: number;
@@ -95,6 +102,7 @@ export type ItineraryDayData = {
   hotel: HotelDay | null;
   activities: ActivityDay[];
   transfers: TransferDay[];
+  attractions: AttractionDayItem[];
   notes: { message: string; type: string; position: string }[];
 };
 
@@ -447,6 +455,10 @@ export async function fetchPackagePageData(
             },
           },
         },
+        itinerary_attractions: {
+          orderBy: { sort_order: "asc" },
+          select: { id: true, image_key: true, caption: true, sort_order: true },
+        },
         itinerary_notes: {
           orderBy: { sort_order: "asc" },
           select: { message: true, type: true, position: true },
@@ -589,6 +601,7 @@ export async function fetchPackagePageData(
       hotel,
       activities,
       transfers,
+      attractions: day.itinerary_attractions,
       notes: day.itinerary_notes,
       _numNights: stay?.num_nights ?? 1,
     };

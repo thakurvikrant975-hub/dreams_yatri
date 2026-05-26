@@ -1167,6 +1167,24 @@ function AttractionsModal({
   const [addPending, setAddPending] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
+  // Caption editing state — map of id → draft caption
+  const [editCaptions, setEditCaptions] = useState<Record<number, string>>(
+    () => Object.fromEntries(attractions.map((a) => [a.id, a.caption])),
+  );
+  const [savingCaptionId, setSavingCaptionId] = useState<number | null>(null);
+
+  // Sync newly-added attractions into the caption map
+  useEffect(() => {
+    setEditCaptions((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const a of attractions) {
+        if (!(a.id in next)) { next[a.id] = a.caption; changed = true; }
+      }
+      return changed ? next : prev;
+    });
+  }, [attractions]);
+
   useEffect(() => {
     if (!open || sourceImages) return;
     setLoadingImages(true);
@@ -1214,6 +1232,17 @@ function AttractionsModal({
     toast.success("Removed");
   }
 
+  async function handleSaveCaption(id: number) {
+    const caption = (editCaptions[id] ?? "").trim();
+    const original = attractions.find((a) => a.id === id)?.caption ?? "";
+    if (caption === original) return;
+    setSavingCaptionId(id);
+    const res = await handleUpdateAttraction(id, caption, packageId);
+    setSavingCaptionId(null);
+    if (!res.success) { toast.error(res.message ?? "Failed to save caption"); return; }
+    onAttractionsChange(attractions.map((a) => (a.id === id ? { ...a, caption } : a)));
+  }
+
   const atLimit = attractions.length >= MAX_ATTRACTIONS;
 
   return (
@@ -1238,37 +1267,54 @@ function AttractionsModal({
             </div>
           )}
 
-          {/* Existing attractions — single scrollable row */}
+          {/* Existing attractions — editable grid with caption inputs */}
           {attractions.length > 0 && (
-            <div className="px-5 py-3 border-b bg-muted/20">
-              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
+            <div className="px-5 py-3 border-b">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-2.5">
+                Added ({attractions.length}/{MAX_ATTRACTIONS})
+              </p>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
                 {attractions.map((a) => (
-                  <TooltipProvider key={a.id}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className="relative shrink-0 group">
-                          <div className="w-16 h-12 rounded-lg overflow-hidden border bg-muted">
-                            <img
-                              src={`${R2}/${a.image_key}`}
-                              alt={a.caption || "Attraction"}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(a.id)}
-                            disabled={deletingId === a.id}
-                            className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            {deletingId === a.id
-                              ? <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                              : <X className="h-2.5 w-2.5" />}
-                          </button>
+                  <div key={a.id}>
+                    {/* Thumbnail + delete button */}
+                    <div className="relative group">
+                      <div className="aspect-video rounded-lg overflow-hidden border bg-muted">
+                        <img
+                          src={`${R2}/${a.image_key}`}
+                          alt={editCaptions[a.id] ?? a.caption}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(a.id)}
+                        disabled={deletingId === a.id}
+                        className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                      >
+                        {deletingId === a.id
+                          ? <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                          : <X className="h-2.5 w-2.5" />}
+                      </button>
+                      {savingCaptionId === a.id && (
+                        <div className="absolute bottom-1 right-1">
+                          <Loader2 className="h-3 w-3 animate-spin text-white drop-shadow" />
                         </div>
-                      </TooltipTrigger>
-                      {a.caption && <TooltipContent>{a.caption}</TooltipContent>}
-                    </Tooltip>
-                  </TooltipProvider>
+                      )}
+                    </div>
+                    {/* Caption inline input */}
+                    <input
+                      type="text"
+                      value={editCaptions[a.id] ?? ""}
+                      onChange={(e) =>
+                        setEditCaptions((prev) => ({ ...prev, [a.id]: e.target.value.slice(0, 50) }))
+                      }
+                      onBlur={() => handleSaveCaption(a.id)}
+                      onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                      placeholder="Add caption…"
+                      maxLength={50}
+                      className="mt-1 w-full text-[11px] px-1.5 py-0.5 rounded border border-transparent hover:border-input focus:border-input bg-transparent focus:bg-background outline-none transition-colors placeholder:text-muted-foreground/40"
+                    />
+                  </div>
                 ))}
               </div>
             </div>
