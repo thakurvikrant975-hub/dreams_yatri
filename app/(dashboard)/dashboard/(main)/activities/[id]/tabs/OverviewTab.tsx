@@ -348,28 +348,6 @@ export function OverviewTab({
 
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                        <Label>City</Label>
-                        <Input value={city} onChange={e => setCity(e.target.value)} placeholder="Rishikesh" />
-                    </div>
-                    <div className="space-y-1.5">
-                        <Label>State</Label>
-                        <Input value={state} onChange={e => setState(e.target.value)} placeholder="Uttarakhand" />
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                        <Label>Country <span className="text-xs text-muted-foreground">(auto-filled from map)</span></Label>
-                        <Input value={country} onChange={e => setCountry(e.target.value)} placeholder="India" />
-                    </div>
-                    <div className="space-y-1.5">
-                        <Label>Pincode</Label>
-                        <Input value={pincode} onChange={e => setPincode(e.target.value)} placeholder="249201" />
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
                         <Label>Business Phone</Label>
                         <div className="relative">
                             <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
