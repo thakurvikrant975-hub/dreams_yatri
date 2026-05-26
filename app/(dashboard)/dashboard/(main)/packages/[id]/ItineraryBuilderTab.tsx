@@ -40,11 +40,19 @@ type Duration = {
   routes: RouteRow[];
 };
 
+type VehicleOption = {
+  id: number;
+  name: string;
+  type: string;
+  passenger_capacity: number;
+};
+
 type Props = {
   packageId: number;
   destinationId: number;
   durations: Duration[];
   stayCategories: StayCategoryFull[];
+  availableVehicles: VehicleOption[];
 };
 
 // ── Occupied-by type ───────────────────────────────────────────────────────
@@ -206,7 +214,7 @@ function DayCard({ day, occupiedBy, onClick }: { day: DayData; occupiedBy?: Occu
 
 // ── Main Tab ───────────────────────────────────────────────────────────────
 
-export function ItineraryBuilderTab({ packageId, destinationId, durations, stayCategories: initialStayCategories }: Props) {
+export function ItineraryBuilderTab({ packageId, destinationId, durations, stayCategories: initialStayCategories, availableVehicles }: Props) {
   const defaultDuration = durations.find((d) => d.is_default) ?? durations[0] ?? null;
   const [selectedDurationId, setSelectedDurationId] = useState<number | null>(defaultDuration?.id ?? null);
   const [selectedRouteId, setSelectedRouteId] = useState<number | null>(
@@ -464,6 +472,7 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
             routeId={selectedRouteId}
             day={openDay}
             stayCategories={stayCategories}
+            availableVehicles={availableVehicles}
             onSaved={handleDaySaved}
             stopLabel={stopLabel}
             stopCoords={stopCoords}
