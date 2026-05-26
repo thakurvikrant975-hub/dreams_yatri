@@ -725,19 +725,22 @@ function ActivityContent({ section }: { section: ActivitySection }) {
 
         {/* Image carousel */}
         {section.images.length > 0 && (
-          <Carousel
-            items={section.images}
-            perView={3}
-            gap={6}
-            renderItem={({ src, label }) => (
-              <div className="relative rounded-xl overflow-hidden">
-                <Image src={src} alt={label} width={1000} height={600} className="w-full aspect-5/3 object-cover" />
-                <div className="absolute inset-x-0 bottom-0 bg-linear-to-r from-black/60 to-transparent px-2 py-1.5">
-                  <p className="text-[10px] text-white font-medium">{label}</p>
+          <div className="space-y-2">
+            <p className="text-xs font-bold text-muted uppercase tracking-widest">Glimpses of the experience</p>
+            <Carousel
+              items={section.images}
+              perView={3}
+              gap={6}
+              renderItem={({ src, label }) => (
+                <div className="relative rounded-xl overflow-hidden">
+                  <Image src={src} alt={label} width={1000} height={600} className="w-full aspect-5/3 object-cover" />
+                  <div className="absolute inset-x-0 bottom-0 bg-linear-to-r from-black/60 to-transparent px-2 py-1.5">
+                    <p className="text-[10px] text-white font-medium">{label}</p>
+                  </div>
                 </div>
-              </div>
-            )}
-          />
+              )}
+            />
+          </div>
         )}
 
       </div>
