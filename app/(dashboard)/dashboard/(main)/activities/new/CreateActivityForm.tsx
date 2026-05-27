@@ -177,6 +177,9 @@ export function CreateActivityForm({ categories }: { categories: CategoryOption[
     // Errors
     const [errors, setErrors] = useState<Record<string, string[]>>({});
 
+    // Tracks whether categoryId was set by the sightseeing auto-select (vs manual)
+    const autoCategoryRef = useRef(false);
+
     // Slug check
     type SlugStatus = "idle" | "checking" | "available" | "active_taken" | "inactive_exists";
     const [slugStatus,     setSlugStatus]     = useState<SlugStatus>("idle");
@@ -195,7 +198,10 @@ export function CreateActivityForm({ categories }: { categories: CategoryOption[
 
     // ── Handlers ─────────────────────────────────────────────────────────
 
-    function handleNameChange(val: string) {
+    function handleNameChange(raw: string) {
+        // Title-case every word's first letter
+        const val = raw.replace(/\b\w/g, c => c.toUpperCase());
+
         setName(val);
         setSlug(
             val.toLowerCase()
@@ -204,6 +210,18 @@ export function CreateActivityForm({ categories }: { categories: CategoryOption[
                 .replace(/-+/g, "-")
                 .replace(/^-|-$/g, "")
         );
+
+        // Auto-select "Sightseeing" category when the word appears in the name
+        const hasSightseeing = /sightseeing/i.test(val);
+        const sightseeingCat = categories.find(c => c.name.toLowerCase() === "sightseeing");
+        if (hasSightseeing && sightseeingCat) {
+            setCategoryId(String(sightseeingCat.id));
+            autoCategoryRef.current = true;
+        } else if (!hasSightseeing && autoCategoryRef.current) {
+            // Only clear if it was auto-set, not manually chosen
+            setCategoryId("");
+            autoCategoryRef.current = false;
+        }
     }
 
     function handleLocationChange(loc: LocationValue | null) {
@@ -317,7 +335,7 @@ export function CreateActivityForm({ categories }: { categories: CategoryOption[
                         <CategoryCombobox
                             categories={categories}
                             value={categoryId}
-                            onChange={setCategoryId}
+                            onChange={v => { autoCategoryRef.current = false; setCategoryId(v); }}
                             error={errors.category_id?.[0]}
                         />
                         <FieldError errors={errors} field="category_id" />
