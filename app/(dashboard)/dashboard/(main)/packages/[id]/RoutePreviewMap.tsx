@@ -109,10 +109,15 @@ export function RoutePreviewMap({ stops }: Props) {
       const map = L.map(mapRef.current!, { zoomControl: true });
       mapInstanceRef.current = map;
 
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "© OpenStreetMap",
-        maxZoom: 18,
-      }).addTo(map);
+      L.tileLayer(
+        `https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/{z}/{x}/{y}?access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`,
+        {
+          attribution: "© <a href='https://www.mapbox.com/about/maps/'>Mapbox</a> © <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a>",
+          tileSize: 512,
+          zoomOffset: -1,
+          maxZoom: 22,
+        },
+      ).addTo(map);
 
       // ── Two-layer straight-line fallback ─────────────────────────────────
       // Outline (white, thick) sits below; colored dashed line on top.
