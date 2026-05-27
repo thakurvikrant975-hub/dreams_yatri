@@ -391,7 +391,7 @@ export function LocationManualSheet({ open, onOpenChange, onCreated, initialName
                   )}
                 </div>
 
-                <MapBlock fullscreen={false} />
+                {MapBlock({ fullscreen: false })}
               </div>
 
               <form
@@ -515,7 +515,7 @@ export function LocationManualSheet({ open, onOpenChange, onCreated, initialName
           {mapFullscreen && (
             <div className="absolute inset-0 flex flex-col bg-background">
               <div className="px-5 pt-4 pb-0 flex-1 min-h-0 flex flex-col">
-                <MapBlock fullscreen={true} />
+                {MapBlock({ fullscreen: true })}
               </div>
               <div className="px-5 py-4 border-t text-center">
                 <p className="text-[11px] text-muted-foreground">
