@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import {
-  DndContext,
+  DndContext,   
   DragOverlay,
   PointerSensor,
   useSensor,
@@ -106,6 +106,10 @@ import {
   ClipboardPaste,
   ChevronLeft,
   ChevronRight,
+  Coffee,
+  Sun,
+  Moon,
+  UtensilsCrossed,
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import type { OccupiedBy } from "./ItineraryBuilderTab";
@@ -1617,6 +1621,67 @@ function AttractionsModal({
   );
 }
 
+// ── Meals section ─────────────────────────────────────────────────────────
+
+const MEAL_OPTIONS = [
+  { key: "breakfast", label: "Breakfast", Icon: Coffee,          color: "text-orange-500",  bg: "bg-orange-50 border-orange-200", activeBg: "bg-orange-100 border-orange-400" },
+  { key: "lunch",     label: "Lunch",     Icon: Sun,             color: "text-yellow-500",  bg: "bg-yellow-50 border-yellow-200", activeBg: "bg-yellow-100 border-yellow-400" },
+  { key: "dinner",    label: "Dinner",    Icon: Moon,            color: "text-indigo-500",  bg: "bg-indigo-50 border-indigo-200", activeBg: "bg-indigo-100 border-indigo-400" },
+] as const;
+
+function MealToggleSection({
+  meals,
+  onChange,
+  disabled,
+}: {
+  meals: string[];
+  onChange: (meals: string[]) => void;
+  disabled?: boolean;
+}) {
+  function toggle(key: string) {
+    onChange(meals.includes(key) ? meals.filter((m) => m !== key) : [...meals, key]);
+  }
+
+  return (
+    <div className="px-5 pt-4 pb-4 border-b shrink-0">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Meals Included</p>
+        {meals.length > 0 && (
+          <span className="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full">
+            {meals.length} selected
+          </span>
+        )}
+      </div>
+      <div className="flex gap-2">
+        {MEAL_OPTIONS.map(({ key, label, Icon, color, bg, activeBg }) => {
+          const selected = meals.includes(key);
+          return (
+            <button
+              key={key}
+              type="button"
+              disabled={disabled}
+              onClick={() => toggle(key)} 
+              className={cn(
+                "relative flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-xl border flex-1 select-none cursor-pointer transition-all",
+                selected ? activeBg : cn(bg, "hover:opacity-80"),
+                disabled && "opacity-40 cursor-not-allowed pointer-events-none",
+              )}
+            >
+              {selected && (
+                <span className="absolute top-1.5 right-1.5 h-3.5 w-3.5 rounded-full bg-green-500 flex items-center justify-center shadow-sm">
+                  <Check className="h-2 w-2 text-white" />
+                </span>
+              )}
+              <Icon className={cn("h-4 w-4", color)} />
+              <span className={cn("text-[10px] font-bold uppercase tracking-widest", color)}>{label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Timeline drop zone ─────────────────────────────────────────────────────
 
 function TimelineDropZone({ children, isEmpty }: { children: React.ReactNode; isEmpty: boolean }) {
@@ -1653,6 +1718,7 @@ export function ItineraryDaySidebar({
   const [itineraryId, setItineraryId] = useState<number | null>(initialDay.id);
   const [title, setTitle] = useState(initialDay.title);
   const [description, setDescription] = useState(initialDay.description ?? "");
+  const [meals, setMeals] = useState<string[]>(initialDay.meals ?? []);
   const [transfers, setTransfers] = useState<TransferItem[]>(initialDay.transfers);
   const [activities, setActivities] = useState<ActivityItem[]>(initialDay.activities);
   const [notes, setNotes] = useState<NoteItem[]>(initialDay.notes);
@@ -1688,7 +1754,7 @@ export function ItineraryDaySidebar({
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function currentDayData(): DayData {
-    return { id: itineraryId, day: initialDay.day, title, description: description || null, activities, transfers, notes, stays, attractions };
+    return { id: itineraryId, day: initialDay.day, title, description: description || null, meals, activities, transfers, notes, stays, attractions };
   }
 
   // ── Day meta save ──────────────────────────────────────────────────────
@@ -1699,6 +1765,7 @@ export function ItineraryDaySidebar({
     const res = await handleUpsertDayMeta(packageId, durationId, routeId, initialDay.day, {
       title: title.trim(),
       description: description.trim() || null,
+      meals,
     });
     setSavingMeta(false);
     if (!res.success) { toast.error(res.message); return; }
@@ -2057,6 +2124,9 @@ export function ItineraryDaySidebar({
                   <p className="text-[10px] text-muted-foreground/50 mt-2.5">Save the day title first to enable adding elements</p>
                 )}
               </div>
+
+              {/* Meals — shrink-0 */}
+              <MealToggleSection meals={meals} onChange={setMeals} />
 
               {/* Timeline + Attractions — fills remaining height with own scroll */}
               <div className="flex-1 overflow-y-auto flex flex-col px-5 pt-4 pb-4">

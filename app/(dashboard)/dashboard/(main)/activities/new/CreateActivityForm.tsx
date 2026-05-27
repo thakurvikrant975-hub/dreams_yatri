@@ -177,6 +177,11 @@ export function CreateActivityForm({ categories }: { categories: CategoryOption[
     // Errors
     const [errors, setErrors] = useState<Record<string, string[]>>({});
 
+    // Track fields auto-set by sightseeing detection (so manual edits aren't clobbered)
+    const autoCategoryRef   = useRef(false);
+    const autoDifficultyRef = useRef(false);
+    const autoDurationRef   = useRef(false);
+
     // Slug check
     type SlugStatus = "idle" | "checking" | "available" | "active_taken" | "inactive_exists";
     const [slugStatus,     setSlugStatus]     = useState<SlugStatus>("idle");
@@ -195,7 +200,10 @@ export function CreateActivityForm({ categories }: { categories: CategoryOption[
 
     // ── Handlers ─────────────────────────────────────────────────────────
 
-    function handleNameChange(val: string) {
+    function handleNameChange(raw: string) {
+        // Title-case every word's first letter
+        const val = raw.replace(/\b\w/g, c => c.toUpperCase());
+
         setName(val);
         setSlug(
             val.toLowerCase()
@@ -204,6 +212,20 @@ export function CreateActivityForm({ categories }: { categories: CategoryOption[
                 .replace(/-+/g, "-")
                 .replace(/^-|-$/g, "")
         );
+
+        // Auto-fill fields when "sightseeing" is present in the name
+        const hasSightseeing = /sightseeing/i.test(val);
+        const sightseeingCat = categories.find(c => c.name.toLowerCase() === "sightseeing");
+
+        if (hasSightseeing) {
+            if (sightseeingCat) { setCategoryId(String(sightseeingCat.id)); autoCategoryRef.current = true; }
+            if (!autoDifficultyRef.current || difficulty === "") { setDifficulty("Easy"); autoDifficultyRef.current = true; }
+            if (!autoDurationRef.current  || duration  === "") { setDuration("2");    autoDurationRef.current  = true; }
+        } else {
+            if (autoCategoryRef.current)   { setCategoryId("");  autoCategoryRef.current   = false; }
+            if (autoDifficultyRef.current) { setDifficulty(""); autoDifficultyRef.current = false; }
+            if (autoDurationRef.current)   { setDuration("");   autoDurationRef.current   = false; }
+        }
     }
 
     function handleLocationChange(loc: LocationValue | null) {
@@ -211,6 +233,11 @@ export function CreateActivityForm({ categories }: { categories: CategoryOption[
     }
 
     function handleSubmit() {
+        if (!description.trim()) {
+            setErrors({ description: ["Description is required"] });
+            document.getElementById("activity-description")?.focus();
+            return;
+        }
         setErrors({});
         startTransition(async () => {
             const fd = new FormData();
@@ -317,14 +344,14 @@ export function CreateActivityForm({ categories }: { categories: CategoryOption[
                         <CategoryCombobox
                             categories={categories}
                             value={categoryId}
-                            onChange={setCategoryId}
+                            onChange={v => { autoCategoryRef.current = false; setCategoryId(v); }}
                             error={errors.category_id?.[0]}
                         />
                         <FieldError errors={errors} field="category_id" />
                     </div>
                     <div className="space-y-1.5">
                         <Label>Difficulty</Label>
-                        <Select value={difficulty} onValueChange={setDifficulty}>
+                        <Select value={difficulty} onValueChange={v => { autoDifficultyRef.current = false; setDifficulty(v); }}>
                             <SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger>
                             <SelectContent>
                                 {DIFFICULTIES.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
@@ -343,7 +370,7 @@ export function CreateActivityForm({ categories }: { categories: CategoryOption[
                             step="0.5"
                             placeholder="4.5"
                             value={duration}
-                            onChange={e => setDuration(e.target.value)}
+                            onChange={e => { autoDurationRef.current = false; setDuration(e.target.value); }}
                         />
                     </div>
                     <div className="flex items-center justify-between rounded-lg border p-3 bg-muted/30 px-4 h-auto">
@@ -407,19 +434,27 @@ export function CreateActivityForm({ categories }: { categories: CategoryOption[
             <Section icon={FileText} title="Description" description="Overview shown on the activity page">
                 <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                        <Label>Description</Label>
+                        <Label htmlFor="activity-description">
+                            Description <span className="text-destructive">*</span>
+                        </Label>
                         <span className={cn("text-xs", description.length > 4800 ? "text-destructive" : "text-muted-foreground")}>
                             {description.length}/5000
                         </span>
                     </div>
                     <Textarea
+                        id="activity-description"
                         placeholder="A brief description of this activity…"
                         value={description}
                         onChange={e => {
-                            if (e.target.value.length <= 5000) setDescription(e.target.value);
+                            if (e.target.value.length <= 5000) {
+                                setDescription(e.target.value);
+                                if (errors.description) setErrors(prev => ({ ...prev, description: [] }));
+                            }
                         }}
                         rows={6}
+                        className={cn(errors.description && "border-destructive focus-visible:ring-destructive")}
                     />
+                    <FieldError errors={errors} field="description" />
                 </div>
             </Section>
 

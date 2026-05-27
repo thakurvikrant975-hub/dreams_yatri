@@ -2,13 +2,14 @@
 import "server-only";
 import { dashboardAuth } from "@/app/lib/auth-dashboard";
 import { db } from "@/app/lib/db";
+import type { Session } from "next-auth";
 
-export async function getCurrentMember() {
-  const session = await dashboardAuth();
-  if (!session?.user?.email) return null;
+export async function getCurrentMember(session?: Session | null) {
+  const resolvedSession = session ?? await dashboardAuth();
+  if (!resolvedSession?.user?.email) return null;
 
   const member = await db.teamMember.findUnique({
-    where: { email: session.user.email },
+    where: { email: resolvedSession.user.email },
     select: {
       id: true,
       name: true,
