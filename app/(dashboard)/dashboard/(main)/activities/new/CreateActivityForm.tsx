@@ -168,11 +168,6 @@ export function CreateActivityForm({ categories }: { categories: CategoryOption[
 
     // Location & Contact
     const [location, setLocation] = useState<LocationValue | null>(null);
-    const [address,  setAddress]  = useState("");
-    const [city,     setCity]     = useState("");
-    const [state,    setState]    = useState("");
-    const [country,  setCountry]  = useState("India");
-    const [pincode,  setPincode]  = useState("");
     const [phone,    setPhone]    = useState("");
     const [email,    setEmail]    = useState("");
 
@@ -213,11 +208,6 @@ export function CreateActivityForm({ categories }: { categories: CategoryOption[
 
     function handleLocationChange(loc: LocationValue | null) {
         setLocation(loc);
-        if (loc) {
-            const parts = loc.breadcrumb.split(",").map(s => s.trim());
-            const detected = parts.at(-1) ?? "";
-            if (detected) setCountry(detected);
-        }
     }
 
     function handleSubmit() {
@@ -231,11 +221,6 @@ export function CreateActivityForm({ categories }: { categories: CategoryOption[
             fd.append("duration_hours", duration);
             fd.append("is_active",      String(isActive));
             fd.append("location_id",    location?.id ?? "");
-            fd.append("address",        address);
-            fd.append("city",           city);
-            fd.append("state",          state);
-            fd.append("country",        country);
-            fd.append("pincode",        pincode);
             fd.append("phone",          phone);
             fd.append("email",          email);
             fd.append("description",    description);
@@ -383,40 +368,6 @@ export function CreateActivityForm({ categories }: { categories: CategoryOption[
                         placeholder="Search activity location…"
                         types={ACTIVITY_TYPES}
                     />
-                </div>
-
-                {/* Address */}
-                <div className="space-y-1.5">
-                    <Label>Street Address</Label>
-                    <Input
-                        value={address}
-                        onChange={e => setAddress(e.target.value)}
-                        placeholder="123, Main Road, Near Bus Stand"
-                    />
-                </div>
-
-                {/* City + State */}
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                        <Label>City</Label>
-                        <Input value={city} onChange={e => setCity(e.target.value)} placeholder="Rishikesh" />
-                    </div>
-                    <div className="space-y-1.5">
-                        <Label>State</Label>
-                        <Input value={state} onChange={e => setState(e.target.value)} placeholder="Uttarakhand" />
-                    </div>
-                </div>
-
-                {/* Country + Pincode */}
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                        <Label>Country <span className="text-xs text-muted-foreground">(auto-filled from map)</span></Label>
-                        <Input value={country} onChange={e => setCountry(e.target.value)} placeholder="India" />
-                    </div>
-                    <div className="space-y-1.5">
-                        <Label>Pincode</Label>
-                        <Input value={pincode} onChange={e => setPincode(e.target.value)} placeholder="249201" />
-                    </div>
                 </div>
 
                 {/* Phone + Email */}

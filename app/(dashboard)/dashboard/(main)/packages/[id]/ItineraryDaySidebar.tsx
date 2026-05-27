@@ -790,43 +790,57 @@ function AddTransferForm({
   );
 }
 
+type ActivityListItem = {
+  id: number;
+  name: string;
+  category: string | null;
+  duration_hours: number | null;
+  has_pricing: boolean;
+};
+
 function AddActivityForm({
-  destinationId, pending, onSave, onCancel,
+  destinationId, stopPlaceName, pending, onSave, onCancel,
 }: {
   destinationId: number;
+  stopPlaceName?: string;
   pending: boolean;
   onSave: (activityId: number, isOptional: boolean, variantId: number | null) => void;
   onCancel: () => void;
 }) {
   const [activityId, setActivityId] = useState<number | null>(null);
+  const [selectedActivity, setSelectedActivity] = useState<ActivityListItem | null>(null);
   const [isOptional, setIsOptional] = useState(false);
   const [variants, setVariants] = useState<ActivityVariantOption[]>([]);
   const [variantId, setVariantId] = useState<number | null>(null);
   const [loadingVariants, setLoadingVariants] = useState(false);
+  const [searchQuery, setSearchQuery] = useState(stopPlaceName ?? "");
+  const [allActivities, setAllActivities] = useState<ActivityListItem[]>([]);
+  const [loadingList, setLoadingList] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
 
-  const fetchActivities = useCallback(async (query: string): Promise<Option[]> => {
-    const res = await handleSearchActivities(destinationId, query);
-    if (!res.success) return [];
-    const items: Option[] = res.data.items.map((a) => ({
-      id: a.id,
-      label: a.name,
-      description: [
-        a.category,
-        a.duration_hours != null ? `${a.duration_hours}h` : null,
-        !a.has_pricing ? "⚠ No pricing set" : null,
-      ].filter(Boolean).join(" · "),
-    }));
-    if (res.data.has_more) items.push({ id: -1, label: "Showing top 20 — refine search to see more" });
-    return items;
-  }, [destinationId]);
+  // Load immediately on mount, debounce on typed search
+  useEffect(() => {
+    let cancelled = false;
+    const delay = searchQuery ? 300 : 0;
+    const timer = setTimeout(async () => {
+      setLoadingList(true);
+      const res = await handleSearchActivities(destinationId, searchQuery);
+      if (cancelled) return;
+      setLoadingList(false);
+      if (!res.success) return;
+      setAllActivities(res.data.items);
+      setHasMore(res.data.has_more);
+    }, delay);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [searchQuery, destinationId]);
 
-  async function handleActivitySelect(id: number | null) {
-    setActivityId(id);
+  async function handleActivitySelect(item: ActivityListItem) {
+    setActivityId(item.id);
+    setSelectedActivity(item);
     setVariants([]);
     setVariantId(null);
-    if (!id) return;
     setLoadingVariants(true);
-    const res = await handleGetActivityVariants(id);
+    const res = await handleGetActivityVariants(item.id);
     setLoadingVariants(false);
     if (!res.success) return;
     setVariants(res.data);
@@ -835,10 +849,105 @@ function AddActivityForm({
 
   return (
     <div className="space-y-4">
-      <div className="space-y-1.5">
+      {/* Activity picker */}
+      <div className="space-y-2">
         <Label className="text-xs">Activity <span className="text-destructive">*</span></Label>
-        <SearchSelect value={activityId} onChange={handleActivitySelect} fetchOptions={fetchActivities} placeholder="Search activities…" />
+
+        {/* Search input */}
+        <div className="relative">
+          <Activity className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search activities…"
+            className="h-9 text-xs pl-8 pr-8"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Selected activity badge */}
+        {selectedActivity && (
+          <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+            <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-emerald-800 truncate">{selectedActivity.name}</p>
+              <p className="text-[10px] text-emerald-600/70">
+                {[selectedActivity.category, selectedActivity.duration_hours != null ? `${selectedActivity.duration_hours}h` : null].filter(Boolean).join(" · ")}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setActivityId(null); setSelectedActivity(null); setVariants([]); setVariantId(null); }}
+              className="text-emerald-500 hover:text-emerald-700 shrink-0"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Activity list */}
+        <div className="rounded-xl border overflow-hidden">
+          {loadingList ? (
+            <div className="flex items-center justify-center py-6 gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading activities…
+            </div>
+          ) : allActivities.length === 0 ? (
+            <div className="py-6 text-center text-xs text-muted-foreground">
+              No activities found
+            </div>
+          ) : (
+            <div className="max-h-56 overflow-y-auto divide-y">
+              {allActivities.map((item) => {
+                const isSelected = activityId === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => handleActivitySelect(item)}
+                    className={cn(
+                      "w-full text-left px-3 py-2.5 flex items-start gap-2.5 transition-colors",
+                      isSelected
+                        ? "bg-emerald-50 border-l-2 border-l-emerald-500"
+                        : "hover:bg-muted/50",
+                    )}
+                  >
+                    <div className={cn(
+                      "mt-0.5 h-3.5 w-3.5 rounded-full border-2 shrink-0 flex items-center justify-center",
+                      isSelected ? "border-emerald-500 bg-emerald-500" : "border-muted-foreground/30",
+                    )}>
+                      {isSelected && <Check className="h-2 w-2 text-white" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium leading-snug truncate">{item.name}</p>
+                      <p className="text-[10px] text-muted-foreground/70 mt-0.5">
+                        {[
+                          item.category,
+                          item.duration_hours != null ? `${item.duration_hours}h` : null,
+                          !item.has_pricing ? "⚠ No pricing" : null,
+                        ].filter(Boolean).join(" · ")}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+              {hasMore && (
+                <p className="px-3 py-2 text-[10px] text-muted-foreground/60 text-center bg-muted/30">
+                  Showing top 20 — type to refine search
+                </p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
+
       {activityId && (
         <div className="space-y-1.5">
           <Label className="text-xs">Pricing Variant</Label>
@@ -2100,7 +2209,7 @@ export function ItineraryDaySidebar({
                   <AddTransferForm pending={pending} onSave={addTransfer} onCancel={() => setEditPanel(null)} stopCoords={stopCoords} />
                 )}
                 {editPanel?.mode === "add" && editPanel.kind === "activity" && (
-                  <AddActivityForm destinationId={destinationId} pending={pending} onSave={addActivity} onCancel={() => setEditPanel(null)} />
+                  <AddActivityForm destinationId={destinationId} stopPlaceName={stopLabel?.split(" in ").pop()} pending={pending} onSave={addActivity} onCancel={() => setEditPanel(null)} />
                 )}
                 {editPanel?.mode === "add" && editPanel.kind === "note" && (
                   <AddNoteForm pending={pending} onSave={addNote} onCancel={() => setEditPanel(null)} />
