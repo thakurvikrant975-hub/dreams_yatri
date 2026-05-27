@@ -54,6 +54,7 @@ export type GetHotelsParams = {
 
 const HOTEL_INCLUDE = {
   destination: { select: { id: true, name: true } },
+  location: { select: { name: true, city: { select: { name: true } }, state: { select: { name: true } }, country: { select: { name: true } } } },
   _count: {
     select: {
       hotelRooms: true,
