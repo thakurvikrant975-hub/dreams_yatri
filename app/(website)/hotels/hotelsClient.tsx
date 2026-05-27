@@ -90,7 +90,7 @@ function Pagination({
 // ── Main Client Component ─────────────────────────────────────────────────
 
 const CATEGORIES = ["hotel", "resort", "houseboat", "villa", "homestay"];
-const STAY_TYPES = ["Standard", "Deluxe", "Super Deluxe", "Luxury", "Super Luxury"];
+const STAY_TYPES = ["1 Star", "2 Star", "3 Star", "4 Star", "5 Star"];
 const SORT_OPTIONS = [
     { label: "Newest", value: "newest" },
     { label: "Price: Low", value: "price_asc" },
