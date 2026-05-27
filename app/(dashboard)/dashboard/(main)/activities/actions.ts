@@ -54,7 +54,7 @@ export type ActivityItem = {
     country:        string | null;
     pincode:        string | null;
     has_location:   boolean;
-    location:       { city: { name: string } | null; state: { name: string } | null; country: { name: string } | null } | null;
+    location:       { name: string; city: { name: string } | null; state: { name: string } | null; country: { name: string } | null } | null;
     phone:          string | null;
     email:          string | null;
     is_active:      boolean;

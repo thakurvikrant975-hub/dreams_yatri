@@ -288,8 +288,8 @@ export function OverviewTab({
                             error={errors.category_id?.[0]}
                         />
                         <FieldError errors={errors} field="category_id" />
-                    </div>
-                    <div className="space-y-1.5">
+                    </div> 
+                    <div className="space-y-1.5"> 
                         <Label>Difficulty</Label>
                         <Select value={difficulty} onValueChange={setDifficulty}>
                             <SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger>
