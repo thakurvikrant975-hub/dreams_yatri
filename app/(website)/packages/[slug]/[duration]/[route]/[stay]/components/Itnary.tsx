@@ -132,9 +132,9 @@ interface ItineraryProps {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const TABS = [
-  { id: 'Plan',     label: 'Plan',     icon: CalendarDateRangeIcon },
+  { id: 'Plan', label: 'Plan', icon: CalendarDateRangeIcon },
   { id: 'Transfer', label: 'Transfer', icon: CarIcon },
-  { id: 'Hotels',   label: 'Hotels',   icon: BuildingOffice2Icon },
+  { id: 'Hotels', label: 'Hotels', icon: BuildingOffice2Icon },
   { id: 'Activity', label: 'Activity', icon: ParachuteIcon },
 ] as const;
 
@@ -142,7 +142,7 @@ type Tab = typeof TABS[number]['id'];
 
 const TAB_SECTION_TYPE: Partial<Record<Tab, DaySection['type']>> = {
   Transfer: 'cab',
-  Hotels:   'stay',
+  Hotels: 'stay',
   Activity: 'activity',
 };
 
@@ -222,18 +222,18 @@ function NoteBlock({
 
 function getLocationIcon(locationType: string | null | undefined): React.ElementType | null {
   switch (locationType) {
-    case 'AIRPORT':       return AirplaneTiltIcon;
-    case 'BUS_STATION':   return BusIcon;
+    case 'AIRPORT': return AirplaneTiltIcon;
+    case 'BUS_STATION': return BusIcon;
     case 'TRAIN_STATION': return TrainSimpleIcon;
-    case 'HOTEL':         return BedIcon;
-    case 'BEACH':         return WavesIcon;
-    case 'MOUNTAIN':      return BinocularsIcon;
-    case 'LANDMARK':      return BankIcon;
-    case 'ACTIVITY':      return ParachuteIcon;
-    case 'PORT':          return WavesIcon;
-    case 'ISLAND':        return WavesIcon;
-    case 'TOURISM_ZONE':  return TreeIcon;
-    default:              return BuildingsIcon; // CITY, AREA, ROUTE_STOP, VILLAGE, etc.
+    case 'HOTEL': return BedIcon;
+    case 'BEACH': return WavesIcon;
+    case 'MOUNTAIN': return BinocularsIcon;
+    case 'LANDMARK': return BankIcon;
+    case 'ACTIVITY': return ParachuteIcon;
+    case 'PORT': return WavesIcon;
+    case 'ISLAND': return WavesIcon;
+    case 'TOURISM_ZONE': return TreeIcon;
+    default: return BuildingsIcon; // CITY, AREA, ROUTE_STOP, VILLAGE, etc.
   }
 }
 
@@ -253,7 +253,7 @@ function CabRoute({
   toLocationType?: string | null;
 }) {
   const FromIcon = getLocationIcon(fromLocationType);
-  const ToIcon   = getLocationIcon(toLocationType);
+  const ToIcon = getLocationIcon(toLocationType);
 
   return (
 
@@ -266,15 +266,15 @@ function CabRoute({
           </div>
           <div className="flex gap-3 w-full mt-0.5">
             <Text size="sm" intent="primary" className="w-max mb-0.5 font-heading shrink-0">Pickup Point:</Text>
-            <div className="flex items-center gap-1.5">
-              {FromIcon && <FromIcon weight="duotone" className="size-7 p-1 ring-1 ring-neutral-300/80 text-muted shrink-0 bg-neutral-50 rounded-sm" />}
+            <div className="flex items-center gap-1.5 ">
+              {FromIcon && <FromIcon weight="duotone" className="size-7 shrink-0" />}
               <Text size="sm" intent="primary" weight="semibold" className="font-heading">{from}</Text>
             </div>
           </div>
         </div>
       </div>
-    
-      <div className="h-8 w-full flex items-stretch">
+
+      <div className="h-9 w-full flex items-stretch">
         <div className="w-18" />
         <div className="h-full flex-1 border-l-[0.2em] border-l-(--border-default) px-3 flex items-center gap-0.5">
           <Text as='span' size="sm" weight='medium' intent='secondary'>
@@ -290,10 +290,10 @@ function CabRoute({
           <div className="size-7 flex items-center justify-center ml-3 shrink-0">
             <span className='text-muted'><MapPinIcon weight='duotone' className='size-5.5' /></span>
           </div>
-          <div className="flex gap-3 w-full">
+          <div className="flex items-center gap-3 w-full">
             <Text size="sm" intent="primary" className="w-max mb-0.5 font-heading shrink-0">Drop Point:</Text>
-            <div className="flex items-center gap-1.5">
-              {ToIcon && <ToIcon weight="duotone" className="size-7 p-1 ring-1 ring-neutral-300/80 text-muted shrink-0 bg-neutral-50 rounded-md" />}
+            <div className="flex items-center gap-1.5 ">
+              {ToIcon && <ToIcon weight="duotone" className="size-7 shrink-0" />}
               <Text size="sm" intent="primary" weight="semibold" className="font-heading">{to}</Text>
             </div>
           </div>
@@ -559,9 +559,9 @@ function MealBadge({ name }: { name: string }) {
   const lower = name.toLowerCase();
   const icon =
     lower.includes('breakfast') ? <CoffeeIcon weight="duotone" className="size-3.5 shrink-0" />
-    : lower.includes('lunch')   ? <BowlSteamIcon weight="duotone" className="size-3.5 shrink-0" />
-    : lower.includes('dinner')  ? <CheersIcon weight="duotone" className="size-3.5 shrink-0" />
-    : <ForkKnifeIcon weight="duotone" className="size-3.5 shrink-0" />;
+      : lower.includes('lunch') ? <BowlSteamIcon weight="duotone" className="size-3.5 shrink-0" />
+        : lower.includes('dinner') ? <CheersIcon weight="duotone" className="size-3.5 shrink-0" />
+          : <ForkKnifeIcon weight="duotone" className="size-3.5 shrink-0" />;
   return (
     <span className="inline-flex items-center gap-1 bg-success-50 text-success-700 ring-1 ring-inset ring-success-200 rounded-full px-2 py-0.5 text-[11px] font-semibold">
       {icon}{name}
@@ -609,12 +609,15 @@ function StayContent({ section }: { section: StaySection }) {
         {/* Hotel name + stars */}
         <div className="flex flex-col gap-0.5">
           <div className="flex items-center gap-2.5">
-            <Text size="base" weight="semibold" className="font-heading text-primary leading-tight">
+            <Text size="base" weight="semibold" className="font-heading text-primary leading-tight relative">
               {section.hotelName}
+              {section.stayType && (
+                <span className="absolute top-0 left-full translate-x-2 -translate-y-0.5">
+                  <HotelStars stayType={section.stayType} />
+                </span>
+              )}
             </Text>
-            {section.stayType && (
-              <HotelStars stayType={section.stayType} />
-            )}
+
           </div>
           {section.address && (
             <div className="flex items-start gap-1.5 mt-0.5">
@@ -625,66 +628,63 @@ function StayContent({ section }: { section: StaySection }) {
         </div>
 
         {/* Room details card */}
-        <div className="bg-neutral-50 ring-1 ring-inset ring-neutral-100 rounded-xl px-3.5 py-2.5 flex flex-col gap-2">
+        <div className=" rounded-xl  flex flex-col gap-2">
           {/* Room name + capacity */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
             {section.roomName && (
-              <div className="flex items-center gap-1.5">
-                <BedIcon weight="duotone" className="size-4 text-brand shrink-0" />
-                <Text size="sm" weight="semibold" intent="primary">{section.roomName}</Text>
-              </div>
+              <Text size="sm" weight="semibold" intent="primary">{section.roomName}</Text>
             )}
             {section.roomCapacity && (
               <div className="flex items-center gap-1 text-muted">
                 <svg className="size-3.5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
+                  <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
                 </svg>
                 <Text size="xs" intent="secondary">Up to {section.roomCapacity} guests</Text>
               </div>
             )}
           </div>
 
-          {/* Meal highlights */}
-          {meals.length > 0 && (
-            <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-(--border-default)">
-              <Text size="xs" intent="secondary" weight="medium">Meals:</Text>
-              {meals.map(m => <MealBadge key={m} name={m} />)}
-            </div>
-          )}
+
         </div>
 
         {/* Check-in / Check-out timeline */}
-        <div className="flex">
-          <div className="w-full border-l-[0.2em] border-l-(--border-default) flex-1 flex flex-col gap-2">
-            <div className="relative after:absolute after:w-[0.2em] after:h-full after:max-h-8 after:left-0 after:top-0 after:bg-primary-400 after:-translate-x-[0.2em]">
-              <div className="flex gap-3">
-                <div className="size-7 flex items-center justify-center ml-3 shrink-0">
-                  <span className="text-muted size-7"><CheckInIcon /></span>
+        <div className="flex mt-2">
+          <div className="w-full border-l-[0.2em] border-l-(--border-default) flex-1 flex flex-row items-center gap-3.5">
+            <div className="relative after:absolute after:w-[0.2em] after:h-full after:max-h-12 after:left-0 after:top-0 after:bg-primary-400 after:-translate-x-[0.2em]">
+              <div className="flex items-center gap-3">
+                <div className="size-9 flex items-center justify-center ml-3 shrink-0">
+                  <span className="text-muted size-7 scale-110"><CheckInIcon /></span>
                 </div>
-                <div className="flex gap-3 w-full mt-0.5">
-                  <Text size="sm" intent="primary" className="w-max font-heading shrink-0">Check In:</Text>
+                <div className="flex flex-col items-center gap-1 w-full mt-0.5">
+                  <Text size="xs" intent="primary" className="w-max font-heading shrink-0">Check In:</Text>
                   <Text size="sm" intent="primary" weight="semibold" className="font-heading">{section.checkIn}</Text>
                 </div>
               </div>
             </div>
 
-            <div className="h-8 w-full flex items-stretch">
-              <div className="w-18" />
-              <div className="h-full flex-1 border-l-[0.2em] border-l-(--border-default) px-3 flex items-center gap-0.5">
-                <Text as="span" size="sm" weight="medium" intent="secondary">
-                  {section.nights} Night{section.nights !== 1 ? 's' : ''}
-                </Text>
-                <StarAndCrescentIcon weight="duotone" className="size-5 text-muted ml-2" />
+            <div className=" flex-1 flex items-stretch">
+              {/* <div className="w-full" /> */}
+              <div className="h-full w-full flex-1  px-3 flex items-center gap-0.5 relative ">
+                <div className="w-full border-b-[0.2em] border-b-(--border-default) border-dashed"></div>
+
+                <div className=" flex gap-1 px-3 bg-neutral-50 ring-1 ring-inset py-1 ring-neutral-300 rounded-md">
+                  <Text as="span" size="sm" weight="medium" intent="secondary">
+                    {section.nights}N
+                  </Text>
+                  <StarAndCrescentIcon weight="duotone" className="size-5 text-muted ml-2 -rotate-20" />
+                </div>
+
+                <div className="w-full border-b-[0.2em] border-b-(--border-default) border-dashed"></div>
               </div>
             </div>
 
-            <div className="relative after:absolute after:w-[0.2em] after:h-full after:max-h-8 after:left-0 after:top-0 after:bg-primary-400 after:-translate-x-[0.2em]">
-              <div className="flex gap-3">
-                <div className="size-7 flex items-center justify-center ml-3 shrink-0">
-                  <span className="text-muted size-7"><CheckOutIcon /></span>
+            <div className="relative after:absolute after:w-[0.2em] after:h-full after:max-h-12 after:right-0 after:top-0 after:bg-primary-400 after:-translate-x-[0.2em]">
+              <div className="flex flex-row-reverse items-center gap-3">
+                <div className="size-9 flex items-center justify-center  shrink-0 mr-5">
+                  <span className="text-muted size-7 scale-110"><CheckOutIcon /></span>
                 </div>
-                <div className="flex gap-3 w-full">
-                  <Text size="sm" intent="primary" className="w-max font-heading shrink-0">Check Out:</Text>
+                <div className="flex flex-col items-center gap-1 w-full ">
+                  <Text size="xs" intent="primary" className="w-max font-heading shrink-0">Check Out:</Text>
                   <Text size="sm" intent="primary" weight="semibold" className="font-heading">{section.checkOut}</Text>
                 </div>
               </div>
@@ -847,7 +847,7 @@ function AttractionStories({
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') setActiveIdx(null);
       if (e.key === 'ArrowRight') setActiveIdx(i => (i !== null && i < items.length - 1 ? i + 1 : i));
-      if (e.key === 'ArrowLeft')  setActiveIdx(i => (i !== null && i > 0             ? i - 1 : i));
+      if (e.key === 'ArrowLeft') setActiveIdx(i => (i !== null && i > 0 ? i - 1 : i));
     }
     window.addEventListener('keydown', onKey);
     return () => {
@@ -865,8 +865,7 @@ function AttractionStories({
 
       {/* Header */}
       <div className="flex items-center gap-1.5 mb-3">
-        <CameraIcon className="size-3.5 text-muted shrink-0" />
-        <Text size="xs" intent="secondary" weight="medium">Highlights</Text>
+        <Text size="xs" intent="secondary" weight="medium">Attractions</Text>
       </div>
 
       {/* Story circles row */}
@@ -881,7 +880,7 @@ function AttractionStories({
             {/* Gradient ring — Instagram-style */}
             <div className="p-[2.5px] rounded-full bg-linear-to-tr from-yellow-400 via-red-500 to-violet-600 group-active:scale-95 transition-transform duration-150 shadow-sm">
               <div className="p-0.5 rounded-full bg-white ">
-                <div className="size-16 rounded-full overflow-hidden">
+                <div className="size-11 rounded-full overflow-hidden">
                   <img
                     src={item.imageUrl}
                     alt={item.caption || ''}
@@ -1025,7 +1024,7 @@ const SECTION_CONFIG: {
       const parts: string[] = [];
       if (s.distance_km) parts.push(`${s.distance_km} km`);
       const from = s.from?.value;
-      const to   = s.to?.value;
+      const to = s.to?.value;
       if (from && to && from !== '–' && to !== '–') {
         parts.push(`${truncatePlace(from)} → ${truncatePlace(to)}`);
       }
@@ -1096,8 +1095,8 @@ export default function ItinerarySection({ days }: ItineraryProps) {
   const sectionType = TAB_SECTION_TYPE[activeTab];
   const visibleDays = sectionType
     ? days
-        .map(d => ({ ...d, sections: d.sections.filter(s => s.type === sectionType) }))
-        .filter(d => d.sections.length > 0)
+      .map(d => ({ ...d, sections: d.sections.filter(s => s.type === sectionType) }))
+      .filter(d => d.sections.length > 0)
     : days;
 
   return (
@@ -1160,18 +1159,18 @@ export default function ItinerarySection({ days }: ItineraryProps) {
                   </div>
                 )}
 
-                {/* Attraction stories — just below title, above description */}
+                {activeTab === 'Plan' && description && (
+                  <Text size='sm' intent='secondary' className="py-3 border-b border-(--border-muted)">
+                    {description}
+                  </Text>
+                )}
+
+                {/* Attraction stories — below description */}
                 {activeTab === 'Plan' && attractions && attractions.length > 0 && (
                   <AttractionStories
                     items={attractions}
                     className="pt-3 pb-3 border-b border-(--border-muted)"
                   />
-                )}
-
-                {activeTab === 'Plan' && description && (
-                  <Text size='sm' intent='secondary' className="py-3 border-b border-(--border-muted)">
-                    {description}
-                  </Text>
                 )}
 
                 <div className="flex flex-col divide-y divide-(--border-muted)">

@@ -387,7 +387,7 @@ body {
         }
 
         .duo_icons path:first-child {
-            @apply fill-neutral-400 opacity-3!;
+            @apply fill-neutral-400 opacity-30!;
         }
 
         .duo_icons path:last-child {

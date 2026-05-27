@@ -16,6 +16,18 @@ import { Card, CardBody } from "@/app/components/ui/Card";
 // export const revalidate = 3600; // TODO: re-enable ISR for production
 export const dynamic = 'force-dynamic';
 
+/** Converts a stored "HH:MM" (24-h) string to "h:MM AM/PM". Returns "" for null/empty. */
+function formatTime12(t: string | null | undefined): string {
+    if (!t) return '';
+    const [hStr, mStr] = t.split(':');
+    const h = parseInt(hStr, 10);
+    const m = parseInt(mStr ?? '0', 10);
+    if (isNaN(h)) return t;
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hour12 = h % 12 || 12;
+    return `${hour12}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+
 export async function generateStaticParams() {
     return getActivePackageParams();
 }
@@ -140,8 +152,8 @@ export default async function PackagePage({
             nights: 1,
             hotelName: d.hotel.name,
             stayType: d.hotel.stay_type ?? null,
-            checkIn: d.hotel.check_in_time ?? "",
-            checkOut: d.hotel.check_out_time ?? "",
+            checkIn: formatTime12(d.hotel.check_in_time),
+            checkOut: formatTime12(d.hotel.check_out_time),
             address: d.hotel.address,
             inclusions: [],
             roomName: d.hotel.room_name,
