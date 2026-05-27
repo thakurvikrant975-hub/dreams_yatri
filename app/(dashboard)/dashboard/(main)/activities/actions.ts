@@ -166,7 +166,15 @@ export async function getActivities(params: GetActivitiesParams = {}) {
 
     const where = {
         ...(search ? {
-            name: { contains: search, mode: "insensitive" as const },
+            OR: [
+                { name:     { contains: search, mode: "insensitive" as const } },
+                { city:     { contains: search, mode: "insensitive" as const } },
+                { state:    { contains: search, mode: "insensitive" as const } },
+                { location: { name:    { contains: search, mode: "insensitive" as const } } },
+                { location: { city:    { name: { contains: search, mode: "insensitive" as const } } } },
+                { location: { state:   { name: { contains: search, mode: "insensitive" as const } } } },
+                { location: { country: { name: { contains: search, mode: "insensitive" as const } } } },
+            ],
         } : {}),
         ...(category_id !== "all" ? { category_id: category_id as number } : {}),
         ...(status === "active"   ? { is_active: true  }                   : {}),

@@ -77,7 +77,17 @@ export async function getHotels(params: GetHotelsParams = {}) {
   const skip = (page - 1) * limit;
 
   const where = {
-    ...(search ? { name: { contains: search, mode: "insensitive" as const } } : {}),
+    ...(search ? {
+      OR: [
+        { name:     { contains: search, mode: "insensitive" as const } },
+        { city:     { contains: search, mode: "insensitive" as const } },
+        { state:    { contains: search, mode: "insensitive" as const } },
+        { location: { name:    { contains: search, mode: "insensitive" as const } } },
+        { location: { city:    { name: { contains: search, mode: "insensitive" as const } } } },
+        { location: { state:   { name: { contains: search, mode: "insensitive" as const } } } },
+        { location: { country: { name: { contains: search, mode: "insensitive" as const } } } },
+      ],
+    } : {}),
     ...(destination !== "all" ? { destination_id: destination as number } : {}),
     ...(category    !== "all" ? { category: category as string }           : {}),
     ...(status === "active"   ? { is_active: true }                        : {}),
