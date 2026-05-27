@@ -61,12 +61,55 @@ async function getHotelDetail(slug: string): Promise<HotelDetail | null> {
   const hotel = await db.hotels.findUnique({
     where: { slug, is_active: true },
     include: {
-      // add whatever relations your HotelDetail type needs
-      // e.g. images: true, amenities: true, rooms: true
+      destination: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          region: { select: { id: true, name: true, slug: true } },
+        },
+      },
+      image_categories: {
+        orderBy: { sort_order: "asc" },
+        include: {
+          images: {
+            orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
+            select: { id: true, url: true, thumbnail: true, alt: true, is_primary: true, sort_order: true },
+          },
+        },
+      },
+      room_pricing: {
+        where: { is_active: true },
+        orderBy: { sort_order: "asc" },
+        select: {
+          id: true,
+          plan_name: true,
+          price_per_night: true,
+          original_price: true,
+        },
+      },
     },
   });
 
-  return hotel as HotelDetail | null;
+  if (!hotel) return null;
+
+  return {
+    ...hotel,
+    amenities: null,
+    latitude: null,
+    longitude: null,
+    room_pricing: hotel.room_pricing.map((r) => ({
+      id: r.id,
+      room_type: r.plan_name ?? "Standard",
+      description: null,
+      occupancy: 2,
+      price_per_night: Number(r.price_per_night),
+      original_price: r.original_price ? Number(r.original_price) : null,
+      season: "year-round",
+      amenities: null,
+      margin_percentage: 0,
+    })),
+  } as HotelDetail;
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────

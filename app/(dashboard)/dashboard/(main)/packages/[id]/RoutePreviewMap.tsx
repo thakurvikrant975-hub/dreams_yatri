@@ -189,7 +189,7 @@ export function RoutePreviewMap({ stops }: Props) {
               // Bring markers to front so they sit above the route line
               mapInstanceRef.current.eachLayer((layer) => {
                 if ((layer as import("leaflet").Marker).getIcon) {
-                  (layer as import("leaflet").Marker).bringToFront?.();
+                  (layer as unknown as { bringToFront?: () => void }).bringToFront?.();
                 }
               });
 
