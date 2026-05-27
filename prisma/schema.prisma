@@ -1260,6 +1260,7 @@ model package_itineraries {
   day                   Int
   title                 String
   description           String?
+  meals                 String[]
   itinerary_activities  itinerary_activities[]
   itinerary_notes       itinerary_notes[]
   itineraryStays        itinerary_stays[]
