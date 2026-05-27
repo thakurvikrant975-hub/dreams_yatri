@@ -481,9 +481,10 @@ type Props = {
   onSaved: () => void;
   packageImages: SelectableImage[];
   destinationCoords?: { lat: number; lng: number };
+  isFirstRoute?: boolean;
 };
 
-export function RouteBuilderSidebar({ packageId, editing, open, onClose, onSaved, packageImages, destinationCoords }: Props) {
+export function RouteBuilderSidebar({ packageId, editing, open, onClose, onSaved, packageImages, destinationCoords, isFirstRoute }: Props) {
   const [isSaving, setIsSaving] = useState(false);
   const [stops, setStops] = useState<StopRow[]>([{ id: uid(), location: null, stay_nights: 1 }]);
 
@@ -652,6 +653,14 @@ export function RouteBuilderSidebar({ packageId, editing, open, onClose, onSaved
           is_active: editing.durationIsActive,
           sort_order: editing.durationSortOrder,
           thumbnail_url: editing.durationThumbnail,
+        } : isFirstRoute ? {
+          days: autoNights + 1,
+          nights: autoNights,
+          label: `${autoNights + 1}D / ${autoNights}N`,
+          is_default: true,
+          is_active: true,
+          sort_order: 0,
+          thumbnail_url: null,
         } : undefined}
       />
 

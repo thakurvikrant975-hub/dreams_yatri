@@ -338,6 +338,7 @@ export function RouteBuilderTab({ packageId, initialData, packageImages, destina
         onSaved={refresh}
         packageImages={packageImages}
         destinationCoords={destinationCoords}
+        isFirstRoute={!editingRoute && totalVariants === 0}
       />
 
       {/* Delete confirm */}
