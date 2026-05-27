@@ -173,15 +173,15 @@ export function ActivitiesTableClient({
     const columns: ColumnDef<ActivityItem>[] = [
         {
             header: "Activity",
-            width: "w-[280px]",
+            width: "w-[440px]",
             cell: (a) => (
                 <div className="flex items-center gap-3">
                     <ThumbnailCell activity={a} />
                     <div className="min-w-0">
-                        <p className="font-medium text-sm truncate max-w-45">{a.name}</p>
-                        <p className="text-xs text-muted-foreground truncate max-w-45">{a.slug}</p>
+                        <p className="font-medium text-sm truncate max-w-96">{a.name}</p>
+                        <p className="text-xs text-muted-foreground truncate max-w-96">{a.slug}</p>
                         {a.has_location && a.location && (
-                            <p className="text-xs text-muted-foreground/70 truncate max-w-45">
+                            <p className="text-xs text-dashboard-primary truncate max-w-96">
                                 {[a.location.city?.name ?? a.location.name, a.location.state?.name, a.location.country?.name].filter(Boolean).join(", ")}
                             </p>
                         )}

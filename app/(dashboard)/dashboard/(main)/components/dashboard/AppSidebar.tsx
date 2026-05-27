@@ -41,7 +41,7 @@ const navGroups = [
     id: "activities", label: "Activities",
     items: [
       { title: "All Activities", href: "/dashboard/activities",            icon: ParachuteIcon, phosphor: true },
-      { title: "New Activity",   href: "/dashboard/activities/new",        icon: PlusIcon,      phosphor: true },
+      // { title: "New Activity",   href: "/dashboard/activities/new",        icon: PlusIcon,      phosphor: true },
       { title: "Categories",     href: "/dashboard/activities/categories", icon: TagIcon,       phosphor: true },
     ],
   },  
@@ -49,7 +49,7 @@ const navGroups = [
     id: "hotels", label: "Hotels",
     items: [
       { title: "All Hotels", href: "/dashboard/hotels",           icon: BuildingIcon, phosphor: true },
-      { title: "Add New",    href: "/dashboard/hotels/new",       icon: PlusIcon,     phosphor: true },
+      // { title: "Add New",    href: "/dashboard/hotels/new",       icon: PlusIcon,     phosphor: true },
       { title: "Meal Types", href: "/dashboard/hotels/meal-types",icon: KeyRound },
       { title: "Diet Types", href: "/dashboard/hotels/diet-types",icon: IdCardLanyard },
     ],
@@ -58,7 +58,7 @@ const navGroups = [
     id: "packages", label: "Packages",
     items: [
       { title: "All Packages", href: "/dashboard/packages",     icon: PackageIcon,        phosphor: true },
-      { title: "New Package",  href: "/dashboard/packages/new", icon: PlusIcon,           phosphor: true },
+      // { title: "New Package",  href: "/dashboard/packages/new", icon: PlusIcon,           phosphor: true },
     ],
   },
   {
