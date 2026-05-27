@@ -692,7 +692,7 @@ function StayContent({ section }: { section: StaySection }) {
 function ActivityContent({ section }: { section: ActivitySection }) {
   const [descExpanded, setDescExpanded] = useState(false);
   const [descOverflows, setDescOverflows] = useState(false);
-  const descRef = useRef<HTMLDivElement>(null);
+  const descRef = useRef<HTMLParagraphElement>(null);
   const hasPricing = section.pricingTiers && section.pricingTiers.length > 0;
 
   // Measure once on mount (element is clamped) to know if text actually overflows
@@ -714,15 +714,15 @@ function ActivityContent({ section }: { section: ActivitySection }) {
         {/* Description */}
         {section.description && (
           <div>
-            <div ref={descRef} className="relative">
-              <Text
-                size="sm"
-                intent="secondary"
-                className={cn('leading-relaxed', !descExpanded && 'line-clamp-2')}
+            <div className="relative">
+              {/* ref on the clamped element itself so scrollHeight reflects true overflow */}
+              <p
+                ref={descRef}
+                className={cn('text-sm text-secondary leading-relaxed', !descExpanded && 'line-clamp-2')}
               >
                 {section.description}
-              </Text>
-              {/* Inline "Read more" — fades over the last line's tail */}
+              </p>
+              {/* Inline "Read more" — overlaid at end of last visible line */}
               {!descExpanded && descOverflows && (
                 <button
                   type="button"
@@ -733,7 +733,6 @@ function ActivityContent({ section }: { section: ActivitySection }) {
                 </button>
               )}
             </div>
-            {/* "Show less" appears below once expanded */}
             {descExpanded && (
               <button
                 type="button"
@@ -747,6 +746,20 @@ function ActivityContent({ section }: { section: ActivitySection }) {
         )}
 
 
+
+        {/* Pricing tiers */}
+        {section.pricingTiers && section.pricingTiers.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {section.pricingTiers.map((tier, i) => (
+              <div key={i} className="flex items-baseline gap-1.5 bg-neutral-50 ring-1 ring-inset ring-neutral-200 rounded-xl px-3 py-1.5">
+                <Text size="xs" intent="secondary">{tier.label}</Text>
+                <Text size="sm" weight="bold" intent="primary" className="font-heading">
+                  ₹{tier.price.toLocaleString('en-IN')}
+                </Text>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Image carousel */}
         {section.images.length > 0 && (
