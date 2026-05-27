@@ -1660,7 +1660,7 @@ function MealToggleSection({
               key={key}
               type="button"
               disabled={disabled}
-              onClick={() => toggle(key)}
+              onClick={() => toggle(key)} 
               className={cn(
                 "relative flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-xl border flex-1 select-none cursor-pointer transition-all",
                 selected ? activeBg : cn(bg, "hover:opacity-80"),
