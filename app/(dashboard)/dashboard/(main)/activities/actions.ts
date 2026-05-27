@@ -53,6 +53,8 @@ export type ActivityItem = {
     state:          string | null;
     country:        string | null;
     pincode:        string | null;
+    has_location:   boolean;
+    location:       { city: { name: string } | null; state: { name: string } | null; country: { name: string } | null } | null;
     phone:          string | null;
     email:          string | null;
     is_active:      boolean;
@@ -147,6 +149,7 @@ const ACTIVITY_INCLUDE = {
         select:  { id: true, url: true, thumbnail: true, is_primary: true, sort_order: true, label: true },
     },
     _count: { select: { images: true, variants: true } },
+    location: { select: { name: true, city: { select: { name: true } }, state: { select: { name: true } }, country: { select: { name: true } } } },
 } as const;
 
 export async function getActivities(params: GetActivitiesParams = {}) {
@@ -186,9 +189,10 @@ export async function getActivities(params: GetActivitiesParams = {}) {
         ]);
 
     return {
-        activities: activities.map(({ location_id: _loc, ...a }) => ({
+        activities: activities.map(({ location_id, ...a }) => ({
             ...a,
             duration_hours: a.duration_hours ? Number(a.duration_hours) : null,
+            has_location: location_id != null,
         })) as ActivityItem[],
         totalCount,
         isFiltering,

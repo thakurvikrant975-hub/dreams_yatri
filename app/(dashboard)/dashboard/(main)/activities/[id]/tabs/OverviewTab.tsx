@@ -192,7 +192,6 @@ export function OverviewTab({
 
     // Location & Contact
     const [location, setLocation] = useState<LocationValue | null>(activity.location);
-    const [address, setAddress] = useState(activity.address ?? "");
     const [city,    setCity]    = useState(activity.city    ?? "");
     const [state,   setState]   = useState(activity.state   ?? "");
     const [country, setCountry] = useState(activity.country ?? "India");
@@ -227,7 +226,6 @@ export function OverviewTab({
             fd.append("duration_hours", duration);
             fd.append("is_active",      String(isActive));
             fd.append("location_id",    location?.id ?? "");
-            fd.append("address",        address);
             fd.append("city",           city);
             fd.append("state",          state);
             fd.append("country",        country);
@@ -334,15 +332,6 @@ export function OverviewTab({
                         onChange={handleLocationChange}
                         placeholder="Search activity location…"
                         types={ACTIVITY_TYPES}
-                    />
-                </div>
-
-                <div className="space-y-1.5">
-                    <Label>Street Address</Label>
-                    <Input
-                        value={address}
-                        onChange={e => setAddress(e.target.value)}
-                        placeholder="123, Main Road, Near Bus Stand"
                     />
                 </div>
 
