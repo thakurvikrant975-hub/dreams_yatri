@@ -255,9 +255,10 @@ export async function handleSearchRoomPricings(
   query: string,
   itineraryId?: number,
   stayBlockOrder?: number,
+  stopIndex?: number,
 ) {
   try {
-    const data = await searchRoomPricings(destinationId, query, itineraryId, stayBlockOrder);
+    const data = await searchRoomPricings(destinationId, query, itineraryId, stayBlockOrder, stopIndex);
     return { success: true as const, data };
   } catch (e) {
     console.error(e);

@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { toast } from "sonner";
-import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { StayTiersSection } from "./StayTiersSection";
 import { ItineraryDaySidebar } from "./ItineraryDaySidebar";
@@ -20,6 +19,7 @@ import {
   Camera,
   MapPin,
 } from "lucide-react";
+
 import { cn } from "@/app/lib/utils";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -55,6 +55,20 @@ export type OccupiedBy = {
   hotelName: string;
   nightIndex: number; // 1-based: which night of that stay is this day
 };
+
+// ── Stop index helper — returns the 0-based index of the stop that owns a day ──
+
+function getStopIndex(dayNumber: number, stops: RouteStop[]): number {
+  let cursor = 0;
+  for (let i = 0; i < stops.length; i++) {
+    const stop = stops[i];
+    const isLast = i === stops.length - 1;
+    const count = stop.stay_days + (isLast ? 1 : 0);
+    cursor += count;
+    if (dayNumber <= cursor) return i;
+  }
+  return 0;
+}
 
 // ── Stop coords helper — returns the location coords of the stop for a day ──
 
@@ -392,7 +406,7 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
             <div className="flex items-center justify-center py-16">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
-          ) : days ? (
+          ) : days ? (  
             selectedRoute?.stops?.length ? (
               <div className="space-y-5">
                 {computeStopGroups(selectedRoute.stops).map((group) => {
@@ -449,10 +463,17 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
         const stops = selectedRoute?.stops ?? [];
         const stopLabel  = stops.length ? getStopLabel(openDay.day, stops)  : undefined;
         const stopCoords = stops.length ? getStopCoords(openDay.day, stops) : undefined;
+        const stopIndex  = stops.length ? getStopIndex(openDay.day, stops)  : undefined;
         const totalDays  = selectedDuration?.days ?? 99;
         const maxNights  = stops.length > 0
           ? getMaxNightsForDay(openDay.day, stops)
           : totalDays - openDay.day + 1;
+        const handleNavigateDay = (direction: "prev" | "next") => {
+          if (!days) return;
+          const targetDay = direction === "prev" ? openDay.day - 1 : openDay.day + 1;
+          const target = days.find((d) => d.day === targetDay);
+          if (target) setOpenDay(target);
+        };
         return (
           <ItineraryDaySidebar
             key={`${selectedDurationId}-${selectedRouteId}-${openDay.day}`}
@@ -467,8 +488,11 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
             onSaved={handleDaySaved}
             stopLabel={stopLabel}
             stopCoords={stopCoords}
+            stopIndex={stopIndex}
             occupiedBy={occupiedDays.get(openDay.day)}
             maxNights={maxNights}
+            totalDays={totalDays}
+            onNavigateDay={handleNavigateDay}
           />
         );
       })()}

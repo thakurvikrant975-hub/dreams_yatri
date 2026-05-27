@@ -860,6 +860,7 @@ export type PlanInput = {
   plan_name?:        string | null;
   meal_type_id?:     number | null;
   diet_type_id?:     number | null;
+  price_per_night?:  number | null;
   extra_bed_rate?:   number | null;
   margin_percentage: number;
   gst_percentage:    number;
@@ -876,8 +877,7 @@ export async function createRoomPricingWithSeasons(
     if (!data.seasons.length) return { success: false, message: "At least one season is required." };
 
     const count = await db.hotel_room_pricing.count({ where: { hotel_id } });
-    // Fallback price = first season's price (keeps public API working)
-    const fallback = data.seasons[0].price_per_night;
+    const basePricePerNight = data.price_per_night ?? data.seasons[0].price_per_night;
 
     const plan = await db.$transaction(async (tx) => {
       const p = await tx.hotel_room_pricing.create({
@@ -887,7 +887,7 @@ export async function createRoomPricingWithSeasons(
           plan_name:         data.plan_name         ?? null,
           meal_type_id:      data.meal_type_id      ?? null,
           diet_type_id:      data.diet_type_id      ?? null,
-          price_per_night:   fallback,
+          price_per_night:   basePricePerNight,
           extra_bed_rate:    data.extra_bed_rate     ?? null,
           margin_percentage: data.margin_percentage,
           gst_percentage:    data.gst_percentage,
@@ -940,7 +940,7 @@ export async function updateRoomPricingWithSeasons(
     if (!data.room_id) return { success: false, message: "Room is required." };
     if (!data.seasons.length) return { success: false, message: "At least one season is required." };
 
-    const fallback = data.seasons[0].price_per_night;
+    const basePricePerNight = data.price_per_night ?? data.seasons[0].price_per_night;
 
     await db.$transaction(async (tx) => {
       await tx.hotel_room_pricing.update({
@@ -950,7 +950,7 @@ export async function updateRoomPricingWithSeasons(
           plan_name:         data.plan_name         ?? null,
           meal_type_id:      data.meal_type_id      ?? null,
           diet_type_id:      data.diet_type_id      ?? null,
-          price_per_night:   fallback,
+          price_per_night:   basePricePerNight,
           extra_bed_rate:    data.extra_bed_rate     ?? null,
           margin_percentage: data.margin_percentage,
           gst_percentage:    data.gst_percentage,

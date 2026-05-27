@@ -180,6 +180,11 @@ export function ActivitiesTableClient({
                     <div className="min-w-0">
                         <p className="font-medium text-sm truncate max-w-45">{a.name}</p>
                         <p className="text-xs text-muted-foreground truncate max-w-45">{a.slug}</p>
+                        {a.has_location && a.location && (
+                            <p className="text-xs text-muted-foreground/70 truncate max-w-45">
+                                {[a.location.city?.name ?? a.location.name, a.location.state?.name, a.location.country?.name].filter(Boolean).join(", ")}
+                            </p>
+                        )}
                     </div>
                 </div>
             ),

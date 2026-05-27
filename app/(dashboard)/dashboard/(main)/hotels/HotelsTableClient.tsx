@@ -42,6 +42,8 @@ type HotelItem = {
   thumbnail: string | null;
   category: string | null;
   stay_type: string | null;
+  city: string | null;
+  state: string | null;
   is_active: boolean;
   created_at: Date;
   destination: { id: number; name: string };
@@ -171,6 +173,11 @@ export function HotelsTableClient({
           <div>
             <p className="font-medium text-sm">{h.name}</p>
             {h.stay_type && <p className="text-xs text-muted-foreground">{h.stay_type}</p>}
+            {(h.city || h.state) && (
+              <p className="text-xs text-muted-foreground/70">
+                {[h.city, h.state].filter(Boolean).join(", ")}
+              </p>
+            )}
           </div>
         </div>
       ),

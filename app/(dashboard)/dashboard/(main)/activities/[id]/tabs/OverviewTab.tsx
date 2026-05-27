@@ -192,7 +192,6 @@ export function OverviewTab({
 
     // Location & Contact
     const [location, setLocation] = useState<LocationValue | null>(activity.location);
-    const [address, setAddress] = useState(activity.address ?? "");
     const [city,    setCity]    = useState(activity.city    ?? "");
     const [state,   setState]   = useState(activity.state   ?? "");
     const [country, setCountry] = useState(activity.country ?? "India");
@@ -227,7 +226,6 @@ export function OverviewTab({
             fd.append("duration_hours", duration);
             fd.append("is_active",      String(isActive));
             fd.append("location_id",    location?.id ?? "");
-            fd.append("address",        address);
             fd.append("city",           city);
             fd.append("state",          state);
             fd.append("country",        country);
@@ -290,8 +288,8 @@ export function OverviewTab({
                             error={errors.category_id?.[0]}
                         />
                         <FieldError errors={errors} field="category_id" />
-                    </div>
-                    <div className="space-y-1.5">
+                    </div> 
+                    <div className="space-y-1.5"> 
                         <Label>Difficulty</Label>
                         <Select value={difficulty} onValueChange={setDifficulty}>
                             <SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger>
@@ -335,37 +333,6 @@ export function OverviewTab({
                         placeholder="Search activity location…"
                         types={ACTIVITY_TYPES}
                     />
-                </div>
-
-                <div className="space-y-1.5">
-                    <Label>Street Address</Label>
-                    <Input
-                        value={address}
-                        onChange={e => setAddress(e.target.value)}
-                        placeholder="123, Main Road, Near Bus Stand"
-                    />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                        <Label>City</Label>
-                        <Input value={city} onChange={e => setCity(e.target.value)} placeholder="Rishikesh" />
-                    </div>
-                    <div className="space-y-1.5">
-                        <Label>State</Label>
-                        <Input value={state} onChange={e => setState(e.target.value)} placeholder="Uttarakhand" />
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                        <Label>Country <span className="text-xs text-muted-foreground">(auto-filled from map)</span></Label>
-                        <Input value={country} onChange={e => setCountry(e.target.value)} placeholder="India" />
-                    </div>
-                    <div className="space-y-1.5">
-                        <Label>Pincode</Label>
-                        <Input value={pincode} onChange={e => setPincode(e.target.value)} placeholder="249201" />
-                    </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -437,3 +404,4 @@ export function OverviewTab({
         </div>
     );
 }
+ 

@@ -102,6 +102,8 @@ import {
   Package,
   Zap,
   ClipboardPaste,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import type { OccupiedBy } from "./ItineraryBuilderTab";
@@ -128,8 +130,11 @@ type Props = {
   onSaved: (updated: DayData) => void;
   stopLabel?: string;
   stopCoords?: { lat: number; lng: number };
+  stopIndex?: number;
   occupiedBy?: OccupiedBy;
   maxNights?: number;
+  totalDays: number;
+  onNavigateDay: (direction: "prev" | "next") => void;
 };
 
 type DndItem =
@@ -147,10 +152,10 @@ type EditPanelState =
 // ── Kind config ────────────────────────────────────────────────────────────
 
 const KIND_CONFIG = {
-  transfer: { Icon: Car,        color: "text-blue-600",    chipBg: "bg-blue-50 border-blue-200 hover:bg-blue-100",    barColor: "bg-blue-500",   label: "Transfer" },
-  activity: { Icon: Activity,   color: "text-emerald-600", chipBg: "bg-emerald-50 border-emerald-200 hover:bg-emerald-100", barColor: "bg-emerald-500", label: "Activity" },
-  note:     { Icon: StickyNote, color: "text-amber-600",   chipBg: "bg-amber-50 border-amber-200 hover:bg-amber-100",   barColor: "bg-amber-500",  label: "Note"     },
-  stay:     { Icon: Hotel,      color: "text-violet-600",  chipBg: "bg-violet-50 border-violet-200 hover:bg-violet-100",  barColor: "bg-violet-500", label: "Stay"     },
+  transfer: { Icon: Car,        color: "text-blue-600",    chipBg: "bg-blue-50 border-blue-200 hover:bg-blue-100",         chipApplied: "bg-blue-100 border-blue-400",         barColor: "bg-blue-500",    label: "Transfer" },
+  activity: { Icon: Activity,   color: "text-emerald-600", chipBg: "bg-emerald-50 border-emerald-200 hover:bg-emerald-100", chipApplied: "bg-emerald-100 border-emerald-400",   barColor: "bg-emerald-500", label: "Activity" },
+  note:     { Icon: StickyNote, color: "text-amber-600",   chipBg: "bg-amber-50 border-amber-200 hover:bg-amber-100",       chipApplied: "bg-amber-100 border-amber-400",       barColor: "bg-amber-500",   label: "Note"     },
+  stay:     { Icon: Hotel,      color: "text-violet-600",  chipBg: "bg-violet-50 border-violet-200 hover:bg-violet-100",    chipApplied: "bg-violet-100 border-violet-400",     barColor: "bg-violet-500",  label: "Stay"     },
 } as const;
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -191,13 +196,15 @@ function editPanelTitle(panel: EditPanelState): string {
 function PaletteChip({
   kind,
   disabled,
+  isApplied,
   onClick,
 }: {
   kind: keyof typeof KIND_CONFIG;
   disabled: boolean;
+  isApplied?: boolean;
   onClick: () => void;
 }) {
-  const { Icon, color, chipBg, label } = KIND_CONFIG[kind];
+  const { Icon, color, chipBg, chipApplied, label } = KIND_CONFIG[kind];
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `palette-${kind}`,
     data: { source: "palette", kind },
@@ -210,8 +217,8 @@ function PaletteChip({
       ref={setNodeRef}
       style={transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined}
       className={cn(
-        "flex flex-col items-center gap-2 px-4 py-3 rounded-xl border cursor-grab select-none transition-all flex-1",
-        chipBg,
+        "relative flex flex-col items-center gap-2 px-4 py-3 rounded-xl border cursor-grab select-none transition-all flex-1",
+        isApplied ? chipApplied : chipBg,
         isDragging && "opacity-40 scale-95 cursor-grabbing shadow-lg",
         disabled && "opacity-40 cursor-not-allowed pointer-events-none",
       )}
@@ -219,6 +226,11 @@ function PaletteChip({
       {...listeners}
       {...attributes}
     >
+      {isApplied && (
+        <span className="absolute top-1.5 right-1.5 h-4 w-4 rounded-full bg-green-500 flex items-center justify-center shadow-sm">
+          <Check className="h-2.5 w-2.5 text-white" />
+        </span>
+      )}
       <Icon className={cn("h-5 w-5", color)} />
       <span className={cn("text-[10px] font-bold uppercase tracking-widest", color)}>{label}</span>
     </button>
@@ -925,7 +937,7 @@ function AddNoteForm({
 // ── Stay block ─────────────────────────────────────────────────────────────
 
 function StayBlock({
-  stays, stayCategories, itineraryId, stayBlockOrder, packageId, destinationId, pending, currentDay, maxNights, onStaysChange,
+  stays, stayCategories, itineraryId, stayBlockOrder, packageId, destinationId, pending, currentDay, maxNights, stopIndex, onStaysChange,
 }: {
   stays: StayItem[];
   stayCategories: StayCategory[];
@@ -936,6 +948,7 @@ function StayBlock({
   pending: boolean;
   currentDay: number;
   maxNights: number;
+  stopIndex?: number;
   onStaysChange: (stays: StayItem[]) => void;
 }) {
   const [assigningCategoryId, setAssigningCategoryId] = useState<number | null>(null);
@@ -946,16 +959,19 @@ function StayBlock({
   );
 
   const fetchRooms = useCallback(async (query: string): Promise<Option[]> => {
-    const res = await handleSearchRoomPricings(destinationId, query, itineraryId ?? undefined, stayBlockOrder);
+    const res = await handleSearchRoomPricings(destinationId, query, itineraryId ?? undefined, stayBlockOrder, stopIndex);
     if (!res.success) return [];
-    const items: Option[] = res.data.items.map((p) => ({
-      id: p.id,
-      label: `${p.hotel.name}${p.room ? ` — ${p.room.name}` : ""}`,
-      description: `${p.plan_name ?? "Standard"} · ₹${p.price_per_night.toLocaleString("en-IN")}/night`,
-    }));
+    const items: Option[] = res.data.items.map((p) => {
+      const hotelType = [p.hotel.category, p.hotel.stay_type].filter(Boolean).join(" · ");
+      return {
+        id: p.id,
+        label: `${p.hotel.name}${p.room ? ` — ${p.room.name}` : ""}`,
+        description: [hotelType, p.plan_name ?? "Standard", `₹${p.price_per_night.toLocaleString("en-IN")}/night`].filter(Boolean).join(" · "),
+      };
+    });
     if (res.data.has_more) items.push({ id: -1, label: "Showing top 50 — refine search to see more" });
     return items;
-  }, [destinationId, itineraryId, stayBlockOrder]);
+  }, [destinationId, itineraryId, stayBlockOrder, stopIndex]);
 
   async function handleAssign(categoryId: number, roomPricingId: number) {
     if (!itineraryId) return;
@@ -1106,6 +1122,11 @@ function StayBlock({
               ) : stay ? (
                 <div>
                   <p className="text-sm font-medium">{stay.room_pricing.hotel.name}</p>
+                  {(stay.room_pricing.hotel.category || stay.room_pricing.hotel.stay_type) && (
+                    <p className="text-[10px] font-medium text-violet-600/80 mt-0.5">
+                      {[stay.room_pricing.hotel.category, stay.room_pricing.hotel.stay_type].filter(Boolean).join(" · ")}
+                    </p>
+                  )}
                   <p className="text-xs text-muted-foreground">
                     {stay.room_pricing.room?.name ?? "Room"} · {stay.room_pricing.plan_name ?? "Standard"} · ₹{stay.room_pricing.price_per_night.toLocaleString("en-IN")}/night
                   </p>
@@ -1484,7 +1505,7 @@ function TimelineDropZone({ children, isEmpty }: { children: React.ReactNode; is
 // ── Main sidebar ───────────────────────────────────────────────────────────
 
 export function ItineraryDaySidebar({
-  open, onClose, packageId, destinationId, durationId, routeId, day: initialDay, stayCategories, onSaved, stopLabel, stopCoords, occupiedBy, maxNights: maxNightsProp,
+  open, onClose, packageId, destinationId, durationId, routeId, day: initialDay, stayCategories, onSaved, stopLabel, stopCoords, stopIndex, occupiedBy, maxNights: maxNightsProp, totalDays, onNavigateDay,
 }: Props) {
   const [itineraryId, setItineraryId] = useState<number | null>(initialDay.id);
   const [title, setTitle] = useState(initialDay.title);
@@ -1781,9 +1802,29 @@ export function ItineraryDaySidebar({
                     {stopLabel ?? "Itinerary Builder"}
                   </p>
                 </div>
-                <button type="button" onClick={onClose} className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors">
-                  <X className="h-4 w-4" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => onNavigateDay("prev")}
+                    disabled={initialDay.day <= 1}
+                    className="h-8 w-8 rounded-lg flex items-center justify-center cursor-pointer text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="Previous day"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onNavigateDay("next")}
+                    disabled={initialDay.day >= totalDays}
+                    className="h-8 w-8 rounded-lg flex items-center justify-center cursor-pointer text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="Next day"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                  <button type="button" onClick={onClose} className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground cursor-pointer hover:bg-muted/60 hover:text-foreground transition-colors">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
 
               {/* Day meta — shrink-0 */}
@@ -1864,10 +1905,10 @@ export function ItineraryDaySidebar({
               <div className="px-5 pt-4 pb-4 border-b shrink-0">
                 <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold mb-3">Add Elements</p>
                 <div className="flex gap-2">
-                  <PaletteChip kind="transfer" disabled={!itineraryId} onClick={() => setEditPanel({ mode: "add", kind: "transfer" })} />
-                  <PaletteChip kind="stay" disabled={!itineraryId || !!occupiedBy || maxNightsProp === 0} onClick={() => setEditPanel({ mode: "stay" })} />
-                  <PaletteChip kind="activity" disabled={!itineraryId} onClick={() => setEditPanel({ mode: "add", kind: "activity" })} />
-                  <PaletteChip kind="note" disabled={!itineraryId} onClick={() => setEditPanel({ mode: "add", kind: "note" })} />
+                  <PaletteChip kind="transfer" disabled={!itineraryId} isApplied={transfers.length > 0} onClick={() => setEditPanel({ mode: "add", kind: "transfer" })} />
+                  <PaletteChip kind="stay" disabled={!itineraryId || !!occupiedBy || maxNightsProp === 0} isApplied={stays.length > 0} onClick={() => setEditPanel({ mode: "stay" })} />
+                  <PaletteChip kind="activity" disabled={!itineraryId} isApplied={activities.length > 0} onClick={() => setEditPanel({ mode: "add", kind: "activity" })} />
+                  <PaletteChip kind="note" disabled={!itineraryId} isApplied={notes.length > 0} onClick={() => setEditPanel({ mode: "add", kind: "note" })} />
                 </div>
                 {!itineraryId && (
                   <p className="text-[10px] text-muted-foreground/50 mt-2.5">Save the day title first to enable adding elements</p>
@@ -2040,6 +2081,7 @@ export function ItineraryDaySidebar({
                     pending={pending}
                     currentDay={initialDay.day}
                     maxNights={maxNightsProp ?? 99}
+                    stopIndex={stopIndex}
                     onStaysChange={(updated) => {
                       setStays(updated);
                       onSaved({ ...currentDayData(), stays: updated });
