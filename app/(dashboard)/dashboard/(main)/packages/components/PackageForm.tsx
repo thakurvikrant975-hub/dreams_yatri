@@ -27,8 +27,6 @@ import {
   CheckCircle2,
   XCircle,
   ImageIcon,
-  ArrowRight,
-  ArrowLeft,
   Rocket,
   Save,
   Info,
@@ -74,15 +72,6 @@ type FieldErrors = Partial<Record<keyof PackageFormData, string>>;
 
 const R2_BASE = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? "";
 
-// ── Steps config ───────────────────────────────────────────────────────────
-
-const STEPS = [
-  { label: "Basic info", Icon: Info },
-  { label: "Media", Icon: ImageIcon },
-  { label: "Categorise", Icon: Tag },
-  { label: "Inclusions", Icon: CheckCircle2 },
-] as const;
-
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function slugify(str: string) {
@@ -103,12 +92,6 @@ function inputCls(hasError = false) {
       : "border-dashboard-base-300 focus:border-dashboard-primary focus:ring-2 focus:ring-dashboard-primary/12",
   );
 }
-
-const ghostBtn = cn(
-  "flex items-center gap-1.5 rounded-lg border px-4 py-2 text-[13px] font-semibold",
-  "border-dashboard-base-300 text-dashboard-base-content/60",
-  "transition-colors hover:bg-dashboard-base-200 cursor-pointer",
-);
 
 const primaryBtn = cn(
   "flex items-center justify-center gap-1.5 rounded-lg px-5 py-2 text-[13px] font-semibold",
@@ -190,8 +173,6 @@ export function PackageForm({
   onChange,
   onSuccess,
 }: Props) {
-  const [step, setStep] = useState(0);
-
   const [data, setData] = useState<PackageFormData>({
     ...defaultData,
     ...initialData,
@@ -271,7 +252,6 @@ export function PackageForm({
 
     if (!data.destination_id) {
       setErrors({ destination_id: "Please select a destination" });
-      setStep(0);
       return;
     }
 
@@ -290,7 +270,6 @@ export function PackageForm({
     const parsed = createPackageSchema.safeParse(payload);
     if (!parsed.success) {
       setErrors(mapZodErrors(parsed.error.issues));
-      setStep(0);
       return;
     }
 
@@ -304,10 +283,8 @@ export function PackageForm({
       if (!result.success) {
         if (result.type === "validation" && "error" in result && result.error) {
           setErrors(mapZodErrors(result.error));
-          setStep(0);
         } else if (result.type === "conflict") {
           setErrors({ slug: "message" in result ? (result.message as string) : "Slug already exists" });
-          setStep(0);
         } else {
           toast.error("message" in result ? (result.message as string) : "Something went wrong");
         }
@@ -320,9 +297,6 @@ export function PackageForm({
       setIsSubmitting(false);
     }
   }
-
-  const isFirstStep = step === 0;
-  const isLastStep = step === STEPS.length - 1;
 
   // ── Shared section blocks ─────────────────────────────────────────────────
 
@@ -488,105 +462,40 @@ export function PackageForm({
     </div>
   );
 
-  // ── Update mode: single scrollable form ───────────────────────────────────
-
-  if (mode === "update") {
-    return (
-      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-        {sectionBasicInfo}
-        {sectionMedia}
-        {sectionCategorise}
-        {sectionInclusions}
-        <div className="flex justify-end rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 px-5 py-4">
-          <button type="submit" disabled={isSubmitting} className={cn(primaryBtn, "min-w-37")}>
-            {isSubmitting ? (
-              <><Loader2 className="h-3.5 w-3.5 animate-spin" />Saving…</>
-            ) : (
-              <><Save className="h-3.5 w-3.5" />Save Changes</>
-            )}
-          </button>
-        </div>
-      </form>
-    );
-  }
-
-  // ── Create mode: step wizard ──────────────────────────────────────────────
+  // ── Single-page form (both create and update) ─────────────────────────────
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
 
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-dashboard-primary">
-          <Package className="h-5 w-5 text-dashboard-primary-content" />
+      {/* Create-mode header */}
+      {mode === "create" && (
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-dashboard-primary">
+            <Package className="h-5 w-5 text-dashboard-primary-content" />
+          </div>
+          <div>
+            <h2 className="text-[17px] font-semibold tracking-tight text-dashboard-base-content">Create Package</h2>
+            <p className="mt-0.5 text-[13px] text-dashboard-base-content/50">Fill in the details to publish a new tour package</p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-[17px] font-semibold tracking-tight text-dashboard-base-content">Create Package</h2>
-          <p className="mt-0.5 text-[13px] text-dashboard-base-content/50">Fill in the details to publish a new tour package</p>
-        </div>
-      </div>
+      )}
 
-      {/* Step chips */}
-      <div className="flex flex-wrap gap-2">
-        {STEPS.map(({ label, Icon }, i) => {
-          const isActive = i === step;
-          const isDone = i < step;
-          return (
-            <button
-              key={i}
-              type="button"
-              onClick={() => setStep(i)}
-              className={cn(
-                "flex items-center gap-1.5 rounded-full px-3.5 py-1.25 text-[12px] font-semibold transition-all cursor-pointer",
-                isActive && "bg-dashboard-primary text-dashboard-base-100",
-                isDone && "bg-dashboard-success/15 text-dashboard-success",
-                !isActive && !isDone && "bg-dashboard-base-100 text-dashboard-base-content/75 hover:text-dashboard-base-content/70",
-              )}
-            >
-              <Icon className={cn("h-3 w-3",
-                isActive && "text-dashboard-base-100",
-                isDone && "text-dashboard-success",
-                !isActive && !isDone && "text-dashboard-base-content/75",
-              )} />
-              {label}
-            </button>
-          );
-        })}
-      </div>
-
-      {step === 0 && sectionBasicInfo}
-      {step === 1 && sectionMedia}
-      {step === 2 && sectionCategorise}
-      {step === 3 && sectionInclusions}
+      {sectionBasicInfo}
+      {sectionMedia}
+      {sectionCategorise}
+      {sectionInclusions}
 
       {/* Footer */}
-      <div className="flex items-center justify-between rounded-2xl border border-dashboard-base-content/20 bg-dashboard-base-100 px-5 py-4">
-        <span className="flex items-center gap-1.5 text-[12.5px] text-dashboard-base-content/75">
-          <Info className="h-3.5 w-3.5" />
-          Step {step + 1} of {STEPS.length} — {STEPS[step].label.toLowerCase()}
-        </span>
-        <div className="flex items-center gap-2.5">
-          {!isFirstStep && (
-            <button type="button" onClick={() => setStep((s) => s - 1)} className={ghostBtn}>
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Back
-            </button>
-          )}
-          {isLastStep ? (
-            <button type="submit" disabled={isSubmitting} className={cn(primaryBtn, "min-w-37")}>
-              {isSubmitting ? (
-                <><Loader2 className="h-3.5 w-3.5 animate-spin" />Creating…</>
-              ) : (
-                <><Rocket className="h-3.5 w-3.5" />Create Package</>
-              )}
-            </button>
+      <div className="flex justify-end rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 px-5 py-4">
+        <button type="submit" disabled={isSubmitting} className={cn(primaryBtn, "min-w-37")}>
+          {isSubmitting ? (
+            <><Loader2 className="h-3.5 w-3.5 animate-spin" />{mode === "create" ? "Creating…" : "Saving…"}</>
+          ) : mode === "create" ? (
+            <><Rocket className="h-3.5 w-3.5" />Create Package</>
           ) : (
-            <button type="button" onClick={() => setStep((s) => s + 1)} className={primaryBtn}>
-              Next
-              <ArrowRight className="h-3.5 w-3.5" />
-            </button>
+            <><Save className="h-3.5 w-3.5" />Save Changes</>
           )}
-        </div>
+        </button>
       </div>
 
     </form>
