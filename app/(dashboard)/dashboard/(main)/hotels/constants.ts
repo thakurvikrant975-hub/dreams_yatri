@@ -1,9 +1,9 @@
 export const STAY_TYPES = [
-  "Standard",
-  "Deluxe",
-  "Super Deluxe",
-  "Luxury",
-  "Super Luxury",
+  "1 Star",
+  "2 Star",
+  "3 Star",
+  "4 Star",
+  "5 Star",
 ] as const;
 
 export const CATEGORIES = [

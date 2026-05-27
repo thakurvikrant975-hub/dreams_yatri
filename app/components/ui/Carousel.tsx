@@ -119,36 +119,52 @@ export function Carousel<T,>({
   const translatePct = -(offset * (100 / pv));
 
   return (
-    <div className={cn('relative select-none', className)}>
+    <div className={cn('select-none', className)}>
 
-      {/* ── Sliding track ── */}
-      <div
-        className="overflow-hidden"
-        {...drag}
-        style={{ cursor: hasOverflow ? 'grab' : 'default' }}
-        onMouseDown={e => { drag.onMouseDown(e); if (hasOverflow) (e.currentTarget as HTMLDivElement).style.cursor = 'grabbing'; }}
-        onMouseUp={e => { drag.onMouseUp(e); if (hasOverflow) (e.currentTarget as HTMLDivElement).style.cursor = 'grab'; }}
-        onMouseLeave={e => { drag.onMouseUp(e as unknown as React.MouseEvent); if (hasOverflow) (e.currentTarget as HTMLDivElement).style.cursor = 'grab'; }}
-      >
+      {/* ── Sliding track + edge fades (scoped together) ── */}
+      <div className="relative">
         <div
-          style={{
-            display:    'flex',
-            gap:        `${gap}px`,
-            transform:  `translateX(calc(${translatePct}% - ${offset * gap / pv}px))`,
-            transition: 'transform 0.42s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-            willChange: 'transform',
-          }}
+          className="overflow-hidden"
+          {...drag}
+          style={{ cursor: hasOverflow ? 'grab' : 'default' }}
+          onMouseDown={e => { drag.onMouseDown(e); if (hasOverflow) (e.currentTarget as HTMLDivElement).style.cursor = 'grabbing'; }}
+          onMouseUp={e => { drag.onMouseUp(e); if (hasOverflow) (e.currentTarget as HTMLDivElement).style.cursor = 'grab'; }}
+          onMouseLeave={e => { drag.onMouseUp(e as unknown as React.MouseEvent); if (hasOverflow) (e.currentTarget as HTMLDivElement).style.cursor = 'grab'; }}
         >
-          {items.map((item, i) => (
-            <div
-              key={i}
-              className="shrink-0"
-              style={{ width: `calc((100% - ${(pv - 1) * gap}px) / ${pv})` }}
-            >
-              {renderItem(item, i)}
-            </div>
-          ))}
+          <div
+            style={{
+              display:    'flex',
+              gap:        `${gap}px`,
+              transform:  `translateX(calc(${translatePct}% - ${offset * gap / pv}px))`,
+              transition: 'transform 0.42s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+              willChange: 'transform',
+            }}
+          >
+            {items.map((item, i) => (
+              <div
+                key={i}
+                className="shrink-0"
+                style={{ width: `calc((100% - ${(pv - 1) * gap}px) / ${pv})` }}
+              >
+                {renderItem(item, i)}
+              </div>
+            ))}
+          </div>
         </div>
+
+        {/* ── Edge fade hints — scoped to track, never overlap controls ── */}
+        {hasOverflow && offset > 0 && (
+          <div
+            className="absolute inset-y-0 left-0 w-8 pointer-events-none rounded-l-xl"
+            style={{ background: 'linear-gradient(to right, rgba(255,255,255,0.65), transparent)' }}
+          />
+        )}
+        {hasOverflow && offset < max && (
+          <div
+            className="absolute inset-y-0 right-0 w-8 pointer-events-none rounded-r-xl"
+            style={{ background: 'linear-gradient(to left, rgba(255,255,255,0.65), transparent)' }}
+          />
+        )}
       </div>
 
       {/* ── Controls ── */}
@@ -182,10 +198,10 @@ export function Carousel<T,>({
                 disabled={offset === 0}
                 aria-label="Previous"
                 className={cn(
-                  'size-8 rounded-full border flex items-center justify-center transition-all duration-200',
+                  'size-8 rounded-full flex items-center justify-center transition-all duration-200',
                   offset === 0
-                    ? 'border-neutral-200 text-neutral-300 cursor-not-allowed bg-neutral-50'
-                    : 'border-neutral-300 text-neutral-600 bg-white shadow-sm hover:border-primary-400 hover:text-primary-500'
+                    ? 'bg-neutral-100 text-neutral-300 cursor-not-allowed'
+                    : 'bg-primary-500 text-white hover:bg-primary-600 shadow-md shadow-primary-200/60'
                 )}
               >
                 <ChevronLeftIcon className="size-4" />
@@ -215,20 +231,6 @@ export function Carousel<T,>({
           )}
 
         </div>
-      )}
-
-      {/* ── Edge fade hints ── */}
-      {hasOverflow && offset > 0 && (
-        <div
-          className="absolute top-0 left-0 bottom-0 w-8 pointer-events-none rounded-l-xl"
-          style={{ background: 'linear-gradient(to right, rgba(255,255,255,0.65), transparent)', zIndex: 2 }}
-        />
-      )}
-      {hasOverflow && offset < max && (
-        <div
-          className="absolute top-0 right-0 bottom-0 w-8 pointer-events-none rounded-r-xl"
-          style={{ background: 'linear-gradient(to left, rgba(255,255,255,0.65), transparent)', zIndex: 2 }}
-        />
       )}
 
     </div>

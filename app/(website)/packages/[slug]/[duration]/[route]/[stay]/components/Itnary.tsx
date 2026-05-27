@@ -18,6 +18,7 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   CameraIcon,
+  StarIcon,
 } from '@heroicons/react/24/solid';
 import {
   CarIcon,
@@ -581,6 +582,22 @@ function parseMealTypes(mealType: string | null, planName: string | null): strin
   return source.split(/[,+&]/).map(s => s.trim()).filter(Boolean);
 }
 
+/** Parses "N Star" and renders N filled yellow stars (+ grey empties up to 5). */
+function HotelStars({ stayType }: { stayType: string }) {
+  const count = parseInt(stayType) || 0;
+  if (count < 1 || count > 5) return <span className="text-xs text-muted">{stayType}</span>;
+  return (
+    <span className="flex items-center gap-0.5">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <StarIcon
+          key={i}
+          className={cn('size-3', i < count ? 'text-amber-400' : 'text-neutral-200')}
+        />
+      ))}
+    </span>
+  );
+}
+
 function StayContent({ section }: { section: StaySection }) {
   const meals = parseMealTypes(section.mealType, section.planName);
 
@@ -596,7 +613,7 @@ function StayContent({ section }: { section: StaySection }) {
               {section.hotelName}
             </Text>
             {section.stayType && (
-              <p className="text-muted-foreground text-xs">{section.stayType}</p>
+              <HotelStars stayType={section.stayType} />
             )}
           </div>
           {section.address && (

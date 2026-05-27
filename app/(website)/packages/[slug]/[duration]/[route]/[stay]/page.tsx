@@ -10,7 +10,7 @@ import ItinerarySection, { ItineraryDay, DaySection } from "./components/Itnary"
 import DestinationRoutes from "./components/inputs/DestinationRoutes";
 import { PackageBookingProvider } from "./components/PackageBookingProvider";
 import TravelerInputBar from "./components/TravelerInputBar";
-import { CheckIcon, XMarkIcon } from "@heroicons/react/24/solid";
+import { CheckIcon, XMarkIcon, StarIcon } from "@heroicons/react/24/solid";
 import { Card, CardBody } from "@/app/components/ui/Card";
 
 // export const revalidate = 3600; // TODO: re-enable ISR for production
@@ -302,7 +302,19 @@ export default async function PackagePage({
                                                             <td className="px-3 py-2.5 text-sm font-medium text-primary">{d.title}</td>
                                                             <td className="px-3 py-2.5 text-sm text-secondary">
                                                                 {d.hotel ? (
-                                                                    <span>{d.hotel.name}{d.hotel.stay_type ? ` · ${d.hotel.stay_type}` : ''}</span>
+                                                                    <span className="flex items-center gap-1.5 flex-wrap">
+                                                                        <span>{d.hotel.name}</span>
+                                                                        {d.hotel.stay_type && (() => {
+                                                                            const count = parseInt(d.hotel.stay_type) || 0;
+                                                                            return count >= 1 && count <= 5
+                                                                                ? <span className="flex items-center gap-0.5 shrink-0">
+                                                                                    {Array.from({ length: 5 }).map((_, i) => (
+                                                                                        <StarIcon key={i} className={`size-2.5 ${i < count ? 'text-amber-400' : 'text-neutral-200'}`} />
+                                                                                    ))}
+                                                                                  </span>
+                                                                                : <span className="text-muted text-xs">{d.hotel.stay_type}</span>;
+                                                                        })()}
+                                                                    </span>
                                                                 ) : '–'}
                                                             </td>
                                                             <td className="px-3 py-2.5 text-sm text-secondary">
