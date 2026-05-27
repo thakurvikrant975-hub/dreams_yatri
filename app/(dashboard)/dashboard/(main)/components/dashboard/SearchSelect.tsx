@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Popover as PopoverPrimitive } from "radix-ui";
-import { SearchIcon, Loader2, ChevronDownIcon, XIcon, CheckIcon } from "lucide-react";
+import { SearchIcon, Loader2, ChevronDownIcon, XIcon, CheckIcon, ImageIcon } from "lucide-react";
+import Image from "next/image";
 import { cn } from "@/app/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -11,6 +12,7 @@ export type Option = {
   id:           number;
   label:        string;
   description?: string;
+  thumbnail?:   string;
 };
 
 type SearchSelectProps = {
@@ -166,16 +168,25 @@ export function SearchSelect({
                     type="button"
                     onMouseDown={(e) => { e.preventDefault(); handleSelect(opt); }}
                     className={cn(
-                      "flex w-full items-start gap-2.5 px-3 py-2 text-left transition-colors",
+                      "flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors",
                       isSelected
                         ? "bg-primary/10 text-foreground"
                         : "text-foreground hover:bg-muted/60",
                     )}
                   >
-                    <CheckIcon className={cn(
-                      "mt-0.5 h-3.5 w-3.5 shrink-0 text-primary transition-opacity",
-                      isSelected ? "opacity-100" : "opacity-0",
-                    )} />
+                    {opt.thumbnail ? (
+                      <Image
+                        src={opt.thumbnail}
+                        alt={opt.label}
+                        width={40}
+                        height={30}
+                        className="h-8 w-11 rounded-md object-cover shrink-0 border"
+                      />
+                    ) : opt.thumbnail !== undefined ? (
+                      <div className="h-8 w-11 rounded-md bg-muted border flex items-center justify-center shrink-0">
+                        <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                      </div>
+                    ) : null}
                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                       <span className="truncate text-xs font-medium leading-tight">
                         {opt.label}
@@ -186,6 +197,10 @@ export function SearchSelect({
                         </span>
                       )}
                     </span>
+                    <CheckIcon className={cn(
+                      "h-3.5 w-3.5 shrink-0 text-primary transition-opacity",
+                      isSelected ? "opacity-100" : "opacity-0",
+                    )} />
                   </button>
                 );
               })

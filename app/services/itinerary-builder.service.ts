@@ -105,8 +105,8 @@ export type StayItem = {
     id: number;
     plan_name: string | null;
     price_per_night: number;
-    hotel: { id: number; name: string; category: string | null; stay_type: string | null };
-    room: { id: number; name: string } | null;
+    hotel: { id: number; name: string; category: string | null; stay_type: string | null; thumbnail: string | null };
+    room: { id: number; name: string; bed_type: string | null; images: { url: string; thumbnail: string | null }[] } | null;
   };
   stay_category: { id: number; label: string; slug: string };
 };
@@ -195,8 +195,8 @@ export async function getItineraryData(
               id: true,
               plan_name: true,
               price_per_night: true,
-              hotel: { select: { id: true, name: true, category: true, stay_type: true } },
-              room: { select: { id: true, name: true } },
+              hotel: { select: { id: true, name: true, category: true, stay_type: true, thumbnail: true } },
+              room: { select: { id: true, name: true, bed_type: true, images: { select: { url: true, thumbnail: true }, orderBy: { sort_order: "asc" }, take: 1 } } },
             },
           },
           stay_category: { select: { id: true, label: true, slug: true } },
@@ -597,12 +597,18 @@ const HOTEL_SELECT = {
   id: true,
   plan_name: true,
   price_per_night: true,
-  hotel: { select: { id: true, name: true, category: true, stay_type: true } },
-  room: { select: { id: true, name: true } },
+  hotel: { select: { id: true, name: true, category: true, stay_type: true, thumbnail: true } },
+  room: { select: { id: true, name: true, bed_type: true, images: { select: { url: true, thumbnail: true }, orderBy: { sort_order: "asc" as const }, take: 1 } } },
 } as const;
 
-function toItems(list: { id: number; plan_name: string | null; price_per_night: unknown; hotel: { id: number; name: string; category: string | null; stay_type: string | null }; room: { id: number; name: string } | null }[]) {
+function toItems(list: { id: number; plan_name: string | null; price_per_night: unknown; hotel: { id: number; name: string; category: string | null; stay_type: string | null; thumbnail: string | null }; room: { id: number; name: string; bed_type: string | null; images: { url: string; thumbnail: string | null }[] } | null }[]) {
   return list.slice(0, 50).map((p) => ({ ...p, price_per_night: Number(p.price_per_night) }));
+}
+
+export async function getRoomPricingById(id: number) {
+  const row = await db.hotel_room_pricing.findUnique({ where: { id }, select: HOTEL_SELECT });
+  if (!row) return null;
+  return { ...row, price_per_night: Number(row.price_per_night) };
 }
 
 export async function searchRoomPricings(

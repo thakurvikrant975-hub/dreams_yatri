@@ -18,6 +18,7 @@ import {
   reorderDayItems,
   searchActivities,
   searchRoomPricings,
+  getRoomPricingById,
   getActivityVariants,
   getStayCategories,
   createStayCategory,
@@ -263,6 +264,16 @@ export async function handleSearchRoomPricings(
   } catch (e) {
     console.error(e);
     return { success: false as const, data: { items: [], has_more: false }, message: "Search failed" };
+  }
+}
+
+export async function handleGetRoomPricingById(id: number) {
+  try {
+    const data = await getRoomPricingById(id);
+    return { success: true as const, data };
+  } catch (e) {
+    console.error(e);
+    return { success: false as const, data: null, message: "Failed to load room pricing" };
   }
 }
 

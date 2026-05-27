@@ -20,6 +20,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import Image from "next/image";
 import { Sheet, SheetContent, SheetTitle } from "../../components/ui/sheet";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -51,6 +52,7 @@ import {
   handleReorderItems,
   handleSearchActivities,
   handleSearchRoomPricings,
+  handleGetRoomPricingById,
   handleGetActivityVariants,
   handleAddAttraction,
   handleBulkAddAttractions,
@@ -958,34 +960,40 @@ function StayBlock({
     Math.min(stays[0]?.num_nights ?? 1, Math.max(1, maxNights)),
   );
 
+  const R2_BASE = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
   const fetchRooms = useCallback(async (query: string): Promise<Option[]> => {
     const res = await handleSearchRoomPricings(destinationId, query, itineraryId ?? undefined, stayBlockOrder, stopIndex);
     if (!res.success) return [];
     const items: Option[] = res.data.items.map((p) => {
       const hotelType = [p.hotel.category, p.hotel.stay_type].filter(Boolean).join(" · ");
+      const roomImg = p.room?.images?.[0];
+      const imgKey = roomImg ? (roomImg.thumbnail ?? roomImg.url) : p.hotel.thumbnail;
       return {
         id: p.id,
         label: `${p.hotel.name}${p.room ? ` — ${p.room.name}` : ""}`,
-        description: [hotelType, p.plan_name ?? "Standard", `₹${p.price_per_night.toLocaleString("en-IN")}/night`].filter(Boolean).join(" · "),
+        description: [hotelType, p.room?.bed_type, p.plan_name ?? "Standard", `₹${p.price_per_night.toLocaleString("en-IN")}/night`].filter(Boolean).join(" · "),
+        thumbnail: imgKey ? `${R2_BASE}/${imgKey}` : "",
       };
     });
     if (res.data.has_more) items.push({ id: -1, label: "Showing top 50 — refine search to see more" });
     return items;
-  }, [destinationId, itineraryId, stayBlockOrder, stopIndex]);
+  }, [destinationId, itineraryId, stayBlockOrder, stopIndex, R2_BASE]);
 
   async function handleAssign(categoryId: number, roomPricingId: number) {
     if (!itineraryId) return;
     setSavingId(categoryId);
-    const res = await handleUpsertStay(itineraryId, categoryId, roomPricingId, stayBlockOrder, packageId, numNights);
+    const [saveRes, pricingRes] = await Promise.all([
+      handleUpsertStay(itineraryId, categoryId, roomPricingId, stayBlockOrder, packageId, numNights),
+      handleGetRoomPricingById(roomPricingId),
+    ]);
     setSavingId(null);
-    if (!res.success) { toast.error(res.message); return; }
-    const searchRes = await handleSearchRoomPricings(destinationId, "", itineraryId ?? undefined, stayBlockOrder);
-    const pricing = searchRes.success ? searchRes.data.items.find((p) => p.id === roomPricingId) : null;
+    if (!saveRes.success) { toast.error(saveRes.message); return; }
+    const pricing = pricingRes.data;
     if (!pricing) { toast.success("Stay saved"); setAssigningCategoryId(null); return; }
     const category = stayCategories.find((c) => c.id === categoryId)!;
     const existing = stays.find((s) => s.stay_category_id === categoryId);
     const newStay: StayItem = {
-      id: res.id,  // Real DB ID returned by server — avoids Int overflow from Date.now()
+      id: saveRes.id,
       stay_category_id: categoryId,
       sort_order: stayBlockOrder,
       num_nights: numNights,
@@ -1120,17 +1128,43 @@ function StayBlock({
                   {isSaving && <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Saving…</p>}
                 </div>
               ) : stay ? (
-                <div>
-                  <p className="text-sm font-medium">{stay.room_pricing.hotel.name}</p>
-                  {(stay.room_pricing.hotel.category || stay.room_pricing.hotel.stay_type) && (
-                    <p className="text-[10px] font-medium text-violet-600/80 mt-0.5">
-                      {[stay.room_pricing.hotel.category, stay.room_pricing.hotel.stay_type].filter(Boolean).join(" · ")}
-                    </p>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    {stay.room_pricing.room?.name ?? "Room"} · {stay.room_pricing.plan_name ?? "Standard"} · ₹{stay.room_pricing.price_per_night.toLocaleString("en-IN")}/night
-                  </p>
-                </div>
+                (() => {
+                  const rp = stay.room_pricing;
+                  const roomImg = rp.room?.images?.[0];
+                  const imgKey = roomImg ? (roomImg.thumbnail ?? roomImg.url) : rp.hotel.thumbnail;
+                  const R2_BASE = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
+                  return (
+                    <div className="flex items-start gap-3">
+                      {imgKey ? (
+                        <Image
+                          src={`${R2_BASE}/${imgKey}`}
+                          alt={rp.hotel.name}
+                          width={64}
+                          height={48}
+                          className="h-12 w-16 rounded-lg object-cover shrink-0 border"
+                        />
+                      ) : (
+                        <div className="h-12 w-16 rounded-lg bg-muted border flex items-center justify-center shrink-0">
+                          <Hotel className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium leading-snug">{rp.hotel.name}</p>
+                        {(rp.hotel.category || rp.hotel.stay_type) && (
+                          <p className="text-[10px] font-medium text-violet-600/80">
+                            {[rp.hotel.category, rp.hotel.stay_type].filter(Boolean).join(" · ")}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {[rp.room?.name, rp.room?.bed_type, rp.plan_name ?? "Standard"].filter(Boolean).join(" · ")}
+                        </p>
+                        <p className="text-xs font-medium text-primary/80 mt-0.5">
+                          ₹{rp.price_per_night.toLocaleString("en-IN")}/night
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()
               ) : (
                 <button
                   type="button"
