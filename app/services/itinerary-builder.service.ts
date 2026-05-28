@@ -126,6 +126,7 @@ export type DayData = {
   title: string;
   description: string | null;
   meals: string[];
+  excluded_meals: string[];
   activities: ActivityItem[];
   transfers: TransferItem[];
   notes: NoteItem[];
@@ -212,7 +213,7 @@ export async function getItineraryData(
     const day = i + 1;
     const rec = records.find((r) => r.day === day);
     if (!rec) {
-      return { id: null, day, title: `Day ${day}`, description: null, meals: [], activities: [], transfers: [], notes: [], stays: [], attractions: [] };
+      return { id: null, day, title: `Day ${day}`, description: null, meals: [], excluded_meals: [], activities: [], transfers: [], notes: [], stays: [], attractions: [] };
     }
     return {
       id: rec.id,
@@ -220,6 +221,7 @@ export async function getItineraryData(
       title: rec.title,
       description: rec.description,
       meals: rec.meals,
+      excluded_meals: rec.excluded_meals,
       activities: rec.itinerary_activities.map((ia) => ({
         id: ia.id,
         sort_order: ia.sort_order,
@@ -312,7 +314,7 @@ export async function upsertDayMeta(
   durationId: number,
   routeId: number,
   day: number,
-  data: { title: string; description?: string | null; meals?: string[] },
+  data: { title: string; description?: string | null; meals?: string[]; excluded_meals?: string[] },
 ) {
   const existing = await db.package_itineraries.findFirst({
     where: { package_id: packageId, duration_id: durationId, route_id: routeId, day },
@@ -321,7 +323,7 @@ export async function upsertDayMeta(
   if (existing) {
     return db.package_itineraries.update({
       where: { id: existing.id },
-      data: { title: data.title, description: data.description ?? null, meals: data.meals ?? [] },
+      data: { title: data.title, description: data.description ?? null, meals: data.meals ?? [], excluded_meals: data.excluded_meals ?? [] },
     });
   }
   return db.package_itineraries.create({
@@ -333,6 +335,7 @@ export async function upsertDayMeta(
       title: data.title,
       description: data.description ?? null,
       meals: data.meals ?? [],
+      excluded_meals: data.excluded_meals ?? [],
     },
   });
 }

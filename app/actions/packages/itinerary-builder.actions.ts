@@ -58,7 +58,7 @@ export async function handleUpsertDayMeta(
   durationId: number,
   routeId: number,
   day: number,
-  data: { title: string; description?: string | null; meals?: string[] },
+  data: { title: string; description?: string | null; meals?: string[]; excluded_meals?: string[] },
 ) {
   if (!Number.isInteger(day) || day < 1) return { success: false as const, message: "Invalid day number" };
   if (!data.title?.trim()) return { success: false as const, message: "Day title is required" };

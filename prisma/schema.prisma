@@ -1263,6 +1263,7 @@ model package_itineraries {
   title                 String
   description           String?
   meals                 String[]
+  excluded_meals        String[]                @default([])
   itinerary_activities  itinerary_activities[]
   itinerary_notes       itinerary_notes[]
   itineraryStays        itinerary_stays[]

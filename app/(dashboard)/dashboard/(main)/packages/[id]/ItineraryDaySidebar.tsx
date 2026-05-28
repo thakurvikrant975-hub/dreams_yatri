@@ -1652,12 +1652,16 @@ function getEffectiveMeals(mealType: { name: string; covered_meals: string[] } |
 function DayMealsSection({
   meals,
   onChange,
+  excludedMeals,
+  onExcludedChange,
   disabled,
   stays,
   activities,
 }: {
   meals: string[];
   onChange: (meals: string[]) => void;
+  excludedMeals: string[];
+  onExcludedChange: (excluded: string[]) => void;
   disabled?: boolean;
   stays: StayItem[];
   activities: ActivityItem[];
@@ -1696,15 +1700,32 @@ function DayMealsSection({
     [hotelDerivedSet, activityDerived],
   );
 
-  // Total distinct meals for this day
-  const totalMeals = MEAL_DEFS.filter(({ key }) => allDerived.has(key) || meals.includes(key)).length;
+  const excludedSet = useMemo(() => new Set(excludedMeals), [excludedMeals]);
 
-  const hasHotelMeals  = stays.length > 0;
-  const hasActMeals    = Object.keys(activityDerived).length > 0;
+  // Effective meals = (derived ∪ manual) minus excluded
+  const effectiveSet = useMemo(() => {
+    const all = new Set([...allDerived, ...meals]);
+    for (const e of excludedSet) all.delete(e);
+    return all;
+  }, [allDerived, meals, excludedSet]);
 
-  function toggle(key: string) {
-    if (allDerived.has(key)) return;
+  const totalMeals = effectiveSet.size;
+
+  const hasHotelMeals = stays.length > 0;
+  const hasActMeals   = Object.keys(activityDerived).length > 0;
+
+  function toggleManual(key: string) {
+    if (allDerived.has(key)) return; // handled by toggleExclusion
     onChange(meals.includes(key) ? meals.filter(m => m !== key) : [...meals, key]);
+  }
+
+  function toggleExclusion(key: string) {
+    if (!allDerived.has(key)) return;
+    onExcludedChange(
+      excludedSet.has(key)
+        ? excludedMeals.filter(e => e !== key)
+        : [...excludedMeals, key],
+    );
   }
 
   return (
@@ -1736,11 +1757,24 @@ function DayMealsSection({
               </span>
               {s.covered.length > 0 ? (
                 <div className="flex flex-wrap gap-1 items-center min-w-0">
-                  {MEAL_DEFS.filter(m => s.covered.includes(m.key)).map(({ key, label, Icon, color }) => (
-                    <span key={key} className={cn("flex items-center gap-0.5 text-[9px] font-bold rounded-full px-1.5 py-0.5 border bg-white/70", color)}>
-                      <Icon className="h-2.5 w-2.5" /> {label}
-                    </span>
-                  ))}
+                  {MEAL_DEFS.filter(m => s.covered.includes(m.key)).map(({ key, label, Icon, color }) => {
+                    const excluded = excludedSet.has(key);
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => toggleExclusion(key)}
+                        title={excluded ? "Click to re-include" : "Click to exclude"}
+                        className={cn(
+                          "flex items-center gap-0.5 text-[9px] font-bold rounded-full px-1.5 py-0.5 border bg-white/70 transition-all cursor-pointer select-none",
+                          excluded ? "opacity-40 line-through border-dashed" : color,
+                        )}
+                      >
+                        <Icon className="h-2.5 w-2.5" /> {label}
+                        {excluded && <X className="h-2 w-2 ml-0.5" />}
+                      </button>
+                    );
+                  })}
                   <span className="text-[9px] text-muted-foreground/70 truncate max-w-[110px]" title={s.planName ?? s.hotelName}>
                     {s.planName ?? s.hotelName}
                   </span>
@@ -1759,13 +1793,28 @@ function DayMealsSection({
           <p className="text-[9px] uppercase tracking-widest text-muted-foreground/60 font-bold flex items-center gap-1">
             <Activity className="h-2.5 w-2.5" /> Activity Meals
           </p>
-          {MEAL_DEFS.filter(({ key }) => activityDerived[key]).map(({ key, label, Icon, color }) => (
-            <div key={key} className="flex items-center gap-1.5 rounded-lg bg-muted/30 px-2.5 py-1.5">
-              <Icon className={cn("h-3 w-3 shrink-0", color)} />
-              <span className="text-[10px] font-semibold">{label}:</span>
-              <span className="text-[10px] text-muted-foreground truncate">{activityDerived[key]}</span>
-            </div>
-          ))}
+          {MEAL_DEFS.filter(({ key }) => activityDerived[key]).map(({ key, label, Icon, color }) => {
+            const excluded = excludedSet.has(key);
+            return (
+              <div
+                key={key}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-lg bg-muted/30 px-2.5 py-1.5 cursor-pointer select-none transition-all",
+                  excluded && "opacity-40",
+                )}
+                onClick={() => toggleExclusion(key)}
+                title={excluded ? "Click to re-include" : "Click to exclude"}
+              >
+                <Icon className={cn("h-3 w-3 shrink-0", color)} />
+                <span className={cn("text-[10px] font-semibold", excluded && "line-through")}>{label}:</span>
+                <span className="text-[10px] text-muted-foreground truncate flex-1">{activityDerived[key]}</span>
+                {excluded
+                  ? <span className="text-[9px] text-destructive font-bold shrink-0">excluded</span>
+                  : <X className="h-3 w-3 text-muted-foreground/40 shrink-0 opacity-0 group-hover:opacity-100" />
+                }
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -1779,26 +1828,32 @@ function DayMealsSection({
         <div className="flex gap-2">
           {MEAL_DEFS.map(({ key, label, Icon, color, activeClass, inactiveClass }) => {
             const fromDerived = allDerived.has(key);
-            const included    = fromDerived || meals.includes(key);
+            const excluded    = excludedSet.has(key);
+            const included    = effectiveSet.has(key);
             return (
               <button
                 key={key}
                 type="button"
-                disabled={disabled || fromDerived}
-                onClick={() => toggle(key)}
-                title={fromDerived ? "Auto-included from hotel/activity" : undefined}
+                disabled={disabled}
+                onClick={() => fromDerived ? toggleExclusion(key) : toggleManual(key)}
+                title={fromDerived ? (excluded ? "Click to re-include from hotel/activity" : "Click to exclude from this day") : undefined}
                 className={cn(
-                  "relative flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border flex-1 select-none transition-all",
-                  included ? activeClass : cn(inactiveClass, !fromDerived && !disabled && "hover:opacity-80 cursor-pointer"),
-                  (disabled || fromDerived) && "cursor-default",
+                  "relative flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border flex-1 select-none transition-all cursor-pointer",
+                  included ? activeClass : cn(inactiveClass, !disabled && "hover:opacity-80"),
+                  disabled && "cursor-default",
                 )}
               >
-                {included && (
+                {included && !excluded && (
                   <span className="absolute top-1.5 right-1.5 h-3.5 w-3.5 rounded-full bg-green-500 flex items-center justify-center shadow-sm">
                     <Check className="h-2 w-2 text-white" />
                   </span>
                 )}
-                {fromDerived && (
+                {excluded && (
+                  <span className="absolute top-1.5 right-1.5 h-3.5 w-3.5 rounded-full bg-destructive flex items-center justify-center shadow-sm">
+                    <X className="h-2 w-2 text-white" />
+                  </span>
+                )}
+                {fromDerived && !excluded && (
                   <span className="absolute top-1.5 left-1.5 h-3.5 w-3.5 rounded-full bg-blue-500 flex items-center justify-center shadow-sm">
                     <Lock className="h-2 w-2 text-white" />
                   </span>
@@ -1809,6 +1864,11 @@ function DayMealsSection({
             );
           })}
         </div>
+        {excludedMeals.length > 0 && (
+          <p className="text-[9px] text-muted-foreground/50 text-center">
+            {excludedMeals.length} meal{excludedMeals.length !== 1 ? "s" : ""} excluded — click to re-include
+          </p>
+        )}
       </div>
 
       {/* Empty state */}
@@ -1858,6 +1918,7 @@ export function ItineraryDaySidebar({
   const [title, setTitle] = useState(initialDay.title);
   const [description, setDescription] = useState(initialDay.description ?? "");
   const [meals, setMeals] = useState<string[]>(initialDay.meals ?? []);
+  const [excludedMeals, setExcludedMeals] = useState<string[]>(initialDay.excluded_meals ?? []);
   const [transfers, setTransfers] = useState<TransferItem[]>(initialDay.transfers);
   const [activities, setActivities] = useState<ActivityItem[]>(initialDay.activities);
   const [notes, setNotes] = useState<NoteItem[]>(initialDay.notes);
@@ -1893,7 +1954,7 @@ export function ItineraryDaySidebar({
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function currentDayData(): DayData {
-    return { id: itineraryId, day: initialDay.day, title, description: description || null, meals, activities, transfers, notes, stays, attractions };
+    return { id: itineraryId, day: initialDay.day, title, description: description || null, meals, excluded_meals: excludedMeals, activities, transfers, notes, stays, attractions };
   }
 
   // ── Day meta save ──────────────────────────────────────────────────────
@@ -1905,6 +1966,7 @@ export function ItineraryDaySidebar({
       title: title.trim(),
       description: description.trim() || null,
       meals,
+      excluded_meals: excludedMeals,
     });
     setSavingMeta(false);
     if (!res.success) { toast.error(res.message); return; }
@@ -2265,7 +2327,7 @@ export function ItineraryDaySidebar({
               </div>
 
               {/* Meals — shrink-0 */}
-              <DayMealsSection meals={meals} onChange={setMeals} stays={stays} activities={activities} />
+              <DayMealsSection meals={meals} onChange={setMeals} excludedMeals={excludedMeals} onExcludedChange={setExcludedMeals} stays={stays} activities={activities} />
 
               {/* Timeline + Attractions — fills remaining height with own scroll */}
               <div className="flex-1 overflow-y-auto flex flex-col px-5 pt-4 pb-4">
