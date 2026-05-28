@@ -474,6 +474,7 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
           const target = days.find((d) => d.day === targetDay);
           if (target) setOpenDay(target);
         };
+        const previousDayStays = days?.find((d) => d.day === openDay.day - 1)?.stays ?? [];
         return (
           <ItineraryDaySidebar
             key={`${selectedDurationId}-${selectedRouteId}-${openDay.day}`}
@@ -484,6 +485,7 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
             durationId={selectedDurationId}
             routeId={selectedRouteId}
             day={openDay}
+            previousDayStays={previousDayStays}
             stayCategories={stayCategories}
             onSaved={handleDaySaved}
             stopLabel={stopLabel}

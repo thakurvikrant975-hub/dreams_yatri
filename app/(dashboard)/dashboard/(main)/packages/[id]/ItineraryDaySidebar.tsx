@@ -133,6 +133,7 @@ type Props = {
   durationId: number;
   routeId: number;
   day: DayData;
+  previousDayStays?: StayItem[];
   stayCategories: StayCategory[];
   onSaved: (updated: DayData) => void;
   stopLabel?: string;
@@ -1658,6 +1659,7 @@ function DayMealsSection({
   onExcludedChange,
   stays,
   onStaysChange,
+  previousDayStays,
   packageId,
   activities,
   disabled,
@@ -1668,6 +1670,7 @@ function DayMealsSection({
   onExcludedChange: (excluded: string[]) => void;
   stays: StayItem[];
   onStaysChange: (stays: StayItem[]) => void;
+  previousDayStays: StayItem[];
   packageId: number;
   activities: ActivityItem[];
   disabled?: boolean;
@@ -1687,36 +1690,77 @@ function DayMealsSection({
 
   const excludedSet = useMemo(() => new Set(excludedMeals), [excludedMeals]);
 
-  // For a given stay, return current effective meal list (explicit override or plan default)
-  function stayActiveMeals(stay: StayItem): string[] {
-    const planCovered = getEffectiveMeals(stay.room_pricing.meal_type, stay.room_pricing.plan_name);
-    return stay.active_meals.length > 0 ? stay.active_meals : planCovered;
+  // Resolve which meals a stay actually serves (override or plan default)
+  function resolveActiveMeals(stay: StayItem): string[] {
+    const plan = getEffectiveMeals(stay.room_pricing.meal_type, stay.room_pricing.plan_name);
+    return stay.active_meals.length > 0 ? stay.active_meals : plan;
   }
 
-  // For a given stay, return what the plan CAN provide
-  function stayPlanCovered(stay: StayItem): string[] {
+  function resolvePlanMeals(stay: StayItem): string[] {
     return getEffectiveMeals(stay.room_pricing.meal_type, stay.room_pricing.plan_name);
   }
 
-  // All hotel-active meals across all stays
-  const hotelActiveSet = useMemo(
-    () => new Set(stays.flatMap(s => stayActiveMeals(s))),
-    [stays], // eslint-disable-line react-hooks/exhaustive-deps
-  );
+  // ── Key insight ──────────────────────────────────────────────────────────
+  // Breakfast on Day N  = served by the hotel from Day N-1 (waking up, checkout morning)
+  // Dinner on Day N     = served by the hotel from Day N   (arriving, check-in evening)
+  // Lunch               = from activities or manual
+  //
+  // For each stay category we therefore show TWO hotel references:
+  //   prevStay → provides the BREAKFAST column
+  //   currStay → provides the DINNER (and LUNCH if plan covers it) column
+  // ─────────────────────────────────────────────────────────────────────────
 
-  // Global effective set (for total count badge)
-  const effectiveSet = useMemo(() => {
-    const all = new Set([...hotelActiveSet, ...Object.keys(activityDerived), ...meals]);
-    for (const e of excludedSet) all.delete(e);
-    return all;
-  }, [hotelActiveSet, activityDerived, meals, excludedSet]);
+  // Collect all category IDs present in either today's or yesterday's stays
+  const allCategoryIds = useMemo(() => {
+    const ids = new Set([
+      ...stays.map(s => s.stay_category_id),
+      ...previousDayStays.map(s => s.stay_category_id),
+    ]);
+    // Preserve today's category order first, then any prev-only ones
+    return [
+      ...stays.map(s => s.stay_category_id),
+      ...previousDayStays
+        .map(s => s.stay_category_id)
+        .filter(id => !stays.some(s => s.stay_category_id === id)),
+    ].filter((id, i, arr) => arr.indexOf(id) === i);
+  }, [stays, previousDayStays]);
+
+  // Total effective meal count for the badge
+  const effectiveCount = useMemo(() => {
+    const all = new Set<string>();
+    for (const catId of allCategoryIds) {
+      const prevStay = previousDayStays.find(s => s.stay_category_id === catId);
+      const currStay = stays.find(s => s.stay_category_id === catId);
+      // Breakfast from prev-day hotel
+      if (prevStay && resolveActiveMeals(prevStay).includes("breakfast")) all.add("breakfast");
+      // Non-breakfast from current hotel
+      if (currStay) {
+        for (const m of resolveActiveMeals(currStay).filter(m => m !== "breakfast")) all.add(m);
+      }
+    }
+    // Activity meals (not excluded)
+    for (const m of Object.keys(activityDerived)) {
+      if (!excludedSet.has(m)) all.add(m);
+    }
+    // Manual meals
+    for (const m of meals) all.add(m);
+    return all.size;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allCategoryIds, stays, previousDayStays, activityDerived, meals, excludedSet]);
 
   async function toggleStayMeal(stay: StayItem, mealKey: string) {
-    const current = stayActiveMeals(stay);
+    const current = resolveActiveMeals(stay);
     const next = current.includes(mealKey)
       ? current.filter(m => m !== mealKey)
       : [...current, mealKey];
-    onStaysChange(stays.map(s => s.id === stay.id ? { ...s, active_meals: next } : s));
+    // Optimistic update in whichever list this stay belongs to
+    const isPrev = previousDayStays.some(s => s.id === stay.id);
+    if (isPrev) {
+      // We only update active_meals on the server; the parent's `days` state
+      // will reflect the change on next navigation — no local state for prevDayStays
+    } else {
+      onStaysChange(stays.map(s => s.id === stay.id ? { ...s, active_meals: next } : s));
+    }
     setSavingStayId(stay.id);
     await handleUpdateStayActiveMeals(stay.id, next, packageId);
     setSavingStayId(null);
@@ -1726,66 +1770,115 @@ function DayMealsSection({
     onChange(meals.includes(key) ? meals.filter(m => m !== key) : [...meals, key]);
   }
 
-  // Build tooltip text for a meal chip
-  function mealTooltip(mealKey: string, stay: StayItem | null): string {
+  // ── Per-chip helpers ──────────────────────────────────────────────────────
+
+  type MealSource = { type: "hotel"; stay: StayItem } | { type: "activity"; name: string } | { type: "manual" } | { type: "none" };
+
+  function getMealSource(mealKey: string, catId: number): MealSource {
+    const prevStay = previousDayStays.find(s => s.stay_category_id === catId);
+    const currStay = stays.find(s => s.stay_category_id === catId);
+
+    // Breakfast → look in yesterday's hotel
+    if (mealKey === "breakfast") {
+      if (prevStay && resolveActiveMeals(prevStay).includes("breakfast")) {
+        return { type: "hotel", stay: prevStay };
+      }
+      // fallback: current hotel provides breakfast too (e.g. multi-night, same hotel)
+      if (currStay && resolveActiveMeals(currStay).includes("breakfast")) {
+        return { type: "hotel", stay: currStay };
+      }
+    } else {
+      // Lunch / Dinner → look in today's hotel
+      if (currStay && resolveActiveMeals(currStay).includes(mealKey)) {
+        return { type: "hotel", stay: currStay };
+      }
+    }
+
+    // Activity
+    if (activityDerived[mealKey] && !excludedSet.has(mealKey)) {
+      return { type: "activity", name: activityDerived[mealKey] };
+    }
+    // Manual
+    if (meals.includes(mealKey)) return { type: "manual" };
+    return { type: "none" };
+  }
+
+  function isMealActive(source: MealSource): boolean {
+    return source.type !== "none";
+  }
+
+  function getMealTooltip(mealKey: string, source: MealSource, catId: number): string {
     const LABELS: Record<string, string> = { breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner" };
     const label = LABELS[mealKey] ?? mealKey;
-    if (stay) {
-      const active = stayActiveMeals(stay);
-      if (active.includes(mealKey)) {
-        const plan = stay.room_pricing.plan_name ?? stay.room_pricing.hotel.name;
-        return `${label} included · ${stay.room_pricing.hotel.name} (${plan})`;
-      }
-      const planAllowed = stayPlanCovered(stay);
-      if (planAllowed.includes(mealKey)) {
-        return `${label} excluded from this hotel · click to re-include`;
-      }
-      if (activityDerived[mealKey] && !excludedSet.has(mealKey)) {
-        return `${label} from ${activityDerived[mealKey]}`;
-      }
-      if (meals.includes(mealKey)) return `${label} added manually`;
-      return `${label} not included · click to add`;
+    if (source.type === "hotel") {
+      const hotel = source.stay.room_pricing.hotel.name;
+      const plan  = source.stay.room_pricing.plan_name;
+      const isFromPrev = previousDayStays.some(s => s.id === source.stay.id);
+      const note  = isFromPrev ? "prev night checkout" : "tonight check-in";
+      return `${label} from ${hotel}${plan ? ` · ${plan}` : ""} (${note})`;
     }
-    // No-stay case
-    if (activityDerived[mealKey] && !excludedSet.has(mealKey)) return `${label} from ${activityDerived[mealKey]}`;
-    if (meals.includes(mealKey)) return `${label} added manually`;
+    if (source.type === "activity") return `${label} from ${source.name}`;
+    if (source.type === "manual")   return `${label} added manually`;
+
+    // "none" — show what COULD provide it if they toggle on
+    const prevStay = previousDayStays.find(s => s.stay_category_id === catId);
+    const currStay = stays.find(s => s.stay_category_id === catId);
+    if (mealKey === "breakfast" && prevStay && resolvePlanMeals(prevStay).includes("breakfast")) {
+      return `${label} excluded from ${prevStay.room_pricing.hotel.name} · click to include`;
+    }
+    if (mealKey !== "breakfast" && currStay && resolvePlanMeals(currStay).includes(mealKey)) {
+      return `${label} excluded from ${currStay.room_pricing.hotel.name} · click to include`;
+    }
     return `${label} not included · click to add`;
   }
 
-  // Is a chip "on" for a given stay context
-  function isMealOn(mealKey: string, stay: StayItem | null): boolean {
-    if (stay) {
-      const active = stayActiveMeals(stay);
-      if (active.includes(mealKey)) return true;
-    }
-    if (activityDerived[mealKey] && !excludedSet.has(mealKey)) return true;
-    if (meals.includes(mealKey)) return true;
-    return false;
-  }
-
-  // Click handler: hotel plan meal → toggle active_meals; else → toggle manual
-  async function handleChipClick(mealKey: string, stay: StayItem | null) {
+  async function handleChipClick(mealKey: string, source: MealSource, catId: number) {
     if (disabled) return;
-    if (stay) {
-      const planAllowed = stayPlanCovered(stay);
-      if (planAllowed.includes(mealKey)) {
-        await toggleStayMeal(stay, mealKey);
-        return;
-      }
-    }
-    // Activity meal exclusion toggle
-    if (activityDerived[mealKey]) {
-      onExcludedChange(
-        excludedSet.has(mealKey)
-          ? excludedMeals.filter(e => e !== mealKey)
-          : [...excludedMeals, mealKey],
-      );
+
+    if (source.type === "hotel") {
+      await toggleStayMeal(source.stay, mealKey);
       return;
     }
-    toggleManual(mealKey);
+
+    if (source.type === "none") {
+      // Try to activate via hotel first
+      const prevStay = previousDayStays.find(s => s.stay_category_id === catId);
+      const currStay = stays.find(s => s.stay_category_id === catId);
+      const hotelStay = mealKey === "breakfast" ? prevStay : currStay;
+      if (hotelStay && resolvePlanMeals(hotelStay).includes(mealKey)) {
+        await toggleStayMeal(hotelStay, mealKey);
+        return;
+      }
+      // Activity exclusion toggle
+      if (activityDerived[mealKey]) {
+        onExcludedChange(
+          excludedSet.has(mealKey)
+            ? excludedMeals.filter(e => e !== mealKey)
+            : [...excludedMeals, mealKey],
+        );
+        return;
+      }
+      toggleManual(mealKey);
+      return;
+    }
+
+    if (source.type === "activity") {
+      onExcludedChange([...excludedMeals, mealKey]);
+      return;
+    }
+    if (source.type === "manual") {
+      toggleManual(mealKey);
+    }
   }
 
-  const hasStays = stays.length > 0;
+  const hasAnyStays = stays.length > 0 || previousDayStays.length > 0;
+
+  const dotColorMap: Record<MealSource["type"], string> = {
+    hotel:    "bg-blue-400",
+    activity: "bg-amber-400",
+    manual:   "bg-emerald-400",
+    none:     "",
+  };
 
   return (
     <div className="px-5 pt-4 pb-4 border-b space-y-3">
@@ -1796,76 +1889,63 @@ function DayMealsSection({
           <UtensilsCrossed className="h-3 w-3 text-muted-foreground" />
           <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Meals</p>
         </div>
-        {effectiveSet.size > 0 && (
+        {effectiveCount > 0 && (
           <span className="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full">
-            {effectiveSet.size} meal{effectiveSet.size !== 1 ? "s" : ""}
+            {effectiveCount} meal{effectiveCount !== 1 ? "s" : ""}
           </span>
         )}
       </div>
 
-      {/* Per stay-category rows */}
-      {hasStays ? (
-        <div className="space-y-2">
-          {stays.map(stay => {
-            const planCovered = stayPlanCovered(stay);
+      {hasAnyStays ? (
+        <div className="space-y-3">
+          {allCategoryIds.map(catId => {
+            const prevStay = previousDayStays.find(s => s.stay_category_id === catId);
+            const currStay = stays.find(s => s.stay_category_id === catId);
+            const label    = (currStay ?? prevStay)!.stay_category.label;
+            const isSavingAny = savingStayId === prevStay?.id || savingStayId === currStay?.id;
+
             return (
-              <div key={stay.id} className="space-y-1.5">
-                {/* Category label + hotel name */}
+              <div key={catId} className="space-y-1.5">
+                {/* Category header */}
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[10px] font-bold text-foreground/70 uppercase tracking-wide">
-                    {stay.stay_category.label}
+                    {label}
                   </span>
-                  <div className="flex items-center gap-1 min-w-0">
-                    {savingStayId === stay.id && (
-                      <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />
-                    )}
-                    <span className="text-[9px] text-muted-foreground/50 truncate" title={stay.room_pricing.hotel.name}>
-                      {stay.room_pricing.hotel.name}
-                    </span>
-                  </div>
+                  {isSavingAny && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />}
                 </div>
 
-                {/* 3 meal chips — always show all three */}
+                {/* 3 chips */}
                 <div className="flex gap-2">
-                  {MEAL_DEFS.map(({ key, label, Icon, activeClass, inactiveClass }) => {
-                    const on         = isMealOn(key, stay);
-                    const inPlan     = planCovered.includes(key);
-                    const fromAct    = !!(activityDerived[key] && !excludedSet.has(key));
-                    const isManual   = meals.includes(key);
-                    const isSaving   = savingStayId === stay.id;
-
-                    // Source indicator dot color
-                    const dotColor = inPlan
-                      ? "bg-blue-400"
-                      : fromAct ? "bg-amber-400"
-                      : isManual ? "bg-emerald-400"
-                      : "";
+                  {MEAL_DEFS.map(({ key, Icon, activeClass, inactiveClass }) => {
+                    const source = getMealSource(key, catId);
+                    const on     = isMealActive(source);
+                    const dot    = dotColorMap[source.type];
 
                     return (
-                      <TooltipProvider key={key} delayDuration={300}>
+                      <TooltipProvider key={key} delayDuration={200}>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <button
                               type="button"
-                              disabled={disabled || isSaving}
-                              onClick={() => handleChipClick(key, stay)}
+                              disabled={disabled || isSavingAny}
+                              onClick={() => handleChipClick(key, source, catId)}
                               className={cn(
                                 "relative flex-1 flex flex-col items-center gap-0.5 py-2.5 px-1 rounded-xl border select-none transition-all",
-                                on ? activeClass : cn(inactiveClass, "opacity-50"),
-                                !disabled && !isSaving && "cursor-pointer hover:opacity-90",
-                                (disabled || isSaving) && "cursor-default",
+                                on ? activeClass : cn(inactiveClass, "opacity-40"),
+                                !disabled && !isSavingAny && "cursor-pointer hover:opacity-90",
                               )}
                             >
-                              {/* Source dot */}
-                              {on && dotColor && (
-                                <span className={cn("absolute top-1.5 right-1.5 h-2 w-2 rounded-full", dotColor)} />
+                              {on && dot && (
+                                <span className={cn("absolute top-1.5 right-1.5 h-2 w-2 rounded-full", dot)} />
                               )}
                               <Icon className="h-3.5 w-3.5" />
-                              <span className="text-[9px] font-bold uppercase tracking-widest leading-none">{label}</span>
+                              <span className="text-[9px] font-bold uppercase tracking-widest leading-none">
+                                {key === "breakfast" ? "BF" : key === "lunch" ? "LN" : "DN"}
+                              </span>
                             </button>
                           </TooltipTrigger>
-                          <TooltipContent side="bottom" className="max-w-[200px] text-center text-xs">
-                            {mealTooltip(key, stay)}
+                          <TooltipContent side="bottom" className="max-w-[220px] text-xs leading-snug">
+                            {getMealTooltip(key, source, catId)}
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -1877,37 +1957,43 @@ function DayMealsSection({
           })}
         </div>
       ) : (
-        /* No hotel stays — just 3 manual chips with tooltip */
+        /* No stays at all — manual chips only */
         <div className="space-y-1.5">
-          <p className="text-[9px] text-muted-foreground/50">No hotel stays added · toggle manually</p>
+          <p className="text-[9px] text-muted-foreground/50">No hotel stays · toggle manually</p>
           <div className="flex gap-2">
-            {MEAL_DEFS.map(({ key, label, Icon, activeClass, inactiveClass }) => {
-              const on       = isMealOn(key, null);
-              const fromAct  = !!(activityDerived[key] && !excludedSet.has(key));
-              const dotColor = fromAct ? "bg-amber-400" : on ? "bg-emerald-400" : "";
+            {MEAL_DEFS.map(({ key, Icon, activeClass, inactiveClass }) => {
+              const fromAct = !!(activityDerived[key] && !excludedSet.has(key));
+              const on      = fromAct || meals.includes(key);
+              const dot     = fromAct ? "bg-amber-400" : on ? "bg-emerald-400" : "";
               return (
-                <TooltipProvider key={key} delayDuration={300}>
+                <TooltipProvider key={key} delayDuration={200}>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
                         type="button"
                         disabled={disabled}
-                        onClick={() => handleChipClick(key, null)}
+                        onClick={() => {
+                          if (fromAct) { onExcludedChange([...excludedMeals, key]); return; }
+                          toggleManual(key);
+                        }}
                         className={cn(
                           "relative flex-1 flex flex-col items-center gap-0.5 py-2.5 px-1 rounded-xl border select-none transition-all cursor-pointer",
-                          on ? activeClass : cn(inactiveClass, "opacity-50"),
+                          on ? activeClass : cn(inactiveClass, "opacity-40"),
                           disabled && "cursor-default",
                         )}
                       >
-                        {on && dotColor && (
-                          <span className={cn("absolute top-1.5 right-1.5 h-2 w-2 rounded-full", dotColor)} />
-                        )}
+                        {on && dot && <span className={cn("absolute top-1.5 right-1.5 h-2 w-2 rounded-full", dot)} />}
                         <Icon className="h-3.5 w-3.5" />
-                        <span className="text-[9px] font-bold uppercase tracking-widest leading-none">{label}</span>
+                        <span className="text-[9px] font-bold uppercase tracking-widest leading-none">
+                          {key === "breakfast" ? "BF" : key === "lunch" ? "LN" : "DN"}
+                        </span>
                       </button>
                     </TooltipTrigger>
-                    <TooltipContent side="bottom" className="max-w-[200px] text-center text-xs">
-                      {mealTooltip(key, null)}
+                    <TooltipContent side="bottom" className="max-w-[220px] text-xs">
+                      {fromAct
+                        ? `${key} from ${activityDerived[key]}`
+                        : on ? `${key} added manually · click to remove`
+                        : `${key} not included · click to add`}
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
@@ -1919,13 +2005,13 @@ function DayMealsSection({
 
       {/* Legend */}
       <div className="flex items-center gap-3 pt-0.5">
-        <span className="flex items-center gap-1 text-[9px] text-muted-foreground/50">
+        <span className="flex items-center gap-1 text-[9px] text-muted-foreground/40">
           <span className="h-2 w-2 rounded-full bg-blue-400 inline-block" /> Hotel
         </span>
-        <span className="flex items-center gap-1 text-[9px] text-muted-foreground/50">
+        <span className="flex items-center gap-1 text-[9px] text-muted-foreground/40">
           <span className="h-2 w-2 rounded-full bg-amber-400 inline-block" /> Activity
         </span>
-        <span className="flex items-center gap-1 text-[9px] text-muted-foreground/50">
+        <span className="flex items-center gap-1 text-[9px] text-muted-foreground/40">
           <span className="h-2 w-2 rounded-full bg-emerald-400 inline-block" /> Manual
         </span>
       </div>
@@ -1964,7 +2050,7 @@ function TimelineDropZone({ children, isEmpty }: { children: React.ReactNode; is
 // ── Main sidebar ───────────────────────────────────────────────────────────
 
 export function ItineraryDaySidebar({
-  open, onClose, packageId, destinationId, durationId, routeId, day: initialDay, stayCategories, onSaved, stopLabel, stopCoords, stopIndex, occupiedBy, maxNights: maxNightsProp, totalDays, onNavigateDay,
+  open, onClose, packageId, destinationId, durationId, routeId, day: initialDay, previousDayStays = [], stayCategories, onSaved, stopLabel, stopCoords, stopIndex, occupiedBy, maxNights: maxNightsProp, totalDays, onNavigateDay,
 }: Props) {
   const [itineraryId, setItineraryId] = useState<number | null>(initialDay.id);
   const [title, setTitle] = useState(initialDay.title);
@@ -2382,7 +2468,7 @@ export function ItineraryDaySidebar({
               </div>
 
               {/* Meals — shrink-0 */}
-              <DayMealsSection meals={meals} onChange={setMeals} excludedMeals={excludedMeals} onExcludedChange={setExcludedMeals} stays={stays} onStaysChange={setStays} packageId={packageId} activities={activities} />
+              <DayMealsSection meals={meals} onChange={setMeals} excludedMeals={excludedMeals} onExcludedChange={setExcludedMeals} stays={stays} onStaysChange={setStays} previousDayStays={previousDayStays} packageId={packageId} activities={activities} />
 
               {/* Timeline */}
               <div className="flex flex-col px-5 pt-4 pb-4">
