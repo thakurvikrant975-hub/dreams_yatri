@@ -1678,7 +1678,15 @@ function DayMealsSection({
   const [savingStayId, setSavingStayId] = useState<number | null>(null);
   // Local copy so optimistic updates to prev-day breakfast work without waiting for parent re-render
   const [localPrevStays, setLocalPrevStays] = useState<StayItem[]>(previousDayStays);
-  useEffect(() => { setLocalPrevStays(previousDayStays); }, [previousDayStays]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    console.log("[Meals] previousDayStays prop changed, syncing localPrevStays", previousDayStays.map(s => ({ id: s.id, hotel: s.room_pricing.hotel.name, active_meals: s.active_meals })));
+    setLocalPrevStays(previousDayStays);
+  }, [previousDayStays]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    console.log("[Meals] mount — stays:", stays.map(s => ({ id: s.id, hotel: s.room_pricing.hotel.name, active_meals: s.active_meals })));
+    console.log("[Meals] mount — localPrevStays:", previousDayStays.map(s => ({ id: s.id, hotel: s.room_pricing.hotel.name, active_meals: s.active_meals })));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Activity-derived meals: mealKey → activity name
   const activityDerived = useMemo(() => {
@@ -1752,14 +1760,25 @@ function DayMealsSection({
     const next = current.includes(mealKey)
       ? current.filter(m => m !== mealKey)
       : [...current, mealKey];
-    // Optimistic update — prev-day stays use local state, current-day stays use parent callback
-    if (localPrevStays.some(s => s.id === stay.id)) {
+    const isPrev = localPrevStays.some(s => s.id === stay.id);
+    console.log("[Meals] toggleStayMeal", {
+      stayId: stay.id,
+      hotel: stay.room_pricing.hotel.name,
+      mealKey,
+      isPrev,
+      current,
+      next,
+      localPrevStayIds: localPrevStays.map(s => s.id),
+      currentDayStayIds: stays.map(s => s.id),
+    });
+    if (isPrev) {
       setLocalPrevStays(prev => prev.map(s => s.id === stay.id ? { ...s, active_meals: next } : s));
     } else {
       onStaysChange(stays.map(s => s.id === stay.id ? { ...s, active_meals: next } : s));
     }
     setSavingStayId(stay.id);
-    await handleUpdateStayActiveMeals(stay.id, next, packageId);
+    const result = await handleUpdateStayActiveMeals(stay.id, next, packageId);
+    console.log("[Meals] toggleStayMeal result", result);
     setSavingStayId(null);
   }
 
@@ -1821,6 +1840,17 @@ function DayMealsSection({
   async function handleChipClick(mealKey: string, catId: number) {
     if (disabled) return;
     const owner = getChipOwner(mealKey, catId);
+    console.log("[Meals] handleChipClick", {
+      mealKey,
+      catId,
+      ownerId: owner?.id ?? null,
+      ownerHotel: owner?.room_pricing.hotel.name ?? null,
+      ownerActiveMeals: owner?.active_meals ?? null,
+      ownerPlanMeals: owner ? resolvePlanMeals(owner) : null,
+      ownerResolvedMeals: owner ? resolveActiveMeals(owner) : null,
+      localPrevStayCount: localPrevStays.length,
+      currentDayStayCount: stays.length,
+    });
 
     if (owner) {
       // Toggle within the owning hotel's active_meals
