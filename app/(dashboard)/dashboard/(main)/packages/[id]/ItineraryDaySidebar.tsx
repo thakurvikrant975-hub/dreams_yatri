@@ -2238,8 +2238,11 @@ export function ItineraryDaySidebar({
                 </div>
               </div>
 
-              {/* Day meta — shrink-0 */}
-              <div className="px-5 pt-4 pb-4 border-b shrink-0">
+              {/* Scrollable body */}
+              <div className="flex-1 overflow-y-auto flex flex-col">
+
+              {/* Day meta */}
+              <div className="px-5 pt-4 pb-4 border-b">
                 <div className="flex flex-col gap-3">
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
@@ -2312,8 +2315,8 @@ export function ItineraryDaySidebar({
                 </div>
               </div>
 
-              {/* Palette — shrink-0 */}
-              <div className="px-5 pt-4 pb-4 border-b shrink-0">
+              {/* Palette */}
+              <div className="px-5 pt-4 pb-4 border-b">
                 <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold mb-3">Add Elements</p>
                 <div className="flex gap-2">
                   <PaletteChip kind="transfer" disabled={!itineraryId} isApplied={transfers.length > 0} onClick={() => setEditPanel({ mode: "add", kind: "transfer" })} />
@@ -2329,8 +2332,8 @@ export function ItineraryDaySidebar({
               {/* Meals — shrink-0 */}
               <DayMealsSection meals={meals} onChange={setMeals} excludedMeals={excludedMeals} onExcludedChange={setExcludedMeals} stays={stays} activities={activities} />
 
-              {/* Timeline + Attractions — fills remaining height with own scroll */}
-              <div className="flex-1 overflow-y-auto flex flex-col px-5 pt-4 pb-4">
+              {/* Timeline */}
+              <div className="flex flex-col px-5 pt-4 pb-4">
                 <div className="flex items-center justify-between mb-3 shrink-0">
                   <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Timeline</p>
                   {timeline.length > 0 && (
@@ -2441,6 +2444,8 @@ export function ItineraryDaySidebar({
                 </div>
 
               </div>
+
+              </div>{/* end scrollable body */}
 
               {/* Footer */}
               <div className="border-t px-5 py-4 shrink-0 flex items-center justify-end bg-background/95 backdrop-blur-sm">
