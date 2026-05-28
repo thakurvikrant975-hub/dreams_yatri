@@ -49,6 +49,7 @@ import {
   handleDeleteNote,
   handleUpsertStay,
   handleDeleteStay,
+  handleUpdateStayActiveMeals,
   handleReorderItems,
   handleSearchActivities,
   handleSearchRoomPricings,
@@ -1110,6 +1111,7 @@ function StayBlock({
       stay_category_id: categoryId,
       sort_order: stayBlockOrder,
       num_nights: numNights,
+      active_meals: existing?.active_meals ?? [],
       room_pricing: pricing,
       stay_category: category,
     };
@@ -1654,33 +1656,47 @@ function DayMealsSection({
   onChange,
   excludedMeals,
   onExcludedChange,
-  disabled,
   stays,
+  onStaysChange,
+  packageId,
   activities,
+  disabled,
 }: {
   meals: string[];
   onChange: (meals: string[]) => void;
   excludedMeals: string[];
   onExcludedChange: (excluded: string[]) => void;
-  disabled?: boolean;
   stays: StayItem[];
+  onStaysChange: (stays: StayItem[]) => void;
+  packageId: number;
   activities: ActivityItem[];
+  disabled?: boolean;
 }) {
-  // Per-category hotel meals
-  const stayMeals = useMemo(() =>
-    stays.map(stay => ({
-      categoryLabel: stay.stay_category.label,
-      hotelName:     stay.room_pricing.hotel.name,
-      planName:      stay.room_pricing.plan_name,
-      covered:       getEffectiveMeals(stay.room_pricing.meal_type, stay.room_pricing.plan_name),
-    })),
+  const [savingStayId, setSavingStayId] = useState<number | null>(null);
+
+  // Per-stay derived meals: active_meals overrides the plan's covered meals when set
+  const stayMealData = useMemo(() =>
+    stays.map(stay => {
+      const planCovered = getEffectiveMeals(stay.room_pricing.meal_type, stay.room_pricing.plan_name);
+      // active_meals = what meals this hotel actually serves on THIS specific day
+      // [] means "use plan default" (all covered); non-empty = explicit selection by team
+      const active = stay.active_meals.length > 0 ? stay.active_meals : planCovered;
+      return {
+        stayId:        stay.id,
+        categoryLabel: stay.stay_category.label,
+        hotelName:     stay.room_pricing.hotel.name,
+        planName:      stay.room_pricing.plan_name,
+        planCovered,        // what the plan can provide
+        activeMeals: active, // what's actually served this day
+      };
+    }),
     [stays],
   );
 
-  // Union of all hotel-derived meal keys
-  const hotelDerivedSet = useMemo(
-    () => new Set(stayMeals.flatMap(s => s.covered)),
-    [stayMeals],
+  // Union of all hotel-active meal keys
+  const hotelActiveSet = useMemo(
+    () => new Set(stayMealData.flatMap(s => s.activeMeals)),
+    [stayMealData],
   );
 
   // Activity-derived meals (key → activity name)
@@ -1694,28 +1710,41 @@ function DayMealsSection({
     return result;
   }, [activities]);
 
-  // Full derived set (hotel + activity)
   const allDerived = useMemo(
-    () => new Set([...hotelDerivedSet, ...Object.keys(activityDerived)]),
-    [hotelDerivedSet, activityDerived],
+    () => new Set([...hotelActiveSet, ...Object.keys(activityDerived)]),
+    [hotelActiveSet, activityDerived],
   );
 
   const excludedSet = useMemo(() => new Set(excludedMeals), [excludedMeals]);
 
-  // Effective meals = (derived ∪ manual) minus excluded
+  // Effective meals = (hotel active + activity + manual) minus excluded
   const effectiveSet = useMemo(() => {
     const all = new Set([...allDerived, ...meals]);
     for (const e of excludedSet) all.delete(e);
     return all;
   }, [allDerived, meals, excludedSet]);
 
-  const totalMeals = effectiveSet.size;
-
   const hasHotelMeals = stays.length > 0;
   const hasActMeals   = Object.keys(activityDerived).length > 0;
 
+  async function toggleStayMeal(stayId: number, mealKey: string) {
+    const stay = stays.find(s => s.id === stayId);
+    if (!stay) return;
+    const planCovered = getEffectiveMeals(stay.room_pricing.meal_type, stay.room_pricing.plan_name);
+    // current active = explicit list or the full plan default
+    const current = stay.active_meals.length > 0 ? stay.active_meals : planCovered;
+    const next = current.includes(mealKey)
+      ? current.filter(m => m !== mealKey)
+      : [...current, mealKey];
+    // Optimistic update
+    onStaysChange(stays.map(s => s.id === stayId ? { ...s, active_meals: next } : s));
+    setSavingStayId(stayId);
+    await handleUpdateStayActiveMeals(stayId, next, packageId);
+    setSavingStayId(null);
+  }
+
   function toggleManual(key: string) {
-    if (allDerived.has(key)) return; // handled by toggleExclusion
+    if (allDerived.has(key)) return;
     onChange(meals.includes(key) ? meals.filter(m => m !== key) : [...meals, key]);
   }
 
@@ -1729,7 +1758,7 @@ function DayMealsSection({
   }
 
   return (
-    <div className="px-5 pt-4 pb-4 border-b shrink-0 space-y-3">
+    <div className="px-5 pt-4 pb-4 border-b space-y-3">
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -1737,47 +1766,53 @@ function DayMealsSection({
           <UtensilsCrossed className="h-3 w-3 text-muted-foreground" />
           <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Meals Included</p>
         </div>
-        {totalMeals > 0 && (
+        {effectiveSet.size > 0 && (
           <span className="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full">
-            {totalMeals} meal{totalMeals !== 1 ? "s" : ""}
+            {effectiveSet.size} meal{effectiveSet.size !== 1 ? "s" : ""}
           </span>
         )}
       </div>
 
-      {/* Hotel stays — per category */}
+      {/* Hotel stays — per-category, per-meal toggles */}
       {hasHotelMeals && (
-        <div className="space-y-1">
+        <div className="space-y-1.5">
           <p className="text-[9px] uppercase tracking-widest text-muted-foreground/60 font-bold flex items-center gap-1">
             <Hotel className="h-2.5 w-2.5" /> Hotel Meals
+            <span className="normal-case font-normal tracking-normal text-muted-foreground/40 ml-0.5">— tap to include/exclude per hotel</span>
           </p>
-          {stayMeals.map(s => (
-            <div key={s.categoryLabel} className="flex items-start gap-2 rounded-lg bg-muted/30 px-2.5 py-1.5">
-              <span className="text-[10px] font-bold text-muted-foreground min-w-[52px] shrink-0 pt-px">
-                {s.categoryLabel}
-              </span>
-              {s.covered.length > 0 ? (
-                <div className="flex flex-wrap gap-1 items-center min-w-0">
-                  {MEAL_DEFS.filter(m => s.covered.includes(m.key)).map(({ key, label, Icon, color }) => {
-                    const excluded = excludedSet.has(key);
+          {stayMealData.map(s => (
+            <div key={s.stayId} className="rounded-lg bg-muted/30 px-2.5 py-2 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-bold text-muted-foreground">{s.categoryLabel}</span>
+                <span className="text-[9px] text-muted-foreground/50 truncate max-w-[150px]" title={s.planName ?? s.hotelName}>
+                  {s.planName ?? s.hotelName}
+                </span>
+                {savingStayId === s.stayId && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />}
+              </div>
+              {s.planCovered.length > 0 ? (
+                <div className="flex gap-1.5">
+                  {MEAL_DEFS.filter(m => s.planCovered.includes(m.key)).map(({ key, label, Icon, activeClass, inactiveClass }) => {
+                    const on = s.activeMeals.includes(key);
                     return (
                       <button
                         key={key}
                         type="button"
-                        onClick={() => toggleExclusion(key)}
-                        title={excluded ? "Click to re-include" : "Click to exclude"}
+                        disabled={disabled || savingStayId === s.stayId}
+                        onClick={() => toggleStayMeal(s.stayId, key)}
                         className={cn(
-                          "flex items-center gap-0.5 text-[9px] font-bold rounded-full px-1.5 py-0.5 border bg-white/70 transition-all cursor-pointer select-none",
-                          excluded ? "opacity-40 line-through border-dashed" : color,
+                          "flex items-center gap-1 text-[9px] font-bold rounded-lg px-2 py-1 border transition-all cursor-pointer select-none",
+                          on ? activeClass : cn(inactiveClass, "opacity-50"),
                         )}
                       >
-                        <Icon className="h-2.5 w-2.5" /> {label}
-                        {excluded && <X className="h-2 w-2 ml-0.5" />}
+                        <Icon className="h-2.5 w-2.5" />
+                        {label}
+                        {on
+                          ? <Check className="h-2 w-2 ml-0.5" />
+                          : <X className="h-2 w-2 ml-0.5 opacity-60" />
+                        }
                       </button>
                     );
                   })}
-                  <span className="text-[9px] text-muted-foreground/70 truncate max-w-[110px]" title={s.planName ?? s.hotelName}>
-                    {s.planName ?? s.hotelName}
-                  </span>
                 </div>
               ) : (
                 <span className="text-[10px] text-muted-foreground/40 italic">No meals in plan</span>
@@ -1810,7 +1845,7 @@ function DayMealsSection({
                 <span className="text-[10px] text-muted-foreground truncate flex-1">{activityDerived[key]}</span>
                 {excluded
                   ? <span className="text-[9px] text-destructive font-bold shrink-0">excluded</span>
-                  : <X className="h-3 w-3 text-muted-foreground/40 shrink-0 opacity-0 group-hover:opacity-100" />
+                  : <X className="h-3 w-3 text-muted-foreground/30 shrink-0" />
                 }
               </div>
             );
@@ -1836,7 +1871,7 @@ function DayMealsSection({
                 type="button"
                 disabled={disabled}
                 onClick={() => fromDerived ? toggleExclusion(key) : toggleManual(key)}
-                title={fromDerived ? (excluded ? "Click to re-include from hotel/activity" : "Click to exclude from this day") : undefined}
+                title={fromDerived ? (excluded ? "Re-include from hotel/activity" : "Exclude from this day") : undefined}
                 className={cn(
                   "relative flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border flex-1 select-none transition-all cursor-pointer",
                   included ? activeClass : cn(inactiveClass, !disabled && "hover:opacity-80"),
@@ -1853,22 +1888,12 @@ function DayMealsSection({
                     <X className="h-2 w-2 text-white" />
                   </span>
                 )}
-                {fromDerived && !excluded && (
-                  <span className="absolute top-1.5 left-1.5 h-3.5 w-3.5 rounded-full bg-blue-500 flex items-center justify-center shadow-sm">
-                    <Lock className="h-2 w-2 text-white" />
-                  </span>
-                )}
                 <Icon className={cn("h-4 w-4", color)} />
                 <span className={cn("text-[10px] font-bold uppercase tracking-widest leading-none", color)}>{label}</span>
               </button>
             );
           })}
         </div>
-        {excludedMeals.length > 0 && (
-          <p className="text-[9px] text-muted-foreground/50 text-center">
-            {excludedMeals.length} meal{excludedMeals.length !== 1 ? "s" : ""} excluded — click to re-include
-          </p>
-        )}
       </div>
 
       {/* Empty state */}
@@ -2330,7 +2355,7 @@ export function ItineraryDaySidebar({
               </div>
 
               {/* Meals — shrink-0 */}
-              <DayMealsSection meals={meals} onChange={setMeals} excludedMeals={excludedMeals} onExcludedChange={setExcludedMeals} stays={stays} activities={activities} />
+              <DayMealsSection meals={meals} onChange={setMeals} excludedMeals={excludedMeals} onExcludedChange={setExcludedMeals} stays={stays} onStaysChange={setStays} packageId={packageId} activities={activities} />
 
               {/* Timeline */}
               <div className="flex flex-col px-5 pt-4 pb-4">

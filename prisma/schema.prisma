@@ -1298,6 +1298,7 @@ model itinerary_stays {
   rooms_count      Int                     @default(1)
   num_nights       Int                     @default(1)
   sort_order       Int                     @default(0)
+  active_meals     String[]                @default([])
   itinerary        package_itineraries     @relation(fields: [itinerary_id], references: [id])
   room_pricing     hotel_room_pricing      @relation(fields: [room_pricing_id], references: [id])
   stay_category    package_stay_categories @relation(fields: [stay_category_id], references: [id])

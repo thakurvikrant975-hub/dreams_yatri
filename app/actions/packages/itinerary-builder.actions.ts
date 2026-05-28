@@ -15,6 +15,7 @@ import {
   deleteItineraryNote,
   upsertItineraryStay,
   deleteItineraryStay,
+  updateStayActiveMeals,
   reorderDayItems,
   searchActivities,
   searchRoomPricings,
@@ -217,6 +218,17 @@ export async function handleDeleteStay(id: number, packageId: number) {
   } catch (e) {
     console.error(e);
     return { success: false as const, message: "Failed to remove stay" };
+  }
+}
+
+export async function handleUpdateStayActiveMeals(id: number, activeMeals: string[], packageId: number) {
+  try {
+    await updateStayActiveMeals(id, activeMeals);
+    revalidatePath(p(packageId));
+    return { success: true as const };
+  } catch (e) {
+    console.error(e);
+    return { success: false as const, message: "Failed to update meals" };
   }
 }
 
