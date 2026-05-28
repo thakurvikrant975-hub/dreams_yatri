@@ -392,20 +392,21 @@ export async function updateActivity(
     if (!actor) return { success: false, message: "Unauthorized" };
 
     const raw = {
-        name:           formData.get("name"),
-        category_id:    formData.get("category_id") || undefined,
-        description:    formData.get("description")    || undefined,
-        difficulty:     formData.get("difficulty")     || undefined,
-        duration_hours: formData.get("duration_hours") || undefined,
-        is_active:      formData.get("is_active") === "true",
-        location_id:    (formData.get("location_id") as string) || undefined,
-        address:        formData.get("address")   || undefined,
-        city:           formData.get("city")      || undefined,
-        state:          formData.get("state")     || undefined,
-        country:        formData.get("country")   || undefined,
-        pincode:        formData.get("pincode")   || undefined,
-        phone:          formData.get("phone")     || undefined,
-        email:          formData.get("email")     || undefined,
+        name:             formData.get("name"),
+        category_id:      formData.get("category_id") || undefined,
+        description:      formData.get("description")    || undefined,
+        difficulty:       formData.get("difficulty")     || undefined,
+        duration_hours:   formData.get("duration_hours") || undefined,
+        is_active:        formData.get("is_active") === "true",
+        location_id:      (formData.get("location_id") as string) || undefined,
+        address:          formData.get("address")   || undefined,
+        city:             formData.get("city")      || undefined,
+        state:            formData.get("state")     || undefined,
+        country:          formData.get("country")   || undefined,
+        pincode:          formData.get("pincode")   || undefined,
+        phone:            formData.get("phone")     || undefined,
+        email:            formData.get("email")     || undefined,
+        included_meals:   formData.get("included_meals") || undefined,
     };
 
     const parsed = ActivityUpdateSchema.safeParse(raw);

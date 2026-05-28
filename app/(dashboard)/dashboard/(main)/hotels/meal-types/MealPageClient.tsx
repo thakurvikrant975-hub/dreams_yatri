@@ -6,7 +6,7 @@ import {
     BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "../../components/ui/breadcrumb";
 import { getMealTypes, createMealType, updateMealType, deleteMealType } from "../actions";
-import { TypeManagerClient } from "../TypeManagerClient";
+import { MealTypeManagerClient } from "./MealTypeManagerClient";
 
 export default async function MealTypesPage() {
     const mealTypes = await getMealTypes();
@@ -38,11 +38,9 @@ export default async function MealTypesPage() {
                 </div>
             </div>
 
-            <div >
-                <TypeManagerClient
+            <div>
+                <MealTypeManagerClient
                     items={mealTypes}
-                    label="Meal Types"
-                    description="Select a meal type when creating a pricing plan"
                     onCreate={createMealType}
                     onUpdate={updateMealType}
                     onDelete={deleteMealType}

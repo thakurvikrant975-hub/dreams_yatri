@@ -3,7 +3,7 @@
 import { useState, useTransition, useRef } from "react";
 import {
     MapPin, Tag, FileText, ChevronDown, Check,
-    Phone, Mail, Loader2, Lock,
+    Phone, Mail, Loader2, Lock, Coffee, Sun, Moon, Utensils,
 } from "lucide-react";
 import { Button }   from "../../../components/ui/button";
 import { Input }    from "../../../components/ui/input";
@@ -49,6 +49,7 @@ export type ActivityDetail = {
     phone:          string | null;
     email:          string | null;
     is_active:      boolean;
+    included_meals: string[];
 };
 
 // ── Category searchable combobox ──────────────────────────────────────────
@@ -200,7 +201,8 @@ export function OverviewTab({
     const [email,   setEmail]   = useState(activity.email   ?? "");
 
     // Content
-    const [description, setDescription] = useState(activity.description ?? "");
+    const [description,   setDescription]   = useState(activity.description ?? "");
+    const [includedMeals, setIncludedMeals] = useState<string[]>(activity.included_meals ?? []);
 
     // Errors
     const [errors, setErrors] = useState<Record<string, string[]>>({});
@@ -233,6 +235,7 @@ export function OverviewTab({
             fd.append("phone",          phone);
             fd.append("email",          email);
             fd.append("description",    description);
+            fd.append("included_meals", JSON.stringify(includedMeals));
 
             const result = await updateActivity(activity.id, { success: false, message: "" }, fd);
 
@@ -322,7 +325,43 @@ export function OverviewTab({
                 </div>
             </Section>
 
-            {/* ── Section 2: Location & Contact ── */}
+            {/* ── Section 2: Meals Provided ── */}
+            <Section icon={Utensils} title="Meals Provided" description="Mark which meals this activity includes — shown in the guest itinerary with attribution">
+                <p className="text-xs text-muted-foreground -mt-1">
+                    Toggle the meals that are included as part of this activity (e.g. lunch during a village walk).
+                    These will appear as "Included in &lt;Activity Name&gt;" in the package itinerary.
+                </p>
+                <div className="flex gap-3">
+                    {[
+                        { key: "breakfast", label: "Breakfast", Icon: Coffee,  activeClass: "bg-orange-100 border-orange-400 text-orange-600", inactiveClass: "bg-orange-50 border-orange-200 text-orange-400" },
+                        { key: "lunch",     label: "Lunch",     Icon: Sun,     activeClass: "bg-yellow-100 border-yellow-400 text-yellow-600", inactiveClass: "bg-yellow-50 border-yellow-200 text-yellow-400" },
+                        { key: "dinner",    label: "Dinner",    Icon: Moon,    activeClass: "bg-indigo-100 border-indigo-400 text-indigo-600", inactiveClass: "bg-indigo-50 border-indigo-200 text-indigo-400" },
+                    ].map(({ key, label, Icon, activeClass, inactiveClass }) => {
+                        const active = includedMeals.includes(key);
+                        return (
+                            <button
+                                key={key}
+                                type="button"
+                                onClick={() => setIncludedMeals(active ? includedMeals.filter(m => m !== key) : [...includedMeals, key])}
+                                className={cn(
+                                    "relative flex flex-col items-center gap-1.5 px-5 py-3 rounded-xl border flex-1 select-none cursor-pointer transition-all",
+                                    active ? activeClass : inactiveClass,
+                                )}
+                            >
+                                {active && (
+                                    <span className="absolute top-1.5 right-1.5 h-3.5 w-3.5 rounded-full bg-green-500 flex items-center justify-center shadow-sm">
+                                        <Check className="h-2 w-2 text-white" />
+                                    </span>
+                                )}
+                                <Icon className="h-4 w-4" />
+                                <span className="text-[10px] font-bold uppercase tracking-widest">{label}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </Section>
+
+            {/* ── Section 4: Location & Contact ── */}
             <Section icon={MapPin} title="Location & Contact" description="Physical address, coordinates and business contact">
 
                 <div className="space-y-1.5">
@@ -367,7 +406,7 @@ export function OverviewTab({
                 </div>
             </Section>
 
-            {/* ── Section 3: Description ── */}
+            {/* ── Section 5: Description ── */}
             <Section icon={FileText} title="Description" description="Overview shown on the activity page">
                 <div className="space-y-1.5">
                     <div className="flex items-center justify-between">

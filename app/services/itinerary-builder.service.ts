@@ -36,7 +36,7 @@ export type ActivityItem = {
   is_optional: boolean;
   variant_id: number | null;
   variant: { id: number; name: string } | null;
-  activity: { id: number; name: string; category: string | null; duration_hours: number | null };
+  activity: { id: number; name: string; category: string | null; duration_hours: number | null; included_meals: string[] };
 };
 
 export type ActivityVariantOption = {
@@ -105,6 +105,7 @@ export type StayItem = {
     id: number;
     plan_name: string | null;
     price_per_night: number;
+    meal_type: { id: number; name: string; covered_meals: string[] } | null;
     hotel: { id: number; name: string; category: string | null; stay_type: string | null; thumbnail: string | null };
     room: { id: number; name: string; bed_type: string | null; images: { url: string; thumbnail: string | null }[] } | null;
   };
@@ -163,7 +164,7 @@ export async function getItineraryData(
       itinerary_activities: {
         orderBy: { sort_order: "asc" },
         include: {
-          activity: { select: { id: true, name: true, duration_hours: true, category: { select: { name: true } } } },
+          activity: { select: { id: true, name: true, duration_hours: true, included_meals: true, category: { select: { name: true } } } },
           variant: { select: { id: true, name: true } },
         },
       },
@@ -196,6 +197,7 @@ export async function getItineraryData(
               id: true,
               plan_name: true,
               price_per_night: true,
+              meal_type: { select: { id: true, name: true, covered_meals: true } },
               hotel: { select: { id: true, name: true, category: true, stay_type: true, thumbnail: true } },
               room: { select: { id: true, name: true, bed_type: true, images: { select: { url: true, thumbnail: true }, orderBy: { sort_order: "asc" }, take: 1 } } },
             },
@@ -229,6 +231,7 @@ export async function getItineraryData(
           name: ia.activity.name,
           category: ia.activity.category?.name ?? null,
           duration_hours: ia.activity.duration_hours != null ? Number(ia.activity.duration_hours) : null,
+          included_meals: ia.activity.included_meals,
         },
       })),
       transfers: rec.itinerary_transfers.map((t) => ({
@@ -271,6 +274,7 @@ export async function getItineraryData(
           id: s.room_pricing.id,
           plan_name: s.room_pricing.plan_name,
           price_per_night: Number(s.room_pricing.price_per_night),
+          meal_type: s.room_pricing.meal_type ?? null,
           hotel: s.room_pricing.hotel,
           room: s.room_pricing.room,
         },
@@ -600,11 +604,12 @@ const HOTEL_SELECT = {
   id: true,
   plan_name: true,
   price_per_night: true,
+  meal_type: { select: { id: true, name: true, covered_meals: true } },
   hotel: { select: { id: true, name: true, category: true, stay_type: true, thumbnail: true } },
   room: { select: { id: true, name: true, bed_type: true, images: { select: { url: true, thumbnail: true }, orderBy: { sort_order: "asc" as const }, take: 1 } } },
 } as const;
 
-function toItems(list: { id: number; plan_name: string | null; price_per_night: unknown; hotel: { id: number; name: string; category: string | null; stay_type: string | null; thumbnail: string | null }; room: { id: number; name: string; bed_type: string | null; images: { url: string; thumbnail: string | null }[] } | null }[]) {
+function toItems(list: { id: number; plan_name: string | null; price_per_night: unknown; meal_type: { id: number; name: string; covered_meals: string[] } | null; hotel: { id: number; name: string; category: string | null; stay_type: string | null; thumbnail: string | null }; room: { id: number; name: string; bed_type: string | null; images: { url: string; thumbnail: string | null }[] } | null }[]) {
   return list.slice(0, 50).map((p) => ({ ...p, price_per_night: Number(p.price_per_night) }));
 }
 

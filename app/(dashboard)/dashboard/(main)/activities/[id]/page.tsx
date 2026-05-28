@@ -136,6 +136,7 @@ export default async function ActivityDetailPage({
                             phone:          activity.phone,
                             email:          activity.email,
                             is_active:      activity.is_active,
+                            included_meals: activity.included_meals ?? [],
                         }}
                         categories={categories}
                     />

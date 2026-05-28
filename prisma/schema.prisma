@@ -963,6 +963,7 @@ model hotel_child_policies {
 model meal_types {
   id                Int                  @id @default(autoincrement())
   name              String               @unique
+  covered_meals     String[]
   hotelRoomPricings hotel_room_pricing[]
 }
 
@@ -1006,6 +1007,7 @@ model activities {
   phone                String?
   email                String?
   is_active            Boolean                @default(true)
+  included_meals       String[]
   created_at           DateTime               @default(now())
   updated_at           DateTime               @updatedAt
   category             activity_categories?   @relation(fields: [category_id], references: [id], onDelete: SetNull)

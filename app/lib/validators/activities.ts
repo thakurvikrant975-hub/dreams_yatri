@@ -93,6 +93,15 @@ export const ActivitySchema = z.object({
     .transform((s) => s?.trim() || undefined),
 
   is_active: z.boolean().default(true),
+
+  included_meals: z.preprocess(
+    (v) => {
+      if (Array.isArray(v)) return v;
+      if (typeof v === "string" && v) { try { return JSON.parse(v); } catch { return []; } }
+      return [];
+    },
+    z.array(z.string()).default([]),
+  ),
 });
 
 export const ActivityUpdateSchema = ActivitySchema.omit({ slug: true });

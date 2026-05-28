@@ -208,14 +208,14 @@ export async function getRoomsByHotel(hotel_id: number) {
 }
 
 export async function getMealTypes() {
-  return db.meal_types.findMany({ orderBy: { name: "asc" } });
+  return db.meal_types.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, covered_meals: true } });
 }
 
-export async function createMealType(name: string): Promise<HotelFormState> {
+export async function createMealType(name: string, coveredMeals: string[]): Promise<HotelFormState> {
   const n = name.trim();
   if (!n) return { success: false, message: "Name is required." };
   try {
-    await db.meal_types.create({ data: { name: n } });
+    await db.meal_types.create({ data: { name: n, covered_meals: coveredMeals } });
     revalidatePath("/dashboard/hotels/meal-types");
     return { success: true, message: "Meal type added" };
   } catch (e) {
@@ -224,11 +224,11 @@ export async function createMealType(name: string): Promise<HotelFormState> {
   }
 }
 
-export async function updateMealType(id: number, name: string): Promise<HotelFormState> {
+export async function updateMealType(id: number, name: string, coveredMeals: string[]): Promise<HotelFormState> {
   const n = name.trim();
   if (!n) return { success: false, message: "Name is required." };
   try {
-    await db.meal_types.update({ where: { id }, data: { name: n } });
+    await db.meal_types.update({ where: { id }, data: { name: n, covered_meals: coveredMeals } });
     revalidatePath("/dashboard/hotels/meal-types");
     return { success: true, message: "Meal type updated" };
   } catch (e) {
