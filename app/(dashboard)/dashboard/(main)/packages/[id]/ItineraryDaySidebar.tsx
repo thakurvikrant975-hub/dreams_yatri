@@ -1787,7 +1787,9 @@ function DayMealsSection({
 
   function isChipOn(mealKey: string, catId: number): boolean {
     const owner = getChipOwner(mealKey, catId);
-    if (owner) return resolveActiveMeals(owner).includes(mealKey);
+    // Check hotel owner first, but only if it actually covers this meal
+    if (owner && resolveActiveMeals(owner).includes(mealKey)) return true;
+    // Fall through to activity or manual (e.g. lunch from activity even when hotel exists)
     if (activityDerived[mealKey] && !excludedSet.has(mealKey)) return true;
     return meals.includes(mealKey);
   }
@@ -1798,17 +1800,21 @@ function DayMealsSection({
     const owner = getChipOwner(mealKey, catId);
 
     if (owner) {
-      const on    = resolveActiveMeals(owner).includes(mealKey);
-      const hotel = owner.room_pricing.hotel.name;
-      const plan  = owner.room_pricing.plan_name;
-      const note  = mealKey === "breakfast" ? "prev night checkout" : "tonight check-in";
-      if (on)  return `${label} from ${hotel}${plan ? ` · ${plan}` : ""} (${note})`;
-      if (resolvePlanMeals(owner).includes(mealKey))
+      const active  = resolveActiveMeals(owner);
+      const inPlan  = resolvePlanMeals(owner).includes(mealKey);
+      const hotel   = owner.room_pricing.hotel.name;
+      const plan    = owner.room_pricing.plan_name;
+      const note    = mealKey === "breakfast" ? "prev night checkout" : "tonight check-in";
+      if (active.includes(mealKey))
+        return `${label} from ${hotel}${plan ? ` · ${plan}` : ""} (${note}) · click to exclude`;
+      if (inPlan)
         return `${label} excluded from ${hotel} · click to re-include`;
-      return `${label} not in hotel plan · click to add manually`;
+      // Hotel exists but doesn't cover this meal — fall through
     }
     if (activityDerived[mealKey] && !excludedSet.has(mealKey))
       return `${label} from ${activityDerived[mealKey]} · click to exclude`;
+    if (activityDerived[mealKey] && excludedSet.has(mealKey))
+      return `${label} excluded from activity · click to re-include`;
     if (meals.includes(mealKey)) return `${label} added manually · click to remove`;
     return `${label} not included · click to add`;
   }
@@ -1824,15 +1830,18 @@ function DayMealsSection({
   async function handleChipClick(mealKey: string, catId: number) {
     if (disabled) return;
     const owner = getChipOwner(mealKey, catId);
+
     if (owner) {
-      // Toggle within the owning hotel's active_meals
-      if (resolvePlanMeals(owner).includes(mealKey)) {
+      const active = resolveActiveMeals(owner);
+      const inPlan = resolvePlanMeals(owner).includes(mealKey);
+      // Toggle via hotel if: meal is currently active (remove it) OR meal is in the plan (add it)
+      if (active.includes(mealKey) || inPlan) {
         await toggleStayMeal(owner, mealKey);
         return;
       }
-      // Meal not in hotel plan — fall through to manual
+      // Owner exists but meal not in plan and not active — fall through to activity/manual
     }
-    // Activity exclusion
+    // Activity exclusion toggle
     if (activityDerived[mealKey]) {
       onExcludedChange(
         excludedSet.has(mealKey)
