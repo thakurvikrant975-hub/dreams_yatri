@@ -1769,113 +1769,81 @@ function DayMealsSection({
 
   // ── Per-chip helpers ──────────────────────────────────────────────────────
 
-  type MealSource = { type: "hotel"; stay: StayItem } | { type: "activity"; name: string } | { type: "manual" } | { type: "none" };
+  // ── Per-chip state helpers (explicit, no fallback cross-contamination) ────
+  //
+  // Breakfast is ALWAYS owned by prevStay (yesterday's hotel, departure morning).
+  // Lunch/Dinner are ALWAYS owned by currStay (today's hotel, arrival evening).
+  // They never share a stay, so toggling one can never affect the other.
 
-  function getMealSource(mealKey: string, catId: number): MealSource {
-    const prevStay = localPrevStays.find(s => s.stay_category_id === catId);
-    const currStay = stays.find(s => s.stay_category_id === catId);
-
-    // Breakfast → look in yesterday's hotel
+  function getChipOwner(mealKey: string, catId: number): StayItem | null {
     if (mealKey === "breakfast") {
-      if (prevStay && resolveActiveMeals(prevStay).includes("breakfast")) {
-        return { type: "hotel", stay: prevStay };
-      }
-      // fallback: current hotel provides breakfast too (e.g. multi-night, same hotel)
-      if (currStay && resolveActiveMeals(currStay).includes("breakfast")) {
-        return { type: "hotel", stay: currStay };
-      }
-    } else {
-      // Lunch / Dinner → look in today's hotel
-      if (currStay && resolveActiveMeals(currStay).includes(mealKey)) {
-        return { type: "hotel", stay: currStay };
-      }
+      return localPrevStays.find(s => s.stay_category_id === catId) ?? null;
     }
-
-    // Activity
-    if (activityDerived[mealKey] && !excludedSet.has(mealKey)) {
-      return { type: "activity", name: activityDerived[mealKey] };
-    }
-    // Manual
-    if (meals.includes(mealKey)) return { type: "manual" };
-    return { type: "none" };
+    return stays.find(s => s.stay_category_id === catId) ?? null;
   }
 
-  function isMealActive(source: MealSource): boolean {
-    return source.type !== "none";
+  function isChipOn(mealKey: string, catId: number): boolean {
+    const owner = getChipOwner(mealKey, catId);
+    if (owner) return resolveActiveMeals(owner).includes(mealKey);
+    if (activityDerived[mealKey] && !excludedSet.has(mealKey)) return true;
+    return meals.includes(mealKey);
   }
 
-  function getMealTooltip(mealKey: string, source: MealSource, catId: number): string {
+  function getChipTooltip(mealKey: string, catId: number): string {
     const LABELS: Record<string, string> = { breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner" };
     const label = LABELS[mealKey] ?? mealKey;
-    if (source.type === "hotel") {
-      const hotel = source.stay.room_pricing.hotel.name;
-      const plan  = source.stay.room_pricing.plan_name;
-      const isFromPrev = localPrevStays.some(s => s.id === source.stay.id);
-      const note  = isFromPrev ? "prev night checkout" : "tonight check-in";
-      return `${label} from ${hotel}${plan ? ` · ${plan}` : ""} (${note})`;
-    }
-    if (source.type === "activity") return `${label} from ${source.name}`;
-    if (source.type === "manual")   return `${label} added manually`;
+    const owner = getChipOwner(mealKey, catId);
 
-    // "none" — show what COULD provide it if they toggle on
-    const prevStay = localPrevStays.find(s => s.stay_category_id === catId);
-    const currStay = stays.find(s => s.stay_category_id === catId);
-    if (mealKey === "breakfast" && prevStay && resolvePlanMeals(prevStay).includes("breakfast")) {
-      return `${label} excluded from ${prevStay.room_pricing.hotel.name} · click to include`;
+    if (owner) {
+      const on    = resolveActiveMeals(owner).includes(mealKey);
+      const hotel = owner.room_pricing.hotel.name;
+      const plan  = owner.room_pricing.plan_name;
+      const note  = mealKey === "breakfast" ? "prev night checkout" : "tonight check-in";
+      if (on)  return `${label} from ${hotel}${plan ? ` · ${plan}` : ""} (${note})`;
+      if (resolvePlanMeals(owner).includes(mealKey))
+        return `${label} excluded from ${hotel} · click to re-include`;
+      return `${label} not in hotel plan · click to add manually`;
     }
-    if (mealKey !== "breakfast" && currStay && resolvePlanMeals(currStay).includes(mealKey)) {
-      return `${label} excluded from ${currStay.room_pricing.hotel.name} · click to include`;
-    }
+    if (activityDerived[mealKey] && !excludedSet.has(mealKey))
+      return `${label} from ${activityDerived[mealKey]} · click to exclude`;
+    if (meals.includes(mealKey)) return `${label} added manually · click to remove`;
     return `${label} not included · click to add`;
   }
 
-  async function handleChipClick(mealKey: string, source: MealSource, catId: number) {
+  function getChipDot(mealKey: string, catId: number): string {
+    const owner = getChipOwner(mealKey, catId);
+    if (owner && resolveActiveMeals(owner).includes(mealKey)) return "bg-blue-400";
+    if (activityDerived[mealKey] && !excludedSet.has(mealKey)) return "bg-amber-400";
+    if (meals.includes(mealKey)) return "bg-emerald-400";
+    return "";
+  }
+
+  async function handleChipClick(mealKey: string, catId: number) {
     if (disabled) return;
+    const owner = getChipOwner(mealKey, catId);
 
-    if (source.type === "hotel") {
-      await toggleStayMeal(source.stay, mealKey);
-      return;
-    }
-
-    if (source.type === "none") {
-      // Try to activate via hotel first
-      const prevStay = localPrevStays.find(s => s.stay_category_id === catId);
-      const currStay = stays.find(s => s.stay_category_id === catId);
-      const hotelStay = mealKey === "breakfast" ? prevStay : currStay;
-      if (hotelStay && resolvePlanMeals(hotelStay).includes(mealKey)) {
-        await toggleStayMeal(hotelStay, mealKey);
+    if (owner) {
+      // Toggle within the owning hotel's active_meals
+      if (resolvePlanMeals(owner).includes(mealKey)) {
+        await toggleStayMeal(owner, mealKey);
         return;
       }
-      // Activity exclusion toggle
-      if (activityDerived[mealKey]) {
-        onExcludedChange(
-          excludedSet.has(mealKey)
-            ? excludedMeals.filter(e => e !== mealKey)
-            : [...excludedMeals, mealKey],
-        );
-        return;
-      }
-      toggleManual(mealKey);
+      // Meal not in hotel plan — fall through to manual
+    }
+    // Activity exclusion
+    if (activityDerived[mealKey]) {
+      onExcludedChange(
+        excludedSet.has(mealKey)
+          ? excludedMeals.filter(e => e !== mealKey)
+          : [...excludedMeals, mealKey],
+      );
       return;
     }
-
-    if (source.type === "activity") {
-      onExcludedChange([...excludedMeals, mealKey]);
-      return;
-    }
-    if (source.type === "manual") {
-      toggleManual(mealKey);
-    }
+    // Manual
+    toggleManual(mealKey);
   }
 
   const hasAnyStays = stays.length > 0 || localPrevStays.length > 0;
-
-  const dotColorMap: Record<MealSource["type"], string> = {
-    hotel:    "bg-blue-400",
-    activity: "bg-amber-400",
-    manual:   "bg-emerald-400",
-    none:     "",
-  };
 
   return (
     <div className="px-5 pt-4 pb-4 border-b space-y-3">
@@ -1914,9 +1882,8 @@ function DayMealsSection({
                 {/* 3 chips */}
                 <div className="flex gap-2">
                   {MEAL_DEFS.map(({ key, Icon, activeClass, inactiveClass }) => {
-                    const source = getMealSource(key, catId);
-                    const on     = isMealActive(source);
-                    const dot    = dotColorMap[source.type];
+                    const on  = isChipOn(key, catId);
+                    const dot = getChipDot(key, catId);
 
                     return (
                       <TooltipProvider key={key} delayDuration={200}>
@@ -1925,7 +1892,7 @@ function DayMealsSection({
                             <button
                               type="button"
                               disabled={disabled || isSavingAny}
-                              onClick={() => handleChipClick(key, source, catId)}
+                              onClick={() => handleChipClick(key, catId)}
                               className={cn(
                                 "relative flex-1 flex flex-col items-center gap-0.5 py-2.5 px-1 rounded-xl border select-none transition-all",
                                 on ? activeClass : cn(inactiveClass, "opacity-40"),
@@ -1942,7 +1909,7 @@ function DayMealsSection({
                             </button>
                           </TooltipTrigger>
                           <TooltipContent side="bottom" className="max-w-[220px] text-xs leading-snug">
-                            {getMealTooltip(key, source, catId)}
+                            {getChipTooltip(key, catId)}
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
