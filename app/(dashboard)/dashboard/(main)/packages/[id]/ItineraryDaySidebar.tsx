@@ -1676,6 +1676,9 @@ function DayMealsSection({
   disabled?: boolean;
 }) {
   const [savingStayId, setSavingStayId] = useState<number | null>(null);
+  // Local copy so optimistic updates to prev-day breakfast work without waiting for parent re-render
+  const [localPrevStays, setLocalPrevStays] = useState<StayItem[]>(previousDayStays);
+  useEffect(() => { setLocalPrevStays(previousDayStays); }, [previousDayStays]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Activity-derived meals: mealKey → activity name
   const activityDerived = useMemo(() => {
@@ -1714,50 +1717,44 @@ function DayMealsSection({
   const allCategoryIds = useMemo(() => {
     const ids = new Set([
       ...stays.map(s => s.stay_category_id),
-      ...previousDayStays.map(s => s.stay_category_id),
+      ...localPrevStays.map(s => s.stay_category_id),
     ]);
     // Preserve today's category order first, then any prev-only ones
     return [
       ...stays.map(s => s.stay_category_id),
-      ...previousDayStays
+      ...localPrevStays
         .map(s => s.stay_category_id)
         .filter(id => !stays.some(s => s.stay_category_id === id)),
     ].filter((id, i, arr) => arr.indexOf(id) === i);
-  }, [stays, previousDayStays]);
+  }, [stays, localPrevStays]);
 
   // Total effective meal count for the badge
   const effectiveCount = useMemo(() => {
     const all = new Set<string>();
     for (const catId of allCategoryIds) {
-      const prevStay = previousDayStays.find(s => s.stay_category_id === catId);
+      const prevStay = localPrevStays.find(s => s.stay_category_id === catId);
       const currStay = stays.find(s => s.stay_category_id === catId);
-      // Breakfast from prev-day hotel
       if (prevStay && resolveActiveMeals(prevStay).includes("breakfast")) all.add("breakfast");
-      // Non-breakfast from current hotel
       if (currStay) {
         for (const m of resolveActiveMeals(currStay).filter(m => m !== "breakfast")) all.add(m);
       }
     }
-    // Activity meals (not excluded)
     for (const m of Object.keys(activityDerived)) {
       if (!excludedSet.has(m)) all.add(m);
     }
-    // Manual meals
     for (const m of meals) all.add(m);
     return all.size;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allCategoryIds, stays, previousDayStays, activityDerived, meals, excludedSet]);
+  }, [allCategoryIds, stays, localPrevStays, activityDerived, meals, excludedSet]);
 
   async function toggleStayMeal(stay: StayItem, mealKey: string) {
     const current = resolveActiveMeals(stay);
     const next = current.includes(mealKey)
       ? current.filter(m => m !== mealKey)
       : [...current, mealKey];
-    // Optimistic update in whichever list this stay belongs to
-    const isPrev = previousDayStays.some(s => s.id === stay.id);
-    if (isPrev) {
-      // We only update active_meals on the server; the parent's `days` state
-      // will reflect the change on next navigation — no local state for prevDayStays
+    // Optimistic update — prev-day stays use local state, current-day stays use parent callback
+    if (localPrevStays.some(s => s.id === stay.id)) {
+      setLocalPrevStays(prev => prev.map(s => s.id === stay.id ? { ...s, active_meals: next } : s));
     } else {
       onStaysChange(stays.map(s => s.id === stay.id ? { ...s, active_meals: next } : s));
     }
@@ -1775,7 +1772,7 @@ function DayMealsSection({
   type MealSource = { type: "hotel"; stay: StayItem } | { type: "activity"; name: string } | { type: "manual" } | { type: "none" };
 
   function getMealSource(mealKey: string, catId: number): MealSource {
-    const prevStay = previousDayStays.find(s => s.stay_category_id === catId);
+    const prevStay = localPrevStays.find(s => s.stay_category_id === catId);
     const currStay = stays.find(s => s.stay_category_id === catId);
 
     // Breakfast → look in yesterday's hotel
@@ -1813,7 +1810,7 @@ function DayMealsSection({
     if (source.type === "hotel") {
       const hotel = source.stay.room_pricing.hotel.name;
       const plan  = source.stay.room_pricing.plan_name;
-      const isFromPrev = previousDayStays.some(s => s.id === source.stay.id);
+      const isFromPrev = localPrevStays.some(s => s.id === source.stay.id);
       const note  = isFromPrev ? "prev night checkout" : "tonight check-in";
       return `${label} from ${hotel}${plan ? ` · ${plan}` : ""} (${note})`;
     }
@@ -1821,7 +1818,7 @@ function DayMealsSection({
     if (source.type === "manual")   return `${label} added manually`;
 
     // "none" — show what COULD provide it if they toggle on
-    const prevStay = previousDayStays.find(s => s.stay_category_id === catId);
+    const prevStay = localPrevStays.find(s => s.stay_category_id === catId);
     const currStay = stays.find(s => s.stay_category_id === catId);
     if (mealKey === "breakfast" && prevStay && resolvePlanMeals(prevStay).includes("breakfast")) {
       return `${label} excluded from ${prevStay.room_pricing.hotel.name} · click to include`;
@@ -1842,7 +1839,7 @@ function DayMealsSection({
 
     if (source.type === "none") {
       // Try to activate via hotel first
-      const prevStay = previousDayStays.find(s => s.stay_category_id === catId);
+      const prevStay = localPrevStays.find(s => s.stay_category_id === catId);
       const currStay = stays.find(s => s.stay_category_id === catId);
       const hotelStay = mealKey === "breakfast" ? prevStay : currStay;
       if (hotelStay && resolvePlanMeals(hotelStay).includes(mealKey)) {
@@ -1871,7 +1868,7 @@ function DayMealsSection({
     }
   }
 
-  const hasAnyStays = stays.length > 0 || previousDayStays.length > 0;
+  const hasAnyStays = stays.length > 0 || localPrevStays.length > 0;
 
   const dotColorMap: Record<MealSource["type"], string> = {
     hotel:    "bg-blue-400",
@@ -1899,7 +1896,7 @@ function DayMealsSection({
       {hasAnyStays ? (
         <div className="space-y-3">
           {allCategoryIds.map(catId => {
-            const prevStay = previousDayStays.find(s => s.stay_category_id === catId);
+            const prevStay = localPrevStays.find(s => s.stay_category_id === catId);
             const currStay = stays.find(s => s.stay_category_id === catId);
             const label    = (currStay ?? prevStay)!.stay_category.label;
             const isSavingAny = savingStayId === prevStay?.id || savingStayId === currStay?.id;
