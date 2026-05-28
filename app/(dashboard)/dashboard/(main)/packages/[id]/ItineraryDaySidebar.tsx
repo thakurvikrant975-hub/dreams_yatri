@@ -1635,6 +1635,20 @@ const MEAL_DEFS = [
     inactiveClass: "bg-indigo-50 border-indigo-200" },
 ] as const;
 
+// Derive which meals a meal-type covers.
+// Uses covered_meals if configured; falls back to keyword scanning the plan/type name.
+function getEffectiveMeals(mealType: { name: string; covered_meals: string[] } | null, planName?: string | null): string[] {
+  if (!mealType) return [];
+  if (mealType.covered_meals.length > 0) return mealType.covered_meals;
+  // Fallback: scan the meal type name and plan name for meal keywords
+  const text = `${mealType.name} ${planName ?? ""}`.toLowerCase();
+  const detected: string[] = [];
+  if (text.includes("breakfast")) detected.push("breakfast");
+  if (text.includes("lunch"))     detected.push("lunch");
+  if (text.includes("dinner"))    detected.push("dinner");
+  return detected;
+}
+
 function DayMealsSection({
   meals,
   onChange,
@@ -1648,95 +1662,157 @@ function DayMealsSection({
   stays: StayItem[];
   activities: ActivityItem[];
 }) {
-  // Derive meals from hotel stays and activities
-  const derived = useMemo(() => {
+  // Per-category hotel meals
+  const stayMeals = useMemo(() =>
+    stays.map(stay => ({
+      categoryLabel: stay.stay_category.label,
+      hotelName:     stay.room_pricing.hotel.name,
+      planName:      stay.room_pricing.plan_name,
+      covered:       getEffectiveMeals(stay.room_pricing.meal_type, stay.room_pricing.plan_name),
+    })),
+    [stays],
+  );
+
+  // Union of all hotel-derived meal keys
+  const hotelDerivedSet = useMemo(
+    () => new Set(stayMeals.flatMap(s => s.covered)),
+    [stayMeals],
+  );
+
+  // Activity-derived meals (key → activity name)
+  const activityDerived = useMemo(() => {
     const result: Record<string, string> = {};
-    // 1. Hotel stays
-    for (const stay of stays) {
-      const covered = stay.room_pricing.meal_type?.covered_meals ?? [];
-      const name    = stay.room_pricing.hotel.name;
-      for (const m of covered) {
-        if (!result[m]) result[m] = name;
-      }
-    }
-    // 2. Activities (lower priority)
     for (const act of activities) {
       for (const m of act.activity.included_meals) {
         if (!result[m]) result[m] = act.activity.name;
       }
     }
     return result;
-  }, [stays, activities]);
+  }, [activities]);
 
-  const totalIncluded = MEAL_DEFS.filter(({ key }) => derived[key] || meals.includes(key)).length;
+  // Full derived set (hotel + activity)
+  const allDerived = useMemo(
+    () => new Set([...hotelDerivedSet, ...Object.keys(activityDerived)]),
+    [hotelDerivedSet, activityDerived],
+  );
+
+  // Total distinct meals for this day
+  const totalMeals = MEAL_DEFS.filter(({ key }) => allDerived.has(key) || meals.includes(key)).length;
+
+  const hasHotelMeals  = stays.length > 0;
+  const hasActMeals    = Object.keys(activityDerived).length > 0;
 
   function toggle(key: string) {
-    if (derived[key]) return; // derived meals cannot be manually toggled
-    onChange(meals.includes(key) ? meals.filter((m) => m !== key) : [...meals, key]);
+    if (allDerived.has(key)) return;
+    onChange(meals.includes(key) ? meals.filter(m => m !== key) : [...meals, key]);
   }
 
   return (
-    <div className="px-5 pt-4 pb-4 border-b shrink-0">
-      <div className="flex items-center justify-between mb-3">
+    <div className="px-5 pt-4 pb-4 border-b shrink-0 space-y-3">
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           <UtensilsCrossed className="h-3 w-3 text-muted-foreground" />
           <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Meals Included</p>
         </div>
-        {totalIncluded > 0 && (
+        {totalMeals > 0 && (
           <span className="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full">
-            {totalIncluded} meal{totalIncluded !== 1 ? "s" : ""}
+            {totalMeals} meal{totalMeals !== 1 ? "s" : ""}
           </span>
         )}
       </div>
 
-      <div className="flex gap-2 mb-3">
-        {MEAL_DEFS.map(({ key, label, Icon, color, activeClass, inactiveClass }) => {
-          const fromDerived = !!derived[key];
-          const included    = fromDerived || meals.includes(key);
-          return (
-            <button
-              key={key}
-              type="button"
-              disabled={disabled || fromDerived}
-              onClick={() => toggle(key)}
-              title={fromDerived ? `Included via ${derived[key]}` : undefined}
-              className={cn(
-                "relative flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border flex-1 select-none transition-all",
-                included ? activeClass : cn(inactiveClass, !fromDerived && !disabled && "hover:opacity-80 cursor-pointer"),
-                (disabled || fromDerived) && "cursor-default",
-              )}
-            >
-              {included && (
-                <span className="absolute top-1.5 right-1.5 h-3.5 w-3.5 rounded-full bg-green-500 flex items-center justify-center shadow-sm">
-                  <Check className="h-2 w-2 text-white" />
-                </span>
-              )}
-              {fromDerived && (
-                <span className="absolute top-1.5 left-1.5 h-3.5 w-3.5 rounded-full bg-blue-500 flex items-center justify-center shadow-sm" title="Auto-detected">
-                  <Lock className="h-2 w-2 text-white" />
-                </span>
-              )}
-              <Icon className={cn("h-4 w-4", color)} />
-              <span className={cn("text-[10px] font-bold uppercase tracking-widest leading-none", color)}>{label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Attribution info */}
-      {Object.keys(derived).length > 0 && (
+      {/* Hotel stays — per category */}
+      {hasHotelMeals && (
         <div className="space-y-1">
-          {MEAL_DEFS.filter(({ key }) => derived[key]).map(({ key, label, Icon, color }) => (
-            <div key={key} className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-              <Icon className={cn("h-3 w-3 shrink-0", color)} />
-              <span className="font-medium capitalize">{label}:</span>
-              <span className="truncate">Included via <span className="font-semibold text-foreground/70">{derived[key]}</span></span>
+          <p className="text-[9px] uppercase tracking-widest text-muted-foreground/60 font-bold flex items-center gap-1">
+            <Hotel className="h-2.5 w-2.5" /> Hotel Meals
+          </p>
+          {stayMeals.map(s => (
+            <div key={s.categoryLabel} className="flex items-start gap-2 rounded-lg bg-muted/30 px-2.5 py-1.5">
+              <span className="text-[10px] font-bold text-muted-foreground min-w-[52px] shrink-0 pt-px">
+                {s.categoryLabel}
+              </span>
+              {s.covered.length > 0 ? (
+                <div className="flex flex-wrap gap-1 items-center min-w-0">
+                  {MEAL_DEFS.filter(m => s.covered.includes(m.key)).map(({ key, label, Icon, color }) => (
+                    <span key={key} className={cn("flex items-center gap-0.5 text-[9px] font-bold rounded-full px-1.5 py-0.5 border bg-white/70", color)}>
+                      <Icon className="h-2.5 w-2.5" /> {label}
+                    </span>
+                  ))}
+                  <span className="text-[9px] text-muted-foreground/70 truncate max-w-[110px]" title={s.planName ?? s.hotelName}>
+                    {s.planName ?? s.hotelName}
+                  </span>
+                </div>
+              ) : (
+                <span className="text-[10px] text-muted-foreground/40 italic">No meals in plan</span>
+              )}
             </div>
           ))}
         </div>
       )}
 
-      {Object.keys(derived).length === 0 && stays.length === 0 && activities.length === 0 && (
+      {/* Activity meals */}
+      {hasActMeals && (
+        <div className="space-y-1">
+          <p className="text-[9px] uppercase tracking-widest text-muted-foreground/60 font-bold flex items-center gap-1">
+            <Activity className="h-2.5 w-2.5" /> Activity Meals
+          </p>
+          {MEAL_DEFS.filter(({ key }) => activityDerived[key]).map(({ key, label, Icon, color }) => (
+            <div key={key} className="flex items-center gap-1.5 rounded-lg bg-muted/30 px-2.5 py-1.5">
+              <Icon className={cn("h-3 w-3 shrink-0", color)} />
+              <span className="text-[10px] font-semibold">{label}:</span>
+              <span className="text-[10px] text-muted-foreground truncate">{activityDerived[key]}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Manual toggles */}
+      <div className="space-y-1.5">
+        {(hasHotelMeals || hasActMeals) && (
+          <p className="text-[9px] uppercase tracking-widest text-muted-foreground/60 font-bold">
+            Add Manually
+          </p>
+        )}
+        <div className="flex gap-2">
+          {MEAL_DEFS.map(({ key, label, Icon, color, activeClass, inactiveClass }) => {
+            const fromDerived = allDerived.has(key);
+            const included    = fromDerived || meals.includes(key);
+            return (
+              <button
+                key={key}
+                type="button"
+                disabled={disabled || fromDerived}
+                onClick={() => toggle(key)}
+                title={fromDerived ? "Auto-included from hotel/activity" : undefined}
+                className={cn(
+                  "relative flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border flex-1 select-none transition-all",
+                  included ? activeClass : cn(inactiveClass, !fromDerived && !disabled && "hover:opacity-80 cursor-pointer"),
+                  (disabled || fromDerived) && "cursor-default",
+                )}
+              >
+                {included && (
+                  <span className="absolute top-1.5 right-1.5 h-3.5 w-3.5 rounded-full bg-green-500 flex items-center justify-center shadow-sm">
+                    <Check className="h-2 w-2 text-white" />
+                  </span>
+                )}
+                {fromDerived && (
+                  <span className="absolute top-1.5 left-1.5 h-3.5 w-3.5 rounded-full bg-blue-500 flex items-center justify-center shadow-sm">
+                    <Lock className="h-2 w-2 text-white" />
+                  </span>
+                )}
+                <Icon className={cn("h-4 w-4", color)} />
+                <span className={cn("text-[10px] font-bold uppercase tracking-widest leading-none", color)}>{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Empty state */}
+      {!hasHotelMeals && !hasActMeals && (
         <p className="text-[10px] text-muted-foreground/50">
           Toggle meals manually, or add a hotel stay / activity that includes meals — they'll appear here automatically.
         </p>
