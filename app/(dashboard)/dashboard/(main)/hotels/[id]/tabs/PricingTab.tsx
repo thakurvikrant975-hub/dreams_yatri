@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef } from "react";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
@@ -39,7 +39,7 @@ import {
 // ── Types ─────────────────────────────────────────────────────────────────
 
 type RoomOption = { id: number; name: string };
-type MealType   = { id: number; name: string };
+type MealType   = { id: number; name: string; covered_meals: string[] };
 type DietType   = { id: number; name: string };
 
 type OccupancyPrice = {
@@ -262,7 +262,7 @@ function SeasonsInlineList({
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
           <CalendarDays className="h-3.5 w-3.5" />
           Seasonal Date Ranges
-          <span className="font-normal normal-case text-muted-foreground/60">— at least 1 required</span>
+          <span className="font-normal normal-case text-muted-foreground/60">— optional</span>
         </p>
       </div>
 
@@ -383,6 +383,25 @@ function SeasonsInlineList({
   );
 }
 
+// ── Plan-name auto-fill helpers ───────────────────────────────────────────
+
+const MEAL_LABELS: Record<string, string> = { breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner" };
+
+function formatCoveredMeals(covered: string[]): string {
+  const names = covered.map(m => MEAL_LABELS[m] ?? m);
+  if (names.length === 0) return "";
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]} & ${names[1]}`;
+  return names.slice(0, -1).join(", ") + " & " + names.at(-1)!;
+}
+
+function buildAutoName(roomName: string, mealType: MealType | null): string {
+  if (!roomName) return "";
+  if (!mealType) return `${roomName} - Room Only`;
+  if (mealType.covered_meals.length > 0) return `${roomName} with ${formatCoveredMeals(mealType.covered_meals)}`;
+  return `${roomName} with ${mealType.name}`;
+}
+
 // ── Pricing Form ──────────────────────────────────────────────────────────
 
 function PricingForm({
@@ -405,16 +424,44 @@ function PricingForm({
   isNew?:    boolean;
 }) {
   const [form, setForm] = useState<PricingFormState>(initial);
+  const autoNameRef = useRef(!initial.plan_name); // true = plan name was auto-filled (or blank on new)
+
   function upd<K extends keyof PricingFormState>(key: K, value: PricingFormState[K]) {
     setForm(prev => ({ ...prev, [key]: value }));
+  }
+
+  function handleRoomChange(roomId: string) {
+    const roomName = rooms.find(r => String(r.id) === roomId)?.name ?? "";
+    const mealType = mealTypes.find(m => String(m.id) === form.meal_type_id) ?? null;
+    setForm(prev => ({
+      ...prev,
+      room_id: roomId,
+      plan_name: autoNameRef.current ? buildAutoName(roomName, mealType) : prev.plan_name,
+    }));
+  }
+
+  function handleMealChange(mealId: string) {
+    const roomName = rooms.find(r => String(r.id) === form.room_id)?.name ?? "";
+    const mealType = mealTypes.find(m => String(m.id) === mealId) ?? null;
+    setForm(prev => ({
+      ...prev,
+      meal_type_id: mealId,
+      plan_name: autoNameRef.current ? buildAutoName(roomName, mealType) : prev.plan_name,
+    }));
+  }
+
+  function handlePlanNameChange(raw: string) {
+    const v = raw.charAt(0).toUpperCase() + raw.slice(1);
+    autoNameRef.current = false; // user typed manually — stop auto-fill
+    upd("plan_name", v);
   }
 
   const seasonOverlaps = overlappingIds(form.seasons);
 
   const isValid =
     !!form.room_id &&
+    !!form.meal_type_id && form.meal_type_id !== "none" &&
     !!form.base_price_per_night && Number(form.base_price_per_night) > 0 &&
-    form.seasons.length > 0 &&
     seasonOverlaps.size === 0 &&
     form.seasons.every(
       s => !!s.valid_from && !!s.valid_to &&
@@ -424,11 +471,11 @@ function PricingForm({
   return (
     <div className="border rounded-xl p-4 space-y-4 bg-muted/20">
 
-      {/* Row 1: Room + Plan Name */}
+      {/* Row 1: Room + Meal Type */}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label>Room <span className="text-destructive">*</span></Label>
-          <Select value={form.room_id} onValueChange={v => upd("room_id", v)}>
+          <Select value={form.room_id} onValueChange={handleRoomChange}>
             <SelectTrigger><SelectValue placeholder="Select room" /></SelectTrigger>
             <SelectContent>
               {rooms.map(r => (
@@ -438,31 +485,30 @@ function PricingForm({
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label>Plan Name</Label>
-          <Input
-            placeholder="e.g. Luxury Queen Riverside"
-            value={form.plan_name}
-            onChange={e => {
-              const v = e.target.value;
-              upd("plan_name", v.charAt(0).toUpperCase() + v.slice(1));
-            }}
-          />
-        </div>
-      </div>
-
-      {/* Row 2: Meal + Diet */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label>Meal Type</Label>
-          <Select value={form.meal_type_id} onValueChange={v => upd("meal_type_id", v)}>
-            <SelectTrigger><SelectValue placeholder="None (EP)" /></SelectTrigger>
+          <Label>Meal Type <span className="text-destructive">*</span></Label>
+          <Select value={form.meal_type_id} onValueChange={handleMealChange}>
+            <SelectTrigger className={cn(!form.meal_type_id || form.meal_type_id === "none" ? "border-destructive/40" : "")}>
+              <SelectValue placeholder="Select meal plan…" />
+            </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">None (EP — Room Only)</SelectItem>
+              <SelectItem value="none">Room Only (EP)</SelectItem>
               {mealTypes.map(m => (
                 <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
+        </div>
+      </div>
+
+      {/* Row 2: Plan Name + Diet */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label>Plan Name <span className="text-xs font-normal text-muted-foreground">(auto-filled)</span></Label>
+          <Input
+            placeholder="e.g. Deluxe Room with Breakfast & Dinner"
+            value={form.plan_name}
+            onChange={e => handlePlanNameChange(e.target.value)}
+          />
         </div>
         <div className="space-y-1.5">
           <Label>Diet Type</Label>
@@ -845,13 +891,11 @@ function PlanRow({
             {occupancySummary && (
               <p className="text-[10px] text-primary/80">{occupancySummary}</p>
             )}
-            {seasonCount > 0 ? (
+            {seasonCount > 0 && (
               <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-orange-600 border-orange-300">
                 <Calendar className="h-2.5 w-2.5 mr-1" />
                 {seasonCount} season{seasonCount !== 1 ? "s" : ""}
               </Badge>
-            ) : (
-              <span className="text-[10px] text-destructive/70 italic">no seasons — edit to add</span>
             )}
           </div>
         </div>
@@ -1118,7 +1162,7 @@ export function PricingTab({
           <div>
             <CardTitle className="text-base">Pricing Plans</CardTitle>
             <CardDescription>
-              {pricing.length} plan{pricing.length !== 1 ? "s" : ""} · Each plan requires at least one season · Expand to manage plan-level occupancy prices
+              {pricing.length} plan{pricing.length !== 1 ? "s" : ""} · Seasons are optional · Expand a plan to manage occupancy prices
             </CardDescription>
           </div>
           {!adding && editId === null && (

@@ -885,10 +885,9 @@ export async function createRoomPricingWithSeasons(
 ): Promise<HotelFormState & { id?: number }> {
   try {
     if (!data.room_id) return { success: false, message: "Room is required." };
-    if (!data.seasons.length) return { success: false, message: "At least one season is required." };
 
     const count = await db.hotel_room_pricing.count({ where: { hotel_id } });
-    const basePricePerNight = data.price_per_night ?? data.seasons[0].price_per_night;
+    const basePricePerNight = data.price_per_night ?? data.seasons[0]?.price_per_night ?? 0;
 
     const plan = await db.$transaction(async (tx) => {
       const p = await tx.hotel_room_pricing.create({
@@ -949,9 +948,8 @@ export async function updateRoomPricingWithSeasons(
 ): Promise<HotelFormState> {
   try {
     if (!data.room_id) return { success: false, message: "Room is required." };
-    if (!data.seasons.length) return { success: false, message: "At least one season is required." };
 
-    const basePricePerNight = data.price_per_night ?? data.seasons[0].price_per_night;
+    const basePricePerNight = data.price_per_night ?? data.seasons[0]?.price_per_night ?? 0;
 
     await db.$transaction(async (tx) => {
       await tx.hotel_room_pricing.update({
