@@ -224,7 +224,10 @@ export async function handleDeleteStay(id: number, packageId: number) {
 export async function handleUpdateStayActiveMeals(id: number, activeMeals: string[], packageId: number) {
   try {
     await updateStayActiveMeals(id, activeMeals);
-    revalidatePath(p(packageId));
+    // No revalidatePath — meal toggles are managed in client state.
+    // revalidatePath would trigger an RSC re-render that remounts the sidebar
+    // and reinitializes localPrevStays from stale props, breaking optimistic updates.
+    void packageId;
     return { success: true as const };
   } catch (e) {
     console.error(e);
