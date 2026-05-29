@@ -67,70 +67,52 @@ function ImageThumb({
   return (
     <div
       className={cn(
-        "group relative aspect-square rounded-xl overflow-hidden border-2 bg-muted",
-        image.is_primary ? "border-primary" : "border-border hover:border-muted-foreground/40",
+        "group relative aspect-square rounded-xl overflow-hidden border-2 bg-dashboard-base-200",
+        image.is_primary ? "border-dashboard-primary" : "border-dashboard-base-content/20 hover:border-dashboard-base-content/40",
       )}
     >
-      <img
-        src={`${base}/${image.url}`}
-        alt={image.alt ?? "Hotel image"}
-        className="w-full h-full object-cover"
-      />
+      <img src={`${base}/${image.url}`} alt={image.alt ?? "Hotel image"} className="w-full h-full object-cover" />
 
-      {/* Primary badge */}
       {image.is_primary && (
-        <Badge className="absolute bottom-1 left-1 text-[9px] px-1.5 py-0 pointer-events-none bg-primary">
-          <Star className="h-2.5 w-2.5 mr-0.5" />
-          Primary
+        <Badge className="absolute bottom-1 left-1 text-[9px] px-1.5 py-0 pointer-events-none bg-dashboard-primary text-dashboard-primary-content">
+          <Star className="h-2.5 w-2.5 mr-0.5" /> Primary
         </Badge>
       )}
 
-      {/* Hover actions */}
       <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5">
         {!image.is_primary && (
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            className="text-[10px] h-6 px-2"
+          <Button type="button" size="sm" variant="secondary" className="text-[10px] h-6 px-2 cursor-pointer"
             disabled={isPending}
             onClick={() => startTransition(async () => {
               const r = await setPrimaryImage(image.id, hotel_id);
               if (r.success) { toast.success(r.message); onSetPrimary(); }
               else toast.error(r.message);
-            })}
-          >
-            <Star className="h-2.5 w-2.5 mr-1" />
-            Set Primary
+            })}>
+            <Star className="h-2.5 w-2.5 mr-1" /> Set Primary
           </Button>
         )}
 
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button type="button" size="sm" variant="destructive" className="text-[10px] h-6 px-2">
-              <Trash2 className="h-2.5 w-2.5 mr-1" />
-              Delete
+            <Button type="button" size="sm"
+              className="text-[10px] h-6 px-2 bg-dashboard-error text-dashboard-error-content hover:bg-dashboard-error/90 cursor-pointer">
+              <Trash2 className="h-2.5 w-2.5 mr-1" /> Delete
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Image</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will permanently delete the image from R2 storage too.
-              </AlertDialogDescription>
+              <AlertDialogDescription>This will permanently delete the image from R2 storage too.</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogCancel className="cursor-pointer">Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => startTransition(async () => {
-                  const r = await deleteHotelImage(
-                    image.id, hotel_id, image.url, image.thumbnail ?? undefined
-                  );
+                  const r = await deleteHotelImage(image.id, hotel_id, image.url, image.thumbnail ?? undefined);
                   if (r.success) { toast.success(r.message); onDelete(); }
                   else toast.error(r.message);
                 })}
-                className="bg-destructive text-white hover:bg-destructive/90"
-              >
+                className="bg-dashboard-error text-dashboard-error-content hover:bg-dashboard-error/90 cursor-pointer">
                 Delete
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -213,53 +195,42 @@ function CategoryBlock({
   }
 
   return (
-    <Card className={cn(missingRequired && "border-destructive/50 bg-destructive/5")}>
-      <CardHeader className="pb-3">
+    <div className={cn(
+      "border rounded-xl overflow-hidden bg-dashboard-base-100",
+      missingRequired ? "border-dashboard-error/40 bg-dashboard-error/5" : "border-dashboard-base-content/20"
+    )}>
+      <div className="px-4 py-3 border-b border-dashboard-base-content/10">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Collapse toggle */}
-            <button
-              type="button"
-              onClick={() => setExpanded(p => !p)}
-              className="flex items-center gap-2"
-            >
+            <button type="button" onClick={() => setExpanded(p => !p)}
+              className="flex items-center gap-2 cursor-pointer">
               {expanded
-                ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                : <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              }
-              <CardTitle className="text-sm font-semibold">{category.name}</CardTitle>
+                ? <ChevronUp className="h-4 w-4 text-dashboard-base-content/40" />
+                : <ChevronDown className="h-4 w-4 text-dashboard-base-content/40" />}
+              <span className="text-sm font-semibold text-dashboard-base-content">{category.name}</span>
             </button>
 
             {category.is_required && (
-              <Badge variant="outline" className="text-[10px] border-destructive text-destructive">
-                Required
-              </Badge>
+              <Badge className="text-[10px] border border-dashboard-error/50 text-dashboard-error bg-dashboard-error/10">Required</Badge>
             )}
             {category.room_pricing_id && (
-              <Badge variant="secondary" className="text-[10px]">Room</Badge>
+              <Badge className="text-[10px] bg-dashboard-base-200 text-dashboard-base-content/60 border border-dashboard-base-content/20">Room</Badge>
             )}
-
             {category.is_required && (
               missingRequired
-                ? <AlertTriangle className="h-4 w-4 text-destructive" />
-                : <CheckCircle2 className="h-4 w-4 text-green-500" />
+                ? <AlertTriangle className="h-4 w-4 text-dashboard-error" />
+                : <CheckCircle2 className="h-4 w-4 text-dashboard-success" />
             )}
-
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-dashboard-base-content/50">
               {images.length} photo{images.length !== 1 ? "s" : ""}
             </span>
           </div>
 
-          {/* Delete non-system, non-required categories */}
           {!category.is_system && !category.is_required && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                >
+                <Button type="button" variant="ghost" size="icon"
+                  className="h-7 w-7 text-dashboard-base-content/50 hover:text-dashboard-error hover:bg-dashboard-error/10 cursor-pointer">
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               </AlertDialogTrigger>
@@ -267,24 +238,18 @@ function CategoryBlock({
                 <AlertDialogHeader>
                   <AlertDialogTitle>Delete Category</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Delete <span className="font-semibold">{category.name}</span> and all its
-                    images? This cannot be undone.
+                    Delete <span className="font-semibold">{category.name}</span> and all its images? This cannot be undone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogCancel className="cursor-pointer">Cancel</AlertDialogCancel>
                   <AlertDialogAction
                     onClick={async () => {
                       const r = await deleteImageCategory(category.id, hotel_id);
-                      if (r.success) {
-                        toast.success(r.message);
-                        onRemove(category.id);
-                      } else {
-                        toast.error(r.message);
-                      }
+                      if (r.success) { toast.success(r.message); onRemove(category.id); }
+                      else toast.error(r.message);
                     }}
-                    className="bg-destructive text-white hover:bg-destructive/90"
-                  >
+                    className="bg-dashboard-error text-dashboard-error-content hover:bg-dashboard-error/90 cursor-pointer">
                     Delete Category
                   </AlertDialogAction>
                 </AlertDialogFooter>
@@ -294,60 +259,38 @@ function CategoryBlock({
         </div>
 
         {missingRequired && (
-          <p className="text-xs text-destructive mt-1">
-            At least 1 image required for this category
-          </p>
+          <p className="text-xs text-dashboard-error mt-1">At least 1 image required for this category</p>
         )}
-      </CardHeader>
+      </div>
 
       {expanded && (
-        <CardContent className="space-y-4 pt-0">
-          {/* Existing images */}
+        <div className="p-4 space-y-4">
           {images.length > 0 && (
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
-              {images
-                .sort((a, b) => a.sort_order - b.sort_order)
-                .map(img => (
-                  <ImageThumb
-                    key={img.id}
-                    image={img}
-                    hotel_id={hotel_id}
-                    onDelete={()       => handleImageDelete(img.id)}
-                    onSetPrimary={()   => handleSetPrimary(img.id)}
-                  />
-                ))}
+              {images.sort((a, b) => a.sort_order - b.sort_order).map(img => (
+                <ImageThumb key={img.id} image={img} hotel_id={hotel_id}
+                  onDelete={() => handleImageDelete(img.id)} onSetPrimary={() => handleSetPrimary(img.id)} />
+              ))}
             </div>
           )}
 
-          {/* Upload new images for this category */}
-          <ImagePicker
-            folder="hotels"
-            value={newPicks}
-            onChange={setNewPicks}
-            maxFiles={10}
-            label={`Add ${category.name} Photos`}
-            hint="JPG, PNG, WebP"
-          />
+          <ImagePicker folder="hotels" value={newPicks} onChange={setNewPicks}
+            maxFiles={10} label={`Add ${category.name} Photos`} hint="JPG, PNG, WebP" />
 
           {newPicks.length > 0 && (
             <div className="flex justify-end">
-              <Button
-                type="button"
-                size="sm"
-                onClick={handleSaveNew}
+              <Button type="button" size="sm" onClick={handleSaveNew}
                 disabled={isPending || newPicks.some(p => p.status === "uploading")}
-                className="gap-1.5"
-              >
+                className="gap-1.5 bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90 cursor-pointer">
                 {isPending
                   ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Saving...</>
-                  : <>Save {newPicks.filter(p => p.status === "uploaded").length} Photo{newPicks.length !== 1 ? "s" : ""}</>
-                }
+                  : <>Save {newPicks.filter(p => p.status === "uploaded").length} Photo{newPicks.length !== 1 ? "s" : ""}</>}
               </Button>
             </div>
           )}
-        </CardContent>
+        </div>
       )}
-    </Card>
+    </div>
   );
 }
 
@@ -397,116 +340,70 @@ export function ImagesTab({
   const missingRequired    = requiredCategories.filter(c => c.images.length === 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 bg-dashboard-base-100 p-8 rounded-xl shadow-lg border border-dashboard-base-content/20">
 
-      {/* Validation summary */}
       {missingRequired.length > 0 && (
-        <div className="flex items-start gap-2 bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2.5 text-sm text-destructive">
+        <div className="flex items-start gap-2 bg-dashboard-error/10 border border-dashboard-error/20 rounded-xl px-3 py-2.5 text-sm text-dashboard-error">
           <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-          <span>
-            Missing required images in:{" "}
-            <strong>{missingRequired.map(c => c.name).join(", ")}</strong>
-          </span>
+          <span>Missing required images in: <strong>{missingRequired.map(c => c.name).join(", ")}</strong></span>
         </div>
       )}
 
-      {/* Required categories */}
       {requiredCategories.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-            Required
-          </h3>
+          <h3 className="text-xs font-bold text-dashboard-base-content/50 uppercase tracking-widest">Required</h3>
           {requiredCategories.map(cat => (
-            <CategoryBlock
-              key={cat.id}
-              category={cat}
-              hotel_id={hotel_id}
-              onUpdate={handleCategoryUpdate}
-              onRemove={handleCategoryRemove}
-            />
+            <CategoryBlock key={cat.id} category={cat} hotel_id={hotel_id}
+              onUpdate={handleCategoryUpdate} onRemove={handleCategoryRemove} />
           ))}
         </div>
       )}
 
-      {/* Optional hotel-level categories */}
       {hotelCategories.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-            Hotel Areas
-          </h3>
+          <h3 className="text-xs font-bold text-dashboard-base-content/50 uppercase tracking-widest">Hotel Areas</h3>
           {hotelCategories.map(cat => (
-            <CategoryBlock
-              key={cat.id}
-              category={cat}
-              hotel_id={hotel_id}
-              onUpdate={handleCategoryUpdate}
-              onRemove={handleCategoryRemove}
-            />
+            <CategoryBlock key={cat.id} category={cat} hotel_id={hotel_id}
+              onUpdate={handleCategoryUpdate} onRemove={handleCategoryRemove} />
           ))}
         </div>
       )}
 
-      {/* Room-specific categories */}
       {roomCategories.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-            Room Photos
-          </h3>
+          <h3 className="text-xs font-bold text-dashboard-base-content/50 uppercase tracking-widest">Room Photos</h3>
           {roomCategories.map(cat => (
-            <CategoryBlock
-              key={cat.id}
-              category={cat}
-              hotel_id={hotel_id}
-              onUpdate={handleCategoryUpdate}
-              onRemove={handleCategoryRemove}
-            />
+            <CategoryBlock key={cat.id} category={cat} hotel_id={hotel_id}
+              onUpdate={handleCategoryUpdate} onRemove={handleCategoryRemove} />
           ))}
         </div>
       )}
 
-      {/* Add custom category */}
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-          Custom Categories
-        </h3>
+        <h3 className="text-xs font-bold text-dashboard-base-content/50 uppercase tracking-widest">Custom Categories</h3>
         {showNewCat ? (
           <div className="flex items-center gap-2">
-            <Input
-              placeholder="e.g. Rooftop, Game Room, Conference Hall"
-              value={newCatName}
-              onChange={e => setNewCatName(e.target.value)}
+            <Input placeholder="e.g. Rooftop, Game Room, Conference Hall"
+              value={newCatName} onChange={e => setNewCatName(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleAddCategory()}
-              autoFocus
-              maxLength={60}
-              className="max-w-xs"
-            />
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleAddCategory}
+              autoFocus maxLength={60}
+              className="max-w-xs bg-dashboard-base-100 border-dashboard-base-content/20" />
+            <Button type="button" size="sm" onClick={handleAddCategory}
               disabled={!newCatName.trim() || isPending}
-            >
+              className="bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90 cursor-pointer">
               {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Add"}
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={() => { setShowNewCat(false); setNewCatName(""); }}
-            >
+            <Button type="button" size="sm" variant="ghost"
+              className="text-dashboard-base-content/60 hover:bg-dashboard-base-300 cursor-pointer"
+              onClick={() => { setShowNewCat(false); setNewCatName(""); }}>
               <X className="h-3.5 w-3.5" />
             </Button>
           </div>
         ) : (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="border-dashed"
-            onClick={() => setShowNewCat(true)}
-          >
-            <Plus className="mr-1.5 h-3.5 w-3.5" />
-            Add Custom Category
+          <Button type="button" variant="outline" size="sm"
+            className="border-dashed border-dashboard-base-content/30 text-dashboard-base-content/60 hover:bg-dashboard-base-200 hover:text-dashboard-base-content cursor-pointer"
+            onClick={() => setShowNewCat(true)}>
+            <Plus className="mr-1.5 h-3.5 w-3.5" /> Add Custom Category
           </Button>
         )}
       </div>

@@ -160,8 +160,8 @@ function TagPills({
             className={cn(
               "px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
               active
-                ? "bg-primary/10 border-primary text-primary"
-                : "bg-background border-border text-muted-foreground hover:border-primary/50"
+                ? "bg-dashboard-primary/10 border-dashboard-primary text-dashboard-primary"
+                : "bg-dashboard-base-100 border-dashboard-base-content/20 text-dashboard-base-content/60 hover:border-dashboard-primary/50"
             )}
           >
             {opt}
@@ -201,127 +201,89 @@ function RoomForm({
   }
 
   return (
-    <div className="border rounded-xl p-4 space-y-4 bg-muted/20">
+    <div className="border border-dashboard-base-content/20 rounded-xl p-4 space-y-4 bg-dashboard-base-200/60">
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label>Room Name <span className="text-destructive">*</span></Label>
-          <Input
-            placeholder="Deluxe Queen Room"
-            value={form.name}
-            onChange={handleNameChange}
-            autoFocus
-          />
+          <Label className="text-sm text-dashboard-base-content">Room Name <span className="text-dashboard-error">*</span></Label>
+          <Input placeholder="Deluxe Queen Room" value={form.name} onChange={handleNameChange} autoFocus
+            className="bg-dashboard-base-100 border-dashboard-base-content/20" />
         </div>
         <div className="space-y-1.5">
-          <Label>Slug <span className="text-destructive">*</span></Label>
-          <Input
-            placeholder="deluxe-queen-room"
-            value={form.slug}
+          <Label className="text-sm text-dashboard-base-content">Slug <span className="text-dashboard-error">*</span></Label>
+          <Input placeholder="deluxe-queen-room" value={form.slug}
             onChange={(e) => update("slug", e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))}
-          />
+            className="bg-dashboard-base-100 border-dashboard-base-content/20" />
         </div>
       </div>
 
       <div className="grid grid-cols-4 gap-3">
         <div className="space-y-1.5">
-          <Label>Bed Type</Label>
+          <Label className="text-sm text-dashboard-base-content">Bed Type</Label>
           <Select value={form.bed_type} onValueChange={(v) => update("bed_type", v)}>
-            <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-            <SelectContent>
-              {BED_TYPES.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
-            </SelectContent>
+            <SelectTrigger className="bg-dashboard-base-100 border-dashboard-base-content/20 cursor-pointer"><SelectValue placeholder="Select" /></SelectTrigger>
+            <SelectContent>{BED_TYPES.map((b) => <SelectItem key={b} value={b} className="cursor-pointer">{b}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label>View Type</Label>
+          <Label className="text-sm text-dashboard-base-content">View Type</Label>
           <Select value={form.view_type} onValueChange={(v) => update("view_type", v)}>
-            <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-            <SelectContent>
-              {VIEW_TYPES.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}
-            </SelectContent>
+            <SelectTrigger className="bg-dashboard-base-100 border-dashboard-base-content/20 cursor-pointer"><SelectValue placeholder="Select" /></SelectTrigger>
+            <SelectContent>{VIEW_TYPES.map((v) => <SelectItem key={v} value={v} className="cursor-pointer">{v}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label>Area (sq ft)</Label>
-          <Input
-            type="number"
-            placeholder="350"
-            value={form.area_sqft}
+          <Label className="text-sm text-dashboard-base-content">Area (sq ft)</Label>
+          <Input type="number" placeholder="350" value={form.area_sqft}
             onChange={(e) => update("area_sqft", e.target.value)}
-          />
+            className="bg-dashboard-base-100 border-dashboard-base-content/20" />
         </div>
         <div className="space-y-1.5">
-          <Label>Max Occupancy</Label>
-          <Input
-            type="number"
-            min={1}
-            max={20}
-            value={form.max_occupancy}
+          <Label className="text-sm text-dashboard-base-content">Max Occupancy</Label>
+          <Input type="number" min={1} max={20} value={form.max_occupancy}
             onChange={(e) => update("max_occupancy", Number(e.target.value))}
-          />
+            className="bg-dashboard-base-100 border-dashboard-base-content/20" />
         </div>
       </div>
 
       <div className="space-y-1.5">
-        <Label>Description</Label>
-        <Textarea
-          placeholder="Spacious room with panoramic views..."
-          value={form.description}
+        <Label className="text-sm text-dashboard-base-content">Description</Label>
+        <Textarea placeholder="Spacious room with panoramic views..." value={form.description}
           onChange={(e) => { const v = e.target.value; update("description", v.charAt(0).toUpperCase() + v.slice(1)); }}
-          rows={2}
-        />
+          rows={2} className="bg-dashboard-base-100 border-dashboard-base-content/20" />
       </div>
 
       <div className="space-y-1.5">
-        <Label>Amenities</Label>
-        <TagPills
-          options={AMENITY_OPTIONS}
-          selected={form.amenities}
-          onChange={(v) => update("amenities", v)}
-        />
+        <Label className="text-sm text-dashboard-base-content">Amenities</Label>
+        <TagPills options={AMENITY_OPTIONS} selected={form.amenities} onChange={(v) => update("amenities", v)} />
       </div>
 
       <div className="space-y-1.5">
-        <Label>Features</Label>
-        <TagPills
-          options={FEATURE_OPTIONS}
-          selected={form.features}
-          onChange={(v) => update("features", v)}
-        />
+        <Label className="text-sm text-dashboard-base-content">Features</Label>
+        <TagPills options={FEATURE_OPTIONS} selected={form.features} onChange={(v) => update("features", v)} />
       </div>
 
       {isNew && (
         <div className="space-y-1.5">
-          <Label>Room Photos <span className="text-xs text-muted-foreground">(optional)</span></Label>
-          <ImagePicker
-            folder="hotels"
-            value={form.images}
-            onChange={(imgs) => update("images", imgs)}
-            maxFiles={8}
-            label="Add Room Photos"
-            hint="JPG, PNG, WebP"
-          />
+          <Label className="text-sm text-dashboard-base-content">
+            Room Photos <span className="text-xs text-dashboard-base-content/50">(optional)</span>
+          </Label>
+          <ImagePicker folder="hotels" value={form.images} onChange={(imgs) => update("images", imgs)}
+            maxFiles={8} label="Add Room Photos" hint="JPG, PNG, WebP" />
         </div>
       )}
 
-      <div className="flex items-center justify-between pt-2">
+      <div className="flex items-center justify-between pt-2 border-t border-dashboard-base-content/10">
         <div className="flex items-center gap-2">
-          <Switch
-            checked={form.is_active}
-            onCheckedChange={(v) => update("is_active", v)}
-          />
-          <span className="text-sm text-muted-foreground">Active</span>
+          <Switch checked={form.is_active} onCheckedChange={(v) => update("is_active", v)} />
+          <span className="text-sm text-dashboard-base-content/60">Active</span>
         </div>
         <div className="flex gap-2">
-          <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={isSaving}>
+          <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={isSaving}
+            className="text-dashboard-base-content/60 hover:text-dashboard-base-content hover:bg-dashboard-base-300 cursor-pointer">
             Cancel
           </Button>
-          <Button
-            type="button"
-            size="sm"
-            disabled={!form.name || !form.slug || isSaving}
-            onClick={() => onSave(form)}
-          >
+          <Button type="button" size="sm" disabled={!form.name || !form.slug || isSaving} onClick={() => onSave(form)}
+            className="bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90 cursor-pointer">
             {isSaving ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Saving...</> : "Save Room"}
           </Button>
         </div>
@@ -351,66 +313,49 @@ function RoomImageThumb({
   return (
     <div
       className={cn(
-        "group relative aspect-square rounded-xl overflow-hidden border-2 bg-muted",
-        image.is_primary ? "border-primary" : "border-border hover:border-muted-foreground/40"
+        "group relative aspect-square rounded-xl overflow-hidden border-2 bg-dashboard-base-200",
+        image.is_primary ? "border-dashboard-primary" : "border-dashboard-base-content/20 hover:border-dashboard-base-content/40"
       )}
     >
-      <img
-        src={`${base}/${image.url}`}
-        alt={image.alt ?? "Room image"}
-        className="w-full h-full object-cover"
-      />
+      <img src={`${base}/${image.url}`} alt={image.alt ?? "Room image"} className="w-full h-full object-cover" />
       {image.is_primary && (
-        <Badge className="absolute bottom-1 left-1 text-[9px] px-1.5 py-0 pointer-events-none bg-primary">
+        <Badge className="absolute bottom-1 left-1 text-[9px] px-1.5 py-0 pointer-events-none bg-dashboard-primary text-dashboard-primary-content">
           <Star className="h-2.5 w-2.5 mr-0.5" /> Primary
         </Badge>
       )}
       <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5">
         {!image.is_primary && (
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            className="text-[10px] h-6 px-2"
+          <Button type="button" size="sm" variant="secondary" className="text-[10px] h-6 px-2 cursor-pointer"
             disabled={isPending}
-            onClick={() =>
-              startTransition(async () => {
-                const r = await setPrimaryRoomImage(image.id, room_id, hotel_id);
-                if (r.success) { toast.success(r.message); onSetPrimary(); }
-                else toast.error(r.message);
-              })
-            }
-          >
+            onClick={() => startTransition(async () => {
+              const r = await setPrimaryRoomImage(image.id, room_id, hotel_id);
+              if (r.success) { toast.success(r.message); onSetPrimary(); }
+              else toast.error(r.message);
+            })}>
             <Star className="h-2.5 w-2.5 mr-1" /> Set Primary
           </Button>
         )}
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button type="button" size="sm" variant="destructive" className="text-[10px] h-6 px-2">
+            <Button type="button" size="sm"
+              className="text-[10px] h-6 px-2 bg-dashboard-error text-dashboard-error-content hover:bg-dashboard-error/90 cursor-pointer">
               <Trash2 className="h-2.5 w-2.5 mr-1" /> Delete
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Image</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will permanently delete the image from storage.
-              </AlertDialogDescription>
+              <AlertDialogDescription>This will permanently delete the image from storage.</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogCancel className="cursor-pointer">Cancel</AlertDialogCancel>
               <AlertDialogAction
-                onClick={() =>
-                  startTransition(async () => {
-                    const r = await deleteRoomImage(
-                      image.id, room_id, hotel_id, image.url, image.thumbnail ?? undefined
-                    );
-                    if (r.success) { toast.success(r.message); onDelete(); }
-                    else toast.error(r.message);
-                  })
-                }
-                className="bg-destructive text-white hover:bg-destructive/90"
-              >
+                onClick={() => startTransition(async () => {
+                  const r = await deleteRoomImage(image.id, room_id, hotel_id, image.url, image.thumbnail ?? undefined);
+                  if (r.success) { toast.success(r.message); onDelete(); }
+                  else toast.error(r.message);
+                })}
+                className="bg-dashboard-error text-dashboard-error-content hover:bg-dashboard-error/90 cursor-pointer">
                 Delete
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -475,8 +420,8 @@ function RoomImagesSection({
   }
 
   return (
-    <div className="mt-4 space-y-3 pt-4 border-t">
-      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+    <div className="mt-4 space-y-3 pt-4 border-t border-dashboard-base-content/10">
+      <p className="text-xs font-medium text-dashboard-base-content/50 uppercase tracking-wider flex items-center gap-1.5">
         <Images className="h-3.5 w-3.5" /> Room Photos ({images.length})
       </p>
 
@@ -509,11 +454,10 @@ function RoomImagesSection({
       {picks.length > 0 && (
         <div className="flex justify-end">
           <Button
-            type="button"
-            size="sm"
+            type="button" size="sm"
             onClick={handleSave}
             disabled={isPending || picks.some((p) => p.status === "uploading")}
-            className="gap-1.5"
+            className="gap-1.5 bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90 cursor-pointer"
           >
             {isPending
               ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Saving...</>
@@ -553,79 +497,58 @@ function RoomRow({
   }
 
   return (
-    <div className="border rounded-xl overflow-hidden">
+    <div className="border border-dashboard-base-content/20 rounded-xl overflow-hidden bg-dashboard-base-100">
       {/* Room summary row */}
-      <div className="flex items-center gap-3 px-4 py-3 bg-card hover:bg-muted/30 transition-colors">
-        {/* Primary image preview */}
-        <div className="h-12 w-16 rounded-lg bg-muted border shrink-0 overflow-hidden">
+      <div className="flex items-center gap-3 px-4 py-3 hover:bg-dashboard-base-200 transition-colors cursor-default">
+        <div className="h-12 w-16 rounded-lg bg-dashboard-base-200 border border-dashboard-base-content/10 shrink-0 overflow-hidden">
           {(() => {
             const primary = images.find((img) => img.is_primary) ?? images[0];
             return primary ? (
-              <img
-                src={`${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${primary.url}`}
-                alt={room.name}
-                className="h-full w-full object-cover"
-              />
+              <img src={`${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${primary.url}`} alt={room.name} className="h-full w-full object-cover" />
             ) : (
-              <div className="h-full w-full flex items-center justify-center text-muted-foreground/40 text-xs">
-                No photo
-              </div>
+              <div className="h-full w-full flex items-center justify-center text-dashboard-base-content/30 text-xs">No photo</div>
             );
           })()}
         </div>
 
-        {/* Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <p className="font-medium text-sm">{room.name}</p>
+            <p className="font-semibold text-sm text-dashboard-base-content">{room.name}</p>
             {!room.is_active && (
-              <Badge variant="secondary" className="text-[10px]">Inactive</Badge>
+              <Badge className="text-[10px] px-1.5 py-0 bg-dashboard-base-300 text-dashboard-base-content/50 border border-dashboard-base-content/20">Inactive</Badge>
             )}
           </div>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-            {room.bed_type && (
-              <span className="text-xs text-muted-foreground">{room.bed_type}</span>
-            )}
-            {room.view_type && (
-              <span className="text-xs text-muted-foreground">· {room.view_type}</span>
-            )}
-            {room.area_sqft && (
-              <span className="text-xs text-muted-foreground">· {room.area_sqft} sq ft</span>
-            )}
-            <span className="text-xs text-muted-foreground">· {room.max_occupancy} guests</span>
+            {room.bed_type && <span className="text-xs text-dashboard-base-content/50">{room.bed_type}</span>}
+            {room.view_type && <span className="text-xs text-dashboard-base-content/50">· {room.view_type}</span>}
+            {room.area_sqft && <span className="text-xs text-dashboard-base-content/50">· {room.area_sqft} sq ft</span>}
+            <span className="text-xs text-dashboard-base-content/50">· {room.max_occupancy} guests</span>
             {amenities.slice(0, 3).map((a) => (
-              <Badge key={a} variant="secondary" className="text-[10px] px-1.5 py-0">{a}</Badge>
+              <Badge key={a} className="text-[10px] px-1.5 py-0 bg-dashboard-primary/10 text-dashboard-primary border border-dashboard-primary/20">{a}</Badge>
             ))}
             {amenities.length > 3 && (
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">+{amenities.length - 3}</Badge>
+              <Badge className="text-[10px] px-1.5 py-0 bg-dashboard-base-200 text-dashboard-base-content/50 border border-dashboard-base-content/20">+{amenities.length - 3}</Badge>
             )}
           </div>
         </div>
 
-        {/* Actions */}
         <div className="flex items-center gap-1 shrink-0">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs gap-1"
-            onClick={() => setExpanded((p) => !p)}
-          >
+          <Button type="button" variant="ghost" size="sm"
+            className="h-7 text-xs gap-1 text-dashboard-base-content/60 hover:text-dashboard-base-content hover:bg-dashboard-base-200 cursor-pointer"
+            onClick={() => setExpanded((p) => !p)}>
             {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
             {images.length > 0 ? `${images.length} photos` : "Photos"}
           </Button>
-          <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={onEdit}>
+          <Button type="button" variant="ghost" size="icon"
+            className="h-7 w-7 text-dashboard-base-content/50 hover:text-dashboard-primary hover:bg-dashboard-primary/10 cursor-pointer"
+            onClick={onEdit}>
             <Pencil className="h-3 w-3" />
           </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                disabled={isPending}
-              >
+              <Button type="button" variant="ghost" size="icon"
+                className="h-7 w-7 text-dashboard-base-content/50 hover:text-dashboard-error hover:bg-dashboard-error/10 cursor-pointer"
+                disabled={isPending}>
                 <Trash2 className="h-3 w-3" />
               </Button>
             </AlertDialogTrigger>
@@ -633,16 +556,13 @@ function RoomRow({
               <AlertDialogHeader>
                 <AlertDialogTitle>Delete Room</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Delete <span className="font-semibold">{room.name}</span>? This will also delete
-                  all room images, pricing plans, and occupancy prices linked to this room.
+                  Delete <span className="font-semibold">{room.name}</span>? This will also delete all room images, pricing plans, and occupancy prices linked to this room.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={handleDelete}
-                  className="bg-destructive text-white hover:bg-destructive/90"
-                >
+                <AlertDialogCancel className="cursor-pointer">Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDelete}
+                  className="bg-dashboard-error text-dashboard-error-content hover:bg-dashboard-error/90 cursor-pointer">
                   Delete
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -651,15 +571,9 @@ function RoomRow({
         </div>
       </div>
 
-      {/* Expandable images section */}
       {expanded && (
-        <div className="px-4 pb-4 bg-muted/10">
-          <RoomImagesSection
-            room={room}
-            hotel_id={hotel_id}
-            images={images}
-            onImagesChanged={setImages}
-          />
+        <div className="px-4 pb-4 bg-dashboard-base-200/30 border-t border-dashboard-base-content/10">
+          <RoomImagesSection room={room} hotel_id={hotel_id} images={images} onImagesChanged={setImages} />
         </div>
       )}
     </div>
@@ -766,62 +680,45 @@ export function RoomsTab({
   }
 
   return (
-    <Card className="rounded-2xl">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-base">Rooms</CardTitle>
-            <CardDescription>
-              {rooms.length} room{rooms.length !== 1 ? "s" : ""} · Manage room types, specs and photos
-            </CardDescription>
-          </div>
-          {!adding && editId === null && (
-            <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
-              <Plus className="mr-1.5 h-3.5 w-3.5" /> Add Room
-            </Button>
-          )}
+    <div className="space-y-5 bg-dashboard-base-100 p-8 rounded-xl shadow-lg border border-dashboard-base-content/20">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-dashboard-base-content">Rooms</p>
+          <p className="text-xs text-dashboard-base-content/50 mt-0.5">
+            {rooms.length} room{rooms.length !== 1 ? "s" : ""} · Manage room types, specs and photos
+          </p>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {/* Add form */}
-        {adding && (
-          <RoomForm
-            initial={EMPTY_FORM}
-            onSave={handleAdd}
-            onCancel={() => setAdding(false)}
-            isSaving={isPending}
-            isNew
-          />
+        {!adding && editId === null && (
+          <Button size="sm"
+            className="gap-1.5 bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90 cursor-pointer"
+            onClick={() => setAdding(true)}>
+            <Plus className="h-3.5 w-3.5" /> Add Room
+          </Button>
         )}
+      </div>
 
-        {/* Room list */}
+      {adding && (
+        <RoomForm initial={EMPTY_FORM} onSave={handleAdd} onCancel={() => setAdding(false)} isSaving={isPending} isNew />
+      )}
+
+      <div className="space-y-3">
         {rooms.map((room) =>
           editId === room.id ? (
-            <RoomForm
-              key={room.id}
-              initial={toFormState(room)}
-              onSave={(form) => handleEdit(room.id, form)}
-              onCancel={() => setEditId(null)}
-              isSaving={isPending}
-            />
+            <RoomForm key={room.id} initial={toFormState(room)}
+              onSave={(form) => handleEdit(room.id, form)} onCancel={() => setEditId(null)} isSaving={isPending} />
           ) : (
-            <RoomRow
-              key={room.id}
-              room={room}
-              hotel_id={hotel_id}
-              onEdit={() => setEditId(room.id)}
-              onDelete={() => handleDelete(room.id)}
-            />
+            <RoomRow key={room.id} room={room} hotel_id={hotel_id}
+              onEdit={() => setEditId(room.id)} onDelete={() => handleDelete(room.id)} />
           )
         )}
+      </div>
 
-        {rooms.length === 0 && !adding && (
-          <div className="text-center py-10 text-muted-foreground">
-            <p className="text-sm">No rooms added yet</p>
-            <p className="text-xs mt-1">Click "Add Room" to define your first room type</p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      {rooms.length === 0 && !adding && (
+        <div className="flex flex-col items-center justify-center py-12 rounded-xl border border-dashed border-dashboard-base-content/20 bg-dashboard-base-200/30">
+          <p className="text-sm font-medium text-dashboard-base-content/50">No rooms added yet</p>
+          <p className="text-xs text-dashboard-base-content/40 mt-1">Click &ldquo;Add Room&rdquo; to define your first room type</p>
+        </div>
+      )}
+    </div>
   );
 }

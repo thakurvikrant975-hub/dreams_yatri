@@ -140,20 +140,25 @@ const serializedCategories = hotel.image_categories.map((cat) => ({
 
             {/* Header */}
             <div className="flex items-center gap-3">
-                <Button variant="ghost" size="icon" asChild>
-                    <Link href="/dashboard/hotels"><ChevronLeft className="h-4 w-4" /></Link>
+                <Button variant="ghost" size="icon" asChild className="hover:bg-dashboard-base-200 cursor-pointer">
+                    <Link href="/dashboard/hotels"><ChevronLeft className="h-4 w-4 text-dashboard-base-content/70" /></Link>
                 </Button>
-                <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                    <Hotel className="h-5 w-5 text-primary" />
+                <div className="h-10 w-10 rounded-xl bg-dashboard-primary/10 flex items-center justify-center shrink-0">
+                    <Hotel className="h-5 w-5 text-dashboard-primary" />
                 </div>
                 <div className="flex-1">
                     <div className="flex items-center gap-2">
-                        <h1 className="text-xl font-semibold">{hotel.name}</h1>
-                        <Badge variant={hotel.is_active ? "default" : "secondary"} className="text-xs">
+                        <h1 className="text-xl font-semibold text-dashboard-base-content">{hotel.name}</h1>
+                        <Badge
+                            className={hotel.is_active
+                                ? "text-xs bg-dashboard-success/15 text-dashboard-success border-dashboard-success/30 border"
+                                : "text-xs bg-dashboard-base-300 text-dashboard-base-content/50 border-dashboard-base-content/20 border"
+                            }
+                        >
                             {hotel.is_active ? "Active" : "Inactive"}
                         </Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-dashboard-base-content/60">
                         {hotel.destination.name}
                         {totalRooms > 0 && ` · ${totalRooms} room${totalRooms !== 1 ? "s" : ""}`}
                         {totalPlans > 0 && ` · ${totalPlans} plan${totalPlans !== 1 ? "s" : ""}`}
@@ -174,6 +179,14 @@ const serializedCategories = hotel.image_categories.map((cat) => ({
                             </Badge>
                         )}
                     </TabsTrigger>
+                    <TabsTrigger value="meals">
+                        Meals
+                        {mealPricings.length > 0 && (
+                            <Badge variant="secondary" className="ml-2 text-xs px-1.5 py-0">
+                                {mealPricings.length}
+                            </Badge>
+                        )}
+                    </TabsTrigger>
                     <TabsTrigger value="pricing">
                         Pricing
                         {totalPlans > 0 && (
@@ -187,14 +200,6 @@ const serializedCategories = hotel.image_categories.map((cat) => ({
                         {totalChildPolicies > 0 && (
                             <Badge variant="secondary" className="ml-2 text-xs px-1.5 py-0">
                                 {totalChildPolicies}
-                            </Badge>
-                        )}
-                    </TabsTrigger>
-                    <TabsTrigger value="meals">
-                        Meals
-                        {mealPricings.length > 0 && (
-                            <Badge variant="secondary" className="ml-2 text-xs px-1.5 py-0">
-                                {mealPricings.length}
                             </Badge>
                         )}
                     </TabsTrigger>
