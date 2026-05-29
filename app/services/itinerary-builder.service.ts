@@ -990,3 +990,28 @@ export async function reorderStayCategories(updates: { id: number; sort_order: n
     updates.map((u) => db.package_stay_categories.update({ where: { id: u.id }, data: { sort_order: u.sort_order } })),
   );
 }
+
+// ── Hotel meal pricings ────────────────────────────────────────────────────
+
+export type HotelMealOption = {
+  id: number;
+  meal_type: string;
+  label: string;
+  price: number;
+  weekend_price: number | null;
+};
+
+export async function getHotelMealPricings(hotelId: number): Promise<HotelMealOption[]> {
+  const rows = await db.hotel_meal_pricing.findMany({
+    where: { hotel_id: hotelId, is_active: true },
+    orderBy: { sort_order: "asc" },
+    select: { id: true, meal_type: true, label: true, price: true, weekend_price: true },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    meal_type: r.meal_type,
+    label: r.label,
+    price: Number(r.price),
+    weekend_price: r.weekend_price != null ? Number(r.weekend_price) : null,
+  }));
+}

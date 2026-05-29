@@ -60,7 +60,9 @@ import {
   handleUpdateAttraction,
   handleDeleteAttraction,
   handleReorderAttractions,
+  handleGetHotelMealPricings,
 } from "@/app/actions/packages/itinerary-builder.actions";
+import type { HotelMealOption } from "@/app/services/itinerary-builder.service";
 import type {
   DayData,
   ActivityItem,
@@ -1112,10 +1114,42 @@ function StayBlock({
 }) {
   const [assigningCategoryId, setAssigningCategoryId] = useState<number | null>(null);
   const [savingId, setSavingId] = useState<number | null>(null);
+  const [mealPricingsByCatId, setMealPricingsByCatId] = useState<Record<number, HotelMealOption[]>>({});
+  const [loadingMealsByCatId, setLoadingMealsByCatId] = useState<Record<number, boolean>>({});
+  const [savingMealStayId, setSavingMealStayId] = useState<number | null>(null);
   // Single shared num_nights — clamped to stop boundary
   const [numNights, setNumNights] = useState<number>(
     Math.min(stays[0]?.num_nights ?? 1, Math.max(1, maxNights)),
   );
+
+  // Fetch meal pricings for a hotel (once per category)
+  const fetchedHotelIds = useState<Record<number, number>>({})[0]; // catId → hotelId
+  async function loadMealPricings(catId: number, hotelId: number) {
+    if (fetchedHotelIds[catId] === hotelId) return;
+    fetchedHotelIds[catId] = hotelId;
+    setLoadingMealsByCatId((p) => ({ ...p, [catId]: true }));
+    const res = await handleGetHotelMealPricings(hotelId);
+    setLoadingMealsByCatId((p) => ({ ...p, [catId]: false }));
+    if (res.success) setMealPricingsByCatId((p) => ({ ...p, [catId]: res.data }));
+  }
+
+  // Load meal pricings for already-assigned stays on mount
+  useEffect(() => {
+    for (const stay of stays) {
+      loadMealPricings(stay.stay_category_id, stay.room_pricing.hotel.id);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleMealToggle(stay: StayItem, mealKey: string) {
+    const next = stay.active_meals.includes(mealKey)
+      ? stay.active_meals.filter((m) => m !== mealKey)
+      : [...stay.active_meals, mealKey];
+    onStaysChange(stays.map((s) => (s.id === stay.id ? { ...s, active_meals: next } : s)));
+    setSavingMealStayId(stay.id);
+    await handleUpdateStayActiveMeals(stay.id, next, packageId);
+    setSavingMealStayId(null);
+  }
 
   const R2_BASE = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
   const fetchRooms = useCallback(async (query: string): Promise<Option[]> => {
@@ -1149,6 +1183,12 @@ function StayBlock({
     if (!pricing) { toast.success("Stay saved"); setAssigningCategoryId(null); return; }
     const category = stayCategories.find((c) => c.id === categoryId)!;
     const existing = stays.find((s) => s.stay_category_id === categoryId);
+    // When hotel changes, clear cached meal pricings so they're re-fetched
+    const prevHotelId = existing?.room_pricing.hotel.id;
+    if (prevHotelId !== pricing.hotel.id) {
+      delete fetchedHotelIds[categoryId];
+      setMealPricingsByCatId((p) => { const n = { ...p }; delete n[categoryId]; return n; });
+    }
     const newStay: StayItem = {
       id: saveRes.id,
       stay_category_id: categoryId,
@@ -1161,6 +1201,8 @@ function StayBlock({
     onStaysChange(existing ? stays.map((s) => (s.stay_category_id === categoryId ? newStay : s)) : [...stays, newStay]);
     setAssigningCategoryId(null);
     toast.success("Stay assigned");
+    // Load meal pricings for the new hotel
+    loadMealPricings(categoryId, pricing.hotel.id);
   }
 
   async function handleUpdateNights(newNights: number) {
@@ -1291,34 +1333,88 @@ function StayBlock({
                   const roomImg = rp.room?.images?.[0];
                   const imgKey = roomImg ? (roomImg.thumbnail ?? roomImg.url) : rp.hotel.thumbnail;
                   const R2_BASE = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
+                  const mealOptions = mealPricingsByCatId[cat.id] ?? [];
+                  const loadingMeals = loadingMealsByCatId[cat.id] ?? false;
+                  const isSavingMeals = savingMealStayId === stay.id;
                   return (
-                    <div className="flex items-start gap-3">
-                      {imgKey ? (
-                        <Image
-                          src={`${R2_BASE}/${imgKey}`}
-                          alt={rp.hotel.name}
-                          width={64}
-                          height={48}
-                          className="h-12 w-16 rounded-lg object-cover shrink-0 border"
-                        />
-                      ) : (
-                        <div className="h-12 w-16 rounded-lg bg-muted border flex items-center justify-center shrink-0">
-                          <Hotel className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium leading-snug">{rp.hotel.name}</p>
-                        {(rp.hotel.category || rp.hotel.stay_type) && (
-                          <p className="text-[10px] font-medium text-violet-600/80">
-                            {[rp.hotel.category, rp.hotel.stay_type].filter(Boolean).join(" · ")}
-                          </p>
+                    <div className="space-y-3">
+                      {/* Room info row */}
+                      <div className="flex items-start gap-3">
+                        {imgKey ? (
+                          <Image
+                            src={`${R2_BASE}/${imgKey}`}
+                            alt={rp.hotel.name}
+                            width={64}
+                            height={48}
+                            className="h-12 w-16 rounded-lg object-cover shrink-0 border"
+                          />
+                        ) : (
+                          <div className="h-12 w-16 rounded-lg bg-muted border flex items-center justify-center shrink-0">
+                            <Hotel className="h-4 w-4 text-muted-foreground" />
+                          </div>
                         )}
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {[rp.room?.name, rp.room?.bed_type, rp.plan_name ?? "Standard"].filter(Boolean).join(" · ")}
-                        </p>
-                        <p className="text-xs font-medium text-primary/80 mt-0.5">
-                          ₹{rp.price_per_night.toLocaleString("en-IN")}/night
-                        </p>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium leading-snug">{rp.hotel.name}</p>
+                          {(rp.hotel.category || rp.hotel.stay_type) && (
+                            <p className="text-[10px] font-medium text-violet-600/80">
+                              {[rp.hotel.category, rp.hotel.stay_type].filter(Boolean).join(" · ")}
+                            </p>
+                          )}
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {[rp.room?.name, rp.room?.bed_type, rp.plan_name ?? "Room Only"].filter(Boolean).join(" · ")}
+                          </p>
+                          <p className="text-xs font-medium text-primary/80 mt-0.5">
+                            ₹{rp.price_per_night.toLocaleString("en-IN")}/night
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Meal picker */}
+                      <div className="pt-2 border-t space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                            Meals for this stay
+                          </p>
+                          {isSavingMeals && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+                        </div>
+                        {loadingMeals ? (
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground py-1">
+                            <Loader2 className="h-3 w-3 animate-spin" /> Loading meals…
+                          </div>
+                        ) : mealOptions.length === 0 ? (
+                          <p className="text-xs text-muted-foreground/60 italic py-1">
+                            No meals configured for this hotel
+                          </p>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5">
+                            {mealOptions.map((meal) => {
+                              const mealKey = mealTypeToKey(meal.meal_type);
+                              const isSelected = stay.active_meals.includes(mealKey);
+                              const cfg = HOTEL_MEAL_CFG[meal.meal_type] ?? HOTEL_MEAL_CFG_DEFAULT;
+                              const Icon = cfg.Icon;
+                              return (
+                                <button
+                                  key={meal.id}
+                                  type="button"
+                                  disabled={isSavingMeals}
+                                  onClick={() => handleMealToggle(stay, mealKey)}
+                                  className={cn(
+                                    "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs transition-all cursor-pointer select-none",
+                                    isSelected
+                                      ? cn(cfg.activeBg, "font-medium shadow-sm")
+                                      : cn(cfg.inactiveBg, "opacity-60 hover:opacity-90"),
+                                    isSavingMeals && "pointer-events-none opacity-50",
+                                  )}
+                                >
+                                  <Icon className={cn("h-3 w-3 shrink-0", cfg.color)} />
+                                  <span className={cfg.color}>{meal.label}</span>
+                                  <span className="text-[10px] text-muted-foreground/80">₹{meal.price.toLocaleString("en-IN")}</span>
+                                  {isSelected && <Check className="h-3 w-3 text-green-600 shrink-0" />}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -1669,30 +1765,32 @@ function AttractionsModal({
 // ── Meals section ─────────────────────────────────────────────────────────
 
 const MEAL_DEFS = [
-  { key: "breakfast", label: "Breakfast", Icon: Coffee,
-    color: "text-orange-500",  activeClass: "bg-orange-100 border-orange-400",
-    inactiveClass: "bg-orange-50 border-orange-200" },
-  { key: "lunch",     label: "Lunch",     Icon: Sun,
-    color: "text-yellow-500",  activeClass: "bg-yellow-100 border-yellow-400",
-    inactiveClass: "bg-yellow-50 border-yellow-200" },
-  { key: "dinner",    label: "Dinner",    Icon: Moon,
-    color: "text-indigo-500",  activeClass: "bg-indigo-100 border-indigo-400",
-    inactiveClass: "bg-indigo-50 border-indigo-200" },
+  { key: "breakfast",      label: "Breakfast",      shortLabel: "BF", Icon: Coffee,          color: "text-orange-500",  activeClass: "bg-orange-100 border-orange-400",  inactiveClass: "bg-orange-50 border-orange-200"  },
+  { key: "lunch",          label: "Lunch",           shortLabel: "LN", Icon: Sun,             color: "text-yellow-500",  activeClass: "bg-yellow-100 border-yellow-400",  inactiveClass: "bg-yellow-50 border-yellow-200"  },
+  { key: "dinner",         label: "Dinner",          shortLabel: "DN", Icon: Moon,            color: "text-indigo-500",  activeClass: "bg-indigo-100 border-indigo-400",  inactiveClass: "bg-indigo-50 border-indigo-200"  },
+  { key: "morning_snacks", label: "Morning Snacks",  shortLabel: "MS", Icon: Coffee,          color: "text-amber-500",   activeClass: "bg-amber-100 border-amber-400",    inactiveClass: "bg-amber-50 border-amber-200"    },
+  { key: "evening_snacks", label: "Evening Snacks",  shortLabel: "ES", Icon: UtensilsCrossed, color: "text-violet-500",  activeClass: "bg-violet-100 border-violet-400",  inactiveClass: "bg-violet-50 border-violet-200"  },
 ] as const;
 
-// Derive which meals a meal-type covers.
-// Uses covered_meals if configured; falls back to keyword scanning the plan/type name.
-function getEffectiveMeals(mealType: { name: string; covered_meals: string[] } | null, planName?: string | null): string[] {
-  if (!mealType) return [];
-  if (mealType.covered_meals.length > 0) return mealType.covered_meals;
-  // Fallback: scan the meal type name and plan name for meal keywords
-  const text = `${mealType.name} ${planName ?? ""}`.toLowerCase();
-  const detected: string[] = [];
-  if (text.includes("breakfast")) detected.push("breakfast");
-  if (text.includes("lunch"))     detected.push("lunch");
-  if (text.includes("dinner"))    detected.push("dinner");
-  return detected;
+type MealDefKey = typeof MEAL_DEFS[number]["key"];
+
+// Maps hotel_meal_pricing.meal_type (uppercase) → display config
+const HOTEL_MEAL_CFG: Record<string, { Icon: React.ElementType; color: string; activeBg: string; inactiveBg: string }> = {
+  BREAKFAST:      { Icon: Coffee,          color: "text-orange-600",  activeBg: "bg-orange-100 border-orange-400",  inactiveBg: "bg-orange-50 border-orange-200"  },
+  LUNCH:          { Icon: Sun,             color: "text-yellow-600",  activeBg: "bg-yellow-100 border-yellow-400",  inactiveBg: "bg-yellow-50 border-yellow-200"  },
+  DINNER:         { Icon: Moon,            color: "text-indigo-600",  activeBg: "bg-indigo-100 border-indigo-400",  inactiveBg: "bg-indigo-50 border-indigo-200"  },
+  MORNING_SNACKS: { Icon: Coffee,          color: "text-amber-600",   activeBg: "bg-amber-100 border-amber-400",    inactiveBg: "bg-amber-50 border-amber-200"    },
+  EVENING_SNACKS: { Icon: UtensilsCrossed, color: "text-violet-600",  activeBg: "bg-violet-100 border-violet-400",  inactiveBg: "bg-violet-50 border-violet-200"  },
+  CUSTOM:         { Icon: UtensilsCrossed, color: "text-teal-600",    activeBg: "bg-teal-100 border-teal-400",      inactiveBg: "bg-teal-50 border-teal-200"      },
+};
+const HOTEL_MEAL_CFG_DEFAULT = { Icon: UtensilsCrossed, color: "text-muted-foreground", activeBg: "bg-muted border-foreground/30", inactiveBg: "bg-muted/50 border-muted-foreground/20" };
+
+function mealTypeToKey(mealType: string): string {
+  return mealType.toLowerCase();
 }
+
+// Normalize hotel meal_type key to lowercase (BREAKFAST → breakfast)
+// Kept here for any fallback display needs
 
 function DayMealsSection({
   meals,
@@ -1738,14 +1836,10 @@ function DayMealsSection({
 
   const excludedSet = useMemo(() => new Set(excludedMeals), [excludedMeals]);
 
-  // Resolve which meals a stay actually serves (override or plan default)
+  // Meals are now explicitly set by the user via the hotel meal picker in StayBlock.
+  // active_meals is the source of truth.
   function resolveActiveMeals(stay: StayItem): string[] {
-    const plan = getEffectiveMeals(stay.room_pricing.meal_type, stay.room_pricing.plan_name);
-    return stay.active_meals.length > 0 ? stay.active_meals : plan;
-  }
-
-  function resolvePlanMeals(stay: StayItem): string[] {
-    return getEffectiveMeals(stay.room_pricing.meal_type, stay.room_pricing.plan_name);
+    return stay.active_meals;
   }
 
   // ── Key insight ──────────────────────────────────────────────────────────
@@ -1837,21 +1931,16 @@ function DayMealsSection({
   }
 
   function getChipTooltip(mealKey: string, catId: number): string {
-    const LABELS: Record<string, string> = { breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner" };
+    const LABELS: Record<string, string> = { breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner", morning_snacks: "Morning Snacks", evening_snacks: "Evening Snacks" };
     const label = LABELS[mealKey] ?? mealKey;
     const owner = getChipOwner(mealKey, catId);
 
     if (owner) {
-      const active  = resolveActiveMeals(owner);
-      const inPlan  = resolvePlanMeals(owner).includes(mealKey);
-      const hotel   = owner.room_pricing.hotel.name;
-      const plan    = owner.room_pricing.plan_name;
-      const note    = mealKey === "breakfast" ? "prev night checkout" : "tonight check-in";
-      if (active.includes(mealKey))
-        return `${label} from ${hotel}${plan ? ` · ${plan}` : ""} (${note}) · click to exclude`;
-      if (inPlan)
-        return `${label} excluded from ${hotel} · click to re-include`;
-      // Hotel exists but doesn't cover this meal — fall through
+      const isOn = owner.active_meals.includes(mealKey);
+      const hotel = owner.room_pricing.hotel.name;
+      const note  = mealKey === "breakfast" ? "prev night" : "tonight";
+      if (isOn) return `${label} from ${hotel} (${note}) · click to remove`;
+      return `${label} not included from ${hotel} · click to add`;
     }
     if (activityDerived[mealKey] && !excludedSet.has(mealKey))
       return `${label} from ${activityDerived[mealKey]} · click to exclude`;
@@ -1874,14 +1963,9 @@ function DayMealsSection({
     const owner = getChipOwner(mealKey, catId);
 
     if (owner) {
-      const active = resolveActiveMeals(owner);
-      const inPlan = resolvePlanMeals(owner).includes(mealKey);
-      // Toggle via hotel if: meal is currently active (remove it) OR meal is in the plan (add it)
-      if (active.includes(mealKey) || inPlan) {
-        await toggleStayMeal(owner, mealKey);
-        return;
-      }
-      // Owner exists but meal not in plan and not active — fall through to activity/manual
+      // Directly toggle the meal in active_meals on the owning stay
+      await toggleStayMeal(owner, mealKey);
+      return;
     }
     // Activity exclusion toggle
     if (activityDerived[mealKey]) {
@@ -1922,6 +2006,18 @@ function DayMealsSection({
             const label    = (currStay ?? prevStay)!.stay_category.label;
             const isSavingAny = savingStayId === prevStay?.id || savingStayId === currStay?.id;
 
+            // Build the list of meal keys to show:
+            // standard 3 + any extras present in active_meals of either stay
+            const standardKeys = new Set(["breakfast", "lunch", "dinner"]);
+            const extraKeys = new Set<string>();
+            for (const stay of [prevStay, currStay]) {
+              if (!stay) continue;
+              for (const m of stay.active_meals) {
+                if (!standardKeys.has(m)) extraKeys.add(m);
+              }
+            }
+            const chipKeys = [...Array.from(standardKeys), ...Array.from(extraKeys)];
+
             return (
               <div key={catId} className="space-y-1.5">
                 {/* Category header */}
@@ -1932,11 +2028,16 @@ function DayMealsSection({
                   {isSavingAny && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />}
                 </div>
 
-                {/* 3 chips */}
-                <div className="flex gap-2">
-                  {MEAL_DEFS.map(({ key, Icon, activeClass, inactiveClass }) => {
+                {/* Meal chips */}
+                <div className="flex gap-1.5 flex-wrap">
+                  {chipKeys.map((key) => {
+                    const def = MEAL_DEFS.find(d => d.key === key);
+                    const Icon = def?.Icon ?? UtensilsCrossed;
+                    const activeClass = def?.activeClass ?? "bg-muted border-foreground/30";
+                    const inactiveClass = def?.inactiveClass ?? "bg-muted/50 border-muted-foreground/20";
                     const on  = isChipOn(key, catId);
                     const dot = getChipDot(key, catId);
+                    const shortLabel = def?.shortLabel ?? key.slice(0, 2).toUpperCase();
 
                     return (
                       <TooltipProvider key={key} delayDuration={200}>
@@ -1947,17 +2048,17 @@ function DayMealsSection({
                               disabled={disabled || isSavingAny}
                               onClick={() => handleChipClick(key, catId)}
                               className={cn(
-                                "relative flex-1 flex flex-col items-center gap-0.5 py-2.5 px-1 rounded-xl border select-none transition-all",
+                                "relative flex flex-col items-center gap-0.5 py-2 px-2.5 rounded-xl border select-none transition-all min-w-[2.5rem]",
                                 on ? activeClass : cn(inactiveClass, "opacity-40"),
                                 !disabled && !isSavingAny && "cursor-pointer hover:opacity-90",
                               )}
                             >
                               {on && dot && (
-                                <span className={cn("absolute top-1.5 right-1.5 h-2 w-2 rounded-full", dot)} />
+                                <span className={cn("absolute top-1 right-1 h-1.5 w-1.5 rounded-full", dot)} />
                               )}
                               <Icon className="h-3.5 w-3.5" />
                               <span className="text-[9px] font-bold uppercase tracking-widest leading-none">
-                                {key === "breakfast" ? "BF" : key === "lunch" ? "LN" : "DN"}
+                                {shortLabel}
                               </span>
                             </button>
                           </TooltipTrigger>

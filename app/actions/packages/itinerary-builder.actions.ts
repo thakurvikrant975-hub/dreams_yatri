@@ -34,10 +34,12 @@ import {
   reorderItineraryAttractions,
   getDaySourceImages,
   checkItineraryDaysHaveContent,
+  getHotelMealPricings,
   type TransferInput,
   type NoteInput,
   type ReorderItem,
   type StayCategoryInput,
+  type HotelMealOption,
 } from "@/app/services/itinerary-builder.service";
 
 function p(packageId: number) {
@@ -445,5 +447,15 @@ export async function handleCheckItineraryDaysContent(
   } catch (e) {
     console.error(e);
     return { success: false as const, message: "Failed to check days" };
+  }
+}
+
+export async function handleGetHotelMealPricings(hotelId: number) {
+  try {
+    const data = await getHotelMealPricings(hotelId);
+    return { success: true as const, data };
+  } catch (e) {
+    console.error(e);
+    return { success: false as const, data: [] as HotelMealOption[], message: "Failed to load meal pricings" };
   }
 }
