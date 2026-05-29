@@ -341,11 +341,14 @@ function MealForm({
   onSave,
   onCancel,
   isSaving,
+  usedMealTypes = new Set<string>(),
 }: {
-  initial:  MealFormState;
-  onSave:   (form: MealFormState) => void;
-  onCancel: () => void;
-  isSaving: boolean;
+  initial:        MealFormState;
+  onSave:         (form: MealFormState) => void;
+  onCancel:       () => void;
+  isSaving:       boolean;
+  /** Preset meal_type values already saved for this hotel (excluding the one being edited). */
+  usedMealTypes?: Set<string>;
 }) {
   const [form, setForm] = useState<MealFormState>(initial);
   function upd<K extends keyof MealFormState>(k: K, v: MealFormState[K]) {
@@ -379,9 +382,25 @@ function MealForm({
             <SelectValue placeholder="Select meal type…" />
           </SelectTrigger>
           <SelectContent>
-            {PRESET_MEALS.map((m) => (
-              <SelectItem key={m.value} value={m.value} className="cursor-pointer">{m.label}</SelectItem>
-            ))}
+            {PRESET_MEALS.map((m) => {
+              const alreadyUsed = m.value !== "CUSTOM" && usedMealTypes.has(m.value);
+              return (
+                <SelectItem
+                  key={m.value}
+                  value={m.value}
+                  disabled={alreadyUsed}
+                  className={cn(
+                    "cursor-pointer",
+                    alreadyUsed && "opacity-40 cursor-not-allowed",
+                  )}
+                >
+                  <span>{m.label}</span>
+                  {alreadyUsed && (
+                    <span className="ml-1.5 text-[10px] text-dashboard-base-content/40">· already added</span>
+                  )}
+                </SelectItem>
+              );
+            })}
           </SelectContent>
         </Select>
       </div>
@@ -713,6 +732,7 @@ export function MealsTab({
           onSave={handleAdd}
           onCancel={() => setAdding(false)}
           isSaving={isPending}
+          usedMealTypes={new Set(meals.map((m) => m.meal_type).filter((t) => t !== "CUSTOM"))}
         />
       )}
 
@@ -733,6 +753,11 @@ export function MealsTab({
                 onSave={(form) => handleEdit(meal.id, form)}
                 onCancel={() => setEditingId(null)}
                 isSaving={isPending}
+                usedMealTypes={new Set(
+                  meals
+                    .filter((m) => m.id !== meal.id && m.meal_type !== "CUSTOM")
+                    .map((m) => m.meal_type),
+                )}
               />
             ) : (
               <MealCard
