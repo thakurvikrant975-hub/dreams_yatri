@@ -242,7 +242,7 @@ function SeasonsInlineList({
               <span className="text-xs font-medium text-muted-foreground">{rangeLabel || "New season"}</span>
               <Button
                 type="button" size="icon" variant="ghost"
-                className="h-6 w-6 text-destructive hover:text-destructive"
+                className="h-6 w-6 text-destructive hover:text-destructive cursor-pointer"
                 onClick={() => removeSeason(s.tempId)}
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -306,7 +306,7 @@ function SeasonsInlineList({
         );
       })}
 
-      <Button type="button" variant="outline" size="sm" className="h-8 text-xs gap-1.5 w-full border-dashed" onClick={addSeason}>
+      <Button type="button" variant="outline" size="sm" className="h-8 text-xs gap-1.5 w-full border-dashed cursor-pointer" onClick={addSeason}>
         <Plus className="h-3.5 w-3.5" /> Add Season
       </Button>
     </div>
@@ -341,38 +341,39 @@ function MealForm({
 
   return (
     <div className="border rounded-xl p-4 space-y-4 bg-muted/20">
-      {/* Meal type + name */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Meal type selector */}
+      <div className="space-y-1.5">
+        <Label>Meal Type <span className="text-destructive">*</span></Label>
+        <Select
+          value={form.meal_type}
+          onValueChange={(v) => {
+            const preset = PRESET_MEALS.find((m) => m.value === v);
+            upd("meal_type", v);
+            if (preset && v !== "CUSTOM") upd("label", preset.label);
+            else if (v === "CUSTOM") upd("label", "");
+          }}
+        >
+          <SelectTrigger className="cursor-pointer"><SelectValue placeholder="Select meal type…" /></SelectTrigger>
+          <SelectContent>
+            {PRESET_MEALS.map((m) => (
+              <SelectItem key={m.value} value={m.value} className="cursor-pointer">{m.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Custom name — only shown for Custom type */}
+      {form.meal_type === "CUSTOM" && (
         <div className="space-y-1.5">
-          <Label>Meal Type <span className="text-destructive">*</span></Label>
-          <Select
-            value={form.meal_type}
-            onValueChange={(v) => {
-              const preset = PRESET_MEALS.find((m) => m.value === v);
-              upd("meal_type", v);
-              if (preset && v !== "CUSTOM") upd("label", preset.label);
-              else if (v === "CUSTOM") upd("label", "");
-            }}
-          >
-            <SelectTrigger><SelectValue placeholder="Select meal type…" /></SelectTrigger>
-            <SelectContent>
-              {PRESET_MEALS.map((m) => (
-                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label>Display Name <span className="text-destructive">*</span></Label>
+          <Label>Name <span className="text-destructive">*</span></Label>
           <Input
-            placeholder="e.g. Continental Breakfast"
+            placeholder="e.g. Evening High Tea"
             value={form.label}
             onChange={(e) => upd("label", e.target.value)}
-            readOnly={isPreset}
-            className={cn(isPreset && "bg-muted/40 cursor-default")}
+            autoFocus
           />
         </div>
-      </div>
+      )}
 
       {/* Base price + weekend */}
       <div className="grid grid-cols-2 gap-3">
@@ -424,10 +425,10 @@ function MealForm({
           <span className="text-sm text-muted-foreground">Active</span>
         </div>
         <div className="flex gap-2">
-          <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={isSaving}>
+          <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={isSaving} className="cursor-pointer">
             <X className="mr-1 h-3.5 w-3.5" /> Cancel
           </Button>
-          <Button type="button" size="sm" disabled={!isValid || isSaving} onClick={() => onSave(form)}>
+          <Button type="button" size="sm" disabled={!isValid || isSaving} onClick={() => onSave(form)} className="cursor-pointer">
             {isSaving ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Saving…</> : <><Check className="mr-1.5 h-3.5 w-3.5" />Save Meal</>}
           </Button>
         </div>
@@ -476,12 +477,12 @@ function MealCard({
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0 ml-3" onClick={(e) => e.stopPropagation()}>
-          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={onEdit}>
+          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 cursor-pointer" onClick={onEdit}>
             <Pencil className="h-3.5 w-3.5" />
           </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 hover:text-destructive hover:bg-destructive/10" disabled={isDeleting}>
+              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 hover:text-destructive hover:bg-destructive/10 cursor-pointer" disabled={isDeleting}>
                 {isDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
               </Button>
             </AlertDialogTrigger>
@@ -621,7 +622,7 @@ export function MealsTab({
           </p>
         </div>
         {!adding && (
-          <Button size="sm" className="gap-1.5" onClick={() => { setAdding(true); setEditingId(null); }}>
+          <Button size="sm" className="gap-1.5 cursor-pointer" onClick={() => { setAdding(true); setEditingId(null); }}>
             <Plus className="h-3.5 w-3.5" /> Add Meal
           </Button>
         )}
