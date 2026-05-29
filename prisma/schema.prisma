@@ -710,6 +710,7 @@ model hotels {
   image_categories hotel_image_categories[]
   images           hotel_images[]
   room_pricing     hotel_room_pricing[]
+  meal_pricing     hotel_meal_pricing[]
   hotelRooms       hotel_rooms[]
   destination      destinations             @relation(fields: [destination_id], references: [id])
   location         Location?                @relation(fields: [location_id], references: [id])
@@ -855,6 +856,42 @@ model hotel_room_pricing_season_occupancy {
   @@unique([season_id, occupancy])
   @@index([season_id])
   @@map("hotel_room_pricing_season_occupancy")
+}
+
+model hotel_meal_pricing {
+  id            Int                         @id @default(autoincrement())
+  hotel_id      Int
+  meal_type     String                      // preset key: BREAKFAST | LUNCH | DINNER | MORNING_SNACKS | EVENING_SNACKS | CUSTOM
+  label         String                      // display name, e.g. "Breakfast", "Evening High Tea"
+  price         Decimal                     @db.Decimal(10, 2)
+  weekend_price Decimal?                    @db.Decimal(10, 2)
+  is_active     Boolean                     @default(true)
+  sort_order    Int                         @default(0)
+  created_at    DateTime                    @default(now())
+  updated_at    DateTime                    @updatedAt
+  hotel         hotels                      @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
+  seasons       hotel_meal_pricing_season[]
+
+  @@index([hotel_id])
+  @@map("hotel_meal_pricings")
+}
+
+model hotel_meal_pricing_season {
+  id              Int                @id @default(autoincrement())
+  meal_pricing_id Int
+  season_name     String
+  valid_from      DateTime
+  valid_to        DateTime
+  price           Decimal            @db.Decimal(10, 2)
+  weekend_price   Decimal?           @db.Decimal(10, 2)
+  is_active       Boolean            @default(true)
+  sort_order      Int                @default(0)
+  created_at      DateTime           @default(now())
+  updated_at      DateTime           @updatedAt
+  meal_pricing    hotel_meal_pricing @relation(fields: [meal_pricing_id], references: [id], onDelete: Cascade)
+
+  @@index([meal_pricing_id])
+  @@map("hotel_meal_pricing_seasons")
 }
 
 model hotel_room_occupancy_prices {
