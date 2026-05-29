@@ -136,7 +136,7 @@ export default function PackageTab({
             </div>
 
             {/* Two-column layout */}
-            <div className="flex gap-10 py-section-sm">
+            <div className="flex gap-10 pt-section-sm pb-4">
 
                 {/* Main content */}
                 <div className="flex-1 min-w-0 py-2 pb-20 lg:pb-2">

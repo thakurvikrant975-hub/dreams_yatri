@@ -12,6 +12,7 @@ import { PackageBookingProvider } from "./components/PackageBookingProvider";
 import TravelerInputBar from "./components/TravelerInputBar";
 import { CheckIcon, XMarkIcon, StarIcon } from "@heroicons/react/24/solid";
 import { Card, CardBody } from "@/app/components/ui/Card";
+import RelatedPackages from "./components/RelatedPackages";
 
 // export const revalidate = 3600; // TODO: re-enable ISR for production
 export const dynamic = 'force-dynamic';
@@ -112,7 +113,7 @@ export default async function PackagePage({
         // Collect hotel + room candidates in itinerary order (deduplicated by hotel id)
         const seenHotelIds = new Set<number>();
         const hotelImgCandidates: GalleryImage[] = [];   // hotel exterior images
-        const roomImgCandidates:  GalleryImage[] = [];   // room images
+        const roomImgCandidates: GalleryImage[] = [];   // room images
 
         for (const d of pageData.itinerary) {
             const h = d.hotel;
@@ -238,12 +239,22 @@ export default async function PackagePage({
             roomCapacity: d.hotel.room_capacity,
             mealType: d.hotel.meal_type,
             planName: d.hotel.plan_name,
-            images: [
-                d.hotel.images[0],
-                d.hotel.room_images[0], d.hotel.room_images[1],
-                d.hotel.images[1], d.hotel.images[2],
-                d.hotel.images[3], d.hotel.images[4],
-            ].filter(img => img?.url).map(img => imgUrl(img!.url)).slice(0, 5),
+            images: (() => {
+                const hotelPool = d.hotel.images
+                    .map(img => imgUrl(img.url)).filter(Boolean) as string[];
+                const roomPool = d.hotel.room_images
+                    .map(img => imgUrl(img.url)).filter(Boolean) as string[];
+                const take = (primary: string[], fallback: string[]) =>
+                    primary.shift() ?? fallback.shift();
+                const slots: string[] = [];
+                // Slot 1: hotel, then room
+                const s1 = take(hotelPool, roomPool); if (s1) slots.push(s1);
+                // Slots 2–3: room, then hotel
+                for (let i = 0; i < 2; i++) { const v = take(roomPool, hotelPool); if (v) slots.push(v); }
+                // Slots 4–5: hotel, then room
+                for (let i = 0; i < 2; i++) { const v = take(hotelPool, roomPool); if (v) slots.push(v); }
+                return slots;
+            })(),
         }] : [];
 
         const activitySections: SortableSection[] = d.activities.map(a => ({
@@ -465,8 +476,12 @@ export default async function PackagePage({
                     />
                 </div>
 
-
+                <RelatedPackages
+                    currentPackageId={pageData.id}
+                    destinationId={pageData.destination_id}
+                />
             </PackageBookingProvider>
+
         </>
 
     );
