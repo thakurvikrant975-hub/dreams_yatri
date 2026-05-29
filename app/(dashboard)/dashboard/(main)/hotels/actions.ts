@@ -1252,3 +1252,168 @@ export async function setPrimaryImage(id: number, hotel_id: number): Promise<Hot
     return actionError(e);
   }
 }
+
+// ── Meal Pricing ───────────────────────────────────────────────────────────
+
+export type HotelMealPricingSeason = {
+  id:             number;
+  meal_pricing_id: number;
+  season_name:    string;
+  valid_from:     Date | string;
+  valid_to:       Date | string;
+  price:          number;
+  weekend_price:  number | null;
+  is_active:      boolean;
+  sort_order:     number;
+};
+
+export type HotelMealPricing = {
+  id:           number;
+  hotel_id:     number;
+  meal_type:    string;
+  label:        string;
+  price:        number;
+  weekend_price: number | null;
+  is_active:    boolean;
+  sort_order:   number;
+  seasons:      HotelMealPricingSeason[];
+};
+
+export type MealSeasonInput = {
+  season_name:   string;
+  valid_from:    string;  // YYYY-MM-DD (year-2000 placeholder)
+  valid_to:      string;
+  price:         number;
+  weekend_price?: number | null;
+  is_active:     boolean;
+};
+
+export type MealPricingInput = {
+  meal_type:     string;
+  label:         string;
+  price:         number;
+  weekend_price?: number | null;
+  is_active:     boolean;
+  seasons:       MealSeasonInput[];
+};
+
+export async function getMealPricings(hotel_id: number): Promise<HotelMealPricing[]> {
+  const rows = await db.hotel_meal_pricing.findMany({
+    where: { hotel_id },
+    orderBy: { sort_order: "asc" },
+    include: {
+      seasons: { orderBy: { sort_order: "asc" } },
+    },
+  });
+  return rows.map((m) => ({
+    ...m,
+    price:         Number(m.price),
+    weekend_price: m.weekend_price ? Number(m.weekend_price) : null,
+    seasons: m.seasons.map((s) => ({
+      ...s,
+      price:         Number(s.price),
+      weekend_price: s.weekend_price ? Number(s.weekend_price) : null,
+    })),
+  }));
+}
+
+export async function createMealPricing(
+  hotel_id: number,
+  data: MealPricingInput,
+): Promise<HotelFormState & { id?: number }> {
+  try {
+    if (!data.label?.trim()) return { success: false, message: "Meal name is required." };
+    if (!data.price || data.price <= 0) return { success: false, message: "Valid price is required." };
+
+    const count = await db.hotel_meal_pricing.count({ where: { hotel_id } });
+    const meal = await db.$transaction(async (tx) => {
+      const m = await tx.hotel_meal_pricing.create({
+        data: {
+          hotel_id,
+          meal_type:     data.meal_type,
+          label:         data.label.trim(),
+          price:         data.price,
+          weekend_price: data.weekend_price ?? null,
+          is_active:     data.is_active,
+          sort_order:    count,
+        },
+      });
+      for (const [i, s] of data.seasons.entries()) {
+        await tx.hotel_meal_pricing_season.create({
+          data: {
+            meal_pricing_id: m.id,
+            season_name:     s.season_name.trim(),
+            valid_from:      new Date(s.valid_from),
+            valid_to:        new Date(s.valid_to),
+            price:           s.price,
+            weekend_price:   s.weekend_price ?? null,
+            is_active:       s.is_active,
+            sort_order:      i,
+          },
+        });
+      }
+      return m;
+    });
+    revalidatePath(`/dashboard/hotels/${hotel_id}`);
+    return { success: true, message: "Meal pricing added", id: meal.id };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
+  }
+}
+
+export async function updateMealPricing(
+  id: number,
+  hotel_id: number,
+  data: MealPricingInput,
+): Promise<HotelFormState> {
+  try {
+    if (!data.label?.trim()) return { success: false, message: "Meal name is required." };
+    if (!data.price || data.price <= 0) return { success: false, message: "Valid price is required." };
+
+    await db.$transaction(async (tx) => {
+      await tx.hotel_meal_pricing.update({
+        where: { id },
+        data: {
+          meal_type:     data.meal_type,
+          label:         data.label.trim(),
+          price:         data.price,
+          weekend_price: data.weekend_price ?? null,
+          is_active:     data.is_active,
+        },
+      });
+      // Replace all seasons
+      await tx.hotel_meal_pricing_season.deleteMany({ where: { meal_pricing_id: id } });
+      for (const [i, s] of data.seasons.entries()) {
+        await tx.hotel_meal_pricing_season.create({
+          data: {
+            meal_pricing_id: id,
+            season_name:     s.season_name.trim(),
+            valid_from:      new Date(s.valid_from),
+            valid_to:        new Date(s.valid_to),
+            price:           s.price,
+            weekend_price:   s.weekend_price ?? null,
+            is_active:       s.is_active,
+            sort_order:      i,
+          },
+        });
+      }
+    });
+    revalidatePath(`/dashboard/hotels/${hotel_id}`);
+    return { success: true, message: "Meal pricing updated" };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
+  }
+}
+
+export async function deleteMealPricing(id: number, hotel_id: number): Promise<HotelFormState> {
+  try {
+    await db.hotel_meal_pricing.delete({ where: { id } });
+    revalidatePath(`/dashboard/hotels/${hotel_id}`);
+    return { success: true, message: "Meal pricing deleted" };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
+  }
+}

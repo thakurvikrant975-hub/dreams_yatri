@@ -13,12 +13,14 @@ import {
     getDestinationsForSelect,
     getMealTypes,
     getDietTypes,
+    getMealPricings,
 } from "../actions";
 import { DetailsTab } from "./tabs/DetailsTab";
 import { RoomsTab } from "./tabs/RoomsTab";
 import { PricingTab } from "./tabs/PricingTab";
 import { ChildPoliciesTab } from "./tabs/ChildPoliciesTab";
 import { ImagesTab } from "./tabs/ImagesTab";
+import { MealsTab } from "./tabs/MealsTab";
 
 export default async function HotelEditPage({
     params,
@@ -28,11 +30,12 @@ export default async function HotelEditPage({
     const { id: idStr } = await params;
     const id = Number(idStr);
 
-    const [hotel, destinations, mealTypes, dietTypes] = await Promise.all([
+    const [hotel, destinations, mealTypes, dietTypes, mealPricings] = await Promise.all([
         getHotelById(id),
         getDestinationsForSelect(),
         getMealTypes(),
         getDietTypes(),
+        getMealPricings(id),
     ]);
 
     if (!hotel) notFound();
@@ -161,7 +164,7 @@ const serializedCategories = hotel.image_categories.map((cat) => ({
 
             {/* Tabs */}
             <Tabs defaultValue="details">
-                <TabsList className="grid w-full grid-cols-5">
+                <TabsList className="grid w-full grid-cols-6">
                     <TabsTrigger value="details">Details</TabsTrigger>
                     <TabsTrigger value="rooms">
                         Rooms
@@ -184,6 +187,14 @@ const serializedCategories = hotel.image_categories.map((cat) => ({
                         {totalChildPolicies > 0 && (
                             <Badge variant="secondary" className="ml-2 text-xs px-1.5 py-0">
                                 {totalChildPolicies}
+                            </Badge>
+                        )}
+                    </TabsTrigger>
+                    <TabsTrigger value="meals">
+                        Meals
+                        {mealPricings.length > 0 && (
+                            <Badge variant="secondary" className="ml-2 text-xs px-1.5 py-0">
+                                {mealPricings.length}
                             </Badge>
                         )}
                     </TabsTrigger>
@@ -226,6 +237,10 @@ const serializedCategories = hotel.image_categories.map((cat) => ({
                         hotel_id={id}
                         initialPolicies={serializedHotel.childPolicies}
                     />
+                </TabsContent>
+
+                <TabsContent value="meals" className="mt-6">
+                    <MealsTab hotel_id={id} initialMeals={mealPricings} />
                 </TabsContent>
 
                 <TabsContent value="images" className="mt-6">
