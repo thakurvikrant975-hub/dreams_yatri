@@ -18,7 +18,7 @@ import {
 } from "../../../components/ui/alert-dialog";
 import {
   Plus, Pencil, Trash2, Loader2, Check, X,
-  ChevronDown, ChevronRight, Calendar, AlertTriangle,
+  ChevronDown, ChevronRight, AlertTriangle,
   CalendarDays, Info, UtensilsCrossed,
 } from "lucide-react";
 import {
@@ -150,7 +150,7 @@ function buildInput(form: MealFormState): MealPricingInput {
     is_active:     form.is_active,
     seasons:       form.seasons
       .filter((s) => s.valid_from && s.valid_to && Number(s.price) > 0)
-      .map((s, i) => ({
+      .map((s) => ({
         season_name:   `${fmtMonthDay(s.valid_from)} → ${fmtMonthDay(s.valid_to)}`,
         valid_from:    s.valid_from,
         valid_to:      s.valid_to,
@@ -168,8 +168,8 @@ function SeasonsInlineList({
   onChange,
   basePrice = 0,
 }: {
-  seasons: SeasonEntry[];
-  onChange: (s: SeasonEntry[]) => void;
+  seasons:   SeasonEntry[];
+  onChange:  (s: SeasonEntry[]) => void;
   basePrice?: number;
 }) {
   const overlapping = overlappingIds(seasons);
@@ -201,22 +201,22 @@ function SeasonsInlineList({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-dashboard-base-content/60 flex items-center gap-1.5">
           <CalendarDays className="h-3.5 w-3.5" />
           Seasonal Pricing
-          <span className="font-normal normal-case text-muted-foreground/60">— optional</span>
+          <span className="font-normal normal-case text-dashboard-base-content/40">— optional</span>
         </p>
       </div>
 
       {overlapping.size > 0 ? (
-        <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+        <div className="flex items-center gap-2 rounded-lg border border-dashboard-error/30 bg-dashboard-error/5 px-3 py-2 text-xs text-dashboard-error">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
           Overlapping seasons detected. Fix before saving.
         </div>
       ) : (
-        <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
-          <Info className="h-3.5 w-3.5 shrink-0" />
-          Click a start date then an end date on the calendar to set the range.
+        <div className="flex items-center gap-2 rounded-lg border border-dashboard-info/40 bg-dashboard-info/10 px-3 py-2 text-xs text-dashboard-base-content/70">
+          <Info className="h-3.5 w-3.5 shrink-0 text-dashboard-secondary" />
+          Click a start date then an end date on the calendar to set the season range.
         </div>
       )}
 
@@ -235,26 +235,40 @@ function SeasonsInlineList({
             key={s.tempId}
             className={cn(
               "border rounded-xl p-3 space-y-3",
-              hasOverlap ? "border-destructive/40 bg-destructive/5" : "border-border bg-muted/10",
+              hasOverlap
+                ? "border-dashboard-error/40 bg-dashboard-error/5"
+                : "border-dashboard-base-content/20 bg-dashboard-base-200/50",
             )}
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-muted-foreground">{rangeLabel || "New season"}</span>
-              <Button
-                type="button" size="icon" variant="ghost"
-                className="h-6 w-6 text-destructive hover:text-destructive cursor-pointer"
-                onClick={() => removeSeason(s.tempId)}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
+              <span className="text-xs font-medium text-dashboard-base-content/70">
+                {rangeLabel || "New season"}
+              </span>
+              <div className="flex items-center gap-1">
+                {hasOverlap && (
+                  <span className="text-[10px] text-dashboard-error flex items-center gap-0.5">
+                    <AlertTriangle className="h-3 w-3" /> Overlap
+                  </span>
+                )}
+                <Button
+                  type="button" size="icon" variant="ghost"
+                  className="h-6 w-6 text-dashboard-error hover:text-dashboard-error hover:bg-dashboard-error/10 cursor-pointer"
+                  onClick={() => removeSeason(s.tempId)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
 
             {/* Price row */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs">Weekday Price (₹) <span className="text-destructive">*</span></Label>
+                <Label className="text-xs text-dashboard-base-content/70">
+                  Weekday Price (₹) <span className="text-dashboard-error">*</span>
+                </Label>
                 <Input
-                  type="number" className={cn("h-8 text-sm", priceInvalid && "border-destructive/50")}
+                  type="number"
+                  className={cn("h-8 text-sm bg-dashboard-base-100 border-dashboard-base-content/20", priceInvalid && "border-dashboard-error/50")}
                   placeholder="e.g. 150"
                   value={s.price}
                   onChange={(e) => updSeason(s.tempId, "price", e.target.value)}
@@ -267,16 +281,17 @@ function SeasonsInlineList({
                     id={`wknd-${s.tempId}`}
                     checked={!!s.weekend_price}
                     onChange={(e) => updSeason(s.tempId, "weekend_price", e.target.checked ? s.price : "")}
-                    className="h-3.5 w-3.5 accent-primary"
+                    className="h-3.5 w-3.5 accent-dashboard-primary cursor-pointer"
                   />
-                  <Label htmlFor={`wknd-${s.tempId}`} className="text-xs cursor-pointer">
+                  <Label htmlFor={`wknd-${s.tempId}`} className="text-xs text-dashboard-base-content/70 cursor-pointer">
                     Weekend (Sat &amp; Sun)
-                    {s.price && <span className="text-muted-foreground ml-1">(base ₹{Number(s.price).toLocaleString("en-IN")})</span>}
+                    {s.price && <span className="text-dashboard-base-content/40 ml-1">(base ₹{Number(s.price).toLocaleString("en-IN")})</span>}
                   </Label>
                 </div>
                 {s.weekend_price !== "" && (
                   <Input
-                    type="number" className="h-8 text-sm"
+                    type="number"
+                    className="h-8 text-sm bg-dashboard-base-100 border-dashboard-base-content/20"
                     placeholder="Same as weekday"
                     value={s.weekend_price}
                     onChange={(e) => updSeason(s.tempId, "weekend_price", e.target.value)}
@@ -287,7 +302,9 @@ function SeasonsInlineList({
 
             {/* Calendar */}
             <div className="space-y-1">
-              <Label className="text-xs">Date Range <span className="text-destructive">*</span></Label>
+              <Label className="text-xs text-dashboard-base-content/70">
+                Date Range <span className="text-dashboard-error">*</span>
+              </Label>
               <PricingRangeCalendarPicker
                 value={dateRange}
                 onChange={(range) => {
@@ -306,7 +323,11 @@ function SeasonsInlineList({
         );
       })}
 
-      <Button type="button" variant="outline" size="sm" className="h-8 text-xs gap-1.5 w-full border-dashed cursor-pointer" onClick={addSeason}>
+      <Button
+        type="button" variant="outline" size="sm"
+        className="h-8 text-xs gap-1.5 w-full border-dashed border-dashboard-base-content/30 bg-dashboard-base-100 text-dashboard-base-content/60 hover:bg-dashboard-base-200 hover:text-dashboard-base-content cursor-pointer"
+        onClick={addSeason}
+      >
         <Plus className="h-3.5 w-3.5" /> Add Season
       </Button>
     </div>
@@ -321,8 +342,8 @@ function MealForm({
   onCancel,
   isSaving,
 }: {
-  initial: MealFormState;
-  onSave: (form: MealFormState) => void;
+  initial:  MealFormState;
+  onSave:   (form: MealFormState) => void;
   onCancel: () => void;
   isSaving: boolean;
 }) {
@@ -331,7 +352,6 @@ function MealForm({
     setForm((prev) => ({ ...prev, [k]: v }));
   }
 
-  const isPreset = PRESET_MEALS.some((m) => m.value !== "CUSTOM" && m.value === form.meal_type);
   const overlaps = overlappingIds(form.seasons);
   const isValid =
     !!form.meal_type && !!form.label.trim() &&
@@ -340,10 +360,12 @@ function MealForm({
     form.seasons.every((s) => !s.valid_from || (s.valid_from && s.valid_to && Number(s.price) > 0));
 
   return (
-    <div className="border rounded-xl p-4 space-y-4 bg-muted/20">
+    <div className="border border-dashboard-base-content/20 rounded-xl p-4 space-y-4 bg-dashboard-base-200/60 shadow-sm">
       {/* Meal type selector */}
       <div className="space-y-1.5">
-        <Label>Meal Type <span className="text-destructive">*</span></Label>
+        <Label className="text-sm font-medium text-dashboard-base-content">
+          Meal Type <span className="text-dashboard-error">*</span>
+        </Label>
         <Select
           value={form.meal_type}
           onValueChange={(v) => {
@@ -353,7 +375,9 @@ function MealForm({
             else if (v === "CUSTOM") upd("label", "");
           }}
         >
-          <SelectTrigger className="cursor-pointer"><SelectValue placeholder="Select meal type…" /></SelectTrigger>
+          <SelectTrigger className="bg-dashboard-base-100 border-dashboard-base-content/20 text-dashboard-base-content cursor-pointer">
+            <SelectValue placeholder="Select meal type…" />
+          </SelectTrigger>
           <SelectContent>
             {PRESET_MEALS.map((m) => (
               <SelectItem key={m.value} value={m.value} className="cursor-pointer">{m.label}</SelectItem>
@@ -362,15 +386,18 @@ function MealForm({
         </Select>
       </div>
 
-      {/* Custom name — only shown for Custom type */}
+      {/* Custom name — only when Custom selected */}
       {form.meal_type === "CUSTOM" && (
         <div className="space-y-1.5">
-          <Label>Name <span className="text-destructive">*</span></Label>
+          <Label className="text-sm font-medium text-dashboard-base-content">
+            Name <span className="text-dashboard-error">*</span>
+          </Label>
           <Input
             placeholder="e.g. Evening High Tea"
             value={form.label}
             onChange={(e) => upd("label", e.target.value)}
             autoFocus
+            className="bg-dashboard-base-100 border-dashboard-base-content/20"
           />
         </div>
       )}
@@ -378,11 +405,14 @@ function MealForm({
       {/* Base price + weekend */}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label>Weekday Price (₹/person) <span className="text-destructive">*</span></Label>
+          <Label className="text-sm font-medium text-dashboard-base-content">
+            Weekday Price (₹/person) <span className="text-dashboard-error">*</span>
+          </Label>
           <Input
             type="number" min={0} placeholder="150"
             value={form.price}
             onChange={(e) => upd("price", e.target.value)}
+            className="bg-dashboard-base-100 border-dashboard-base-content/20"
           />
         </div>
         <div className="space-y-1.5">
@@ -392,11 +422,15 @@ function MealForm({
               id="meal-weekend"
               checked={!!form.weekend_price}
               onChange={(e) => upd("weekend_price", e.target.checked ? form.price : "")}
-              className="h-3.5 w-3.5 accent-primary"
+              className="h-3.5 w-3.5 accent-dashboard-primary cursor-pointer"
             />
-            <Label htmlFor="meal-weekend" className="text-sm cursor-pointer">
+            <Label htmlFor="meal-weekend" className="text-sm font-medium text-dashboard-base-content cursor-pointer">
               Weekend rate (Sat &amp; Sun)
-              {form.price && <span className="text-xs text-muted-foreground ml-1">(base ₹{Number(form.price).toLocaleString("en-IN")})</span>}
+              {form.price && (
+                <span className="text-xs text-dashboard-base-content/50 ml-1">
+                  (base ₹{Number(form.price).toLocaleString("en-IN")})
+                </span>
+              )}
             </Label>
           </div>
           {form.weekend_price !== "" && (
@@ -404,13 +438,14 @@ function MealForm({
               type="number" min={0} placeholder="Same as weekday"
               value={form.weekend_price}
               onChange={(e) => upd("weekend_price", e.target.value)}
+              className="bg-dashboard-base-100 border-dashboard-base-content/20"
             />
           )}
         </div>
       </div>
 
       {/* Seasonal pricing */}
-      <div className="border-t pt-3">
+      <div className="border-t border-dashboard-base-content/10 pt-4">
         <SeasonsInlineList
           seasons={form.seasons}
           onChange={(s) => upd("seasons", s)}
@@ -419,17 +454,28 @@ function MealForm({
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between pt-1">
+      <div className="flex items-center justify-between pt-1 border-t border-dashboard-base-content/10">
         <div className="flex items-center gap-2">
           <Switch checked={form.is_active} onCheckedChange={(v) => upd("is_active", v)} />
-          <span className="text-sm text-muted-foreground">Active</span>
+          <span className="text-sm text-dashboard-base-content/60">Active</span>
         </div>
         <div className="flex gap-2">
-          <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={isSaving} className="cursor-pointer">
+          <Button
+            type="button" variant="ghost" size="sm"
+            onClick={onCancel} disabled={isSaving}
+            className="text-dashboard-base-content/60 hover:text-dashboard-base-content hover:bg-dashboard-base-300 cursor-pointer"
+          >
             <X className="mr-1 h-3.5 w-3.5" /> Cancel
           </Button>
-          <Button type="button" size="sm" disabled={!isValid || isSaving} onClick={() => onSave(form)} className="cursor-pointer">
-            {isSaving ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Saving…</> : <><Check className="mr-1.5 h-3.5 w-3.5" />Save Meal</>}
+          <Button
+            type="button" size="sm"
+            disabled={!isValid || isSaving}
+            onClick={() => onSave(form)}
+            className="bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90 cursor-pointer"
+          >
+            {isSaving
+              ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Saving…</>
+              : <><Check className="mr-1.5 h-3.5 w-3.5" />Save Meal</>}
           </Button>
         </div>
       </div>
@@ -441,59 +487,78 @@ function MealForm({
 
 function MealCard({
   meal,
-  hotelId,
   onEdit,
   onDelete,
   isDeleting,
 }: {
-  meal: HotelMealPricing;
-  hotelId: number;
-  onEdit: () => void;
-  onDelete: () => void;
+  meal:       HotelMealPricing;
+  onEdit:     () => void;
+  onDelete:   () => void;
   isDeleting: boolean;
 }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="border rounded-xl overflow-hidden bg-background">
+    <div className="border border-dashboard-base-content/20 rounded-xl overflow-hidden bg-dashboard-base-100 shadow-sm">
       <button
         type="button"
         onClick={() => setOpen((p) => !p)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors text-left cursor-pointer"
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-dashboard-base-200 transition-colors text-left cursor-pointer"
       >
         <div className="flex items-center gap-3 min-w-0">
-          {open ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
-          <UtensilsCrossed className="h-4 w-4 text-muted-foreground shrink-0" />
+          {open
+            ? <ChevronDown className="h-4 w-4 text-dashboard-base-content/40 shrink-0" />
+            : <ChevronRight className="h-4 w-4 text-dashboard-base-content/40 shrink-0" />}
+          <UtensilsCrossed className="h-4 w-4 text-dashboard-primary/60 shrink-0" />
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <p className="text-sm font-semibold truncate">{meal.label}</p>
-              {!meal.is_active && <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Inactive</Badge>}
+              <p className="text-sm font-semibold text-dashboard-base-content truncate">{meal.label}</p>
+              {!meal.is_active && (
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Inactive</Badge>
+              )}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-dashboard-base-content/50">
               ₹{meal.price.toLocaleString("en-IN")}/person weekday
               {meal.weekend_price ? ` · ₹${meal.weekend_price.toLocaleString("en-IN")} weekend` : ""}
-              {meal.seasons.length > 0 ? ` · ${meal.seasons.length} season${meal.seasons.length !== 1 ? "s" : ""}` : ""}
+              {meal.seasons.length > 0
+                ? ` · ${meal.seasons.length} season${meal.seasons.length !== 1 ? "s" : ""}`
+                : ""}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0 ml-3" onClick={(e) => e.stopPropagation()}>
-          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 cursor-pointer" onClick={onEdit}>
+          <Button
+            size="sm" variant="ghost"
+            className="h-7 w-7 p-0 text-dashboard-base-content/50 hover:text-dashboard-primary hover:bg-dashboard-primary/10 cursor-pointer"
+            onClick={onEdit}
+          >
             <Pencil className="h-3.5 w-3.5" />
           </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 hover:text-destructive hover:bg-destructive/10 cursor-pointer" disabled={isDeleting}>
+              <Button
+                size="sm" variant="ghost"
+                className="h-7 w-7 p-0 text-dashboard-base-content/50 hover:text-dashboard-error hover:bg-dashboard-error/10 cursor-pointer"
+                disabled={isDeleting}
+              >
                 {isDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Delete "{meal.label}"?</AlertDialogTitle>
-                <AlertDialogDescription>This will permanently remove this meal pricing and all its seasons.</AlertDialogDescription>
+                <AlertDialogTitle>Delete &ldquo;{meal.label}&rdquo;?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently remove this meal pricing and all its seasons.
+                </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={onDelete} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                <AlertDialogCancel className="cursor-pointer">Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={onDelete}
+                  className="bg-dashboard-error text-dashboard-error-content hover:bg-dashboard-error/90 cursor-pointer"
+                >
+                  Delete
+                </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
@@ -501,14 +566,23 @@ function MealCard({
       </button>
 
       {open && meal.seasons.length > 0 && (
-        <div className="px-4 pb-3 pt-1 border-t space-y-1.5">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">Seasonal Pricing</p>
+        <div className="px-4 pb-4 pt-2 border-t border-dashboard-base-content/10 space-y-2">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-dashboard-base-content/50 mb-2">
+            Seasonal Pricing
+          </p>
           {meal.seasons.map((s) => (
-            <div key={s.id} className="flex items-center justify-between text-xs bg-muted/40 rounded-lg px-3 py-1.5">
-              <span className="text-muted-foreground">{s.season_name}</span>
-              <span className="font-medium">
+            <div
+              key={s.id}
+              className="flex items-center justify-between text-xs bg-dashboard-base-200 rounded-lg px-3 py-1.5"
+            >
+              <span className="text-dashboard-base-content/60">{s.season_name}</span>
+              <span className="font-medium text-dashboard-base-content">
                 ₹{s.price.toLocaleString("en-IN")}
-                {s.weekend_price ? <span className="text-muted-foreground ml-1.5">· ₹{s.weekend_price.toLocaleString("en-IN")} wknd</span> : ""}
+                {s.weekend_price && (
+                  <span className="text-dashboard-base-content/50 ml-1.5">
+                    · ₹{s.weekend_price.toLocaleString("en-IN")} wknd
+                  </span>
+                )}
               </span>
             </div>
           ))}
@@ -524,11 +598,11 @@ export function MealsTab({
   hotel_id,
   initialMeals,
 }: {
-  hotel_id: number;
+  hotel_id:     number;
   initialMeals: HotelMealPricing[];
 }) {
-  const [meals, setMeals] = useState<HotelMealPricing[]>(initialMeals);
-  const [adding, setAdding] = useState(false);
+  const [meals, setMeals]       = useState<HotelMealPricing[]>(initialMeals);
+  const [adding, setAdding]     = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -539,30 +613,29 @@ export function MealsTab({
       if (!res.success) { toast.error(res.message); return; }
       toast.success(res.message);
       setAdding(false);
-      // Optimistic: add with temp id; page revalidation will refresh
       setMeals((prev) => [
         ...prev,
         {
-          id: res.id!,
+          id:            res.id!,
           hotel_id,
-          meal_type: form.meal_type,
-          label: form.label.trim(),
-          price: Number(form.price),
+          meal_type:     form.meal_type,
+          label:         form.label.trim(),
+          price:         Number(form.price),
           weekend_price: form.weekend_price ? Number(form.weekend_price) : null,
-          is_active: form.is_active,
-          sort_order: prev.length,
-          seasons: form.seasons
+          is_active:     form.is_active,
+          sort_order:    prev.length,
+          seasons:       form.seasons
             .filter((s) => s.valid_from && s.valid_to && Number(s.price) > 0)
             .map((s, i) => ({
-              id: Date.now() + i,
+              id:             Date.now() + i,
               meal_pricing_id: res.id!,
-              season_name: `${fmtMonthDay(s.valid_from)} → ${fmtMonthDay(s.valid_to)}`,
-              valid_from: new Date(s.valid_from),
-              valid_to: new Date(s.valid_to),
-              price: Number(s.price),
-              weekend_price: s.weekend_price ? Number(s.weekend_price) : null,
-              is_active: true,
-              sort_order: i,
+              season_name:    `${fmtMonthDay(s.valid_from)} → ${fmtMonthDay(s.valid_to)}`,
+              valid_from:     new Date(s.valid_from),
+              valid_to:       new Date(s.valid_to),
+              price:          Number(s.price),
+              weekend_price:  s.weekend_price ? Number(s.weekend_price) : null,
+              is_active:      true,
+              sort_order:     i,
             })),
         },
       ]);
@@ -578,23 +651,23 @@ export function MealsTab({
       setMeals((prev) => prev.map((m) =>
         m.id !== id ? m : {
           ...m,
-          meal_type: form.meal_type,
-          label: form.label.trim(),
-          price: Number(form.price),
+          meal_type:     form.meal_type,
+          label:         form.label.trim(),
+          price:         Number(form.price),
           weekend_price: form.weekend_price ? Number(form.weekend_price) : null,
-          is_active: form.is_active,
-          seasons: form.seasons
+          is_active:     form.is_active,
+          seasons:       form.seasons
             .filter((s) => s.valid_from && s.valid_to && Number(s.price) > 0)
             .map((s, i) => ({
-              id: Date.now() + i,
+              id:             Date.now() + i,
               meal_pricing_id: id,
-              season_name: `${fmtMonthDay(s.valid_from)} → ${fmtMonthDay(s.valid_to)}`,
-              valid_from: new Date(s.valid_from),
-              valid_to: new Date(s.valid_to),
-              price: Number(s.price),
-              weekend_price: s.weekend_price ? Number(s.weekend_price) : null,
-              is_active: true,
-              sort_order: i,
+              season_name:    `${fmtMonthDay(s.valid_from)} → ${fmtMonthDay(s.valid_to)}`,
+              valid_from:     new Date(s.valid_from),
+              valid_to:       new Date(s.valid_to),
+              price:          Number(s.price),
+              weekend_price:  s.weekend_price ? Number(s.weekend_price) : null,
+              is_active:      true,
+              sort_order:     i,
             })),
         },
       ));
@@ -613,16 +686,21 @@ export function MealsTab({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 bg-dashboard-base-100 p-8 rounded-xl shadow-lg border border-dashboard-base-content/20">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-semibold">Meal Pricing</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <p className="text-sm font-semibold text-dashboard-base-content">Meal Pricing</p>
+          <p className="text-xs text-dashboard-base-content/50 mt-0.5">
             Configure per-person meal prices with optional seasonal &amp; weekend rates.
           </p>
         </div>
         {!adding && (
-          <Button size="sm" className="gap-1.5 cursor-pointer" onClick={() => { setAdding(true); setEditingId(null); }}>
+          <Button
+            size="sm"
+            className="gap-1.5 bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90 cursor-pointer"
+            onClick={() => { setAdding(true); setEditingId(null); }}
+          >
             <Plus className="h-3.5 w-3.5" /> Add Meal
           </Button>
         )}
@@ -640,10 +718,10 @@ export function MealsTab({
 
       {/* Meal list */}
       {meals.length === 0 && !adding ? (
-        <div className="flex flex-col items-center justify-center py-12 rounded-xl border border-dashed bg-muted/20">
-          <UtensilsCrossed className="h-8 w-8 text-muted-foreground/30 mb-3" />
-          <p className="text-sm font-medium text-muted-foreground">No meal pricing configured</p>
-          <p className="text-xs text-muted-foreground/60 mt-1">Click "Add Meal" to get started</p>
+        <div className="flex flex-col items-center justify-center py-12 rounded-xl border border-dashed border-dashboard-base-content/20 bg-dashboard-base-200/30">
+          <UtensilsCrossed className="h-8 w-8 text-dashboard-base-content/20 mb-3" />
+          <p className="text-sm font-medium text-dashboard-base-content/50">No meal pricing configured</p>
+          <p className="text-xs text-dashboard-base-content/40 mt-1">Click &ldquo;Add Meal&rdquo; to get started</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -660,7 +738,6 @@ export function MealsTab({
               <MealCard
                 key={meal.id}
                 meal={meal}
-                hotelId={hotel_id}
                 onEdit={() => { setEditingId(meal.id); setAdding(false); }}
                 onDelete={() => handleDelete(meal.id)}
                 isDeleting={deletingId === meal.id}
