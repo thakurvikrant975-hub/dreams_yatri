@@ -35,8 +35,7 @@ export type DayMealLine = {
   label: string;              // display name e.g. "Breakfast"
   hotel_name: string;
   price_per_person: number;   // effective price after weekend/season resolution
-  persons: number;            // adults (meals are per-person)
-  num_nights: number;
+  persons: number;            // adults + children (no infants for meals)
   total: number;
 };
 
@@ -591,6 +590,20 @@ export async function computePackagePrice(
     }
   }
 
+  // ── Build day → active stay map ───────────────────────────────────────────
+  // A stay with check-in on Day D and num_nights=N is "active" on nights D, D+1 … D+N-1.
+  // - Breakfast on Day N  = served by the hotel from stayByDay[N-1] (checkout morning)
+  // - All other meals     = served by the hotel from stayByDay[N]   (arrival evening)
+  type StayRecord = (typeof itineraries)[0]["itineraryStays"][0];
+  const stayByDay = new Map<number, StayRecord>();
+  for (const itin of itineraries) {
+    for (const stay of itin.itineraryStays) {
+      for (let d = itin.day; d < itin.day + stay.num_nights; d++) {
+        stayByDay.set(d, stay);
+      }
+    }
+  }
+
   let hotel_subtotal = 0;
   let meal_subtotal = 0;
   let activity_subtotal = 0;
@@ -664,29 +677,42 @@ export async function computePackagePrice(
       hotel_subtotal += total;
     }
 
-    // ── Meals ────────────────────────────────────────────────────────────────
+    // ── Meals (per-day logic) ─────────────────────────────────────────────────
+    // Breakfast on this day comes from yesterday's hotel (checkout morning).
+    // All other meals come from today's hotel (arrival evening).
+    // Persons = adults + children only (no infants for meals).
     const meals: DayMealLine[] = [];
-    if (stay && stay.active_meals.length > 0) {
-      const hotelId = stay.room_pricing.hotel.id;
-      const hotelMeals = mealsByHotelId.get(hotelId) ?? [];
-      const numNights = stay.num_nights;
-      const persons = adults; // meals charged per adult
+    const mealPersons = adults + children;
+    const currDayStay = stayByDay.get(itin.day) ?? null;
+    const prevDayStay = stayByDay.get(itin.day - 1) ?? null;
 
-      for (const mealKey of stay.active_meals) {
-        const mealPricing = hotelMeals.find((m) => m.meal_type.toLowerCase() === mealKey);
-        if (!mealPricing) continue;
-        const price = resolveMealPrice(mealPricing, dayDate);
-        const total = price * persons * numNights;
-        meals.push({
-          meal_type: mealPricing.meal_type,
-          label: mealPricing.label,
-          hotel_name: stay.room_pricing.hotel.name,
-          price_per_person: price,
-          persons,
-          num_nights: numNights,
-          total,
-        });
-        meal_subtotal += total;
+    const addMeal = (sourceStay: StayRecord, mealKey: string) => {
+      const hotelId = sourceStay.room_pricing.hotel.id;
+      const hotelMeals = mealsByHotelId.get(hotelId) ?? [];
+      const mealPricing = hotelMeals.find((m) => m.meal_type.toLowerCase() === mealKey);
+      if (!mealPricing) return;
+      const price = resolveMealPrice(mealPricing, dayDate);
+      const total = price * mealPersons;
+      meals.push({
+        meal_type: mealPricing.meal_type,
+        label: mealPricing.label,
+        hotel_name: sourceStay.room_pricing.hotel.name,
+        price_per_person: price,
+        persons: mealPersons,
+        total,
+      });
+      meal_subtotal += total;
+    };
+
+    // Breakfast: from previous night's hotel
+    if (prevDayStay && prevDayStay.active_meals.includes("breakfast")) {
+      addMeal(prevDayStay, "breakfast");
+    }
+    // All non-breakfast meals: from today's hotel
+    if (currDayStay) {
+      for (const mealKey of currDayStay.active_meals) {
+        if (mealKey === "breakfast") continue; // breakfast handled above
+        addMeal(currDayStay, mealKey);
       }
     }
 
