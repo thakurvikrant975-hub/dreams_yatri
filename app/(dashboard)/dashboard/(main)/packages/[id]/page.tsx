@@ -38,9 +38,9 @@ const TABS = [
 
 function PlaceholderTab({ label }: { label: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-24 rounded-xl border border-dashed bg-muted/30">
-      <p className="text-sm font-medium text-muted-foreground">{label}</p>
-      <p className="text-xs text-muted-foreground/60 mt-1">Coming soon</p>
+    <div className="flex flex-col items-center justify-center py-24 rounded-xl border border-dashed border-dashboard-base-content/20 bg-dashboard-base-200/30">
+      <p className="text-sm font-medium text-dashboard-base-content/50">{label}</p>
+      <p className="text-xs text-dashboard-base-content/40 mt-1">Coming soon</p>
     </div>
   );
 }
@@ -108,15 +108,17 @@ export default async function PackageBuilderPage({
 
       {/* Header */}
       <div className="flex items-start gap-3">
-        <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-          <Package className="h-5 w-5 text-primary" />
+        <div className="h-10 w-10 rounded-xl bg-dashboard-primary/10 flex items-center justify-center shrink-0">
+          <Package className="h-5 w-5 text-dashboard-primary" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-xl font-semibold truncate">{pkg.title}</h1>
+            <h1 className="text-xl font-semibold text-dashboard-base-content truncate">{pkg.title}</h1>
             <Badge
-              variant={pkg.is_active ? "default" : "outline"}
-              className="shrink-0 text-xs"
+              className={pkg.is_active
+                ? "shrink-0 text-xs bg-dashboard-success/15 text-dashboard-success border border-dashboard-success/30"
+                : "shrink-0 text-xs bg-dashboard-base-300 text-dashboard-base-content/50 border border-dashboard-base-content/20"
+              }
             >
               {pkg.is_active ? "Active" : "Inactive"}
             </Badge>
@@ -124,14 +126,14 @@ export default async function PackageBuilderPage({
               <Link
                 href={websiteUrl}
                 target="_blank"
-                className="flex items-center gap-1 text-xs text-primary hover:underline"
+                className="flex items-center gap-1 text-xs text-dashboard-primary hover:underline"
               >
                 <ExternalLink className="h-3 w-3" />
                 View on website
               </Link>
             )}
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5 font-mono">{pkg.slug}</p>
+          <p className="text-xs text-dashboard-base-content/50 mt-0.5 font-mono">{pkg.slug}</p>
         </div>
       </div>
 

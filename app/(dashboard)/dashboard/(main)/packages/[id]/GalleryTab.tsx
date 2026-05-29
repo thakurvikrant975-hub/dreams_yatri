@@ -94,8 +94,8 @@ function SlotCard({
       className={cn(
         "relative rounded-xl border-2 overflow-hidden transition-all cursor-pointer group",
         isCover ? "col-span-2 row-span-2 aspect-4/3" : "aspect-square",
-        active ? "border-primary ring-2 ring-primary/30" : "border-border hover:border-primary/50",
-        !slot && "bg-muted/20 border-dashed",
+        active ? "border-dashboard-primary ring-2 ring-dashboard-primary/30" : "border-dashboard-base-content/20 hover:border-dashboard-primary/50",
+        !slot && "bg-dashboard-base-200/30 border-dashed",
       )}
       onClick={onSelect}
     >
@@ -111,7 +111,7 @@ function SlotCard({
           <div className="absolute top-2 left-2">
             <span className={cn(
               "text-[10px] font-bold px-1.5 py-0.5 rounded-md",
-              isCover ? "bg-primary text-primary-foreground" : "bg-black/60 text-white",
+              isCover ? "bg-dashboard-primary text-dashboard-primary-content" : "bg-black/60 text-white",
             )}>
               {isCover && <Star className="inline h-2.5 w-2.5 mb-0.5 mr-0.5" />}
               {SLOT_LABELS[position]}
@@ -151,15 +151,15 @@ function SlotCard({
       ) : (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5">
           {saving ? (
-            <Loader2 className="h-5 w-5 text-muted-foreground animate-spin" />
+            <Loader2 className="h-5 w-5 text-dashboard-base-content/30 animate-spin" />
           ) : (
             <>
-              <ImageIcon className="h-5 w-5 text-muted-foreground/40" />
-              <span className="text-[10px] text-muted-foreground/50 font-medium">
+              <ImageIcon className="h-5 w-5 text-dashboard-base-content/25" />
+              <span className="text-[10px] text-dashboard-base-content/40 font-medium">
                 {SLOT_LABELS[position]}
               </span>
               {isCover && (
-                <span className="text-[9px] text-muted-foreground/40">Cover</span>
+                <span className="text-[9px] text-dashboard-base-content/30">Cover</span>
               )}
             </>
           )}
@@ -196,29 +196,30 @@ function ImagePickerPanel({
   }, {});
 
   return (
-    <div className="rounded-xl border bg-background flex flex-col" style={{ minHeight: 420 }}>
-      <div className="flex items-center justify-between px-4 py-3 border-b">
+    <div className="rounded-xl border border-dashboard-base-content/20 bg-dashboard-base-100 flex flex-col" style={{ minHeight: 420 }}>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-dashboard-base-content/10">
         <div className="flex items-center gap-2">
-          <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+          <button type="button" onClick={onClose}
+            className="text-dashboard-base-content/50 hover:text-dashboard-base-content cursor-pointer">
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <p className="text-sm font-semibold">
-            Pick image for <span className="text-primary">{SLOT_LABELS[activeSlot]}</span>
+          <p className="text-sm font-semibold text-dashboard-base-content">
+            Pick image for <span className="text-dashboard-primary">{SLOT_LABELS[activeSlot]}</span>
           </p>
         </div>
       </div>
 
-      <div className="flex border-b px-4">
+      <div className="flex border-b border-dashboard-base-content/10 px-4">
         {SOURCE_TABS.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             type="button"
             onClick={() => setActiveSource(key)}
             className={cn(
-              "flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors",
+              "flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors cursor-pointer",
               activeSource === key
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground",
+                ? "border-dashboard-primary text-dashboard-primary"
+                : "border-transparent text-dashboard-base-content/50 hover:text-dashboard-base-content",
             )}
           >
             <Icon className="h-3.5 w-3.5" />
@@ -230,13 +231,13 @@ function ImagePickerPanel({
       <div className="flex-1 overflow-y-auto p-4">
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-5 w-5 text-muted-foreground animate-spin" />
+            <Loader2 className="h-5 w-5 text-dashboard-base-content/50 animate-spin" />
           </div>
         ) : images.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
-            <ImageIcon className="h-8 w-8 text-muted-foreground/30 mb-2" />
-            <p className="text-sm text-muted-foreground">No images available</p>
-            <p className="text-xs text-muted-foreground/60 mt-1">
+            <ImageIcon className="h-8 w-8 text-dashboard-base-content/50/30 mb-2" />
+            <p className="text-sm text-dashboard-base-content/50">No images available</p>
+            <p className="text-xs text-dashboard-base-content/40 mt-1">
               {activeSource === "PACKAGE"
                 ? "Upload images in the Images tab"
                 : `Add ${activeSource.toLowerCase()} items to the itinerary first`}
@@ -246,7 +247,7 @@ function ImagePickerPanel({
           <div className="space-y-5">
             {Object.entries(grouped).map(([groupLabel, imgs]) => (
               <div key={groupLabel}>
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-dashboard-base-content/50 mb-2">
                   {groupLabel}
                 </p>
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
@@ -256,7 +257,7 @@ function ImagePickerPanel({
                       type="button"
                       disabled={savingSlot !== null}
                       onClick={() => onPick(img, activeSource)}
-                      className="relative aspect-square rounded-lg overflow-hidden border-2 border-transparent hover:border-primary transition-all group"
+                      className="relative aspect-square rounded-lg overflow-hidden border-2 border-transparent hover:border-dashboard-primary transition-all group"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
@@ -385,7 +386,7 @@ function RouteGalleryPanel({
   if (galleryLoading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-5 w-5 text-muted-foreground animate-spin" />
+        <Loader2 className="h-5 w-5 text-dashboard-base-content/50 animate-spin" />
       </div>
     );
   }
@@ -394,7 +395,7 @@ function RouteGalleryPanel({
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Slot grid */}
       <div>
-        <p className="text-xs text-muted-foreground mb-3">
+        <p className="text-xs text-dashboard-base-content/50 mb-3">
           {filledCount}/5 filled — click a slot to pick an image
         </p>
         <div className="grid grid-cols-4 grid-rows-2 gap-2" style={{ minHeight: 280 }}>
@@ -428,10 +429,10 @@ function RouteGalleryPanel({
             onClose={() => setActiveSlot(null)}
           />
         ) : (
-          <div className="rounded-xl border border-dashed bg-muted/20 flex flex-col items-center justify-center" style={{ minHeight: 280 }}>
-            <ImageIcon className="h-8 w-8 text-muted-foreground/30 mb-2" />
-            <p className="text-sm text-muted-foreground">Select a slot to pick an image</p>
-            <p className="text-xs text-muted-foreground/50 mt-1">
+          <div className="rounded-xl border border-dashed bg-dashboard-base-200/30 flex flex-col items-center justify-center" style={{ minHeight: 280 }}>
+            <ImageIcon className="h-8 w-8 text-dashboard-base-content/50/30 mb-2" />
+            <p className="text-sm text-dashboard-base-content/50">Select a slot to pick an image</p>
+            <p className="text-xs text-dashboard-base-content/40 mt-1">
               Images sourced from package, hotels, activities, and rooms in the itinerary
             </p>
           </div>
@@ -448,10 +449,10 @@ export function GalleryTab({ packageId, routes }: Props) {
 
   if (routes.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 rounded-xl border border-dashed bg-muted/20">
-        <Route className="h-10 w-10 text-muted-foreground/30 mb-4" />
-        <p className="text-sm font-medium text-muted-foreground">No route variants yet</p>
-        <p className="text-xs text-muted-foreground/60 mt-1">
+      <div className="flex flex-col items-center justify-center py-20 rounded-xl border border-dashed bg-dashboard-base-200/30">
+        <Route className="h-10 w-10 text-dashboard-base-content/50/30 mb-4" />
+        <p className="text-sm font-medium text-dashboard-base-content/50">No route variants yet</p>
+        <p className="text-xs text-dashboard-base-content/40 mt-1">
           Create at least one route in the Route Builder tab first.
         </p>
       </div>
@@ -462,29 +463,29 @@ export function GalleryTab({ packageId, routes }: Props) {
     <div className="space-y-5 bg-dashboard-base-100 p-8 rounded-xl shadow-lg border border-dashboard-base-content/20">
       {/* Header */}
       <div>
-        <h3 className="text-sm font-semibold">Gallery — Intro Section</h3>
-        <p className="text-xs text-muted-foreground mt-0.5">
+        <h3 className="text-sm font-semibold text-dashboard-base-content">Gallery — Intro Section</h3>
+        <p className="text-xs text-dashboard-base-content/50 mt-0.5">
           5 images per route variant. Position 1 is the large cover photo.
         </p>
       </div>
 
       {/* Route tabs */}
-      <div className="flex gap-0 border-b overflow-x-auto">
+      <div className="flex gap-0 border-b border-dashboard-base-content/10 overflow-x-auto">
         {routes.map((r) => (
           <button
             key={r.id}
             type="button"
             onClick={() => setSelectedRouteId(r.id)}
             className={cn(
-              "flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 whitespace-nowrap transition-colors",
+              "flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 whitespace-nowrap transition-colors cursor-pointer",
               selectedRouteId === r.id
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground",
+                ? "border-dashboard-primary text-dashboard-primary"
+                : "border-transparent text-dashboard-base-content/50 hover:text-dashboard-base-content",
             )}
           >
             <Route className="h-3 w-3" />
             {r.name}
-            <span className="text-muted-foreground/50 font-normal">· {r.durationLabel}</span>
+            <span className="text-dashboard-base-content/40 font-normal">· {r.durationLabel}</span>
           </button>
         ))}
       </div>

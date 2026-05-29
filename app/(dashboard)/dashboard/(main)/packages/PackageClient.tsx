@@ -16,8 +16,8 @@ import { StatCard, StatGrid } from "../components/dashboard/Statcard";
 
 function TableSkeleton() {
     return (
-        <div className="rounded-xl border bg-card overflow-hidden">
-            <div className="bg-muted/50 px-4 py-3 grid grid-cols-8 gap-4">
+        <div className="rounded-xl border border-dashboard-base-content/20 bg-dashboard-base-100 overflow-hidden shadow-sm">
+            <div className="bg-dashboard-base-200 px-4 py-3 grid grid-cols-8 gap-4">
                 {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-4" />)}
             </div>
             {Array.from({ length: 8 }).map((_, i) => (
@@ -126,7 +126,7 @@ export default function PackagesPage({
                     <div className="space-y-4">
                         <div className="grid grid-cols-3 gap-4">
                             {Array.from({ length: 3 }).map((_, i) => (
-                                <div key={i} className="rounded-xl border bg-card p-4 space-y-2">
+                                <div key={i} className="rounded-xl border border-dashboard-base-content/20 bg-dashboard-base-100 p-4 space-y-2 shadow-sm">
                                     <Skeleton className="h-3 w-20" />
                                     <Skeleton className="h-7 w-10" />
                                 </div>

@@ -88,7 +88,7 @@ function PolicyRow({
   }
 
   return (
-    <div className="rounded-xl border border-dashboard-base-content/30 bg-background p-4 space-y-3">
+    <div className="rounded-xl border border-dashboard-base-content/20 bg-dashboard-base-100 p-4 space-y-3 shadow-sm">
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
@@ -96,14 +96,14 @@ function PolicyRow({
             <Icon className="h-4 w-4" />
           </div>
           <div>
-            <p className="text-sm font-semibold">{label}</p>
+            <p className="text-sm font-semibold text-dashboard-base-content">{label}</p>
             {selected ? (
-              <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                <CheckCircle2 className="h-2.5 w-2.5 text-green-500" />
+              <p className="text-[10px] text-dashboard-base-content/50 flex items-center gap-1 mt-0.5">
+                <CheckCircle2 className="h-2.5 w-2.5 text-dashboard-success" />
                 Assigned
               </p>
             ) : (
-              <p className="text-[10px] text-muted-foreground/60 mt-0.5">Not assigned</p>
+              <p className="text-[10px] text-dashboard-base-content/40 mt-0.5">Not assigned</p>
             )}
           </div>
         </div>
@@ -111,7 +111,7 @@ function PolicyRow({
           href="/dashboard/policies"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors shrink-0"
+          className="flex items-center gap-1 text-[10px] text-dashboard-base-content/50 hover:text-dashboard-primary transition-colors shrink-0 cursor-pointer"
         >
           Manage policies
           <ExternalLink className="h-2.5 w-2.5" />
@@ -149,14 +149,14 @@ export function PoliciesTab({ packageId, initialPolicies }: Props) {
   return (
     <div className="space-y-4 bg-dashboard-base-100 p-8 rounded-xl shadow-lg border border-dashboard-base-content/20">
       <div>
-        <h3 className="text-sm font-semibold">Package Policies</h3>
-        <p className="text-xs text-muted-foreground mt-0.5">
+        <h3 className="text-sm font-semibold text-dashboard-base-content">Package Policies</h3>
+        <p className="text-xs text-dashboard-base-content/50 mt-0.5">
           Link one policy of each type to this package. Policies are managed on the{" "}
           <a
             href="/dashboard/policies"
             target="_blank"
             rel="noopener noreferrer"
-            className="underline underline-offset-2 hover:text-foreground transition-colors"
+            className="underline underline-offset-2 hover:text-dashboard-primary transition-colors"
           >
             Policies page
           </a>

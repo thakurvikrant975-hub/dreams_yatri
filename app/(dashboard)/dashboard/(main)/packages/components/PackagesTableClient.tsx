@@ -173,13 +173,13 @@ export function PackagesTableClient({
               className="h-12 w-16 rounded-lg object-cover shrink-0 border"
             />
           ) : (
-            <div className="h-12 w-16 rounded-lg bg-muted border flex items-center justify-center shrink-0">
-              <Package className="h-4 w-4 text-muted-foreground" />
+            <div className="h-12 w-16 rounded-lg bg-dashboard-base-200 border border-dashboard-base-content/15 flex items-center justify-center shrink-0">
+              <Package className="h-4 w-4 text-dashboard-base-content/30" />
             </div>
           )}
           <div className="min-w-0">
-            <p className="font-medium text-sm truncate">{pkg.title}</p>
-            <p className="text-xs text-muted-foreground truncate">{pkg.slug}</p>
+            <p className="font-semibold text-sm truncate text-dashboard-base-content">{pkg.title}</p>
+            <p className="text-xs text-dashboard-base-content/50 truncate">{pkg.slug}</p>
           </div>
         </div>
       ),
@@ -192,7 +192,7 @@ export function PackagesTableClient({
             {pkg.destination.name}
           </Badge>
           {pkg.destination.region && (
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1 text-xs text-dashboard-base-content/50">
               <MapPin className="h-3 w-3" />
               {pkg.destination.region.name}
             </div>
@@ -205,7 +205,7 @@ export function PackagesTableClient({
       align:  "center",
       cell: (pkg) => (
         <span className="flex items-center justify-center gap-1 text-sm">
-          <Timer className="h-3.5 w-3.5 text-muted-foreground" />
+          <Timer className="h-3.5 w-3.5 text-dashboard-base-content/40" />
           <span className="font-medium">{pkg._count.durations}</span>
         </span>
       ),
@@ -215,7 +215,7 @@ export function PackagesTableClient({
       align:  "center",
       cell: (pkg) => (
         <span className="flex items-center justify-center gap-1 text-sm">
-          <Route className="h-3.5 w-3.5 text-muted-foreground" />
+          <Route className="h-3.5 w-3.5 text-dashboard-base-content/40" />
           <span className="font-medium">{pkg._count.packageRoutes}</span>
         </span>
       ),
@@ -225,7 +225,7 @@ export function PackagesTableClient({
       align:  "center",
       cell: (pkg) => (
         <span className="flex items-center justify-center gap-1 text-sm">
-          <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />
+          <ImageIcon className="h-3.5 w-3.5 text-dashboard-base-content/40" />
           <span className="font-medium">{pkg._count.gallery}</span>
         </span>
       ),
@@ -255,7 +255,7 @@ export function PackagesTableClient({
             <span className="truncate">{url}</span>
           </Link>
         ) : (
-          <span className="text-xs text-muted-foreground">—</span>
+          <span className="text-xs text-dashboard-base-content/40">—</span>
         );
       },
     },
@@ -265,7 +265,7 @@ export function PackagesTableClient({
       width:   "w-[90px]",
       cell: (pkg) => (
         <div className="flex items-center justify-end gap-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-dashboard-base-content/50 hover:text-dashboard-primary hover:bg-dashboard-primary/10 cursor-pointer" asChild>
             <Link href={`/dashboard/packages/${pkg.id}`}>
               <Pencil className="h-3.5 w-3.5" />
             </Link>
@@ -273,7 +273,7 @@ export function PackagesTableClient({
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+            className="h-8 w-8 text-dashboard-base-content/50 hover:text-dashboard-error hover:bg-dashboard-error/10 cursor-pointer"
             onClick={() => openDelete(pkg)}
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -358,17 +358,17 @@ export function PackagesTableClient({
           </AlertDialogHeader>
 
           {deleteError && (
-            <p className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
+            <p className="text-sm text-dashboard-error bg-dashboard-error/10 border border-dashboard-error/20 rounded-xl px-3 py-2">
               {deleteError}
             </p>
           )}
 
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isPending} className="cursor-pointer">Cancel</AlertDialogCancel>
             <Button
-              variant="destructive"
               disabled={isPending}
               onClick={handleDelete}
+              className="bg-dashboard-error text-dashboard-error-content hover:bg-dashboard-error/90 cursor-pointer"
             >
               {isPending ? "Deleting…" : "Delete"}
             </Button>
