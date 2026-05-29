@@ -33,6 +33,7 @@ export type DayHotelLine = {
 export type DayMealLine = {
   meal_type: string;          // e.g. "BREAKFAST"
   label: string;              // display name e.g. "Breakfast"
+  hotel_name: string;
   price_per_person: number;   // effective price after weekend/season resolution
   persons: number;            // adults (meals are per-person)
   num_nights: number;
@@ -679,6 +680,7 @@ export async function computePackagePrice(
         meals.push({
           meal_type: mealPricing.meal_type,
           label: mealPricing.label,
+          hotel_name: stay.room_pricing.hotel.name,
           price_per_person: price,
           persons,
           num_nights: numNights,

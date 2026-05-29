@@ -345,7 +345,7 @@ function DayCard({ day }: { day: DayPricingBreakdown }) {
             <LineItem
               key={i}
               icon={<UtensilsCrossed className="h-3.5 w-3.5" />}
-              label={m.label}
+              label={`${m.label} (${m.hotel_name})`}
               detail={`${m.persons} person${m.persons !== 1 ? "s" : ""} × ₹${fmt(m.price_per_person)} × ${m.num_nights} night${m.num_nights !== 1 ? "s" : ""}`}
               amount={m.total}
               variant="meal"
