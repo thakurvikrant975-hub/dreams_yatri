@@ -14,6 +14,7 @@ import { Separator } from "../../components/ui/separator";
 import {
   Loader2, Bed, Car, Zap, ChevronDown, ChevronRight,
   Calculator, IndianRupee, Users, MapPin, Baby, CalendarDays, Sparkles,
+  UtensilsCrossed,
 } from "lucide-react";
 import { toast } from "sonner";
 import { handleComputePackagePrice } from "@/app/actions/packages/pricing.actions";
@@ -21,6 +22,7 @@ import type {
   FullPricingBreakdown,
   DayPricingBreakdown,
   CabSegmentBreakdown,
+  DayMealLine,
 } from "@/app/services/package-pricing.service";
 
 // ── Props ──────────────────────────────────────────────────────────────────
@@ -213,10 +215,11 @@ function LineItem({
   label: string;
   detail: string;
   amount: number | null;
-  variant: "hotel" | "activity" | "optional";
+  variant: "hotel" | "meal" | "activity" | "optional";
 }) {
   const chipCls = {
     hotel: "bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400",
+    meal: "bg-amber-50 text-amber-600 dark:bg-amber-950 dark:text-amber-400",
     activity: "bg-green-50 text-green-600 dark:bg-green-950 dark:text-green-400",
     optional: "bg-muted text-muted-foreground",
   }[variant];
@@ -258,7 +261,7 @@ function DayCard({ day }: { day: DayPricingBreakdown }) {
   const optional = day.activities.filter((a) => a.is_optional);
 
   const hasContent =
-    day.hotel || included.length > 0 || optional.length > 0 || day.transfers.length > 0;
+    day.hotel || day.meals.length > 0 || included.length > 0 || optional.length > 0 || day.transfers.length > 0;
 
   return (
     <Card className="overflow-hidden bg-dashboard-base-100 rounded-xl shadow-lg border border-dashboard-base-content/20">
@@ -305,18 +308,18 @@ function DayCard({ day }: { day: DayPricingBreakdown }) {
                 icon={<Bed className="h-3.5 w-3.5" />}
                 label={`${day.hotel.hotel_name}${day.hotel.room_name ? ` · ${day.hotel.room_name}` : ""}`}
                 detail={[
-                  `${day.hotel.rooms_count} room${day.hotel.rooms_count !== 1 ? "s" : ""} × ₹${fmt(day.hotel.price_per_room)}/night`,
+                  `${day.hotel.rooms_count} room${day.hotel.rooms_count !== 1 ? "s" : ""} × ₹${fmt(day.hotel.price_per_room)}/night × ${day.hotel.num_nights} night${day.hotel.num_nights !== 1 ? "s" : ""}`,
                   `max ${day.hotel.max_occupancy} pax/room`,
                   day.hotel.plan_name ?? null,
                 ].filter(Boolean).join(" · ")}
-                amount={day.hotel.rooms_count * day.hotel.price_per_room}
+                amount={day.hotel.rooms_count * day.hotel.price_per_room * day.hotel.num_nights}
                 variant="hotel"
               />
               {day.hotel.child_charge > 0 && (
                 <LineItem
                   icon={<Users className="h-3.5 w-3.5" />}
                   label="Child charges"
-                  detail="Hotel child policy per night"
+                  detail={`Hotel child policy · ${day.hotel.num_nights} night${day.hotel.num_nights !== 1 ? "s" : ""}`}
                   amount={day.hotel.child_charge}
                   variant="hotel"
                 />
@@ -325,7 +328,7 @@ function DayCard({ day }: { day: DayPricingBreakdown }) {
                 <LineItem
                   icon={<Baby className="h-3.5 w-3.5" />}
                   label="Infant charges"
-                  detail="Hotel infant policy per night"
+                  detail="Hotel infant policy"
                   amount={day.hotel.infant_charge}
                   variant="hotel"
                 />
@@ -336,6 +339,18 @@ function DayCard({ day }: { day: DayPricingBreakdown }) {
               No stay mapped for this category
             </p>
           )}
+
+          {/* Meals */}
+          {day.meals.map((m, i) => (
+            <LineItem
+              key={i}
+              icon={<UtensilsCrossed className="h-3.5 w-3.5" />}
+              label={m.label}
+              detail={`${m.persons} person${m.persons !== 1 ? "s" : ""} × ₹${fmt(m.price_per_person)} × ${m.num_nights} night${m.num_nights !== 1 ? "s" : ""}`}
+              amount={m.total}
+              variant="meal"
+            />
+          ))}
 
           {/* Included activities */}
           {included.map((a) => (
@@ -476,6 +491,16 @@ function SummaryCard({ breakdown }: { breakdown: FullPricingBreakdown }) {
           </span>
           <span>₹{fmt(breakdown.hotel_subtotal)}</span>
         </div>
+
+        {/* Meals */}
+        {breakdown.meal_subtotal > 0 && (
+          <div className="flex items-center justify-between text-sm">
+            <span className="flex items-center gap-1.5 text-muted-foreground">
+              <UtensilsCrossed className="h-3.5 w-3.5 text-amber-500" />Meals
+            </span>
+            <span>₹{fmt(breakdown.meal_subtotal)}</span>
+          </div>
+        )}
 
         {/* Activities */}
         <div className="flex items-center justify-between text-sm">

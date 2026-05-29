@@ -24,8 +24,18 @@ export type DayHotelLine = {
   max_occupancy: number;
   rooms_count: number;        // ceil(adults / max_occupancy)
   price_per_room: number;     // occupancy-specific or base price_per_night
-  child_charge: number;       // from hotel_child_policies
+  num_nights: number;         // stay duration
+  child_charge: number;       // from hotel_child_policies (per night, already × num_nights)
   infant_charge: number;      // typically 0
+  total: number;
+};
+
+export type DayMealLine = {
+  meal_type: string;          // e.g. "BREAKFAST"
+  label: string;              // display name e.g. "Breakfast"
+  price_per_person: number;   // effective price after weekend/season resolution
+  persons: number;            // adults (meals are per-person)
+  num_nights: number;
   total: number;
 };
 
@@ -72,6 +82,7 @@ export type DayPricingBreakdown = {
   day_title: string;
   day_date: string | null;   // ISO "YYYY-MM-DD" for this specific day (start_date + day-1)
   hotel: DayHotelLine | null;
+  meals: DayMealLine[];
   activities: DayActivityLine[];
   transfers: DayTransferLine[];
   cab_cost: number;          // per-day cab cost (sum of all segments covering this day)
@@ -86,6 +97,7 @@ export type FullPricingBreakdown = {
   infants: number;
   days: DayPricingBreakdown[];
   hotel_subtotal: number;
+  meal_subtotal: number;
   activity_subtotal: number;
   cab_type_label: string | null;
   cab_subtotal: number;
@@ -264,6 +276,34 @@ function resolveActivityPricingTiers(
   return variant.pricing;
 }
 
+/** Resolve the effective price for a hotel meal pricing given a travel date.
+ *  Seasons use the same year-2000 placeholder pattern as activity/hotel seasons.
+ */
+function resolveMealPrice(
+  meal: {
+    price: number;
+    weekend_price: number | null;
+    seasons: { valid_from: Date; valid_to: Date; price: number; weekend_price: number | null; is_active: boolean }[];
+  },
+  travelDate: Date | null,
+): number {
+  const isWeekend = travelDate ? (travelDate.getDay() === 0 || travelDate.getDay() === 6) : false;
+  if (travelDate && meal.seasons.length > 0) {
+    const normalised = new Date(2000, travelDate.getMonth(), travelDate.getDate());
+    const matched = meal.seasons.find((s) => {
+      if (!s.is_active) return false;
+      const from = new Date(2000, new Date(s.valid_from).getMonth(), new Date(s.valid_from).getDate());
+      const to   = new Date(2000, new Date(s.valid_to).getMonth(),   new Date(s.valid_to).getDate());
+      if (from <= to) return normalised >= from && normalised <= to;
+      return normalised >= from || normalised <= to;
+    });
+    if (matched) {
+      return (isWeekend && matched.weekend_price != null) ? matched.weekend_price : matched.price;
+    }
+  }
+  return (isWeekend && meal.weekend_price != null) ? meal.weekend_price : meal.price;
+}
+
 // ── Core calculator ────────────────────────────────────────────────────────
 
 export async function computePackagePrice(
@@ -292,6 +332,7 @@ export async function computePackagePrice(
                 price_per_night: true,
                 hotel: {
                   select: {
+                    id: true,
                     name: true,
                     childPolicies: {
                       where: { is_active: true },
@@ -403,6 +444,56 @@ export async function computePackagePrice(
   const margin_percentage = Number(pricingConfig?.margin_percentage ?? 10);
   const gst_percentage = Number(pricingConfig?.gst_percentage ?? 5);
 
+  // ── Fetch hotel meal pricings for all hotels in stays ─────────────────────
+  type MealPricingRow = {
+    hotel_id: number; id: number; meal_type: string; label: string;
+    price: number; weekend_price: number | null;
+    seasons: { valid_from: Date; valid_to: Date; price: number; weekend_price: number | null; is_active: boolean }[];
+  };
+
+  const stayHotelIds = [
+    ...new Set(
+      itineraries.flatMap((itin) => itin.itineraryStays.map((s) => s.room_pricing.hotel.id)),
+    ),
+  ];
+
+  const rawMealPricings = stayHotelIds.length > 0
+    ? await db.hotel_meal_pricing.findMany({
+        where: { hotel_id: { in: stayHotelIds }, is_active: true },
+        orderBy: { sort_order: "asc" },
+        select: {
+          id: true, hotel_id: true, meal_type: true, label: true,
+          price: true, weekend_price: true,
+          seasons: {
+            where: { is_active: true },
+            orderBy: { sort_order: "asc" },
+            select: { valid_from: true, valid_to: true, price: true, weekend_price: true, is_active: true },
+          },
+        },
+      })
+    : [];
+
+  const mealsByHotelId = new Map<number, MealPricingRow[]>();
+  for (const mp of rawMealPricings) {
+    const row: MealPricingRow = {
+      hotel_id: mp.hotel_id,
+      id: mp.id,
+      meal_type: mp.meal_type,
+      label: mp.label,
+      price: Number(mp.price),
+      weekend_price: mp.weekend_price != null ? Number(mp.weekend_price) : null,
+      seasons: mp.seasons.map((s) => ({
+        valid_from: s.valid_from,
+        valid_to: s.valid_to,
+        price: Number(s.price),
+        weekend_price: s.weekend_price != null ? Number(s.weekend_price) : null,
+        is_active: s.is_active,
+      })),
+    };
+    if (!mealsByHotelId.has(mp.hotel_id)) mealsByHotelId.set(mp.hotel_id, []);
+    mealsByHotelId.get(mp.hotel_id)!.push(row);
+  }
+
   // ── Build day → km map from itinerary_transfers ────────────────────────
   // Used for PER_KM segments: sum of transfer route distance_km per day
   const dayKmMap = new Map<number, number>();
@@ -500,6 +591,7 @@ export async function computePackagePrice(
   }
 
   let hotel_subtotal = 0;
+  let meal_subtotal = 0;
   let activity_subtotal = 0;
 
   const days: DayPricingBreakdown[] = itineraries.map((itin) => {
@@ -529,6 +621,7 @@ export async function computePackagePrice(
         pricePerRoom = Number(match.price_per_night);
       }
 
+      const numNights = stay.num_nights;
       let childCharge = 0;
       const childPolicies = stay.room_pricing.hotel?.childPolicies ?? [];
       if (children > 0 && childPolicies.length > 0) {
@@ -550,9 +643,11 @@ export async function computePackagePrice(
           else if (ct === "PERCENTAGE") childCharge = (pricePerRoom * pp) / 100 * children;
         }
       }
+      // Multiply child charge by nights
+      childCharge = childCharge * numNights;
 
       const infantCharge = 0;
-      const total = roomsNeeded * pricePerRoom + childCharge + infantCharge;
+      const total = (roomsNeeded * pricePerRoom * numNights) + childCharge + infantCharge;
       hotel = {
         hotel_name: stay.room_pricing.hotel.name,
         room_name: stay.room_pricing.room?.name ?? null,
@@ -560,11 +655,37 @@ export async function computePackagePrice(
         max_occupancy: maxOccupancy,
         rooms_count: roomsNeeded,
         price_per_room: pricePerRoom,
+        num_nights: numNights,
         child_charge: childCharge,
         infant_charge: infantCharge,
         total,
       };
       hotel_subtotal += total;
+    }
+
+    // ── Meals ────────────────────────────────────────────────────────────────
+    const meals: DayMealLine[] = [];
+    if (stay && stay.active_meals.length > 0) {
+      const hotelId = stay.room_pricing.hotel.id;
+      const hotelMeals = mealsByHotelId.get(hotelId) ?? [];
+      const numNights = stay.num_nights;
+      const persons = adults; // meals charged per adult
+
+      for (const mealKey of stay.active_meals) {
+        const mealPricing = hotelMeals.find((m) => m.meal_type.toLowerCase() === mealKey);
+        if (!mealPricing) continue;
+        const price = resolveMealPrice(mealPricing, dayDate);
+        const total = price * persons * numNights;
+        meals.push({
+          meal_type: mealPricing.meal_type,
+          label: mealPricing.label,
+          price_per_person: price,
+          persons,
+          num_nights: numNights,
+          total,
+        });
+        meal_subtotal += total;
+      }
     }
 
     // ── Activities ───────────────────────────────────────────────────────────
@@ -642,10 +763,11 @@ export async function computePackagePrice(
     const cab_cost = dayCabCostMap.get(itin.day) ?? 0;
     const day_total =
       (hotel?.total ?? 0) +
+      meals.reduce((s, m) => s + m.total, 0) +
       activities.filter((a) => !a.is_optional).reduce((s, a) => s + a.total, 0) +
       cab_cost;
 
-    return { day: itin.day, day_title: itin.title, day_date: dayDateISO, hotel, activities, transfers, cab_cost, day_total };
+    return { day: itin.day, day_title: itin.title, day_date: dayDateISO, hotel, meals, activities, transfers, cab_cost, day_total };
   });
 
   // ── Cab cost computation ──────────────────────────────────────────────────
@@ -725,7 +847,7 @@ export async function computePackagePrice(
     }
   }
 
-  const base_cost = hotel_subtotal + activity_subtotal + cab_subtotal;
+  const base_cost = hotel_subtotal + meal_subtotal + activity_subtotal + cab_subtotal;
   const margin_amount = Math.round((base_cost * margin_percentage) / 100 * 100) / 100;
   const taxable = base_cost + margin_amount;
   const gst_amount = Math.round((taxable * gst_percentage) / 100 * 100) / 100;
@@ -739,6 +861,7 @@ export async function computePackagePrice(
     infants,
     days,
     hotel_subtotal,
+    meal_subtotal,
     activity_subtotal,
     cab_type_label,
     cab_subtotal,
