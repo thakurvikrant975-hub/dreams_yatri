@@ -16,12 +16,17 @@ interface Inclusion {
   label: string
 }
 
+interface GalleryImage {
+  src: string
+  label: string
+}
+
 interface PackageHeroProps {
   title: string
   duration: string
   itinerary: ItineraryStop[]
   inclusions: Inclusion[]
-  images: string[]
+  images: GalleryImage[]
   region: { label: string; slug: string }
   onViewGallery?: () => void
 }
@@ -49,7 +54,7 @@ export default function PackageHero({
   const sentinelRef = useRef<HTMLDivElement>(null)
 
   const heroImage  = images[0]
-  const gridImages = images.slice(1, 6)
+  const gridImages = images.slice(1, 5)
 
   useEffect(() => {
     const el = sentinelRef.current
@@ -148,8 +153,8 @@ export default function PackageHero({
       <div className="md:hidden mt-2 flex flex-col gap-2">
         <div className="relative w-full aspect-4/3 rounded-2xl overflow-hidden group cursor-pointer">
           <Image
-            src={heroImage}
-            alt={title}
+            src={heroImage.src}
+            alt={heroImage.label || title}
             fill
             className={[
               'object-cover transition-all duration-500',
@@ -171,17 +176,24 @@ export default function PackageHero({
         </div>
         <div className="grid grid-cols-2 gap-2">
           {Array.from({ length: 4 }).map((_, i) => {
-            const src = gridImages[i]
+            const img = gridImages[i]
             return (
               <div key={i} className="relative aspect-square rounded-xl overflow-hidden group cursor-pointer">
-                {src ? (
-                  <Image
-                    src={src}
-                    alt={`${title} photo ${i + 2}`}
-                    fill
-                    className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-                    sizes="50vw"
-                  />
+                {img ? (
+                  <>
+                    <Image
+                      src={img.src}
+                      alt={img.label || `${title} photo ${i + 2}`}
+                      fill
+                      className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                      sizes="50vw"
+                    />
+                    {img.label && (
+                      <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-neutral-900 via-neutral-900/60 to-transparent px-2.5 py-2 pt-5">
+                        <p className="text-sm text-white font-medium leading-tight truncate">{img.label}</p>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div className="skeleton-box absolute inset-0" />
                 )}
@@ -196,8 +208,8 @@ export default function PackageHero({
 
         <div className="col-span-2 row-span-2 relative group cursor-pointer">
           <Image
-            src={heroImage}
-            alt={title}
+            src={heroImage.src}
+            alt={heroImage.label || title}
             fill
             className={[
               'object-cover transition-all duration-500',
@@ -220,17 +232,24 @@ export default function PackageHero({
         </div>
 
         {Array.from({ length: 4 }).map((_, i) => {
-          const src = gridImages[i]
+          const img = gridImages[i]
           return (
             <div key={i} className="relative group cursor-pointer overflow-hidden">
-              {src ? (
-                <Image
-                  src={src}
-                  alt={`${title} photo ${i + 2}`}
-                  fill
-                  className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-                  sizes="25vw"
-                />
+              {img ? (
+                <>
+                  <Image
+                    src={img.src}
+                    alt={img.label || `${title} photo ${i + 2}`}
+                    fill
+                    className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                    sizes="25vw"
+                  />
+                  {img.label && (
+                    <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 to-transparent px-2.5 py-2 pt-6">
+                      <p className="text-sm text-white font-medium leading-tight truncate">{img.label}</p>
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="skeleton-box absolute inset-0" />
               )}

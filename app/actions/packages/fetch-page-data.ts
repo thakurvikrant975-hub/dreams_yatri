@@ -168,7 +168,7 @@ export type PackagePageData = {
   };
 
   images: { url: string; thumbnail: string | null; alt: string | null; is_primary: boolean }[];
-  gallery: { image_url: string; label: string | null; position: number }[];
+  gallery: { image_url: string; label: string | null; position: number; route_id: number | null }[];
 
   durations: DurationOption[];
   stay_categories: StayCategoryOption[];
@@ -238,7 +238,7 @@ export async function fetchPackagePageData(
         },
         gallery: {
           orderBy: { position: "asc" },
-          select: { image_url: true, label: true, position: true },
+          select: { image_url: true, label: true, position: true, route_id: true },
         },
         durations: {
           where: { is_active: true },

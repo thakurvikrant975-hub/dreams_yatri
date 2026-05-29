@@ -627,79 +627,86 @@ function StayContent({ section }: { section: StaySection }) {
           )}
         </div>
 
-        {/* Room details card */}
-        <div className=" rounded-xl  flex flex-col gap-2">
-          {/* Room name + capacity */}
-          <div className="flex items-center gap-4">
-            {section.roomName && (
-              <Text size="sm" weight="semibold" intent="primary">{section.roomName}</Text>
-            )}
-            {section.roomCapacity && (
-              <div className="flex items-center gap-1 text-muted">
-                <svg className="size-3.5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
-                </svg>
-                <Text size="xs" intent="secondary">Up to {section.roomCapacity} guests</Text>
+        <div className="flex gap-5">
+          <div className="flex-1 flex flex-col gap-1">
+            {/* Room details card */}
+            <div className=" rounded-xl  flex flex-col gap-2">
+              {/* Room name + capacity */}
+              <div className="flex items-center gap-4">
+                {section.roomName && (
+                  <Text size="sm" weight="semibold" intent="primary">{section.roomName}</Text>
+                )}
+                {section.roomCapacity && (
+                  <div className="flex items-center gap-1 text-muted">
+                    <svg className="size-3.5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+                    </svg>
+                    <Text size="xs" intent="secondary">Up to {section.roomCapacity} guests</Text>
+                  </div>
+                )}
               </div>
-            )}
+
+
+            </div>
+
+            {/* Check-in / Check-out timeline */}
+            <div className="flex mt-2">
+              <div className="w-full border-l-[0.2em] border-l-(--border-default) flex-1 flex flex-row items-center gap-3.5">
+                <div className="relative after:absolute after:w-[0.2em] after:h-full after:max-h-12 after:left-0 after:top-0 after:bg-primary-400 after:-translate-x-[0.2em]">
+                  <div className="flex items-center gap-3">
+                    <div className="size-9 flex items-center justify-center ml-3 shrink-0">
+                      <span className="text-muted size-7 scale-110"><CheckInIcon /></span>
+                    </div>
+                    <div className="flex flex-col items-center gap-1 w-full mt-0.5">
+                      <Text size="xs" intent="primary" className="w-max font-heading shrink-0">Check In:</Text>
+                      <Text size="sm" intent="primary" weight="semibold" className="font-heading">{section.checkIn}</Text>
+                    </div>
+                  </div>
+                </div>
+
+                <div className=" flex-1 flex items-stretch">
+                  {/* <div className="w-full" /> */}
+                  <div className="h-full w-full flex-1  px-3 flex items-center gap-0.5 relative ">
+                    <div className="w-full border-b-[0.2em] border-b-(--border-default) border-dashed"></div>
+
+                    <div className=" flex gap-1 px-3 bg-neutral-50 ring-1 ring-inset py-1 ring-neutral-300 rounded-md">
+                      <Text as="span" size="sm" weight="medium" intent="secondary">
+                        {section.nights}N
+                      </Text>
+                      <StarAndCrescentIcon weight="duotone" className="size-5 text-muted ml-2 -rotate-20" />
+                    </div>
+
+                    <div className="w-full border-b-[0.2em] border-b-(--border-default) border-dashed"></div>
+                  </div>
+                </div>
+
+                <div className="relative after:absolute after:w-[0.2em] after:h-full after:max-h-12 after:right-0 after:top-0 after:bg-primary-400 after:-translate-x-[0.2em]">
+                  <div className="flex flex-row-reverse items-center gap-3">
+                    <div className="size-9 flex items-center justify-center  shrink-0 mr-5">
+                      <span className="text-muted size-7 scale-110"><CheckOutIcon /></span>
+                    </div>
+                    <div className="flex flex-col items-center gap-1 w-full ">
+                      <Text size="xs" intent="primary" className="w-max font-heading shrink-0">Check Out:</Text>
+                      <Text size="sm" intent="primary" weight="semibold" className="font-heading">{section.checkOut}</Text>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
           </div>
 
-
+          {/* Image grid — pos 0 = primary hotel, pos 1-2 = room, pos 3-4 = hotel */}
+          {section.images.length > 0 && (
+            <div className="grid grid-cols-4 grid-rows-4 gap-0.5 rounded-2xl overflow-hidden h-52">
+              {section.images.slice(0, 5).map((src, i) => (
+                <img key={i} src={src} alt="" className={cn('w-full h-full object-cover', i === 0 && 'row-span-3 col-span-4')} />
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Check-in / Check-out timeline */}
-        <div className="flex mt-2">
-          <div className="w-full border-l-[0.2em] border-l-(--border-default) flex-1 flex flex-row items-center gap-3.5">
-            <div className="relative after:absolute after:w-[0.2em] after:h-full after:max-h-12 after:left-0 after:top-0 after:bg-primary-400 after:-translate-x-[0.2em]">
-              <div className="flex items-center gap-3">
-                <div className="size-9 flex items-center justify-center ml-3 shrink-0">
-                  <span className="text-muted size-7 scale-110"><CheckInIcon /></span>
-                </div>
-                <div className="flex flex-col items-center gap-1 w-full mt-0.5">
-                  <Text size="xs" intent="primary" className="w-max font-heading shrink-0">Check In:</Text>
-                  <Text size="sm" intent="primary" weight="semibold" className="font-heading">{section.checkIn}</Text>
-                </div>
-              </div>
-            </div>
 
-            <div className=" flex-1 flex items-stretch">
-              {/* <div className="w-full" /> */}
-              <div className="h-full w-full flex-1  px-3 flex items-center gap-0.5 relative ">
-                <div className="w-full border-b-[0.2em] border-b-(--border-default) border-dashed"></div>
-
-                <div className=" flex gap-1 px-3 bg-neutral-50 ring-1 ring-inset py-1 ring-neutral-300 rounded-md">
-                  <Text as="span" size="sm" weight="medium" intent="secondary">
-                    {section.nights}N
-                  </Text>
-                  <StarAndCrescentIcon weight="duotone" className="size-5 text-muted ml-2 -rotate-20" />
-                </div>
-
-                <div className="w-full border-b-[0.2em] border-b-(--border-default) border-dashed"></div>
-              </div>
-            </div>
-
-            <div className="relative after:absolute after:w-[0.2em] after:h-full after:max-h-12 after:right-0 after:top-0 after:bg-primary-400 after:-translate-x-[0.2em]">
-              <div className="flex flex-row-reverse items-center gap-3">
-                <div className="size-9 flex items-center justify-center  shrink-0 mr-5">
-                  <span className="text-muted size-7 scale-110"><CheckOutIcon /></span>
-                </div>
-                <div className="flex flex-col items-center gap-1 w-full ">
-                  <Text size="xs" intent="primary" className="w-max font-heading shrink-0">Check Out:</Text>
-                  <Text size="sm" intent="primary" weight="semibold" className="font-heading">{section.checkOut}</Text>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Image grid — pos 0 = primary hotel, pos 1-2 = room, pos 3-4 = hotel */}
-        {section.images.length > 0 && (
-          <div className="grid grid-cols-[1.6fr_1fr_1fr] grid-rows-2 gap-0.5 rounded-2xl overflow-hidden h-52">
-            {section.images.slice(0, 5).map((src, i) => (
-              <img key={i} src={src} alt="" className={cn('w-full h-full object-cover', i === 0 && 'row-span-2')} />
-            ))}
-          </div>
-        )}
 
       </div>
     </div>

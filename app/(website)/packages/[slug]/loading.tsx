@@ -10,7 +10,7 @@ import { Heading } from "@/app/components/ui/Typography"
 
 function loading() {
   return (
-    <div>
+    <div className="screen-space pt-6 pb-10">
       <IntroSkelton />
       <PackageTab
         itinerary={
