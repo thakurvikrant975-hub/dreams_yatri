@@ -89,9 +89,10 @@ export default async function HotelEditPage({
             })),
             seasons: p.seasons.map((s) => ({
                 ...s,
-                price_per_night: Number(s.price_per_night),
-                original_price:  s.original_price  ? Number(s.original_price)  : null,
-                extra_bed_rate:  s.extra_bed_rate   ? Number(s.extra_bed_rate)  : null,
+                price_per_night:         Number(s.price_per_night),
+                weekend_price_per_night: s.weekend_price_per_night ? Number(s.weekend_price_per_night) : null,
+                original_price:          s.original_price  ? Number(s.original_price)  : null,
+                extra_bed_rate:          s.extra_bed_rate   ? Number(s.extra_bed_rate)  : null,
                 occupancy_prices: s.occupancy_prices.map((op) => ({
                     ...op,
                     price_per_night: Number(op.price_per_night),

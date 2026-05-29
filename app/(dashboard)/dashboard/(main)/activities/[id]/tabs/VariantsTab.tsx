@@ -50,11 +50,12 @@ type PricingFormState = {
 
 /** Local season entry — not yet saved to DB */
 type ActivitySeasonEntry = {
-    tempId:     string;
-    valid_from: string;
-    valid_to:   string;
-    price:      string;
-    is_active:  boolean;
+    tempId:         string;
+    valid_from:     string;
+    valid_to:       string;
+    price:          string;
+    weekend_price:  string;
+    is_active:      boolean;
 };
 
 type VariantFormState = {
@@ -90,7 +91,7 @@ const EMPTY_VARIANT_FORM: VariantFormState = {
 };
 
 const EMPTY_SEASON: Omit<ActivitySeasonEntry, "tempId"> = {
-    valid_from: "", valid_to: "", price: "", is_active: true,
+    valid_from: "", valid_to: "", price: "", weekend_price: "", is_active: true,
 };
 
 const EMPTY_PRICING: PricingFormState = {
@@ -158,11 +159,12 @@ function toVariantFormState(v: ActivityVariant): VariantFormState {
         gst_percentage: String(v.gst_percentage),
         is_active:      v.is_active,
         seasons:        (v.seasons ?? []).map(s => ({
-            tempId:     uid(),
-            valid_from: toISODate(s.valid_from),
-            valid_to:   toISODate(s.valid_to),
-            price:      s.pricing.length > 0 ? String(s.pricing[0].price) : "",
-            is_active:  s.is_active,
+            tempId:        uid(),
+            valid_from:    toISODate(s.valid_from),
+            valid_to:      toISODate(s.valid_to),
+            price:         s.pricing.length > 0 ? String(s.pricing[0].price) : "",
+            weekend_price: s.weekend_price != null ? String(s.weekend_price) : "",
+            is_active:     s.is_active,
         })),
     };
 }
@@ -281,11 +283,8 @@ function SeasonsInlineList({
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
                     <Calendar className="h-3.5 w-3.5" />
                     Seasonal Pricing
-                    <span className="font-normal normal-case text-muted-foreground/60">— required, at least 1</span>
+                    <span className="font-normal normal-case text-muted-foreground/60">— optional</span>
                 </p>
-                {seasons.length === 0 && (
-                    <span className="text-[10px] text-destructive">Add at least one season to save</span>
-                )}
             </div>
 
             {seasons.length > 0 && (
@@ -317,9 +316,11 @@ function SeasonsInlineList({
                 const calendarSeasons: SeasonRange[] = seasons
                     .filter(x => x.valid_from && x.valid_to && Number(x.price) > 0)
                     .map(x => ({
-                        from:         x.valid_from.slice(5),
-                        to:           x.valid_to.slice(5),
-                        weekdayPrice: Number(x.price),
+                        from:           x.valid_from.slice(5),
+                        to:             x.valid_to.slice(5),
+                        weekdayPrice:   Number(x.price),
+                        weekendPrice:   x.weekend_price ? Number(x.weekend_price) : null,
+                        weekendEnabled: !!x.weekend_price,
                     }));
                 const rangeLabel = s.valid_from && s.valid_to
                     ? `${fmtMonthDay(s.valid_from)} → ${fmtMonthDay(s.valid_to)}`
@@ -361,18 +362,48 @@ function SeasonsInlineList({
                             </div>
                         )}
 
-                        {/* Price */}
-                        <div className="space-y-1">
-                            <Label className="text-[11px] text-muted-foreground">Price *</Label>
-                            <div className="relative">
-                                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground select-none">₹</span>
-                                <Input
-                                    type="number" min={0} step={100}
-                                    placeholder="0"
-                                    value={s.price}
-                                    onChange={e => updateSeason(s.tempId, { price: e.target.value })}
-                                    className={cn("h-8 pl-6 text-sm", priceInvalid && "border-destructive")}
-                                />
+                        {/* Price row: Weekday + Weekend */}
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                                <Label className="text-[11px] text-muted-foreground">Weekday Price *</Label>
+                                <div className="relative">
+                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground select-none">₹</span>
+                                    <Input
+                                        type="number" min={0} step={100}
+                                        placeholder="0"
+                                        value={s.price}
+                                        onChange={e => updateSeason(s.tempId, { price: e.target.value })}
+                                        className={cn("h-8 pl-6 text-sm", priceInvalid && "border-destructive")}
+                                    />
+                                </div>
+                            </div>
+                            <div className="space-y-1">
+                                <div className="flex items-center gap-1.5 h-4.5">
+                                    <input
+                                        type="checkbox"
+                                        id={`wknd-${s.tempId}`}
+                                        checked={!!s.weekend_price}
+                                        onChange={e => updateSeason(s.tempId, {
+                                            weekend_price: e.target.checked ? s.price : "",
+                                        })}
+                                        className="h-3.5 w-3.5 accent-primary"
+                                    />
+                                    <Label htmlFor={`wknd-${s.tempId}`} className="text-[11px] text-muted-foreground cursor-pointer">
+                                        Weekend rate (Sat &amp; Sun)
+                                    </Label>
+                                </div>
+                                {s.weekend_price !== "" && (
+                                    <div className="relative">
+                                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground select-none">₹</span>
+                                        <Input
+                                            type="number" min={0} step={100}
+                                            placeholder="Same as weekday"
+                                            value={s.weekend_price}
+                                            onChange={e => updateSeason(s.tempId, { weekend_price: e.target.value })}
+                                            className="h-8 pl-6 text-sm"
+                                        />
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -422,7 +453,6 @@ function VariantForm({
     const seasonOverlaps = overlappingIds(form.seasons);
     const isValid =
         !!form.name && !!form.booking_mode && !!form.pricing_type &&
-        form.seasons.length > 0 &&
         seasonOverlaps.size === 0 &&
         form.seasons.every(s => !!s.valid_from && !!s.valid_to && !!s.price && Number(s.price) > 0);
 
@@ -853,12 +883,13 @@ export function VariantsTab({
 
     function buildSeasonsInput(form: VariantFormState): ActivitySeasonInput[] {
         return form.seasons.map(s => ({
-            season_name: s.valid_from && s.valid_to
+            season_name:   s.valid_from && s.valid_to
                 ? `${fmtMonthDay(s.valid_from)} → ${fmtMonthDay(s.valid_to)}`
                 : "Season",
-            valid_from: s.valid_from,
-            valid_to:   s.valid_to,
-            is_active:  s.is_active,
+            valid_from:    s.valid_from,
+            valid_to:      s.valid_to,
+            weekend_price: s.weekend_price ? Number(s.weekend_price) : null,
+            is_active:     s.is_active,
             pricing: s.price && Number(s.price) > 0 ? [{
                 label:             "Base",
                 price:             Number(s.price),
@@ -875,14 +906,15 @@ export function VariantsTab({
         baseTime: number,
     ): ActivityVariant["seasons"] {
         return seasonsInput.map((s, i) => ({
-            id:          baseTime + i,
-            variant_id:  variantId,
-            season_name: s.season_name,
-            valid_from:  new Date(s.valid_from),
-            valid_to:    new Date(s.valid_to),
-            is_active:   s.is_active,
-            sort_order:  i,
-            pricing:     s.pricing.map((p, j) => ({
+            id:            baseTime + i,
+            variant_id:    variantId,
+            season_name:   s.season_name,
+            valid_from:    new Date(s.valid_from),
+            valid_to:      new Date(s.valid_to),
+            weekend_price: s.weekend_price ?? null,
+            is_active:     s.is_active,
+            sort_order:    i,
+            pricing:       s.pricing.map((p, j) => ({
                 id:                baseTime + i * 100 + j,
                 season_id:         baseTime + i,
                 label:             p.label,

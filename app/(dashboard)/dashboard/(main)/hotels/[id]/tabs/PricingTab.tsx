@@ -65,6 +65,7 @@ type HotelSeason = {
   valid_from: Date | string;
   valid_to: Date | string;
   price_per_night: number;
+  weekend_price_per_night: number | null;
   original_price: number | null;
   extra_bed_rate: number | null;
   is_active: boolean;
@@ -97,11 +98,12 @@ type PricingPlan = {
 
 // Local season entry (before save) — only the fields we need
 type SeasonEntry = {
-  tempId:          string;
-  valid_from:      string;
-  valid_to:        string;
-  price_per_night: string;
-  extra_bed_rate:  string;
+  tempId:                  string;
+  valid_from:              string;
+  valid_to:                string;
+  price_per_night:         string;
+  weekend_price_per_night: string;
+  extra_bed_rate:          string;
 };
 
 type OccupancyEntry = { occupancy: number; price: string; original: string };
@@ -135,10 +137,11 @@ const EMPTY_FORM: PricingFormState = {
 };
 
 const EMPTY_SEASON: Omit<SeasonEntry, "tempId"> = {
-  valid_from:      "",
-  valid_to:        "",
-  price_per_night: "",
-  extra_bed_rate:  "",
+  valid_from:              "",
+  valid_to:                "",
+  price_per_night:         "",
+  weekend_price_per_night: "",
+  extra_bed_rate:          "",
 };
 
 const OCCUPANCY_LABELS: Record<number, string> = {
@@ -210,11 +213,12 @@ function toFormState(p: PricingPlan): PricingFormState {
     is_active:            p.is_active,
     occupancy_prices:     [],
     seasons:              (p.seasons ?? []).map(s => ({
-      tempId:          uid(),
-      valid_from:      toISODate(s.valid_from),
-      valid_to:        toISODate(s.valid_to),
-      price_per_night: String(s.price_per_night),
-      extra_bed_rate:  s.extra_bed_rate ? String(s.extra_bed_rate) : "",
+      tempId:                  uid(),
+      valid_from:              toISODate(s.valid_from),
+      valid_to:                toISODate(s.valid_to),
+      price_per_night:         String(s.price_per_night),
+      weekend_price_per_night: s.weekend_price_per_night ? String(s.weekend_price_per_night) : "",
+      extra_bed_rate:          s.extra_bed_rate ? String(s.extra_bed_rate) : "",
     })),
   };
 }
@@ -235,9 +239,11 @@ function SeasonsInlineList({
   const calendarSeasons: SeasonRange[] = seasons
     .filter(x => x.valid_from && x.valid_to && Number(x.price_per_night) > 0)
     .map(x => ({
-      from:         x.valid_from.slice(5),
-      to:           x.valid_to.slice(5),
-      weekdayPrice: Number(x.price_per_night),
+      from:           x.valid_from.slice(5),
+      to:             x.valid_to.slice(5),
+      weekdayPrice:   Number(x.price_per_night),
+      weekendPrice:   x.weekend_price_per_night ? Number(x.weekend_price_per_night) : null,
+      weekendEnabled: !!x.weekend_price_per_night,
     }));
 
   function addSeason() {
@@ -327,7 +333,7 @@ function SeasonsInlineList({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">
-                  Price / Night (₹) <span className="text-destructive">*</span>
+                  Weekday Price / Night (₹) <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   type="number"
@@ -347,6 +353,37 @@ function SeasonsInlineList({
                   onChange={e => updSeason(s.tempId, "extra_bed_rate", e.target.value)}
                 />
               </div>
+            </div>
+
+            {/* Weekend rate */}
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id={`weekend-${s.tempId}`}
+                  checked={!!s.weekend_price_per_night}
+                  onChange={e => {
+                    if (!e.target.checked) updSeason(s.tempId, "weekend_price_per_night", "");
+                    else updSeason(s.tempId, "weekend_price_per_night", s.price_per_night);
+                  }}
+                  className="h-3.5 w-3.5 accent-primary"
+                />
+                <Label htmlFor={`weekend-${s.tempId}`} className="text-xs cursor-pointer">
+                  Weekend rate (Sat &amp; Sun)
+                  {s.price_per_night && (
+                    <span className="text-muted-foreground ml-1">(base ₹{Number(s.price_per_night).toLocaleString("en-IN")}/night)</span>
+                  )}
+                </Label>
+              </div>
+              {s.weekend_price_per_night !== "" && (
+                <Input
+                  type="number"
+                  className="h-8 text-sm"
+                  placeholder="Same as weekday"
+                  value={s.weekend_price_per_night}
+                  onChange={e => updSeason(s.tempId, "weekend_price_per_night", e.target.value)}
+                />
+              )}
             </div>
 
             {/* Calendar date range picker */}
@@ -975,16 +1012,17 @@ export function PricingTab({
 
   function buildSeasonsInput(form: PricingFormState): HotelSeasonInput[] {
     return form.seasons.map(s => ({
-      season_name:      s.valid_from && s.valid_to
+      season_name:             s.valid_from && s.valid_to
         ? `${fmtMonthDay(s.valid_from)} → ${fmtMonthDay(s.valid_to)}`
         : "Season",
-      valid_from:       s.valid_from,
-      valid_to:         s.valid_to,
-      price_per_night:  Number(s.price_per_night),
-      original_price:   null,
-      extra_bed_rate:   s.extra_bed_rate ? Number(s.extra_bed_rate) : null,
-      is_active:        true,
-      occupancy_prices: [],
+      valid_from:              s.valid_from,
+      valid_to:                s.valid_to,
+      price_per_night:         Number(s.price_per_night),
+      weekend_price_per_night: s.weekend_price_per_night ? Number(s.weekend_price_per_night) : null,
+      original_price:          null,
+      extra_bed_rate:          s.extra_bed_rate ? Number(s.extra_bed_rate) : null,
+      is_active:               true,
+      occupancy_prices:        [],
     }));
   }
 
@@ -994,15 +1032,16 @@ export function PricingTab({
     baseTime: number,
   ): HotelSeason[] {
     return seasonsInput.map((s, i) => ({
-      id:              baseTime + i,
-      pricing_id:      planId,
-      season_name:     s.season_name,
-      valid_from:      new Date(s.valid_from),
-      valid_to:        new Date(s.valid_to),
-      price_per_night: s.price_per_night,
-      original_price:  null,
-      extra_bed_rate:  s.extra_bed_rate ?? null,
-      is_active:       true,
+      id:                      baseTime + i,
+      pricing_id:              planId,
+      season_name:             s.season_name,
+      valid_from:              new Date(s.valid_from),
+      valid_to:                new Date(s.valid_to),
+      price_per_night:         s.price_per_night,
+      weekend_price_per_night: s.weekend_price_per_night ?? null,
+      original_price:          null,
+      extra_bed_rate:          s.extra_bed_rate ?? null,
+      is_active:               true,
       sort_order:      i,
       occupancy_prices: [],
     }));

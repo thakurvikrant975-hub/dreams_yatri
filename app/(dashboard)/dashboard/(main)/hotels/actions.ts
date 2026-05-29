@@ -749,14 +749,15 @@ export type HotelSeasonOccupancyInput = {
 };
 
 export type HotelSeasonInput = {
-  season_name:      string;
-  valid_from:       string; // YYYY-MM-DD
-  valid_to:         string;
-  price_per_night:  number;
-  original_price?:  number | null;
-  extra_bed_rate?:  number | null;
-  occupancy_prices?: HotelSeasonOccupancyInput[];
-  is_active:        boolean;
+  season_name:             string;
+  valid_from:              string; // YYYY-MM-DD
+  valid_to:                string;
+  price_per_night:         number;
+  weekend_price_per_night?: number | null;
+  original_price?:         number | null;
+  extra_bed_rate?:         number | null;
+  occupancy_prices?:       HotelSeasonOccupancyInput[];
+  is_active:               boolean;
 };
 
 export async function createPricingSeason(
@@ -777,14 +778,15 @@ export async function createPricingSeason(
       const s = await tx.hotel_room_pricing_season.create({
         data: {
           pricing_id,
-          season_name:     data.season_name.trim(),
-          valid_from:      new Date(data.valid_from),
-          valid_to:        new Date(data.valid_to),
-          price_per_night: data.price_per_night,
-          original_price:  data.original_price  ?? null,
-          extra_bed_rate:  data.extra_bed_rate   ?? null,
-          is_active:       data.is_active,
-          sort_order:      count,
+          season_name:             data.season_name.trim(),
+          valid_from:              new Date(data.valid_from),
+          valid_to:                new Date(data.valid_to),
+          price_per_night:         data.price_per_night,
+          weekend_price_per_night: data.weekend_price_per_night ?? null,
+          original_price:          data.original_price  ?? null,
+          extra_bed_rate:          data.extra_bed_rate   ?? null,
+          is_active:               data.is_active,
+          sort_order:              count,
         },
       });
       if (data.occupancy_prices && data.occupancy_prices.length > 0) {
@@ -824,13 +826,14 @@ export async function updatePricingSeason(
       await tx.hotel_room_pricing_season.update({
         where: { id },
         data: {
-          season_name:     data.season_name.trim(),
-          valid_from:      new Date(data.valid_from),
-          valid_to:        new Date(data.valid_to),
-          price_per_night: data.price_per_night,
-          original_price:  data.original_price  ?? null,
-          extra_bed_rate:  data.extra_bed_rate   ?? null,
-          is_active:       data.is_active,
+          season_name:             data.season_name.trim(),
+          valid_from:              new Date(data.valid_from),
+          valid_to:                new Date(data.valid_to),
+          price_per_night:         data.price_per_night,
+          weekend_price_per_night: data.weekend_price_per_night ?? null,
+          original_price:          data.original_price  ?? null,
+          extra_bed_rate:          data.extra_bed_rate   ?? null,
+          is_active:               data.is_active,
         },
       });
       await tx.hotel_room_pricing_season_occupancy.deleteMany({ where: { season_id: id } });
@@ -908,15 +911,16 @@ export async function createRoomPricingWithSeasons(
       for (const [i, s] of data.seasons.entries()) {
         const season = await tx.hotel_room_pricing_season.create({
           data: {
-            pricing_id:      p.id,
-            season_name:     s.season_name.trim(),
-            valid_from:      new Date(s.valid_from),
-            valid_to:        new Date(s.valid_to),
-            price_per_night: s.price_per_night,
-            original_price:  s.original_price  ?? null,
-            extra_bed_rate:  s.extra_bed_rate   ?? null,
-            is_active:       s.is_active,
-            sort_order:      i,
+            pricing_id:              p.id,
+            season_name:             s.season_name.trim(),
+            valid_from:              new Date(s.valid_from),
+            valid_to:                new Date(s.valid_to),
+            price_per_night:         s.price_per_night,
+            weekend_price_per_night: s.weekend_price_per_night ?? null,
+            original_price:          s.original_price  ?? null,
+            extra_bed_rate:          s.extra_bed_rate   ?? null,
+            is_active:               s.is_active,
+            sort_order:              i,
           },
         });
         if (s.occupancy_prices && s.occupancy_prices.length > 0) {
@@ -971,15 +975,16 @@ export async function updateRoomPricingWithSeasons(
       for (const [i, s] of data.seasons.entries()) {
         const season = await tx.hotel_room_pricing_season.create({
           data: {
-            pricing_id:      id,
-            season_name:     s.season_name.trim(),
-            valid_from:      new Date(s.valid_from),
-            valid_to:        new Date(s.valid_to),
-            price_per_night: s.price_per_night,
-            original_price:  s.original_price  ?? null,
-            extra_bed_rate:  s.extra_bed_rate   ?? null,
-            is_active:       s.is_active,
-            sort_order:      i,
+            pricing_id:              id,
+            season_name:             s.season_name.trim(),
+            valid_from:              new Date(s.valid_from),
+            valid_to:                new Date(s.valid_to),
+            price_per_night:         s.price_per_night,
+            weekend_price_per_night: s.weekend_price_per_night ?? null,
+            original_price:          s.original_price  ?? null,
+            extra_bed_rate:          s.extra_bed_rate   ?? null,
+            is_active:               s.is_active,
+            sort_order:              i,
           },
         });
         if (s.occupancy_prices && s.occupancy_prices.length > 0) {
