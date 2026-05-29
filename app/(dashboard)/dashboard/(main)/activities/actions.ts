@@ -78,14 +78,15 @@ export type ActivityVariantSeasonPricing = {
 };
 
 export type ActivityVariantSeason = {
-    id:          number;
-    variant_id:  number;
-    season_name: string;
-    valid_from:  Date | string;
-    valid_to:    Date | string;
-    is_active:   boolean;
-    sort_order:  number;
-    pricing:     ActivityVariantSeasonPricing[];
+    id:            number;
+    variant_id:    number;
+    season_name:   string;
+    valid_from:    Date | string;
+    valid_to:      Date | string;
+    weekend_price: number | null;
+    is_active:     boolean;
+    sort_order:    number;
+    pricing:       ActivityVariantSeasonPricing[];
 };
 
 export type ActivityVariant = {
@@ -806,11 +807,12 @@ export type ActivitySeasonPricingInput = {
 };
 
 export type ActivitySeasonInput = {
-    season_name: string;
-    valid_from:  string; // YYYY-MM-DD
-    valid_to:    string;
-    is_active:   boolean;
-    pricing:     ActivitySeasonPricingInput[];
+    season_name:   string;
+    valid_from:    string; // YYYY-MM-DD
+    valid_to:      string;
+    weekend_price?: number | null;
+    is_active:     boolean;
+    pricing:       ActivitySeasonPricingInput[];
 };
 
 export async function createVariantSeason(
@@ -833,11 +835,12 @@ export async function createVariantSeason(
             const s = await tx.activity_variant_season.create({
                 data: {
                     variant_id,
-                    season_name: data.season_name.trim(),
-                    valid_from:  new Date(data.valid_from),
-                    valid_to:    new Date(data.valid_to),
-                    is_active:   data.is_active,
-                    sort_order:  count,
+                    season_name:   data.season_name.trim(),
+                    valid_from:    new Date(data.valid_from),
+                    valid_to:      new Date(data.valid_to),
+                    weekend_price: data.weekend_price ?? null,
+                    is_active:     data.is_active,
+                    sort_order:    count,
                 },
             });
             if (data.pricing.length > 0) {
@@ -884,10 +887,11 @@ export async function updateVariantSeason(
             await tx.activity_variant_season.update({
                 where: { id },
                 data: {
-                    season_name: data.season_name.trim(),
-                    valid_from:  new Date(data.valid_from),
-                    valid_to:    new Date(data.valid_to),
-                    is_active:   data.is_active,
+                    season_name:   data.season_name.trim(),
+                    valid_from:    new Date(data.valid_from),
+                    valid_to:      new Date(data.valid_to),
+                    weekend_price: data.weekend_price ?? null,
+                    is_active:     data.is_active,
                 },
             });
             // Replace pricing rows
@@ -954,7 +958,6 @@ export async function createVariantWithSeasons(
 
     try {
         if (!data.name?.trim()) return { success: false, message: "Variant name is required." };
-        if (!data.seasons.length) return { success: false, message: "At least one season is required." };
 
         const count = await db.activity_variants.count({ where: { activity_id } });
 
@@ -977,12 +980,13 @@ export async function createVariantWithSeasons(
             for (const [i, s] of data.seasons.entries()) {
                 const season = await tx.activity_variant_season.create({
                     data: {
-                        variant_id:  v.id,
-                        season_name: s.season_name.trim(),
-                        valid_from:  new Date(s.valid_from),
-                        valid_to:    new Date(s.valid_to),
-                        is_active:   s.is_active,
-                        sort_order:  i,
+                        variant_id:    v.id,
+                        season_name:   s.season_name.trim(),
+                        valid_from:    new Date(s.valid_from),
+                        valid_to:      new Date(s.valid_to),
+                        weekend_price: s.weekend_price ?? null,
+                        is_active:     s.is_active,
+                        sort_order:    i,
                     },
                 });
                 if (s.pricing.length > 0) {
@@ -1023,7 +1027,6 @@ export async function updateVariantWithSeasons(
 
     try {
         if (!data.name?.trim()) return { success: false, message: "Variant name is required." };
-        if (!data.seasons.length) return { success: false, message: "At least one season is required." };
 
         await db.$transaction(async (tx) => {
             await tx.activity_variants.update({
@@ -1053,12 +1056,13 @@ export async function updateVariantWithSeasons(
             for (const [i, s] of data.seasons.entries()) {
                 const season = await tx.activity_variant_season.create({
                     data: {
-                        variant_id:  id,
-                        season_name: s.season_name.trim(),
-                        valid_from:  new Date(s.valid_from),
-                        valid_to:    new Date(s.valid_to),
-                        is_active:   s.is_active,
-                        sort_order:  i,
+                        variant_id:    id,
+                        season_name:   s.season_name.trim(),
+                        valid_from:    new Date(s.valid_from),
+                        valid_to:      new Date(s.valid_to),
+                        weekend_price: s.weekend_price ?? null,
+                        is_active:     s.is_active,
+                        sort_order:    i,
                     },
                 });
                 if (s.pricing.length > 0) {

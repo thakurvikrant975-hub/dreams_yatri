@@ -432,6 +432,17 @@ export async function fetchPackagePageData(
                   orderBy: { sort_order: "asc" },
                   select: { label: true, price: true },
                 },
+                seasons: {
+                  where: { is_active: true },
+                  orderBy: { sort_order: "asc" },
+                  select: {
+                    pricing: {
+                      where: { is_active: true },
+                      orderBy: { sort_order: "asc" },
+                      select: { label: true, price: true },
+                    },
+                  },
+                },
               },
             },
           },
@@ -541,6 +552,53 @@ export async function fetchPackagePageData(
     }),
   ]);
 
+  // ── Step 3b: fallback variant pricing for activities without a selected variant ──
+  // Activities with variant_id=null use the first active variant's pricing for display.
+  const noVariantActivityIds = [
+    ...new Set(
+      itineraries.flatMap((day) =>
+        day.itinerary_activities
+          .filter((ia) => !ia.variant)
+          .map((ia) => ia.activity.id),
+      ),
+    ),
+  ];
+  const fallbackPricingMap = new Map<number, { pricing_type: string; pricing: { label: string; price: unknown }[] }>();
+  if (noVariantActivityIds.length > 0) {
+    const fallbackVariants = await db.activity_variants.findMany({
+      where: { activity_id: { in: noVariantActivityIds }, is_active: true },
+      orderBy: { sort_order: "asc" },
+      select: {
+        activity_id: true,
+        pricing_type: true,
+        pricing: {
+          where: { is_active: true },
+          orderBy: { sort_order: "asc" },
+          select: { label: true, price: true },
+        },
+        seasons: {
+          where: { is_active: true },
+          orderBy: { sort_order: "asc" },
+          select: {
+            pricing: {
+              where: { is_active: true },
+              orderBy: { sort_order: "asc" },
+              select: { label: true, price: true },
+            },
+          },
+        },
+      },
+    });
+    for (const v of fallbackVariants) {
+      const effectivePricing = v.pricing.length > 0
+        ? v.pricing
+        : (v.seasons.find((s) => s.pricing.length > 0)?.pricing ?? []);
+      if (!fallbackPricingMap.has(v.activity_id) && effectivePricing.length > 0) {
+        fallbackPricingMap.set(v.activity_id, { pricing_type: v.pricing_type, pricing: effectivePricing });
+      }
+    }
+  }
+
   // ── Step 4: shape itinerary ────────────────────────────────────────────────
   type ItineraryWithNights = ItineraryDayData & { _numNights: number };
 
@@ -580,11 +638,15 @@ export async function fetchPackagePageData(
       difficulty: ia.activity.difficulty,
       category: ia.activity.category?.name ?? null,
       is_optional: ia.is_optional,
-      pricing_type: ia.variant?.pricing_type ?? "PER_PERSON",
-      pricingTiers: (ia.variant?.pricing ?? []).map((p) => ({
-        label: p.label,
-        price: Number(p.price),
-      })),
+      pricing_type: ia.variant?.pricing_type ?? fallbackPricingMap.get(ia.activity.id)?.pricing_type ?? "PER_PERSON",
+      pricingTiers: (() => {
+        // Prefer variant's default pricing; fall back to first active season's pricing; then global fallback
+        const variantDefault = ia.variant?.pricing ?? [];
+        const variantSeasonal = ia.variant?.seasons?.find((s) => s.pricing.length > 0)?.pricing ?? [];
+        const globalFallback = fallbackPricingMap.get(ia.activity.id)?.pricing ?? [];
+        const source = variantDefault.length > 0 ? variantDefault : variantSeasonal.length > 0 ? variantSeasonal : globalFallback;
+        return source.map((p) => ({ label: p.label, price: Number(p.price) }));
+      })(),
       images: ia.activity.images,
     }));
 

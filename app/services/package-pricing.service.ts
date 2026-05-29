@@ -70,9 +70,11 @@ export type CabSegmentBreakdown = {
 export type DayPricingBreakdown = {
   day: number;
   day_title: string;
+  day_date: string | null;   // ISO "YYYY-MM-DD" for this specific day (start_date + day-1)
   hotel: DayHotelLine | null;
   activities: DayActivityLine[];
   transfers: DayTransferLine[];
+  cab_cost: number;          // per-day cab cost (sum of all segments covering this day)
   day_total: number;
 };
 
@@ -109,7 +111,10 @@ function matchTier<T extends { label: string }>(
   );
 }
 
-/** Resolve the effective cab price for a segment given a travel date. */
+/** Resolve the effective cab price for a segment given a specific calendar date.
+ *  Seasons are stored year-agnostically (year-2000 placeholder), so we normalise
+ *  the query date to year 2000 before comparing — same pattern as hotel/activity seasons.
+ */
 function resolveCabPrice(
   basePricing: {
     pricing_type: string;
@@ -123,35 +128,140 @@ function resolveCabPrice(
       is_active: boolean;
     }>;
   },
-  travelDate: Date | null,
-): { price: number; is_seasonal: boolean; pricing_type: "PER_DAY" | "PER_KM" } {
+  date: Date | null,
+): { weekdayPrice: number; weekendPrice: number; is_seasonal: boolean; pricing_type: "PER_DAY" | "PER_KM" } {
   const basePrice = Number(basePricing.price);
   const basePricingType = basePricing.pricing_type as "PER_DAY" | "PER_KM";
 
-  if (!travelDate) {
-    return { price: basePrice, is_seasonal: false, pricing_type: basePricingType };
+  if (!date) {
+    return { weekdayPrice: basePrice, weekendPrice: basePrice, is_seasonal: false, pricing_type: basePricingType };
   }
 
+  // Normalise to year 2000 for year-agnostic season matching
+  const normalised = new Date(2000, date.getMonth(), date.getDate());
   const activeSeason = basePricing.seasons.find((s) => {
     if (!s.is_active) return false;
     const from = new Date(s.valid_from);
     const to = new Date(s.valid_to);
-    from.setHours(0, 0, 0, 0);
-    to.setHours(23, 59, 59, 999);
-    return travelDate >= from && travelDate <= to;
+    const normFrom = new Date(2000, from.getMonth(), from.getDate());
+    const normTo = new Date(2000, to.getMonth(), to.getDate());
+    if (normFrom <= normTo) {
+      return normalised >= normFrom && normalised <= normTo;
+    }
+    // Cross-year range (e.g., Nov → Feb)
+    return normalised >= normFrom || normalised <= normTo;
   });
 
   if (!activeSeason) {
-    return { price: basePrice, is_seasonal: false, pricing_type: basePricingType };
+    return { weekdayPrice: basePrice, weekendPrice: basePrice, is_seasonal: false, pricing_type: basePricingType };
   }
 
-  // Sat=6, Sun=0 in JS
-  const dayOfWeek = travelDate.getDay();
-  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-  const price = isWeekend ? Number(activeSeason.weekend_price) : Number(activeSeason.weekday_price);
+  const weekdayPrice = Number(activeSeason.weekday_price);
+  const weekendPrice = activeSeason.weekend_price != null && Number(activeSeason.weekend_price) > 0
+    ? Number(activeSeason.weekend_price)
+    : weekdayPrice;
   const pricingType = activeSeason.pricing_type as "PER_DAY" | "PER_KM";
 
-  return { price, is_seasonal: true, pricing_type: pricingType };
+  return { weekdayPrice, weekendPrice, is_seasonal: true, pricing_type: pricingType };
+}
+
+/**
+ * Resolve the effective hotel price_per_night and occupancy_prices for a given travel date.
+ * Seasons are stored year-agnostically (year-2000 placeholder). Returns the matched
+ * season's rates, or the base room pricing rates if no season applies.
+ */
+function resolveHotelSeasonPricing(
+  roomPricing: {
+    price_per_night: unknown;
+    occupancy_prices: { occupancy: number; price_per_night: unknown }[];
+    seasons: {
+      valid_from: Date;
+      valid_to: Date;
+      price_per_night: unknown;
+      weekend_price_per_night?: unknown;
+      occupancy_prices?: { occupancy: number; price_per_night: unknown }[];
+    }[];
+  },
+  travelDate: Date | null,
+): { basePrice: number; occPrices: { occupancy: number; price_per_night: unknown }[] } {
+  const defaultBase = Number(roomPricing.price_per_night);
+  const defaultOcc = roomPricing.occupancy_prices;
+
+  if (!travelDate || roomPricing.seasons.length === 0) {
+    return { basePrice: defaultBase, occPrices: defaultOcc };
+  }
+
+  const normalised = new Date(2000, travelDate.getMonth(), travelDate.getDate());
+  const matchedSeason = roomPricing.seasons.find((s) => {
+    const from = new Date(s.valid_from);
+    const to = new Date(s.valid_to);
+    const normFrom = new Date(2000, from.getMonth(), from.getDate());
+    const normTo = new Date(2000, to.getMonth(), to.getDate());
+    if (normFrom <= normTo) {
+      return normalised >= normFrom && normalised <= normTo;
+    }
+    return normalised >= normFrom || normalised <= normTo;
+  });
+
+  if (!matchedSeason) return { basePrice: defaultBase, occPrices: defaultOcc };
+
+  // Use weekend price on Sat (6) or Sun (0) when configured
+  const isWeekend = travelDate.getDay() === 0 || travelDate.getDay() === 6;
+  const seasonBase = (isWeekend && matchedSeason.weekend_price_per_night != null)
+    ? Number(matchedSeason.weekend_price_per_night)
+    : Number(matchedSeason.price_per_night);
+
+  const seasonOcc = matchedSeason.occupancy_prices ?? [];
+  return {
+    basePrice: seasonBase,
+    occPrices: seasonOcc.length > 0 ? seasonOcc : defaultOcc,
+  };
+}
+
+/**
+ * Pick the effective pricing tiers for an activity variant given a travel date.
+ * Seasons are stored year-agnostically (year 2000 placeholder). We normalise the
+ * travel date to year 2000 before comparing so seasons like Apr–Sep apply to any year.
+ * Falls back to the variant's default pricing when no season matches or no date given.
+ */
+function resolveActivityPricingTiers(
+  variant: {
+    pricing: { label: string; price: unknown; is_active: boolean; sort_order: number }[];
+    seasons: {
+      valid_from: Date;
+      valid_to: Date;
+      is_active: boolean;
+      weekend_price: unknown;
+      pricing: { label: string; price: unknown; is_active: boolean; sort_order: number }[];
+    }[];
+  },
+  travelDate: Date | null,
+): { label: string; price: unknown }[] {
+  if (travelDate && variant.seasons.length > 0) {
+    // Normalise travel date to year 2000 for year-agnostic comparison
+    const normalised = new Date(2000, travelDate.getMonth(), travelDate.getDate());
+    const matchedSeason = variant.seasons.find((s) => {
+      if (!s.is_active || s.pricing.length === 0) return false;
+      const from = new Date(s.valid_from);
+      const to = new Date(s.valid_to);
+      const normFrom = new Date(2000, from.getMonth(), from.getDate());
+      const normTo = new Date(2000, to.getMonth(), to.getDate());
+      if (normFrom <= normTo) {
+        return normalised >= normFrom && normalised <= normTo;
+      }
+      return normalised >= normFrom || normalised <= normTo;
+    });
+    if (matchedSeason) {
+      // On Sat (6) or Sun (0), use weekend_price when configured
+      const isWeekend = travelDate.getDay() === 0 || travelDate.getDay() === 6;
+      if (isWeekend && matchedSeason.weekend_price != null) {
+        return matchedSeason.pricing.map((p) => ({ ...p, price: matchedSeason.weekend_price }));
+      }
+      return matchedSeason.pricing;
+    }
+  }
+  // Default (non-seasonal) pricing
+  return variant.pricing;
 }
 
 // ── Core calculator ────────────────────────────────────────────────────────
@@ -195,6 +305,20 @@ export async function computePackagePrice(
                   orderBy: { occupancy: "asc" },
                   select: { occupancy: true, price_per_night: true },
                 },
+                seasons: {
+                  where: { is_active: true },
+                  orderBy: { sort_order: "asc" },
+                  select: {
+                    valid_from: true,
+                    valid_to: true,
+                    price_per_night: true,
+                    weekend_price_per_night: true,
+                    occupancy_prices: {
+                      orderBy: { occupancy: "asc" },
+                      select: { occupancy: true, price_per_night: true },
+                    },
+                  },
+                },
               },
             },
           },
@@ -209,6 +333,16 @@ export async function computePackagePrice(
                 pricing: {
                   where: { is_active: true },
                   orderBy: { sort_order: "asc" },
+                },
+                seasons: {
+                  where: { is_active: true },
+                  orderBy: { sort_order: "asc" },
+                  include: {
+                    pricing: {
+                      where: { is_active: true },
+                      orderBy: { sort_order: "asc" },
+                    },
+                  },
                 },
               },
             },
@@ -280,6 +414,49 @@ export async function computePackagePrice(
     dayKmMap.set(itin.day, dayKm);
   }
 
+  // ── Pre-compute per-day cab cost for display in day breakdown ────────────
+  // Done before the days loop so each day's cab_cost is available when building DayPricingBreakdown.
+  const dayCabCostMap = new Map<number, number>();
+  for (const cabTypeData of loadedCabTypes) {
+    if (!cabTypeData.segments.length) continue;
+    const vehicleCapacity = Math.max(cabTypeData.vehicle.passenger_capacity, 1);
+    const numVehiclesEst = Math.ceil(Math.max(adults + children, 1) / vehicleCapacity);
+
+    for (const seg of cabTypeData.segments) {
+      const segStartDate = travelDateObj
+        ? new Date(travelDateObj.getTime() + (seg.day_from - 1) * 24 * 60 * 60 * 1000)
+        : null;
+      const resolved = resolveCabPrice(
+        { pricing_type: seg.cab_pricing.pricing_type, price: seg.cab_pricing.price, seasons: seg.cab_pricing.seasons },
+        segStartDate,
+      );
+
+      if (resolved.pricing_type === "PER_DAY") {
+        for (let d = seg.day_from; d <= seg.day_to; d++) {
+          const dayDate = travelDateObj
+            ? new Date(travelDateObj.getTime() + (d - 1) * 24 * 60 * 60 * 1000)
+            : null;
+          const isWeekend = dayDate ? (dayDate.getDay() === 0 || dayDate.getDay() === 6) : false;
+          const dayRate = isWeekend ? resolved.weekendPrice : resolved.weekdayPrice;
+          dayCabCostMap.set(d, (dayCabCostMap.get(d) ?? 0) + dayRate * numVehiclesEst);
+        }
+      } else {
+        // PER_KM: distribute proportionally across days by each day's km share
+        const totalKm = (() => {
+          let s = 0;
+          for (let d = seg.day_from; d <= seg.day_to; d++) s += dayKmMap.get(d) ?? 0;
+          return s;
+        })();
+        for (let d = seg.day_from; d <= seg.day_to; d++) {
+          const dayKm = dayKmMap.get(d) ?? 0;
+          if (totalKm > 0) {
+            dayCabCostMap.set(d, (dayCabCostMap.get(d) ?? 0) + resolved.weekdayPrice * dayKm * numVehiclesEst);
+          }
+        }
+      }
+    }
+  }
+
   // ── Fallback variants for activities saved without a variant_id ────────
   const noVariantActivityIds = [
     ...new Set(
@@ -292,16 +469,31 @@ export async function computePackagePrice(
     activity_id: number;
     pricing_type: string;
     pricing: { label: string; price: unknown; is_active: boolean; sort_order: number }[];
+    seasons: {
+      valid_from: Date;
+      valid_to: Date;
+      is_active: boolean;
+      weekend_price: unknown;
+      pricing: { label: string; price: unknown; is_active: boolean; sort_order: number }[];
+    }[];
   };
   const fallbackVariantMap = new Map<number, FallbackVariant>();
   if (noVariantActivityIds.length > 0) {
     const fallbacks = await db.activity_variants.findMany({
       where: { activity_id: { in: noVariantActivityIds }, is_active: true },
       orderBy: { sort_order: "asc" },
-      include: { pricing: { where: { is_active: true }, orderBy: { sort_order: "asc" } } },
+      include: {
+        pricing: { where: { is_active: true }, orderBy: { sort_order: "asc" } },
+        seasons: {
+          where: { is_active: true },
+          orderBy: { sort_order: "asc" },
+          include: { pricing: { where: { is_active: true }, orderBy: { sort_order: "asc" } } },
+        },
+      },
     });
     for (const v of fallbacks) {
-      if (!fallbackVariantMap.has(v.activity_id) && v.pricing.length > 0) {
+      const effectiveTiers = resolveActivityPricingTiers(v, travelDateObj);
+      if (!fallbackVariantMap.has(v.activity_id) && effectiveTiers.length > 0) {
         fallbackVariantMap.set(v.activity_id, v);
       }
     }
@@ -312,6 +504,13 @@ export async function computePackagePrice(
 
   const days: DayPricingBreakdown[] = itineraries.map((itin) => {
 
+    // Compute the actual calendar date for this specific day of the itinerary.
+    // Day 1 = travelDate, Day 2 = travelDate + 1 day, etc.
+    const dayDate = travelDateObj
+      ? new Date(travelDateObj.getTime() + (itin.day - 1) * 24 * 60 * 60 * 1000)
+      : null;
+    const dayDateISO = dayDate ? dayDate.toISOString().slice(0, 10) : null;
+
     // ── Hotel ────────────────────────────────────────────────────────────────
     const stay = itin.itineraryStays[0] ?? null;
     let hotel: DayHotelLine | null = null;
@@ -321,9 +520,9 @@ export async function computePackagePrice(
       const roomsNeeded = Math.ceil(Math.max(adults, 1) / maxOccupancy);
 
       const typicalOccupancy = Math.min(adults, maxOccupancy);
-      const basePrice = Number(stay.room_pricing.price_per_night);
+      // Use the actual date for this day so weekend/seasonal rates apply correctly
+      const { basePrice, occPrices } = resolveHotelSeasonPricing(stay.room_pricing, dayDate);
       let pricePerRoom = basePrice;
-      const occPrices = stay.room_pricing.occupancy_prices ?? [];
       if (occPrices.length > 0) {
         const sorted = [...occPrices].sort((a, b) => b.occupancy - a.occupancy);
         const match = sorted.find((op) => op.occupancy <= typicalOccupancy) ?? sorted[sorted.length - 1];
@@ -370,14 +569,14 @@ export async function computePackagePrice(
 
     // ── Activities ───────────────────────────────────────────────────────────
     const activities: DayActivityLine[] = itin.itinerary_activities.map((ia) => {
-      const pricingTiers =
-        ia.variant?.pricing?.length
-          ? ia.variant.pricing
-          : (fallbackVariantMap.get(ia.activity.id)?.pricing ?? []);
+      const fallback = fallbackVariantMap.get(ia.activity.id);
+      const pricingTiers = ia.variant
+        ? resolveActivityPricingTiers(ia.variant, dayDate)
+        : (fallback ? resolveActivityPricingTiers(fallback, dayDate) : []);
 
       const pricingType =
         (ia.variant?.pricing_type ??
-          fallbackVariantMap.get(ia.activity.id)?.pricing_type ??
+          fallback?.pricing_type ??
           "PER_PERSON") as string;
 
       let adult_price = 0;
@@ -386,7 +585,7 @@ export async function computePackagePrice(
       let total = 0;
 
       if (pricingTiers.length > 0) {
-        if (pricingType === "PER_GROUP") {
+        if (pricingType === "PER_GROUP" || pricingType === "FLAT_RATE" || pricingType === "PER_VEHICLE") {
           adult_price = Number(pricingTiers[0].price);
           total = ia.is_optional ? 0 : adult_price;
         } else {
@@ -440,12 +639,13 @@ export async function computePackagePrice(
       total: 0,
     }));
 
+    const cab_cost = dayCabCostMap.get(itin.day) ?? 0;
     const day_total =
       (hotel?.total ?? 0) +
-      activities.filter((a) => !a.is_optional).reduce((s, a) => s + a.total, 0);
-    // Note: cab cost is not per-day; it's captured in cab_subtotal
+      activities.filter((a) => !a.is_optional).reduce((s, a) => s + a.total, 0) +
+      cab_cost;
 
-    return { day: itin.day, day_title: itin.title, hotel, activities, transfers, day_total };
+    return { day: itin.day, day_title: itin.title, day_date: dayDateISO, hotel, activities, transfers, cab_cost, day_total };
   });
 
   // ── Cab cost computation ──────────────────────────────────────────────────
@@ -463,16 +663,21 @@ export async function computePackagePrice(
     const numVehicles = Math.ceil(Math.max(adults + children, 1) / vehicleCapacity);
 
     for (const seg of cabTypeData.segments) {
+      const segDays = seg.day_to - seg.day_from + 1;
+
+      // Use the first day's date to resolve season + pricing type (season valid for whole segment)
+      const segStartDate = travelDateObj
+        ? new Date(travelDateObj.getTime() + (seg.day_from - 1) * 24 * 60 * 60 * 1000)
+        : null;
+
       const resolved = resolveCabPrice(
         {
           pricing_type: seg.cab_pricing.pricing_type,
           price: seg.cab_pricing.price,
           seasons: seg.cab_pricing.seasons,
         },
-        travelDateObj,
+        segStartDate,
       );
-
-      const segDays = seg.day_to - seg.day_from + 1;
 
       // Sum km from all itinerary days within [day_from, day_to]
       let segKm = 0;
@@ -481,11 +686,27 @@ export async function computePackagePrice(
       }
 
       let segTotal = 0;
+      let price_used = resolved.weekdayPrice;
+
       if (resolved.pricing_type === "PER_DAY") {
-        segTotal = resolved.price * segDays * numVehicles;
+        // Compute per-day total so weekend days get the weekend rate
+        if (travelDateObj) {
+          for (let d = seg.day_from; d <= seg.day_to; d++) {
+            const dayDate = new Date(travelDateObj.getTime() + (d - 1) * 24 * 60 * 60 * 1000);
+            const isWeekend = dayDate.getDay() === 0 || dayDate.getDay() === 6;
+            const dayRate = isWeekend ? resolved.weekendPrice : resolved.weekdayPrice;
+            segTotal += dayRate * numVehicles;
+          }
+        } else {
+          segTotal = resolved.weekdayPrice * segDays * numVehicles;
+        }
+        price_used = resolved.weekdayPrice; // show weekday rate as reference in breakdown
       } else {
-        segTotal = resolved.price * segKm * numVehicles;
+        // PER_KM: use the rate for the segment start date
+        segTotal = resolved.weekdayPrice * segKm * numVehicles;
+        price_used = resolved.weekdayPrice;
       }
+
       cab_subtotal += segTotal;
 
       cab_segments.push({
@@ -496,7 +717,7 @@ export async function computePackagePrice(
         vehicle_name: cabTypeData.vehicle.name,
         destination_name: seg.cab_pricing.destination.name,
         pricing_type: resolved.pricing_type,
-        price_used: resolved.price,
+        price_used,
         is_seasonal: resolved.is_seasonal,
         num_vehicles: numVehicles,
         total: segTotal,

@@ -511,7 +511,7 @@ function ActivityEditForm({
   pending: boolean;
   destinationId: number;
   onToggleOptional: (val: boolean) => void;
-  onChangeVariant: (variantId: number | null) => void;
+  onChangeVariant: (variantId: number | null, variantName: string | null) => void;
   onChangeActivity: (activityId: number, variantId: number | null) => void;
   onCancel: () => void;
   onDelete: () => void;
@@ -634,16 +634,41 @@ function ActivityEditForm({
             ) : variants.length === 0 ? (
               <p className="text-xs text-muted-foreground/60 italic mt-1">No variants — will price at ₹0</p>
             ) : (
-              <Select value={item.variant_id ? String(item.variant_id) : "none"} onValueChange={(v) => onChangeVariant(v === "none" ? null : Number(v))} disabled={pending}>
-                <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select variant…" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No variant (₹0)</SelectItem>
-                  {variants.map((v) => {
-                    const adultTier = v.pricingTiers.find((t) => t.label.toLowerCase().includes("adult")) ?? v.pricingTiers[0];
-                    return <SelectItem key={v.id} value={String(v.id)}>{v.name}{adultTier ? ` · ₹${adultTier.price}` : ""}</SelectItem>;
-                  })}
-                </SelectContent>
-              </Select>
+              <>
+                <Select
+                  value={item.variant_id ? String(item.variant_id) : "none"}
+                  onValueChange={(v) => {
+                    const newId = v === "none" ? null : Number(v);
+                    const found = variants.find((vr) => vr.id === newId);
+                    onChangeVariant(newId, found?.name ?? null);
+                  }}
+                  disabled={pending}
+                >
+                  <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select variant…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No variant (₹0)</SelectItem>
+                    {variants.map((v) => {
+                      const adultTier = v.pricingTiers.find((t) => t.label.toLowerCase().includes("adult")) ?? v.pricingTiers[0];
+                      return <SelectItem key={v.id} value={String(v.id)}>{v.name}{adultTier ? ` · ₹${adultTier.price}` : ""}</SelectItem>;
+                    })}
+                  </SelectContent>
+                </Select>
+                {/* Pricing tiers for currently selected variant */}
+                {(() => {
+                  const sel = item.variant_id ? variants.find((v) => v.id === item.variant_id) : null;
+                  if (!sel || sel.pricingTiers.length === 0) return null;
+                  return (
+                    <div className="flex flex-wrap gap-2 mt-1.5">
+                      {sel.pricingTiers.map((tier) => (
+                        <div key={tier.id} className="flex items-baseline gap-1 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1">
+                          <span className="text-[10px] text-emerald-700">{tier.label}</span>
+                          <span className="text-xs font-bold text-emerald-800">₹{tier.price.toLocaleString("en-IN")}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </>
             )}
           </div>
 
@@ -962,16 +987,33 @@ function AddActivityForm({
           ) : variants.length === 0 ? (
             <p className="text-xs text-muted-foreground/60 italic mt-1">No variants — will price at ₹0</p>
           ) : (
-            <Select value={variantId ? String(variantId) : "none"} onValueChange={(v) => setVariantId(v === "none" ? null : Number(v))}>
-              <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select variant…" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">No variant (₹0)</SelectItem>
-                {variants.map((v) => {
-                  const adultTier = v.pricingTiers.find((t) => t.label.toLowerCase().includes("adult")) ?? v.pricingTiers[0];
-                  return <SelectItem key={v.id} value={String(v.id)}>{v.name}{adultTier ? ` · ₹${adultTier.price}` : ""}</SelectItem>;
-                })}
-              </SelectContent>
-            </Select>
+            <>
+              <Select value={variantId ? String(variantId) : "none"} onValueChange={(v) => setVariantId(v === "none" ? null : Number(v))}>
+                <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select variant…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No variant (₹0)</SelectItem>
+                  {variants.map((v) => {
+                    const adultTier = v.pricingTiers.find((t) => t.label.toLowerCase().includes("adult")) ?? v.pricingTiers[0];
+                    return <SelectItem key={v.id} value={String(v.id)}>{v.name}{adultTier ? ` · ₹${adultTier.price}` : ""}</SelectItem>;
+                  })}
+                </SelectContent>
+              </Select>
+              {/* Pricing tiers for selected variant */}
+              {variantId && (() => {
+                const sel = variants.find((v) => v.id === variantId);
+                if (!sel || sel.pricingTiers.length === 0) return null;
+                return (
+                  <div className="flex flex-wrap gap-2 mt-1.5">
+                    {sel.pricingTiers.map((tier) => (
+                      <div key={tier.id} className="flex items-baseline gap-1 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1">
+                        <span className="text-[10px] text-emerald-700">{tier.label}</span>
+                        <span className="text-xs font-bold text-emerald-800">₹{tier.price.toLocaleString("en-IN")}</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </>
           )}
         </div>
       )}
@@ -2191,12 +2233,16 @@ export function ItineraryDaySidebar({
     setActivities((prev) => prev.map((a) => a.id === id ? { ...a, is_optional: isOptional } : a));
   }
 
-  async function changeVariant(id: number, variantId: number | null) {
+  async function changeVariant(id: number, variantId: number | null, variantName: string | null = null) {
     setPending(true);
     const res = await handleUpdateActivity(id, { variant_id: variantId }, packageId);
     setPending(false);
     if (!res.success) { toast.error(res.message); return; }
-    setActivities((prev) => prev.map((a) => a.id === id ? { ...a, variant_id: variantId, variant: null } : a));
+    setActivities((prev) => prev.map((a) =>
+      a.id === id
+        ? { ...a, variant_id: variantId, variant: variantId !== null && variantName !== null ? { id: variantId, name: variantName } : null }
+        : a,
+    ));
   }
 
   async function deleteActivity(id: number) {
@@ -2483,11 +2529,15 @@ export function ItineraryDaySidebar({
                                   <div className="flex items-center gap-1.5 flex-wrap">
                                     <p className="text-xs font-medium">{item.data.activity.name}</p>
                                     {item.data.is_optional && <Badge variant="outline" className="text-[9px] h-3.5 px-1 py-0">Optional</Badge>}
-                                    {item.data.variant_id === null && (
+                                    {item.data.variant_id === null ? (
                                       <span className="text-[9px] font-bold bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded leading-none">
-                                        ₹0
+                                        No variant · ₹0
                                       </span>
-                                    )}
+                                    ) : item.data.variant ? (
+                                      <span className="text-[9px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded leading-none">
+                                        {item.data.variant.name}
+                                      </span>
+                                    ) : null}
                                   </div>
                                   <p className="text-[10px] text-muted-foreground/60">
                                     {[item.data.activity.category, item.data.activity.duration_hours != null ? `${item.data.activity.duration_hours}h` : null].filter(Boolean).join(" · ")}
@@ -2627,7 +2677,7 @@ export function ItineraryDaySidebar({
                     item={editPanelItem.data} pending={pending}
                     destinationId={destinationId}
                     onToggleOptional={(val) => toggleOptional(editPanelItem.data.id, val)}
-                    onChangeVariant={(variantId) => changeVariant(editPanelItem.data.id, variantId)}
+                    onChangeVariant={(variantId, variantName) => changeVariant(editPanelItem.data.id, variantId, variantName ?? null)}
                     onChangeActivity={(newId, variantId) => changeActivityItem(editPanelItem.data.id, newId, editPanelItem.data.is_optional, variantId)}
                     onCancel={() => setEditPanel(null)}
                     onDelete={() => deleteActivity(editPanelItem.data.id)}

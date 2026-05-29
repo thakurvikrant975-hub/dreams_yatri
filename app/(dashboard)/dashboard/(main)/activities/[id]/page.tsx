@@ -165,6 +165,7 @@ export default async function ActivityDetailPage({
                             })),
                             seasons: v.seasons.map(s => ({
                                 ...s,
+                                weekend_price: s.weekend_price != null ? Number(s.weekend_price) : null,
                                 pricing: s.pricing.map(p => ({
                                     ...p,
                                     price:             Number(p.price),

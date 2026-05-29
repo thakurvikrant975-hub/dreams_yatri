@@ -354,13 +354,32 @@ export async function getActivityVariants(activityId: number): Promise<ActivityV
         orderBy: { sort_order: "asc" },
         select: { id: true, label: true, price: true },
       },
+      seasons: {
+        where: { is_active: true },
+        orderBy: { sort_order: "asc" },
+        select: {
+          id: true,
+          pricing: {
+            where: { is_active: true },
+            orderBy: { sort_order: "asc" },
+            select: { id: true, label: true, price: true },
+          },
+        },
+      },
     },
   });
-  return variants.map((v) => ({
-    id: v.id,
-    name: v.name,
-    pricingTiers: v.pricing.map((p) => ({ id: p.id, label: p.label, price: Number(p.price) })),
-  }));
+  return variants.map((v) => {
+    // Use default pricing if available; otherwise fall back to the first active season's pricing
+    const effectivePricing =
+      v.pricing.length > 0
+        ? v.pricing
+        : (v.seasons.find((s) => s.pricing.length > 0)?.pricing ?? []);
+    return {
+      id: v.id,
+      name: v.name,
+      pricingTiers: effectivePricing.map((p) => ({ id: p.id, label: p.label, price: Number(p.price) })),
+    };
+  });
 }
 
 export async function addItineraryActivity(

@@ -115,7 +115,10 @@ function todayISODate() {
   return new Date().toISOString().slice(0, 10);
 }
 
-/** Client-side estimated cab cost for a cab type (for showing in dropdown) */
+/** Client-side estimated cab cost for a cab type (for showing in dropdown).
+ *  Seasons use year-2000 placeholder dates — normalise travel date before comparing.
+ *  For PER_DAY, compute per-day rates so weekends use the weekend price.
+ */
 function estimateCabCost(
   ct: CabTypePreview,
   travelDateStr: string,
@@ -123,37 +126,61 @@ function estimateCabCost(
   children: number,
 ): number {
   const travelDate = travelDateStr ? new Date(travelDateStr) : null;
+  const numVehicles = Math.ceil(Math.max(adults + children, 1) / Math.max(ct.vehicle.capacity, 1));
   let total = 0;
+
   for (const seg of ct.segments) {
-    let price = seg.price;
-    if (travelDate) {
+    const segStartDate = travelDate
+      ? new Date(travelDate.getTime() + (seg.day_from - 1) * 24 * 60 * 60 * 1000)
+      : null;
+
+    // Resolve season using year-agnostic month/day comparison
+    let weekdayPrice = seg.price;
+    let weekendPrice = seg.price;
+    if (segStartDate) {
+      const normalised = new Date(2000, segStartDate.getMonth(), segStartDate.getDate());
       const activeSeason = seg.seasons.find((s) => {
         const from = new Date(s.valid_from);
         const to = new Date(s.valid_to);
-        from.setHours(0, 0, 0, 0);
-        to.setHours(23, 59, 59, 999);
-        return travelDate >= from && travelDate <= to;
+        const normFrom = new Date(2000, from.getMonth(), from.getDate());
+        const normTo = new Date(2000, to.getMonth(), to.getDate());
+        if (normFrom <= normTo) return normalised >= normFrom && normalised <= normTo;
+        return normalised >= normFrom || normalised <= normTo;
       });
       if (activeSeason) {
-        const isWeekend = travelDate.getDay() === 0 || travelDate.getDay() === 6;
-        price = isWeekend ? activeSeason.weekend_price : activeSeason.weekday_price;
+        weekdayPrice = activeSeason.weekday_price;
+        weekendPrice = activeSeason.weekend_price > 0 ? activeSeason.weekend_price : weekdayPrice;
       }
     }
-    const numVehicles = Math.ceil(Math.max(adults + children, 1) / Math.max(ct.vehicle.capacity, 1));
+
     if (seg.pricing_type === "PER_DAY") {
-      total += price * (seg.day_to - seg.day_from + 1) * numVehicles;
+      if (travelDate) {
+        for (let d = seg.day_from; d <= seg.day_to; d++) {
+          const dayDate = new Date(travelDate.getTime() + (d - 1) * 24 * 60 * 60 * 1000);
+          const isWeekend = dayDate.getDay() === 0 || dayDate.getDay() === 6;
+          total += (isWeekend ? weekendPrice : weekdayPrice) * numVehicles;
+        }
+      } else {
+        total += weekdayPrice * (seg.day_to - seg.day_from + 1) * numVehicles;
+      }
     }
-    // PER_KM: we can't estimate without km data client-side, skip
+    // PER_KM: can't estimate without km data client-side, skip
   }
   return total;
 }
 
-// ── Transfer line (included badge) ────────────────────────────────────────
+// ── Transfer route row — shows route info; first row also shows the per-day cab cost ──
 
-function TransferIncludedRow({ transfer }: { transfer: { id: number; pickup_name: string | null; drop_name: string | null; vehicle_name: string | null; distance_km: number | null } }) {
+function TransferRouteRow({
+  transfer,
+  cabCost,
+}: {
+  transfer: { id: number; pickup_name: string | null; drop_name: string | null; vehicle_name: string | null; distance_km: number | null };
+  cabCost?: number;
+}) {
   return (
     <div className="flex items-start gap-2.5 py-1">
-      <div className="mt-0.5 h-6 w-6 rounded-md flex items-center justify-center shrink-0 bg-orange-50 text-orange-600 dark:bg-orange-950 dark:text-orange-400">
+      <div className="mt-0.5 h-6 w-6 rounded-md flex items-center justify-center shrink-0 bg-orange-50 text-orange-600">
         <Car className="h-3.5 w-3.5" />
       </div>
       <div className="flex-1 min-w-0">
@@ -162,13 +189,13 @@ function TransferIncludedRow({ transfer }: { transfer: { id: number; pickup_name
             ? `${transfer.pickup_name} → ${transfer.drop_name}`
             : transfer.vehicle_name ?? "Transfer"}
         </p>
-        <p className="text-xs text-muted-foreground">
-          {[transfer.vehicle_name, transfer.distance_km ? `${transfer.distance_km} km` : null].filter(Boolean).join(" · ")}
-        </p>
+        {transfer.distance_km != null && (
+          <p className="text-xs text-muted-foreground">{transfer.distance_km} km by road</p>
+        )}
       </div>
-      <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0 text-orange-600 border-orange-200">
-        Included in cab
-      </Badge>
+      {cabCost != null && cabCost > 0 && (
+        <div className="text-sm font-semibold shrink-0 ml-2">₹{fmt(cabCost)}</div>
+      )}
     </div>
   );
 }
@@ -216,6 +243,14 @@ function LineItem({
 
 // ── Day card ───────────────────────────────────────────────────────────────
 
+function formatDayDate(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso + "T00:00:00");
+  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const dayName = dayNames[d.getDay()];
+  return `${dayName}, ${d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`;
+}
+
 function DayCard({ day }: { day: DayPricingBreakdown }) {
   const [open, setOpen] = useState(true);
 
@@ -242,6 +277,11 @@ function DayCard({ day }: { day: DayPricingBreakdown }) {
             Day {day.day}
           </Badge>
           <span className="text-sm font-medium truncate">{day.day_title}</span>
+          {day.day_date && (
+            <span className="text-xs text-muted-foreground shrink-0 ml-1">
+              · {formatDayDate(day.day_date)}
+            </span>
+          )}
         </div>
         <span className="text-sm font-bold ml-4 shrink-0">
           ₹{fmt(day.day_total)}
@@ -335,10 +375,27 @@ function DayCard({ day }: { day: DayPricingBreakdown }) {
             />
           ))}
 
-          {/* Transfers — display only */}
-          {day.transfers.map((t) => (
-            <TransferIncludedRow key={t.id} transfer={t} />
+          {/* Transfers — first row shows the per-day cab cost, rest show route only */}
+          {day.transfers.map((t, idx) => (
+            <TransferRouteRow
+              key={t.id}
+              transfer={t}
+              cabCost={idx === 0 ? day.cab_cost : undefined}
+            />
           ))}
+
+          {/* If no transfers but cab cost exists (PER_KM without explicit transfers) */}
+          {day.transfers.length === 0 && day.cab_cost > 0 && (
+            <div className="flex items-start gap-2.5 py-1">
+              <div className="mt-0.5 h-6 w-6 rounded-md flex items-center justify-center shrink-0 bg-orange-50 text-orange-600">
+                <Car className="h-3.5 w-3.5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium leading-tight">Cab</p>
+              </div>
+              <div className="text-sm font-semibold shrink-0 ml-2">₹{fmt(day.cab_cost)}</div>
+            </div>
+          )}
         </CardContent>
       )}
     </Card>
@@ -394,7 +451,7 @@ function SummaryCard({ breakdown }: { breakdown: FullPricingBreakdown }) {
   const { adults, children, infants } = breakdown;
 
   return (
-    <Card className="border-violet-200 bg-linear-to-b from-violet-50/40 to-background sticky top-4 bg-dashboard-base-100 rounded-xl shadow-lg border border-dashboard-base-content/20">
+    <Card className="bg-linear-to-b from-violet-50/40 to-background sticky top-4 bg-dashboard-base-100 rounded-xl shadow-lg border border-violet-200">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-semibold flex items-center gap-2">
           <IndianRupee className="h-4 w-4 text-violet-600" />
@@ -665,7 +722,7 @@ export function PricingPreviewTab({
           {travelDate && (
             <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
               <Sparkles className="h-3 w-3" />
-              Travel date used for seasonal cab pricing lookup
+              Start date — each day&apos;s hotel, activity &amp; cab rates are resolved to the actual calendar date (Day 1 = {travelDate}, Day 2 = next day, …) including weekend pricing
             </p>
           )}
 
