@@ -16,49 +16,49 @@ function Breadcrumbs({
     className?: string;
 }) {
     return (
-        <nav className={cn('flex items-center gap-1.5 text-sm mb-2.5', className)}>
+        <nav aria-label="Breadcrumb" className={cn('flex items-center gap-1.5 text-sm mb-2.5', className)}>
+            <ol className="flex items-center gap-1.5 list-none p-0 m-0">
 
-            <Link
-                href="/"
-                className="text-muted hover:text-primary-500 transition-colors duration-200 flex items-center"
-            >
-                <HomeIcon className="size-5" />
-            </Link>
-
-            {cat && (
-                <>
-                    <ChevronRightIcon className="text-muted size-3.5 shrink-0" />
+                <li>
                     <Link
-                        href={cat.link}
+                        href="/"
+                        aria-label="Home"
+                        className="text-muted hover:text-primary-500 transition-colors duration-200 flex items-center"
                     >
-                        <Text as='span' intent='secondary' size='sm' className='font-heading hover:text-primary-500 transition-colors duration-200'>
-                            {cat.label}
-                        </Text>
-
+                        <HomeIcon aria-hidden="true" className="size-5" />
                     </Link>
-                </>
-            )}
+                </li>
 
+                {cat && (
+                    <li className="flex items-center gap-1.5">
+                        <ChevronRightIcon aria-hidden="true" className="text-muted size-3.5 shrink-0" />
+                        <Link href={cat.link}>
+                            <Text as='span' intent='secondary' size='sm' className='font-heading hover:text-primary-500 transition-colors duration-200'>
+                                {cat.label}
+                            </Text>
+                        </Link>
+                    </li>
+                )}
 
-            {cat2 && (
-                <>
-                    <ChevronRightIcon className="text-muted size-3.5 shrink-0" />
-                    <Link
-                        href={cat2.link}
-                    >
-                        <Text as='span' intent='secondary' size='sm' className='font-heading hover:text-primary-500 transition-colors duration-200'>
-                            {cat2.label}
-                        </Text>
-                    </Link>
-                </>
-            )}
+                {cat2 && (
+                    <li className="flex items-center gap-1.5">
+                        <ChevronRightIcon aria-hidden="true" className="text-muted size-3.5 shrink-0" />
+                        <Link href={cat2.link}>
+                            <Text as='span' intent='secondary' size='sm' className='font-heading hover:text-primary-500 transition-colors duration-200'>
+                                {cat2.label}
+                            </Text>
+                        </Link>
+                    </li>
+                )}
 
-            <ChevronRightIcon className="text-muted size-3.5 shrink-0" />
+                <li className="flex items-center gap-1.5">
+                    <ChevronRightIcon aria-hidden="true" className="text-muted size-3.5 shrink-0" />
+                    <Text as='span' intent='primary' size='sm' truncate={true} className="max-w-xs" aria-current="page">
+                        {title}
+                    </Text>
+                </li>
 
-            <Text as='span' intent='primary' size='sm' truncate={true} className="max-w-xs">
-                {title}
-            </Text>
-
+            </ol>
         </nav>
     );
 }

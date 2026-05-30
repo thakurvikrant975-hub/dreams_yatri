@@ -62,10 +62,11 @@ const Button: React.FC<ButtonProps> = ({
     <button
       className={buttonVariants({ variant, size, disabled: isDisabled, className })}
       disabled={isDisabled}
+      aria-busy={loading || undefined}
       {...props}
     >
       {loading && (
-        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
+        <div aria-hidden="true" className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
       )}
       {children}
     </button>

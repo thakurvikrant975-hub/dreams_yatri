@@ -139,7 +139,13 @@ export default function PackageTab({
             <div className="flex gap-10 pt-section-sm pb-4">
 
                 {/* Main content */}
-                <div className="flex-1 min-w-0 py-2 pb-20 lg:pb-2">
+                <div
+                    role="tabpanel"
+                    id={`tab-panel-${activeTab}`}
+                    aria-labelledby={`tab-${activeTab}`}
+                    tabIndex={0}
+                    className="flex-1 min-w-0 py-2 pb-20 lg:pb-2 focus-visible:outline-none"
+                >
                     {activeTab === 'itinerary'  && itinerary}
                     {activeTab === 'highlights' && highlights}
                     {activeTab === 'policies'   && policies}

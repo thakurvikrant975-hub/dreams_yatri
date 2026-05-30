@@ -51,6 +51,8 @@ interface InputProps
   wrapperClassName?: string;
   innerWrapperClassName?: string;
   message?: string;
+  /** Stable id used to link aria-describedby — defaults to a random id if not supplied */
+  inputId?: string;
   loading?: {
     isLoading: boolean;
     message?: string;
@@ -70,10 +72,18 @@ const Input = forwardRef<HTMLInputElement, InputProps>((props, ref) => {
     wrapperClassName,
     innerWrapperClassName,
     message,
+    inputId,
     disabled = false,
     loading,
+    id: idProp,
     ...inputProps
   } = props;
+
+  // Stable id for aria-describedby wiring (use caller-supplied id or inputId)
+  const baseId = idProp ?? inputId ?? (typeof React.useId === 'function' ? React.useId() : undefined);
+  const errorId   = baseId ? `${baseId}-error`   : undefined;
+  const messageId = baseId ? `${baseId}-message`  : undefined;
+  const describedBy = error ? errorId : message ? messageId : undefined;
 
   const loadingState = loading ?? { isLoading: false };
   const loadingMessage = loadingState.message ?? 'Loading...';
@@ -98,13 +108,16 @@ const Input = forwardRef<HTMLInputElement, InputProps>((props, ref) => {
       <div className={cn('relative', innerWrapperClassName)}>
         <input
           ref={ref}
+          id={baseId}
           disabled={disabled}
+          aria-invalid={!!error}
+          aria-describedby={describedBy}
           className={cn(inputVariants({ state, size }), className)}
           {...inputProps}
         />
 
         {rightIcon && !success && (
-          <span className="absolute top-1/2 right-4 z-30 -translate-y-1/2 cursor-pointer">
+          <span aria-hidden="true" className="absolute top-1/2 right-4 z-30 -translate-y-1/2 cursor-pointer">
             {rightIcon}
           </span>
         )}
@@ -119,18 +132,18 @@ const Input = forwardRef<HTMLInputElement, InputProps>((props, ref) => {
       </div>
 
       {error && (
-        <p className="text-error mt-1.5 text-xs font-medium">{error}</p>
+        <p id={errorId} role="alert" aria-live="polite" className="text-error mt-1.5 text-xs font-medium">{error}</p>
       )}
 
       {loadingState.isLoading && !error && (
-        <p className="text-muted mt-1.5 text-xs font-medium flex gap-2 items-center">
+        <p className="text-muted mt-1.5 text-xs font-medium flex gap-2 items-center" aria-live="polite">
           {loadingMessage}
-          <span className="bg-transparent border-t-2 border-l-2 border-r-2 border-neutral-500 animate-spin rounded-full size-4" />
+          <span aria-hidden="true" className="bg-transparent border-t-2 border-l-2 border-r-2 border-neutral-500 animate-spin rounded-full size-4" />
         </p>
       )}
 
       {!error && !loadingState.isLoading && message && (
-        <p className="text-muted mt-1.5 text-xs font-medium">{message}</p>
+        <p id={messageId} className="text-muted mt-1.5 text-xs font-medium">{message}</p>
       )}
     </div>
   );

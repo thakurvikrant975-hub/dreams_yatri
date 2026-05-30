@@ -109,8 +109,9 @@ const EnquiryForm: React.FC<EnquiryFormProps> = ({ packageName }) => {
         <div className="flex flex-col gap-3">
 
           <div>
-            <Label required>Full Name</Label>
+            <Label htmlFor="enquiry-name" required>Full Name</Label>
             <Input
+              id="enquiry-name"
               placeholder="Your name"
               value={formData.name}
               error={errors.name}
@@ -120,8 +121,9 @@ const EnquiryForm: React.FC<EnquiryFormProps> = ({ packageName }) => {
           </div>
 
           <div>
-            <Label>Email</Label>
+            <Label htmlFor="enquiry-email">Email</Label>
             <Input
+              id="enquiry-email"
               type="email"
               placeholder="example@email.com"
               value={formData.email}
@@ -132,8 +134,9 @@ const EnquiryForm: React.FC<EnquiryFormProps> = ({ packageName }) => {
           </div>
 
           <div>
-            <Label required>Phone No.</Label>
+            <Label htmlFor="enquiry-phone" required>Phone No.</Label>
             <Input
+              id="enquiry-phone"
               type="tel"
               placeholder="+91 8219986345"
               value={formData.phone}

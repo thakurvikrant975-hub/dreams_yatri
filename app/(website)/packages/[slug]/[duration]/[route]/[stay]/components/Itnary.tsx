@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import ImageLightbox from './ImageLightbox';
+import { Dialog, VisuallyHidden } from 'radix-ui';
 import { cn } from '@/app/lib/utils';
 import Accordion from '@/app/components/ui/Accordian';
 import { Heading, Text } from '@/app/components/ui/Typography';
@@ -269,14 +270,14 @@ function CabRoute({
           <div className="flex gap-3 w-full mt-0.5">
             <Text size="sm" intent="primary" className="w-max mb-0.5 font-heading shrink-0">Pickup Point:</Text>
             <div className="flex items-center gap-1.5 ">
-              {FromIcon && <FromIcon weight="duotone" className="size-7 shrink-0" />}
+              {FromIcon && <FromIcon weight="duotone" className="size-5 shrink-0" />}
               <Text size="sm" intent="primary" weight="semibold" className="font-heading">{from}</Text>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="h-9 w-full flex items-stretch">
+      <div className="h-12 w-full flex items-stretch">
         <div className="w-18" />
         <div className="h-full flex-1 border-l-[0.2em] border-l-(--border-default) px-3 flex items-center gap-0.5">
           <Text as='span' size="sm" weight='medium' intent='secondary'>
@@ -295,7 +296,7 @@ function CabRoute({
           <div className="flex items-center gap-3 w-full">
             <Text size="sm" intent="primary" className="w-max mb-0.5 font-heading shrink-0">Drop Point:</Text>
             <div className="flex items-center gap-1.5 ">
-              {ToIcon && <ToIcon weight="duotone" className="size-7 shrink-0" />}
+              {ToIcon && <ToIcon weight="duotone" className="size-5 shrink-0" />}
               <Text size="sm" intent="primary" weight="semibold" className="font-heading">{to}</Text>
             </div>
           </div>
@@ -513,13 +514,38 @@ function CabContent({ section }: { section: CabSection }) {
           )}
 
           {/* Route: pickup → drop */}
-          <CabRoute
-            from={section.from.value}
-            to={section.to.value}
-            distance_km={section.distance_km}
-            fromLocationType={section.from.locationType}
-            toLocationType={section.to.locationType}
-          />
+          <div className="flex items-stretch gap-3">
+            <CabRoute
+              from={section.from.value}
+              to={section.to.value}
+              distance_km={section.distance_km}
+              fromLocationType={section.from.locationType}
+              toLocationType={section.to.locationType}
+            />
+
+            {/* Vehicle image */}
+            {(section.vehicle_image || section.vehicle_name) && (
+              <div className="relative h-36 aspect-video shrink-0 rounded-2xl overflow-hidden bg-neutral-100">
+                <img
+                  src={section.vehicle_image || CAB_PLACEHOLDER}
+                  alt={section.vehicle_name ?? "Vehicle"}
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-linear-to-t from-black/55 via-black/10 to-transparent" />
+                {!section.vehicle_image && (
+                  <span className="absolute top-2 right-2 text-[9px] text-white/50 font-medium tracking-wide bg-black/30 rounded px-1 py-0.5">
+                    placeholder
+                  </span>
+                )}
+                {section.vehicle_name && (
+                  <span className="absolute bottom-2 left-2 right-2 text-xs font-semibold text-white drop-shadow-sm leading-tight line-clamp-2">
+                    {section.vehicle_name}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
 
           {/* Transfer-level note */}
           {section.transfer_notes && (
@@ -530,27 +556,6 @@ function CabContent({ section }: { section: CabSection }) {
           )}
         </div>
 
-        {/* Vehicle image */}
-        {(section.vehicle_image || section.vehicle_name) && (
-          <div className="relative h-36 aspect-video shrink-0 rounded-2xl overflow-hidden bg-neutral-100">
-            <img
-              src={section.vehicle_image || CAB_PLACEHOLDER}
-              alt={section.vehicle_name ?? "Vehicle"}
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 bg-linear-to-t from-black/55 via-black/10 to-transparent" />
-            {!section.vehicle_image && (
-              <span className="absolute top-2 right-2 text-[9px] text-white/50 font-medium tracking-wide bg-black/30 rounded px-1 py-0.5">
-                placeholder
-              </span>
-            )}
-            {section.vehicle_name && (
-              <span className="absolute bottom-2 left-2 right-2 text-xs font-semibold text-white drop-shadow-sm leading-tight line-clamp-2">
-                {section.vehicle_name}
-              </span>
-            )}
-          </div>
-        )}
 
       </div>
     </div>
@@ -606,7 +611,7 @@ function StayContent({ section }: { section: StaySection }) {
     : parseMealTypes(section.mealType, section.planName);
 
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
-  const closeLightbox  = useCallback(() => setLightboxIdx(null), []);
+  const closeLightbox = useCallback(() => setLightboxIdx(null), []);
   const navigateLightbox = useCallback((i: number) => setLightboxIdx(i), []);
 
   const lightboxImgs = section.images.map((src, i) => ({
@@ -614,139 +619,165 @@ function StayContent({ section }: { section: StaySection }) {
     label: i === 0 ? section.hotelName : (section.roomName ?? section.hotelName),
   }));
 
+  // All standard meals — shows tick or cross for each
+  const STANDARD_MEALS = [
+    { key: 'breakfast', label: 'Breakfast', icon: CoffeeIcon },
+    { key: 'lunch',     label: 'Lunch',     icon: BowlSteamIcon },
+    { key: 'dinner',    label: 'Dinner',    icon: CheersIcon },
+  ] as const;
+  const hasMealInfo = meals.length > 0 || section.planName || section.mealType;
+
   return (
     <div className="mt-2 flex">
       <div className="w-10 shrink-0" />
-      <div className="flex-1 space-y-3">
+      <div className="flex-1 flex flex-col gap-3">
 
-        {/* Hotel name + stars */}
-        <div className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-2.5">
-            <Text size="base" weight="semibold" className="font-heading text-primary leading-tight relative">
+        {/* ── Hotel name + stars + address ── */}
+        <div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Text size="base" weight="semibold" className="font-heading text-primary leading-tight">
               {section.hotelName}
-              {section.stayType && (
-                <span className="absolute top-0 left-full translate-x-2 -translate-y-0.5">
-                  <HotelStars stayType={section.stayType} />
-                </span>
-              )}
             </Text>
-
+            {section.stayType && <HotelStars stayType={section.stayType} />}
           </div>
           {section.address && (
-            <div className="flex items-start gap-1.5 mt-0.5">
+            <div className="flex items-start gap-1.5 mt-1">
               <MapPinIcon weight="duotone" className="size-3.5 text-muted shrink-0 mt-0.5" />
               <Text size="xs" intent="secondary" className="leading-snug">{section.address}</Text>
             </div>
           )}
         </div>
 
-        <div className="flex gap-5">
-          <div className="flex-1 flex flex-col gap-1">
-            {/* Room details card */}
-            <div className=" rounded-xl  flex flex-col gap-2">
-              {/* Room name + capacity */}
-              <div className="flex items-center gap-4">
-                {section.roomName && (
-                  <Text size="sm" weight="semibold" intent="primary">{section.roomName}</Text>
-                )}
-                {section.roomCapacity && (
-                  <div className="flex items-center gap-1 text-muted">
-                    <svg className="size-3.5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
-                    </svg>
-                    <Text size="xs" intent="secondary">Up to {section.roomCapacity} guests</Text>
-                  </div>
-                )}
+        <div className="flex gap-4">
+          {/* ── Left: details ── */}
+          <div className="flex-1 flex flex-col gap-2.5 min-w-0">
+
+            {/* Info chips: nights · room · capacity */}
+            <div className="flex flex-wrap gap-1.5">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-50 ring-1 ring-inset ring-neutral-200">
+                <StarAndCrescentIcon weight="duotone" className="size-3.5 text-muted" />
+                <Text size="xs" intent="secondary" weight="medium">
+                  {section.nights} night{section.nights !== 1 ? 's' : ''}
+                </Text>
               </div>
-
-
+              {section.roomName && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-50 ring-1 ring-inset ring-neutral-200">
+                  <BedIcon weight="duotone" className="size-3.5 text-muted" />
+                  <Text size="xs" intent="secondary" weight="medium">{section.roomName}</Text>
+                </div>
+              )}
+              {section.roomCapacity && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-50 ring-1 ring-inset ring-neutral-200">
+                  <svg className="size-3.5 shrink-0 text-muted" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+                  </svg>
+                  <Text size="xs" intent="secondary" weight="medium">Up to {section.roomCapacity}</Text>
+                </div>
+              )}
             </div>
 
             {/* Check-in / Check-out timeline */}
-            <div className="flex mt-2">
-              <div className="w-full border-l-[0.2em] border-l-(--border-default) flex-1 flex flex-row items-center gap-3.5">
-                <div className="relative after:absolute after:w-[0.2em] after:h-full after:max-h-12 after:left-0 after:top-0 after:bg-primary-400 after:-translate-x-[0.2em]">
-                  <div className="flex items-center gap-3">
-                    <div className="size-9 flex items-center justify-center ml-3 shrink-0">
-                      <span className="text-muted size-7 scale-110"><CheckInIcon /></span>
-                    </div>
-                    <div className="flex flex-col items-center gap-1 w-full mt-0.5">
-                      <Text size="xs" intent="primary" className="w-max font-heading shrink-0">Check In:</Text>
-                      <Text size="sm" intent="primary" weight="semibold" className="font-heading">{section.checkIn}</Text>
-                    </div>
+            <div className="w-full border-l-[0.2em] border-l-(--border-default) flex flex-row items-center gap-3.5">
+              <div className="relative after:absolute after:w-[0.2em] after:h-full after:max-h-12 after:left-0 after:top-0 after:bg-primary-400 after:-translate-x-[0.2em]">
+                <div className="flex items-center gap-3">
+                  <div className="size-9 flex items-center justify-center ml-3 shrink-0">
+                    <span className="text-muted size-7 scale-110"><CheckInIcon /></span>
+                  </div>
+                  <div className="flex flex-col items-center gap-1 w-full mt-0.5">
+                    <Text size="xs" intent="primary" className="w-max font-heading shrink-0">Check In:</Text>
+                    <Text size="sm" intent="primary" weight="semibold" className="font-heading">{section.checkIn}</Text>
                   </div>
                 </div>
-
-                <div className=" flex-1 flex items-stretch">
-                  {/* <div className="w-full" /> */}
-                  <div className="h-full w-full flex-1  px-3 flex items-center gap-0.5 relative ">
-                    <div className="w-full border-b-[0.2em] border-b-(--border-default) border-dashed"></div>
-
-                    <div className=" flex gap-1 px-3 bg-neutral-50 ring-1 ring-inset py-1 ring-neutral-300 rounded-md">
-                      <Text as="span" size="sm" weight="medium" intent="secondary">
-                        {section.nights}N
-                      </Text>
-                      <StarAndCrescentIcon weight="duotone" className="size-5 text-muted ml-2 -rotate-20" />
-                    </div>
-
-                    <div className="w-full border-b-[0.2em] border-b-(--border-default) border-dashed"></div>
-                  </div>
+              </div>
+              <div className="flex-1 flex items-center px-2 gap-0.5">
+                <div className="w-full border-b-[0.2em] border-b-(--border-default) border-dashed" />
+                <div className="flex gap-1 px-2.5 bg-neutral-50 ring-1 ring-inset py-1 ring-neutral-300 rounded-md shrink-0">
+                  <Text as="span" size="sm" weight="medium" intent="secondary">{section.nights}N</Text>
+                  <StarAndCrescentIcon weight="duotone" className="size-4 text-muted ml-1 -rotate-20" />
                 </div>
-
-                <div className="relative after:absolute after:w-[0.2em] after:h-full after:max-h-12 after:right-0 after:top-0 after:bg-primary-400 after:-translate-x-[0.2em]">
-                  <div className="flex flex-row-reverse items-center gap-3">
-                    <div className="size-9 flex items-center justify-center  shrink-0 mr-5">
-                      <span className="text-muted size-7 scale-110"><CheckOutIcon /></span>
-                    </div>
-                    <div className="flex flex-col items-center gap-1 w-full ">
-                      <Text size="xs" intent="primary" className="w-max font-heading shrink-0">Check Out:</Text>
-                      <Text size="sm" intent="primary" weight="semibold" className="font-heading">{section.checkOut}</Text>
-                    </div>
+                <div className="w-full border-b-[0.2em] border-b-(--border-default) border-dashed" />
+              </div>
+              <div className="relative after:absolute after:w-[0.2em] after:h-full after:max-h-12 after:right-0 after:top-0 after:bg-primary-400 after:-translate-x-[0.2em]">
+                <div className="flex flex-row-reverse items-center gap-3">
+                  <div className="size-9 flex items-center justify-center shrink-0 mr-4">
+                    <span className="text-muted size-7 scale-110"><CheckOutIcon /></span>
+                  </div>
+                  <div className="flex flex-col items-center gap-1 w-full">
+                    <Text size="xs" intent="primary" className="w-max font-heading shrink-0">Check Out:</Text>
+                    <Text size="sm" intent="primary" weight="semibold" className="font-heading">{section.checkOut}</Text>
                   </div>
                 </div>
               </div>
             </div>
 
-          {/* Meal badges */}
-          {meals.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {meals.map((m) => <MealBadge key={m} name={m} />)}
-            </div>
-          )}
+            {/* Meal inclusions: tick / cross per meal */}
+            {hasMealInfo && (
+              <div className="flex flex-col gap-1.5">
+                <Text size="xs" intent="muted" weight="medium" className="uppercase tracking-wide">Meals</Text>
+                <div className="flex gap-2 flex-wrap">
+                  {STANDARD_MEALS.map(({ key, label, icon: Icon }) => {
+                    const included = meals.some(m => m.toLowerCase().includes(key));
+                    return (
+                      <div
+                        key={key}
+                        className={cn(
+                          'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium ring-1 ring-inset',
+                          included
+                            ? 'bg-success-50 text-success-700 ring-success-200'
+                            : 'bg-neutral-50 text-muted ring-neutral-200',
+                        )}
+                      >
+                        <Icon weight="duotone" className="size-3.5 shrink-0" />
+                        {label}
+                        {included
+                          ? <CheckIcon className="size-3 text-success-600 shrink-0" />
+                          : <XMarkIcon className="size-3 text-neutral-400 shrink-0" />
+                        }
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
           </div>
 
-          {/* Image grid — clickable, opens lightbox */}
+          {/* ── Right: image grid (restored) ── */}
           {section.images.length > 0 && (
-            <>
-              <div className="grid grid-cols-4 grid-rows-4 gap-0.5 rounded-2xl overflow-hidden h-52 cursor-pointer">
+            <div>
+              <div className="grid grid-cols-4 grid-rows-4 gap-0.5 rounded-2xl overflow-hidden h-52 shrink-0 w-64">
                 {section.images.slice(0, 5).map((src, i) => (
-                  <img
+                  <button
                     key={i}
-                    src={src}
-                    alt=""
+                    type="button"
                     onClick={() => setLightboxIdx(i)}
+                    aria-label={`View ${section.hotelName} photo ${i + 1}`}
                     className={cn(
-                      'w-full h-full object-cover transition-opacity hover:opacity-90',
+                      'relative overflow-hidden cursor-pointer focus-visible:outline-2 focus-visible:outline-primary-400 focus-visible:-outline-offset-2',
                       i === 0 && 'row-span-3 col-span-4',
                     )}
-                  />
+                  >
+                    <img
+                      src={src}
+                      alt={i === 0 ? section.hotelName : `${section.hotelName} photo ${i + 1}`}
+                      className="w-full h-full object-cover transition-opacity hover:opacity-90"
+                    />
+                  </button>
                 ))}
               </div>
-              {lightboxIdx !== null && (
-                <ImageLightbox
-                  images={lightboxImgs}
-                  activeIdx={lightboxIdx}
-                  onClose={closeLightbox}
-                  onNavigate={navigateLightbox}
-                  zClass="z-9999"
-                />
-              )}
-            </>
+            </div>
           )}
         </div>
 
-
+        {lightboxIdx !== null && (
+          <ImageLightbox
+            images={lightboxImgs}
+            activeIdx={lightboxIdx}
+            onClose={closeLightbox}
+            onNavigate={navigateLightbox}
+            zClass="z-9999"
+          />
+        )}
 
       </div>
     </div>
@@ -760,7 +791,7 @@ function ActivityContent({ section }: { section: ActivitySection }) {
   const hasPricing = section.pricingTiers && section.pricingTiers.length > 0;
 
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
-  const closeLightbox    = useCallback(() => setLightboxIdx(null), []);
+  const closeLightbox = useCallback(() => setLightboxIdx(null), []);
   const navigateLightbox = useCallback((i: number) => setLightboxIdx(i), []);
 
   // Measure once on mount (element is clamped) to know if text actually overflows
@@ -903,20 +934,15 @@ function AttractionStories({
 }) {
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
 
-  // Keyboard navigation + scroll lock while lightbox is open
+  // Arrow-key navigation (Escape + focus trap handled by Radix Dialog)
   useEffect(() => {
     if (activeIdx === null) return;
-    document.body.style.overflow = 'hidden';
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setActiveIdx(null);
+    const onKey = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight') setActiveIdx(i => (i !== null && i < items.length - 1 ? i + 1 : i));
-      if (e.key === 'ArrowLeft') setActiveIdx(i => (i !== null && i > 0 ? i - 1 : i));
-    }
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = '';
+      if (e.key === 'ArrowLeft')  setActiveIdx(i => (i !== null && i > 0 ? i - 1 : i));
     };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, [activeIdx, items.length]);
 
   if (!items?.length) return null;
@@ -932,7 +958,7 @@ function AttractionStories({
       </div>
 
       {/* Story circles row */}
-      <div className="flex gap-4 overflow-x-auto no-scrollbar pb-1">
+      <div role="list" className="flex gap-4 overflow-x-auto no-scrollbar pb-1">
         {items.map((item, i) => (
           <button
             key={i}
@@ -941,8 +967,8 @@ function AttractionStories({
             className="flex flex-col items-center gap-1.5 shrink-0 group focus:outline-none"
           >
             {/* Gradient ring — Instagram-style */}
-            <div className="p-[2.5px] rounded-full bg-linear-to-tr from-yellow-400 via-red-500 to-violet-600 group-active:scale-95 transition-transform duration-150 shadow-sm">
-              <div className="p-0.5 rounded-full bg-white ">
+            <div className="p-0.5 rounded-full bg-linear-to-tr from-yellow-400 via-red-500 to-violet-600 group-active:scale-95 transition-transform duration-150 shadow-sm">
+              <div className="p-1 rounded-full bg-white">
                 <div className="size-11 rounded-full overflow-hidden">
                   <img
                     src={item.imageUrl}
@@ -960,92 +986,99 @@ function AttractionStories({
         ))}
       </div>
 
-      {/* ── Lightbox ─────────────────────────────────────────────────────── */}
-      {active !== null && activeIdx !== null && (
-        <div
-          className="fixed inset-0 z-9999 flex items-center justify-center bg-black/90 backdrop-blur-md"
-          onClick={() => setActiveIdx(null)}
-        >
-          {/* Center panel — stops propagation so clicks inside don't close */}
-          <div
-            className="relative flex flex-col items-center px-4"
-            onClick={e => e.stopPropagation()}
+      {/* ── Lightbox — Radix Dialog for focus trap + aria-modal ── */}
+      <Dialog.Root open={activeIdx !== null} onOpenChange={(open) => { if (!open) setActiveIdx(null); }}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-9999 bg-black/90 backdrop-blur-md" />
+          <Dialog.Content
+            className="fixed inset-0 z-9999 flex items-center justify-center outline-none"
+            aria-describedby={undefined}
+            onEscapeKeyDown={() => setActiveIdx(null)}
           >
-            {/* Image — browser keeps natural aspect ratio */}
-            <img
-              src={active.imageUrl}
-              alt={active.caption || ''}
-              className="max-w-[90vw] max-h-[78vh] rounded-2xl object-contain shadow-2xl ring-1 ring-white/10"
-            />
+            <VisuallyHidden.Root asChild>
+              <Dialog.Title>
+                {active?.caption
+                  ? `Attraction: ${active.caption} — ${(activeIdx ?? 0) + 1} of ${items.length}`
+                  : `Attraction photo ${(activeIdx ?? 0) + 1} of ${items.length}`}
+              </Dialog.Title>
+            </VisuallyHidden.Root>
 
-            {/* Caption */}
-            {active.caption && (
-              <p className="mt-3 text-sm text-white/80 text-center max-w-[80vw] leading-snug">
-                {active.caption}
-              </p>
-            )}
-
-            {/* Dot indicators */}
-            {items.length > 1 && (
-              <div className="flex items-center gap-1.5 mt-3">
-                {items.map((_, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => setActiveIdx(i)}
-                    className={cn(
-                      'h-1.5 rounded-full transition-all duration-200',
-                      i === activeIdx ? 'w-5 bg-white' : 'w-1.5 bg-white/35 hover:bg-white/60',
-                    )}
-                  />
-                ))}
+            {active !== null && activeIdx !== null && (
+              <div className="relative flex flex-col items-center px-4">
+                <img
+                  src={active.imageUrl}
+                  alt={active.caption || `Attraction photo ${activeIdx + 1}`}
+                  className="max-w-[90vw] max-h-[78vh] rounded-2xl object-contain shadow-2xl ring-1 ring-white/10"
+                />
+                {active.caption && (
+                  <p className="mt-3 text-sm text-white/80 text-center max-w-[80vw] leading-snug">
+                    {active.caption}
+                  </p>
+                )}
+                {items.length > 1 && (
+                  <div role="tablist" aria-label="Attraction photos" className="flex items-center gap-1.5 mt-3">
+                    {items.map((_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        role="tab"
+                        aria-selected={i === activeIdx}
+                        aria-label={`Photo ${i + 1}`}
+                        onClick={() => setActiveIdx(i)}
+                        className={cn(
+                          'h-1.5 rounded-full transition-all duration-200',
+                          i === activeIdx ? 'w-5 bg-white' : 'w-1.5 bg-white/35 hover:bg-white/60',
+                        )}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             )}
-          </div>
 
-          {/* Close button */}
-          <button
-            type="button"
-            onClick={() => setActiveIdx(null)}
-            className="absolute top-4 right-4 size-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/80 hover:text-white transition-colors"
-          >
-            <XMarkIcon className="size-5" />
-          </button>
+            <Dialog.Close asChild>
+              <button
+                aria-label="Close"
+                className="absolute top-4 right-4 size-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/80 hover:text-white transition-colors"
+              >
+                <XMarkIcon aria-hidden="true" className="size-5" />
+              </button>
+            </Dialog.Close>
 
-          {/* Prev arrow */}
-          {activeIdx > 0 && (
-            <button
-              type="button"
-              onClick={e => { e.stopPropagation(); setActiveIdx(activeIdx - 1); }}
-              className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 size-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
-            >
-              <svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-              </svg>
-            </button>
-          )}
+            {activeIdx !== null && activeIdx > 0 && (
+              <button
+                type="button"
+                aria-label="Previous"
+                onClick={() => setActiveIdx(activeIdx - 1)}
+                className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 size-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+              >
+                <svg aria-hidden="true" className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                </svg>
+              </button>
+            )}
 
-          {/* Next arrow */}
-          {activeIdx < items.length - 1 && (
-            <button
-              type="button"
-              onClick={e => { e.stopPropagation(); setActiveIdx(activeIdx + 1); }}
-              className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 size-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
-            >
-              <svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-              </svg>
-            </button>
-          )}
+            {activeIdx !== null && activeIdx < items.length - 1 && (
+              <button
+                type="button"
+                aria-label="Next"
+                onClick={() => setActiveIdx(activeIdx + 1)}
+                className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 size-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+              >
+                <svg aria-hidden="true" className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                </svg>
+              </button>
+            )}
 
-          {/* Counter badge */}
-          {items.length > 1 && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 text-[11px] text-white/50 tabular-nums">
-              {activeIdx + 1} / {items.length}
-            </div>
-          )}
-        </div>
-      )}
+            {activeIdx !== null && items.length > 1 && (
+              <div aria-live="polite" aria-atomic="true" className="absolute top-4 left-1/2 -translate-x-1/2 text-[11px] text-white/50 tabular-nums">
+                {activeIdx + 1} / {items.length}
+              </div>
+            )}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   );
 }
@@ -1154,6 +1187,7 @@ function DaySectionBlock({ section, id }: { section: DaySection; id: string }) {
 
 export default function ItinerarySection({ days }: ItineraryProps) {
   const [activeTab, setActiveTab] = useState<Tab>('Plan');
+  const tabListRef = useRef<HTMLDivElement>(null);
 
   const sectionType = TAB_SECTION_TYPE[activeTab];
   const visibleDays = sectionType
@@ -1162,16 +1196,40 @@ export default function ItinerarySection({ days }: ItineraryProps) {
       .filter(d => d.sections.length > 0)
     : days;
 
+  const handleTabKeyDown = (e: React.KeyboardEvent, currentIdx: number) => {
+    let next: number | null = null;
+    if (e.key === 'ArrowRight') next = (currentIdx + 1) % TABS.length;
+    if (e.key === 'ArrowLeft')  next = (currentIdx - 1 + TABS.length) % TABS.length;
+    if (e.key === 'Home')       next = 0;
+    if (e.key === 'End')        next = TABS.length - 1;
+    if (next === null) return;
+    e.preventDefault();
+    setActiveTab(TABS[next].id);
+    const btns = tabListRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+    btns?.[next]?.focus();
+  };
+
   return (
     <div className='bg-white rounded-2xl ring-1 ring-(--border-default)'>
 
       {/* Tab Bar */}
-      <div className="flex gap-2 overflow-x-auto px-3.5 py-2.5 no-scrollbar bg-neutral-200/80 rounded-t-[inherit]">
-        {TABS.map(({ id, label, icon: Icon }) => (
+      <div
+        ref={tabListRef}
+        role="tablist"
+        aria-label="Itinerary view"
+        className="flex gap-2 overflow-x-auto px-3.5 py-2.5 no-scrollbar bg-neutral-200/80 rounded-t-[inherit]"
+      >
+        {TABS.map(({ id, label, icon: Icon }, i) => (
           <button
             key={id}
             type="button"
+            role="tab"
+            aria-selected={activeTab === id}
+            aria-controls={`itinerary-panel-${id}`}
+            id={`itinerary-tab-${id}`}
+            tabIndex={activeTab === id ? 0 : -1}
             onClick={() => setActiveTab(id)}
+            onKeyDown={(e) => handleTabKeyDown(e, i)}
             className={cn(
               'flex items-center gap-1.5 px-3 py-1.5 rounded-full ring-[0.1em] ring-inset text-[13px] font-medium whitespace-nowrap transition-all duration-150 font-heading',
               activeTab === id
@@ -1179,13 +1237,14 @@ export default function ItinerarySection({ days }: ItineraryProps) {
                 : 'bg-surface ring-(--border-strong)/40 text-secondary shadow-md shadow-neutral-400/35 hover:bg-neutral-50 cursor-pointer'
             )}
           >
-            <Icon weight='fill' className={cn("shrink-0 size-4", activeTab === id ? 'text-primary-50' : 'text-muted')} />
+            <Icon aria-hidden="true" weight='fill' className={cn("shrink-0 size-4", activeTab === id ? 'text-primary-50' : 'text-muted')} />
             {label}
           </button>
         ))}
       </div>
 
       {/* Day Accordions */}
+      <div role="tabpanel" id={`itinerary-panel-${activeTab}`} aria-labelledby={`itinerary-tab-${activeTab}`}>
       {visibleDays.length === 0 ? (
         <div className="px-6 py-10 text-center">
           <Text size="sm" intent="secondary">No {activeTab.toLowerCase()} details available for this package.</Text>
@@ -1256,6 +1315,7 @@ export default function ItinerarySection({ days }: ItineraryProps) {
           ))}
         </Accordion>
       )}
+      </div>
 
     </div>
   );

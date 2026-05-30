@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Image from 'next/image'
 import { XIcon, ImagesIcon } from '@phosphor-icons/react'
+import { Dialog, VisuallyHidden } from 'radix-ui'
 import { cn } from '@/app/lib/utils'
 import ImageLightbox from './ImageLightbox'
 
@@ -71,29 +72,49 @@ export default function FullGallery({ categories, title, initialLightbox, onClos
     const totalImages = categories.reduce((s, c) => s + c.images.length, 0)
 
     return (
-        <div className="fixed inset-0 z-9999 bg-white flex flex-col">
+        <Dialog.Root open onOpenChange={(open) => { if (!open) onClose() }}>
+        <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-9998 bg-black/20" />
+        <Dialog.Content
+            data-layout="website"
+            className="fixed inset-0 z-9999 bg-white flex flex-col outline-none"
+            aria-describedby={undefined}
+            onEscapeKeyDown={onClose}
+        >
+            <VisuallyHidden.Root asChild>
+                <Dialog.Title>Photo gallery — {title}</Dialog.Title>
+            </VisuallyHidden.Root>
 
             {/* Header */}
             <div className="shrink-0 border-b border-neutral-200">
                 <div className="screen-space flex items-center justify-between py-3.5">
                     <div className="flex items-center gap-2 min-w-0">
-                        <ImagesIcon weight="duotone" className="size-5 text-muted shrink-0" />
+                        <ImagesIcon aria-hidden="true" weight="duotone" className="size-5 text-muted shrink-0" />
                         <span className="text-sm font-semibold text-primary truncate">{title}</span>
                         <span className="text-xs text-muted shrink-0">({totalImages} photos)</span>
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="shrink-0 ml-4 size-9 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-secondary transition-colors"
-                    >
-                        <XIcon weight="bold" className="size-4" />
-                    </button>
+                    <Dialog.Close asChild>
+                        <button
+                            aria-label="Close gallery"
+                            className="shrink-0 ml-4 size-9 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-secondary transition-colors"
+                        >
+                            <XIcon weight="bold" aria-hidden="true" className="size-4" />
+                        </button>
+                    </Dialog.Close>
                 </div>
             </div>
 
             {/* Category tabs */}
             <div className="shrink-0 border-b border-neutral-100">
-            <div className="screen-space flex gap-1.5 overflow-x-auto py-2.5 scrollbar-none">
+            <div
+                role="tablist"
+                aria-label="Photo categories"
+                className="screen-space flex gap-1.5 overflow-x-auto py-2.5 scrollbar-none"
+            >
                 <button
+                    role="tab"
+                    aria-selected={activeCat === -1}
+                    tabIndex={activeCat === -1 ? 0 : -1}
                     onClick={() => setActiveCat(-1)}
                     className={cn(
                         'shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium transition-all',
@@ -103,11 +124,14 @@ export default function FullGallery({ categories, title, initialLightbox, onClos
                     )}
                 >
                     All
-                    <span className="ml-1 text-[11px] opacity-60">({totalImages})</span>
+                    <span aria-hidden="true" className="ml-1 text-[11px] opacity-60">({totalImages})</span>
                 </button>
                 {categories.map((cat, i) => (
                     <button
                         key={i}
+                        role="tab"
+                        aria-selected={activeCat === i}
+                        tabIndex={activeCat === i ? 0 : -1}
                         onClick={() => setActiveCat(i)}
                         className={cn(
                             'shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium transition-all',
@@ -117,20 +141,20 @@ export default function FullGallery({ categories, title, initialLightbox, onClos
                         )}
                     >
                         {cat.label}
-                        <span className="ml-1 text-[11px] opacity-60">({cat.images.length})</span>
+                        <span aria-hidden="true" className="ml-1 text-[11px] opacity-60">({cat.images.length})</span>
                     </button>
                 ))}
             </div>
             </div>
 
             {/* Image grid */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto" role="tabpanel" aria-label={activeCat === -1 ? 'All photos' : categories[activeCat]?.label}>
                 <div className="screen-space py-5">
                     {activeCat === -1 ? (
                         <div className="space-y-8">
                             {categories.map((cat, catIdx) =>
                                 cat.images.length > 0 ? (
-                                    <div key={catIdx}>
+                                    <section key={catIdx} aria-label={cat.label}>
                                         <p className="text-[11px] font-bold text-muted uppercase tracking-widest mb-3">
                                             {cat.label}
                                             <span className="font-normal normal-case tracking-normal opacity-70 ml-1">
@@ -146,7 +170,7 @@ export default function FullGallery({ categories, title, initialLightbox, onClos
                                                 />
                                             ))}
                                         </div>
-                                    </div>
+                                    </section>
                                 ) : null
                             )}
                         </div>
@@ -175,6 +199,8 @@ export default function FullGallery({ categories, title, initialLightbox, onClos
                     onNavigate={handleNavigate}
                 />
             )}
-        </div>
+        </Dialog.Content>
+        </Dialog.Portal>
+        </Dialog.Root>
     )
 }

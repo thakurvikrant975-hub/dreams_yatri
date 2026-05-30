@@ -63,6 +63,8 @@ interface CarouselProps<T> {
   showDots?: boolean;
   showArrows?: boolean;
   showCounter?: boolean;
+  /** Accessible label for the carousel region */
+  ariaLabel?: string;
   /** Controlled mode — caller manages offset. Both props required together. */
   offset?: number;
   onOffsetChange?: (offset: number) => void;
@@ -79,6 +81,7 @@ export function Carousel<T,>({
   showDots    = true,
   showArrows  = true,
   showCounter = true,
+  ariaLabel   = 'Image carousel',
   offset: controlledOffset,
   onOffsetChange,
 }: CarouselProps<T>) {
@@ -119,7 +122,16 @@ export function Carousel<T,>({
   const translatePct = -(offset * (100 / pv));
 
   return (
-    <div className={cn('select-none', className)}>
+    <div
+      className={cn('select-none', className)}
+      role="region"
+      aria-label={ariaLabel}
+      aria-roledescription="carousel"
+    >
+      {/* Visually-hidden live region announces slide changes to screen readers */}
+      <span aria-live="polite" aria-atomic="true" className="sr-only">
+        {`Showing items ${offset + 1} to ${Math.min(offset + pv, items.length)} of ${items.length}`}
+      </span>
 
       {/* ── Sliding track + edge fades (scoped together) ── */}
       <div className="relative">
@@ -143,6 +155,9 @@ export function Carousel<T,>({
             {items.map((item, i) => (
               <div
                 key={i}
+                role="group"
+                aria-label={`Item ${i + 1} of ${items.length}`}
+                aria-roledescription="slide"
                 className="shrink-0"
                 style={{ width: `calc((100% - ${(pv - 1) * gap}px) / ${pv})` }}
               >

@@ -220,15 +220,25 @@ function Item({ id, children, disabled = false, className }: ItemProps) {
 }
 
 function Trigger({ children, className, asChild = false }: TriggerProps) {
-  const { isOpen, isDisabled, toggle } = useItem();
+  const { id, isOpen, isDisabled, toggle } = useItem();
   const { variant } = useAccordion();
 
   if (asChild) {
     return (
       <div
         role="button"
+        tabIndex={isDisabled ? -1 : 0}
         aria-expanded={isOpen}
+        aria-controls={`accordion-panel-${id}`}
+        aria-disabled={isDisabled || undefined}
         onClick={() => !isDisabled && toggle()}
+        onKeyDown={(e) => {
+          if (isDisabled) return;
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            toggle();
+          }
+        }}
         className={cn(isDisabled && 'pointer-events-none opacity-50', className)}
       >
         {children}
@@ -241,6 +251,7 @@ function Trigger({ children, className, asChild = false }: TriggerProps) {
       type="button"
       disabled={isDisabled}
       aria-expanded={isOpen}
+      aria-controls={`accordion-panel-${id}`}
       onClick={toggle}
       className={cn(
         triggerVariants({ variant }),
@@ -267,12 +278,16 @@ function Chevron({ className }: ChevronProps) {
 }
 
 function Content({ children, className }: ContentProps) {
-  const { isOpen } = useItem();
+  const { id, isOpen } = useItem();
   const { variant } = useAccordion();
 
   return (
     <AnimatedPanel isOpen={isOpen}>
-      <div className={cn(contentVariants({ variant }), className)}>
+      <div
+        id={`accordion-panel-${id}`}
+        role="region"
+        className={cn(contentVariants({ variant }), className)}
+      >
         {children}
       </div>
     </AnimatedPanel>
