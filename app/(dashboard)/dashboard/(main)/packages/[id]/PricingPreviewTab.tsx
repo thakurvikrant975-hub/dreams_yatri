@@ -12,20 +12,20 @@ import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { Separator } from "../../components/ui/separator";
 import {
-  Loader2, Bed, Car, Zap, ChevronDown, ChevronRight,
-  Calculator, IndianRupee, Users, MapPin, Baby, CalendarDays, Sparkles,
-  UtensilsCrossed,
+  Loader2, Bed, Car, Zap, ChevronDown, ChevronRight, ChevronUp,
+  Calculator, IndianRupee, Users, MapPin, CalendarDays, Sparkles,
+  UtensilsCrossed, Hotel, Moon, TrendingUp, Percent, Receipt,
 } from "lucide-react";
+import { cn } from "@/app/lib/utils";
 import { toast } from "sonner";
 import { handleComputePackagePrice } from "@/app/actions/packages/pricing.actions";
 import type {
   FullPricingBreakdown,
   DayPricingBreakdown,
   CabSegmentBreakdown,
-  DayMealLine,
 } from "@/app/services/package-pricing.service";
 
-// ── Props ──────────────────────────────────────────────────────────────────
+// ── Types ──────────────────────────────────────────────────────────────────
 
 type Duration = {
   id: number;
@@ -72,7 +72,7 @@ type PricingPreviewTabProps = {
 // ── Cab group helpers ──────────────────────────────────────────────────────
 
 type CabGroup = {
-  groupKey: string;  // `${dayFrom}-${dayTo}`
+  groupKey: string;
   dayFrom: number;
   dayTo: number;
   cabTypes: CabTypePreview[];
@@ -92,21 +92,6 @@ function groupCabTypesByRange(cabTypes: CabTypePreview[]): CabGroup[] {
   return Array.from(map.values()).sort((a, b) => a.dayFrom - b.dayFrom);
 }
 
-/** Build initial group → selected cab type ID map (defaults to is_default entry per group). */
-function initGroupSelections(
-  cabTypes: CabTypePreview[],
-  durationId: string,
-): Map<string, number | null> {
-  const durationCabs = cabTypes.filter((ct) => ct.duration_id.toString() === durationId);
-  const groups = groupCabTypesByRange(durationCabs);
-  const map = new Map<string, number | null>();
-  for (const group of groups) {
-    const defaultCt = group.cabTypes.find((ct) => ct.is_default) ?? group.cabTypes[0];
-    map.set(group.groupKey, defaultCt?.id ?? null);
-  }
-  return map;
-}
-
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function fmt(n: number) {
@@ -117,26 +102,13 @@ function todayISODate() {
   return new Date().toISOString().slice(0, 10);
 }
 
-/** Client-side estimated cab cost for a cab type (for showing in dropdown).
- *  Seasons use year-2000 placeholder dates — normalise travel date before comparing.
- *  For PER_DAY, compute per-day rates so weekends use the weekend price.
- */
-function estimateCabCost(
-  ct: CabTypePreview,
-  travelDateStr: string,
-  adults: number,
-  children: number,
-): number {
+function estimateCabCost(ct: CabTypePreview, travelDateStr: string, adults: number, children: number): number {
   const travelDate = travelDateStr ? new Date(travelDateStr) : null;
-  const numVehicles = Math.ceil(Math.max(adults + children, 1) / Math.max(ct.vehicle.capacity, 1));
   let total = 0;
-
   for (const seg of ct.segments) {
     const segStartDate = travelDate
       ? new Date(travelDate.getTime() + (seg.day_from - 1) * 24 * 60 * 60 * 1000)
       : null;
-
-    // Resolve season using year-agnostic month/day comparison
     let weekdayPrice = seg.price;
     let weekendPrice = seg.price;
     if (segStartDate) {
@@ -154,35 +126,55 @@ function estimateCabCost(
         weekendPrice = activeSeason.weekend_price > 0 ? activeSeason.weekend_price : weekdayPrice;
       }
     }
-
     if (seg.pricing_type === "PER_DAY") {
       if (travelDate) {
         for (let d = seg.day_from; d <= seg.day_to; d++) {
           const dayDate = new Date(travelDate.getTime() + (d - 1) * 24 * 60 * 60 * 1000);
           const isWeekend = dayDate.getDay() === 0 || dayDate.getDay() === 6;
-          total += (isWeekend ? weekendPrice : weekdayPrice) * numVehicles;
+          total += isWeekend ? weekendPrice : weekdayPrice;
         }
       } else {
-        total += weekdayPrice * (seg.day_to - seg.day_from + 1) * numVehicles;
+        total += weekdayPrice * (seg.day_to - seg.day_from + 1);
       }
     }
-    // PER_KM: can't estimate without km data client-side, skip
   }
   return total;
 }
 
-// ── Transfer route row — shows route info; first row also shows the per-day cab cost ──
+function formatDayDate(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso + "T00:00:00");
+  return d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+}
 
-function TransferRouteRow({
-  transfer,
-  cabCost,
-}: {
+// ── Chip badge ─────────────────────────────────────────────────────────────
+
+function Chip({ children, color = "default" }: { children: React.ReactNode; color?: "blue" | "amber" | "green" | "slate" | "orange" | "violet" | "default" }) {
+  const cls = {
+    blue:   "bg-blue-50   border-blue-200   text-blue-700",
+    amber:  "bg-amber-50  border-amber-200  text-amber-700",
+    green:  "bg-green-50  border-green-200  text-green-700",
+    slate:  "bg-slate-50  border-slate-200  text-slate-600",
+    orange: "bg-orange-50 border-orange-200 text-orange-700",
+    violet: "bg-violet-50 border-violet-200 text-violet-700",
+    default:"bg-muted/60  border-border      text-muted-foreground",
+  }[color];
+  return (
+    <span className={cn("inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium leading-none", cls)}>
+      {children}
+    </span>
+  );
+}
+
+// ── Transfer row ────────────────────────────────────────────────────────────
+
+function TransferRow({ transfer, cabCost }: {
   transfer: { id: number; pickup_name: string | null; drop_name: string | null; vehicle_name: string | null; distance_km: number | null };
   cabCost?: number;
 }) {
   return (
-    <div className="flex items-start gap-2.5 py-1">
-      <div className="mt-0.5 h-6 w-6 rounded-md flex items-center justify-center shrink-0 bg-orange-50 text-orange-600">
+    <div className="flex items-center gap-2 py-1.5">
+      <div className="h-6 w-6 rounded-md flex items-center justify-center shrink-0 bg-orange-50 text-orange-600">
         <Car className="h-3.5 w-3.5" />
       </div>
       <div className="flex-1 min-w-0">
@@ -192,223 +184,213 @@ function TransferRouteRow({
             : transfer.vehicle_name ?? "Transfer"}
         </p>
         {transfer.distance_km != null && (
-          <p className="text-xs text-muted-foreground">{transfer.distance_km} km by road</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">{transfer.distance_km} km by road</p>
         )}
       </div>
       {cabCost != null && cabCost > 0 && (
-        <div className="text-sm font-semibold shrink-0 ml-2">₹{fmt(cabCost)}</div>
+        <span className="text-sm font-semibold text-orange-700 shrink-0">₹{fmt(cabCost)}</span>
       )}
     </div>
   );
 }
 
-// ── Line item ──────────────────────────────────────────────────────────────
-
-function LineItem({
-  icon,
-  label,
-  detail,
-  amount,
-  variant,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  detail: string;
-  amount: number | null;
-  variant: "hotel" | "meal" | "activity" | "optional";
-}) {
-  const chipCls = {
-    hotel: "bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400",
-    meal: "bg-amber-50 text-amber-600 dark:bg-amber-950 dark:text-amber-400",
-    activity: "bg-green-50 text-green-600 dark:bg-green-950 dark:text-green-400",
-    optional: "bg-muted text-muted-foreground",
-  }[variant];
-
-  return (
-    <div className="flex items-start gap-2.5 py-1">
-      <div className={`mt-0.5 h-6 w-6 rounded-md flex items-center justify-center shrink-0 ${chipCls}`}>
-        {icon}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium leading-tight truncate">{label}</p>
-        <p className="text-xs text-muted-foreground">{detail}</p>
-      </div>
-      <div className="text-sm font-semibold shrink-0 ml-2">
-        {amount !== null ? (
-          <span>₹{fmt(amount)}</span>
-        ) : (
-          <Badge variant="outline" className="text-xs font-normal">Optional</Badge>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Day card ───────────────────────────────────────────────────────────────
-
-function formatDayDate(iso: string | null): string {
-  if (!iso) return "";
-  const d = new Date(iso + "T00:00:00");
-  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const dayName = dayNames[d.getDay()];
-  return `${dayName}, ${d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`;
-}
+// ── Day card ────────────────────────────────────────────────────────────────
 
 function DayCard({ day }: { day: DayPricingBreakdown }) {
   const [open, setOpen] = useState(true);
-
   const included = day.activities.filter((a) => !a.is_optional);
   const optional = day.activities.filter((a) => a.is_optional);
-
-  const hasContent =
-    day.hotel || day.meals.length > 0 || included.length > 0 || optional.length > 0 || day.transfers.length > 0;
+  const hasContent = day.hotel || day.meals.length > 0 || included.length > 0 || optional.length > 0 || day.transfers.length > 0;
 
   return (
-    <Card className="overflow-hidden bg-dashboard-base-100 rounded-xl shadow-lg border border-dashboard-base-content/20">
+    <Card className="overflow-hidden border border-border/60 shadow-sm">
+      {/* Header */}
       <button
         type="button"
         onClick={() => setOpen((p) => !p)}
-        className="w-full flex cursor-pointer items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors text-left"
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/20 transition-colors text-left group"
       >
-        <div className="flex items-center gap-2">
-          {open ? (
-            <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-          ) : (
-            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-          )}
-          <Badge variant="outline" className="text-xs shrink-0 bg-dashboard-primary text-dashboard-base-100">
-            Day {day.day}
-          </Badge>
-          <span className="text-sm font-medium truncate">{day.day_title}</span>
-          {day.day_date && (
-            <span className="text-xs text-muted-foreground shrink-0 ml-1">
-              · {formatDayDate(day.day_date)}
-            </span>
-          )}
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <span className="text-xs font-bold text-primary">{day.day}</span>
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold leading-none truncate">{day.day_title}</p>
+            {day.day_date && (
+              <p className="text-[10px] text-muted-foreground mt-0.5">{formatDayDate(day.day_date)}</p>
+            )}
+          </div>
         </div>
-        <span className="text-sm font-bold ml-4 shrink-0">
-          ₹{fmt(day.day_total)}
-        </span>
+        <div className="flex items-center gap-2 shrink-0 ml-3">
+          {day.day_total > 0 && (
+            <span className="text-sm font-bold text-foreground">₹{fmt(day.day_total)}</span>
+          )}
+          {open
+            ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
+            : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
+        </div>
       </button>
 
       {open && (
-        <CardContent className="px-4 pb-3 pt-0 space-y-0.5">
+        <CardContent className="px-4 pb-4 pt-0">
           <Separator className="mb-3" />
-
           {!hasContent && (
-            <p className="text-xs text-muted-foreground italic py-2">
-              No items configured for this category on this day.
-            </p>
+            <p className="text-xs text-muted-foreground/60 italic py-1">No items configured for this category on this day.</p>
           )}
 
-          {/* Hotel */}
-          {day.hotel ? (
-            <>
-              <LineItem
-                icon={<Bed className="h-3.5 w-3.5" />}
-                label={`${day.hotel.hotel_name}${day.hotel.room_name ? ` · ${day.hotel.room_name}` : ""}`}
-                detail={[
-                  `${day.hotel.rooms_count} room${day.hotel.rooms_count !== 1 ? "s" : ""} × ₹${fmt(day.hotel.price_per_room)}/night × ${day.hotel.num_nights} night${day.hotel.num_nights !== 1 ? "s" : ""}`,
-                  `${day.hotel.bed_capacity} on bed${day.hotel.extra_bed_capacity > 0 ? ` +${day.hotel.extra_bed_capacity} mattress` : ""}/room`,
-                  day.hotel.plan_name ?? null,
-                ].filter(Boolean).join(" · ")}
-                amount={day.hotel.rooms_count * day.hotel.price_per_room * day.hotel.num_nights}
-                variant="hotel"
-              />
-              {day.hotel.mattresses_count > 0 && (
-                <LineItem
-                  icon={<Bed className="h-3.5 w-3.5" />}
-                  label={`Extra mattress${day.hotel.mattresses_count !== 1 ? "es" : ""}`}
-                  detail={`${day.hotel.mattresses_count} × ₹${fmt(day.hotel.extra_bed_rate)}/night × ${day.hotel.num_nights} night${day.hotel.num_nights !== 1 ? "s" : ""}`}
-                  amount={day.hotel.mattresses_count * day.hotel.extra_bed_rate * day.hotel.num_nights}
-                  variant="hotel"
-                />
-              )}
-            </>
-          ) : (
-            <p className="text-xs text-muted-foreground/70 italic py-1 pl-8">
-              No stay mapped for this category
-            </p>
-          )}
+          <div className="space-y-2">
+            {/* ── Hotel ────────────────────────────────────────────────── */}
+            {day.hotel ? (
+              <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3 space-y-2">
+                {/* Hotel name + room */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="h-5 w-5 rounded bg-blue-100 flex items-center justify-center shrink-0">
+                      <Hotel className="h-3 w-3 text-blue-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-blue-900 leading-none">
+                        {day.hotel.hotel_name}
+                      </p>
+                      {day.hotel.room_name && (
+                        <p className="text-[10px] text-blue-600/80 mt-0.5">{day.hotel.room_name}</p>
+                      )}
+                    </div>
+                  </div>
+                  <span className="text-sm font-bold text-blue-800 shrink-0">₹{fmt(day.hotel.total)}</span>
+                </div>
 
-          {/* Meals */}
-          {day.meals.map((m, i) => (
-            <LineItem
-              key={i}
-              icon={<UtensilsCrossed className="h-3.5 w-3.5" />}
-              label={`${m.label} (${m.hotel_name})`}
-              detail={`${m.persons} person${m.persons !== 1 ? "s" : ""} × ₹${fmt(m.price_per_person)}/person`}
-              amount={m.total}
-              variant="meal"
-            />
-          ))}
+                {/* Badge row */}
+                <div className="flex flex-wrap gap-1">
+                  <Chip color="blue">{day.hotel.rooms_count} room{day.hotel.rooms_count !== 1 ? "s" : ""}</Chip>
+                  <Chip color="blue">₹{fmt(day.hotel.price_per_room)}/night</Chip>
+                  <Chip color="blue">{day.hotel.num_nights} night{day.hotel.num_nights !== 1 ? "s" : ""}</Chip>
+                  <Chip color="slate">
+                    <Bed className="h-2.5 w-2.5 mr-0.5" />
+                    {day.hotel.bed_capacity} bed{day.hotel.extra_bed_capacity > 0 ? ` + ${day.hotel.extra_bed_capacity} mattress` : ""}
+                  </Chip>
+                  {day.hotel.plan_name && <Chip color="slate">{day.hotel.plan_name}</Chip>}
+                </div>
 
-          {/* Included activities */}
-          {included.map((a) => (
-            <LineItem
-              key={a.id}
-              icon={<Zap className="h-3.5 w-3.5" />}
-              label={a.name}
-              detail={(() => {
-                if (a.pricing_type === "PER_GROUP") return `Group rate (flat) · ₹${fmt(a.adult_price)}`;
-                if (a.adult_price === 0 && a.child_price === 0) return "No pricing variant configured";
-                return [
-                  `${a.adult_count} adult${a.adult_count !== 1 ? "s" : ""} × ₹${fmt(a.adult_price)}`,
-                  a.child_count > 0 ? `${a.child_count} child${a.child_count !== 1 ? "ren" : ""} × ₹${fmt(a.child_price)}` : null,
-                  a.infant_count > 0 && a.infant_price > 0 ? `${a.infant_count} infant${a.infant_count !== 1 ? "s" : ""} × ₹${fmt(a.infant_price)}` : a.infant_count > 0 ? `${a.infant_count} infant${a.infant_count !== 1 ? "s" : ""} free` : null,
-                ].filter(Boolean).join(" + ");
-              })()}
-              amount={a.total}
-              variant="activity"
-            />
-          ))}
-
-          {/* Optional activities */}
-          {optional.map((a) => (
-            <LineItem
-              key={a.id}
-              icon={<Zap className="h-3.5 w-3.5" />}
-              label={a.name}
-              detail={
-                a.pricing_type === "PER_GROUP"
-                  ? `Group rate ₹${fmt(a.adult_price)} · optional`
-                  : a.adult_price > 0
-                  ? `₹${fmt(a.adult_price)}/adult · not included in base`
-                  : "Optional · pricing not configured"
-              }
-              amount={null}
-              variant="optional"
-            />
-          ))}
-
-          {/* Transfers — first row shows the per-day cab cost, rest show route only */}
-          {day.transfers.map((t, idx) => (
-            <TransferRouteRow
-              key={t.id}
-              transfer={t}
-              cabCost={idx === 0 ? day.cab_cost : undefined}
-            />
-          ))}
-
-          {/* If no transfers but cab cost exists (PER_KM without explicit transfers) */}
-          {day.transfers.length === 0 && day.cab_cost > 0 && (
-            <div className="flex items-start gap-2.5 py-1">
-              <div className="mt-0.5 h-6 w-6 rounded-md flex items-center justify-center shrink-0 bg-orange-50 text-orange-600">
-                <Car className="h-3.5 w-3.5" />
+                {/* Mattress extra line */}
+                {day.hotel.mattresses_count > 0 && (
+                  <div className="flex items-center justify-between pt-1.5 border-t border-blue-100">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-blue-700 font-medium">Extra mattresses</span>
+                      <div className="flex gap-1">
+                        <Chip color="amber">{day.hotel.mattresses_count} mattress{day.hotel.mattresses_count !== 1 ? "es" : ""}</Chip>
+                        <Chip color="amber">₹{fmt(day.hotel.extra_bed_rate)}/night</Chip>
+                        <Chip color="amber">{day.hotel.num_nights} night{day.hotel.num_nights !== 1 ? "s" : ""}</Chip>
+                      </div>
+                    </div>
+                    <span className="text-xs font-semibold text-amber-700">
+                      ₹{fmt(day.hotel.mattresses_count * day.hotel.extra_bed_rate * day.hotel.num_nights)}
+                    </span>
+                  </div>
+                )}
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium leading-tight">Cab</p>
+            ) : (
+              <div className="rounded-lg border border-dashed border-muted-foreground/20 px-3 py-2">
+                <p className="text-[10px] text-muted-foreground/50 italic">No stay mapped for this category</p>
               </div>
-              <div className="text-sm font-semibold shrink-0 ml-2">₹{fmt(day.cab_cost)}</div>
-            </div>
-          )}
+            )}
+
+            {/* ── Meals ──────────────────────────────────────────────── */}
+            {day.meals.length > 0 && (
+              <div className="rounded-lg border border-amber-100 bg-amber-50/50 p-3 space-y-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-700 flex items-center gap-1">
+                  <UtensilsCrossed className="h-3 w-3" /> Meals
+                </p>
+                {day.meals.map((m, i) => (
+                  <div key={i} className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                      <span className="text-xs font-medium text-amber-900">{m.label}</span>
+                      <Chip color="amber">{m.hotel_name}</Chip>
+                      <Chip color="amber">{m.persons} pax × ₹{fmt(m.price_per_person)}</Chip>
+                    </div>
+                    <span className="text-xs font-semibold text-amber-800 shrink-0">₹{fmt(m.total)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── Activities ─────────────────────────────────────────── */}
+            {(included.length > 0 || optional.length > 0) && (
+              <div className="rounded-lg border border-green-100 bg-green-50/50 p-3 space-y-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-green-700 flex items-center gap-1">
+                  <Zap className="h-3 w-3" /> Activities
+                </p>
+
+                {included.map((a) => (
+                  <div key={a.id} className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                      <span className="text-xs font-medium text-green-900 truncate">{a.name}</span>
+                      {a.pricing_type === "PER_GROUP" ? (
+                        <Chip color="green">Flat rate</Chip>
+                      ) : a.adult_price === 0 && a.child_price === 0 ? (
+                        <Chip color="default">No pricing</Chip>
+                      ) : (
+                        <>
+                          <Chip color="green">{a.adult_count} adult × ₹{fmt(a.adult_price)}</Chip>
+                          {a.child_count > 0 && (
+                            <Chip color="green">{a.child_count} child × ₹{fmt(a.child_price)}</Chip>
+                          )}
+                          {a.infant_count > 0 && a.infant_price > 0 && (
+                            <Chip color="green">{a.infant_count} infant × ₹{fmt(a.infant_price)}</Chip>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    <span className="text-xs font-semibold text-green-800 shrink-0">₹{fmt(a.total)}</span>
+                  </div>
+                ))}
+
+                {optional.map((a) => (
+                  <div key={a.id} className="flex items-center justify-between gap-2 opacity-60">
+                    <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                      <span className="text-xs font-medium text-foreground truncate">{a.name}</span>
+                      <Chip color="default">Optional</Chip>
+                      {a.adult_price > 0 && (
+                        <Chip color="default">₹{fmt(a.adult_price)}{a.pricing_type !== "PER_GROUP" ? "/adult" : " flat"}</Chip>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-muted-foreground shrink-0">not included</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── Transfers / Cab ─────────────────────────────────────── */}
+            {(day.transfers.length > 0 || day.cab_cost > 0) && (
+              <div className="rounded-lg border border-orange-100 bg-orange-50/50 p-3 space-y-1">
+                {day.transfers.map((t, idx) => (
+                  <TransferRow
+                    key={t.id}
+                    transfer={t}
+                    cabCost={idx === 0 ? day.cab_cost : undefined}
+                  />
+                ))}
+                {day.transfers.length === 0 && day.cab_cost > 0 && (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="h-5 w-5 rounded bg-orange-100 flex items-center justify-center">
+                        <Car className="h-3 w-3 text-orange-600" />
+                      </div>
+                      <span className="text-sm font-medium text-orange-900">Cab</span>
+                    </div>
+                    <span className="text-sm font-semibold text-orange-700">₹{fmt(day.cab_cost)}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </CardContent>
       )}
     </Card>
   );
 }
 
-// ── Cab breakdown expandable ───────────────────────────────────────────────
+// ── Cab breakdown ─────────────────────────────────────────────────────────
 
 function CabBreakdown({ segments }: { segments: CabSegmentBreakdown[] }) {
   const [open, setOpen] = useState(false);
@@ -419,43 +401,38 @@ function CabBreakdown({ segments }: { segments: CabSegmentBreakdown[] }) {
     <div>
       <button
         type="button"
-        className="text-xs text-muted-foreground flex items-center gap-1 hover:text-foreground transition-colors mt-1"
+        className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors mt-2"
         onClick={() => setOpen((p) => !p)}
       >
-        {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-        {open ? "Hide" : "Show"} segment breakdown
-        {hasUpgrade && !open && (
-          <Badge variant="secondary" className="ml-1 text-[9px] px-1 py-0 gap-0.5 bg-amber-100 text-amber-700 border-amber-300">
-            ↑ Upgraded
-          </Badge>
+        {open ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+        {open ? "Hide" : "Show"} cab breakdown
+        {hasUpgrade && (
+          <Chip color="amber">↑ Upgraded</Chip>
         )}
       </button>
       {open && (
-        <div className="mt-2 space-y-2 pl-1 border-l-2 border-orange-200">
+        <div className="mt-2 space-y-2 pl-2 border-l-2 border-orange-200">
           {segments.map((seg, i) => (
-            <div key={i} className="text-xs text-muted-foreground space-y-0.5">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="font-medium text-foreground">
-                  {seg.vehicle_name}
-                </span>
-                <span className="text-muted-foreground/60">({seg.vehicle_capacity} seats)</span>
+            <div key={i} className="space-y-1">
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="text-xs font-semibold text-foreground">{seg.vehicle_name}</span>
+                <Chip color="orange">{seg.vehicle_capacity} seats</Chip>
+                <Chip color="slate">Day {seg.day_from}–{seg.day_to}</Chip>
+                <Chip color="slate">{seg.destination_name}</Chip>
                 {seg.upgraded && (
-                  <Badge variant="secondary" className="text-[9px] px-1 py-0 bg-amber-100 text-amber-700 border border-amber-300">
-                    ↑ upgraded from {seg.original_vehicle_name}
-                  </Badge>
+                  <Chip color="amber">↑ from {seg.original_vehicle_name}</Chip>
                 )}
-                <span>· Day {seg.day_from}–{seg.day_to} · {seg.destination_name}</span>
                 {seg.is_seasonal && (
-                  <Badge variant="secondary" className="text-[9px] px-1 py-0 gap-0.5">
-                    <Sparkles className="h-2.5 w-2.5" />Seasonal
-                  </Badge>
+                  <Chip color="violet"><Sparkles className="h-2 w-2 mr-0.5" />Seasonal</Chip>
                 )}
               </div>
-              <div>
-                {seg.pricing_type === "PER_DAY"
-                  ? `₹${fmt(seg.price_used)}/day × ${seg.days} day${seg.days !== 1 ? "s" : ""}`
-                  : `₹${fmt(seg.price_used)}/km × ${seg.km} km`}
-                {" = "}<span className="font-semibold text-orange-700">₹{fmt(seg.total)}</span>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-muted-foreground">
+                  {seg.pricing_type === "PER_DAY"
+                    ? `₹${fmt(seg.price_used)}/day × ${seg.days} day${seg.days !== 1 ? "s" : ""}`
+                    : `₹${fmt(seg.price_used)}/km × ${seg.km} km`}
+                </span>
+                <span className="text-xs font-semibold text-orange-700">₹{fmt(seg.total)}</span>
               </div>
             </div>
           ))}
@@ -465,103 +442,107 @@ function CabBreakdown({ segments }: { segments: CabSegmentBreakdown[] }) {
   );
 }
 
-// ── Summary card ───────────────────────────────────────────────────────────
+// ── Summary card ─────────────────────────────────────────────────────────
 
 function SummaryCard({ breakdown }: { breakdown: FullPricingBreakdown }) {
   const { adults, children, infants } = breakdown;
+  const paxLabel = [
+    `${adults} adult${adults !== 1 ? "s" : ""}`,
+    children > 0 ? `${children} child${children !== 1 ? "ren" : ""}` : null,
+    infants > 0 ? `${infants} infant${infants !== 1 ? "s" : ""}` : null,
+  ].filter(Boolean).join(" · ");
+
+  const rows: { icon: React.ReactNode; label: string; value: number; color: string }[] = [
+    { icon: <Hotel className="h-3.5 w-3.5" />,         label: "Hotels",     value: breakdown.hotel_subtotal,    color: "text-blue-600"   },
+    { icon: <UtensilsCrossed className="h-3.5 w-3.5" />, label: "Meals",    value: breakdown.meal_subtotal,     color: "text-amber-600"  },
+    { icon: <Zap className="h-3.5 w-3.5" />,           label: "Activities", value: breakdown.activity_subtotal, color: "text-green-600"  },
+    { icon: <Car className="h-3.5 w-3.5" />,           label: "Cab",        value: breakdown.cab_subtotal,      color: "text-orange-600" },
+  ].filter((r) => r.value > 0);
 
   return (
-    <Card className="bg-linear-to-b from-violet-50/40 to-background sticky top-4 bg-dashboard-base-100 rounded-xl shadow-lg border border-violet-200">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-semibold flex items-center gap-2">
-          <IndianRupee className="h-4 w-4 text-violet-600" />
-          Price Summary
-        </CardTitle>
-        <p className="text-xs text-muted-foreground">
-          {breakdown.duration_label} · {breakdown.stay_category_label}
-        </p>
-        <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-          <Users className="h-3 w-3" />
-          {adults} adult{adults !== 1 ? "s" : ""}
-          {children > 0 ? `, ${children} child${children !== 1 ? "ren" : ""}` : ""}
-          {infants > 0 ? `, ${infants} infant${infants !== 1 ? "s" : ""}` : ""}
-        </p>
-      </CardHeader>
-
-      <CardContent className="space-y-2 pt-0">
-        {/* Hotels */}
-        <div className="flex items-center justify-between text-sm">
-          <span className="flex items-center gap-1.5 text-muted-foreground">
-            <Bed className="h-3.5 w-3.5 text-blue-500" />Hotels
-          </span>
-          <span>₹{fmt(breakdown.hotel_subtotal)}</span>
+    <Card className="border border-violet-200/60 shadow-sm sticky top-4">
+      {/* Header */}
+      <div className="px-4 pt-4 pb-3 border-b border-violet-100 bg-violet-50/50 rounded-t-xl">
+        <div className="flex items-center gap-2 mb-1.5">
+          <div className="h-7 w-7 rounded-lg bg-violet-100 flex items-center justify-center">
+            <IndianRupee className="h-4 w-4 text-violet-600" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-violet-900">Price Summary</p>
+            <p className="text-[10px] text-violet-600/80">{breakdown.duration_label} · {breakdown.stay_category_label}</p>
+          </div>
         </div>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <Users className="h-3 w-3 text-violet-500" />
+          <span className="text-[10px] text-violet-700">{paxLabel}</span>
+        </div>
+      </div>
 
-        {/* Meals */}
-        {breakdown.meal_subtotal > 0 && (
-          <div className="flex items-center justify-between text-sm">
-            <span className="flex items-center gap-1.5 text-muted-foreground">
-              <UtensilsCrossed className="h-3.5 w-3.5 text-amber-500" />Meals
+      <CardContent className="px-4 py-3 space-y-1">
+        {/* Subtotals */}
+        {rows.map((r) => (
+          <div key={r.label} className="flex items-center justify-between py-1.5 rounded-lg px-2 hover:bg-muted/30 transition-colors">
+            <span className={cn("flex items-center gap-2 text-sm text-muted-foreground", r.color)}>
+              {r.icon}
+              <span className="text-foreground/80">{r.label}</span>
             </span>
-            <span>₹{fmt(breakdown.meal_subtotal)}</span>
+            <span className="text-sm font-medium">₹{fmt(r.value)}</span>
+          </div>
+        ))}
+
+        {/* Cab segment breakdown */}
+        {breakdown.cab_segments.length > 0 && (
+          <div className="px-2">
+            <CabBreakdown segments={breakdown.cab_segments} />
           </div>
         )}
 
-        {/* Activities */}
-        <div className="flex items-center justify-between text-sm">
-          <span className="flex items-center gap-1.5 text-muted-foreground">
-            <Zap className="h-3.5 w-3.5 text-green-500" />Activities
-          </span>
-          <span>₹{fmt(breakdown.activity_subtotal)}</span>
-        </div>
-
-        {/* Cab */}
-        <div className="flex items-center justify-between text-sm">
-          <span className="flex items-center gap-1.5 text-muted-foreground">
-            <Car className="h-3.5 w-3.5 text-orange-500" />
-            {breakdown.cab_type_label ? `Cab — ${breakdown.cab_type_label}` : "Cab"}
-          </span>
-          <span>₹{fmt(breakdown.cab_subtotal)}</span>
-        </div>
-
-        {/* Segment breakdown (expandable) */}
-        {breakdown.cab_segments.length > 0 && (
-          <CabBreakdown segments={breakdown.cab_segments} />
-        )}
-
-        <Separator />
+        <Separator className="my-2" />
 
         {/* Base cost */}
-        <div className="flex justify-between text-sm font-semibold">
-          <span>Base Cost</span>
-          <span>₹{fmt(breakdown.base_cost)}</span>
+        <div className="flex justify-between items-center py-1 px-2">
+          <span className="text-sm font-semibold">Base Cost</span>
+          <span className="text-sm font-bold">₹{fmt(breakdown.base_cost)}</span>
         </div>
 
         {/* Margin */}
-        <div className="flex justify-between text-sm text-muted-foreground">
-          <span>Margin ({breakdown.margin_percentage}%)</span>
-          <span className="text-foreground">+ ₹{fmt(breakdown.margin_amount)}</span>
+        <div className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-blue-50/60">
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <TrendingUp className="h-3.5 w-3.5 text-blue-500" />
+            Margin
+            <Chip color="blue">{breakdown.margin_percentage}%</Chip>
+          </span>
+          <span className="text-xs font-medium text-blue-700">+ ₹{fmt(breakdown.margin_amount)}</span>
         </div>
 
         {/* GST */}
-        <div className="flex justify-between text-sm text-muted-foreground">
-          <span>GST ({breakdown.gst_percentage}%)</span>
-          <span className="text-foreground">+ ₹{fmt(breakdown.gst_amount)}</span>
+        <div className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-slate-50/60">
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Percent className="h-3.5 w-3.5 text-slate-500" />
+            GST
+            <Chip color="slate">{breakdown.gst_percentage}%</Chip>
+          </span>
+          <span className="text-xs font-medium text-slate-700">+ ₹{fmt(breakdown.gst_amount)}</span>
         </div>
 
-        <Separator />
+        <Separator className="my-2" />
 
         {/* Final price */}
-        <div className="flex justify-between text-base font-bold">
-          <span>Final Price</span>
-          <span className="text-violet-700">₹{fmt(breakdown.final_price)}</span>
+        <div className="flex justify-between items-center px-2 py-1.5 rounded-lg bg-violet-50">
+          <div className="flex items-center gap-1.5">
+            <Receipt className="h-4 w-4 text-violet-600" />
+            <span className="text-sm font-bold text-violet-900">Final Price</span>
+          </div>
+          <span className="text-lg font-bold text-violet-700">₹{fmt(breakdown.final_price)}</span>
         </div>
 
         {/* Per adult */}
         {adults > 0 && (
-          <div className="flex justify-between text-sm text-muted-foreground border-t pt-2 mt-1">
-            <span>Per Adult</span>
-            <span className="font-medium text-foreground">₹{fmt(breakdown.price_per_adult)}</span>
+          <div className="flex justify-between items-center px-2 pt-1">
+            <span className="text-xs text-muted-foreground flex items-center gap-1">
+              <Users className="h-3 w-3" /> Per Adult
+            </span>
+            <span className="text-sm font-semibold text-foreground">₹{fmt(breakdown.price_per_adult)}</span>
           </div>
         )}
       </CardContent>
@@ -569,44 +550,38 @@ function SummaryCard({ breakdown }: { breakdown: FullPricingBreakdown }) {
   );
 }
 
-// ── Main component ─────────────────────────────────────────────────────────
+// ── Main component ──────────────────────────────────────────────────────────
 
-export function PricingPreviewTab({
-  packageId,
-  durations,
-  stayCategories,
-  cabTypes,
-}: PricingPreviewTabProps) {
+export function PricingPreviewTab({ packageId, durations, stayCategories, cabTypes }: PricingPreviewTabProps) {
   const defaultDuration = durations.find((d) => d.is_default) ?? durations[0];
   const defaultCategory = stayCategories.find((c) => c.is_default) ?? stayCategories[0];
 
   const initDurationId = defaultDuration?.id.toString() ?? "";
-  const initRouteId = defaultDuration?.routes[0]?.id.toString() ?? "";
+  const initRouteId    = defaultDuration?.routes[0]?.id.toString() ?? "";
   const initCategoryId = defaultCategory?.id.toString() ?? "";
 
-  const [durationId, setDurationId] = useState(initDurationId);
-  const [routeId, setRouteId] = useState(initRouteId);
-  const [categoryId, setCategoryId] = useState(initCategoryId);
+  const [durationId, setDurationId]       = useState(initDurationId);
+  const [routeId, setRouteId]             = useState(initRouteId);
+  const [categoryId, setCategoryId]       = useState(initCategoryId);
   const [groupCabSelections, setGroupCabSelections] = useState<Map<string, number | null>>(
-    () => initGroupSelections(cabTypes, initDurationId),
+    () => new Map(),
   );
   const [travelDate, setTravelDate] = useState(todayISODate());
-  const [adults, setAdults] = useState("1");
-  const [children, setChildren] = useState("0");
-  const [infants, setInfants] = useState("0");
-  const [breakdown, setBreakdown] = useState<FullPricingBreakdown | null>(null);
+  const [adults, setAdults]         = useState("1");
+  const [children, setChildren]     = useState("0");
+  const [infants, setInfants]       = useState("0");
+  const [breakdown, setBreakdown]   = useState<FullPricingBreakdown | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const selectedDuration = durations.find((d) => d.id.toString() === durationId);
   const routes = selectedDuration?.routes ?? [];
 
-  // Cab groups for selected duration — memoised so effects can safely depend on it
   const durationCabGroups = useMemo(
     () => groupCabTypesByRange(cabTypes.filter((ct) => ct.duration_id.toString() === durationId)),
     [durationId, cabTypes],
   );
 
-  const adultsNum = Math.max(1, parseInt(adults) || 1);
+  const adultsNum   = Math.max(1, parseInt(adults)   || 1);
   const childrenNum = Math.max(0, parseInt(children) || 0);
 
   // Reset route when duration changes
@@ -615,9 +590,7 @@ export function PricingPreviewTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [durationId]);
 
-  // Auto-select optimal cab whenever passengers or duration groups change.
-  // Picks the smallest cab per group whose capacity >= adults + children.
-  // Falls back to the largest available if no single cab fits.
+  // Auto-select optimal cab when passengers or duration groups change
   useEffect(() => {
     const passengers = adultsNum + childrenNum;
     setGroupCabSelections(() => {
@@ -631,7 +604,7 @@ export function PricingPreviewTab({
     });
   }, [adultsNum, childrenNum, durationCabGroups]);
 
-  // Auto-calculate on mount with defaults
+  // Auto-calculate on mount
   useEffect(() => {
     if (!initDurationId || !initRouteId || !initCategoryId) return;
     startTransition(async () => {
@@ -640,9 +613,7 @@ export function PricingPreviewTab({
         duration_id: parseInt(initDurationId),
         route_id: parseInt(initRouteId),
         stay_category_id: parseInt(initCategoryId),
-        adults: 1,
-        children: 0,
-        infants: 0,
+        adults: 1, children: 0, infants: 0,
         travel_date: todayISODate(),
       });
       if (result.success) setBreakdown(result.data);
@@ -655,9 +626,7 @@ export function PricingPreviewTab({
   function handleCalculate() {
     if (!canCalculate) return;
     startTransition(async () => {
-      const selectedCabTypeIds = Array.from(groupCabSelections.values()).filter(
-        (id): id is number => id != null,
-      );
+      const selectedCabTypeIds = Array.from(groupCabSelections.values()).filter((id): id is number => id != null);
       const result = await handleComputePackagePrice({
         package_id: packageId,
         duration_id: parseInt(durationId),
@@ -672,188 +641,190 @@ export function PricingPreviewTab({
       if (result.success) {
         setBreakdown(result.data);
       } else {
-        toast.error(result.error ?? "Failed to calculate price");
+        toast.error((result as { error?: string }).error ?? "Failed to calculate price");
         setBreakdown(null);
       }
     });
   }
 
+  const passengers = adultsNum + childrenNum;
+
   return (
-    <div className="space-y-6">
-      {/* ── Controls ───────────────────────────────────────────────────────── */}
-      <Card className="bg-dashboard-base-100 rounded-xl shadow-lg border border-dashboard-base-content/20">
-        <CardContent className="pt-5 pb-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 items-end">
-            {/* Duration */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Duration</label>
-              <Select value={durationId} onValueChange={setDurationId}>
-                <SelectTrigger className="text-sm h-9"><SelectValue placeholder="Select…" /></SelectTrigger>
-                <SelectContent>
-                  {durations.map((d) => (
-                    <SelectItem key={d.id} value={d.id.toString()}>{d.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+    <div className="space-y-5">
+      {/* ── Controls card ─────────────────────────────────────────────────── */}
+      <Card className="border border-border/60 shadow-sm">
+        <CardContent className="pt-4 pb-4 space-y-4">
 
-            {/* Route */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Route</label>
-              <Select value={routeId} onValueChange={setRouteId} disabled={routes.length === 0}>
-                <SelectTrigger className="text-sm h-9">
-                  <SelectValue placeholder={routes.length === 0 ? "No routes" : "Select…"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {routes.map((r) => (
-                    <SelectItem key={r.id} value={r.id.toString()}>{r.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Stay category */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Stay Category</label>
-              <Select value={categoryId} onValueChange={setCategoryId}>
-                <SelectTrigger className="text-sm h-9"><SelectValue placeholder="Select…" /></SelectTrigger>
-                <SelectContent>
-                  {stayCategories.map((c) => (
-                    <SelectItem key={c.id} value={c.id.toString()}>{c.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Travel Date */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                <CalendarDays className="h-3 w-3" />Travel Date
-              </label>
-              <Input
-                type="date"
-                value={travelDate}
-                onChange={(e) => setTravelDate(e.target.value)}
-                className="text-sm h-9"
-              />
-            </div>
-
-            {/* Adults */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Adults</label>
-              <Input type="number" min="1" max="500" value={adults} onChange={(e) => setAdults(e.target.value)} className="text-sm h-9" />
-            </div>
-
-            {/* Children */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Children</label>
-              <Input type="number" min="0" max="20" value={children} onChange={(e) => setChildren(e.target.value)} className="text-sm h-9" />
-            </div>
-
-            {/* Infants */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Infants</label>
-              <Input type="number" min="0" max="10" value={infants} onChange={(e) => setInfants(e.target.value)} className="text-sm h-9" />
-            </div>
-
-            {/* Calculate */}
-            <Button
-              onClick={handleCalculate}
-              disabled={!canCalculate || isPending}
-              className="h-9 w-full gap-2"
-            >
-              {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calculator className="h-4 w-4" />}
-              {isPending ? "Calculating…" : "Calculate"}
-            </Button>
-          </div>
-          {travelDate && (
-            <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-              <Sparkles className="h-3 w-3" />
-              Start date — each day&apos;s hotel, activity &amp; cab rates are resolved to the actual calendar date (Day 1 = {travelDate}, Day 2 = next day, …) including weekend pricing
-            </p>
-          )}
-
-          {/* ── Cab Group Selections ───────────────────────────────────── */}
-          {durationCabGroups.length > 0 ? (
-            <div className="mt-4 pt-4 border-t">
-              <p className="text-xs font-medium text-muted-foreground mb-3 flex items-center gap-1.5">
-                <Car className="h-3 w-3" />
-                Cab Selection
-                {durationCabGroups.length > 1 && (
-                  <span className="font-normal text-muted-foreground/70">— one per group</span>
-                )}
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {durationCabGroups.map((group) => {
-                  const passengers = adultsNum + childrenNum;
-                  const selectedId = groupCabSelections.get(group.groupKey) ?? null;
-                  const selectedCt = group.cabTypes.find((ct) => ct.id === selectedId);
-                  const defaultCt = group.cabTypes.find((ct) => ct.is_default) ?? group.cabTypes[0];
-                  const isUpgraded = selectedId !== null && selectedId !== defaultCt?.id;
-                  const tooSmall = selectedCt ? selectedCt.vehicle.capacity < passengers : false;
-
-                  return (
-                    <div key={group.groupKey} className="space-y-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <label className="text-xs text-muted-foreground">
-                          Day {group.dayFrom}–{group.dayTo}
-                        </label>
-                        {isUpgraded && (
-                          <Badge className="text-[9px] px-1.5 py-0 h-4 bg-amber-100 text-amber-700 border border-amber-300 hover:bg-amber-100">
-                            ↑ Upgraded
-                          </Badge>
-                        )}
-                        {tooSmall && (
-                          <Badge className="text-[9px] px-1.5 py-0 h-4 bg-red-100 text-red-700 border border-red-300 hover:bg-red-100">
-                            Too small
-                          </Badge>
-                        )}
-                      </div>
-                      <Select
-                        value={selectedId?.toString() ?? ""}
-                        onValueChange={(val) =>
-                          setGroupCabSelections((prev) => {
-                            const next = new Map(prev);
-                            next.set(group.groupKey, parseInt(val));
-                            return next;
-                          })
-                        }
-                      >
-                        <SelectTrigger className="text-sm h-9">
-                          <SelectValue placeholder="Select cab…" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {group.cabTypes.map((ct) => {
-                            const est = estimateCabCost(ct, travelDate, adultsNum, childrenNum);
-                            const fits = ct.vehicle.capacity >= passengers;
-                            return (
-                              <SelectItem key={ct.id} value={ct.id.toString()}>
-                                {ct.label} · {ct.vehicle.capacity} seats
-                                {ct.is_default ? " ★" : ""}
-                                {!fits ? " ✗" : ""}
-                                {est > 0 ? ` · ₹${fmt(est)}` : ""}
-                              </SelectItem>
-                            );
-                          })}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  );
-                })}
+          {/* Row 1: Trip config */}
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Trip Configuration</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Duration</label>
+                <Select value={durationId} onValueChange={setDurationId}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select…" /></SelectTrigger>
+                  <SelectContent>
+                    {durations.map((d) => (
+                      <SelectItem key={d.id} value={d.id.toString()}>
+                        {d.label}{d.is_default ? " ★" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Route</label>
+                <Select value={routeId} onValueChange={setRouteId} disabled={routes.length === 0}>
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder={routes.length === 0 ? "No routes" : "Select…"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {routes.map((r) => <SelectItem key={r.id} value={r.id.toString()}>{r.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Stay Category</label>
+                <Select value={categoryId} onValueChange={setCategoryId}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select…" /></SelectTrigger>
+                  <SelectContent>
+                    {stayCategories.map((c) => (
+                      <SelectItem key={c.id} value={c.id.toString()}>
+                        {c.label}{c.is_default ? " ★" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground flex items-center gap-1">
+                  <CalendarDays className="h-3 w-3" /> Travel Date
+                </label>
+                <Input type="date" value={travelDate} onChange={(e) => setTravelDate(e.target.value)} className="h-9 text-sm" />
               </div>
             </div>
-          ) : (
-            <div className="mt-4 pt-4 border-t">
-              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <Car className="h-3 w-3" />
-                No cab types configured for this duration. Add them in the Pricing tab.
+            {travelDate && (
+              <p className="text-[10px] text-muted-foreground/70 mt-1.5 flex items-center gap-1">
+                <Sparkles className="h-3 w-3" />
+                Seasonal &amp; weekend rates applied day-by-day from {travelDate}
               </p>
+            )}
+          </div>
+
+          <Separator />
+
+          {/* Row 2: Pax + Calculate */}
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Passengers</p>
+            <div className="flex items-end gap-3 flex-wrap">
+              <div className="space-y-1 w-24">
+                <label className="text-xs text-muted-foreground">Adults</label>
+                <Input type="number" min="1" max="500" value={adults} onChange={(e) => setAdults(e.target.value)} className="h-9 text-sm" />
+              </div>
+              <div className="space-y-1 w-24">
+                <label className="text-xs text-muted-foreground">Children</label>
+                <Input type="number" min="0" max="500" value={children} onChange={(e) => setChildren(e.target.value)} className="h-9 text-sm" />
+              </div>
+              <div className="space-y-1 w-24">
+                <label className="text-xs text-muted-foreground">Infants</label>
+                <Input type="number" min="0" max="100" value={infants} onChange={(e) => setInfants(e.target.value)} className="h-9 text-sm" />
+              </div>
+              <Button onClick={handleCalculate} disabled={!canCalculate || isPending} className="h-9 gap-2 px-6">
+                {isPending
+                  ? <><Loader2 className="h-4 w-4 animate-spin" />Calculating…</>
+                  : <><Calculator className="h-4 w-4" />Calculate</>}
+              </Button>
+              {passengers > 1 && (
+                <div className="flex items-center gap-1.5 pb-0.5">
+                  <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">
+                    {passengers} total pax
+                  </span>
+                </div>
+              )}
             </div>
+          </div>
+
+          {/* Cab selection */}
+          {durationCabGroups.length > 0 && (
+            <>
+              <Separator />
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <Car className="h-3 w-3" /> Cab Selection
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {durationCabGroups.map((group) => {
+                    const selectedId = groupCabSelections.get(group.groupKey) ?? null;
+                    const selectedCt = group.cabTypes.find((ct) => ct.id === selectedId);
+                    const defaultCt  = group.cabTypes.find((ct) => ct.is_default) ?? group.cabTypes[0];
+                    const isUpgraded = selectedId !== null && selectedId !== defaultCt?.id;
+                    const tooSmall   = selectedCt ? selectedCt.vehicle.capacity < passengers : false;
+
+                    return (
+                      <div key={group.groupKey} className={cn(
+                        "rounded-lg border p-3 space-y-2 transition-colors",
+                        isUpgraded ? "border-amber-200 bg-amber-50/40" : "border-border/60 bg-muted/20",
+                      )}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <Moon className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-xs font-semibold text-foreground">
+                              Day {group.dayFrom}–{group.dayTo}
+                            </span>
+                          </div>
+                          <div className="flex gap-1">
+                            {isUpgraded && <Chip color="amber">↑ Upgraded</Chip>}
+                            {tooSmall   && <Chip color="default">Too small</Chip>}
+                          </div>
+                        </div>
+                        <Select
+                          value={selectedId?.toString() ?? ""}
+                          onValueChange={(val) =>
+                            setGroupCabSelections((prev) => {
+                              const next = new Map(prev);
+                              next.set(group.groupKey, parseInt(val));
+                              return next;
+                            })
+                          }
+                        >
+                          <SelectTrigger className="h-9 text-sm">
+                            <SelectValue placeholder="Select cab…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {group.cabTypes.map((ct) => {
+                              const est  = estimateCabCost(ct, travelDate, adultsNum, childrenNum);
+                              const fits = ct.vehicle.capacity >= passengers;
+                              return (
+                                <SelectItem key={ct.id} value={ct.id.toString()}>
+                                  {ct.label} · {ct.vehicle.capacity} seats
+                                  {ct.is_default ? " ★" : ""}
+                                  {!fits ? " ✗" : ""}
+                                  {est > 0 ? ` · ₹${fmt(est)}` : ""}
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+                        {selectedCt && (
+                          <div className="flex flex-wrap gap-1">
+                            <Chip color="orange">{selectedCt.vehicle.capacity} seats</Chip>
+                            {tooSmall && (
+                              <Chip color="default">Needs {passengers - selectedCt.vehicle.capacity} more seats</Chip>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
 
-      {/* ── Loading ─────────────────────────────────────────────────────────── */}
+      {/* ── Loading ──────────────────────────────────────────────────────────── */}
       {isPending && (
         <div className="flex items-center justify-center py-16 gap-3 text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin" />
@@ -861,44 +832,40 @@ export function PricingPreviewTab({
         </div>
       )}
 
-      {/* ── Results ─────────────────────────────────────────────────────────── */}
+      {/* ── Results ──────────────────────────────────────────────────────────── */}
       {!isPending && breakdown && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Day cards */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
           <div className="lg:col-span-2 space-y-3">
             {breakdown.missing_pricing_config && (
-              <div className="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-2.5 text-sm text-yellow-800 dark:border-yellow-800 dark:bg-yellow-950/30 dark:text-yellow-300">
-                No pricing config set for this duration + stay category — using default 10% margin and 5% GST. Go to the Pricing tab to configure.
+              <div className="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-2.5 flex items-start gap-2">
+                <Sparkles className="h-4 w-4 text-yellow-600 shrink-0 mt-0.5" />
+                <p className="text-xs text-yellow-800">
+                  No pricing config set for this combination — using default 10% margin and 5% GST. Configure in the Pricing tab.
+                </p>
               </div>
             )}
             {breakdown.days.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 rounded-xl border border-dashed">
                 <MapPin className="h-8 w-8 text-muted-foreground/30 mb-3" />
                 <p className="text-sm font-medium text-muted-foreground">No itinerary days found</p>
-                <p className="text-xs text-muted-foreground/60 mt-1">
-                  Build the itinerary for this duration &amp; route in the Itinerary Builder tab.
-                </p>
+                <p className="text-xs text-muted-foreground/60 mt-1">Build the itinerary in the Itinerary Builder tab first.</p>
               </div>
             ) : (
               breakdown.days.map((day) => <DayCard key={day.day} day={day} />)
             )}
           </div>
-
-          {/* Summary */}
           <div className="lg:col-span-1">
             <SummaryCard breakdown={breakdown} />
           </div>
         </div>
       )}
 
-      {/* ── Empty state ──────────────────────────────────────────────────────── */}
+      {/* ── Empty state ─────────────────────────────────────────────────────── */}
       {!isPending && !breakdown && (
-        <div className="flex flex-col items-center justify-center py-20 rounded-xl border border-dashed bg-muted/20">
+        <div className="flex flex-col items-center justify-center py-20 rounded-xl border border-dashed bg-muted/10">
           <Calculator className="h-10 w-10 text-muted-foreground/30 mb-4" />
-          <p className="text-sm font-medium text-muted-foreground">No defaults configured yet</p>
-          <p className="text-xs text-muted-foreground/60 mt-1">
-            Select a duration, route, and stay category above, then click Calculate.
-          </p>
+          <p className="text-sm font-medium text-muted-foreground">Configure and calculate above</p>
+          <p className="text-xs text-muted-foreground/60 mt-1">Select duration, route, stay category, passenger count, then hit Calculate.</p>
         </div>
       )}
     </div>
