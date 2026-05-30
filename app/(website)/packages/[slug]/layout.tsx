@@ -12,7 +12,7 @@ export default function PackageLayout({
     return (
         <>
             <Header sticky={false} />
-            <div className="screen-space pb-10">
+            <div >
                 {children}
             </div>
             <Footer />

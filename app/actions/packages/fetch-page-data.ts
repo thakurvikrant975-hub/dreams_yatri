@@ -1,4 +1,5 @@
 import { db } from "@/app/lib/db";
+import type { Prisma } from "@/app/generated/prisma/client";
 
 // ── Output types ───────────────────────────────────────────────────────────
 
@@ -161,6 +162,7 @@ export type PackagePageData = {
   inclusions: string[];
   exclusions: string[];
 
+  destination_id: number;
   destination: {
     name: string;
     slug: string;
@@ -168,7 +170,7 @@ export type PackagePageData = {
   };
 
   images: { url: string; thumbnail: string | null; alt: string | null; is_primary: boolean }[];
-  gallery: { image_url: string; label: string | null; position: number }[];
+  gallery: { image_url: string; label: string | null; position: number; route_id: number | null }[];
 
   durations: DurationOption[];
   stay_categories: StayCategoryOption[];
@@ -225,6 +227,7 @@ export async function fetchPackagePageData(
         description: true,
         inclusions: true,
         exclusions: true,
+        destination_id: true,
         destination: {
           select: {
             name: true,
@@ -238,7 +241,7 @@ export async function fetchPackagePageData(
         },
         gallery: {
           orderBy: { position: "asc" },
-          select: { image_url: true, label: true, position: true },
+          select: { image_url: true, label: true, position: true, route_id: true },
         },
         durations: {
           where: { is_active: true },
@@ -739,6 +742,7 @@ export async function fetchPackagePageData(
     description: pkg.description,
     inclusions: pkg.inclusions,
     exclusions: pkg.exclusions,
+    destination_id: pkg.destination_id,
     destination: {
       name: pkg.destination.name,
       slug: pkg.destination.slug,
@@ -826,4 +830,201 @@ export async function getActivePackageParams() {
   }
 
   return params;
+}
+
+// ── Related packages ───────────────────────────────────────────────────────
+
+export type RelatedPackageItem = {
+  id: number;
+  title: string;
+  slug: string;
+  images: string[];
+  duration: string;
+  durationSlug: string;
+  routeSlug: string;
+  staySlug: string;
+  itinerary: { days: number; place: string }[];
+  discountedPrice: number;
+  originalPrice: number;
+};
+
+export async function fetchRelatedPackages(
+  currentPackageId: number,
+  destinationId: number,
+  limit = 3,
+): Promise<RelatedPackageItem[]> {
+  const R2 = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? "";
+  const imgUrl = (key: string | null | undefined) =>
+    !key ? "" : key.startsWith("http") ? key : `${R2}/${key}`;
+
+  // Lookup region for the current destination (needed for tier-2 fallback)
+  const currentDestination = await db.destinations.findUnique({
+    where: { id: destinationId },
+    select: { region_id: true },
+  });
+  const regionId = currentDestination?.region_id ?? null;
+
+  type PkgRow = {
+    id: number;
+    title: string;
+    slug: string;
+    thumbnail: string | null;
+    images: { url: string | null }[];
+    durations: {
+      id: number;
+      slug: string;
+      days: number;
+      nights: number;
+      routes: {
+        id: number;
+        slug: string;
+        stops: { place_name: string; stay_days: number }[];
+      }[];
+    }[];
+    stay_categories: { id: number; slug: string }[];
+  };
+
+  async function fetchTier(
+    where: Prisma.packagesWhereInput,
+    take: number,
+  ): Promise<PkgRow[]> {
+    return db.packages.findMany({
+      where,
+      take,
+      orderBy: { created_at: "desc" },
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        thumbnail: true,
+        images: { orderBy: { sort_order: "asc" }, take: 3, select: { url: true } },
+        durations: {
+          where: { is_active: true },
+          orderBy: [{ is_default: "desc" }, { sort_order: "asc" }],
+          take: 1,
+          select: {
+            id: true,
+            slug: true,
+            days: true,
+            nights: true,
+            routes: {
+              where: { is_active: true },
+              orderBy: { sort_order: "asc" },
+              take: 1,
+              select: {
+                id: true,
+                slug: true,
+                stops: {
+                  orderBy: { sort_order: "asc" },
+                  select: { place_name: true, stay_days: true },
+                },
+              },
+            },
+          },
+        },
+        stay_categories: {
+          where: { is_active: true },
+          orderBy: [{ is_default: "desc" }, { sort_order: "asc" }],
+          take: 1,
+          select: { id: true, slug: true },
+        },
+      },
+    }) as Promise<PkgRow[]>;
+  }
+
+  const collected: PkgRow[] = [];
+  const seenIds = new Set<number>([currentPackageId]);
+
+  // Tier 1 — same destination
+  if (collected.length < limit) {
+    const rows = await fetchTier(
+      { is_active: true, id: { notIn: [...seenIds] }, destination_id: destinationId },
+      limit - collected.length,
+    );
+    for (const p of rows) { collected.push(p); seenIds.add(p.id); }
+  }
+
+  // Tier 2 — same region, different destination
+  if (collected.length < limit && regionId !== null) {
+    const rows = await fetchTier(
+      { is_active: true, id: { notIn: [...seenIds] }, destination: { region_id: regionId } },
+      limit - collected.length,
+    );
+    for (const p of rows) { collected.push(p); seenIds.add(p.id); }
+  }
+
+  // Tier 3 — any other active package
+  if (collected.length < limit) {
+    const rows = await fetchTier(
+      { is_active: true, id: { notIn: [...seenIds] } },
+      limit - collected.length,
+    );
+    for (const p of rows) { collected.push(p); seenIds.add(p.id); }
+  }
+
+  if (collected.length === 0) return [];
+
+  // Fetch hotel pricing for each package in parallel
+  const pricingResults = await Promise.all(
+    collected.map(async (pkg) => {
+      const duration = pkg.durations[0];
+      const route = duration?.routes[0];
+      const stay = pkg.stay_categories[0];
+      if (!duration || !route || !stay) return { id: pkg.id, discountedPrice: 0, originalPrice: 0 };
+
+      const stays = await db.itinerary_stays.findMany({
+        where: {
+          stay_category_id: stay.id,
+          itinerary: { package_id: pkg.id, duration_id: duration.id, route_id: route.id },
+        },
+        select: {
+          num_nights: true,
+          room_pricing: { select: { price_per_night: true, original_price: true } },
+        },
+      });
+
+      const discountedPrice = stays.reduce(
+        (sum, s) => sum + Number(s.room_pricing.price_per_night) * s.num_nights, 0,
+      );
+      const originalPrice = stays.reduce(
+        (sum, s) => sum + Number(s.room_pricing.original_price ?? s.room_pricing.price_per_night) * s.num_nights, 0,
+      );
+
+      return { id: pkg.id, discountedPrice, originalPrice };
+    }),
+  );
+
+  const pricingMap = new Map(pricingResults.map((p) => [p.id, p]));
+
+  return collected
+    .map((pkg): RelatedPackageItem | null => {
+      const duration = pkg.durations[0];
+      const route = duration?.routes[0];
+      const stay = pkg.stay_categories[0];
+      if (!duration || !route || !stay) return null;
+
+      const images = [
+        imgUrl(pkg.thumbnail),
+        ...pkg.images.map((i) => imgUrl(i.url)),
+      ].filter(Boolean) as string[];
+
+      if (images.length === 0) return null;
+
+      const pricing = pricingMap.get(pkg.id) ?? { discountedPrice: 0, originalPrice: 0 };
+
+      return {
+        id: pkg.id,
+        title: pkg.title,
+        slug: pkg.slug,
+        images,
+        duration: `${duration.days}D/${duration.nights}N`,
+        durationSlug: duration.slug,
+        routeSlug: route.slug,
+        staySlug: stay.slug,
+        itinerary: route.stops.map((s) => ({ days: s.stay_days, place: s.place_name })),
+        discountedPrice: pricing.discountedPrice,
+        originalPrice: pricing.originalPrice || pricing.discountedPrice,
+      };
+    })
+    .filter((p): p is RelatedPackageItem => p !== null);
 }

@@ -38,10 +38,10 @@ export default function TravelerInputBar({ startingFrom }: Props) {
     ].filter(Boolean).join(' · ');
 
     return (
-        <div className="w-full border-b border-neutral-100 bg-neutral-50 mt-4 rounded-xl">
+        <div className="w-full border-b border-neutral-100 bg-neutral-50  rounded-xl">
             <div className="py-3 px-4 flex items-center justify-center gap-3 flex-wrap">
                 {/* ── Starting from ── */}
-                <div className="flex items-center gap-2 min-w-[160px]">
+                <div className="flex items-center gap-2 min-w-40">
                     <MapPinIcon className="size-4 text-muted shrink-0" />
                     <div>
                         <Text size="xss" intent="muted" weight="medium" className="uppercase tracking-wide">

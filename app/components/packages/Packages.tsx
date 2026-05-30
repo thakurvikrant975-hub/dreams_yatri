@@ -1,9 +1,8 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useRef, useLayoutEffect } from 'react'
 import Image from 'next/image'
-import { Card, CardMedia, CardBody, CardFooter } from '../ui/Card'
-import Button from '../ui/Button'
+import { Card, CardMedia, CardBody } from '../ui/Card'
 import { Heading, Text } from '../ui/Typography'
 import {
     BedIcon,
@@ -12,7 +11,7 @@ import {
     StarIcon,
     ArrowsOutIcon,
 } from '@phosphor-icons/react'
-import { CalendarDaysIcon, PhoneIcon } from '@heroicons/react/24/solid'
+import { CalendarDaysIcon } from '@heroicons/react/24/solid'
 import SavingsBadge from './SavingBadge'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -60,27 +59,83 @@ const INCLUSION_ICONS: Record<string, React.ElementType> = {
 
 // ─── Itinerary tag list ───────────────────────────────────────────────────────
 function ItineraryRow({ items }: { items: Itinerary[] }) {
-    const MAX_VISIBLE = 4
-    const visible = items.slice(0, MAX_VISIBLE)
-    const overflow = items.length - MAX_VISIBLE
+    const outerRef = useRef<HTMLDivElement>(null)
+    const [visibleCount, setVisibleCount] = useState(items.length)
+
+    // Measure which items fit in a single row using a hidden ghost row
+    useLayoutEffect(() => {
+        const outer = outerRef.current
+        if (!outer) return
+
+        const calc = () => {
+            const W = outer.offsetWidth
+            const spans = Array.from(outer.querySelectorAll<HTMLElement>('[data-g]'))
+            const badge = outer.querySelector<HTMLElement>('[data-gb]')
+            if (!spans.length) return
+
+            const GAP = 4 // gap-x-1 = 4px
+            const badgeW = (badge?.offsetWidth ?? 28) + GAP
+
+            let used = 0
+            let fit = 0
+            for (let i = 0; i < spans.length; i++) {
+                const w = spans[i].offsetWidth + (i > 0 ? GAP : 0)
+                const hasMore = i < spans.length - 1
+                if (used + w + (hasMore ? badgeW : 0) <= W) {
+                    used += w
+                    fit = i + 1
+                } else break
+            }
+            setVisibleCount(Math.max(fit, 1))
+        }
+
+        calc()
+        const ro = new ResizeObserver(calc)
+        ro.observe(outer)
+        return () => ro.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [items.length])
+
+    const overflow = items.length - visibleCount
 
     return (
-        <div className="flex items-center flex-wrap gap-x-1 gap-y-1 text-xs text-neutral-600 line-clamp-1">
-            {visible.map((item, i) => (
-                <React.Fragment key={i}>
-                    <span>
-                        <Text as='span' size='sm' weight='semibold' className='font-heading'>{item.days}D</Text>{' '}
-                        <Text as='span' size='sm' intent='secondary'>{item.place}</Text>
-
+        <div ref={outerRef} className="relative overflow-hidden">
+            {/* Ghost row — all items, invisible, for width measurement */}
+            <div
+                aria-hidden="true"
+                className="absolute inset-x-0 top-0 flex items-center gap-x-1 opacity-0 pointer-events-none select-none"
+            >
+                {items.map((item, i) => (
+                    <span key={i} data-g className="shrink-0 whitespace-nowrap text-sm font-semibold font-heading">
+                        {item.days}D{' '}
+                        <span className="font-normal">{item.place}</span>
+                        {i < items.length - 1 && <span className="mx-0.5 text-neutral-400">•</span>}
                     </span>
-                    {(i < visible.length - 1 || overflow > 0) && (
-                        <span className="text-neutral-400 select-none">•</span>
-                    )}
-                </React.Fragment>
-            ))}
-            {overflow > 0 && (
-                <span className="font-semibold text-primary-500">+{overflow}</span>
-            )}
+                ))}
+                <span data-gb className="shrink-0 text-xs font-semibold whitespace-nowrap">
+                    +{items.length}
+                </span>
+            </div>
+
+            {/* Visible row */}
+            <div className="flex items-center gap-x-1">
+                {items.slice(0, visibleCount).map((item, i) => {
+                    const showBullet = i < visibleCount - 1 || overflow > 0
+                    return (
+                        <span key={i} className="shrink-0 whitespace-nowrap">
+                            <Text as='span' size='sm' weight='semibold' className='font-heading'>{item.days}D</Text>
+                            {' '}
+                            <Text as='span' size='sm' intent='secondary'>{item.place}</Text>
+                            {showBullet && <span className="mx-0.5 text-neutral-400 select-none">•</span>}
+                        </span>
+                    )
+                })}
+                {overflow > 0 && (
+                    <span className="shrink-0 text-xs font-semibold text-primary-500 whitespace-nowrap">
+                        +{overflow}
+                    </span>
+                )}
+            </div>
         </div>
     )
 }
@@ -147,11 +202,11 @@ export default function PackageCard({
                 variant="elevated"
                 radius="xl"
                 padding="none"
-                className={`overflow-hidden w-full max-w-sm ${className}`}
+                className={`group overflow-hidden w-full max-w-sm ${className}`}
                 onClick={onClick}
             >
                 {/* ── Image ── */}
-                <CardMedia className="w-full aspect-3/2 rounded-t-xl ">
+                <CardMedia className="w-full aspect-video rounded-t-xl ">
                     <Image
                         src={images[activeImage]}
                         alt={title}
@@ -161,14 +216,6 @@ export default function PackageCard({
                     />
 
 
-                    {/* Expand icon */}
-                    <button
-                        onClick={(e) => e.stopPropagation()}
-                        className="absolute top-3 right-3 z-10 flex items-center justify-center size-8 rounded-lg bg-neutral-900/20 text-white backdrop-blur-[1px] group-hover:bg-primary-500 transition"
-                        aria-label="Expand image"
-                    >
-                        <ArrowsOutIcon weight="bold" className="size-4" />
-                    </button>
 
                     {/* Image dots */}
                     {images.length > 1 && (
@@ -185,9 +232,9 @@ export default function PackageCard({
 
 
                 {/* ── Body ── */}
-                <CardBody className="pt-3.5 pb-2">
+                <CardBody className="py-3.5 pb-6">
                     {/* Title */}
-                    <Heading level={3} weight='semibold' truncate={true}>
+                    <Heading level={3} weight='semibold' truncate={true} className='cursor-pointer hover:text-primary-500!'>
                         {title}
                     </Heading>
 
@@ -251,29 +298,6 @@ export default function PackageCard({
                     </div>
                 </CardBody>
 
-                {/* ── Footer: CTA ── */}
-                <CardFooter className="pt-3 pb-4 px-4">
-                    <div className="flex items-center gap-2">
-                        {/* Phone icon button */}
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onRequestCallback?.() }}
-                            className="flex items-center justify-center size-11 rounded-xl border-[0.12em] border-primary-500 text-primary-500 hover:bg-primary-50 transition shrink-0"
-                            aria-label="Call"
-                        >
-                            <PhoneIcon  className="size-4.5" />
-                        </button>
-
-                        {/* Request Callback */}
-                        <Button
-                            variant="premium"
-                            size="md"
-                            className="flex-1 rounded-xl font-bold text-sm py-3"
-                            onClick={(e) => { e.stopPropagation(); onRequestCallback?.() }}
-                        >
-                            Get a free quote
-                        </Button>
-                    </div>
-                </CardFooter>
             </Card>
 
             {badge && (
