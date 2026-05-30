@@ -4,6 +4,7 @@ import { useBooking } from '../PackageBookingProvider';
 import Button from '@/app/components/ui/Button';
 import Card from '@/app/components/ui/Card';
 import { Text } from '@/app/components/ui/Typography';
+import SavingsBadge from '@/app/components/packages/SavingBadge';
 
 const fmt = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 
@@ -40,13 +41,14 @@ export default function PricingCard() {
                             </Text>
                             <Text as="span" size="sm" intent="secondary" className="font-heading">/ adult</Text>
                         </div>
-                        <div className="flex items-center gap-2 mt-0.5">
+                        <div className="flex items-center gap-3 mt-0.5">
                             <Text as="span" size="sm" intent="muted" className="line-through">
                                 {fmt(fakeOriginalPrice(pricing.pricePerAdult))}
                             </Text>
-                            <span className="text-xs font-semibold text-success-600 bg-success-50 px-1.5 py-0.5 rounded-full">
-                                {Math.round((1 - pricing.pricePerAdult / fakeOriginalPrice(pricing.pricePerAdult)) * 100)}% off
-                            </span>
+                            <SavingsBadge
+                                amount={`${Math.round((1 - pricing.pricePerAdult / fakeOriginalPrice(pricing.pricePerAdult)) * 100)}% off`}
+                                prefix=""
+                            />
                         </div>
                     </div>
 

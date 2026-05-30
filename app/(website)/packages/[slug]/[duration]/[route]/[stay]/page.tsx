@@ -12,6 +12,7 @@ import { PackageBookingProvider } from "./components/PackageBookingProvider";
 import TravelerInputBar from "./components/TravelerInputBar";
 import { CheckIcon, XMarkIcon, StarIcon } from "@heroicons/react/24/solid";
 import { Card, CardBody } from "@/app/components/ui/Card";
+import RelatedPackages from "./components/RelatedPackages";
 
 // export const revalidate = 3600; // TODO: re-enable ISR for production
 export const dynamic = 'force-dynamic';
@@ -74,26 +75,104 @@ export default async function PackagePage({
     }));
 
     // ── Gallery images ─────────────────────────────────────────────────────────
-    const packageImgUrls = pageData.images.map(img => imgUrl(img.url));
-    const coverImage = imgUrl(pageData.thumbnail) || packageImgUrls[0] || "";
-    const hotelImgUrls = [...new Set(
-        pageData.itinerary.flatMap(d => d.hotel?.images.map(img => imgUrl(img.url)) ?? [])
-    )].slice(0, 3);
-    const activityImgUrls = [...new Set(
-        pageData.itinerary.flatMap(d =>
-            d.activities.flatMap(a => a.images.map(img => imgUrl(img.url)))
-        )
-    )].slice(0, 2);
-    const image_gallery = [
-        ...new Set([coverImage, ...hotelImgUrls, ...activityImgUrls, ...packageImgUrls])
-    ].filter(Boolean).slice(0, 5);
+    type GalleryImage = { src: string; label: string };
+
+    const coverImage = imgUrl(pageData.thumbnail) || imgUrl(pageData.images[0]?.url) || "";
+
+    // Route-specific gallery takes priority; fall back to package-level (route_id null)
+    const routeGallery = pageData.gallery.filter(g => g.route_id === pageData.selectedRoute?.id);
+    const assignedGallery = routeGallery.length > 0
+        ? routeGallery
+        : pageData.gallery.filter(g => g.route_id === null);
+
+    let image_gallery: GalleryImage[];
+
+    if (assignedGallery.length > 0) {
+        image_gallery = assignedGallery.map(g => ({
+            src: imgUrl(g.image_url),
+            label: g.label ?? '',
+        }));
+    } else {
+        // Fallback slot rules:
+        //   1 — thumbnail                (label: destination name)
+        //   2 — first hotel image        (label: "Hotel")
+        //   3 — first room image; if none, another hotel image  (label: "Hotel Room" or "Hotel")
+        //   4 — first activity image     (label: "Sightseeing")
+        //   5 — second activity image from a different activity if possible  (label: "Sightseeing")
+        const seen = new Set<string>();
+        const fallback: GalleryImage[] = [];
+
+        const addImg = (url: string, label: string) => {
+            if (url && !seen.has(url)) { seen.add(url); fallback.push({ src: url, label }); return true; }
+            return false;
+        };
+
+        // Slot 1 — cover / thumbnail
+        if (coverImage) addImg(coverImage, pageData.destination.name);
+
+        // Collect hotel + room candidates in itinerary order (deduplicated by hotel id)
+        const seenHotelIds = new Set<number>();
+        const hotelImgCandidates: GalleryImage[] = [];   // hotel exterior images
+        const roomImgCandidates: GalleryImage[] = [];   // room images
+
+        for (const d of pageData.itinerary) {
+            const h = d.hotel;
+            if (!h || seenHotelIds.has(h.id)) continue;
+            seenHotelIds.add(h.id);
+            for (const img of h.images) {
+                const url = imgUrl(img.url);
+                if (url) hotelImgCandidates.push({ src: url, label: 'Hotel' });
+            }
+            for (const img of h.room_images) {
+                const url = imgUrl(img.url);
+                if (url) roomImgCandidates.push({ src: url, label: 'Hotel Room' });
+            }
+        }
+
+        // Slot 2 — first hotel image
+        for (const c of hotelImgCandidates) { if (addImg(c.src, c.label)) break; }
+
+        // Slot 3 — first room image; fall back to next hotel image
+        let slot3Filled = false;
+        for (const c of roomImgCandidates) { if (addImg(c.src, c.label)) { slot3Filled = true; break; } }
+        if (!slot3Filled) {
+            for (const c of hotelImgCandidates) { if (addImg(c.src, c.label)) break; }
+        }
+
+        // Collect activity image candidates grouped by activity (to prefer different activities)
+        const actGroups: { label: string; urls: string[] }[] = [];
+        for (const d of pageData.itinerary) {
+            for (const act of d.activities) {
+                const urls = act.images.map(img => imgUrl(img.url)).filter(Boolean) as string[];
+                if (urls.length) actGroups.push({ label: 'Sightseeing', urls });
+            }
+        }
+
+        // Slots 4 & 5 — one image per activity group, then overflow if needed
+        const usedActGroups = new Set<number>();
+        for (let pass = 0; pass < 2; pass++) {
+            if (fallback.length >= 5) break;
+            for (let gi = 0; gi < actGroups.length; gi++) {
+                if (fallback.length >= 5) break;
+                if (usedActGroups.has(gi)) continue;
+                const g = actGroups[gi];
+                for (const url of g.urls) {
+                    if (addImg(url, g.label)) { usedActGroups.add(gi); break; }
+                }
+            }
+            // Second pass allows revisiting same activity if we still need images
+            if (pass === 0) usedActGroups.clear();
+        }
+
+        image_gallery = fallback;
+    }
 
     // ── Duration options ───────────────────────────────────────────────────────
     const durationOptions = pageData.durations.map((d, i) => ({
         slug: d.slug,
         label: d.label || `${d.days}D/${d.nights}N`,
         price: "",
-        image_url: imgUrl(d.thumbnail_url) || packageImgUrls[i] || coverImage,
+        image_url: imgUrl(d.thumbnail_url) || imgUrl(pageData.images[i]?.url) || coverImage,
         isDefault: d.is_default,
     }));
 
@@ -135,15 +214,15 @@ export default async function PackagePage({
             _sort: t.sort_order,
             type: "cab" as const,
             from: { label: "Pickup", value: t.pickup_name ?? "–", locationType: t.pickup_location_type },
-            to:   { label: "Drop",   value: t.drop_name   ?? "–", locationType: t.drop_location_type   },
-            distance_km:      t.distance_km,
+            to: { label: "Drop", value: t.drop_name ?? "–", locationType: t.drop_location_type },
+            distance_km: t.distance_km,
             // Prefer per-transfer vehicle; fall back to default cab type for this day
-            vehicle_name:     t.vehicle_name     ?? dayCab?.label                        ?? null,
-            vehicle_type:     t.vehicle_type     ?? dayCab?.vehicle.type                 ?? null,
-            vehicle_capacity: t.vehicle_capacity ?? dayCab?.vehicle.passenger_capacity   ?? null,
-            vehicle_image:    imgUrl(t.vehicle_image_key) || imgUrl(dayCab?.vehicle.image_key),
-            num_vehicles:     t.num_vehicles,
-            transfer_notes:   t.notes,
+            vehicle_name: t.vehicle_name ?? dayCab?.label ?? null,
+            vehicle_type: t.vehicle_type ?? dayCab?.vehicle.type ?? null,
+            vehicle_capacity: t.vehicle_capacity ?? dayCab?.vehicle.passenger_capacity ?? null,
+            vehicle_image: imgUrl(t.vehicle_image_key) || imgUrl(dayCab?.vehicle.image_key),
+            num_vehicles: t.num_vehicles,
+            transfer_notes: t.notes,
         }));
 
         const hotelSections: SortableSection[] = d.hotel ? [{
@@ -160,24 +239,34 @@ export default async function PackagePage({
             roomCapacity: d.hotel.room_capacity,
             mealType: d.hotel.meal_type,
             planName: d.hotel.plan_name,
-            images: [
-                d.hotel.images[0],
-                d.hotel.room_images[0], d.hotel.room_images[1],
-                d.hotel.images[1], d.hotel.images[2],
-                d.hotel.images[3], d.hotel.images[4],
-            ].filter(img => img?.url).map(img => imgUrl(img!.url)).slice(0, 5),
+            images: (() => {
+                const hotelPool = d.hotel.images
+                    .map(img => imgUrl(img.url)).filter(Boolean) as string[];
+                const roomPool = d.hotel.room_images
+                    .map(img => imgUrl(img.url)).filter(Boolean) as string[];
+                const take = (primary: string[], fallback: string[]) =>
+                    primary.shift() ?? fallback.shift();
+                const slots: string[] = [];
+                // Slot 1: hotel, then room
+                const s1 = take(hotelPool, roomPool); if (s1) slots.push(s1);
+                // Slots 2–3: room, then hotel
+                for (let i = 0; i < 2; i++) { const v = take(roomPool, hotelPool); if (v) slots.push(v); }
+                // Slots 4–5: hotel, then room
+                for (let i = 0; i < 2; i++) { const v = take(hotelPool, roomPool); if (v) slots.push(v); }
+                return slots;
+            })(),
         }] : [];
 
         const activitySections: SortableSection[] = d.activities.map(a => ({
             _sort: a.sort_order,
             type: "activity" as const,
             name: a.name,
-            description:    a.description,
+            description: a.description,
             duration_hours: a.duration_hours,
-            difficulty:     a.difficulty,
-            category:       a.category,
-            is_optional:    a.is_optional,
-            pricingTiers:   a.pricingTiers,
+            difficulty: a.difficulty,
+            category: a.category,
+            is_optional: a.is_optional,
+            pricingTiers: a.pricingTiers,
             images: a.images.map(img => ({
                 src: imgUrl(img.url),
                 label: img.label ?? img.alt ?? a.category ?? a.name,
@@ -203,33 +292,35 @@ export default async function PackagePage({
         : { label: pageData.destination.name, slug: pageData.destination.slug };
 
     return (
-        <PackageBookingProvider
-            packageId={pageData.id}
-            durationId={pageData.currentDuration.id}
-            routeId={pageData.selectedRoute!.id}
-            stayCategoryId={pageData.selectedStay!.id}
-            packageName={pageData.title}
-        >
-            <TravelerInputBar startingFrom={startingFrom} />
+        <>
+            <PackageBookingProvider
+                packageId={pageData.id}
+                durationId={pageData.currentDuration.id}
+                routeId={pageData.selectedRoute!.id}
+                stayCategoryId={pageData.selectedStay!.id}
+                packageName={pageData.title}
+            >
+                <TravelerInputBar startingFrom={startingFrom} />
 
-            <PackageHero
-                title={pageData.title}
-                duration={`${pageData.currentDuration.days}D/${pageData.currentDuration.nights}N`}
-                itinerary={routeStops}
-                inclusions={[
-                    { key: "transfer",    label: "Transfer" },
-                    { key: "stay",        label: "Stay" },
-                    { key: "breakfast",   label: "Meal" },
-                    { key: "sightseeing", label: "Activity" },
-                ]}
-                region={region}
-                images={image_gallery}
-            />
+                <div className="screen-space pt-6 pb-10">
+                    <PackageHero
+                        title={pageData.title}
+                        duration={`${pageData.currentDuration.days}D/${pageData.currentDuration.nights}N`}
+                        itinerary={routeStops}
+                        inclusions={[
+                            { key: "transfer", label: "Transfer" },
+                            { key: "stay", label: "Stay" },
+                            { key: "breakfast", label: "Meal" },
+                            { key: "sightseeing", label: "Activity" },
+                        ]}
+                        region={region}
+                        images={image_gallery}
+                    />
 
-            <PackageTab
-                    pricing={<PricingCard />}
-                    coupon={null}
-                    enquiry={<EnquiryForm packageName={pageData.title} />}
+                    <PackageTab
+                        pricing={<PricingCard />}
+                        coupon={null}
+                        enquiry={<EnquiryForm packageName={pageData.title} />}
                         itinerary={
                             <div className="flex flex-col gap-8">
                                 <TripDuration
@@ -323,7 +414,7 @@ export default async function PackagePage({
                                                                                     {Array.from({ length: 5 }).map((_, i) => (
                                                                                         <StarIcon key={i} className={`size-2.5 ${i < count ? 'text-amber-400' : 'text-neutral-200'}`} />
                                                                                     ))}
-                                                                                  </span>
+                                                                                </span>
                                                                                 : <span className="text-muted text-xs">{d.hotel.stay_type}</span>;
                                                                         })()}
                                                                     </span>
@@ -353,11 +444,11 @@ export default async function PackagePage({
                                 ) : (
                                     pageData.policies.map((policy, i) => {
                                         const label =
-                                            policy.type === 'CANCELLATION'           ? 'Cancellation Policy'
-                                            : policy.type === 'DATE_CHANGE'          ? 'Date Change Policy'
-                                            : policy.type === 'REFUND'               ? 'Refund Policy'
-                                            : policy.type === 'TERMS_AND_CONDITIONS' ? 'Terms & Conditions'
-                                            : policy.title;
+                                            policy.type === 'CANCELLATION' ? 'Cancellation Policy'
+                                                : policy.type === 'DATE_CHANGE' ? 'Date Change Policy'
+                                                    : policy.type === 'REFUND' ? 'Refund Policy'
+                                                        : policy.type === 'TERMS_AND_CONDITIONS' ? 'Terms & Conditions'
+                                                            : policy.title;
                                         return (
                                             <Card key={i} variant="default" padding="none">
                                                 <CardBody className="p-4 flex flex-col gap-3">
@@ -383,6 +474,15 @@ export default async function PackagePage({
                             </div>
                         }
                     />
+                </div>
+
+                <RelatedPackages
+                    currentPackageId={pageData.id}
+                    destinationId={pageData.destination_id}
+                />
             </PackageBookingProvider>
+
+        </>
+
     );
 }
