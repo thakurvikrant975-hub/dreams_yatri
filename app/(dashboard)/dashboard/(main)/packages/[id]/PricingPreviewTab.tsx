@@ -741,7 +741,7 @@ export function PricingPreviewTab({
             {/* Adults */}
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Adults</label>
-              <Input type="number" min="1" max="20" value={adults} onChange={(e) => setAdults(e.target.value)} className="text-sm h-9" />
+              <Input type="number" min="1" max="500" value={adults} onChange={(e) => setAdults(e.target.value)} className="text-sm h-9" />
             </div>
 
             {/* Children */}
