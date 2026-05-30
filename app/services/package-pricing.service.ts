@@ -70,11 +70,14 @@ export type CabSegmentBreakdown = {
   days: number;
   km: number;
   vehicle_name: string;
+  vehicle_capacity: number;
   destination_name: string;
   pricing_type: "PER_DAY" | "PER_KM";
-  price_used: number;         // effective price after seasonal resolution
+  price_used: number;
   is_seasonal: boolean;
-  num_vehicles: number;
+  num_vehicles: 1;                     // always 1 — upgrade instead of multiply
+  upgraded: boolean;
+  original_vehicle_name: string | null;
   total: number;
 };
 
@@ -403,12 +406,9 @@ export async function computePackagePrice(
     }),
     db.package_durations.findUnique({ where: { id: duration_id }, select: { label: true } }),
     db.package_stay_categories.findUnique({ where: { id: stay_category_id }, select: { label: true } }),
-    // Load selected cab types or all is_default=true cabs for the duration (one per group)
+    // Load ALL active cab types for the duration — upgrade logic selects the right one per group
     db.package_cab_types.findMany({
-      where:
-        cab_type_ids && cab_type_ids.length > 0
-          ? { id: { in: cab_type_ids } }
-          : { package_id, duration_id, is_default: true, is_active: true },
+      where: { package_id, duration_id, is_active: true },
       include: {
         vehicle: { select: { name: true, passenger_capacity: true } },
         segments: {
@@ -437,6 +437,61 @@ export async function computePackagePrice(
       },
     }),
   ]);
+
+  // ── Cab upgrade logic ──────────────────────────────────────────────────────
+  // Group all cab types by their first segment's day range, then for each group
+  // pick the preferred cab (from cab_type_ids / is_default). If it can't fit all
+  // passengers (adults + children) in a single vehicle, upgrade to the smallest
+  // cab in the group that can. Always 1 vehicle — never multiply.
+
+  const allCabTypes = loadedCabTypes; // full list, all active
+
+  // Preferred IDs: user-selected or is_default per group
+  const preferredCabIds = new Set<number>(
+    cab_type_ids && cab_type_ids.length > 0
+      ? cab_type_ids
+      : allCabTypes.filter((ct) => ct.is_default).map((ct) => ct.id),
+  );
+
+  type CabTypeRecord = (typeof allCabTypes)[0];
+  type EffectiveCabEntry = {
+    cab: CabTypeRecord;
+    upgraded: boolean;
+    originalVehicleName: string | null;
+  };
+
+  // Group all cabs by their first-segment day range
+  const cabsByRange = new Map<string, CabTypeRecord[]>();
+  for (const ct of allCabTypes) {
+    const firstSeg = ct.segments[0];
+    if (!firstSeg) continue;
+    const key = `${firstSeg.day_from}-${firstSeg.day_to}`;
+    if (!cabsByRange.has(key)) cabsByRange.set(key, []);
+    cabsByRange.get(key)!.push(ct);
+  }
+
+  // For each group, pick effective cab (upgrade if needed)
+  const passengers = Math.max(adults + children, 1);
+  const effectiveCabMap = new Map<string, EffectiveCabEntry>();
+
+  for (const [rangeKey, cabs] of cabsByRange) {
+    const preferred = cabs.find((ct) => preferredCabIds.has(ct.id));
+    if (!preferred) continue; // no preferred cab selected for this range — skip
+
+    if (preferred.vehicle.passenger_capacity >= passengers) {
+      effectiveCabMap.set(rangeKey, { cab: preferred, upgraded: false, originalVehicleName: null });
+    } else {
+      // Upgrade: find the smallest cab in this group that fits all passengers
+      const sorted = [...cabs].sort((a, b) => a.vehicle.passenger_capacity - b.vehicle.passenger_capacity);
+      const suitable = sorted.find((ct) => ct.vehicle.passenger_capacity >= passengers);
+      const effective = suitable ?? sorted[sorted.length - 1]; // fall back to largest if none fits
+      effectiveCabMap.set(rangeKey, {
+        cab: effective,
+        upgraded: effective.id !== preferred.id,
+        originalVehicleName: effective.id !== preferred.id ? preferred.vehicle.name : null,
+      });
+    }
+  }
 
   const margin_percentage = Number(pricingConfig?.margin_percentage ?? 10);
   const gst_percentage = Number(pricingConfig?.gst_percentage ?? 5);
@@ -502,13 +557,10 @@ export async function computePackagePrice(
     dayKmMap.set(itin.day, dayKm);
   }
 
-  // ── Pre-compute per-day cab cost for display in day breakdown ────────────
-  // Done before the days loop so each day's cab_cost is available when building DayPricingBreakdown.
+  // ── Pre-compute per-day cab cost (uses effective/upgraded cabs, always 1 vehicle) ─────
   const dayCabCostMap = new Map<number, number>();
-  for (const cabTypeData of loadedCabTypes) {
+  for (const { cab: cabTypeData } of effectiveCabMap.values()) {
     if (!cabTypeData.segments.length) continue;
-    const vehicleCapacity = Math.max(cabTypeData.vehicle.passenger_capacity, 1);
-    const numVehiclesEst = Math.ceil(Math.max(adults + children, 1) / vehicleCapacity);
 
     for (const seg of cabTypeData.segments) {
       const segStartDate = travelDateObj
@@ -526,10 +578,9 @@ export async function computePackagePrice(
             : null;
           const isWeekend = dayDate ? (dayDate.getDay() === 0 || dayDate.getDay() === 6) : false;
           const dayRate = isWeekend ? resolved.weekendPrice : resolved.weekdayPrice;
-          dayCabCostMap.set(d, (dayCabCostMap.get(d) ?? 0) + dayRate * numVehiclesEst);
+          dayCabCostMap.set(d, (dayCabCostMap.get(d) ?? 0) + dayRate); // ×1 vehicle
         }
       } else {
-        // PER_KM: distribute proportionally across days by each day's km share
         const totalKm = (() => {
           let s = 0;
           for (let d = seg.day_from; d <= seg.day_to; d++) s += dayKmMap.get(d) ?? 0;
@@ -538,7 +589,7 @@ export async function computePackagePrice(
         for (let d = seg.day_from; d <= seg.day_to; d++) {
           const dayKm = dayKmMap.get(d) ?? 0;
           if (totalKm > 0) {
-            dayCabCostMap.set(d, (dayCabCostMap.get(d) ?? 0) + resolved.weekdayPrice * dayKm * numVehiclesEst);
+            dayCabCostMap.set(d, (dayCabCostMap.get(d) ?? 0) + resolved.weekdayPrice * dayKm);
           }
         }
       }
@@ -784,62 +835,51 @@ export async function computePackagePrice(
     return { day: itin.day, day_title: itin.title, day_date: dayDateISO, hotel, meals, activities, transfers, cab_cost, day_total };
   });
 
-  // ── Cab cost computation ──────────────────────────────────────────────────
-  const cab_type_label =
-    loadedCabTypes.length > 0
-      ? loadedCabTypes.map((ct) => ct.label ?? ct.vehicle.name).join(" + ")
-      : null;
+  // ── Cab cost computation (1 vehicle per segment — upgrade if needed) ──────
+  const cab_type_label = effectiveCabMap.size > 0
+    ? Array.from(effectiveCabMap.values())
+        .map(({ cab, upgraded, originalVehicleName }) =>
+          upgraded ? `${cab.vehicle.name} ↑` : cab.vehicle.name,
+        )
+        .join(" + ")
+    : null;
+
   const cab_segments: CabSegmentBreakdown[] = [];
   let cab_subtotal = 0;
 
-  for (const cabTypeData of loadedCabTypes) {
+  for (const { cab: cabTypeData, upgraded, originalVehicleName } of effectiveCabMap.values()) {
     if (!cabTypeData.segments.length) continue;
-
-    const vehicleCapacity = Math.max(cabTypeData.vehicle.passenger_capacity, 1);
-    const numVehicles = Math.ceil(Math.max(adults + children, 1) / vehicleCapacity);
 
     for (const seg of cabTypeData.segments) {
       const segDays = seg.day_to - seg.day_from + 1;
-
-      // Use the first day's date to resolve season + pricing type (season valid for whole segment)
       const segStartDate = travelDateObj
         ? new Date(travelDateObj.getTime() + (seg.day_from - 1) * 24 * 60 * 60 * 1000)
         : null;
 
       const resolved = resolveCabPrice(
-        {
-          pricing_type: seg.cab_pricing.pricing_type,
-          price: seg.cab_pricing.price,
-          seasons: seg.cab_pricing.seasons,
-        },
+        { pricing_type: seg.cab_pricing.pricing_type, price: seg.cab_pricing.price, seasons: seg.cab_pricing.seasons },
         segStartDate,
       );
 
-      // Sum km from all itinerary days within [day_from, day_to]
       let segKm = 0;
-      for (let d = seg.day_from; d <= seg.day_to; d++) {
-        segKm += dayKmMap.get(d) ?? 0;
-      }
+      for (let d = seg.day_from; d <= seg.day_to; d++) segKm += dayKmMap.get(d) ?? 0;
 
       let segTotal = 0;
       let price_used = resolved.weekdayPrice;
 
       if (resolved.pricing_type === "PER_DAY") {
-        // Compute per-day total so weekend days get the weekend rate
         if (travelDateObj) {
           for (let d = seg.day_from; d <= seg.day_to; d++) {
             const dayDate = new Date(travelDateObj.getTime() + (d - 1) * 24 * 60 * 60 * 1000);
             const isWeekend = dayDate.getDay() === 0 || dayDate.getDay() === 6;
-            const dayRate = isWeekend ? resolved.weekendPrice : resolved.weekdayPrice;
-            segTotal += dayRate * numVehicles;
+            segTotal += isWeekend ? resolved.weekendPrice : resolved.weekdayPrice;
           }
         } else {
-          segTotal = resolved.weekdayPrice * segDays * numVehicles;
+          segTotal = resolved.weekdayPrice * segDays;
         }
-        price_used = resolved.weekdayPrice; // show weekday rate as reference in breakdown
+        price_used = resolved.weekdayPrice;
       } else {
-        // PER_KM: use the rate for the segment start date
-        segTotal = resolved.weekdayPrice * segKm * numVehicles;
+        segTotal = resolved.weekdayPrice * segKm;
         price_used = resolved.weekdayPrice;
       }
 
@@ -851,11 +891,14 @@ export async function computePackagePrice(
         days: segDays,
         km: segKm,
         vehicle_name: cabTypeData.vehicle.name,
+        vehicle_capacity: cabTypeData.vehicle.passenger_capacity,
         destination_name: seg.cab_pricing.destination.name,
         pricing_type: resolved.pricing_type,
         price_used,
         is_seasonal: resolved.is_seasonal,
-        num_vehicles: numVehicles,
+        num_vehicles: 1,
+        upgraded,
+        original_vehicle_name: originalVehicleName,
         total: segTotal,
       });
     }

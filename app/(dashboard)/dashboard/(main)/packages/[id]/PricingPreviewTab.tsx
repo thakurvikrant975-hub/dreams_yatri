@@ -413,6 +413,7 @@ function DayCard({ day }: { day: DayPricingBreakdown }) {
 function CabBreakdown({ segments }: { segments: CabSegmentBreakdown[] }) {
   const [open, setOpen] = useState(false);
   if (segments.length === 0) return null;
+  const hasUpgrade = segments.some((s) => s.upgraded);
 
   return (
     <div>
@@ -423,26 +424,39 @@ function CabBreakdown({ segments }: { segments: CabSegmentBreakdown[] }) {
       >
         {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
         {open ? "Hide" : "Show"} segment breakdown
+        {hasUpgrade && !open && (
+          <Badge variant="secondary" className="ml-1 text-[9px] px-1 py-0 gap-0.5 bg-amber-100 text-amber-700 border-amber-300">
+            ↑ Upgraded
+          </Badge>
+        )}
       </button>
       {open && (
-        <div className="mt-2 space-y-1.5 pl-1 border-l-2 border-orange-200">
+        <div className="mt-2 space-y-2 pl-1 border-l-2 border-orange-200">
           {segments.map((seg, i) => (
-            <div key={i} className="text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">
-                {seg.vehicle_name} · Day {seg.day_from}–{seg.day_to}
-              </span>
-              {" · "}{seg.destination_name}
-              {" · "}{seg.pricing_type === "PER_DAY" ? "Per Day" : "Per Km"}
-              {seg.is_seasonal && (
-                <Badge variant="secondary" className="ml-1 text-[9px] px-1 py-0 gap-0.5">
-                  <Sparkles className="h-2.5 w-2.5" />Seasonal
-                </Badge>
-              )}
-              <br />
-              {seg.pricing_type === "PER_DAY"
-                ? `₹${fmt(seg.price_used)} × ${seg.days} day${seg.days !== 1 ? "s" : ""} × ${seg.num_vehicles} cab${seg.num_vehicles !== 1 ? "s" : ""}`
-                : `₹${fmt(seg.price_used)}/km × ${seg.km} km × ${seg.num_vehicles} cab${seg.num_vehicles !== 1 ? "s" : ""}`}
-              {" = "}<span className="font-semibold text-orange-700">₹{fmt(seg.total)}</span>
+            <div key={i} className="text-xs text-muted-foreground space-y-0.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="font-medium text-foreground">
+                  {seg.vehicle_name}
+                </span>
+                <span className="text-muted-foreground/60">({seg.vehicle_capacity} seats)</span>
+                {seg.upgraded && (
+                  <Badge variant="secondary" className="text-[9px] px-1 py-0 bg-amber-100 text-amber-700 border border-amber-300">
+                    ↑ upgraded from {seg.original_vehicle_name}
+                  </Badge>
+                )}
+                <span>· Day {seg.day_from}–{seg.day_to} · {seg.destination_name}</span>
+                {seg.is_seasonal && (
+                  <Badge variant="secondary" className="text-[9px] px-1 py-0 gap-0.5">
+                    <Sparkles className="h-2.5 w-2.5" />Seasonal
+                  </Badge>
+                )}
+              </div>
+              <div>
+                {seg.pricing_type === "PER_DAY"
+                  ? `₹${fmt(seg.price_used)}/day × ${seg.days} day${seg.days !== 1 ? "s" : ""}`
+                  : `₹${fmt(seg.price_used)}/km × ${seg.km} km`}
+                {" = "}<span className="font-semibold text-orange-700">₹{fmt(seg.total)}</span>
+              </div>
             </div>
           ))}
         </div>
