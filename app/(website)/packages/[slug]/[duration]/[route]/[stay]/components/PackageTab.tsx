@@ -98,7 +98,7 @@ export default function PackageTab({
             {/* Sticky tab bar — positioned directly below the hero info band */}
             <div
                 ref={barRef}
-                className="sticky z-210 bg-white"
+                className="sticky z-210 bg-white mt-3 mb-4"
                 style={{
                     top:         infoHeight,
                     marginLeft:  'calc(50% - 50vw)',
