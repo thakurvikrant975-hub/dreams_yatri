@@ -22,6 +22,12 @@ import { ChildPoliciesTab } from "./tabs/ChildPoliciesTab";
 import { ImagesTab } from "./tabs/ImagesTab";
 import { MealsTab } from "./tabs/MealsTab";
 
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+    const { id: idStr } = await params;
+    const hotel = await getHotelById(Number(idStr));
+    return { title: hotel ? `${hotel.name} — Hotels` : "Hotel" };
+}
+
 export default async function HotelEditPage({
     params,
 }: {
