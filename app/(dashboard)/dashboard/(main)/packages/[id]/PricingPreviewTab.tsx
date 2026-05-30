@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useMemo } from "react";
 import {
   Card, CardContent, CardHeader, CardTitle,
 } from "../../components/ui/card";
@@ -600,19 +600,36 @@ export function PricingPreviewTab({
   const selectedDuration = durations.find((d) => d.id.toString() === durationId);
   const routes = selectedDuration?.routes ?? [];
 
-  // Cab groups for selected duration
-  const durationCabTypes = cabTypes.filter((ct) => ct.duration_id.toString() === durationId);
-  const durationCabGroups = groupCabTypesByRange(durationCabTypes);
+  // Cab groups for selected duration — memoised so effects can safely depend on it
+  const durationCabGroups = useMemo(
+    () => groupCabTypesByRange(cabTypes.filter((ct) => ct.duration_id.toString() === durationId)),
+    [durationId, cabTypes],
+  );
 
   const adultsNum = Math.max(1, parseInt(adults) || 1);
   const childrenNum = Math.max(0, parseInt(children) || 0);
 
-  // Reset route + cab selections when duration changes
+  // Reset route when duration changes
   useEffect(() => {
     setRouteId(routes[0]?.id.toString() ?? "");
-    setGroupCabSelections(initGroupSelections(cabTypes, durationId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [durationId]);
+
+  // Auto-select optimal cab whenever passengers or duration groups change.
+  // Picks the smallest cab per group whose capacity >= adults + children.
+  // Falls back to the largest available if no single cab fits.
+  useEffect(() => {
+    const passengers = adultsNum + childrenNum;
+    setGroupCabSelections(() => {
+      const map = new Map<string, number | null>();
+      for (const group of durationCabGroups) {
+        const sorted = [...group.cabTypes].sort((a, b) => a.vehicle.capacity - b.vehicle.capacity);
+        const optimal = sorted.find((ct) => ct.vehicle.capacity >= passengers) ?? sorted[sorted.length - 1];
+        map.set(group.groupKey, optimal?.id ?? null);
+      }
+      return map;
+    });
+  }, [adultsNum, childrenNum, durationCabGroups]);
 
   // Auto-calculate on mount with defaults
   useEffect(() => {
@@ -767,39 +784,62 @@ export function PricingPreviewTab({
                 )}
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {durationCabGroups.map((group) => (
-                  <div key={group.groupKey} className="space-y-1.5">
-                    <label className="text-xs text-muted-foreground">
-                      Day {group.dayFrom}–{group.dayTo}
-                    </label>
-                    <Select
-                      value={groupCabSelections.get(group.groupKey)?.toString() ?? ""}
-                      onValueChange={(val) =>
-                        setGroupCabSelections((prev) => {
-                          const next = new Map(prev);
-                          next.set(group.groupKey, parseInt(val));
-                          return next;
-                        })
-                      }
-                    >
-                      <SelectTrigger className="text-sm h-9">
-                        <SelectValue placeholder="Select cab…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {group.cabTypes.map((ct) => {
-                          const est = estimateCabCost(ct, travelDate, adultsNum, childrenNum);
-                          return (
-                            <SelectItem key={ct.id} value={ct.id.toString()}>
-                              {ct.label}
-                              {ct.is_default ? " ★" : ""}
-                              {est > 0 ? ` · est. ₹${fmt(est)}` : ""}
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ))}
+                {durationCabGroups.map((group) => {
+                  const passengers = adultsNum + childrenNum;
+                  const selectedId = groupCabSelections.get(group.groupKey) ?? null;
+                  const selectedCt = group.cabTypes.find((ct) => ct.id === selectedId);
+                  const defaultCt = group.cabTypes.find((ct) => ct.is_default) ?? group.cabTypes[0];
+                  const isUpgraded = selectedId !== null && selectedId !== defaultCt?.id;
+                  const tooSmall = selectedCt ? selectedCt.vehicle.capacity < passengers : false;
+
+                  return (
+                    <div key={group.groupKey} className="space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-xs text-muted-foreground">
+                          Day {group.dayFrom}–{group.dayTo}
+                        </label>
+                        {isUpgraded && (
+                          <Badge className="text-[9px] px-1.5 py-0 h-4 bg-amber-100 text-amber-700 border border-amber-300 hover:bg-amber-100">
+                            ↑ Upgraded
+                          </Badge>
+                        )}
+                        {tooSmall && (
+                          <Badge className="text-[9px] px-1.5 py-0 h-4 bg-red-100 text-red-700 border border-red-300 hover:bg-red-100">
+                            Too small
+                          </Badge>
+                        )}
+                      </div>
+                      <Select
+                        value={selectedId?.toString() ?? ""}
+                        onValueChange={(val) =>
+                          setGroupCabSelections((prev) => {
+                            const next = new Map(prev);
+                            next.set(group.groupKey, parseInt(val));
+                            return next;
+                          })
+                        }
+                      >
+                        <SelectTrigger className="text-sm h-9">
+                          <SelectValue placeholder="Select cab…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {group.cabTypes.map((ct) => {
+                            const est = estimateCabCost(ct, travelDate, adultsNum, childrenNum);
+                            const fits = ct.vehicle.capacity >= passengers;
+                            return (
+                              <SelectItem key={ct.id} value={ct.id.toString()}>
+                                {ct.label} · {ct.vehicle.capacity} seats
+                                {ct.is_default ? " ★" : ""}
+                                {!fits ? " ✗" : ""}
+                                {est > 0 ? ` · ₹${fmt(est)}` : ""}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ) : (
