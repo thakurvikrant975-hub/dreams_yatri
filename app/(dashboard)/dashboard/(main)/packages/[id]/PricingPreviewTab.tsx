@@ -309,27 +309,18 @@ function DayCard({ day }: { day: DayPricingBreakdown }) {
                 label={`${day.hotel.hotel_name}${day.hotel.room_name ? ` · ${day.hotel.room_name}` : ""}`}
                 detail={[
                   `${day.hotel.rooms_count} room${day.hotel.rooms_count !== 1 ? "s" : ""} × ₹${fmt(day.hotel.price_per_room)}/night × ${day.hotel.num_nights} night${day.hotel.num_nights !== 1 ? "s" : ""}`,
-                  `max ${day.hotel.max_occupancy} pax/room`,
+                  `${day.hotel.bed_capacity} on bed${day.hotel.extra_bed_capacity > 0 ? ` +${day.hotel.extra_bed_capacity} mattress` : ""}/room`,
                   day.hotel.plan_name ?? null,
                 ].filter(Boolean).join(" · ")}
                 amount={day.hotel.rooms_count * day.hotel.price_per_room * day.hotel.num_nights}
                 variant="hotel"
               />
-              {day.hotel.child_charge > 0 && (
+              {day.hotel.mattresses_count > 0 && (
                 <LineItem
-                  icon={<Users className="h-3.5 w-3.5" />}
-                  label="Child charges"
-                  detail={`Hotel child policy · ${day.hotel.num_nights} night${day.hotel.num_nights !== 1 ? "s" : ""}`}
-                  amount={day.hotel.child_charge}
-                  variant="hotel"
-                />
-              )}
-              {day.hotel.infant_charge > 0 && (
-                <LineItem
-                  icon={<Baby className="h-3.5 w-3.5" />}
-                  label="Infant charges"
-                  detail="Hotel infant policy"
-                  amount={day.hotel.infant_charge}
+                  icon={<Bed className="h-3.5 w-3.5" />}
+                  label={`Extra mattress${day.hotel.mattresses_count !== 1 ? "es" : ""}`}
+                  detail={`${day.hotel.mattresses_count} × ₹${fmt(day.hotel.extra_bed_rate)}/night × ${day.hotel.num_nights} night${day.hotel.num_nights !== 1 ? "s" : ""}`}
+                  amount={day.hotel.mattresses_count * day.hotel.extra_bed_rate * day.hotel.num_nights}
                   variant="hotel"
                 />
               )}

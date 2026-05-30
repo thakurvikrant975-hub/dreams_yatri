@@ -21,12 +21,13 @@ export type DayHotelLine = {
   hotel_name: string;
   room_name: string | null;
   plan_name: string | null;
-  max_occupancy: number;
-  rooms_count: number;        // ceil(adults / max_occupancy)
-  price_per_room: number;     // occupancy-specific or base price_per_night
-  num_nights: number;         // stay duration
-  child_charge: number;       // from hotel_child_policies (per night, already × num_nights)
-  infant_charge: number;      // typically 0
+  bed_capacity: number;       // people who sleep on standard beds (max_occupancy)
+  extra_bed_capacity: number; // additional mattresses allowed per room
+  rooms_count: number;
+  price_per_room: number;
+  mattresses_count: number;   // total extra mattresses needed
+  extra_bed_rate: number;     // price per mattress per night
+  num_nights: number;
   total: number;
 };
 
@@ -334,14 +335,10 @@ export async function computePackagePrice(
                   select: {
                     id: true,
                     name: true,
-                    childPolicies: {
-                      where: { is_active: true },
-                      orderBy: { sort_order: "asc" },
-                      select: { charge_type: true, price: true, age_from: true, age_to: true },
-                    },
                   },
                 },
-                room: { select: { name: true, max_occupancy: true } },
+                extra_bed_rate: true,
+                room: { select: { name: true, max_occupancy: true, extra_bed_capacity: true } },
                 occupancy_prices: {
                   orderBy: { occupancy: "asc" },
                   select: { occupancy: true, price_per_night: true },
@@ -622,11 +619,22 @@ export async function computePackagePrice(
     let hotel: DayHotelLine | null = null;
 
     if (stay) {
-      const maxOccupancy = stay.room_pricing.room?.max_occupancy || 2;
-      const roomsNeeded = Math.ceil(Math.max(adults, 1) / maxOccupancy);
+      // ── Room & mattress capacity ──────────────────────────────────────────
+      // bed_capacity  = people who sleep on standard beds (max_occupancy on the room)
+      // extra_bed_cap = additional people on mattresses per room
+      // effective_cap = bed_capacity + extra_bed_cap (total per room)
+      // persons       = adults + children (infants excluded from room count)
+      const bedCapacity   = stay.room_pricing.room?.max_occupancy ?? 2;
+      const extraBedCap   = stay.room_pricing.room?.extra_bed_capacity ?? 1;
+      const effectiveCap  = bedCapacity + extraBedCap;
+      const persons       = Math.max(adults + children, 1);
+      const roomsNeeded   = Math.ceil(persons / effectiveCap);
+      const mattresses    = Math.max(0, persons - roomsNeeded * bedCapacity);
+      const extraBedRate  = stay.room_pricing.extra_bed_rate ? Number(stay.room_pricing.extra_bed_rate) : 0;
+      const numNights     = stay.num_nights;
 
-      const typicalOccupancy = Math.min(adults, maxOccupancy);
-      // Use the actual date for this day so weekend/seasonal rates apply correctly
+      // Resolve room price (seasonal / occupancy-based)
+      const typicalOccupancy = Math.min(adults, bedCapacity);
       const { basePrice, occPrices } = resolveHotelSeasonPricing(stay.room_pricing, dayDate);
       let pricePerRoom = basePrice;
       if (occPrices.length > 0) {
@@ -635,43 +643,21 @@ export async function computePackagePrice(
         pricePerRoom = Number(match.price_per_night);
       }
 
-      const numNights = stay.num_nights;
-      let childCharge = 0;
-      const childPolicies = stay.room_pricing.hotel?.childPolicies ?? [];
-      if (children > 0 && childPolicies.length > 0) {
-        if (child_ages && child_ages.length === children) {
-          for (const age of child_ages) {
-            const policy = childPolicies.find(p => age >= p.age_from && age <= p.age_to);
-            if (policy) {
-              const pp = Number(policy.price ?? 0);
-              const ct = policy.charge_type.toUpperCase();
-              if (ct === "FIXED_PRICE" || ct === "FIXED") childCharge += pp;
-              else if (ct === "PERCENTAGE") childCharge += (pricePerRoom * pp) / 100;
-            }
-          }
-        } else {
-          const policy = childPolicies[0];
-          const pp = Number(policy.price ?? 0);
-          const ct = policy.charge_type.toUpperCase();
-          if (ct === "FIXED_PRICE" || ct === "FIXED") childCharge = pp * children;
-          else if (ct === "PERCENTAGE") childCharge = (pricePerRoom * pp) / 100 * children;
-        }
-      }
-      // Multiply child charge by nights
-      childCharge = childCharge * numNights;
+      const roomCost     = roomsNeeded * pricePerRoom * numNights;
+      const mattressCost = mattresses * extraBedRate * numNights;
+      const total        = roomCost + mattressCost;
 
-      const infantCharge = 0;
-      const total = (roomsNeeded * pricePerRoom * numNights) + childCharge + infantCharge;
       hotel = {
         hotel_name: stay.room_pricing.hotel.name,
         room_name: stay.room_pricing.room?.name ?? null,
         plan_name: stay.room_pricing.plan_name,
-        max_occupancy: maxOccupancy,
+        bed_capacity: bedCapacity,
+        extra_bed_capacity: extraBedCap,
         rooms_count: roomsNeeded,
         price_per_room: pricePerRoom,
+        mattresses_count: mattresses,
+        extra_bed_rate: extraBedRate,
         num_nights: numNights,
-        child_charge: childCharge,
-        infant_charge: infantCharge,
         total,
       };
       hotel_subtotal += total;
