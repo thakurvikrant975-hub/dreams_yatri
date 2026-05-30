@@ -50,6 +50,7 @@ type DBRoom = {
   bed_type: string | null;
   view_type: string | null;
   max_occupancy: number;
+  extra_bed_capacity: number;
   amenities: unknown;
   features: unknown;
   bathroom: unknown;
@@ -74,6 +75,7 @@ type RoomFormState = {
   view_type: string;
   area_sqft: string;
   max_occupancy: number;
+  extra_bed_capacity: number;
   description: string;
   amenities: string[];
   features: string[];
@@ -87,7 +89,8 @@ const EMPTY_FORM: RoomFormState = {
   bed_type: "",
   view_type: "",
   area_sqft: "",
-  max_occupancy: 3,
+  max_occupancy: 2,
+  extra_bed_capacity: 1,
   description: "",
   amenities: [],
   features: [],
@@ -105,6 +108,7 @@ function toFormState(room: DBRoom): RoomFormState {
     view_type: room.view_type ?? "",
     area_sqft: room.area_sqft ? String(room.area_sqft) : "",
     max_occupancy: room.max_occupancy,
+    extra_bed_capacity: room.extra_bed_capacity,
     description: room.description ?? "",
     amenities: Array.isArray(room.amenities) ? (room.amenities as string[]) : [],
     features: Array.isArray(room.features) ? (room.features as string[]) : [],
@@ -121,6 +125,7 @@ function buildFormData(form: RoomFormState): FormData {
   fd.append("view_type", form.view_type);
   fd.append("area_sqft", form.area_sqft);
   fd.append("max_occupancy", String(form.max_occupancy));
+  fd.append("extra_bed_capacity", String(form.extra_bed_capacity));
   fd.append("description", form.description);
   fd.append("amenities", JSON.stringify(form.amenities));
   fd.append("features", JSON.stringify(form.features));
@@ -238,10 +243,18 @@ function RoomForm({
             className="bg-dashboard-base-100 border-dashboard-base-content/20" />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-sm text-dashboard-base-content">Max Occupancy</Label>
+          <Label className="text-sm text-dashboard-base-content">Bed Capacity (on beds)</Label>
           <Input type="number" min={1} max={20} value={form.max_occupancy}
             onChange={(e) => update("max_occupancy", Number(e.target.value))}
             className="bg-dashboard-base-100 border-dashboard-base-content/20" />
+          <p className="text-[10px] text-dashboard-base-content/50">People who sleep on standard beds</p>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-sm text-dashboard-base-content">Extra Mattresses</Label>
+          <Input type="number" min={0} max={10} value={form.extra_bed_capacity}
+            onChange={(e) => update("extra_bed_capacity", Number(e.target.value))}
+            className="bg-dashboard-base-100 border-dashboard-base-content/20" />
+          <p className="text-[10px] text-dashboard-base-content/50">Additional people on mattresses per room</p>
         </div>
       </div>
 
@@ -522,7 +535,7 @@ function RoomRow({
             {room.bed_type && <span className="text-xs text-dashboard-base-content/50">{room.bed_type}</span>}
             {room.view_type && <span className="text-xs text-dashboard-base-content/50">· {room.view_type}</span>}
             {room.area_sqft && <span className="text-xs text-dashboard-base-content/50">· {room.area_sqft} sq ft</span>}
-            <span className="text-xs text-dashboard-base-content/50">· {room.max_occupancy} guests</span>
+            <span className="text-xs text-dashboard-base-content/50">· {room.max_occupancy} on bed{room.extra_bed_capacity > 0 ? ` +${room.extra_bed_capacity} mattress` : ""}</span>
             {amenities.slice(0, 3).map((a) => (
               <Badge key={a} className="text-[10px] px-1.5 py-0 bg-dashboard-primary/10 text-dashboard-primary border border-dashboard-primary/20">{a}</Badge>
             ))}
@@ -621,6 +634,7 @@ export function RoomsTab({
             view_type: form.view_type || null,
             area_sqft: form.area_sqft ? Number(form.area_sqft) : null,
             max_occupancy: form.max_occupancy,
+            extra_bed_capacity: form.extra_bed_capacity,
             description: form.description || null,
             amenities: form.amenities,
             features: form.features,
@@ -661,6 +675,7 @@ export function RoomsTab({
                   view_type: form.view_type || null,
                   area_sqft: form.area_sqft ? Number(form.area_sqft) : null,
                   max_occupancy: form.max_occupancy,
+                  extra_bed_capacity: form.extra_bed_capacity,
                   description: form.description || null,
                   amenities: form.amenities,
                   features: form.features,

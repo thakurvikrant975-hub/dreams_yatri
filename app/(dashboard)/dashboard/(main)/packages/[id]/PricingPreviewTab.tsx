@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useMemo } from "react";
 import {
   Card, CardContent, CardHeader, CardTitle,
 } from "../../components/ui/card";
@@ -309,27 +309,18 @@ function DayCard({ day }: { day: DayPricingBreakdown }) {
                 label={`${day.hotel.hotel_name}${day.hotel.room_name ? ` · ${day.hotel.room_name}` : ""}`}
                 detail={[
                   `${day.hotel.rooms_count} room${day.hotel.rooms_count !== 1 ? "s" : ""} × ₹${fmt(day.hotel.price_per_room)}/night × ${day.hotel.num_nights} night${day.hotel.num_nights !== 1 ? "s" : ""}`,
-                  `max ${day.hotel.max_occupancy} pax/room`,
+                  `${day.hotel.bed_capacity} on bed${day.hotel.extra_bed_capacity > 0 ? ` +${day.hotel.extra_bed_capacity} mattress` : ""}/room`,
                   day.hotel.plan_name ?? null,
                 ].filter(Boolean).join(" · ")}
                 amount={day.hotel.rooms_count * day.hotel.price_per_room * day.hotel.num_nights}
                 variant="hotel"
               />
-              {day.hotel.child_charge > 0 && (
+              {day.hotel.mattresses_count > 0 && (
                 <LineItem
-                  icon={<Users className="h-3.5 w-3.5" />}
-                  label="Child charges"
-                  detail={`Hotel child policy · ${day.hotel.num_nights} night${day.hotel.num_nights !== 1 ? "s" : ""}`}
-                  amount={day.hotel.child_charge}
-                  variant="hotel"
-                />
-              )}
-              {day.hotel.infant_charge > 0 && (
-                <LineItem
-                  icon={<Baby className="h-3.5 w-3.5" />}
-                  label="Infant charges"
-                  detail="Hotel infant policy"
-                  amount={day.hotel.infant_charge}
+                  icon={<Bed className="h-3.5 w-3.5" />}
+                  label={`Extra mattress${day.hotel.mattresses_count !== 1 ? "es" : ""}`}
+                  detail={`${day.hotel.mattresses_count} × ₹${fmt(day.hotel.extra_bed_rate)}/night × ${day.hotel.num_nights} night${day.hotel.num_nights !== 1 ? "s" : ""}`}
+                  amount={day.hotel.mattresses_count * day.hotel.extra_bed_rate * day.hotel.num_nights}
                   variant="hotel"
                 />
               )}
@@ -422,6 +413,7 @@ function DayCard({ day }: { day: DayPricingBreakdown }) {
 function CabBreakdown({ segments }: { segments: CabSegmentBreakdown[] }) {
   const [open, setOpen] = useState(false);
   if (segments.length === 0) return null;
+  const hasUpgrade = segments.some((s) => s.upgraded);
 
   return (
     <div>
@@ -432,26 +424,39 @@ function CabBreakdown({ segments }: { segments: CabSegmentBreakdown[] }) {
       >
         {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
         {open ? "Hide" : "Show"} segment breakdown
+        {hasUpgrade && !open && (
+          <Badge variant="secondary" className="ml-1 text-[9px] px-1 py-0 gap-0.5 bg-amber-100 text-amber-700 border-amber-300">
+            ↑ Upgraded
+          </Badge>
+        )}
       </button>
       {open && (
-        <div className="mt-2 space-y-1.5 pl-1 border-l-2 border-orange-200">
+        <div className="mt-2 space-y-2 pl-1 border-l-2 border-orange-200">
           {segments.map((seg, i) => (
-            <div key={i} className="text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">
-                {seg.vehicle_name} · Day {seg.day_from}–{seg.day_to}
-              </span>
-              {" · "}{seg.destination_name}
-              {" · "}{seg.pricing_type === "PER_DAY" ? "Per Day" : "Per Km"}
-              {seg.is_seasonal && (
-                <Badge variant="secondary" className="ml-1 text-[9px] px-1 py-0 gap-0.5">
-                  <Sparkles className="h-2.5 w-2.5" />Seasonal
-                </Badge>
-              )}
-              <br />
-              {seg.pricing_type === "PER_DAY"
-                ? `₹${fmt(seg.price_used)} × ${seg.days} day${seg.days !== 1 ? "s" : ""} × ${seg.num_vehicles} cab${seg.num_vehicles !== 1 ? "s" : ""}`
-                : `₹${fmt(seg.price_used)}/km × ${seg.km} km × ${seg.num_vehicles} cab${seg.num_vehicles !== 1 ? "s" : ""}`}
-              {" = "}<span className="font-semibold text-orange-700">₹{fmt(seg.total)}</span>
+            <div key={i} className="text-xs text-muted-foreground space-y-0.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="font-medium text-foreground">
+                  {seg.vehicle_name}
+                </span>
+                <span className="text-muted-foreground/60">({seg.vehicle_capacity} seats)</span>
+                {seg.upgraded && (
+                  <Badge variant="secondary" className="text-[9px] px-1 py-0 bg-amber-100 text-amber-700 border border-amber-300">
+                    ↑ upgraded from {seg.original_vehicle_name}
+                  </Badge>
+                )}
+                <span>· Day {seg.day_from}–{seg.day_to} · {seg.destination_name}</span>
+                {seg.is_seasonal && (
+                  <Badge variant="secondary" className="text-[9px] px-1 py-0 gap-0.5">
+                    <Sparkles className="h-2.5 w-2.5" />Seasonal
+                  </Badge>
+                )}
+              </div>
+              <div>
+                {seg.pricing_type === "PER_DAY"
+                  ? `₹${fmt(seg.price_used)}/day × ${seg.days} day${seg.days !== 1 ? "s" : ""}`
+                  : `₹${fmt(seg.price_used)}/km × ${seg.km} km`}
+                {" = "}<span className="font-semibold text-orange-700">₹{fmt(seg.total)}</span>
+              </div>
             </div>
           ))}
         </div>
@@ -595,19 +600,36 @@ export function PricingPreviewTab({
   const selectedDuration = durations.find((d) => d.id.toString() === durationId);
   const routes = selectedDuration?.routes ?? [];
 
-  // Cab groups for selected duration
-  const durationCabTypes = cabTypes.filter((ct) => ct.duration_id.toString() === durationId);
-  const durationCabGroups = groupCabTypesByRange(durationCabTypes);
+  // Cab groups for selected duration — memoised so effects can safely depend on it
+  const durationCabGroups = useMemo(
+    () => groupCabTypesByRange(cabTypes.filter((ct) => ct.duration_id.toString() === durationId)),
+    [durationId, cabTypes],
+  );
 
   const adultsNum = Math.max(1, parseInt(adults) || 1);
   const childrenNum = Math.max(0, parseInt(children) || 0);
 
-  // Reset route + cab selections when duration changes
+  // Reset route when duration changes
   useEffect(() => {
     setRouteId(routes[0]?.id.toString() ?? "");
-    setGroupCabSelections(initGroupSelections(cabTypes, durationId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [durationId]);
+
+  // Auto-select optimal cab whenever passengers or duration groups change.
+  // Picks the smallest cab per group whose capacity >= adults + children.
+  // Falls back to the largest available if no single cab fits.
+  useEffect(() => {
+    const passengers = adultsNum + childrenNum;
+    setGroupCabSelections(() => {
+      const map = new Map<string, number | null>();
+      for (const group of durationCabGroups) {
+        const sorted = [...group.cabTypes].sort((a, b) => a.vehicle.capacity - b.vehicle.capacity);
+        const optimal = sorted.find((ct) => ct.vehicle.capacity >= passengers) ?? sorted[sorted.length - 1];
+        map.set(group.groupKey, optimal?.id ?? null);
+      }
+      return map;
+    });
+  }, [adultsNum, childrenNum, durationCabGroups]);
 
   // Auto-calculate on mount with defaults
   useEffect(() => {
@@ -762,39 +784,62 @@ export function PricingPreviewTab({
                 )}
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {durationCabGroups.map((group) => (
-                  <div key={group.groupKey} className="space-y-1.5">
-                    <label className="text-xs text-muted-foreground">
-                      Day {group.dayFrom}–{group.dayTo}
-                    </label>
-                    <Select
-                      value={groupCabSelections.get(group.groupKey)?.toString() ?? ""}
-                      onValueChange={(val) =>
-                        setGroupCabSelections((prev) => {
-                          const next = new Map(prev);
-                          next.set(group.groupKey, parseInt(val));
-                          return next;
-                        })
-                      }
-                    >
-                      <SelectTrigger className="text-sm h-9">
-                        <SelectValue placeholder="Select cab…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {group.cabTypes.map((ct) => {
-                          const est = estimateCabCost(ct, travelDate, adultsNum, childrenNum);
-                          return (
-                            <SelectItem key={ct.id} value={ct.id.toString()}>
-                              {ct.label}
-                              {ct.is_default ? " ★" : ""}
-                              {est > 0 ? ` · est. ₹${fmt(est)}` : ""}
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ))}
+                {durationCabGroups.map((group) => {
+                  const passengers = adultsNum + childrenNum;
+                  const selectedId = groupCabSelections.get(group.groupKey) ?? null;
+                  const selectedCt = group.cabTypes.find((ct) => ct.id === selectedId);
+                  const defaultCt = group.cabTypes.find((ct) => ct.is_default) ?? group.cabTypes[0];
+                  const isUpgraded = selectedId !== null && selectedId !== defaultCt?.id;
+                  const tooSmall = selectedCt ? selectedCt.vehicle.capacity < passengers : false;
+
+                  return (
+                    <div key={group.groupKey} className="space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-xs text-muted-foreground">
+                          Day {group.dayFrom}–{group.dayTo}
+                        </label>
+                        {isUpgraded && (
+                          <Badge className="text-[9px] px-1.5 py-0 h-4 bg-amber-100 text-amber-700 border border-amber-300 hover:bg-amber-100">
+                            ↑ Upgraded
+                          </Badge>
+                        )}
+                        {tooSmall && (
+                          <Badge className="text-[9px] px-1.5 py-0 h-4 bg-red-100 text-red-700 border border-red-300 hover:bg-red-100">
+                            Too small
+                          </Badge>
+                        )}
+                      </div>
+                      <Select
+                        value={selectedId?.toString() ?? ""}
+                        onValueChange={(val) =>
+                          setGroupCabSelections((prev) => {
+                            const next = new Map(prev);
+                            next.set(group.groupKey, parseInt(val));
+                            return next;
+                          })
+                        }
+                      >
+                        <SelectTrigger className="text-sm h-9">
+                          <SelectValue placeholder="Select cab…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {group.cabTypes.map((ct) => {
+                            const est = estimateCabCost(ct, travelDate, adultsNum, childrenNum);
+                            const fits = ct.vehicle.capacity >= passengers;
+                            return (
+                              <SelectItem key={ct.id} value={ct.id.toString()}>
+                                {ct.label} · {ct.vehicle.capacity} seats
+                                {ct.is_default ? " ★" : ""}
+                                {!fits ? " ✗" : ""}
+                                {est > 0 ? ` · ₹${fmt(est)}` : ""}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ) : (
