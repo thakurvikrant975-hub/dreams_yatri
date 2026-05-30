@@ -9,30 +9,15 @@ import {
     type ReactNode,
 } from 'react';
 import { handleComputePackagePrice } from '@/app/actions/packages/pricing.actions';
-import type {
-    DayPricingBreakdown,
-    CabSegmentBreakdown,
-} from '@/app/services/package-pricing.service';
 
-// ── Safe pricing — margin / base_cost excluded (business-sensitive) ──────────
+// ── Safe pricing — only these fields reach the browser ──────────────────────
+// margin, base_cost, per-component subtotals are intentionally excluded.
+
 export interface SafePricing {
-    pricePerAdult:       number;
-    finalPrice:          number;
-    gstAmount:           number;
-    gstPercentage:       number;
-    // Full breakdown (no margin details)
-    days:                DayPricingBreakdown[];
-    hotel_subtotal:      number;
-    meal_subtotal:       number;
-    activity_subtotal:   number;
-    cab_subtotal:        number;
-    cab_segments:        CabSegmentBreakdown[];
-    cab_type_label:      string | null;
-    duration_label:      string;
-    stay_category_label: string;
-    adults:              number;
-    children:            number;
-    infants:             number;
+    pricePerAdult: number;
+    finalPrice:    number;
+    gstAmount:     number;
+    gstPercentage: number;
 }
 
 export interface BookingContextValue {
@@ -128,24 +113,11 @@ export function PackageBookingProvider({
                     travel_date:      travelDate || null,   // ← was silently ignored before
                 });
                 if (res.success) {
-                    const d = res.data;
                     setPricing({
-                        pricePerAdult:       Math.round(d.price_per_adult),
-                        finalPrice:          Math.round(d.final_price),
-                        gstAmount:           Math.round(d.gst_amount),
-                        gstPercentage:       d.gst_percentage,
-                        days:                d.days,
-                        hotel_subtotal:      Math.round(d.hotel_subtotal),
-                        meal_subtotal:       Math.round(d.meal_subtotal),
-                        activity_subtotal:   Math.round(d.activity_subtotal),
-                        cab_subtotal:        Math.round(d.cab_subtotal),
-                        cab_segments:        d.cab_segments,
-                        cab_type_label:      d.cab_type_label,
-                        duration_label:      d.duration_label,
-                        stay_category_label: d.stay_category_label,
-                        adults:              d.adults,
-                        children:            d.children,
-                        infants:             d.infants,
+                        pricePerAdult: Math.round(res.data.price_per_adult),
+                        finalPrice:    Math.round(res.data.final_price),
+                        gstAmount:     Math.round(res.data.gst_amount),
+                        gstPercentage: res.data.gst_percentage,
                     });
                 }
             } finally {
