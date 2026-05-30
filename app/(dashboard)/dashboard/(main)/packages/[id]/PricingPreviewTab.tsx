@@ -160,7 +160,7 @@ function Chip({ children, color = "default" }: { children: React.ReactNode; colo
     default:"bg-muted/60  border-border      text-muted-foreground",
   }[color];
   return (
-    <span className={cn("inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium leading-none", cls)}>
+    <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium leading-none", cls)}>
       {children}
     </span>
   );
@@ -174,7 +174,7 @@ function TransferRow({ transfer, cabCost }: {
 }) {
   return (
     <div className="flex items-center gap-2 py-1.5">
-      <div className="h-6 w-6 rounded-md flex items-center justify-center shrink-0 bg-orange-50 text-orange-600">
+      <div className="h-6 w-6 rounded-lg flex items-center justify-center shrink-0 bg-orange-50 text-orange-600">
         <Car className="h-3.5 w-3.5" />
       </div>
       <div className="flex-1 min-w-0">
@@ -203,7 +203,7 @@ function DayCard({ day }: { day: DayPricingBreakdown }) {
   const hasContent = day.hotel || day.meals.length > 0 || included.length > 0 || optional.length > 0 || day.transfers.length > 0;
 
   return (
-    <Card className="overflow-hidden border border-border/60 shadow-sm">
+    <Card className="overflow-hidden border border-border/60 shadow-sm rounded-2xl">
       {/* Header */}
       <button
         type="button"
@@ -211,7 +211,7 @@ function DayCard({ day }: { day: DayPricingBreakdown }) {
         className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/20 transition-colors text-left group"
       >
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+          <div className="h-7 w-7 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
             <span className="text-xs font-bold text-primary">{day.day}</span>
           </div>
           <div className="min-w-0">
@@ -241,11 +241,11 @@ function DayCard({ day }: { day: DayPricingBreakdown }) {
           <div className="space-y-2">
             {/* ── Hotel ────────────────────────────────────────────────── */}
             {day.hotel ? (
-              <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3 space-y-2">
+              <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-3 space-y-2">
                 {/* Hotel name + room */}
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
-                    <div className="h-5 w-5 rounded bg-blue-100 flex items-center justify-center shrink-0">
+                    <div className="h-5 w-5 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
                       <Hotel className="h-3 w-3 text-blue-600" />
                     </div>
                     <div className="min-w-0">
@@ -290,14 +290,14 @@ function DayCard({ day }: { day: DayPricingBreakdown }) {
                 )}
               </div>
             ) : (
-              <div className="rounded-lg border border-dashed border-muted-foreground/20 px-3 py-2">
+              <div className="rounded-2xl border border-dashed border-muted-foreground/20 px-3 py-2">
                 <p className="text-[10px] text-muted-foreground/50 italic">No stay mapped for this category</p>
               </div>
             )}
 
             {/* ── Meals ──────────────────────────────────────────────── */}
             {day.meals.length > 0 && (
-              <div className="rounded-lg border border-amber-100 bg-amber-50/50 p-3 space-y-2">
+              <div className="rounded-xl border border-amber-100 bg-amber-50/50 p-3 space-y-2">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-700 flex items-center gap-1">
                   <UtensilsCrossed className="h-3 w-3" /> Meals
                 </p>
@@ -316,7 +316,7 @@ function DayCard({ day }: { day: DayPricingBreakdown }) {
 
             {/* ── Activities ─────────────────────────────────────────── */}
             {(included.length > 0 || optional.length > 0) && (
-              <div className="rounded-lg border border-green-100 bg-green-50/50 p-3 space-y-2">
+              <div className="rounded-xl border border-green-100 bg-green-50/50 p-3 space-y-2">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-green-700 flex items-center gap-1">
                   <Zap className="h-3 w-3" /> Activities
                 </p>
@@ -362,7 +362,7 @@ function DayCard({ day }: { day: DayPricingBreakdown }) {
 
             {/* ── Transfers / Cab ─────────────────────────────────────── */}
             {(day.transfers.length > 0 || day.cab_cost > 0) && (
-              <div className="rounded-lg border border-orange-100 bg-orange-50/50 p-3 space-y-1">
+              <div className="rounded-xl border border-orange-100 bg-orange-50/50 p-3 space-y-1">
                 {day.transfers.map((t, idx) => (
                   <TransferRow
                     key={t.id}
@@ -373,7 +373,7 @@ function DayCard({ day }: { day: DayPricingBreakdown }) {
                 {day.transfers.length === 0 && day.cab_cost > 0 && (
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div className="h-5 w-5 rounded bg-orange-100 flex items-center justify-center">
+                      <div className="h-5 w-5 rounded-lg bg-orange-100 flex items-center justify-center">
                         <Car className="h-3 w-3 text-orange-600" />
                       </div>
                       <span className="text-sm font-medium text-orange-900">Cab</span>
@@ -460,11 +460,11 @@ function SummaryCard({ breakdown }: { breakdown: FullPricingBreakdown }) {
   ].filter((r) => r.value > 0);
 
   return (
-    <Card className="border border-violet-200/60 shadow-sm sticky top-4">
+    <Card className="border border-violet-200/60 shadow-sm sticky top-4 rounded-2xl overflow-hidden">
       {/* Header */}
-      <div className="px-4 pt-4 pb-3 border-b border-violet-100 bg-violet-50/50 rounded-t-xl">
+      <div className="px-4 pt-4 pb-3 border-b border-violet-100 bg-violet-50/50">
         <div className="flex items-center gap-2 mb-1.5">
-          <div className="h-7 w-7 rounded-lg bg-violet-100 flex items-center justify-center">
+          <div className="h-7 w-7 rounded-xl bg-violet-100 flex items-center justify-center">
             <IndianRupee className="h-4 w-4 text-violet-600" />
           </div>
           <div>
@@ -481,7 +481,7 @@ function SummaryCard({ breakdown }: { breakdown: FullPricingBreakdown }) {
       <CardContent className="px-4 py-3 space-y-1">
         {/* Subtotals */}
         {rows.map((r) => (
-          <div key={r.label} className="flex items-center justify-between py-1.5 rounded-lg px-2 hover:bg-muted/30 transition-colors">
+          <div key={r.label} className="flex items-center justify-between py-1.5 rounded-xl px-2 hover:bg-muted/30 transition-colors">
             <span className={cn("flex items-center gap-2 text-sm text-muted-foreground", r.color)}>
               {r.icon}
               <span className="text-foreground/80">{r.label}</span>
@@ -506,7 +506,7 @@ function SummaryCard({ breakdown }: { breakdown: FullPricingBreakdown }) {
         </div>
 
         {/* Margin */}
-        <div className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-blue-50/60">
+        <div className="flex items-center justify-between py-1.5 px-2 rounded-xl bg-blue-50/60">
           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <TrendingUp className="h-3.5 w-3.5 text-blue-500" />
             Margin
@@ -516,7 +516,7 @@ function SummaryCard({ breakdown }: { breakdown: FullPricingBreakdown }) {
         </div>
 
         {/* GST */}
-        <div className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-slate-50/60">
+        <div className="flex items-center justify-between py-1.5 px-2 rounded-xl bg-slate-50/60">
           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Percent className="h-3.5 w-3.5 text-slate-500" />
             GST
@@ -528,7 +528,7 @@ function SummaryCard({ breakdown }: { breakdown: FullPricingBreakdown }) {
         <Separator className="my-2" />
 
         {/* Final price */}
-        <div className="flex justify-between items-center px-2 py-1.5 rounded-lg bg-violet-50">
+        <div className="flex justify-between items-center px-2 py-1.5 rounded-xl bg-violet-50">
           <div className="flex items-center gap-1.5">
             <Receipt className="h-4 w-4 text-violet-600" />
             <span className="text-sm font-bold text-violet-900">Final Price</span>
@@ -652,7 +652,7 @@ export function PricingPreviewTab({ packageId, durations, stayCategories, cabTyp
   return (
     <div className="space-y-5">
       {/* ── Controls card ─────────────────────────────────────────────────── */}
-      <Card className="border border-border/60 shadow-sm">
+      <Card className="border border-border/60 shadow-sm rounded-2xl overflow-hidden">
         <CardContent className="pt-4 pb-4 space-y-4">
 
           {/* Row 1: Trip config */}
@@ -765,6 +765,7 @@ export function PricingPreviewTab({ packageId, durations, stayCategories, cabTyp
                       <div key={group.groupKey} className={cn(
                         "rounded-lg border p-3 space-y-2 transition-colors",
                         isUpgraded ? "border-amber-200 bg-amber-50/40" : "border-border/60 bg-muted/20",
+                      "rounded-xl",
                       )}>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1.5">
@@ -837,7 +838,7 @@ export function PricingPreviewTab({ packageId, durations, stayCategories, cabTyp
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
           <div className="lg:col-span-2 space-y-3">
             {breakdown.missing_pricing_config && (
-              <div className="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-2.5 flex items-start gap-2">
+              <div className="rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-2.5 flex items-start gap-2">
                 <Sparkles className="h-4 w-4 text-yellow-600 shrink-0 mt-0.5" />
                 <p className="text-xs text-yellow-800">
                   No pricing config set for this combination — using default 10% margin and 5% GST. Configure in the Pricing tab.
@@ -845,7 +846,7 @@ export function PricingPreviewTab({ packageId, durations, stayCategories, cabTyp
               </div>
             )}
             {breakdown.days.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 rounded-xl border border-dashed">
+              <div className="flex flex-col items-center justify-center py-16 rounded-2xl border border-dashed">
                 <MapPin className="h-8 w-8 text-muted-foreground/30 mb-3" />
                 <p className="text-sm font-medium text-muted-foreground">No itinerary days found</p>
                 <p className="text-xs text-muted-foreground/60 mt-1">Build the itinerary in the Itinerary Builder tab first.</p>
@@ -862,7 +863,7 @@ export function PricingPreviewTab({ packageId, durations, stayCategories, cabTyp
 
       {/* ── Empty state ─────────────────────────────────────────────────────── */}
       {!isPending && !breakdown && (
-        <div className="flex flex-col items-center justify-center py-20 rounded-xl border border-dashed bg-muted/10">
+        <div className="flex flex-col items-center justify-center py-20 rounded-2xl border border-dashed bg-muted/10">
           <Calculator className="h-10 w-10 text-muted-foreground/30 mb-4" />
           <p className="text-sm font-medium text-muted-foreground">Configure and calculate above</p>
           <p className="text-xs text-muted-foreground/60 mt-1">Select duration, route, stay category, passenger count, then hit Calculate.</p>
