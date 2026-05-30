@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import { ImagesIcon, CarIcon, BedIcon, ForkKnifeIcon, BinocularsIcon } from '@phosphor-icons/react'
-import { Heading, Text } from '@/app/components/ui/Typography';
-import Breadcrumps from '@/app/components/ui/Breadcrumps';
+import { Heading, Text } from '@/app/components/ui/Typography'
+import Breadcrumps from '@/app/components/ui/Breadcrumps'
+import FullGallery, { type GalleryCategory } from './FullGallery'
 
 interface ItineraryStop {
   days: number
@@ -27,8 +28,8 @@ interface PackageHeroProps {
   itinerary: ItineraryStop[]
   inclusions: Inclusion[]
   images: GalleryImage[]
+  fullGallery: GalleryCategory[]
   region: { label: string; slug: string }
-  onViewGallery?: () => void
 }
 
 const INCLUSION_ICONS: Record<Inclusion['key'], React.ElementType> = {
@@ -46,15 +47,23 @@ export default function PackageHero({
   itinerary,
   inclusions,
   images,
+  fullGallery,
   region,
-  onViewGallery,
 }: PackageHeroProps) {
   const [heroLoaded, setHeroLoaded] = useState(false)
   const [stuck, setStuck]           = useState(false)
+  const [galleryOpen, setGalleryOpen]       = useState(false)
+  const [initialLightbox, setInitialLightbox] = useState<{ catIdx: number; imgIdx: number } | undefined>()
   const sentinelRef = useRef<HTMLDivElement>(null)
 
   const heroImage  = images[0]
   const gridImages = images.slice(1, 5)
+
+  // catIdx 0 = first category (always "Gallery" / overview images)
+  const openGallery = useCallback((lightbox?: { catIdx: number; imgIdx: number }) => {
+    setInitialLightbox(lightbox)
+    setGalleryOpen(true)
+  }, [])
 
   useEffect(() => {
     const el = sentinelRef.current
@@ -69,6 +78,15 @@ export default function PackageHero({
 
   return (
     <>
+      {galleryOpen && (
+        <FullGallery
+          categories={fullGallery}
+          title={title}
+          initialLightbox={initialLightbox}
+          onClose={() => setGalleryOpen(false)}
+        />
+      )}
+
       <Breadcrumps
         cat={{ label: region.label, link: `/region/${region.slug}` }}
         title={title}
@@ -76,7 +94,7 @@ export default function PackageHero({
 
       <div ref={sentinelRef} className="h-0" aria-hidden="true" />
 
-      {/* ── Sticky info band: title + duration + stops + share ── */}
+      {/* ── Sticky info band ── */}
       <div
         id="package-info-band"
         className="sticky top-0 z-210 bg-white"
@@ -95,41 +113,40 @@ export default function PackageHero({
             {title}
           </Heading>
 
-          {/* Duration + stops — single scrollable row on all screens */}
           <div className="flex items-center gap-3 sm:gap-4 mt-2 overflow-x-auto scrollbar-none">
-              <span className="inline-flex shrink-0 items-center px-3 py-1.5 rounded-pill bg-white border border-neutral-200">
-                <Text as="span" size="sm" weight="bold" intent="secondary">
-                  {duration}
-                </Text>
-              </span>
+            <span className="inline-flex shrink-0 items-center px-3 py-1.5 rounded-pill bg-white border border-neutral-200">
+              <Text as="span" size="sm" weight="bold" intent="secondary">
+                {duration}
+              </Text>
+            </span>
 
-              <div className="h-6 w-px shrink-0 bg-(--border-muted)" />
+            <div className="h-6 w-px shrink-0 bg-(--border-muted)" />
 
-              <div className="flex items-center gap-3 sm:gap-4">
-                {itinerary.map((stop, i) => (
-                  <div key={i} className="flex items-center gap-1.5 shrink-0">
-                    <Text as="span" intent="muted" weight="bold" className="leading-none font-heading text-xl sm:text-3xl">
-                      {stop.days}
+            <div className="flex items-center gap-3 sm:gap-4">
+              {itinerary.map((stop, i) => (
+                <div key={i} className="flex items-center gap-1.5 shrink-0">
+                  <Text as="span" intent="muted" weight="bold" className="leading-none font-heading text-xl sm:text-3xl">
+                    {stop.days}
+                  </Text>
+                  <div className="flex flex-col leading-tight">
+                    <Text as="span" size="xss" intent="secondary" weight="medium" className="font-medium font-heading tracking-wide">
+                      Days in
                     </Text>
-                    <div className="flex flex-col leading-tight">
-                      <Text as="span" size="xss" intent="secondary" weight="medium" className="font-medium font-heading tracking-wide">
-                        Days in
-                      </Text>
-                      <Text as="span" size="sm" intent="primary" weight="semibold" className="font-heading">
-                        {stop.place}
-                      </Text>
-                    </div>
-                    {i < itinerary.length - 1 && (
-                      <div className="ml-2 h-6 w-px shrink-0 bg-(--border-default)" />
-                    )}
+                    <Text as="span" size="sm" intent="primary" weight="semibold" className="font-heading">
+                      {stop.place}
+                    </Text>
                   </div>
-                ))}
-              </div>
+                  {i < itinerary.length - 1 && (
+                    <div className="ml-2 h-6 w-px shrink-0 bg-(--border-default)" />
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* ── Inclusions — normal flow, scrolls away ── */}
+      {/* ── Inclusions ── */}
       <div className="flex items-center gap-1 flex-wrap mt-3 mb-1">
         <Text size="sm" weight="semibold" className="uppercase mr-2">
           Inclusion
@@ -149,9 +166,12 @@ export default function PackageHero({
         })}
       </div>
 
-      {/* ── Mobile photo layout: full-width hero + 2-col grid ── */}
+      {/* ── Mobile photo layout ── */}
       <div className="md:hidden mt-2 flex flex-col gap-2">
-        <div className="relative w-full aspect-4/3 rounded-2xl overflow-hidden group cursor-pointer">
+        <div
+          className="relative w-full aspect-4/3 rounded-2xl overflow-hidden group cursor-pointer"
+          onClick={() => openGallery()}
+        >
           <Image
             src={heroImage.src}
             alt={heroImage.label || title}
@@ -167,7 +187,7 @@ export default function PackageHero({
           />
           {!heroLoaded && <div className="skeleton-box absolute inset-0" />}
           <button
-            onClick={onViewGallery}
+            onClick={e => { e.stopPropagation(); openGallery() }}
             className="absolute bottom-3 left-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-black/50 backdrop-blur-sm text-white text-xs font-semibold hover:bg-black/75 transition-colors"
           >
             <ImagesIcon weight="duotone" className="size-5" />
@@ -178,7 +198,11 @@ export default function PackageHero({
           {Array.from({ length: 4 }).map((_, i) => {
             const img = gridImages[i]
             return (
-              <div key={i} className="relative aspect-square rounded-xl overflow-hidden group cursor-pointer">
+              <div
+                key={i}
+                className="relative aspect-square rounded-xl overflow-hidden group cursor-pointer"
+                onClick={() => img && openGallery({ catIdx: 0, imgIdx: i + 1 })}
+              >
                 {img ? (
                   <>
                     <Image
@@ -203,10 +227,13 @@ export default function PackageHero({
         </div>
       </div>
 
-      {/* ── Desktop photo grid — scrolls under the sticky band ── */}
+      {/* ── Desktop photo grid ── */}
       <div className="hidden md:grid grid-cols-4 grid-rows-2 gap-2 h-120 rounded-2xl overflow-hidden mt-2">
 
-        <div className="col-span-2 row-span-2 relative group cursor-pointer">
+        <div
+          className="col-span-2 row-span-2 relative group cursor-pointer"
+          onClick={() => openGallery()}
+        >
           <Image
             src={heroImage.src}
             alt={heroImage.label || title}
@@ -223,7 +250,7 @@ export default function PackageHero({
           {!heroLoaded && <div className="skeleton-box absolute inset-0" />}
 
           <button
-            onClick={onViewGallery}
+            onClick={e => { e.stopPropagation(); openGallery() }}
             className="absolute bottom-3 left-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-black/50 backdrop-blur-sm text-white text-xs font-semibold hover:bg-black/75 transition-colors"
           >
             <ImagesIcon weight="duotone" className="size-5" />
@@ -234,7 +261,11 @@ export default function PackageHero({
         {Array.from({ length: 4 }).map((_, i) => {
           const img = gridImages[i]
           return (
-            <div key={i} className="relative group cursor-pointer overflow-hidden">
+            <div
+              key={i}
+              className="relative group cursor-pointer overflow-hidden"
+              onClick={() => img && openGallery({ catIdx: 0, imgIdx: i + 1 })}
+            >
               {img ? (
                 <>
                   <Image

@@ -167,6 +167,57 @@ export default async function PackagePage({
         image_gallery = fallback;
     }
 
+    // ── Full gallery categories (for the gallery overlay) ─────────────────────
+    type GalleryCat = { label: string; images: { src: string; label: string }[] };
+    const fullGallery: GalleryCat[] = [];
+
+    if (image_gallery.length > 0) {
+        fullGallery.push({ label: 'Gallery', images: image_gallery });
+    }
+
+    // Hotels
+    const seenHotelGalleryIds = new Set<number>();
+    const hotelGalleryImgs: { src: string; label: string }[] = [];
+    for (const d of pageData.itinerary) {
+        const h = d.hotel;
+        if (!h || seenHotelGalleryIds.has(h.id)) continue;
+        seenHotelGalleryIds.add(h.id);
+        for (const img of h.images) {
+            const src = imgUrl(img.url);
+            if (src) hotelGalleryImgs.push({ src, label: h.name });
+        }
+    }
+    if (hotelGalleryImgs.length > 0) fullGallery.push({ label: 'Hotels', images: hotelGalleryImgs });
+
+    // Rooms
+    const seenRoomHotelIds = new Set<number>();
+    const roomGalleryImgs: { src: string; label: string }[] = [];
+    for (const d of pageData.itinerary) {
+        const h = d.hotel;
+        if (!h || seenRoomHotelIds.has(h.id)) continue;
+        seenRoomHotelIds.add(h.id);
+        for (const img of h.room_images) {
+            const src = imgUrl(img.url);
+            if (src) roomGalleryImgs.push({ src, label: h.room_name ?? 'Room' });
+        }
+    }
+    if (roomGalleryImgs.length > 0) fullGallery.push({ label: 'Rooms', images: roomGalleryImgs });
+
+    // Activities
+    const seenActivityGalleryIds = new Set<number>();
+    const actGalleryImgs: { src: string; label: string }[] = [];
+    for (const d of pageData.itinerary) {
+        for (const act of d.activities) {
+            if (seenActivityGalleryIds.has(act.id)) continue;
+            seenActivityGalleryIds.add(act.id);
+            for (const img of act.images) {
+                const src = imgUrl(img.url);
+                if (src) actGalleryImgs.push({ src, label: img.label ?? act.name });
+            }
+        }
+    }
+    if (actGalleryImgs.length > 0) fullGallery.push({ label: 'Activities', images: actGalleryImgs });
+
     // ── Duration options ───────────────────────────────────────────────────────
     const durationOptions = pageData.durations.map((d, i) => ({
         slug: d.slug,
@@ -204,6 +255,24 @@ export default async function PackagePage({
     };
 
     // ── Itinerary ──────────────────────────────────────────────────────────────
+    // Pre-compute consecutive-run starts for hotels.
+    // Same hotel on non-consecutive days (with another hotel in between) gets
+    // two separate entries. Only the first day of each run is shown with
+    // nights = run length. Key = day number of the run start.
+    const hotelRunStart = new Map<number, number>(); // day → nights in run
+    for (let i = 0; i < pageData.itinerary.length; i++) {
+        const d = pageData.itinerary[i];
+        if (!d.hotel) continue;
+        const prev = pageData.itinerary[i - 1];
+        if (prev?.hotel?.id === d.hotel.id) continue; // continuation — skip
+        let nights = 1;
+        for (let j = i + 1; j < pageData.itinerary.length; j++) {
+            if (pageData.itinerary[j].hotel?.id === d.hotel.id) nights++;
+            else break;
+        }
+        hotelRunStart.set(d.day, nights);
+    }
+
     const itinerary: ItineraryDay[] = pageData.itinerary.map(d => {
         type SortableSection = DaySection & { _sort: number };
 
@@ -225,10 +294,11 @@ export default async function PackagePage({
             transfer_notes: t.notes,
         }));
 
-        const hotelSections: SortableSection[] = d.hotel ? [{
+        const runNights = d.hotel ? hotelRunStart.get(d.day) : undefined;
+        const hotelSections: SortableSection[] = (d.hotel && runNights !== undefined) ? [{
             _sort: d.hotel.sort_order,
             type: "stay" as const,
-            nights: 1,
+            nights: runNights,
             hotelName: d.hotel.name,
             stayType: d.hotel.stay_type ?? null,
             checkIn: formatTime12(d.hotel.check_in_time),
@@ -237,6 +307,7 @@ export default async function PackagePage({
             inclusions: [],
             roomName: d.hotel.room_name,
             roomCapacity: d.hotel.room_capacity,
+            activeMeals: d.hotel.active_meals,
             mealType: d.hotel.meal_type,
             planName: d.hotel.plan_name,
             images: (() => {
@@ -315,6 +386,7 @@ export default async function PackagePage({
                         ]}
                         region={region}
                         images={image_gallery}
+                        fullGallery={fullGallery}
                     />
 
                     <PackageTab
@@ -421,7 +493,11 @@ export default async function PackagePage({
                                                                 ) : '–'}
                                                             </td>
                                                             <td className="px-3 py-2.5 text-sm text-secondary">
-                                                                {d.hotel?.meal_type ?? d.hotel?.plan_name ?? '–'}
+                                                                {d.hotel
+                                                                    ? (d.hotel.active_meals.length > 0
+                                                                        ? d.hotel.active_meals.map(m => m.charAt(0).toUpperCase() + m.slice(1)).join(', ')
+                                                                        : d.hotel.meal_type ?? d.hotel.plan_name ?? '–')
+                                                                    : '–'}
                                                             </td>
                                                             <td className="px-3 py-2.5 text-sm text-secondary">
                                                                 {d.activities.length > 0

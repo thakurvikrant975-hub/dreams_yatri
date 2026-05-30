@@ -1582,6 +1582,7 @@ model package_queries {
   utmMedium         String?
   utmCampaign       String?
   pageUrl           String?
+  packageUrl        String?
   status            QueryStatus      @default(SUBMITTED)
   verified          Boolean          @default(false)
   verifiedAt        DateTime?

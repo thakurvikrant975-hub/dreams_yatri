@@ -1,7 +1,8 @@
 // ItinerarySection.tsx
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import ImageLightbox from './ImageLightbox';
 import { cn } from '@/app/lib/utils';
 import Accordion from '@/app/components/ui/Accordian';
 import { Heading, Text } from '@/app/components/ui/Typography';
@@ -92,6 +93,7 @@ interface StaySection {
   images: string[];
   roomName: string | null;
   roomCapacity: number | null;
+  activeMeals: string[];
   mealType: string | null;
   planName: string | null;
 }
@@ -599,7 +601,18 @@ function HotelStars({ stayType }: { stayType: string }) {
 }
 
 function StayContent({ section }: { section: StaySection }) {
-  const meals = parseMealTypes(section.mealType, section.planName);
+  const meals = section.activeMeals.length > 0
+    ? section.activeMeals
+    : parseMealTypes(section.mealType, section.planName);
+
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+  const closeLightbox  = useCallback(() => setLightboxIdx(null), []);
+  const navigateLightbox = useCallback((i: number) => setLightboxIdx(i), []);
+
+  const lightboxImgs = section.images.map((src, i) => ({
+    src,
+    label: i === 0 ? section.hotelName : (section.roomName ?? section.hotelName),
+  }));
 
   return (
     <div className="mt-2 flex">
@@ -694,15 +707,42 @@ function StayContent({ section }: { section: StaySection }) {
               </div>
             </div>
 
+          {/* Meal badges */}
+          {meals.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {meals.map((m) => <MealBadge key={m} name={m} />)}
+            </div>
+          )}
+
           </div>
 
-          {/* Image grid — pos 0 = primary hotel, pos 1-2 = room, pos 3-4 = hotel */}
+          {/* Image grid — clickable, opens lightbox */}
           {section.images.length > 0 && (
-            <div className="grid grid-cols-4 grid-rows-4 gap-0.5 rounded-2xl overflow-hidden h-52">
-              {section.images.slice(0, 5).map((src, i) => (
-                <img key={i} src={src} alt="" className={cn('w-full h-full object-cover', i === 0 && 'row-span-3 col-span-4')} />
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-4 grid-rows-4 gap-0.5 rounded-2xl overflow-hidden h-52 cursor-pointer">
+                {section.images.slice(0, 5).map((src, i) => (
+                  <img
+                    key={i}
+                    src={src}
+                    alt=""
+                    onClick={() => setLightboxIdx(i)}
+                    className={cn(
+                      'w-full h-full object-cover transition-opacity hover:opacity-90',
+                      i === 0 && 'row-span-3 col-span-4',
+                    )}
+                  />
+                ))}
+              </div>
+              {lightboxIdx !== null && (
+                <ImageLightbox
+                  images={lightboxImgs}
+                  activeIdx={lightboxIdx}
+                  onClose={closeLightbox}
+                  onNavigate={navigateLightbox}
+                  zClass="z-9999"
+                />
+              )}
+            </>
           )}
         </div>
 
@@ -718,6 +758,10 @@ function ActivityContent({ section }: { section: ActivitySection }) {
   const [descOverflows, setDescOverflows] = useState(false);
   const descRef = useRef<HTMLParagraphElement>(null);
   const hasPricing = section.pricingTiers && section.pricingTiers.length > 0;
+
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+  const closeLightbox    = useCallback(() => setLightboxIdx(null), []);
+  const navigateLightbox = useCallback((i: number) => setLightboxIdx(i), []);
 
   // Measure once on mount (element is clamped) to know if text actually overflows
   useEffect(() => {
@@ -785,7 +829,7 @@ function ActivityContent({ section }: { section: ActivitySection }) {
           </div>
         )}
 
-        {/* Image carousel */}
+        {/* Image carousel — click to open lightbox */}
         {section.images.length > 0 && (
           <div className="space-y-2">
             <p className="text-xs font-semibold text-primary uppercase tracking-widest">Glimpses of the experience</p>
@@ -793,15 +837,27 @@ function ActivityContent({ section }: { section: ActivitySection }) {
               items={section.images}
               perView={3}
               gap={6}
-              renderItem={({ src, label }) => (
-                <div className="relative rounded-xl overflow-hidden">
-                  <Image src={src} alt={label} width={1000} height={600} className="w-full aspect-5/3 object-cover" />
+              renderItem={({ src, label }, idx) => (
+                <div
+                  className="relative rounded-xl overflow-hidden cursor-pointer"
+                  onClick={() => setLightboxIdx(idx)}
+                >
+                  <Image src={src} alt={label} width={1000} height={600} className="w-full aspect-5/3 object-cover hover:scale-[1.03] transition-transform duration-300" />
                   <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-neutral-900/80 via-neutral-900/60 to-transparent px-2 py-1.5 pt-3">
                     <p className="text-sm text-white font-medium truncate">{label}</p>
                   </div>
                 </div>
               )}
             />
+            {lightboxIdx !== null && (
+              <ImageLightbox
+                images={section.images}
+                activeIdx={lightboxIdx}
+                onClose={closeLightbox}
+                onNavigate={navigateLightbox}
+                zClass="z-9999"
+              />
+            )}
           </div>
         )}
 
@@ -1135,7 +1191,7 @@ export default function ItinerarySection({ days }: ItineraryProps) {
           <Text size="sm" intent="secondary">No {activeTab.toLowerCase()} details available for this package.</Text>
         </div>
       ) : (
-        <Accordion variant="ghost" multiple defaultOpen={visibleDays.map(d => `day-${d.day}-${activeTab}`)}>
+        <Accordion key={activeTab} variant="ghost" multiple defaultOpen={visibleDays.map(d => `day-${d.day}-${activeTab}`)}>
           {visibleDays.map(({ day, title, description, sections, notes, attractions }) => (
             <Accordion.Item key={`${day}-${activeTab}`} id={`day-${day}-${activeTab}`} className="mb-2">
 

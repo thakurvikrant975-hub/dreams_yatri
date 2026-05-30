@@ -53,6 +53,7 @@ export type HotelDay = {
   address: string | null;
   plan_name: string | null;
   meal_type: string | null;
+  active_meals: string[];
   room_name: string | null;
   room_capacity: number | null;
   price_per_night: number;
@@ -368,6 +369,7 @@ export async function fetchPackagePageData(
           select: {
             sort_order: true,
             num_nights: true,
+            active_meals: true,
             room_pricing: {
               select: {
                 plan_name: true,
@@ -621,6 +623,7 @@ export async function fetchPackagePageData(
           address: rp.hotel.address,
           plan_name: rp.plan_name,
           meal_type: rp.meal_type?.name ?? null,
+          active_meals: stay?.active_meals ?? [],
           room_name: rp.room?.name ?? null,
           room_capacity: rp.room?.max_occupancy ?? null,
           price_per_night: Number(rp.price_per_night),
