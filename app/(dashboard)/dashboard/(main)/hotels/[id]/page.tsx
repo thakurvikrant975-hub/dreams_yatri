@@ -22,6 +22,12 @@ import { ChildPoliciesTab } from "./tabs/ChildPoliciesTab";
 import { ImagesTab } from "./tabs/ImagesTab";
 import { MealsTab } from "./tabs/MealsTab";
 
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+    const { id: idStr } = await params;
+    const hotel = await getHotelById(Number(idStr));
+    return { title: hotel ? `${hotel.name} — Hotels` : "Hotel" };
+}
+
 export default async function HotelEditPage({
     params,
 }: {
@@ -77,7 +83,7 @@ export default async function HotelEditPage({
                     original_price: op.original_price ? Number(op.original_price) : null,
                 })),
             })),
-        })),
+        })),  
         room_pricing: hotel.room_pricing.map((p) => ({
             ...p,
             price_per_night: Number(p.price_per_night),

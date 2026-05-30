@@ -755,15 +755,16 @@ model hotel_images {
 }
 
 model hotel_rooms {
-  id            Int                  @id @default(autoincrement())
-  hotel_id      Int
-  name          String
-  slug          String
-  area_sqft     Int?
-  bed_type      String?
-  view_type     String?
-  max_occupancy Int                  @default(3)
-  amenities     Json?
+  id                  Int                  @id @default(autoincrement())
+  hotel_id            Int
+  name                String
+  slug                String
+  area_sqft           Int?
+  bed_type            String?
+  view_type           String?
+  max_occupancy       Int                  @default(2)
+  extra_bed_capacity  Int                  @default(1)
+  amenities           Json?
   features      Json?
   bathroom      Json?
   facilities    Json?
