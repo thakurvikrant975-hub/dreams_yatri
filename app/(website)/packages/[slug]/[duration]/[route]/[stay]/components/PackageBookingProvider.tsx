@@ -67,7 +67,7 @@ export function PackageBookingProvider({
     const [childCount, setChildRaw]     = useState(0);
     const [infants,    setInfantsRaw]   = useState(0);
     const [childAges,  setChildAges]    = useState<number[]>([]);
-    const [travelDate, setTravelDate]   = useState('');
+    const [travelDate, setTravelDate]   = useState(() => new Date().toISOString().split('T')[0]);
     const [pricing,    setPricing]      = useState<SafePricing | null>(null);
     const [isPricingLoading, setLoading] = useState(false);
 

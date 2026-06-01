@@ -4,16 +4,8 @@ import { useBooking } from '../PackageBookingProvider';
 import Button from '@/app/components/ui/Button';
 import Card from '@/app/components/ui/Card';
 import { Text } from '@/app/components/ui/Typography';
-import SavingsBadge from '@/app/components/packages/SavingBadge';
 
 const fmt = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
-
-// Deterministic fake MRP — markup 18–44% based on price digits, rounded to a ×99 boundary
-function fakeOriginalPrice(price: number): number {
-    const seed = (price % 97) / 97;           // 0–1, stable for same price
-    const markup = 1.18 + seed * 0.26;        // 1.18–1.44
-    return Math.ceil((price * markup) / 100) * 100 - 1;
-}
 
 export default function PricingCard() {
     const { pricing, isPricingLoading, adults, childCount, infants } = useBooking();
@@ -30,7 +22,7 @@ export default function PricingCard() {
                 </div>
             ) : (
                 <>
-                    {/* Price per adult — headline figure */}
+                    {/* Price per adult */}
                     <div>
                         <Text size="xs" intent="muted" weight="medium" className="uppercase tracking-wide">
                             Price per adult
@@ -40,15 +32,6 @@ export default function PricingCard() {
                                 {fmt(pricing.pricePerAdult)}
                             </Text>
                             <Text as="span" size="sm" intent="secondary" className="font-heading">/ adult</Text>
-                        </div>
-                        <div className="flex items-center gap-3 mt-0.5">
-                            <Text as="span" size="sm" intent="muted" className="line-through">
-                                {fmt(fakeOriginalPrice(pricing.pricePerAdult))}
-                            </Text>
-                            <SavingsBadge
-                                amount={`${Math.round((1 - pricing.pricePerAdult / fakeOriginalPrice(pricing.pricePerAdult)) * 100)}% off`}
-                                prefix=""
-                            />
                         </div>
                     </div>
 
