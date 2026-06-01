@@ -122,6 +122,7 @@ interface ProviderProps {
 
 export function PackageBookingProvider({
     packageId, durationId, routeId, stayCategoryId, packageName,
+    cabTypes,
     children,
     initialAdults, initialChildAges, initialTravelDate, initialLeavingFrom,
 }: ProviderProps) {
@@ -172,6 +173,14 @@ export function PackageBookingProvider({
         setChildAges(ages);
     }
 
+    function setCabForGroup(groupKey: string, cabTypeId: number) {
+        setCabSelections(prev => {
+            const next = new Map(prev);
+            next.set(groupKey, cabTypeId);
+            return next;
+        });
+    }
+
     // Re-fetch price whenever pax changes (debounced 400 ms)
     useEffect(() => {
         if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -212,6 +221,7 @@ export function PackageBookingProvider({
         <BookingContext.Provider value={{
             adults, childCount, infants, childAges, travelDate, leavingFrom,
             setAdults, setChildCount, setInfants, setChildAge, setTravelDate, setLeavingFrom, setTravellers,
+            cabGroups, cabSelections, setCabForGroup,
             pricing, isPricingLoading, packageName,
         }}>
             {children}
