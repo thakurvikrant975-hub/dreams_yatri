@@ -77,7 +77,7 @@ export default function PricingCard() {
             <Button variant="premium" className="w-full mt-4">
                 Book this package
             </Button>
-            <Button variant="outline" className="w-full mt-3">
+            <Button variant="outline" className="lg:hidden w-full mt-3">
                 Book a call
             </Button>
         </Card>

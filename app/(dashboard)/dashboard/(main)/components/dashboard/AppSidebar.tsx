@@ -10,6 +10,7 @@ import {
   ChartSpline, BanknoteArrowDown, BanknoteX, Car, Bed, ChartNoAxesCombined,
   BellRing, PackagePlus, ChartNoAxesGantt, Star, IndianRupee,
   UserRound,
+  X,
 } from "lucide-react";
 import {
   GlobeHemisphereEastIcon, MapPinIcon, BuildingIcon, PlusIcon, TagIcon,
@@ -79,6 +80,7 @@ const navGroups = [
       { title: "References", href: "/dashboard/references", icon: Forward },
       { title: "Coupons and offers", href: "/dashboard/coupons", icon: BadgePercent },
       { title: "Reviews", href: "/dashboard/reviews", icon: Star },
+      { title: "Not Found", href: "/dashboard/not-found", icon: X },
     ],
   },
   {
