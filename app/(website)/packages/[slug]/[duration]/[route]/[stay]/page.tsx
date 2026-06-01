@@ -370,6 +370,7 @@ export default async function PackagePage({
                 routeId={pageData.selectedRoute!.id}
                 stayCategoryId={pageData.selectedStay!.id}
                 packageName={pageData.title}
+                cabTypes={pageData.cabTypes}
             >
                 <TravelerInputBar startingFrom={startingFrom} />
 
