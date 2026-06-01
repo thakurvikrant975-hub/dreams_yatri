@@ -15,25 +15,49 @@ import ShowLogin from '../lib/show-login';
 
 // ─── Default hero images (override via props) ───────────────────────────────
 const DEFAULT_IMAGES = [
-    'https://images.unsplash.com/flagged/photo-1559717201-fbb671ff56b7?q=80&w=1171&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    'https://plus.unsplash.com/premium_photo-1697729953469-10f2ab30e20a?q=80&w=1975&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    'https://images.unsplash.com/photo-1524492412937-b28074a5d7da?q=80&w=2071&auto=format&fit=crop',
-    'https://plus.unsplash.com/premium_photo-1671358446946-8bd43ba08a6a?q=80&w=2832&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+    // Santorini, Greece — iconic blue domes overlooking the Aegean
+    'https://plus.unsplash.com/premium_photo-1661964068107-6d7f6f4fea51?q=80&w=2074&auto=format&fit=crop',
+    // Eiffel Tower, Paris — golden hour over the city of lights
+    'https://plus.unsplash.com/premium_photo-1661919210043-fd847a58522d?q=80&w=2070&auto=format&fit=crop',
+    // Machu Picchu, Peru — ancient citadel wrapped in clouds
+    'https://images.unsplash.com/photo-1526392060635-9d6019884377?q=80&w=2070&auto=format&fit=crop',
+    // Bali, Indonesia — tropical temple at sunrise
+    'https://images.unsplash.com/photo-1537996194471-e657df975ab4?q=80&w=2038&auto=format&fit=crop',
+    // Dubai, UAE — futuristic skyline at dusk
+    'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?q=80&w=2070&auto=format&fit=crop',
+    // Amalfi Coast, Italy — colourful cliffside villages above turquoise sea
+    'https://images.unsplash.com/photo-1591014979485-08d0b2946bc3?q=80&w=2076&auto=format&fit=crop',
+    // Tokyo, Japan — neon-lit streets in the heart of the city
+    'https://plus.unsplash.com/premium_photo-1661878589476-bcad7fe1b8c5?q=80&w=2094&auto=format&fit=crop',
+    // Maldives — overwater bungalows on a crystal lagoon
+    'https://images.unsplash.com/photo-1602002418679-43121356bf41?q=80&w=2065&auto=format&fit=crop',
+    // Swiss Alps — snow-capped peaks and a mirror-calm lake
+    'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=80&w=2070&auto=format&fit=crop',
 ]
 
 // ─── Default titles — map index-for-index with DEFAULT_IMAGES ────────────────
 const DEFAULT_TITLES = [
-    'Explore the Magic of Kashmir',
-    'Discover the Peaks of Himachal',
-    'Journey Through Incredible India',
-    'Your Perfect Getaway Awaits',
+    'Discover the Beauty of Greece',
+    'Fall in Love with Paris',
+    'Explore the Wonders of Peru',
+    'Experience the Magic of Bali',
+    'Marvel at the Future in Dubai',
+    'Escape to the Amalfi Coast',
+    'Dive into the Energy of Tokyo',
+    'Unwind in the Maldives',
+    'Find Peace in the Swiss Alps',
 ]
 
 const DEFAULT_PARA = [
-    'Experience serene lakes, snow-capped mountains, and vibrant valleys that make Kashmir truly unforgettable.',
-    'Adventure through scenic hill towns, breathtaking mountain views, and peaceful retreats across beautiful Himachal.',
-    'Uncover diverse cultures, historic landmarks, and stunning landscapes that showcase the true spirit of India.',
-    'Plan relaxing escapes and exciting adventures with carefully crafted travel experiences designed just for you.'
+    'Sail through crystal-clear Aegean waters, stroll cobbled alleys, and watch the sun melt into the horizon from breathtaking clifftop villages.',
+    'Wander iconic boulevards, savour world-class cuisine, and soak in the romance of a city that has inspired travellers for centuries.',
+    'Trek through ancient cloud-kissed ruins, discover vibrant markets, and immerse yourself in a civilisation that shaped the world.',
+    'Unwind on lush terraced rice fields, visit sacred temples at sunrise, and let the island\'s warm spirit restore your soul.',
+    'Gaze at a glittering skyline rising from the desert, indulge in luxury shopping, and discover a city that never stops reinventing itself.',
+    'Wind along dramatic coastal roads, savour fresh seafood with sea views, and lose yourself in the timeless charm of Italian villages.',
+    'Wander neon-lit alleys, discover ancient shrines between soaring skyscrapers, and taste a cuisine that has perfected every bite.',
+    'Wake up above a turquoise lagoon, snorkel among coral gardens, and let the gentle pace of island life melt every worry away.',
+    'Breathe crisp mountain air, cruise across glassy lakes, and stand in silence before peaks that make the rest of the world feel small.',
 ]
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -102,7 +126,7 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
         }
         params.set('adults', String(travellers.adults))
         if (travellers.childrenAges.length) params.set('children', travellers.childrenAges.join(','))
-        router.push(`/search?${params.toString()}`)
+        router.push(`/packages?${params.toString()}`)
     }
 
     const bgImages = images && images.length > 0 ? images : DEFAULT_IMAGES

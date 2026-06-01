@@ -1,5 +1,3 @@
-// export const revalidate = 1800 // ISR every 30 minutes
-
 import Hero from "@/app/home/hero";
 import TrustSignals from "@/app/home/trust";
 import PackageSection from "@/app/home/package";
@@ -11,7 +9,10 @@ import TestimonialsSection from "@/app/home/review";
 import NewsletterSection from "@/app/home/newsletter";
 import Footer from "../components/navigation/Footer";
 import Header from "../components/navigation/Header";
-export default function Home() {
+import { fetchRecentPackages } from "@/app/actions/packages/fetch-page-data";
+
+export default async function Home() {
+  const recentPackages = await fetchRecentPackages(6);
 
   return (
     <>
@@ -19,7 +20,7 @@ export default function Home() {
       <main>
         <Hero />
         <TrustSignals />
-        <PackageSection />
+        <PackageSection packages={recentPackages} />
         <ExploreDestinations />
         <AvantiSection />
         <WhyChooseUsSection />

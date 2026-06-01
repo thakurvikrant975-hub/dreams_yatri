@@ -8,7 +8,7 @@ import type { SearchPackageItem } from '@/app/actions/search/search-packages'
 
 const fmt = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`
 
-export default function SearchResultsList({ items }: { items: SearchPackageItem[] }) {
+export default function PackagesList({ items }: { items: SearchPackageItem[] }) {
     const router = useRouter()
     const params = useSearchParams()
 
@@ -40,7 +40,6 @@ export default function SearchResultsList({ items }: { items: SearchPackageItem[
                         inclusions={['hotel', 'meals', 'cab', 'activities']}
                         onClick={() => router.push(packageHref(pkg))}
                     />
-                    {/* Total for the selected travellers (per-person is shown on the card) */}
                     {pkg.total > 0 && (
                         <Text size="xs" intent="muted" className="mt-1.5 pl-1">
                             Total {fmt(pkg.total)} for all travellers

@@ -8,7 +8,7 @@ import DatePickerField from '@/app/components/ui/DatePickerField'
 import TravellersField, { type TravellersValue } from '@/app/components/ui/TravellersField'
 import Button from '@/app/components/ui/Button'
 
-export interface SearchEditBarProps {
+export interface PackagesSearchBarProps {
     initialFrom: LocationValue | null
     initialTo: LocationValue | null
     initialDate: Date | null
@@ -23,23 +23,23 @@ function Label({ children }: { children: React.ReactNode }) {
     )
 }
 
-export default function SearchEditBar({
+export default function PackagesSearchBar({
     initialFrom, initialTo, initialDate, initialTravellers,
-}: SearchEditBarProps) {
+}: PackagesSearchBarProps) {
     const router = useRouter()
     const [fromLoc, setFromLoc] = useState<LocationValue | null>(initialFrom)
     const [toLoc, setToLoc] = useState<LocationValue | null>(initialTo)
     const [departDate, setDepartDate] = useState<Date | null>(initialDate)
     const [travellers, setTravellers] = useState<TravellersValue>(initialTravellers)
-    const [error, setError] = useState('')
 
     function search() {
-        if (!toLoc) { setError('Choose where you want to go.'); return }
-        setError('')
         const p = new URLSearchParams()
-        p.set('to', toLoc.id)
-        p.set('toName', toLoc.name)
-        p.set('toType', toLoc.type)
+        // Destination is optional — without it /packages lists everything.
+        if (toLoc) {
+            p.set('to', toLoc.id)
+            p.set('toName', toLoc.name)
+            p.set('toType', toLoc.type)
+        }
         if (fromLoc) {
             p.set('from', fromLoc.id)
             p.set('fromName', fromLoc.name)
@@ -53,7 +53,8 @@ export default function SearchEditBar({
         }
         p.set('adults', String(travellers.adults))
         if (travellers.childrenAges.length) p.set('children', travellers.childrenAges.join(','))
-        router.push(`/search?${p.toString()}`)
+        const qs = p.toString()
+        router.push(qs ? `/packages?${qs}` : '/packages')
     }
 
     return (
@@ -68,7 +69,7 @@ export default function SearchEditBar({
 
                     <div className="flex flex-col gap-1">
                         <Label>Going To</Label>
-                        <LocationSearchSelect value={toLoc} onChange={setToLoc} placeholder="Destination city" />
+                        <LocationSearchSelect value={toLoc} onChange={setToLoc} placeholder="All destinations" />
                     </div>
 
                     <div className="flex flex-col gap-1">
@@ -92,8 +93,6 @@ export default function SearchEditBar({
                             Search
                         </Button>
                     </div>
-
-                    {error && <p className="text-xs text-red-300 sm:col-span-2 lg:col-span-5">{error}</p>}
                 </div>
             </div>
         </div>

@@ -1,19 +1,24 @@
-function SearchLoading() {
+import Header from "@/app/components/navigation/Header";
+import Footer from "@/app/components/navigation/Footer";
+
+export default function PackagesLoading() {
     return (
         <>
-            {/* Summary bar skeleton */}
+            <Header />
+
+            {/* Search bar skeleton */}
             <div className="bg-neutral-900">
-                <div className="screen-space py-3.5 flex items-center gap-4">
-                    <div className="h-5 w-40 rounded bg-white/15" />
-                    <div className="h-5 w-32 rounded bg-white/15" />
-                    <div className="ml-auto h-8 w-24 rounded bg-white/15" />
+                <div className="screen-space py-3 flex flex-wrap gap-2.5">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                        <div key={i} className="h-[42px] flex-1 min-w-40 rounded-lg bg-white/10" />
+                    ))}
+                    <div className="h-[42px] w-28 rounded-lg bg-white/15" />
                 </div>
             </div>
 
             <div className="screen-space py-8">
                 <div className="skeleton-box h-8 w-72 rounded-lg mb-2" />
                 <div className="skeleton-box h-4 w-56 rounded mb-7" />
-
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
                     {Array.from({ length: 6 }).map((_, i) => (
                         <div key={i} className="rounded-2xl overflow-hidden border border-neutral-100">
@@ -27,8 +32,8 @@ function SearchLoading() {
                     ))}
                 </div>
             </div>
+
+            <Footer />
         </>
     );
 }
-
-export default SearchLoading;

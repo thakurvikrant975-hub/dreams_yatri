@@ -138,8 +138,21 @@ export function PackageBookingProvider({
     const cabGroups = useMemo(() => buildCabGroups(cabTypes), [cabTypes]);
 
     const [cabSelections, setCabSelections] = useState<Map<string, number>>(
-        () => initialCabSelections(buildCabGroups(cabTypes), 2),
+        () => initialCabSelections(buildCabGroups(cabTypes), (initialAdults ?? 2) + (initialChildAges?.length ?? 0)),
     );
+
+    // Auto-upgrade cabs whenever passenger count changes
+    useEffect(() => {
+        const passengers = adults + childCount;
+        setCabSelections(prev => {
+            const next = new Map(prev);
+            for (const g of cabGroups) {
+                const id = optimalCabId(g.cabs, passengers);
+                if (id != null) next.set(g.groupKey, id);
+            }
+            return next;
+        });
+    }, [adults, childCount, cabGroups]);
 
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 

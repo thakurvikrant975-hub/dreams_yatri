@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/app/lib/db";
+import type { Prisma } from "@/app/generated/prisma/client";
 import { computePackagePrice } from "@/app/services/package-pricing.service";
 import { imgUrl, PACKAGE_CARD_SELECT, type PackageCardRow } from "@/app/lib/packages/cardShaper";
 
@@ -26,7 +27,8 @@ export type SearchPackageItem = {
 };
 
 export type SearchParams = {
-  toLocationId: string;
+  /** Empty/undefined → return all active packages (the /packages listing) */
+  toLocationId?: string;
   adults: number;
   childAges: number[];
   travelDate?: string | null;
@@ -95,13 +97,19 @@ async function matchDestinationIds(toLocationId: string): Promise<number[]> {
 // ── Main search ────────────────────────────────────────────────────────────
 export async function searchPackages(params: SearchParams): Promise<SearchResult> {
   const { toLocationId, adults, childAges, travelDate, limit = 24 } = params;
-  if (!toLocationId) return { items: [], total: 0 };
 
-  const destinationIds = await matchDestinationIds(toLocationId);
-  if (destinationIds.length === 0) return { items: [], total: 0 };
+  // With a destination → match by location hierarchy; without → list all packages.
+  let where: Prisma.packagesWhereInput;
+  if (toLocationId) {
+    const destinationIds = await matchDestinationIds(toLocationId);
+    if (destinationIds.length === 0) return { items: [], total: 0 };
+    where = { is_active: true, destination_id: { in: destinationIds } };
+  } else {
+    where = { is_active: true };
+  }
 
   const rows = (await db.packages.findMany({
-    where: { is_active: true, destination_id: { in: destinationIds } },
+    where,
     orderBy: { created_at: "desc" },
     take: limit,
     select: PACKAGE_CARD_SELECT,

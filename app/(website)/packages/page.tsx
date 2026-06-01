@@ -1,15 +1,18 @@
 import type { Metadata } from "next";
+import Header from "@/app/components/navigation/Header";
+import Footer from "@/app/components/navigation/Footer";
 import { searchPackages } from "@/app/actions/search/search-packages";
 import type { LocationValue } from "@/app/components/ui/LocationSearchSelect";
 import type { LocationType } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";
 import { Heading, Text } from "@/app/components/ui/Typography";
-import SearchResultsList from "./SearchResultsList";
-import SearchEditBar from "./SearchEditBar";
+import PackagesList from "./PackagesList";
+import PackagesSearchBar from "./PackagesSearchBar";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-    title: "Search Holiday Packages | Dreams Yatri",
+    title: "Holiday Packages | Dreams Yatri",
+    description: "Browse and search curated holiday packages across India and beyond.",
 };
 
 function pick(v: string | string[] | undefined): string {
@@ -29,7 +32,6 @@ function formatDate(iso: string): string {
     return new Intl.DateTimeFormat("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" }).format(d);
 }
 
-// Reconstruct a LocationValue from URL params for the editable search bar.
 function toLocationValue(id: string, name: string, type: string): LocationValue | null {
     if (!id) return null;
     return {
@@ -41,7 +43,7 @@ function toLocationValue(id: string, name: string, type: string): LocationValue 
     };
 }
 
-export default async function SearchPage({
+export default async function PackagesIndexPage({
     searchParams,
 }: {
     searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -63,65 +65,58 @@ export default async function SearchPage({
     const travellers = travellersLabel(adults, childAges.length);
     const dateLabel = formatDate(date);
 
-    // Initial values for the editable search bar
     const parsedDate = date ? new Date(`${date}T00:00:00`) : null;
     const initialDate = parsedDate && !isNaN(parsedDate.getTime()) ? parsedDate : null;
-    const editBar = (
-        <SearchEditBar
-            initialFrom={toLocationValue(from, fromName, fromType)}
-            initialTo={toLocationValue(to, toName, toType)}
-            initialDate={initialDate}
-            initialTravellers={{ adults, childrenAges: childAges }}
-        />
-    );
 
-    // No destination chosen — show the editable bar + a prompt
-    if (!to) {
-        return (
-            <>
-                {editBar}
-                <div className="screen-space py-24 flex flex-col items-center text-center">
-                    <Heading level={2} weight="semibold">Where do you want to go?</Heading>
-                    <Text size="sm" intent="secondary" className="mt-2 max-w-md">
-                        Choose a destination above and hit Search to find holiday packages.
-                    </Text>
-                </div>
-            </>
-        );
-    }
-
+    // No `to` → list all active packages; with `to` → location-matched results.
     const { items } = await searchPackages({
-        toLocationId: to,
+        toLocationId: to || undefined,
         adults,
         childAges,
         travelDate: date || null,
     });
 
+    const isSearch = Boolean(to);
+    const heading = isSearch
+        ? (items.length > 0
+            ? `${items.length} package${items.length !== 1 ? "s" : ""} near ${toName || "you"}`
+            : `Packages near ${toName || "you"}`)
+        : "All Holiday Packages";
+
     return (
         <>
-            {editBar}
+            <Header />
+
+            <PackagesSearchBar
+                initialFrom={toLocationValue(from, fromName, fromType)}
+                initialTo={toLocationValue(to, toName, toType)}
+                initialDate={initialDate}
+                initialTravellers={{ adults, childrenAges: childAges }}
+            />
 
             <div className="screen-space py-8">
-                <Heading level={2} weight="semibold">
-                    {items.length > 0
-                        ? `${items.length} package${items.length !== 1 ? "s" : ""} near ${toName || "you"}`
-                        : `Packages near ${toName || "you"}`}
-                </Heading>
+                <Heading level={2} weight="semibold">{heading}</Heading>
                 <Text size="sm" intent="secondary" className="mt-1 mb-7 block">
                     Prices shown for {travellers}{dateLabel ? ` · ${dateLabel}` : ""}
                 </Text>
 
                 {items.length === 0 ? (
                     <div className="py-16 text-center">
-                        <p className="text-base font-semibold text-primary">No packages found near {toName || "this location"}</p>
+                        <p className="text-base font-semibold text-primary">
+                            {isSearch ? `No packages found near ${toName || "this location"}` : "No packages available yet"}
+                        </p>
                         <p className="text-sm text-secondary mt-1 max-w-md mx-auto">
-                            We don&apos;t have curated trips here yet. Try a nearby city or a different destination above.
+                            {isSearch
+                                ? "Try a nearby city or clear the destination above to see all packages."
+                                : "Please check back soon — new trips are added regularly."}
                         </p>
                     </div>
                 ) : (
-                    <SearchResultsList items={items} />
+                    <PackagesList items={items} />
                 )}
             </div>
+
+            <Footer />
         </>
     );
 }
