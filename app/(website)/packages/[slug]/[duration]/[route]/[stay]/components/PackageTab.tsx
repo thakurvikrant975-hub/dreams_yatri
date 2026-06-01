@@ -10,6 +10,7 @@ import { ShareNetworkIcon } from '@phosphor-icons/react';
 import dynamic from 'next/dynamic';
 import Tabs from '@/app/components/ui/Tabs';
 import Button from '@/app/components/ui/Button';
+import { useModal } from '@/app/hooks/useModals';
 
 const MobileFooterBar = dynamic(() => import('./SidebarCards/MobileFooterBar'), { ssr: false });
 const EnquiryFab      = dynamic(() => import('./SidebarCards/EnquiryFab'),      { ssr: false });
@@ -35,6 +36,7 @@ export default function PackageTab({
 }: Props) {
     const [activeTab, setActiveTab] = useState('itinerary');
     const [stuck, setStuck]         = useState(false);
+    const openModal = useModal((s) => s.openModal);
 
     // Heights measured directly — no cross-component CSS custom properties
     const [infoHeight, setInfoHeight] = useState(160); // fallback until measured
@@ -119,13 +121,7 @@ export default function PackageTab({
                             <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => {
-                                    if (navigator.share) {
-                                        navigator.share({ url: window.location.href });
-                                    } else {
-                                        navigator.clipboard.writeText(window.location.href);
-                                    }
-                                }}
+                                onClick={() => openModal('share-modal', { url: window.location.href, title: document.title })}
                             >
                                 Share
                                 <ShareNetworkIcon weight="bold" className="size-4 text-muted" />
