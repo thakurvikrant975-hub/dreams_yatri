@@ -1,16 +1,15 @@
 'use client'
 import { useState, useEffect, useRef } from 'react';
-import Modal, { ModalHeader, ModalBody, ModalFooter } from './Modal_Structure';
+import { Dialog, DialogBackdrop, DialogPanel } from '@headlessui/react';
 import { useModal } from '@/app/hooks/useModals';
 import Input from '../forms/Input';
-import Label from '../forms/Label';
-import Button from '../ui/Button';
 import { Select, Option } from '../forms/Select';
 import { phoneLoginSchema, emailLoginSchema, PHONE_RULES, type CountryCode } from '@/app/lib/validators/login';
 import { z } from 'zod';
 import { signIn } from 'next-auth/react';
 import axios from 'axios';
-
+import { X, Phone, Mail, ArrowLeft } from 'lucide-react';
+import { AirplaneIcon } from '@phosphor-icons/react';
 
 const COUNTRY_CODES = [
   { code: '+91', flag: '🇮🇳', label: 'IN' },
@@ -21,16 +20,6 @@ const COUNTRY_CODES = [
   { code: '+65', flag: '🇸🇬', label: 'SG' },
   { code: '+60', flag: '🇲🇾', label: 'MY' },
 ];
-
-function Divider({ label = 'or' }: { label?: string }) {
-  return (
-    <div className="flex items-center gap-3 my-4">
-      <hr className="flex-1 border-neutral-200" />
-      <span className="text-xs text-[--text-muted] font-medium">{label}</span>
-      <hr className="flex-1 border-neutral-200" />
-    </div>
-  );
-}
 
 function GoogleIcon() {
   return (
@@ -47,7 +36,7 @@ type LoginMethod = 'phone' | 'email';
 
 function LoginModal() {
   const { isOpen, type, closeModal } = useModal();
-  const [errors, setErrors]         = useState<Record<string, string>>({});
+  const [errors, setErrors]           = useState<Record<string, string>>({});
   const [countryCode, setCountryCode] = useState('+91');
   const [activeMethod, setActiveMethod] = useState<LoginMethod>('phone');
   const [phone, setPhone]   = useState('');
@@ -57,9 +46,9 @@ function LoginModal() {
   const [otp, setOtp]         = useState('');
   const [loading, setLoading] = useState(false);
 
-  const widgetReady      = useRef(false);
-  const onVerifySuccess  = useRef<((data: any) => void) | null>(null);
-  const onVerifyFailure  = useRef<((err: any)  => void) | null>(null);
+  const widgetReady     = useRef(false);
+  const onVerifySuccess = useRef<((data: any) => void) | null>(null);
+  const onVerifyFailure = useRef<((err: any)  => void) | null>(null);
 
   useEffect(() => {
     if (!isOpen || type !== 'login-modal') return;
@@ -77,61 +66,28 @@ function LoginModal() {
       widgetReady.current = true;
     }
 
-    if (typeof (window as any).initSendOTP === 'function') {
-      initWidget();
-      return;
-    }
-
+    if (typeof (window as any).initSendOTP === 'function') { initWidget(); return; }
     if (document.getElementById('msg91-otp-provider')) return;
 
-    const urls = [
-      'https://verify.msg91.com/otp-provider.js',
-      'https://verify.phone91.com/otp-provider.js',
-    ];
+    const urls = ['https://verify.msg91.com/otp-provider.js', 'https://verify.phone91.com/otp-provider.js'];
     let i = 0;
-
     function attempt() {
       const script = document.createElement('script');
-      script.id    = 'msg91-otp-provider';
-      script.src   = urls[i];
-      script.async = true;
+      script.id = 'msg91-otp-provider'; script.src = urls[i]; script.async = true;
       script.onload = initWidget;
       script.onerror = () => { script.remove(); i++; if (i < urls.length) attempt(); };
       document.head.appendChild(script);
     }
-
     attempt();
   }, [isOpen, type]);
 
   function clearErrorIfValid(field: string, schema: z.ZodType, value: unknown) {
     if (!errors[field]) return;
-    const result = schema.safeParse(value);
-    if (result.success) {
-      setErrors((prev) => { const next = { ...prev }; delete next[field]; return next; });
-    }
+    if (schema.safeParse(value).success)
+      setErrors(prev => { const n = { ...prev }; delete n[field]; return n; });
   }
 
-  function handlePhoneChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const val = e.target.value;
-    setPhone(val);
-    clearErrorIfValid('phone', phoneLoginSchema, { countryCode, phone: val });
-  }
-
-  function handleEmailChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const val = e.target.value;
-    setEmail(val);
-    clearErrorIfValid('email', emailLoginSchema, { email: val });
-  }
-
-  function handleCountryCodeChange(val: string) {
-    setCountryCode(val);
-    if (errors.phone) {
-      setErrors((prev) => { const next = { ...prev }; delete next.phone; return next; });
-    }
-  }
-
-  // ── FIX 1: correct type, unified handler ──────────────────────────────────
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
     const result = activeMethod === 'phone'
@@ -139,82 +95,51 @@ function LoginModal() {
       : emailLoginSchema.safeParse({ email });
 
     if (!result.success) {
-      const fieldErrors = result.error.issues.reduce((acc, issue) => {
-        const key = issue.path[0] as string;
-        acc[key] = issue.message;
-        return acc;
-      }, {} as Record<string, string>);
-      setErrors(fieldErrors);
+      setErrors(result.error.issues.reduce((acc, i) => ({ ...acc, [i.path[0] as string]: i.message }), {} as Record<string, string>));
       return;
     }
 
     setErrors({});
     setLoading(true);
 
-    // ── FIX 2: dispatch based on active method ─────────────────────────────
     if (activeMethod === 'email') {
       try {
         await axios.post('/api/auth/send-otp', { email });
         setSent(true);
       } catch (err: any) {
-        // ── FIX 3: setErrors not setError ─────────────────────────────────
         setErrors({ email: err.response?.data?.error || 'Something went wrong.' });
-      } finally {
-        setLoading(false);
-      }
+      } finally { setLoading(false); }
       return;
     }
 
     if (activeMethod === 'phone') {
       const win = window as any;
 
-      // Step 2 — verify OTP via MSG91 widget
       if (otpSent) {
-        if (!otp || otp.length !== 6) {
-          setErrors({ otp: 'Enter the 6-digit OTP.' });
-          setLoading(false);
-          return;
-        }
-
-        if (!win.verifyOtp) {
-          setErrors({ otp: 'OTP service not ready. Please refresh.' });
-          setLoading(false);
-          return;
-        }
+        if (!otp || otp.length !== 6) { setErrors({ otp: 'Enter the 6-digit OTP.' }); setLoading(false); return; }
+        if (!win.verifyOtp) { setErrors({ otp: 'OTP service not ready. Please refresh.' }); setLoading(false); return; }
 
         onVerifySuccess.current = async (data: any) => {
           const token = data?.message ?? data?.access_token ?? data?.token ?? data;
-          const result = await signIn('credentials', {
-            redirect:   false,
+          const res = await signIn('credentials', {
+            redirect: false,
             msg91Token: typeof token === 'string' ? token : JSON.stringify(token),
-            phone:      `${countryCode}${phone}`,
+            phone: `${countryCode}${phone}`,
           });
-          if (result?.error) {
-            setErrors({ otp: 'Verification failed. Please try again.' });
-          } else {
-            closeModal();
-            window.location.href = '/profile';
-          }
+          if (res?.error) { setErrors({ otp: 'Verification failed. Please try again.' }); }
+          else { closeModal(); window.location.href = '/profile'; }
           setLoading(false);
         };
         onVerifyFailure.current = (err: any) => {
           setErrors({ otp: err?.message ?? 'Invalid OTP. Please try again.' });
           setLoading(false);
         };
-
         win.verifyOtp(otp);
         return;
       }
 
-      // Step 1 — send OTP via MSG91 widget (uses MSG91's default DLT-approved template)
-      if (!win.sendOtp) {
-        setErrors({ phone: 'OTP service not ready. Please refresh.' });
-        setLoading(false);
-        return;
-      }
-
-      const mobile = `${countryCode.replace('+', '')}${phone}`;
-      win.sendOtp(mobile);
+      if (!win.sendOtp) { setErrors({ phone: 'OTP service not ready. Please refresh.' }); setLoading(false); return; }
+      win.sendOtp(`${countryCode.replace('+', '')}${phone}`);
       setOtpSent(true);
       setLoading(false);
     }
@@ -223,179 +148,226 @@ function LoginModal() {
   if (!isOpen || type !== 'login-modal') return null;
 
   return (
-    <Modal
-      as="form"
-      open={isOpen}
-      onClose={closeModal}
-      data-layout="website"
-      onSubmit={handleSubmit}
-    >
-      <ModalHeader onClose={closeModal}>Log In</ModalHeader>
+    <Dialog open={isOpen} onClose={closeModal} className="relative z-500">
+      <DialogBackdrop
+        transition
+        className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity data-closed:opacity-0 data-enter:duration-300 data-leave:duration-200"
+      />
 
-      <ModalBody className="space-y-1 min-h-100">
+      <div className="fixed inset-0 z-10 flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <DialogPanel
+          transition
+          className="relative w-full sm:max-w-lg bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden
+            data-closed:translate-y-8 data-closed:opacity-0 data-enter:duration-300 data-leave:duration-200 transition-all"
+        >
+          {/* ── Branded header ─────────────────────────────────────────────── */}
+          <div className="relative px-6 pt-8 pb-6 bg-linear-to-br from-primary-600 via-primary-500 to-primary-400 overflow-hidden">
+            {/* decorative circles */}
+            <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-white/10" />
+            <div className="absolute -bottom-6 -left-6 w-24 h-24 rounded-full bg-white/10" />
 
-        {/* ── Method Toggle ── */}
-        <div className="flex rounded-xl bg-surface-muted p-1 gap-1 mb-4">
-          {(['phone', 'email'] as LoginMethod[]).map((method) => (
-            <button
-              key={method}
-              type="button"
-              onClick={() => { setActiveMethod(method); setSent(false); setOtpSent(false); setOtp(''); setErrors({}); }}
-              className={`flex-1 py-1.5 text-sm font-medium rounded-lg capitalize transition-all
-                ${activeMethod === method
-                  ? 'bg-white text-primary shadow-sm'
-                  : 'text-[--text-muted] hover:text-primary'
-                }`}
-            >
-              {method === 'phone' ? 'Phone' : 'Email'}
-            </button>
-          ))}
-        </div>
-
-        {/* ── FIX 4: Email sent state ── */}
-        {activeMethod === 'email' && sent ? (
-          <div className="text-center py-4 space-y-2">
-            <p className="text-sm font-medium">Check your inbox</p>
-            <p className="text-xs text-[--text-muted]">
-              Magic link sent to <strong>{email}</strong>. Expires in 10 minutes.
-            </p>
             <button
               type="button"
-              className="text-xs underline text-[--text-muted] hover:text-primary"
-              onClick={() => { setSent(false); setEmail(''); }}
+              onClick={closeModal}
+              className="absolute top-4 right-4 p-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors cursor-pointer"
             >
-              Use a different email
+              <X size={16} />
             </button>
-          </div>
-        ) : (
-          <>
-            {/* ── Phone Input ── */}
-            {activeMethod === 'phone' && !otpSent && (
-              <div>
-                <Label htmlFor="phone">Phone Number</Label>
-                <div className="flex gap-2 mt-1">
-                  <Select
-                    value={countryCode}
-                    onChange={handleCountryCodeChange}
-                    maxHeight="sm"
-                    className="min-w-30 h-full max-h-11"
-                  >
-                    {COUNTRY_CODES.map(({ code, flag, label }) => (
-                      <Option key={code} value={code}>
-                        {flag} {code}
-                      </Option>
-                    ))}
-                  </Select>
-                  <Input
-                    id="phone"
-                    type="tel"
-                    placeholder="Enter phone number"
-                    size="md"
-                    className="flex-1"
-                    value={phone}
-                    onChange={handlePhoneChange}
-                    inputMode="numeric"
-                    maxLength={PHONE_RULES[countryCode as CountryCode]?.length ?? 15}
-                    wrapperClassName="w-full"
-                    error={errors.phone}
-                  />
-                </div>
+
+            <div className="relative flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                <AirplaneIcon size={20} className="text-white" weight="fill" />
               </div>
-            )}
+              <span className="text-white/80 text-sm font-medium">Dreams Yatri</span>
+            </div>
 
-            {/* ── OTP Input (phone step 2) ── */}
-            {activeMethod === 'phone' && otpSent && (
-              <div className="space-y-3">
-                <p className="text-sm text-[--text-muted]">
-                  OTP sent to <strong>{countryCode} {phone}</strong>
-                </p>
+            <h2 className="relative text-2xl font-bold text-white">Welcome back</h2>
+            <p className="relative text-white/70 text-sm mt-1">Sign in to continue your journey</p>
+          </div>
+
+          {/* ── Form body ──────────────────────────────────────────────────── */}
+          <form onSubmit={handleSubmit} noValidate className="px-6 py-6 space-y-5">
+
+            {/* Method toggle */}
+            <div className="flex bg-neutral-100 rounded-xl p-1 gap-1">
+              {(['phone', 'email'] as LoginMethod[]).map(method => (
+                <button
+                  key={method}
+                  type="button"
+                  onClick={() => { setActiveMethod(method); setSent(false); setOtpSent(false); setOtp(''); setErrors({}); }}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-lg transition-all cursor-pointer
+                    ${activeMethod === method
+                      ? 'bg-white text-primary-600 shadow-sm'
+                      : 'text-neutral-500 hover:text-neutral-700'
+                    }`}
+                >
+                  {method === 'phone'
+                    ? <><Phone size={14} /> Phone</>
+                    : <><Mail size={14} /> Email</>
+                  }
+                </button>
+              ))}
+            </div>
+
+            {/* ── Email sent state ── */}
+            {activeMethod === 'email' && sent ? (
+              <div className="text-center py-6 space-y-3">
+                <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto">
+                  <Mail size={24} className="text-green-600" />
+                </div>
                 <div>
-                  <Label htmlFor="otp">Enter OTP</Label>
-                  <Input
-                    id="otp"
-                    type="text"
-                    placeholder="6-digit OTP"
-                    size="md"
-                    className="mt-1 tracking-widest text-center"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    inputMode="numeric"
-                    maxLength={6}
-                    error={errors.otp}
-                    autoFocus
-                  />
+                  <p className="font-semibold text-neutral-800">Check your inbox</p>
+                  <p className="text-sm text-neutral-500 mt-1">
+                    Magic link sent to <strong>{email}</strong>
+                  </p>
                 </div>
                 <button
                   type="button"
-                  className="text-xs underline text-[--text-muted] hover:text-primary"
-                  onClick={() => { setOtpSent(false); setOtp(''); setErrors({}); }}
+                  onClick={() => { setSent(false); setEmail(''); }}
+                  className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1 mx-auto cursor-pointer"
                 >
-                  Use a different number
+                  <ArrowLeft size={14} /> Use a different email
                 </button>
               </div>
+            ) : (
+              <>
+                {/* Phone step 1 — enter number */}
+                {activeMethod === 'phone' && !otpSent && (
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-neutral-700">Phone Number</label>
+                    <div className="flex gap-2">
+                      <Select
+                        value={countryCode}
+                        onChange={val => { setCountryCode(val); if (errors.phone) setErrors(p => { const n = {...p}; delete n.phone; return n; }); }}
+                        maxHeight="sm"
+                        className="min-w-28 h-11"
+                      >
+                        {COUNTRY_CODES.map(({ code, flag, label }) => (
+                          <Option key={code} value={code}>{flag} {code}</Option>
+                        ))}
+                      </Select>
+                      <Input
+                        id="phone"
+                        type="tel"
+                        placeholder="Enter phone number"
+                        size="md"
+                        value={phone}
+                        onChange={e => { setPhone(e.target.value); clearErrorIfValid('phone', phoneLoginSchema, { countryCode, phone: e.target.value }); }}
+                        inputMode="numeric"
+                        maxLength={PHONE_RULES[countryCode as CountryCode]?.length ?? 15}
+                        wrapperClassName="flex-1"
+                        error={errors.phone}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Phone step 2 — enter OTP */}
+                {activeMethod === 'phone' && otpSent && (
+                  <div className="space-y-4">
+                    <div className="bg-primary-50 border border-primary-100 rounded-xl px-4 py-3 flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center shrink-0 mt-0.5">
+                        <Phone size={14} className="text-primary-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-neutral-800">OTP sent</p>
+                        <p className="text-xs text-neutral-500 mt-0.5">
+                          Enter the code sent to <strong>{countryCode} {phone}</strong>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-neutral-700">Enter OTP</label>
+                      <Input
+                        id="otp"
+                        type="text"
+                        placeholder="• • • • • •"
+                        size="md"
+                        className="tracking-[0.5em] text-center text-lg font-semibold"
+                        value={otp}
+                        onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        inputMode="numeric"
+                        maxLength={6}
+                        error={errors.otp}
+                        autoFocus
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => { setOtpSent(false); setOtp(''); setErrors({}); }}
+                      className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1 cursor-pointer"
+                    >
+                      <ArrowLeft size={14} /> Use a different number
+                    </button>
+                  </div>
+                )}
+
+                {/* Email input */}
+                {activeMethod === 'email' && (
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-neutral-700">Email Address</label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="you@example.com"
+                      size="md"
+                      value={email}
+                      onChange={e => { setEmail(e.target.value); clearErrorIfValid('email', emailLoginSchema, { email: e.target.value }); }}
+                      error={errors.email}
+                    />
+                  </div>
+                )}
+
+                {/* Divider */}
+                <div className="flex items-center gap-3">
+                  <hr className="flex-1 border-neutral-200" />
+                  <span className="text-xs text-neutral-400 font-medium">or</span>
+                  <hr className="flex-1 border-neutral-200" />
+                </div>
+
+                {/* Google */}
+                <button
+                  type="button"
+                  onClick={() => signIn('google', { callbackUrl: '/profile' })}
+                  className="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-neutral-200 rounded-xl
+                    bg-white hover:bg-neutral-50 text-neutral-700 text-sm font-medium transition-colors cursor-pointer shadow-sm"
+                >
+                  <GoogleIcon />
+                  Continue with Google
+                </button>
+
+                <p className="text-[11px] text-center text-neutral-400">
+                  By continuing, you agree to our{' '}
+                  <a href="/terms" className="underline hover:text-primary-600">Terms</a>
+                  {' '}and{' '}
+                  <a href="/privacy" className="underline hover:text-primary-600">Privacy Policy</a>.
+                </p>
+              </>
             )}
 
-            {/* ── Email Input ── */}
-            {activeMethod === 'email' && (
-              <div>
-                <Label htmlFor="email">Email Address</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  size="md"
-                  className="mt-1"
-                  value={email}
-                  onChange={handleEmailChange}
-                  error={errors.email}
-                />
-              </div>
+            {/* Submit */}
+            {!sent && (
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 px-4 bg-primary-600 hover:bg-primary-700 disabled:opacity-60 disabled:cursor-not-allowed
+                  text-white font-semibold rounded-xl transition-colors cursor-pointer shadow-md shadow-primary-200"
+              >
+                {loading
+                  ? 'Please wait…'
+                  : activeMethod === 'phone'
+                    ? otpSent ? 'Verify OTP' : 'Send OTP'
+                    : 'Send Magic Link'
+                }
+              </button>
             )}
 
-            <Divider label="or continue with" />
-
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              className="w-full"
-              onClick={() => signIn("google", { callbackUrl: "/profile" })}
-            >
-              <GoogleIcon />
-              Continue with Google
-            </Button>
-
-            <p className="text-[11px] text-center text-[--text-muted] pt-2">
-              By continuing, you agree to our{' '}
-              <a href="/terms" className="underline hover:text-primary">Terms</a>
-              {' '}and{' '}
-              <a href="/privacy" className="underline hover:text-primary">Privacy Policy</a>.
-            </p>
-          </>
-        )}
-
-      </ModalBody>
-
-      {/* ── FIX 5: hide footer after email sent ── */}
-      {!sent && (
-        <ModalFooter>
-          <div className="flex items-center justify-end gap-3">
-            <Button type="button" onClick={closeModal} variant="outline" size="sm">
-              Cancel
-            </Button>
-            <Button type="submit" size="sm" disabled={loading}>
-              {loading
-                ? 'Please wait...'
-                : activeMethod === 'phone'
-                  ? otpSent ? 'Verify OTP' : 'Send OTP'
-                  : 'Send Magic Link'
-              }
-            </Button>
-          </div>
-        </ModalFooter>
-      )}
-
-    </Modal>
+          </form>
+        </DialogPanel>
+      </div>
+    </Dialog>
   );
 }
 
