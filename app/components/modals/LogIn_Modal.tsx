@@ -241,7 +241,7 @@ function LoginModal() {
               key={method}
               type="button"
               onClick={() => { setActiveMethod(method); setSent(false); setOtpSent(false); setOtp(''); setErrors({}); }}
-              className={`flex-1 py-1.5 text-sm font-medium rounded-lg capitalize transition-all
+              className={`flex-1 py-1.5 text-sm font-medium rounded-lg capitalize transition-all cursor-pointer
                 ${activeMethod === method
                   ? 'bg-white text-primary shadow-sm'
                   : 'text-[--text-muted] hover:text-primary'
@@ -261,7 +261,7 @@ function LoginModal() {
             </p>
             <button
               type="button"
-              className="text-xs underline text-[--text-muted] hover:text-primary"
+              className="text-xs underline text-[--text-muted] hover:text-primary cursor-pointer"
               onClick={() => { setSent(false); setEmail(''); }}
             >
               Use a different email
@@ -327,7 +327,7 @@ function LoginModal() {
                 </div>
                 <button
                   type="button"
-                  className="text-xs underline text-[--text-muted] hover:text-primary"
+                  className="text-xs underline text-[--text-muted] hover:text-primary cursor-pointer"
                   onClick={() => { setOtpSent(false); setOtp(''); setErrors({}); }}
                 >
                   Use a different number
