@@ -23,6 +23,16 @@ const DEFAULT_IMAGES = [
     'https://images.unsplash.com/photo-1526392060635-9d6019884377?q=80&w=2070&auto=format&fit=crop',
     // Bali, Indonesia — tropical temple at sunrise
     'https://images.unsplash.com/photo-1537996194471-e657df975ab4?q=80&w=2038&auto=format&fit=crop',
+    // Dubai, UAE — futuristic skyline at dusk
+    'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?q=80&w=2070&auto=format&fit=crop',
+    // Amalfi Coast, Italy — colourful cliffside villages above turquoise sea
+    'https://images.unsplash.com/photo-1534308983496-4fabb1a015ee?q=80&w=2076&auto=format&fit=crop',
+    // Tokyo, Japan — neon-lit streets in the heart of the city
+    'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?q=80&w=2094&auto=format&fit=crop',
+    // Maldives — overwater bungalows on a crystal lagoon
+    'https://images.unsplash.com/photo-1514282401047-d79a71a590e8?q=80&w=2065&auto=format&fit=crop',
+    // Swiss Alps — snow-capped peaks and a mirror-calm lake
+    'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=80&w=2070&auto=format&fit=crop',
 ]
 
 // ─── Default titles — map index-for-index with DEFAULT_IMAGES ────────────────
@@ -31,13 +41,23 @@ const DEFAULT_TITLES = [
     'Fall in Love with Paris',
     'Explore the Wonders of Peru',
     'Experience the Magic of Bali',
+    'Marvel at the Future in Dubai',
+    'Escape to the Amalfi Coast',
+    'Dive into the Energy of Tokyo',
+    'Unwind in the Maldives',
+    'Find Peace in the Swiss Alps',
 ]
 
 const DEFAULT_PARA = [
     'Sail through crystal-clear Aegean waters, stroll cobbled alleys, and watch the sun melt into the horizon from breathtaking clifftop villages.',
     'Wander iconic boulevards, savour world-class cuisine, and soak in the romance of a city that has inspired travellers for centuries.',
     'Trek through ancient cloud-kissed ruins, discover vibrant markets, and immerse yourself in a civilisation that shaped the world.',
-    'Unwind on lush terraced rice fields, visit sacred temples at sunrise, and let the island\'s warm spirit restore your soul.'
+    'Unwind on lush terraced rice fields, visit sacred temples at sunrise, and let the island\'s warm spirit restore your soul.',
+    'Gaze at a glittering skyline rising from the desert, indulge in luxury shopping, and discover a city that never stops reinventing itself.',
+    'Wind along dramatic coastal roads, savour fresh seafood with sea views, and lose yourself in the timeless charm of Italian villages.',
+    'Wander neon-lit alleys, discover ancient shrines between soaring skyscrapers, and taste a cuisine that has perfected every bite.',
+    'Wake up above a turquoise lagoon, snorkel among coral gardens, and let the gentle pace of island life melt every worry away.',
+    'Breathe crisp mountain air, cruise across glassy lakes, and stand in silence before peaks that make the rest of the world feel small.',
 ]
 
 // ─── Types ───────────────────────────────────────────────────────────────────
