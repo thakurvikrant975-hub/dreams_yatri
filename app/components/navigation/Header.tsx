@@ -8,6 +8,9 @@ import Button from '../ui/Button'
 import Image from 'next/image'
 import Link from 'next/link'
 import MobileMenu from './MobileMenu'
+import { useSession } from 'next-auth/react'
+import { useModal } from '@/app/hooks/useModals'
+import { useRouter } from 'next/navigation'
 
 interface HeaderProps {
   transparent?: boolean;
@@ -16,6 +19,9 @@ interface HeaderProps {
 
 export default function Header({ transparent = false, sticky = true }: HeaderProps) {
   const [scrolled, setScrolled] = useState(false)
+  const { data: session, status } = useSession()
+  const openModal = useModal(s => s.openModal)
+  const router = useRouter()
 
   useEffect(() => {
     if (!transparent) return
@@ -25,6 +31,19 @@ export default function Header({ transparent = false, sticky = true }: HeaderPro
   }, [transparent])
 
   const isSolid = !transparent || scrolled
+  const isLoggedIn = status === 'authenticated' && !!session?.user
+
+  function handleProfileClick() {
+    if (isLoggedIn) {
+      router.push('/profile')
+    } else {
+      openModal('login-modal')
+    }
+  }
+
+  function handleRegisterClick() {
+    openModal('login-modal')
+  }
 
   return (
     <div className={`${sticky ? 'sticky top-0' : 'relative'} left-0 z-(--z-sticky)`}>
@@ -36,7 +55,6 @@ export default function Header({ transparent = false, sticky = true }: HeaderPro
             : '0 0 0 0 rgba(0,0,0,0)',
         }}
         transition={{ duration: 0.35, ease: 'easeInOut' }}
-        // relative — blob anchors to this; overflow-visible so blob can expand beyond header bounds
         className="relative h-header-height overflow-visible"
       >
         <div className="screen-space h-full">
@@ -104,28 +122,58 @@ export default function Header({ transparent = false, sticky = true }: HeaderPro
                 </span>
               </motion.button>
 
+              {/* Profile / avatar icon */}
               <motion.button
+                onClick={handleProfileClick}
                 animate={{ color: isSolid ? '#6A7282' : '#ffffff' }}
                 transition={{ duration: 0.3 }}
-                className={`size-9 rounded-full flex justify-center items-center ring-1 ${
+                className={`size-9 rounded-full flex justify-center items-center ring-1 cursor-pointer transition-all ${
                   isSolid
-                    ? 'bg-neutral-100 text-neutral-900 shadow-md shadow-gray-300/60 ring-(--border-muted)'
-                    : 'bg-white/15 text-white backdrop-blur-sm shadow-none ring-white/40'
+                    ? 'bg-neutral-100 text-neutral-900 shadow-md shadow-gray-300/60 ring-(--border-muted) hover:bg-neutral-200'
+                    : 'bg-white/15 text-white backdrop-blur-sm shadow-none ring-white/40 hover:bg-white/25'
                 }`}
+                title={isLoggedIn ? 'Go to profile' : 'Sign in'}
               >
-                <UserIcon className="size-4.5" />
+                {isLoggedIn && session.user.image ? (
+                  <Image
+                    src={session.user.image}
+                    alt={session.user.name ?? 'Profile'}
+                    width={36}
+                    height={36}
+                    className="w-full h-full rounded-full object-cover"
+                  />
+                ) : (
+                  <UserIcon className="size-4.5" />
+                )}
               </motion.button>
 
-              <Button variant="premium" size="md">Register</Button>
+              {/* Conditional Register / Profile button */}
+              {isLoggedIn ? (
+                <Button
+                  variant="premium"
+                  size="md"
+                  onClick={() => router.push('/profile')}
+                >
+                  Profile
+                </Button>
+              ) : (
+                <Button
+                  variant="premium"
+                  size="md"
+                  onClick={handleRegisterClick}
+                >
+                  Register
+                </Button>
+              )}
             </div>
 
-            {/* Mobile right spacer — matches hamburger width so logo stays centered */}
+            {/* Mobile right spacer */}
             <div className="lg:hidden w-[52px] shrink-0" />
 
           </div>
         </div>
 
-        {/* MobileMenu — absolutely positioned children anchor to this header */}
+        {/* MobileMenu */}
         <div className="lg:hidden">
           <MobileMenu />
         </div>
