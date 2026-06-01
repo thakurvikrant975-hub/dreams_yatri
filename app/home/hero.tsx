@@ -16,9 +16,9 @@ import ShowLogin from '../lib/show-login';
 // ─── Default hero images (override via props) ───────────────────────────────
 const DEFAULT_IMAGES = [
     // Santorini, Greece — iconic blue domes overlooking the Aegean
-    'https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?q=80&w=2074&auto=format&fit=crop',
+    'https://plus.unsplash.com/premium_photo-1661964068107-6d7f6f4fea51?q=80&w=2074&auto=format&fit=crop',
     // Eiffel Tower, Paris — golden hour over the city of lights
-    'https://images.unsplash.com/photo-1499856871958-5b9627545d1a?q=80&w=2070&auto=format&fit=crop',
+    'https://plus.unsplash.com/premium_photo-1661919210043-fd847a58522d?q=80&w=2070&auto=format&fit=crop',
     // Machu Picchu, Peru — ancient citadel wrapped in clouds
     'https://images.unsplash.com/photo-1526392060635-9d6019884377?q=80&w=2070&auto=format&fit=crop',
     // Bali, Indonesia — tropical temple at sunrise
@@ -26,11 +26,11 @@ const DEFAULT_IMAGES = [
     // Dubai, UAE — futuristic skyline at dusk
     'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?q=80&w=2070&auto=format&fit=crop',
     // Amalfi Coast, Italy — colourful cliffside villages above turquoise sea
-    'https://images.unsplash.com/photo-1534308983496-4fabb1a015ee?q=80&w=2076&auto=format&fit=crop',
+    'https://images.unsplash.com/photo-1591014979485-08d0b2946bc3?q=80&w=2076&auto=format&fit=crop',
     // Tokyo, Japan — neon-lit streets in the heart of the city
-    'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?q=80&w=2094&auto=format&fit=crop',
+    'https://plus.unsplash.com/premium_photo-1661878589476-bcad7fe1b8c5?q=80&w=2094&auto=format&fit=crop',
     // Maldives — overwater bungalows on a crystal lagoon
-    'https://images.unsplash.com/photo-1514282401047-d79a71a590e8?q=80&w=2065&auto=format&fit=crop',
+    'https://images.unsplash.com/photo-1602002418679-43121356bf41?q=80&w=2065&auto=format&fit=crop',
     // Swiss Alps — snow-capped peaks and a mirror-calm lake
     'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=80&w=2070&auto=format&fit=crop',
 ]
