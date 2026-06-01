@@ -1031,3 +1031,108 @@ export async function fetchRelatedPackages(
     })
     .filter((p): p is RelatedPackageItem => p !== null);
 }
+
+// ── Recent packages for home page ─────────────────────────────────────────
+
+export async function fetchRecentPackages(limit = 6): Promise<RelatedPackageItem[]> {
+  const R2 = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? "";
+  const imgUrl = (key: string | null | undefined) =>
+    !key ? "" : key.startsWith("http") ? key : `${R2}/${key}`;
+
+  const packages = await db.packages.findMany({
+    where: { is_active: true },
+    take: limit,
+    orderBy: { created_at: "desc" },
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      thumbnail: true,
+      images: { orderBy: { sort_order: "asc" }, take: 3, select: { url: true } },
+      durations: {
+        where: { is_active: true },
+        orderBy: [{ is_default: "desc" }, { sort_order: "asc" }],
+        take: 1,
+        select: {
+          id: true, slug: true, days: true, nights: true,
+          routes: {
+            where: { is_active: true },
+            orderBy: { sort_order: "asc" },
+            take: 1,
+            select: {
+              id: true, slug: true,
+              stops: { orderBy: { sort_order: "asc" }, select: { place_name: true, stay_days: true } },
+            },
+          },
+        },
+      },
+      stay_categories: {
+        where: { is_active: true },
+        orderBy: [{ is_default: "desc" }, { sort_order: "asc" }],
+        take: 1,
+        select: { id: true, slug: true },
+      },
+    },
+  });
+
+  if (packages.length === 0) return [];
+
+  const pricingResults = await Promise.all(
+    packages.map(async (pkg) => {
+      const duration = pkg.durations[0];
+      const route    = duration?.routes[0];
+      const stay     = pkg.stay_categories[0];
+      if (!duration || !route || !stay) return { id: pkg.id, discountedPrice: 0, originalPrice: 0 };
+
+      const stays = await db.itinerary_stays.findMany({
+        where: {
+          stay_category_id: stay.id,
+          itinerary: { package_id: pkg.id, duration_id: duration.id, route_id: route.id },
+        },
+        select: {
+          num_nights: true,
+          room_pricing: { select: { price_per_night: true, original_price: true } },
+        },
+      });
+
+      const discountedPrice = stays.reduce(
+        (sum, s) => sum + Number(s.room_pricing.price_per_night) * s.num_nights, 0,
+      );
+      const originalPrice = stays.reduce(
+        (sum, s) => sum + Number(s.room_pricing.original_price ?? s.room_pricing.price_per_night) * s.num_nights, 0,
+      );
+
+      return { id: pkg.id, discountedPrice, originalPrice };
+    }),
+  );
+
+  const pricingMap = new Map(pricingResults.map((p) => [p.id, p]));
+
+  return packages
+    .map((pkg): RelatedPackageItem | null => {
+      const duration = pkg.durations[0];
+      const route    = duration?.routes[0];
+      const stay     = pkg.stay_categories[0];
+      if (!duration || !route || !stay) return null;
+
+      const images = [imgUrl(pkg.thumbnail), ...pkg.images.map((i) => imgUrl(i.url))].filter(Boolean) as string[];
+      if (images.length === 0) return null;
+
+      const pricing = pricingMap.get(pkg.id) ?? { discountedPrice: 0, originalPrice: 0 };
+
+      return {
+        id: pkg.id,
+        title: pkg.title,
+        slug: pkg.slug,
+        images,
+        duration: `${duration.days}D/${duration.nights}N`,
+        durationSlug: duration.slug,
+        routeSlug: route.slug,
+        staySlug: stay.slug,
+        itinerary: route.stops.map((s) => ({ days: s.stay_days, place: s.place_name })),
+        discountedPrice: pricing.discountedPrice,
+        originalPrice: pricing.originalPrice || pricing.discountedPrice,
+      };
+    })
+    .filter((p): p is RelatedPackageItem => p !== null);
+}
