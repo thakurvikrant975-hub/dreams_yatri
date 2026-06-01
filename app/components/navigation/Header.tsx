@@ -122,46 +122,41 @@ export default function Header({ transparent = false, sticky = true }: HeaderPro
                 </span>
               </motion.button>
 
-              {/* Profile / avatar icon */}
-              <motion.button
-                onClick={handleProfileClick}
-                animate={{ color: isSolid ? '#6A7282' : '#ffffff' }}
-                transition={{ duration: 0.3 }}
-                className={`size-9 rounded-full flex justify-center items-center ring-1 cursor-pointer transition-all ${
-                  isSolid
-                    ? 'bg-neutral-100 text-neutral-900 shadow-md shadow-gray-300/60 ring-(--border-muted) hover:bg-neutral-200'
-                    : 'bg-white/15 text-white backdrop-blur-sm shadow-none ring-white/40 hover:bg-white/25'
-                }`}
-                title={isLoggedIn ? 'Go to profile' : 'Sign in'}
-              >
-                {isLoggedIn && session.user.image ? (
-                  <Image
-                    src={session.user.image}
-                    alt={session.user.name ?? 'Profile'}
-                    width={36}
-                    height={36}
-                    className="w-full h-full rounded-full object-cover"
-                  />
-                ) : (
-                  <UserIcon className="size-4.5" />
-                )}
-              </motion.button>
+              {/* Logged in: profile avatar + Profile button */}
+              {isLoggedIn && (
+                <>
+                  <motion.button
+                    onClick={handleProfileClick}
+                    animate={{ color: isSolid ? '#6A7282' : '#ffffff' }}
+                    transition={{ duration: 0.3 }}
+                    className={`size-9 rounded-full flex justify-center items-center ring-1 cursor-pointer transition-all ${
+                      isSolid
+                        ? 'bg-neutral-100 text-neutral-900 shadow-md shadow-gray-300/60 ring-(--border-muted) hover:bg-neutral-200'
+                        : 'bg-white/15 text-white backdrop-blur-sm shadow-none ring-white/40 hover:bg-white/25'
+                    }`}
+                    title="Go to profile"
+                  >
+                    {session.user.image ? (
+                      <Image
+                        src={session.user.image}
+                        alt={session.user.name ?? 'Profile'}
+                        width={36}
+                        height={36}
+                        className="w-full h-full rounded-full object-cover"
+                      />
+                    ) : (
+                      <UserIcon className="size-4.5" />
+                    )}
+                  </motion.button>
+                  <Button variant="premium" size="md" onClick={() => router.push('/profile')}>
+                    Profile
+                  </Button>
+                </>
+              )}
 
-              {/* Conditional Register / Profile button */}
-              {isLoggedIn ? (
-                <Button
-                  variant="premium"
-                  size="md"
-                  onClick={() => router.push('/profile')}
-                >
-                  Profile
-                </Button>
-              ) : (
-                <Button
-                  variant="premium"
-                  size="md"
-                  onClick={handleRegisterClick}
-                >
+              {/* Not logged in: Register button only */}
+              {!isLoggedIn && (
+                <Button variant="premium" size="md" onClick={handleRegisterClick}>
                   Register
                 </Button>
               )}
