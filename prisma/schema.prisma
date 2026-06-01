@@ -755,27 +755,27 @@ model hotel_images {
 }
 
 model hotel_rooms {
-  id                  Int                  @id @default(autoincrement())
-  hotel_id            Int
-  name                String
-  slug                String
-  area_sqft           Int?
-  bed_type            String?
-  view_type           String?
-  max_occupancy       Int                  @default(2)
-  extra_bed_capacity  Int                  @default(1)
-  amenities           Json?
-  features      Json?
-  bathroom      Json?
-  facilities    Json?
-  description   String?
-  is_active     Boolean              @default(true)
-  sort_order    Int                  @default(0)
-  created_at    DateTime             @default(now())
-  updated_at    DateTime             @updatedAt
-  images        hotel_room_images[]
-  pricing       hotel_room_pricing[]
-  hotel         hotels               @relation(fields: [hotel_id], references: [id])
+  id                 Int                  @id @default(autoincrement())
+  hotel_id           Int
+  name               String
+  slug               String
+  area_sqft          Int?
+  bed_type           String?
+  view_type          String?
+  max_occupancy      Int                  @default(2)
+  extra_bed_capacity Int                  @default(1)
+  amenities          Json?
+  features           Json?
+  bathroom           Json?
+  facilities         Json?
+  description        String?
+  is_active          Boolean              @default(true)
+  sort_order         Int                  @default(0)
+  created_at         DateTime             @default(now())
+  updated_at         DateTime             @updatedAt
+  images             hotel_room_images[]
+  pricing            hotel_room_pricing[]
+  hotel              hotels               @relation(fields: [hotel_id], references: [id])
 
   @@unique([hotel_id, slug])
   @@index([hotel_id])
@@ -862,8 +862,8 @@ model hotel_room_pricing_season_occupancy {
 model hotel_meal_pricing {
   id            Int                         @id @default(autoincrement())
   hotel_id      Int
-  meal_type     String                      // preset key: BREAKFAST | LUNCH | DINNER | MORNING_SNACKS | EVENING_SNACKS | CUSTOM
-  label         String                      // display name, e.g. "Breakfast", "Evening High Tea"
+  meal_type     String // preset key: BREAKFAST | LUNCH | DINNER | MORNING_SNACKS | EVENING_SNACKS | CUSTOM
+  label         String // display name, e.g. "Breakfast", "Evening High Tea"
   price         Decimal                     @db.Decimal(10, 2)
   weekend_price Decimal?                    @db.Decimal(10, 2)
   is_active     Boolean                     @default(true)

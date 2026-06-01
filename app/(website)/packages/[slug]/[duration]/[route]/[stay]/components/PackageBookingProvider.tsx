@@ -10,11 +10,8 @@ import {
     type ReactNode,
 } from 'react';
 import { handleComputePackagePrice } from '@/app/actions/packages/pricing.actions';
-<<<<<<< HEAD
 import type { LocationValue } from '@/app/components/ui/LocationSearchSelect';
-=======
 import type { CabTypeOption } from '@/app/actions/packages/fetch-page-data';
->>>>>>> 058913ea7a8703f6ef79cf7c591b89ddbe04515c
 
 // ── Safe pricing — only these fields reach the browser ──────────────────────
 
@@ -41,14 +38,9 @@ export interface BookingContextValue {
     adults:     number;
     childCount: number;
     infants:    number;
-<<<<<<< HEAD
     childAges:  number[];   // length === childCount, each 2-11
     travelDate: string;     // 'YYYY-MM-DD' or ''
     leavingFrom: LocationValue | null;  // user's origin city (carried from search)
-=======
-    childAges:  number[];
-    travelDate: string;
->>>>>>> 058913ea7a8703f6ef79cf7c591b89ddbe04515c
 
     setAdults:     (n: number) => void;
     setChildCount: (n: number) => void;
@@ -130,7 +122,6 @@ interface ProviderProps {
 
 export function PackageBookingProvider({
     packageId, durationId, routeId, stayCategoryId, packageName,
-<<<<<<< HEAD
     children,
     initialAdults, initialChildAges, initialTravelDate, initialLeavingFrom,
 }: ProviderProps) {
@@ -141,16 +132,6 @@ export function PackageBookingProvider({
     const [travelDate, setTravelDate]   = useState(initialTravelDate ?? '');
     const [leavingFrom, setLeavingFrom] = useState<LocationValue | null>(initialLeavingFrom ?? null);
     const [pricing,    setPricing]      = useState<SafePricing | null>(null);
-=======
-    cabTypes, children,
-}: ProviderProps) {
-    const [adults,     setAdultsRaw]  = useState(2);
-    const [childCount, setChildRaw]   = useState(0);
-    const [infants,    setInfantsRaw] = useState(0);
-    const [childAges,  setChildAges]  = useState<number[]>([]);
-    const [travelDate, setTravelDate] = useState(() => new Date().toISOString().split('T')[0]);
-    const [pricing,    setPricing]    = useState<SafePricing | null>(null);
->>>>>>> 058913ea7a8703f6ef79cf7c591b89ddbe04515c
     const [isPricingLoading, setLoading] = useState(false);
 
     const cabGroups = useMemo(() => buildCabGroups(cabTypes), [cabTypes]);
@@ -185,7 +166,6 @@ export function PackageBookingProvider({
         });
     }
 
-<<<<<<< HEAD
     function setTravellers(nextAdults: number, ages: number[]) {
         setAdultsRaw(Math.max(1, nextAdults));
         setChildRaw(ages.length);
@@ -193,40 +173,6 @@ export function PackageBookingProvider({
     }
 
     // Re-fetch price whenever pax changes (debounced 400 ms)
-=======
-    // ── Cab setter ───────────────────────────────────────────────────────────
-
-    function setCabForGroup(groupKey: string, cabTypeId: number) {
-        setCabSelections(prev => new Map(prev).set(groupKey, cabTypeId));
-    }
-
-    // ── Auto-select optimal cab when passengers change ───────────────────────
-
-    useEffect(() => {
-        const passengers = Math.max(adults + childCount, 1);
-        setCabSelections(prev => {
-            const next = new Map<string, number>();
-            for (const group of cabGroups) {
-                const currentId  = prev.get(group.groupKey);
-                const currentCab = group.cabs.find(c => c.id === currentId);
-                // Keep current if it still fits; otherwise upgrade to optimal
-                if (currentCab && currentCab.vehicle.passenger_capacity >= passengers) {
-                    next.set(group.groupKey, currentId!);
-                } else {
-                    const id = optimalCabId(group.cabs, passengers)
-                        ?? group.cabs.find(c => c.is_default)?.id
-                        ?? group.cabs[0]?.id;
-                    if (id != null) next.set(group.groupKey, id);
-                }
-            }
-            return next;
-        });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [adults, childCount]);
-
-    // ── Re-compute price whenever any input changes ──────────────────────────
-
->>>>>>> 058913ea7a8703f6ef79cf7c591b89ddbe04515c
     useEffect(() => {
         if (debounceRef.current) clearTimeout(debounceRef.current);
         debounceRef.current = setTimeout(async () => {
@@ -264,14 +210,8 @@ export function PackageBookingProvider({
 
     return (
         <BookingContext.Provider value={{
-<<<<<<< HEAD
             adults, childCount, infants, childAges, travelDate, leavingFrom,
             setAdults, setChildCount, setInfants, setChildAge, setTravelDate, setLeavingFrom, setTravellers,
-=======
-            adults, childCount, infants, childAges, travelDate,
-            setAdults, setChildCount, setInfants, setChildAge, setTravelDate,
-            cabGroups, cabSelections, setCabForGroup,
->>>>>>> 058913ea7a8703f6ef79cf7c591b89ddbe04515c
             pricing, isPricingLoading, packageName,
         }}>
             {children}

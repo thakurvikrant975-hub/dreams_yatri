@@ -387,14 +387,11 @@ export default async function PackagePage({
                 routeId={pageData.selectedRoute!.id}
                 stayCategoryId={pageData.selectedStay!.id}
                 packageName={pageData.title}
-<<<<<<< HEAD
                 initialAdults={initialAdults}
                 initialChildAges={initialChildAges}
                 initialTravelDate={initialTravelDate}
                 initialLeavingFrom={initialLeavingFrom}
-=======
                 cabTypes={pageData.cabTypes}
->>>>>>> 058913ea7a8703f6ef79cf7c591b89ddbe04515c
             >
                 <TravelerInputBar />
 
