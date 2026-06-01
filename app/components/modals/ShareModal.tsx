@@ -90,14 +90,13 @@ function ShareModal() {
     }
 
     return (
-        <Modal open={isOpen} onClose={closeModal} maxWidth="sm">
-            <ModalBody className="px-6 pt-8 pb-8 !overflow-visible">
+        <Modal open={isOpen} onClose={closeModal} maxWidth="md">
+            <ModalBody className="px-8 pt-10 pb-8 overflow-visible!">
                 {/* Chain icon */}
-                <div className="flex flex-col items-center text-center mb-6">
+                <div className="flex flex-col items-center text-center mb-7">
                     <div className="w-16 h-16 rounded-full bg-neutral-100 flex items-center justify-center mb-4 shadow-sm">
                         <LinkIcon className="size-7 text-neutral-500" strokeWidth={1.8} />
                     </div>
-
                     <h2 className="text-2xl font-bold text-neutral-900 mb-1.5">Share with Friends</h2>
                     <p className="text-sm text-neutral-500 max-w-xs leading-relaxed">
                         Travel is more fun when you plan it together!
@@ -108,7 +107,7 @@ function ShareModal() {
                 <button
                     type="button"
                     onClick={closeModal}
-                    className="absolute top-4 right-4 w-8 h-8 rounded-full border border-neutral-200 flex items-center justify-center text-neutral-400 hover:text-neutral-600 hover:border-neutral-300 transition-colors"
+                    className="cursor-pointer absolute top-4 right-4 w-8 h-8 rounded-full border border-neutral-200 flex items-center justify-center text-neutral-400 hover:text-neutral-600 hover:border-neutral-300 transition-colors"
                     aria-label="Close"
                 >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="size-4">
@@ -117,7 +116,7 @@ function ShareModal() {
                 </button>
 
                 {/* URL copy input */}
-                <div className="mb-6">
+                <div className="mb-7">
                     <p className="text-sm font-semibold text-neutral-800 mb-2">Share your link</p>
                     <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-neutral-50 border border-neutral-200">
                         <span className="flex-1 text-sm text-neutral-600 truncate select-all">{url}</span>
@@ -125,7 +124,7 @@ function ShareModal() {
                             type="button"
                             onClick={handleCopy}
                             className={cn(
-                                'shrink-0 p-1.5 rounded-lg transition-all',
+                                'cursor-pointer shrink-0 p-1.5 rounded-lg transition-all',
                                 copied
                                     ? 'text-green-600 bg-green-50'
                                     : 'text-neutral-400 hover:text-neutral-600 hover:bg-neutral-200'
@@ -145,16 +144,16 @@ function ShareModal() {
                     </div>
                 </div>
 
-                {/* Social icons */}
+                {/* Social icons — fixed 5-column grid, no wrapping */}
                 <div>
-                    <p className="text-sm font-semibold text-neutral-800 mb-3">Share to</p>
-                    <div className="flex items-center gap-4 justify-center flex-wrap">
+                    <p className="text-sm font-semibold text-neutral-800 mb-4">Share to</p>
+                    <div className="grid grid-cols-5 gap-3">
                         {SOCIALS.map((social) => (
                             <button
                                 key={social.name}
                                 type="button"
                                 onClick={() => openShare(social.getUrl(url, title))}
-                                className="flex flex-col items-center gap-1.5 group"
+                                className="cursor-pointer flex flex-col items-center gap-1.5 group"
                             >
                                 <div
                                     className="w-14 h-14 rounded-full flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-200"

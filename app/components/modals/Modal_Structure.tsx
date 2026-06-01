@@ -85,7 +85,7 @@ export default function Modal({
       : { as: 'div' as const, id }
 
   return (
-    <Dialog open={open} onClose={onClose} className="relative z-50" {...props}>
+    <Dialog open={open} onClose={onClose} className="relative z-500" {...props}>
       <DialogBackdrop
         transition
         className={cn(
