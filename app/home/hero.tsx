@@ -15,25 +15,29 @@ import ShowLogin from '../lib/show-login';
 
 // ─── Default hero images (override via props) ───────────────────────────────
 const DEFAULT_IMAGES = [
-    'https://images.unsplash.com/photo-1682685797208-c741d58c2eff?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    'https://plus.unsplash.com/premium_photo-1661878091370-4ccb8763756a?q=80&w=3132&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    'https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    'https://plus.unsplash.com/premium_photo-1671358446946-8bd43ba08a6a?q=80&w=2832&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+    // Santorini, Greece — iconic blue domes overlooking the Aegean
+    'https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?q=80&w=2074&auto=format&fit=crop',
+    // Eiffel Tower, Paris — golden hour over the city of lights
+    'https://images.unsplash.com/photo-1499856871958-5b9627545d1a?q=80&w=2070&auto=format&fit=crop',
+    // Machu Picchu, Peru — ancient citadel wrapped in clouds
+    'https://images.unsplash.com/photo-1526392060635-9d6019884377?q=80&w=2070&auto=format&fit=crop',
+    // Bali, Indonesia — tropical temple at sunrise
+    'https://images.unsplash.com/photo-1537996194471-e657df975ab4?q=80&w=2038&auto=format&fit=crop',
 ]
 
 // ─── Default titles — map index-for-index with DEFAULT_IMAGES ────────────────
 const DEFAULT_TITLES = [
-    'Explore the Magic of Kashmir',
-    'Discover the Peaks of Himachal',
-    'Journey Through Incredible India',
-    'Your Perfect Getaway Awaits',
+    'Discover the Beauty of Greece',
+    'Fall in Love with Paris',
+    'Explore the Wonders of Peru',
+    'Experience the Magic of Bali',
 ]
 
 const DEFAULT_PARA = [
-    'Experience serene lakes, snow-capped mountains, and vibrant valleys that make Kashmir truly unforgettable.',
-    'Adventure through scenic hill towns, breathtaking mountain views, and peaceful retreats across beautiful Himachal.',
-    'Uncover diverse cultures, historic landmarks, and stunning landscapes that showcase the true spirit of India.',
-    'Plan relaxing escapes and exciting adventures with carefully crafted travel experiences designed just for you.'
+    'Sail through crystal-clear Aegean waters, stroll cobbled alleys, and watch the sun melt into the horizon from breathtaking clifftop villages.',
+    'Wander iconic boulevards, savour world-class cuisine, and soak in the romance of a city that has inspired travellers for centuries.',
+    'Trek through ancient cloud-kissed ruins, discover vibrant markets, and immerse yourself in a civilisation that shaped the world.',
+    'Unwind on lush terraced rice fields, visit sacred temples at sunrise, and let the island\'s warm spirit restore your soul.'
 ]
 
 // ─── Types ───────────────────────────────────────────────────────────────────
