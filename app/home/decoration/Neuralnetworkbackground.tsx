@@ -426,7 +426,10 @@ export default function NeuralNetworkBackground() {
         }
       }, { passive: true });
 
+      let running = false;
+
       function animate() {
+        if (!running) return;
         animationId = requestAnimationFrame(animate);
         const t = clock.getElapsedTime();
         if (nodesMesh) {
@@ -443,7 +446,24 @@ export default function NeuralNetworkBackground() {
         composer.render();
       }
 
-      animate();
+      function start() { if (!running) { running = true; animate(); } }
+      function stop()  { running = false; cancelAnimationFrame(animationId); }
+
+      // Only render while the canvas is on-screen. A perpetual WebGL + bloom
+      // loop running even when this section is scrolled away was making the
+      // whole page feel heavy to scroll.
+      const visibilityObserver = new IntersectionObserver(
+        ([entry]) => { if (entry.isIntersecting) start(); else stop(); },
+        { threshold: 0.01 },
+      );
+      visibilityObserver.observe(canvas);
+
+      // Pause when the tab is hidden too
+      const onVisibility = () => {
+        if (document.hidden) stop();
+        else if (canvas.getBoundingClientRect().top < window.innerHeight && canvas.getBoundingClientRect().bottom > 0) start();
+      };
+      document.addEventListener('visibilitychange', onVisibility);
 
       function onResize() {
         const w = canvas.clientWidth;
@@ -457,7 +477,10 @@ export default function NeuralNetworkBackground() {
       window.addEventListener('resize', onResize);
 
       cleanupRef.current = () => {
+        running = false;
         cancelAnimationFrame(animationId);
+        visibilityObserver.disconnect();
+        document.removeEventListener('visibilitychange', onVisibility);
         window.removeEventListener('resize', onResize);
         renderer.dispose();
         nodesGeo.dispose();

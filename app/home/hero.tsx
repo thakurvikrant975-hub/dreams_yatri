@@ -1,23 +1,14 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion'
 import Button from '@/app/components/ui/Button';
 import Image from 'next/image';
-import {
-    AirplaneTiltIcon,
-    IslandIcon,
-    BuildingIcon,
-    BusIcon,
-    TrainIcon,
-    CarIcon,
-    CableCarIcon,
-    BoatIcon,
-} from '@phosphor-icons/react';
-import { HelicopterIcon } from '@/app/components/icons/cusomIcon';
-
-import { EngineKeys } from '@/app/types/engine';
-import { HeroTab, HeroField } from '@/app/types/home';
+import { IslandIcon, MagnifyingGlassIcon } from '@phosphor-icons/react';
+import LocationSearchSelect, { type LocationValue } from '@/app/components/ui/LocationSearchSelect';
+import DatePickerField from '@/app/components/ui/DatePickerField';
+import TravellersField, { type TravellersValue } from '@/app/components/ui/TravellersField';
 
 import ShowLogin from '../lib/show-login';
 
@@ -56,87 +47,8 @@ interface HeroProps {
     slideInterval?: number
 }
 
-// ─── Tab / Field config (unchanged) ─────────────────────────────────────────
-const heroTabsPremium: HeroTab[] = [
-    { key: 'flights', label: 'Flights', icon: AirplaneTiltIcon, badge: 'Offer' },
-    { key: 'holidays', label: 'Holidays', icon: IslandIcon },
-    { key: 'hotels', label: 'Hotels', icon: BuildingIcon },
-]
-
-const heroTabsPremiumSm: HeroTab[] = [
-    { key: 'flights', label: 'Flights', icon: AirplaneTiltIcon, badge: 'Offer' },
-    { key: 'holidays', label: 'Holidays', icon: IslandIcon },
-    { key: 'hotels', label: 'Hotels', icon: BuildingIcon },
-    { key: 'heliride', label: 'Heli Ride', icon: HelicopterIcon },
-]
-
-const heroTabs: HeroTab[] = [
-    { key: 'bus', label: 'Bus', icon: BusIcon },
-    { key: 'train', label: 'Train', icon: TrainIcon },
-    { key: 'cab', label: 'Cab', icon: CarIcon },
-    { key: 'heliride', label: 'Heli Ride', icon: HelicopterIcon },
-    { key: 'cablecar', label: 'Cable Car', icon: CableCarIcon },
-    { key: 'cruise', label: 'Cruise', icon: BoatIcon },
-]
-
-type FieldConfig = HeroField[]
-
-const fieldMap: Record<EngineKeys, FieldConfig> = {
-    flights: [
-        { label: 'Departure From', placeholder: 'City or Airport' },
-        { label: 'Going To', placeholder: 'City or Airport' },
-        { label: 'Departure Date', placeholder: 'DD / MM / YYYY', type: 'date' },
-        { label: 'Going Date', placeholder: 'DD / MM / YYYY', type: 'date' },
-    ],
-    holidays: [
-        { label: 'Destination', placeholder: 'Where do you want to go?' },
-        { label: 'Departure From', placeholder: 'Your city' },
-        { label: 'Travel Date', placeholder: 'DD / MM / YYYY', type: 'date' },
-        { label: 'Travellers', placeholder: 'Adults, Children' },
-    ],
-    hotels: [
-        { label: 'City / Area', placeholder: 'Where to stay?' },
-        { label: 'Check In', placeholder: 'DD / MM / YYYY', type: 'date' },
-        { label: 'Check Out', placeholder: 'DD / MM / YYYY', type: 'date' },
-        { label: 'Rooms & Guests', placeholder: '1 Room, 2 Adults' },
-    ],
-    bus: [
-        { label: 'From', placeholder: 'Boarding city' },
-        { label: 'To', placeholder: 'Destination city' },
-        { label: 'Travel Date', placeholder: 'DD / MM / YYYY', type: 'date' },
-        { label: 'Passengers', placeholder: 'No. of seats' },
-    ],
-    train: [
-        { label: 'From Station', placeholder: 'Origin station' },
-        { label: 'To Station', placeholder: 'Destination station' },
-        { label: 'Journey Date', placeholder: 'DD / MM / YYYY', type: 'date' },
-        { label: 'Class', placeholder: 'Sleeper, 3A, 2A…' },
-    ],
-    cab: [
-        { label: 'Pickup Location', placeholder: 'Enter pickup point' },
-        { label: 'Drop Location', placeholder: 'Enter drop point' },
-        { label: 'Pickup Date', placeholder: 'DD / MM / YYYY', type: 'date' },
-        { label: 'Pickup Time', placeholder: 'HH : MM', type: 'time' },
-    ],
-    heliride: [
-        { label: 'From', placeholder: 'Helipad / location' },
-        { label: 'To', placeholder: 'Destination' },
-        { label: 'Travel Date', placeholder: 'DD / MM / YYYY', type: 'date' },
-        { label: 'Passengers', placeholder: 'No. of seats' },
-    ],
-    cablecar: [
-        { label: 'Location', placeholder: 'Cable car destination' },
-        { label: 'Visit Date', placeholder: 'DD / MM / YYYY', type: 'date' },
-        { label: 'Tickets', placeholder: 'No. of tickets' },
-        { label: 'Timeslot', placeholder: 'Morning / Evening' },
-    ],
-    cruise: [
-        { label: 'Departure Port', placeholder: 'Port city' },
-        { label: 'Destination', placeholder: 'Cruise route' },
-        { label: 'Departure Date', placeholder: 'DD / MM / YYYY', type: 'date' },
-        { label: 'Guests', placeholder: 'Adults, Children' },
-    ],
-}
+// ─── Shared field label styling ───────────────────────────────────────────────
+const FIELD_LABEL_CLASS = 'text-xs sm:text-sm font-medium font-heading text-inverse pl-1'
 
 // ─── Slideshow dot indicator ──────────────────────────────────────────────────
 function SlideDots({ total, active }: { total: number; active: number }) {
@@ -159,12 +71,39 @@ function SlideDots({ total, active }: { total: number; active: number }) {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
- 
-    ShowLogin();
 
-    const [activeTab, setActiveTab] = useState<EngineKeys>('flights')
+    ShowLogin();
+    const router = useRouter()
+
     const [currentIndex, setCurrentIndex] = useState(0)
     const [prevIndex, setPrevIndex] = useState<number | null>(null)
+
+    // Search form state
+    const [fromLoc, setFromLoc] = useState<LocationValue | null>(null)
+    const [toLoc, setToLoc] = useState<LocationValue | null>(null)
+    const [departDate, setDepartDate] = useState<Date | null>(null)
+    const [travellers, setTravellers] = useState<TravellersValue>({ adults: 2, childrenAges: [] })
+    const [searchError, setSearchError] = useState('')
+
+    function handleSearch() {
+        if (!toLoc) { setSearchError('Please choose where you want to go.'); return }
+        setSearchError('')
+        const params = new URLSearchParams()
+        params.set('to', toLoc.id)
+        params.set('toName', toLoc.name)
+        params.set('toType', toLoc.type)
+        if (fromLoc) { params.set('from', fromLoc.id); params.set('fromName', fromLoc.name); params.set('fromType', fromLoc.type) }
+        if (departDate) {
+            // Local YYYY-MM-DD (avoid UTC shift from toISOString)
+            const y = departDate.getFullYear()
+            const m = String(departDate.getMonth() + 1).padStart(2, '0')
+            const d = String(departDate.getDate()).padStart(2, '0')
+            params.set('date', `${y}-${m}-${d}`)
+        }
+        params.set('adults', String(travellers.adults))
+        if (travellers.childrenAges.length) params.set('children', travellers.childrenAges.join(','))
+        router.push(`/search?${params.toString()}`)
+    }
 
     const bgImages = images && images.length > 0 ? images : DEFAULT_IMAGES
     const bgTitles = titles && titles.length > 0 ? titles : DEFAULT_TITLES
@@ -190,8 +129,6 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
 
         return () => clearInterval(timer)
     }, [bgImages.length, currentIndex, slideInterval])
-
-    const fields = fieldMap[activeTab]
 
     return (
         <>
@@ -268,128 +205,77 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
                         </motion.p>
                     </div>
 
-                    {/* ── Search engine card ── */}
-                    <div className="hidden md:block relative z-10 w-full screen-space mt-16">
-                        <div className="rounded-3xl bg-white/20 backdrop-blur-[2px] shadow-2xl shadow-black/30 ring-[0.1em] ring-inset ring-white/30 ">
+                    {/* ── Holiday packages search card ── */}
+                    <div className="relative z-10 w-full screen-space mt-12 sm:mt-16">
+                        <div className="rounded-3xl bg-white/20 backdrop-blur-[2px] shadow-2xl shadow-black/30 ring-[0.1em] ring-inset ring-white/30 px-4 sm:px-8 pt-6 ">
 
-                            {/* Tab row */}
-                            <div className="overflow-x-auto scrollbar-none border-b border-neutral-100 bg-white w-[85%] xl:w-max m-auto -translate-y-1/2 py-3 px-5 rounded-2xl flex items-center divide-x divide-(--border-muted) shadow-xl shadow-gray-600">
-                                <div className="flex items-center gap-4 pr-3">
-                                    {heroTabsPremium.map((tab) => {
-                                        const isActive = activeTab === tab.key
-                                        return (
-                                            <button
-                                                key={tab.key}
-                                                onClick={() => setActiveTab(tab.key)}
-                                                className={`relative flex flex-col items-center gap-2 px-3 sm:px-4 py-2.5 min-w-16 sm:min-w-18 transition-all rounded-xl shrink-0 ${isActive
-                                                    ? 'bg-red-500 text-white shadow-md shadow-red-300/40'
-                                                    : 'text-neutral-900 hover:text-neutral-800 hover:bg-neutral-100'
-                                                    }`}
-                                            >
-                                                <span className={isActive ? 'text-white' : 'text-neutral-900'}>
-                                                    <tab.icon
-                                                        className={`size-9 ${isActive ? 'duo_icons_active' : 'duo_icons'}`}
-                                                        weight="duotone"
-                                                    />
-                                                </span>
-                                                <span className="whitespace-nowrap leading-none font-heading text-sm font-semibold">
-                                                    {tab.label}
-                                                </span>
-                                            </button>
-                                        )
-                                    })}
-                                </div>
-
-                                <div className="flex items-center gap-3 pl-3">
-                                    {heroTabs.map((tab) => {
-                                        const isActive = activeTab === tab.key
-                                        return (
-                                            <button
-                                                key={tab.key}
-                                                onClick={() => setActiveTab(tab.key)}
-                                                className={`relative flex flex-col items-center gap-2 px-3 sm:px-4 py-2.5 min-w-16 sm:min-w-18 text-sm font-medium transition-all rounded-xl shrink-0 ${isActive
-                                                    ? 'bg-red-500 text-white shadow-md shadow-red-300/40'
-                                                    : 'text-neutral-900 hover:text-neutral-800 hover:bg-neutral-100'
-                                                    }`}
-                                            >
-                                                <span className={isActive ? 'text-white' : 'text-neutral-900'}>
-                                                    <tab.icon
-                                                        className={`size-9 ${isActive ? 'duo_icons_active' : 'duo_icons'}`}
-                                                        weight="duotone"
-                                                    />
-                                                </span>
-                                                <span className="whitespace-nowrap leading-none font-heading">
-                                                    {tab.label}
-                                                </span>
-                                            </button>
-                                        )
-                                    })}
-                                </div>
+                            {/* Header pill — floats slightly above the card */}
+                            <div className="flex justify-center  -mt-11 mb-6">
+                                <span className="inline-flex items-center gap-2 bg-white rounded-full pl-4 pr-5 py-2.5 shadow-xl shadow-black/15">
+                                    <IslandIcon weight="duotone" className="size-7 duo_icons" />
+                                    <span className="font-heading font-semibold text-neutral-900">Holiday Packages</span>
+                                </span>
                             </div>
 
                             {/* Fields */}
-                            <div className="px-4 sm:px-6 pt-5">
-                                <motion.div
-                                    key={activeTab}
-                                    initial={{ opacity: 0, y: 9 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ duration: 0.25, ease: 'easeOut' }}
-                                    className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4"
-                                >
-                                    {fields.map((field) => (
-                                        <div key={field.label} className="flex flex-col gap-1.5">
-                                            <label className="text-xs sm:text-sm font-medium font-heading text-inverse pl-1">
-                                                {field.label}
-                                            </label>
-                                            <input
-                                                type={field.type ?? 'text'}
-                                                placeholder={field.placeholder}
-                                                className="w-full rounded-input border border-neutral-200 bg-white px-3 py-2.5 text-sm text-neutral-800 placeholder-color shadow-sm outline-none focus:border-red-400 focus:border-[0.13em] focus:ring-[0.12em] focus:ring-red-100 transition"
-                                            />
-                                        </div>
-                                    ))}
-                                </motion.div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
 
-                                <div className="flex justify-center mt-6 translate-y-1/2">
-                                    <Button
-                                        variant="premium"
-                                        size="lg"
-                                        className="rounded-pill px-12 font-bold text-base shadow-lg shadow-red-400/40 hover:shadow-red-400/60 hover:scale-105"
-                                    >
-                                        Search
-                                    </Button>
+                                {/* Leaving From */}
+                                <div className="flex flex-col gap-1.5">
+                                    <label className={FIELD_LABEL_CLASS}>Leaving From</label>
+                                    <LocationSearchSelect
+                                        value={fromLoc}
+                                        onChange={setFromLoc}
+                                        placeholder="Your origin city"
+                                        showCurrentLocation
+                                    />
                                 </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
-                <div className='relative screen-space z-30'>
-                    <div className="overflow-x-auto scrollbar-none border-b border-neutral-100 bg-white w-full   m-auto -translate-y-1/2 py-3 px-5 rounded-2xl flex items-center justify-center  shadow-xl shadow-gray-300/80 md:hidden">
-                        <div className="flex items-center gap-4 pr-3">
-                            {heroTabsPremiumSm.map((tab) => {
-                                const isActive = activeTab === tab.key
-                                return (
-                                    <button
-                                        key={tab.key}
-                                        onClick={() => setActiveTab(tab.key)}
-                                        className={`relative flex flex-col items-center gap-2 px-3 sm:px-4 py-2.5 min-w-16 sm:min-w-18 transition-all rounded-xl shrink-0 ${isActive
-                                            ? 'bg-red-500 text-white shadow-md shadow-red-300/40'
-                                            : 'text-neutral-900 hover:text-neutral-800 hover:bg-neutral-100'
-                                            }`}
-                                    >
-                                        <span className={isActive ? 'text-white' : 'text-neutral-900'}>
-                                            <tab.icon
-                                                className={`size-9 ${isActive ? 'duo_icons_active' : 'duo_icons'}`}
-                                                weight="duotone"
-                                            />
-                                        </span>
-                                        <span className="whitespace-nowrap leading-none font-heading text-sm font-semibold">
-                                            {tab.label}
-                                        </span>
-                                    </button>
-                                )
-                            })}
+                                {/* Going To */}
+                                <div className="flex flex-col gap-1.5">
+                                    <label className={FIELD_LABEL_CLASS}>Going To</label>
+                                    <LocationSearchSelect
+                                        value={toLoc}
+                                        onChange={setToLoc}
+                                        placeholder="Your destination city"
+                                    />
+                                </div>
+
+                                {/* Departure Date */}
+                                <div className="flex flex-col gap-1.5">
+                                    <label className={FIELD_LABEL_CLASS}>Departure Date</label>
+                                    <DatePickerField
+                                        value={departDate}
+                                        onChange={setDepartDate}
+                                        placeholder="Pick a date"
+                                    />
+                                </div>
+
+                                {/* Travellers */}
+                                <div className="flex flex-col gap-1.5">
+                                    <label className={FIELD_LABEL_CLASS}>Travellers</label>
+                                    <TravellersField value={travellers} onChange={setTravellers} />
+                                </div>
+
+                            </div>
+
+                            {/* Search */}
+                            <div className="flex flex-col items-center mt-7 translate-y-1/2">
+                                {searchError && (
+                                    <p className="mb-2 text-xs font-medium text-white bg-red-500/90 rounded-full px-3 py-1 shadow">
+                                        {searchError}
+                                    </p>
+                                )}
+                                <Button
+                                    variant="premium"
+                                    size="lg"
+                                    onClick={handleSearch}
+                                    className="rounded-pill px-12 font-bold text-base shadow-lg shadow-red-400/40 hover:shadow-red-400/60 hover:scale-105 flex items-center gap-2"
+                                >
+                                    <MagnifyingGlassIcon weight="bold" className="size-5" />
+                                    Search Packages
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 </div>

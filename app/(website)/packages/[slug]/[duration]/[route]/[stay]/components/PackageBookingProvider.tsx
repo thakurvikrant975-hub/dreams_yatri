@@ -9,6 +9,7 @@ import {
     type ReactNode,
 } from 'react';
 import { handleComputePackagePrice } from '@/app/actions/packages/pricing.actions';
+import type { LocationValue } from '@/app/components/ui/LocationSearchSelect';
 
 // ── Safe pricing — only these fields reach the browser ──────────────────────
 // margin, base_cost, per-component subtotals are intentionally excluded.
@@ -27,12 +28,16 @@ export interface BookingContextValue {
     infants:    number;
     childAges:  number[];   // length === childCount, each 2-11
     travelDate: string;     // 'YYYY-MM-DD' or ''
+    leavingFrom: LocationValue | null;  // user's origin city (carried from search)
 
     setAdults:     (n: number) => void;
     setChildCount: (n: number) => void;
     setInfants:    (n: number) => void;
     setChildAge:   (idx: number, age: number) => void;
     setTravelDate: (d: string) => void;
+    setLeavingFrom: (l: LocationValue | null) => void;
+    /** Set adults + children (with ages) in one go — for the TravellersField component */
+    setTravellers: (adults: number, childAges: number[]) => void;
 
     // Pricing output (safe)
     pricing:          SafePricing | null;
@@ -57,17 +62,24 @@ interface ProviderProps {
     stayCategoryId: number;
     packageName:    string;
     children:       ReactNode;
+    // Initial values carried from the search page (all optional)
+    initialAdults?:      number;
+    initialChildAges?:   number[];
+    initialTravelDate?:  string;
+    initialLeavingFrom?: LocationValue | null;
 }
 
 export function PackageBookingProvider({
     packageId, durationId, routeId, stayCategoryId, packageName,
     children,
+    initialAdults, initialChildAges, initialTravelDate, initialLeavingFrom,
 }: ProviderProps) {
-    const [adults,     setAdultsRaw]    = useState(2);
-    const [childCount, setChildRaw]     = useState(0);
+    const [adults,     setAdultsRaw]    = useState(initialAdults && initialAdults > 0 ? initialAdults : 2);
+    const [childCount, setChildRaw]     = useState(initialChildAges?.length ?? 0);
     const [infants,    setInfantsRaw]   = useState(0);
-    const [childAges,  setChildAges]    = useState<number[]>([]);
-    const [travelDate, setTravelDate]   = useState('');
+    const [childAges,  setChildAges]    = useState<number[]>(initialChildAges ?? []);
+    const [travelDate, setTravelDate]   = useState(initialTravelDate ?? '');
+    const [leavingFrom, setLeavingFrom] = useState<LocationValue | null>(initialLeavingFrom ?? null);
     const [pricing,    setPricing]      = useState<SafePricing | null>(null);
     const [isPricingLoading, setLoading] = useState(false);
 
@@ -93,6 +105,12 @@ export function PackageBookingProvider({
             next[idx] = Math.max(2, Math.min(17, age));
             return next;
         });
+    }
+
+    function setTravellers(nextAdults: number, ages: number[]) {
+        setAdultsRaw(Math.max(1, nextAdults));
+        setChildRaw(ages.length);
+        setChildAges(ages);
     }
 
     // Re-fetch price whenever pax changes (debounced 400 ms)
@@ -131,8 +149,8 @@ export function PackageBookingProvider({
 
     return (
         <BookingContext.Provider value={{
-            adults, childCount, infants, childAges, travelDate,
-            setAdults, setChildCount, setInfants, setChildAge, setTravelDate,
+            adults, childCount, infants, childAges, travelDate, leavingFrom,
+            setAdults, setChildCount, setInfants, setChildAge, setTravelDate, setLeavingFrom, setTravellers,
             pricing, isPricingLoading, packageName,
         }}>
             {children}

@@ -68,6 +68,7 @@ export default function TestimonialsSection() {
         {/* Header row — label from left, arrows from right */}
         <div className="flex items-end justify-between mb-8">
           <SectionHeader
+            noAnimation
             icon={FcGoogle}
             tag="Real Traveler Reviews"
             title="What Our Guests Say"
@@ -76,9 +77,6 @@ export default function TestimonialsSection() {
           <motion.div
             className="flex items-center gap-2 shrink-0"
             variants={fadeLeft}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: false, amount: 0.3 }}
           >
             <button
               type="button"
@@ -107,9 +105,6 @@ export default function TestimonialsSection() {
           className="flex gap-5 overflow-x-auto snap-x snap-mandatory pb-8 pl-4 scrollbar-hide"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
           variants={staggerContainer(0.12, 0.1)}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: false, amount: 0.1 }}
         >
           {REVIEWS.map((review) => (
             <motion.div

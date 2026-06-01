@@ -1,13 +1,10 @@
 'use client'
 
-import { motion } from 'framer-motion'
 import PackageCard, { type PackageCardProps } from '@/app/components/packages/Packages'
 import Button from '@/app/components/ui/Button'
 import { ArrowRightIcon } from '@phosphor-icons/react'
 import PackageGrid from '@/app/components/packages/PackageGrid'
 import SectionHeader from '@/app/components/ui/SectionHeader'
-import { Stagger } from '@/app/components/ui/motion'
-import { staggerItem, fadeIn, fadeRight } from '@/app/lib/motionPresets'
 
 const PACKAGES: Omit<PackageCardProps, 'onRequestCallback' | 'onClick'>[] = [
     {
@@ -153,20 +150,14 @@ export default function TrendingPackages({
 
                 {/* ── Section header + View All button ── */}
                 <div className="flex items-end justify-between mb-6">
-                    {/* SectionHeader already has its own internal animations */}
                     <SectionHeader
+                        noAnimation
                         tag='Handpicked For You'
                         title='Trending Experiences'
                         subtitle='Curated packages designed around your travel style'
                     />
 
-                    <motion.div
-                        variants={fadeRight}
-                        initial="hidden"
-                        whileInView="visible"
-                        viewport={{ once: false, amount: 0.3 }}
-                        className="hidden sm:block shrink-0"
-                    >
+                    <div className="hidden sm:block shrink-0">
                         <Button
                             variant="ghost"
                             size="sm"
@@ -176,44 +167,25 @@ export default function TrendingPackages({
                             View All
                             <ArrowRightIcon className="size-4" weight="bold" />
                         </Button>
-                    </motion.div>
+                    </div>
                 </div>
 
                 {/* ── Divider ── */}
-                <motion.div
-                    variants={fadeIn}
-                    initial="hidden"
-                    whileInView="visible"
-                    viewport={{ once: false, amount: 0.5 }}
-                    className="h-px w-full bg-(--border-muted) mb-8"
-                />
+                <div className="h-px w-full bg-(--border-muted) mb-8" />
 
-                {/* ── Package grid — staggered cards ── */}
-                <Stagger
-                    staggerDelay={0.3}
-                    delayChildren={0.2}
-                    once={false}
-                >
-                    <PackageGrid>
-                        {packages.map((pkg) => (
-                            <motion.div key={pkg.title} variants={staggerItem}>
-                                <PackageCard
-                                    {...pkg}
-                                    onRequestCallback={() => onRequestCallback?.(pkg.title)}
-                                />
-                            </motion.div>
-                        ))}
-                    </PackageGrid>
-                </Stagger>
+                {/* ── Package grid ── */}
+                <PackageGrid>
+                    {packages.map((pkg) => (
+                        <PackageCard
+                            key={pkg.title}
+                            {...pkg}
+                            onRequestCallback={() => onRequestCallback?.(pkg.title)}
+                        />
+                    ))}
+                </PackageGrid>
 
                 {/* ── View All — mobile ── */}
-                <motion.div
-                    variants={fadeIn}
-                    initial="hidden"
-                    whileInView="visible"
-                    viewport={{ once: false, amount: 0.5 }}
-                    className="flex justify-center mt-8 sm:hidden"
-                >
+                <div className="flex justify-center mt-8 sm:hidden">
                     <Button
                         variant="outline"
                         size="md"
@@ -223,7 +195,7 @@ export default function TrendingPackages({
                         View All Packages
                         <ArrowRightIcon className="size-4" weight="bold" />
                     </Button>
-                </motion.div>
+                </div>
 
             </div>
         </section>

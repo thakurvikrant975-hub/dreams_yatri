@@ -75,18 +75,12 @@ function DestinationRow({
         <motion.div
             className="mb-10"
             variants={fadeUp}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: false, amount: 0.1 }}
         >
             {/* Row header — label slides from left, controls slide from right */}
             <div className="flex items-center justify-between mb-4">
                 <motion.div
                     className="flex items-center gap-2.5"
                     variants={fadeRight}
-                    initial="hidden"
-                    whileInView="visible"
-                    viewport={{ once: false, amount: 0.3 }}
                 >
                     <RowIcon weight="duotone" className="size-7 duo_icons" />
                     <Heading level={3} className="font-bold">{label}</Heading>
@@ -95,9 +89,6 @@ function DestinationRow({
                 <motion.div
                     className="flex items-center gap-2"
                     variants={fadeLeft}
-                    initial="hidden"
-                    whileInView="visible"
-                    viewport={{ once: false, amount: 0.3 }}
                 >
                     <Button onClick={() => scroll('left')} size='auto' aria-label="Scroll left" variant='outline' className='p-2.5 rounded-full hidden sm:block'>
                         <CaretLeftIcon weight="bold" className="size-3.5 text-(--text-secondary)" />
@@ -116,9 +107,6 @@ function DestinationRow({
             <motion.div
                 className="h-px bg-(--border-muted) mb-5"
                 variants={fadeIn}
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: false, amount: 0.5 }}
             />
 
             {/* Cards — staggered */}
@@ -126,9 +114,6 @@ function DestinationRow({
                 ref={scrollRef}
                 className="flex gap-9 overflow-x-auto scrollbar-none pb-2 -mx-1 px-1"
                 variants={staggerContainer(0.07, 0.1)}
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: false, amount: 0.1 }}
             >
                 {items.map((item) => (
                     <motion.div key={item.slug} variants={staggerItem} className="shrink-0 w-80">
@@ -159,6 +144,7 @@ export default function ExploreDestinations({
             <div className="screen-space">
 
                 <SectionHeader
+                    noAnimation
                     tag='India & Beyond'
                     title='Explore By Destinations'
                     subtitle='From Himalayan peaks to tropical shores'

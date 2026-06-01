@@ -20,6 +20,7 @@ export default function BlogsSection() {
       <div className="screen-space">
 
         <SectionHeader
+          noAnimation
           tag="Real journeys. Real memories."
           title="Explore Blogs"
         />
@@ -27,9 +28,6 @@ export default function BlogsSection() {
         <motion.div
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-7"
           variants={staggerContainer(0.09, 0.05)}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: false, amount: 0.1 }}
         >
           {BLOG_POSTS.map((post, i) => (
             <motion.div key={post.id} variants={staggerItem}>

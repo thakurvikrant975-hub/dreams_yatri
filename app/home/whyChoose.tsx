@@ -34,8 +34,8 @@ export default function WhyChooseUsSection() {
     <section className="py-section">
       <div className="screen-space">
 
-        {/* SectionHeader has its own internal stagger */}
         <SectionHeader
+          noAnimation
           tag="WHY CHOOSE US"
           title="The Dreams Yatri Difference"
           subtitle="Everything we do is built around one thing — making your journey extraordinary."
@@ -44,9 +44,6 @@ export default function WhyChooseUsSection() {
         <motion.div
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5"
           variants={staggerContainer(0.1, 0.05)}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: false, amount: 0.15 }}
         >
           {FEATURES.map((feature) => (
             <motion.div key={feature.title} variants={staggerItemZoom}>

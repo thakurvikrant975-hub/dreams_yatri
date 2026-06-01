@@ -49,13 +49,35 @@ export async function generateMetadata({
 
 export default async function PackagePage({
     params,
+    searchParams,
 }: {
     params: Promise<{ slug: string; duration: string; route: string; stay: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
     const { slug: _slug, duration: _duration, route: _route, stay: _stay } = await params;
+    const sp = await searchParams;
 
     const pageData = await fetchPackagePageData(_slug, _duration, _route, _stay);
     if (!pageData) notFound();
+
+    // ── Booking pre-fill carried from the search page (all optional) ──────────
+    const spStr = (v: string | string[] | undefined) =>
+        typeof v === "string" ? v : Array.isArray(v) ? v[0] ?? "" : "";
+    const initialAdults = Math.max(1, parseInt(spStr(sp.adults) || "0", 10) || 0) || undefined;
+    const initialChildAges = spStr(sp.children)
+        ? spStr(sp.children).split(",").map((n) => parseInt(n, 10)).filter((n) => !isNaN(n))
+        : undefined;
+    const initialTravelDate = spStr(sp.date) || undefined;
+    const fromId = spStr(sp.from);
+    const initialLeavingFrom = fromId
+        ? {
+              id: fromId,
+              name: spStr(sp.fromName) || "Selected city",
+              type: (spStr(sp.fromType) || "CITY") as never,
+              breadcrumb: spStr(sp.fromName) || "",
+              slug: "",
+          }
+        : null;
 
     console.log(pageData);
 
@@ -239,11 +261,6 @@ export default async function PackagePage({
         label: s.label,
     }));
 
-    // ── Starting point (first route stop or destination) ──────────────────────
-    const startingFrom =
-        pageData.selectedRoute?.stops[0]?.place_name ??
-        pageData.destination.name;
-
     // ── Default cab type lookup ────────────────────────────────────────────────
     // For each day, find the default cab type whose segment covers that day.
     // Used as fallback when a transfer has no per-transfer vehicle assigned.
@@ -370,8 +387,12 @@ export default async function PackagePage({
                 routeId={pageData.selectedRoute!.id}
                 stayCategoryId={pageData.selectedStay!.id}
                 packageName={pageData.title}
+                initialAdults={initialAdults}
+                initialChildAges={initialChildAges}
+                initialTravelDate={initialTravelDate}
+                initialLeavingFrom={initialLeavingFrom}
             >
-                <TravelerInputBar startingFrom={startingFrom} />
+                <TravelerInputBar />
 
                 <div className="screen-space pt-6 pb-10">
                     <PackageHero

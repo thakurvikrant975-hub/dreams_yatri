@@ -3,14 +3,28 @@ import { Heading, Text } from "./Typography";
 import { motion } from "framer-motion";
 import { fadeRight, fadeUp, zoomPop, staggerContainer } from "@/app/lib/motionPresets";
 
-export default function SectionHeader({ tag, title, subtitle, icon: Icon }: SectionHeaderProps) {
+export default function SectionHeader({
+  tag,
+  title,
+  subtitle,
+  icon: Icon,
+  noAnimation = false,
+}: SectionHeaderProps & { noAnimation?: boolean }) {
+  // When noAnimation is set (e.g. on the home page) skip the view-trigger props
+  // so child variants stay inert and the header renders statically.
+  const containerAnim = noAnimation
+    ? {}
+    : {
+        initial: "hidden" as const,
+        whileInView: "visible" as const,
+        viewport: { once: false, amount: 0.3 },
+      };
+
   return (
     <motion.div
       className="mb-10 flex gap-4"
       variants={staggerContainer(0.12, 0)}
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: false, amount: 0.3 }}
+      {...containerAnim}
     >
       {Icon && (
         <motion.div variants={zoomPop}>

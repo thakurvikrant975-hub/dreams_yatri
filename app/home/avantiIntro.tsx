@@ -11,7 +11,6 @@ import {
   fadeRight, fadeLeft, fadeUp, fadeIn,
   staggerContainer, staggerItem,
   zoomIn,
-  viewportOnce,
 } from "@/app/lib/motionPresets";
 
 const chatMessages = [
@@ -35,9 +34,6 @@ const chatMessages = [
   },
 ];
 
-// Chat card animates once — it's a UI demo, not a scroll-repeat element
-const CHAT_VIEWPORT = { ...viewportOnce, amount: 0.2 };
-
 export default function AvantiAISection() {
   const [inputValue, setInputValue] = useState("");
 
@@ -53,9 +49,6 @@ export default function AvantiAISection() {
         <motion.div
           className="space-y-8"
           variants={staggerContainer(0.1, 0.1)}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: false, amount: 0.2 }}
         >
           {/* Badge */}
           <motion.div variants={fadeUp}>
@@ -117,24 +110,15 @@ export default function AvantiAISection() {
         <motion.div
           className="w-full max-w-md mx-auto lg:mx-0 lg:ml-auto"
           variants={fadeLeft}
-          initial="hidden"
-          whileInView="visible"
-          viewport={CHAT_VIEWPORT}
         >
           <motion.div
             className="bg-white rounded-2xl overflow-hidden shadow-2xl"
             variants={zoomIn}
-            initial="hidden"
-            whileInView="visible"
-            viewport={CHAT_VIEWPORT}
           >
             {/* Chat Header */}
             <motion.div
               className="bg-neutral-900 px-5 py-4 flex items-center gap-3 border-b"
               variants={fadeIn}
-              initial="hidden"
-              whileInView="visible"
-              viewport={CHAT_VIEWPORT}
             >
               <div className="size-8 rounded-full bg-primary-500 flex items-center justify-center text-white font-bold text-sm shrink-0 ring-1 ring-offset-2 ring-offset-neutral-900 ring-primary-400">
                 A
@@ -157,9 +141,6 @@ export default function AvantiAISection() {
               <motion.div
                 className="flex justify-end"
                 variants={fadeLeft}
-                initial="hidden"
-                whileInView="visible"
-                viewport={CHAT_VIEWPORT}
               >
                 <div className="bg-primary-500 text-white text-sm rounded-2xl rounded-tr-sm px-4 py-3 max-w-[75%] leading-relaxed">
                   {chatMessages[0].text}
@@ -170,9 +151,6 @@ export default function AvantiAISection() {
               <motion.div
                 className="flex justify-start"
                 variants={fadeRight}
-                initial="hidden"
-                whileInView="visible"
-                viewport={CHAT_VIEWPORT}
                 transition={{ delay: 0.25 }}
               >
                 <div className="bg-neutral-100 text-sm rounded-3xl rounded-tl-md px-4 py-4 max-w-[85%] leading-relaxed shadow-md shadow-gray-200/80">
@@ -184,9 +162,6 @@ export default function AvantiAISection() {
                   <motion.ul
                     className="mt-3 flex flex-col gap-2"
                     variants={staggerContainer(0.1, 0.35)}
-                    initial="hidden"
-                    whileInView="visible"
-                    viewport={CHAT_VIEWPORT}
                   >
                     {chatMessages[1].packages?.map((item, index) => (
                       <motion.li
@@ -214,9 +189,6 @@ export default function AvantiAISection() {
             <motion.div
               className="px-4 py-4 border-t bg-neutral-50 border-default"
               variants={fadeUp}
-              initial="hidden"
-              whileInView="visible"
-              viewport={CHAT_VIEWPORT}
             >
               <div className="flex items-center gap-2 bg-white rounded-xl">
                 <div className="ring-1 ring-inset ring-(--border-muted) flex-1 py-2.5 px-3 rounded-input flex items-center">

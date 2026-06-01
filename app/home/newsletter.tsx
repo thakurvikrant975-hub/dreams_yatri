@@ -78,9 +78,6 @@ function EmailCard() {
     <motion.div
       className="relative rounded-2xl overflow-hidden bg-white border border-slate-200 shadow-sm"
       variants={fadeRight}
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: false, amount: 0.2 }}
     >
       <div className="h-1.5 w-full bg-linear-to-r from-rose-400 to-red-500" />
       <TravelPattern color="rgba(239,68,68,0.06)" />
@@ -88,9 +85,6 @@ function EmailCard() {
       <motion.div
         className="relative px-6 pt-6 pb-8"
         variants={staggerContainer(0.1, 0.15)}
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: false, amount: 0.2 }}
       >
         <motion.div variants={staggerItem}>
           <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-50 border border-rose-200 text-rose-500 text-xs font-semibold mb-5">
@@ -150,9 +144,6 @@ function WhatsAppCard() {
     <motion.div
       className="relative rounded-2xl overflow-hidden bg-white border border-slate-200 shadow-sm"
       variants={fadeLeft}
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: false, amount: 0.2 }}
     >
       <div className="h-1.5 w-full bg-gradient-to-r from-green-400 to-emerald-500" />
       <TravelPattern color="rgba(34,197,94,0.07)" />
@@ -160,9 +151,6 @@ function WhatsAppCard() {
       <motion.div
         className="relative px-6 pt-6 pb-8"
         variants={staggerContainer(0.1, 0.15)}
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: false, amount: 0.2 }}
       >
         <motion.div variants={staggerItem}>
           <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-50 border border-green-200 text-green-600 text-xs font-semibold mb-5">

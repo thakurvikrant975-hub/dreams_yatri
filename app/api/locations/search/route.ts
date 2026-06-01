@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/app/lib/db";
 import { LocationType } from "@/app/generated/prisma";
+import { getLocationsIndex, isMeiliConfigured } from "@/app/lib/search/meili";
 
 export async function GET(req: NextRequest) {
   try {
@@ -18,6 +19,36 @@ export async function GET(req: NextRequest) {
 
     // Allow type-only queries (no text) so callers can preload all items of a type
     if (q.length < 2 && !types?.length) return NextResponse.json([]);
+
+    // ── Meilisearch fast path (typo-tolerant) ────────────────────────────────
+    // Used for plain text autocomplete. Destination-scoped queries
+    // (destinationsOnly / excludePricedCabs) need DB-side id filtering, so they
+    // stay on Postgres below. If Meili errors, we fall through to Postgres.
+    if (q.length >= 2 && !destinationsOnly && !excludePricedCabs && isMeiliConfigured) {
+      try {
+        const idx = await getLocationsIndex();
+        if (idx) {
+          const filters = ["is_active = true", "is_searchable = true"];
+          if (types?.length) {
+            filters.push(`(${types.map((t) => `type = "${t}"`).join(" OR ")})`);
+          }
+          const r = await idx.search(q, { limit, filter: filters.join(" AND ") });
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return NextResponse.json((r.hits as any[]).map((h) => ({
+            source:     "local",
+            id:         String(h.id),
+            name:       h.name,
+            type:       h.type,
+            slug:       h.slug,
+            breadcrumb: h.breadcrumb ?? h.name,
+            latitude:   h.latitude  ?? null,
+            longitude:  h.longitude ?? null,
+          })));
+        }
+      } catch (e) {
+        console.error("[locations/search] Meili error — falling back to Postgres", e);
+      }
+    }
 
     // Compute location ID filters when destination-scoping is requested.
     // destinationsOnly=true  → only show locations that have a destination record.
