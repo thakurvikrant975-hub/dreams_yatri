@@ -446,11 +446,28 @@ export async function computePackagePrice(
 
   const allCabTypes = loadedCabTypes; // full list, all active
 
-  // Preferred IDs: user-selected or is_default per group
+  // Preferred IDs: user-selected, or auto-select the smallest fitting cab per group
+  const passengers_for_cab = Math.max(adults + children, 1);
   const preferredCabIds = new Set<number>(
     cab_type_ids && cab_type_ids.length > 0
       ? cab_type_ids
-      : allCabTypes.filter((ct) => ct.is_default).map((ct) => ct.id),
+      : (() => {
+          // Mirror the CRM logic: per day-range group, pick the smallest cab that fits
+          const cabsByRangeForDefault = new Map<string, (typeof allCabTypes)[0][]>();
+          for (const ct of allCabTypes) {
+            const key = `${ct.segments[0]?.day_from}-${ct.segments[0]?.day_to}`;
+            if (!cabsByRangeForDefault.has(key)) cabsByRangeForDefault.set(key, []);
+            cabsByRangeForDefault.get(key)!.push(ct);
+          }
+          const ids: number[] = [];
+          for (const cabs of cabsByRangeForDefault.values()) {
+            const sorted = [...cabs].sort((a, b) => a.vehicle.passenger_capacity - b.vehicle.passenger_capacity);
+            const optimal = sorted.find((ct) => ct.vehicle.passenger_capacity >= passengers_for_cab)
+              ?? sorted[sorted.length - 1];
+            if (optimal) ids.push(optimal.id);
+          }
+          return ids;
+        })(),
   );
 
   type CabTypeRecord = (typeof allCabTypes)[0];

@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useBooking } from './PackageBookingProvider';
 import ImageLightbox from './ImageLightbox';
 import { Dialog, VisuallyHidden } from 'radix-ui';
 import { cn } from '@/app/lib/utils';
@@ -473,8 +474,29 @@ function FlightContent({ section }: { section: FlightSection }) {
 // Dummy placeholder image shown until a real vehicle photo is attached
 const CAB_PLACEHOLDER = "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&q=70";
 
-function CabContent({ section }: { section: CabSection }) {
-  const hasVehicleInfo = section.vehicle_name || section.vehicle_type || section.vehicle_capacity;
+function CabContent({ section, day }: { section: CabSection; day?: number }) {
+  const { cabGroups, cabSelections } = useBooking();
+
+  // Find the selected cab for this day's range
+  const cabGroup = day != null
+    ? cabGroups.find(g => g.dayFrom <= day && day <= g.dayTo)
+    : undefined;
+  const selectedCabId = cabGroup ? cabSelections.get(cabGroup.groupKey) : undefined;
+  const selectedCab = cabGroup?.cabs.find(c => c.id === selectedCabId)
+    ?? cabGroup?.cabs.find(c => c.is_default)
+    ?? cabGroup?.cabs[0];
+
+  const R2 = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? '';
+  const resolvedName     = selectedCab?.label ?? section.vehicle_name;
+  const resolvedType     = selectedCab?.vehicle.type ?? section.vehicle_type;
+  const resolvedCapacity = selectedCab?.vehicle.passenger_capacity ?? section.vehicle_capacity;
+  const resolvedImage    = selectedCab?.vehicle.image_key
+    ? (selectedCab.vehicle.image_key.startsWith('http')
+        ? selectedCab.vehicle.image_key
+        : `${R2}/${selectedCab.vehicle.image_key}`)
+    : section.vehicle_image;
+
+  const hasVehicleInfo = resolvedName || resolvedType || resolvedCapacity;
 
   return (
     <div className="mt-2 flex">
@@ -486,21 +508,21 @@ function CabContent({ section }: { section: CabSection }) {
           {hasVehicleInfo && (
             <div className="flex items-center gap-2.5  mb-3">
               <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                {section.vehicle_name && (
+                {resolvedName && (
                   <Text size="base" weight="semibold" intent="primary" className="font-heading">
-                    {section.vehicle_name}
+                    {resolvedName}
                   </Text>
                 )}
-                {section.vehicle_type && (
+                {resolvedType && (
                   <>
                     <span className="text-muted text-sm">·</span>
-                    <Text size="sm" intent="secondary">{section.vehicle_type}</Text>
+                    <Text size="sm" intent="secondary">{resolvedType}</Text>
                   </>
                 )}
-                {section.vehicle_capacity && (
+                {resolvedCapacity && (
                   <>
                     <span className="text-muted text-sm">·</span>
-                    <Text size="sm" intent="secondary">{section.vehicle_capacity} Seats</Text>
+                    <Text size="sm" intent="secondary">{resolvedCapacity} Seats</Text>
                   </>
                 )}
                 {section.num_vehicles && section.num_vehicles > 1 && (
@@ -524,22 +546,22 @@ function CabContent({ section }: { section: CabSection }) {
             />
 
             {/* Vehicle image */}
-            {(section.vehicle_image || section.vehicle_name) && (
+            {(resolvedImage || resolvedName) && (
               <div className="relative h-36 aspect-video shrink-0 rounded-2xl overflow-hidden bg-neutral-100">
                 <img
-                  src={section.vehicle_image || CAB_PLACEHOLDER}
-                  alt={section.vehicle_name ?? "Vehicle"}
+                  src={resolvedImage || CAB_PLACEHOLDER}
+                  alt={resolvedName ?? "Vehicle"}
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute inset-0 bg-linear-to-t from-black/55 via-black/10 to-transparent" />
-                {!section.vehicle_image && (
+                {!resolvedImage && (
                   <span className="absolute top-2 right-2 text-[9px] text-white/50 font-medium tracking-wide bg-black/30 rounded px-1 py-0.5">
                     placeholder
                   </span>
                 )}
-                {section.vehicle_name && (
+                {resolvedName && (
                   <span className="absolute bottom-2 left-2 right-2 text-xs font-semibold text-white drop-shadow-sm leading-tight line-clamp-2">
-                    {section.vehicle_name}
+                    {resolvedName}
                   </span>
                 )}
               </div>
@@ -1154,7 +1176,7 @@ const SECTION_CONFIG: {
   },
 };
 
-function DaySectionBlock({ section, id }: { section: DaySection; id: string }) {
+function DaySectionBlock({ section, id, day }: { section: DaySection; id: string; day?: number }) {
   const config = SECTION_CONFIG[section.type] as {
     icon: React.ElementType;
     title: string | ((s: typeof section) => string);
@@ -1176,7 +1198,10 @@ function DaySectionBlock({ section, id }: { section: DaySection; id: string }) {
           />
         </Accordion.Trigger>
         <Accordion.Content className="px-0 pb-0">
-          {config.content(section)}
+          {section.type === 'cab'
+            ? <CabContent section={section} day={day} />
+            : config.content(section)
+          }
         </Accordion.Content>
       </Accordion.Item>
     </Accordion>
@@ -1298,7 +1323,7 @@ export default function ItinerarySection({ days }: ItineraryProps) {
                 <div className="flex flex-col divide-y divide-(--border-muted)">
                   {sections.map((section, i) => (
                     <div key={i} className="py-5">
-                      <DaySectionBlock section={section} id={`day-${day}-${activeTab}-sec-${i}`} />
+                      <DaySectionBlock section={section} id={`day-${day}-${activeTab}-sec-${i}`} day={day} />
                     </div>
                   ))}
                 </div>

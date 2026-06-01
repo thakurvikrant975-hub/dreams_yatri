@@ -7,6 +7,7 @@ type ModalData = Record<string, unknown> | null;
 export type ModalType =
     | 'login-modal'
     | 'onboarding-modal'
+    | 'share-modal'
     | null;
 
 interface ModalState {

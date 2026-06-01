@@ -9,6 +9,18 @@ import { Role, UserStatus } from "../generated/prisma";
 
 import type { User } from "next-auth";
 
+function verifyMsg91Jwt(token: string): boolean {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return false;
+    const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+    // Verify the token belongs to our MSG91 account
+    return String(payload.companyId) === process.env.MSG91_COMPANY_ID!;
+  } catch {
+    return false;
+  }
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: {
     strategy: "jwt",
@@ -28,12 +40,39 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
     Credentials({
       credentials: {
-        phone: { label: "Phone", type: "text" },
-        code: { label: "OTP", type: "text" },
-        magicSessionToken: { label: "Magic Session Token", type: "text" }, // ← added
+        phone:             { label: "Phone",               type: "text" },
+        code:              { label: "OTP",                 type: "text" },
+        magicSessionToken: { label: "Magic Session Token", type: "text" },
+        msg91Token:        { label: "MSG91 Widget Token",  type: "text" },
       },
 
       async authorize(credentials): Promise<User | null> {
+
+        // ── MSG91 Widget Token Login ─────────────────────────────────
+        if (credentials?.msg91Token && credentials?.phone) {
+          const isValid = verifyMsg91Jwt(credentials.msg91Token as string);
+          if (!isValid) return null;
+
+          const phone = credentials.phone as string;
+
+          const user = await db.user.upsert({
+            where:  { phone },
+            update: {},
+            create: { phone },
+          });
+
+          if (user.status === "BANNED" || user.status === "DELETED") return null;
+
+          return {
+            id:                user.id,
+            phone:             user.phone,
+            role:              user.role,
+            status:            user.status,
+            name:              user.name,
+            email:             user.email,
+            isProfileComplete: user.isProfileComplete,
+          } as User;
+        }
 
         // ── Magic Link Login ────────────────────────────────────────
         if (credentials?.magicSessionToken) {

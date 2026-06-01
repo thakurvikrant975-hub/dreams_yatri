@@ -124,6 +124,7 @@ export type PackageQuery = {
     closeReasonId: string | null;
     closeReasonOther: string | null;
     requirements: PackageRequirements | null;
+    packageUrl: string | null;
     createdAt: Date;
     updatedAt: Date;
     rejectionReason: { id: string; label: string } | null;

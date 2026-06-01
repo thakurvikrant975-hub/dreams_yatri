@@ -1,5 +1,6 @@
 // app/layout.tsx
 import { Providers } from "./providers";
+import ModalRoot from "@/app/components/modals/ModalRoot";
 
 
 export const metadata = {
@@ -33,6 +34,7 @@ export default function WebsiteLayout({
       <div className="mx-auto" data-layout='website'>
         {children}
       </div>
+      <ModalRoot />
     </Providers>
   );
 }

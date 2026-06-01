@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Modal, { ModalHeader, ModalBody, ModalFooter } from './Modal_Structure';
 import { useModal } from '@/app/hooks/useModals';
 import Input from '../forms/Input';
@@ -52,8 +52,56 @@ function LoginModal() {
   const [activeMethod, setActiveMethod] = useState<LoginMethod>('phone');
   const [phone, setPhone]   = useState('');
   const [email, setEmail]   = useState('');
-  const [sent, setSent]     = useState(false);       // ← used below
+  const [sent, setSent]       = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp]         = useState('');
   const [loading, setLoading] = useState(false);
+
+  const widgetReady      = useRef(false);
+  const onVerifySuccess  = useRef<((data: any) => void) | null>(null);
+  const onVerifyFailure  = useRef<((err: any)  => void) | null>(null);
+
+  useEffect(() => {
+    if (!isOpen || type !== 'login-modal') return;
+
+    function initWidget() {
+      if (widgetReady.current) return;
+      if (typeof (window as any).initSendOTP !== 'function') return;
+      (window as any).initSendOTP({
+        widgetId:      process.env.NEXT_PUBLIC_MSG91_WIDGET_ID!,
+        tokenAuth:     process.env.NEXT_PUBLIC_MSG91_TOKEN_AUTH!,
+        exposeMethods: true,
+        success: (data: any) => onVerifySuccess.current?.(data),
+        failure: (err: any)  => onVerifyFailure.current?.(err),
+      });
+      widgetReady.current = true;
+    }
+
+    if (typeof (window as any).initSendOTP === 'function') {
+      initWidget();
+      return;
+    }
+
+    if (document.getElementById('msg91-otp-provider')) return;
+
+    const urls = [
+      'https://verify.msg91.com/otp-provider.js',
+      'https://verify.phone91.com/otp-provider.js',
+    ];
+    let i = 0;
+
+    function attempt() {
+      const script = document.createElement('script');
+      script.id    = 'msg91-otp-provider';
+      script.src   = urls[i];
+      script.async = true;
+      script.onload = initWidget;
+      script.onerror = () => { script.remove(); i++; if (i < urls.length) attempt(); };
+      document.head.appendChild(script);
+    }
+
+    attempt();
+  }, [isOpen, type]);
 
   function clearErrorIfValid(field: string, schema: z.ZodType, value: unknown) {
     if (!errors[field]) return;
@@ -118,14 +166,57 @@ function LoginModal() {
     }
 
     if (activeMethod === 'phone') {
-      try {
-        await axios.post('/api/auth/otp', { phone: `${countryCode}${phone}` });
-        // TODO: transition to OTP verification step
-      } catch (err: any) {
-        setErrors({ phone: err.response?.data?.error || 'Failed to send OTP.' });
-      } finally {
-        setLoading(false);
+      const win = window as any;
+
+      // Step 2 — verify OTP via MSG91 widget
+      if (otpSent) {
+        if (!otp || otp.length !== 6) {
+          setErrors({ otp: 'Enter the 6-digit OTP.' });
+          setLoading(false);
+          return;
+        }
+
+        if (!win.verifyOtp) {
+          setErrors({ otp: 'OTP service not ready. Please refresh.' });
+          setLoading(false);
+          return;
+        }
+
+        onVerifySuccess.current = async (data: any) => {
+          const token = data?.message ?? data?.access_token ?? data?.token ?? data;
+          const result = await signIn('credentials', {
+            redirect:   false,
+            msg91Token: typeof token === 'string' ? token : JSON.stringify(token),
+            phone:      `${countryCode}${phone}`,
+          });
+          if (result?.error) {
+            setErrors({ otp: 'Verification failed. Please try again.' });
+          } else {
+            closeModal();
+            window.location.href = '/profile';
+          }
+          setLoading(false);
+        };
+        onVerifyFailure.current = (err: any) => {
+          setErrors({ otp: err?.message ?? 'Invalid OTP. Please try again.' });
+          setLoading(false);
+        };
+
+        win.verifyOtp(otp);
+        return;
       }
+
+      // Step 1 — send OTP via MSG91 widget (uses MSG91's default DLT-approved template)
+      if (!win.sendOtp) {
+        setErrors({ phone: 'OTP service not ready. Please refresh.' });
+        setLoading(false);
+        return;
+      }
+
+      const mobile = `${countryCode.replace('+', '')}${phone}`;
+      win.sendOtp(mobile);
+      setOtpSent(true);
+      setLoading(false);
     }
   }
 
@@ -149,7 +240,7 @@ function LoginModal() {
             <button
               key={method}
               type="button"
-              onClick={() => { setActiveMethod(method); setSent(false); setErrors({}); }}
+              onClick={() => { setActiveMethod(method); setSent(false); setOtpSent(false); setOtp(''); setErrors({}); }}
               className={`flex-1 py-1.5 text-sm font-medium rounded-lg capitalize transition-all
                 ${activeMethod === method
                   ? 'bg-white text-primary shadow-sm'
@@ -179,7 +270,7 @@ function LoginModal() {
         ) : (
           <>
             {/* ── Phone Input ── */}
-            {activeMethod === 'phone' && (
+            {activeMethod === 'phone' && !otpSent && (
               <div>
                 <Label htmlFor="phone">Phone Number</Label>
                 <div className="flex gap-2 mt-1">
@@ -209,6 +300,38 @@ function LoginModal() {
                     error={errors.phone}
                   />
                 </div>
+              </div>
+            )}
+
+            {/* ── OTP Input (phone step 2) ── */}
+            {activeMethod === 'phone' && otpSent && (
+              <div className="space-y-3">
+                <p className="text-sm text-[--text-muted]">
+                  OTP sent to <strong>{countryCode} {phone}</strong>
+                </p>
+                <div>
+                  <Label htmlFor="otp">Enter OTP</Label>
+                  <Input
+                    id="otp"
+                    type="text"
+                    placeholder="6-digit OTP"
+                    size="md"
+                    className="mt-1 tracking-widest text-center"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    inputMode="numeric"
+                    maxLength={6}
+                    error={errors.otp}
+                    autoFocus
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="text-xs underline text-[--text-muted] hover:text-primary"
+                  onClick={() => { setOtpSent(false); setOtp(''); setErrors({}); }}
+                >
+                  Use a different number
+                </button>
               </div>
             )}
 
@@ -263,7 +386,9 @@ function LoginModal() {
             <Button type="submit" size="sm" disabled={loading}>
               {loading
                 ? 'Please wait...'
-                : activeMethod === 'phone' ? 'Send OTP' : 'Send Magic Link'
+                : activeMethod === 'phone'
+                  ? otpSent ? 'Verify OTP' : 'Send OTP'
+                  : 'Send Magic Link'
               }
             </Button>
           </div>
