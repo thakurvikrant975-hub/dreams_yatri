@@ -43,7 +43,7 @@ paymentStatus, status machine), `Payment` (gateway/order/payment/signature/refun
 | Step | Description | Status |
 |------|-------------|--------|
 | 1.1 | `package_quote` model + `QuoteStatus` enum + migration + client | ✅ DONE |
-| 1.2 | Shared Zod input schema (selectors+pax+date; travelDate≥today; childAges.length===children; caps) | ⬜ TODO |
+| 1.2 | Shared Zod input schema (selectors+pax+date; travelDate≥today; childAges.length===children; caps) | ✅ DONE |
 | 1.3 | Signing util: `signQuote`/`verifyQuote` (HMAC-SHA256 over canonical snapshot) + `computeInputsHash` | ⬜ TODO |
 | 1.4 | `createQuote` service: validate → computePackagePrice → reject missing_pricing_config → snapshot → sign → persist (TTL) → return safe breakdown | ⬜ TODO |
 | 1.5 | `getQuote` (lazy expiry + verify) + `isQuoteFresh` (recompute & compare total → drift) | ⬜ TODO |
@@ -62,6 +62,15 @@ paymentStatus, status machine), `Payment` (gateway/order/payment/signature/refun
 - DB: table+enum+indexes created via `prisma db execute` (NOT db push — avoids unrelated drift).
 - Migration recorded: `prisma/migrations/20260602100000_add_package_quote/` + `migrate resolve --applied`.
 - `prisma generate` done — `db.package_quote` available.
+
+## Step 1.2 — what was done
+- `app/actions/quote/schema.ts` (plain module, NOT 'use server' — importable client+server).
+- `quoteInputSchema`: selectors (4 positive-int ids) + slugs (4) + pax + `child_ages[]` + `cab_type_ids[]` + `travel_date`.
+  - caps in `QUOTE_LIMITS` (adults≤20, children≤20, infants≤10, cabs≤20, child age 0–17).
+  - `travel_date`: regex YYYY-MM-DD → real-calendar-date check (rejects 2026-02-30) → `>= todayISO()` (server-local).
+  - `superRefine`: `child_ages.length === children`.
+  - exports `QuoteInput` (z.input), `QuoteParsed` (z.output), `QuoteErrors`.
+- Note: `children`/`infants`/`child_ages`/`cab_type_ids` have `.default()`, so they're optional on input, present on output.
 
 ## Gotchas / conventions to remember
 - Prisma v7 client needs the `PrismaPg` adapter (see `app/lib/db.ts`); a bare `new PrismaClient()` throws.
