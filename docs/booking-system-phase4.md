@@ -46,7 +46,7 @@ webhook via `WebhookEvent @@unique([gateway, eventId])`.
 ## Steps & Status
 | Step | Description | Status |
 |------|-------------|--------|
-| 4.1 | Razorpay client wrapper `app/lib/razorpay.ts` (server-only): `createOrder`, `verifyCheckoutSignature`, `verifyWebhookSignature`; env wiring; unit-test the (pure) signature verifiers | ⬜ TODO |
+| 4.1 | Razorpay client wrapper `app/lib/razorpay.ts` (server-only): `createOrder`, `verifyCheckoutSignature`, `verifyWebhookSignature`; env wiring; unit-test the (pure) signature verifiers | ✅ DONE |
 | 4.2 | `createBookingAndOrder(quoteId)` service: auth + getQuote(ACTIVE) + isQuoteFresh → tx{ create Booking(snapshot/installments), quote→CONSUMED, create Payment(PENDING) } → Razorpay order → return `{ bookingId, orderId, amountPaise, keyId }`; idempotent | ⬜ TODO |
 | 4.3 | Checkout init: server action/route + client Razorpay-checkout on `/book/[quoteId]` (real Pay button → opens Razorpay with order) | ⬜ TODO |
 | 4.4 | Webhook handler `app/api/webhooks/razorpay/route.ts` (authoritative): verify sig → dedupe via WebhookEvent → on payment captured: Payment PAID + Booking paymentStatus/money + DEPOSIT installment PAID; idempotent re-delivery → IGNORED | ⬜ TODO |
@@ -103,6 +103,17 @@ webhook via `WebhookEvent @@unique([gateway, eventId])`.
 - e2e: build a signed webhook payload with the test secret → POST to the handler → assert Payment PAID,
   Booking paymentStatus + money, installment PAID, WebhookEvent PROCESSED; re-POST → IGNORED (no double).
 - If test keys present, optionally hit Razorpay test `orders` API in 4.2 e2e; else stub.
+
+## Step 4.1 — what was done
+- Installed `razorpay` SDK (v2.9.6).
+- `app/lib/razorpay.ts` (`server-only`): lazy client (`getClient`), `createRazorpayOrder({amountPaise,receipt,notes})`
+  (asserts int paise, INR), `verifyCheckoutSignature({orderId,paymentId,signature})` = HMAC(`orderId|paymentId`,
+  key_secret), `verifyWebhookSignature(rawBody, signature)` = HMAC(rawBody, webhook_secret), `razorpayKeyId()`.
+  All secrets read lazily via `requireEnv` (throws if missing) — app boots without keys; timing-safe hex compare.
+- Env placeholders added to `.env`: `RAZORPAY_KEY_ID/SECRET/WEBHOOK_SECRET`, `NEXT_PUBLIC_RAZORPAY_KEY_ID` (all blank — fill with test keys).
+- `scripts/test-razorpay.ts` + `npm run test:razorpay` (react-server condition; sets its own test secrets) —
+  11 asserts: good sig accepted, tampered/empty/garbage/wrong-secret rejected (checkout + webhook). Added to `npm test`.
+- NOTE: `tsx` cjs transform rejects top-level `await import` → use static imports in test scripts.
 
 ## Gotchas / conventions
 - Razorpay amounts are paise — reuse `app/lib/money.ts`; never float.
