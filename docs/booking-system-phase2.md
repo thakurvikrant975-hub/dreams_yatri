@@ -29,16 +29,15 @@ lets Phase 3+ do that safely.
   FULLY_PAID REFUNDED PARTIALLY_REFUNDED TESTING }`, `PaymentMethod { UPI CARD NET_BANKING WALLET EMI CASH }`,
   `PaymentGateway { RAZORPAY PHONEPE PAYU OFFLINE }`.
 
-## Decisions — PROPOSED (confirm before we start; two real forks marked ⚠️)
-- ⚠️ **Paise strategy = parallel columns, not migrate-in-place.** Keep the existing Decimal(10,2)
+## Decisions — LOCKED (user-confirmed 2026-06-02)
+- ✅ **Paise strategy = parallel columns, not migrate-in-place.** Keep the existing Decimal(10,2)
   rupee columns untouched (they're live in ops/admin). ADD new `*_paise Int` columns for the amounts
   that flow through a gateway. Paise is the **source of truth for charging**; rupees stay for
   display/back-compat. (Avoids a risky rewrite of a live money schema.) `Int` holds up to ₹21.4 crore
   in paise — fine for trip values; use `BigInt` only if we ever exceed that.
-- ⚠️ **Payment schedule = a `PaymentInstallment` table + a `paymentPlan` enum on Booking** (not just
+- ✅ **Payment schedule = a `PaymentInstallment` table + a `paymentPlan` enum on Booking** (not just
   loose fields). A table cleanly models DEPOSIT + BALANCE legs, supports the Phase-5 balance-reminder
-  cron, and keeps per-leg status/due-date/amount. (User said "fields"; recommending the table — easy
-  to swap to flat fields if preferred.)
+  cron, and keeps per-leg status/due-date/amount.
 - **Booking ↔ quote** is a **loose link**: `quoteId String? @unique` (nullable-unique ⇒ one booking
   per quote, many legacy nulls allowed) + a **copied** `priceSnapshot Json` (don't rely on the quote
   row surviving). Creating a booking will flip the quote to `CONSUMED` (logic in Phase 3).
