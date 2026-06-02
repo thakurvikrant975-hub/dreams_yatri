@@ -17,7 +17,7 @@ import SectionHeader from '@/app/components/ui/SectionHeader'
 import { staggerContainer, staggerItem, fadeIn, fadeUp, fadeRight, fadeLeft } from '@/app/lib/motionPresets'
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
-type DestinationItem = Omit<DestinationCardProps, 'onClick'> & {
+export type DestinationItem = Omit<DestinationCardProps, 'onClick'> & {
     slug: string
     badge?: string
     region?: string

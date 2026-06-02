@@ -19,10 +19,10 @@ const REVIEWS: Review[] = [
     rating: 5,
     text: "I arvind kumar (rajan) am very glad to share my wonderful experience with your team in Sikkim and darjiling tour especially full coordination by YAMINI AND VARSA MAIDAN in this tour.",
     images: [
-      "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=120&h=80&fit=crop",
-      "https://images.unsplash.com/photo-1605649487212-47bdab064df7?w=120&h=80&fit=crop",
-      "https://images.unsplash.com/photo-1571536802807-30451e3955d8?w=120&h=80&fit=crop",
-      "https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=120&h=80&fit=crop",
+      "https://lh3.googleusercontent.com/grass-cs/ANxoTn3I3z-XsU0Fl3rvW2y4o4e4vCY5cx_-5rTUCsl3EMOF35eIMA-oW9fu9VWxLNE5OdmbEHy7HOC77V1xg-kdp1UQV2l6kZNMB8DxZQyn_zhFTiRFARrsxV8oJ71WSQaYLaMBBIlhcQqqMdN8=s2940-w2940-h1602-rw",
+      "https://lh3.googleusercontent.com/grass-cs/ANxoTn0NgbncQuYy1eMXIYh1bJgdS_SVSNyDz-4KkopqWAB0qKhpxjCiM0-pULkYT-WLeXIgt1W1MmTSqV8BSaDEl1KWlyaUtPImw0nrzCAwVkLGdjCMC2LFKGi3RXwtoVFD3gW4kibSsi-JTUM=s2940-w2940-h1602-rw",
+      "https://lh3.googleusercontent.com/grass-cs/ANxoTn3VPcPagYgYO_BbIhe5OH3jpfGt1--GCAKg46wNEqAvUNY2cCay42zzTql9Uz0gSI1eaO0Sh14UImmtfaQ5A_bQ9uTRgBICL6N3vwcsxvNkRk1E9B8q_TDik1A9p7l8mjXwKjkZiILJOoC4=s2940-w2940-h1602-rw",
+      "https://lh3.googleusercontent.com/grass-cs/ANxoTn3ckM-F5nKgm42hhoWJcN6zZtGPrIMnQcPyecqIX3ey7DI-HelMjqEvMpayf-PpjoREdGgsvnKGdueU8HtPLvESzsxUX8X5ZeggvyH4Ootq3q9lkW4GdCixPAwqjd2pOF9h81UVXmjW2hn0=s2940-w2940-h1602-rw",
     ],
   },
   {

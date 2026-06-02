@@ -12,10 +12,13 @@ export default function ReviewCard({ review }: ReviewCardProps) {
             {/* Top row */}
             <div className="flex items-start justify-between gap-3 pb-3 border-b border-(--border-default)">
                 <div className="flex items-center gap-3 w-full">
-                    <Image src={review.profile} alt="review user image" width={36} height={36} className="size-9 rounded-full ring-offset-3 ring-[0.08em] ring-(--border-default) " />
-                    {/* <div className="w-9 h-9 rounded-full bg-linear-to-br from-rose-400 to-rose-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
-                       {review.name[0]}</div> */
-                    }
+                    {review.profile ? (
+                        <Image src={review.profile} alt={review.name} width={36} height={36} className="size-9 rounded-full ring-offset-3 ring-[0.08em] ring-(--border-default) object-cover shrink-0" />
+                    ) : (
+                        <div className="size-9 rounded-full bg-linear-to-br from-rose-400 to-rose-600 flex items-center justify-center text-white font-bold text-sm shrink-0 ring-offset-3 ring-[0.08em] ring-(--border-default)">
+                            {review.name[0]}
+                        </div>
+                    )}
 
                     <div className="flex flex-col gap-1 flex-1">
                         <div className="flex gap-2.5 justify-between items-center">
