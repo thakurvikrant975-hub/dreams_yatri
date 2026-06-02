@@ -118,7 +118,7 @@ const CONTACT_ITEMS: ContactItem[] = [
 const SOCIAL_LINKS: SocialLink[] = [
   {
     label: "Instagram",
-    href: "https://instagram.com/dreamsyatri",
+    href: "https://instagram.com/dreams_yatri",
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />

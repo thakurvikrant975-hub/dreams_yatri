@@ -22,6 +22,7 @@ export interface Review {
     rating: number;
     text: string;
     images: string[];
+    profile?: string;
 }
 
 export interface BlogPost {

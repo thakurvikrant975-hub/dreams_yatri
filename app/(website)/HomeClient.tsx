@@ -10,9 +10,30 @@ import NewsletterSection from "@/app/home/newsletter";
 import Footer from "../components/navigation/Footer";
 import Header from "../components/navigation/Header";
 import { fetchRecentPackages } from "@/app/actions/packages/fetch-page-data";
+import { fetchActiveRegions } from "@/app/actions/regions/fetch-region-page";
+import { fetchActiveDestinations } from "@/app/actions/destinations/fetch-destination-page";
 
 export default async function Home() {
-  const recentPackages = await fetchRecentPackages(6);
+  const [recentPackages, activeRegions, activeDestinations] = await Promise.all([
+    fetchRecentPackages(6),
+    fetchActiveRegions("India", 12),
+    fetchActiveDestinations("India", 12),
+  ]);
+
+  const domesticItems = activeRegions.map((r) => ({
+    slug: r.slug,
+    name: r.name,
+    packageCount: r.packageCount,
+    image: r.image,
+  }));
+
+  const internationalItems = activeDestinations.map((d) => ({
+    slug: d.slug,
+    name: d.name,
+    packageCount: d.packageCount,
+    image: d.image,
+    region: d.country,
+  }));
 
   return (
     <>
@@ -21,7 +42,10 @@ export default async function Home() {
         <Hero />
         <TrustSignals />
         <PackageSection packages={recentPackages} />
-        <ExploreDestinations />
+        <ExploreDestinations
+          domestic={domesticItems.length > 0 ? domesticItems : undefined}
+          international={internationalItems.length > 0 ? internationalItems : undefined}
+        />
         <AvantiSection />
         <WhyChooseUsSection />
         <TestimonialsSection />

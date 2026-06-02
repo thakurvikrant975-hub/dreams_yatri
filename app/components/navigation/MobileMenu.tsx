@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useLanguage, LANGUAGES } from '@/app/hooks/useLanguage';
 
 interface NavItem {
   label: string;
@@ -18,6 +19,7 @@ const NAV_ITEMS: NavItem[] = [
 
 export default function MobileMenu() {
   const [open, setOpen] = useState(false);
+  const { currentLanguage, setLanguage } = useLanguage();
 
   useEffect(() => {
     document.body.style.overflow = open ? 'hidden' : '';
@@ -155,6 +157,68 @@ export default function MobileMenu() {
         }
         .dy-nav-link:hover::after { width: 100%; }
 
+        /* Language selector row */
+        .dy-lang-row {
+          position: absolute;
+          bottom: 14vh;
+          left: 0;
+          width: 100%;
+          display: flex;
+          justify-content: center;
+          gap: 10px;
+          flex-wrap: wrap;
+          padding: 0 24px;
+          opacity: 0;
+          visibility: hidden;
+          transform: translateY(20px);
+          pointer-events: none;
+          transition: opacity 250ms linear, transform 250ms linear, visibility 0ms 250ms;
+          transition-delay: 100ms;
+        }
+        .dy-blob.open .dy-lang-row {
+          opacity: 1;
+          visibility: visible;
+          transform: translateY(0);
+          pointer-events: auto;
+          transition: opacity 350ms ease, transform 250ms ease;
+          transition-delay: 1820ms;
+        }
+        .dy-lang-btn {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 2px;
+          padding: 8px 12px;
+          border-radius: 12px;
+          border: 1.5px solid transparent;
+          background: transparent;
+          cursor: pointer;
+          transition: background 200ms, border-color 200ms;
+        }
+        .dy-lang-btn.active {
+          background: rgba(251, 43, 55, 0.08);
+          border-color: rgba(251, 43, 55, 0.3);
+        }
+        .dy-lang-badge {
+          width: 36px;
+          height: 36px;
+          border-radius: 10px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 11px;
+          font-weight: 700;
+          color: white;
+          margin-bottom: 2px;
+        }
+        .dy-lang-name {
+          font-size: 10px;
+          font-weight: 600;
+          color: #404040;
+          white-space: nowrap;
+        }
+        .dy-lang-btn.active .dy-lang-name { color: #FB2B37; }
+
         /* Hamburger — absolutely positioned, same anchor as blob, higher z */
         .dy-hamburger {
           position: absolute;
@@ -206,6 +270,25 @@ export default function MobileMenu() {
             </li>
           ))}
         </ul>
+
+        {/* Language selector */}
+        <div className="dy-lang-row">
+          {LANGUAGES.map((lang) => (
+            <button
+              key={lang.code}
+              onClick={() => { setLanguage(lang.code); setOpen(false); }}
+              className={`dy-lang-btn${currentLanguage === lang.code ? ' active' : ''}`}
+            >
+              <span
+                className="dy-lang-badge"
+                style={{ backgroundColor: lang.color }}
+              >
+                {lang.shortCode}
+              </span>
+              <span className="dy-lang-name">{lang.labelEn}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Hamburger — same anchor, higher z */}

@@ -66,6 +66,53 @@ export async function fetchRegionBySlug(slug: string): Promise<RegionMeta | null
   };
 }
 
+// ── Active regions for the home page ─────────────────────────────────────────
+
+export type ActiveRegionItem = {
+  id: number;
+  name: string;
+  slug: string;
+  image: string;
+  packageCount: number;
+};
+
+export async function fetchActiveRegions(
+  country = "India",
+  limit = 12,
+): Promise<ActiveRegionItem[]> {
+  const regions = await db.custom_regions.findMany({
+    where: { is_active: true, is_deleted: false, country },
+    select: { id: true, name: true, slug: true, thumbnail: true },
+    take: limit,
+    orderBy: { created_at: "asc" },
+  });
+
+  if (regions.length === 0) return [];
+
+  const regionIds = regions.map((r) => r.id);
+
+  const dests = await db.destinations.findMany({
+    where: { region_id: { in: regionIds }, is_deleted: false },
+    select: {
+      region_id: true,
+      _count: { select: { packages: { where: { is_active: true } } } },
+    },
+  });
+
+  const countMap: Record<number, number> = {};
+  for (const d of dests) {
+    countMap[d.region_id] = (countMap[d.region_id] ?? 0) + d._count.packages;
+  }
+
+  return regions.map((r) => ({
+    id: r.id,
+    name: r.name,
+    slug: r.slug,
+    image: imgUrl(r.thumbnail),
+    packageCount: countMap[r.id] ?? 0,
+  }));
+}
+
 // ── Paginated package listing for a region ──────────────────────────────────
 
 const DEFAULT_PAGE_SIZE = 9;

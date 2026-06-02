@@ -34,6 +34,51 @@ export type DestinationPackagesPage = {
   hasMore: boolean;
 };
 
+// ── Active destinations for the home page (Beyond Borders) ───────────────────
+
+export type ActiveDestinationItem = {
+  id: number;
+  name: string;
+  slug: string;
+  image: string;
+  packageCount: number;
+  country: string;
+};
+
+export async function fetchActiveDestinations(
+  excludeCountry = "India",
+  limit = 12,
+): Promise<ActiveDestinationItem[]> {
+  const dests = await db.destinations.findMany({
+    where: {
+      is_active: true,
+      is_deleted: false,
+      country: { not: excludeCountry },
+    },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      thumbnail: true,
+      country: true,
+      _count: { select: { packages: { where: { is_active: true } } } },
+    },
+    take: limit,
+    orderBy: { created_at: "asc" },
+  });
+
+  return dests
+    .map((d) => ({
+      id: d.id,
+      name: d.name,
+      slug: d.slug,
+      image: imgUrl(d.thumbnail),
+      packageCount: d._count.packages,
+      country: d.country,
+    }))
+    .filter((d) => d.image);
+}
+
 // ── Destination meta ─────────────────────────────────────────────────────────
 
 export async function fetchDestinationBySlug(slug: string): Promise<DestinationMeta | null> {
