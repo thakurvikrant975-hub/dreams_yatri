@@ -44,7 +44,7 @@ paymentStatus, status machine), `Payment` (gateway/order/payment/signature/refun
 |------|-------------|--------|
 | 1.1 | `package_quote` model + `QuoteStatus` enum + migration + client | ✅ DONE |
 | 1.2 | Shared Zod input schema (selectors+pax+date; travelDate≥today; childAges.length===children; caps) | ✅ DONE |
-| 1.3 | Signing util: `signQuote`/`verifyQuote` (HMAC-SHA256 over canonical snapshot) + `computeInputsHash` | ⬜ TODO |
+| 1.3 | Signing util: `signQuote`/`verifyQuote` (HMAC-SHA256 over canonical snapshot) + `computeInputsHash` | ✅ DONE |
 | 1.4 | `createQuote` service: validate → computePackagePrice → reject missing_pricing_config → snapshot → sign → persist (TTL) → return safe breakdown | ⬜ TODO |
 | 1.5 | `getQuote` (lazy expiry + verify) + `isQuoteFresh` (recompute & compare total → drift) | ⬜ TODO |
 | 1.6 | Server actions `createPackageQuote` / `getPackageQuote` (types in non-'use server' file) | ⬜ TODO |
@@ -71,6 +71,17 @@ paymentStatus, status machine), `Payment` (gateway/order/payment/signature/refun
   - `superRefine`: `child_ages.length === children`.
   - exports `QuoteInput` (z.input), `QuoteParsed` (z.output), `QuoteErrors`.
 - Note: `children`/`infants`/`child_ages`/`cab_type_ids` have `.default()`, so they're optional on input, present on output.
+
+## Step 1.3 — what was done
+- `app/actions/quote/signing.ts` (`import "server-only"`).
+- `computeInputsHash(QuoteParsed)` → SHA-256 over explicit canonical string; `child_ages` & `cab_type_ids` **sorted** (order-insensitive).
+- `signQuote(payload)` / `verifyQuote(payload, sig)` → HMAC-SHA256 (hex) over `QuoteSignaturePayload`
+  = `{inputs_hash, currency, base_cost, margin_amount, gst_amount, total_amount, price_per_adult, expires_at}`.
+  Money fields are 2-dp **strings** (matches DB Decimal repr) so float formatting can't change signed bytes.
+  `verifyQuote` uses `timingSafeEqual` (length-guarded; rejects empty/garbage hex).
+- `money2dp(v)` helper = `Number(v).toFixed(2)` for building the payload.
+- Reads `QUOTE_SECRET` (throws if <16 chars). Added to `.env`: `QUOTE_SECRET`, `QUOTE_TTL_MINUTES=15`.
+- Smoke-tested: order-insensitive hash, pax-sensitive hash, good-sig verifies, tampered total/expiry/garbage/empty all rejected.
 
 ## Gotchas / conventions to remember
 - Prisma v7 client needs the `PrismaPg` adapter (see `app/lib/db.ts`); a bare `new PrismaClient()` throws.
