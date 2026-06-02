@@ -77,17 +77,23 @@ export default function TestimonialsSection() {
               title="What Our Guests Say"
             />
 
-            <button className="p-2 rounded-md bg-black items-center text-white text-sm font-medium  gap-2 px-4 hover:bg-rose-500 transition-colors cursor-pointer grid">
-              <div className="flex items-center gap-1">Review us on <FcGoogle /></div>
-
-              <span className="text-center flex justify-center text-xs w-full text-yellow-500 gap-1">
-                <Star width={14}/>
-                <Star width={14}/>
-                <Star width={14}/>
-                <Star width={14}/>
-                <Star width={14}/>
-                </span>
-            </button>
+            <a
+              href="https://g.page/r/review"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group flex flex-col items-center gap-1.5 px-5 py-3 rounded-xl bg-white border border-neutral-200 shadow-sm hover:border-rose-300 hover:shadow-md transition-all duration-200 cursor-pointer"
+            >
+              <span className="flex items-center gap-2 text-sm font-semibold text-neutral-800 group-hover:text-rose-600 transition-colors">
+                <FcGoogle className="size-5 shrink-0" />
+                Write a Review
+              </span>
+              <span className="flex items-center gap-0.5">
+                {[...Array(5)].map((_, i) => (
+                  <Star key={i} className="size-3.5 fill-yellow-400 text-yellow-400" />
+                ))}
+                <span className="ml-1 text-xs text-neutral-500 font-medium">5.0</span>
+              </span>
+            </a>
           </div>
         </div>
 
