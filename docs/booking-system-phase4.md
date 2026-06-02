@@ -47,7 +47,7 @@ webhook via `WebhookEvent @@unique([gateway, eventId])`.
 | Step | Description | Status |
 |------|-------------|--------|
 | 4.1 | Razorpay client wrapper `app/lib/razorpay.ts` (server-only): `createOrder`, `verifyCheckoutSignature`, `verifyWebhookSignature`; env wiring; unit-test the (pure) signature verifiers | ✅ DONE |
-| 4.2 | `createBookingAndOrder(quoteId)` service: auth + getQuote(ACTIVE) + isQuoteFresh → tx{ create Booking(snapshot/installments), quote→CONSUMED, create Payment(PENDING) } → Razorpay order → return `{ bookingId, orderId, amountPaise, keyId }`; idempotent | ⬜ TODO |
+| 4.2 | `createBookingAndOrder(quoteId)` service: auth + getQuote(ACTIVE) + isQuoteFresh → tx{ create Booking(snapshot/installments), quote→CONSUMED, create Payment(PENDING) } → Razorpay order → return `{ bookingId, orderId, amountPaise, keyId }`; idempotent | ✅ DONE |
 | 4.3 | Checkout init: server action/route + client Razorpay-checkout on `/book/[quoteId]` (real Pay button → opens Razorpay with order) | ⬜ TODO |
 | 4.4 | Webhook handler `app/api/webhooks/razorpay/route.ts` (authoritative): verify sig → dedupe via WebhookEvent → on payment captured: Payment PAID + Booking paymentStatus/money + DEPOSIT installment PAID; idempotent re-delivery → IGNORED | ⬜ TODO |
 | 4.5 | Browser-callback verify (server action `verifyCheckoutPayment`) + confirmation page (`/book/[quoteId]/success` or `/bookings/[id]`): verify checkout sig, show status; truth still = webhook (show "processing" until captured) | ⬜ TODO |
@@ -114,6 +114,22 @@ webhook via `WebhookEvent @@unique([gateway, eventId])`.
 - `scripts/test-razorpay.ts` + `npm run test:razorpay` (react-server condition; sets its own test secrets) —
   11 asserts: good sig accepted, tampered/empty/garbage/wrong-secret rejected (checkout + webhook). Added to `npm test`.
 - NOTE: `tsx` cjs transform rejects top-level `await import` → use static imports in test scripts.
+
+## Step 4.2 — what was done
+- `app/actions/payment/create-booking.service.ts` (`server-only`) `createBookingAndOrder({ quoteId, userId })`:
+  - **Resume path first** (idempotent): if a Booking exists for `quoteId` (and belongs to the user), find its
+    pending Payment and return/create its order — no duplicate (Booking.quoteId @unique; quote already CONSUMED).
+  - Else **gate**: `getQuote` success+ACTIVE, `isQuoteFresh` fresh (else not_active/stale).
+  - Load raw `package_quote` row (ids + frozen `breakdown`) + package(destination_id) + duration(days/nights).
+  - `computePaymentSchedule` → first leg. `$transaction`: create Booking (priceSnapshot=breakdown, paise,
+    paymentPlan, paymentStatus PENDING, balanceDue*, travellers=pax count, tripType='Leisure' TODO) + installment
+    legs + quote→CONSUMED + PENDING Payment (idempotencyKey `quote:<id>:<leg>`). Razorpay order created OUTSIDE
+    the tx; `gatewayOrderId` stored on the Payment.
+- `app/actions/payment/booking.actions.ts` (`'use server'`) `createPackageBooking(quoteId)` → auth → service (try/catch).
+- Verified (throwaway e2e, removed): DB tx commits correctly even when the order step throws w/o keys —
+  1 booking for 2 calls (idempotent), DEPOSIT plan, legs 911335+2734003=3645338, quote CONSUMED, payment PENDING.
+  **Live Razorpay order creation needs test keys** → exercised in 4.3/4.6.
+- Open TODOs: `tripType` is hard-coded 'Leisure'; `bookingNumber` = `DY-<yymmdd>-<hex6>`.
 
 ## Gotchas / conventions
 - Razorpay amounts are paise — reuse `app/lib/money.ts`; never float.
