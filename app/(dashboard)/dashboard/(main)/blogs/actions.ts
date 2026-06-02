@@ -67,56 +67,67 @@ export async function getBlogStats(): Promise<BlogStats> {
   return { total, pending, published, rejected, drafts };
 }
 
+export type GetBlogsResult = {
+  rows:        AdminBlogRow[];
+  total:       number;
+  totalPages:  number;
+  currentPage: number;
+  limit:       number;
+};
+
 export async function getAllBlogs(opts: {
   status?: string;
   search?: string;
-} = {}): Promise<AdminBlogRow[]> {
+  page?:   number;
+  limit?:  number;
+} = {}): Promise<GetBlogsResult> {
   const admin = await requireAdmin();
-  if (!admin) return [];
+  if (!admin) return { rows: [], total: 0, totalPages: 0, currentPage: 1, limit: 10 };
 
   const { status, search } = opts;
+  const limit       = Math.min(opts.limit ?? 10, 50);
+  const currentPage = Math.max(opts.page ?? 1, 1);
+  const skip        = (currentPage - 1) * limit;
 
-  const rows = await db.blog_posts.findMany({
-    where: {
-      ...(status && status !== "all"
-        ? { status: status as AdminBlogRow["status"] }
-        : {}),
-      ...(search
-        ? {
-            OR: [
-              { title: { contains: search, mode: "insensitive" } },
-              { author: { name: { contains: search, mode: "insensitive" } } },
-              { author: { email: { contains: search, mode: "insensitive" } } },
-            ],
-          }
-        : {}),
-    },
-    orderBy: [
-      // pending first, then by updated_at desc
-      { status: "asc" },
-      { updated_at: "desc" },
-    ],
-    select: {
-      id:           true,
-      title:        true,
-      slug:         true,
-      cover_image:  true,
-      status:       true,
-      read_time:    true,
-      published_at: true,
-      updated_at:   true,
-      created_at:   true,
-      author: {
-        select: { name: true, email: true, image: true },
-      },
-      categories: {
-        take: 1,
-        select: { category: { select: { name: true } } },
-      },
-    },
-  });
+  const where = {
+    ...(status && status !== "all"
+      ? { status: status as AdminBlogRow["status"] }
+      : {}),
+    ...(search
+      ? {
+          OR: [
+            { title: { contains: search, mode: "insensitive" as const } },
+            { author: { name:  { contains: search, mode: "insensitive" as const } } },
+            { author: { email: { contains: search, mode: "insensitive" as const } } },
+          ],
+        }
+      : {}),
+  };
 
-  return rows.map((r) => ({
+  const [total, rawRows] = await Promise.all([
+    db.blog_posts.count({ where }),
+    db.blog_posts.findMany({
+      where,
+      orderBy: [{ status: "asc" }, { updated_at: "desc" }],
+      skip,
+      take: limit,
+      select: {
+        id:           true,
+        title:        true,
+        slug:         true,
+        cover_image:  true,
+        status:       true,
+        read_time:    true,
+        published_at: true,
+        updated_at:   true,
+        created_at:   true,
+        author:     { select: { name: true, email: true, image: true } },
+        categories: { take: 1, select: { category: { select: { name: true } } } },
+      },
+    }),
+  ]);
+
+  const rows: AdminBlogRow[] = rawRows.map((r) => ({
     id:             r.id,
     title:          r.title,
     slug:           r.slug,
@@ -132,6 +143,8 @@ export async function getAllBlogs(opts: {
     category:       r.categories[0]?.category.name ?? null,
     word_count_est: r.read_time ? r.read_time * 200 : null,
   }));
+
+  return { rows, total, totalPages: Math.max(1, Math.ceil(total / limit)), currentPage, limit };
 }
 
 export async function getBlogForReview(id: string): Promise<AdminBlogDetail | null> {

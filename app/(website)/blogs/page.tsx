@@ -34,7 +34,7 @@ export default async function BlogsListingPage() {
 
       {/* ── Hero header ── */}
       <section className="">
-        <div className="screen-space flex justify-between">
+        <div className="screen-space flex justify-between mt-4">
           <Breadcrumbs title="Blogs" />
           <div className="mt-3 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
             <WriteButton />
