@@ -49,7 +49,7 @@ paymentStatus, status machine), `Payment` (gateway/order/payment/signature/refun
 | 1.5 | `getQuote` (lazy expiry + verify) + `isQuoteFresh` (recompute & compare total → drift) | ✅ DONE |
 | 1.6 | Server actions `createPackageQuote` / `getPackageQuote` (types in non-'use server' file) | ✅ DONE |
 | 1.7 | Wire PricingCard "Book" → createPackageQuote → router.push(`/book/[quoteId]`); guard no travelDate | ✅ DONE |
-| 1.8 | `/book/[quoteId]` review page: locked snapshot + countdown to expires_at + expired/drift states; payment placeholder (Phase 2) | ⬜ TODO |
+| 1.8 | `/book/[quoteId]` review page: locked snapshot + countdown to expires_at + expired/drift states; payment placeholder (Phase 2) | ✅ DONE |
 | 1.9 | env (QUOTE_SECRET, QUOTE_TTL_MINUTES), lazy-expiry policy, unit tests for pure pieces, e2e pass | ⬜ TODO |
 
 ## Step 1.1 — what was done
@@ -115,6 +115,16 @@ paymentStatus, status machine), `Payment` (gateway/order/payment/signature/refun
 - New shared hook `components/useBookQuote.ts` → `{ book, booking, error }`. Builds the QuoteInput from booking context + route slugs (`useParams`), guards missing `travelDate`, calls `createPackageQuote`, on success `router.push('/book/[id]')`, else surfaces `error`.
 - `PricingCard` + `MobileFooterBar` both call `useBookQuote` — single source of truth, both Book buttons live now (loading state + inline error).
 - NOTE: `/book/[quoteId]` route is built in Step 1.8 — until then the Book button 404s.
+
+## Step 1.8 — what was done
+- Route `app/(website)/book/[quoteId]/` (under `(website)` → gets `data-layout` + Providers; renders own Header/Footer like `/packages`).
+- `page.tsx` (server, `force-dynamic`, `robots: noindex`): `getPackageQuote(id)` → branches:
+  - `invalid` / `not_found` → `StatusScreen` (friendly message + CTA to /packages).
+  - success → fetch `packages.{title,thumbnail}` by slug + `checkQuoteFreshness` (only when ACTIVE) → `<BookReview>`.
+- `BookReview.tsx` (client): countdown band, trip summary (title/thumb/duration_label/stay/dep date/travellers), **locked** price summary (per-adult/gst/total), drift warning banner if not fresh, payment placeholder (disabled — Phase 2). Flips to an "expired — get a fresh price" panel when status≠ACTIVE OR the countdown hits 0.
+- `QuoteCountdown.tsx` (client): MM:SS to `expires_at`, urgent (red) ≤60s, fires `onExpire`.
+- Re-quote link = `/packages/{package_slug}/{duration_slug}/{route_slug}/{stay_slug}`.
+- SafeQuote gained `duration_label` + `stay_category_label` (from frozen breakdown) for display; getQuote reads them from breakdown JSON (slug fallback).
 
 ## Gotchas / conventions to remember
 - Prisma v7 client needs the `PrismaPg` adapter (see `app/lib/db.ts`); a bare `new PrismaClient()` throws.

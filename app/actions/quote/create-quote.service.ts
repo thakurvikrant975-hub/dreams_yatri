@@ -27,6 +27,8 @@ export interface SafeQuote {
     duration_slug: string;
     route_slug: string;
     stay_slug: string;
+    duration_label: string;
+    stay_category_label: string;
     adults: number;
     children: number;
     infants: number;
@@ -160,14 +162,16 @@ export async function createQuote(
         success: true,
         quote: {
             id:              row.id,
-            package_slug:    input.package_slug,
-            duration_slug:   input.duration_slug,
-            route_slug:      input.route_slug,
-            stay_slug:       input.stay_slug,
-            adults:          input.adults,
-            children:        input.children,
-            infants:         input.infants,
-            travel_date:     input.travel_date,
+            package_slug:        input.package_slug,
+            duration_slug:       input.duration_slug,
+            route_slug:          input.route_slug,
+            stay_slug:           input.stay_slug,
+            duration_label:      breakdown.duration_label,
+            stay_category_label: breakdown.stay_category_label,
+            adults:              input.adults,
+            children:            input.children,
+            infants:             input.infants,
+            travel_date:         input.travel_date,
             currency,
             total_amount:    Number(total_amount),
             price_per_adult: Number(price_per_adult),

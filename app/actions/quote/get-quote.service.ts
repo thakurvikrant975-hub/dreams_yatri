@@ -57,13 +57,18 @@ function rowSigPayload(row: QuoteRow): QuoteSignaturePayload {
     };
 }
 
-function rowToSafeQuote(row: QuoteRow, breakdownGst: number): SafeQuote {
+function rowToSafeQuote(
+    row: QuoteRow,
+    labels: { gst_percentage: number; duration_label: string; stay_category_label: string },
+): SafeQuote {
     return {
-        id:              row.id,
-        package_slug:    row.package_slug,
-        duration_slug:   row.duration_slug,
-        route_slug:      row.route_slug,
-        stay_slug:       row.stay_slug,
+        id:                  row.id,
+        package_slug:        row.package_slug,
+        duration_slug:       row.duration_slug,
+        route_slug:          row.route_slug,
+        stay_slug:           row.stay_slug,
+        duration_label:      labels.duration_label,
+        stay_category_label: labels.stay_category_label,
         adults:          row.adults,
         children:        row.children,
         infants:         row.infants,
@@ -72,7 +77,7 @@ function rowToSafeQuote(row: QuoteRow, breakdownGst: number): SafeQuote {
         total_amount:    Number(row.total_amount),
         price_per_adult: Number(row.price_per_adult),
         gst_amount:      Number(row.gst_amount),
-        gst_percentage:  breakdownGst,
+        gst_percentage:  labels.gst_percentage,
         status:          row.status,
         expires_at:      row.expires_at.toISOString(),
         created_at:      row.created_at.toISOString(),
@@ -100,11 +105,17 @@ export async function getQuote(id: string): Promise<GetQuoteResult> {
         await db.package_quote.update({ where: { id: row.id }, data: { status } });
     }
 
-    // gst_percentage lives only inside the frozen breakdown JSON.
-    const gstPct =
-        (row.breakdown as { gst_percentage?: number } | null)?.gst_percentage ?? 0;
+    // Display labels & gst% live only inside the frozen breakdown JSON.
+    const bd = row.breakdown as
+        | { gst_percentage?: number; duration_label?: string; stay_category_label?: string }
+        | null;
+    const labels = {
+        gst_percentage:      bd?.gst_percentage ?? 0,
+        duration_label:      bd?.duration_label ?? row.duration_slug,
+        stay_category_label: bd?.stay_category_label ?? row.stay_slug,
+    };
 
-    return { success: true, quote: rowToSafeQuote({ ...row, status }, gstPct) };
+    return { success: true, quote: rowToSafeQuote({ ...row, status }, labels) };
 }
 
 // ── isQuoteFresh ─────────────────────────────────────────────────────────────
