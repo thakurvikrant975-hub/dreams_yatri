@@ -49,7 +49,7 @@ lets Phase 3+ do that safely.
 ## Steps & Status
 | Step | Description | Status |
 |------|-------------|--------|
-| 2.1 | Paise groundwork: pure `app/lib/money.ts` (rupees↔paise, format) + unit test; add `*_paise Int` cols to `Payment` & `Booking` (amount_paise; total/advance/balance) | ⬜ TODO |
+| 2.1 | Paise groundwork: pure `app/lib/money.ts` (rupees↔paise, format) + unit test; add `*_paise Int` cols to `Payment` & `Booking` (amount_paise; total/advance/balance) | ✅ DONE |
 | 2.2 | Booking↔quote: `quoteId String? @unique`, `priceSnapshot Json?`, `quoteInputsHash String?`, `paymentPlan PaymentPlan?` (new enum FULL/DEPOSIT) | ⬜ TODO |
 | 2.3 | `BookingTraveller` model + `TravellerType` enum (ADULT/CHILD/INFANT) + relation; lead-traveller + optional passport fields | ⬜ TODO |
 | 2.4 | `PaymentInstallment` model + `InstallmentType` (DEPOSIT/BALANCE) + `InstallmentStatus` enum + relation; amount in paise, dueDate, paidPaymentId? | ⬜ TODO |
@@ -116,9 +116,20 @@ lets Phase 3+ do that safely.
 1. Edit `prisma/schema.prisma`.
 2. Write SQL by hand under `prisma/migrations/<timestamp>_<name>/migration.sql` (CREATE TYPE / CREATE
    TABLE / ALTER TABLE ADD COLUMN / CREATE [UNIQUE] INDEX).
-3. Apply: `npx prisma db execute --file <migration.sql> --schema prisma/schema.prisma`.
+3. Apply: `npx prisma db execute --file <migration.sql>` — **NO `--schema` flag** (Prisma 7.8 +
+   `prisma.config.ts` already supplies schema+datasource; passing `--schema` prints usage and the SQL
+   silently does NOT run). Confirm you see "Script executed successfully."
 4. Record: `npx prisma migrate resolve --applied <migration_name>`.
 5. `npx prisma generate`; restart dev server (stale client silently breaks).
+
+## Step 2.1 — what was done
+- `app/lib/money.ts` (pure): `rupeesToPaise` (round half-up, accepts numeric string), `paiseToRupees`,
+  `formatPaise` (Intl en-IN ₹), `sumPaise`, `assertIntPaise`. Test `scripts/test-money.ts` + `npm run
+  test:money` (19 asserts). Added top-level `npm test` = money + quote (44 total, green).
+- Schema: `Payment.amount_paise Int @default(0)`; `Booking.totalAmount_paise / advanceAmount_paise /
+  balanceAmount_paise Int @default(0)`. Decimal rupee columns untouched.
+- Migration `20260602110000_add_paise_columns` (ALTER ADD COLUMN ×4) applied + resolved + client regen.
+- LEARNED: `prisma db execute --file …` must omit `--schema` on this repo (see mechanics above).
 
 ## Gotchas / conventions
 - Prisma v7 needs the `PrismaPg` adapter (`app/lib/db.ts`); bare `new PrismaClient()` throws.

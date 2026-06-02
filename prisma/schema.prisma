@@ -162,6 +162,9 @@ model Booking {
   gstAmount               Decimal               @default(0) @db.Decimal(10, 2)
   totalAmount             Decimal               @db.Decimal(10, 2)
   paidAmount              Decimal               @default(0) @db.Decimal(10, 2)
+  totalAmount_paise       Int                   @default(0) // paise — charge source of truth
+  advanceAmount_paise     Int                   @default(0)
+  balanceAmount_paise     Int                   @default(0)
   currency                String                @default("INR")
   notes                   String?
   cancelledAt             DateTime?
@@ -326,6 +329,7 @@ model Payment {
   bookingId        String
   userId           String
   amount           Decimal        @db.Decimal(10, 2)
+  amount_paise     Int            @default(0) // integer minor units — charge source of truth
   currency         String         @default("INR")
   gateway          PaymentGateway
   method           PaymentMethod?
