@@ -45,7 +45,7 @@ paymentStatus, status machine), `Payment` (gateway/order/payment/signature/refun
 | 1.1 | `package_quote` model + `QuoteStatus` enum + migration + client | ✅ DONE |
 | 1.2 | Shared Zod input schema (selectors+pax+date; travelDate≥today; childAges.length===children; caps) | ✅ DONE |
 | 1.3 | Signing util: `signQuote`/`verifyQuote` (HMAC-SHA256 over canonical snapshot) + `computeInputsHash` | ✅ DONE |
-| 1.4 | `createQuote` service: validate → computePackagePrice → reject missing_pricing_config → snapshot → sign → persist (TTL) → return safe breakdown | ⬜ TODO |
+| 1.4 | `createQuote` service: validate → computePackagePrice → reject missing_pricing_config → snapshot → sign → persist (TTL) → return safe breakdown | ✅ DONE |
 | 1.5 | `getQuote` (lazy expiry + verify) + `isQuoteFresh` (recompute & compare total → drift) | ⬜ TODO |
 | 1.6 | Server actions `createPackageQuote` / `getPackageQuote` (types in non-'use server' file) | ⬜ TODO |
 | 1.7 | Wire PricingCard "Book" → createPackageQuote → router.push(`/book/[quoteId]`); guard no travelDate | ⬜ TODO |
@@ -82,6 +82,16 @@ paymentStatus, status machine), `Payment` (gateway/order/payment/signature/refun
 - `money2dp(v)` helper = `Number(v).toFixed(2)` for building the payload.
 - Reads `QUOTE_SECRET` (throws if <16 chars). Added to `.env`: `QUOTE_SECRET`, `QUOTE_TTL_MINUTES=15`.
 - Smoke-tested: order-insensitive hash, pax-sensitive hash, good-sig verifies, tampered total/expiry/garbage/empty all rejected.
+
+## Step 1.4 — what was done
+- `app/actions/quote/create-quote.service.ts` (`server-only`). `createQuote(rawInput, { userId? })`.
+- Flow: `quoteInputSchema.safeParse` (→ fieldErrors) → `computePackagePrice` (try/catch) →
+  reject `missing_pricing_config` → money via `money2dp` (2-dp strings) → `inputs_hash` + `expires_at` (now + TTL) →
+  `signQuote` → `db.package_quote.create` (full breakdown frozen as JSON) → return **SafeQuote**.
+- **SafeQuote** excludes base_cost/margin (no cost build-up leaks): exposes total/per_adult/gst_amount/gst_percentage + slugs + pax + dates + status + expires_at.
+- TTL from `QUOTE_TTL_MINUTES` (default 15). `travel_date` stored as UTC-midnight DateTime. currency hard-set "INR".
+- **money contract**: amounts ALWAYS go through `money2dp(...)` before signing AND storage, so Step 1.5 verify (reading Prisma Decimal → `money2dp`) reproduces identical signed bytes. (Prisma `Decimal.toString()` drops trailing zeros — never sign that directly.)
+- Live DB insert deferred to wiring (1.7/1.9): `server-only` throws in a standalone tsx script. tsc clean; crypto already smoke-tested.
 
 ## Gotchas / conventions to remember
 - Prisma v7 client needs the `PrismaPg` adapter (see `app/lib/db.ts`); a bare `new PrismaClient()` throws.
