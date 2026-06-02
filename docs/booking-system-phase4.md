@@ -49,7 +49,7 @@ webhook via `WebhookEvent @@unique([gateway, eventId])`.
 | 4.1 | Razorpay client wrapper `app/lib/razorpay.ts` (server-only): `createOrder`, `verifyCheckoutSignature`, `verifyWebhookSignature`; env wiring; unit-test the (pure) signature verifiers | ✅ DONE |
 | 4.2 | `createBookingAndOrder(quoteId)` service: auth + getQuote(ACTIVE) + isQuoteFresh → tx{ create Booking(snapshot/installments), quote→CONSUMED, create Payment(PENDING) } → Razorpay order → return `{ bookingId, orderId, amountPaise, keyId }`; idempotent | ✅ DONE |
 | 4.3 | Checkout init: server action/route + client Razorpay-checkout on `/book/[quoteId]` (real Pay button → opens Razorpay with order) | ✅ DONE |
-| 4.4 | Webhook handler `app/api/webhooks/razorpay/route.ts` (authoritative): verify sig → dedupe via WebhookEvent → on payment captured: Payment PAID + Booking paymentStatus/money + DEPOSIT installment PAID; idempotent re-delivery → IGNORED | ⬜ TODO |
+| 4.4 | Webhook handler `app/api/webhooks/razorpay/route.ts` (authoritative): verify sig → dedupe via WebhookEvent → on payment captured: Payment PAID + Booking paymentStatus/money + DEPOSIT installment PAID; idempotent re-delivery → IGNORED | ✅ DONE |
 | 4.5 | Browser-callback verify (server action `verifyCheckoutPayment`) + confirmation page (`/book/[quoteId]/success` or `/bookings/[id]`): verify checkout sig, show status; truth still = webhook (show "processing" until captured) | ⬜ TODO |
 | 4.6 | Tests + e2e (test mode): signature-verify unit tests; signed-webhook simulation asserting Payment/Booking/installment transitions + dedupe; docs/memory; Phase 4 complete | ⬜ TODO |
 
@@ -140,6 +140,19 @@ webhook via `WebhookEvent @@unique([gateway, eventId])`.
 - Deliberately NOT redirecting/refreshing the review page on success (quote is now CONSUMED → would show the
   expired panel). Dedicated confirmation page + browser-verify come in 4.5.
 - Needs test keys in `.env` to click through; code is complete + typechecks.
+
+## Step 4.4 — what was done
+- `app/actions/payment/webhook.service.ts` (`server-only`) `processRazorpayWebhook({ rawBody, signature, eventId })`
+  → `{ httpStatus, result }`. verify sig (400 if bad) → find-or-create `WebhookEvent` (PROCESSED ⇒ 200 duplicate;
+  unprocessed ⇒ reprocess) → only `payment.captured` acts (else IGNORED) → find Payment by `gatewayOrderId` →
+  tx{ Payment FULLY_PAID + gatewayPaymentId + method + paidAt + rawResponse + webhookEventId; DEPOSIT installment
+  PAID; Booking paymentStatus (ADVANCE_PAID|FULLY_PAID) + paid/advance/balance from stored paise; WebhookEvent PROCESSED }.
+  Processing error ⇒ event FAILED + 500 (Razorpay retries; reprocess allowed since not PROCESSED).
+- `app/api/webhooks/razorpay/route.ts` (nodejs, force-dynamic): reads RAW body + `x-razorpay-signature` /
+  `x-razorpay-event-id`, calls the service, relays status.
+- Note: Payment.status uses the shared `PaymentStatus` enum → `FULLY_PAID` denotes "this payment captured".
+- Verified (throwaway e2e, removed, self-signed — no live keys): bad sig→400; capture→processed (Payment
+  FULLY_PAID/UPI, Booking ADVANCE_PAID ₹9113.35/bal ₹27340.03, DEPOSIT installment PAID); duplicate→no reprocess; 1 event row.
 
 ## Gotchas / conventions
 - Razorpay amounts are paise — reuse `app/lib/money.ts`; never float.
