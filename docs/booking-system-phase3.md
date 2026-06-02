@@ -41,7 +41,7 @@ read-only preview wires it onto the existing `/book/[quoteId]` review page so th
 | 3.1 | `app/services/payment-policy/config.ts` — policy constants (env-overridable) + `PaymentPolicyConfig` type + `resolveConfig()` | ✅ DONE |
 | 3.2 | `app/services/payment-policy/engine.ts` — pure `computePaymentSchedule({ totalPaise, travelDate, now, config })` → `{ plan, depositPaise, balancePaise, balanceDueDate, installments[], reason }` | ✅ DONE |
 | 3.3 | `scripts/test-payment-policy.ts` + `npm run test:policy` (+ add to `npm test`): branch coverage — FULL vs DEPOSIT, exact cutoff boundary, legs sum to total, paise rounding, near/far, min-deposit floor, bad input | ✅ DONE |
-| 3.4 | `getPaymentScheduleForQuote(quoteId)` server action (load quote → engine on its total+travel_date → safe DTO); types in non-'use server' module | ⬜ TODO |
+| 3.4 | `getPaymentScheduleForQuote(quoteId)` server action (load quote → engine on its total+travel_date → safe DTO); types in non-'use server' module | ✅ DONE |
 | 3.5 | Show the schedule on `/book/[quoteId]` (deposit/full + balance-due date) reading the action; docs/memory; Phase 3 complete | ⬜ TODO |
 
 ## Per-step detail
@@ -114,6 +114,13 @@ read-only preview wires it onto the existing `/book/[quoteId]` review page so th
   near/today/past→FULL, odd-total rounding (no-floor) + half-up, floor raises deposit, floor-covers→FULL,
   explicit config override (50%/10d), bad inputs throw (zero/neg/non-int/bad-date/impossible-date),
   resolveConfig override + validation (percent 1–100, days≥0).
+
+## Step 3.4 — what was done
+- `app/actions/payment/types.ts` (plain): `PaymentScheduleDTO` (plan/total/deposit/balance paise +
+  balanceDueDate + currency + reason) and `PaymentScheduleResult` (success | not_found | invalid).
+- `app/actions/payment/schedule.ts` (`'use server'`): `getPaymentScheduleForQuote(quoteId)` → reuse
+  `getQuote` (integrity/expiry) → `computePaymentSchedule({ totalPaise: rupeesToPaise(total), travelDate,
+  now })` → safe DTO. not_found/invalid pass through; schedule still computed for EXPIRED (page decides).
 
 ## Gotchas / conventions
 - Keep the engine pure: pass `now` in; don't call `Date.now()` inside (tests need determinism).
