@@ -46,7 +46,7 @@ paymentStatus, status machine), `Payment` (gateway/order/payment/signature/refun
 | 1.2 | Shared Zod input schema (selectors+pax+date; travelDate≥today; childAges.length===children; caps) | ✅ DONE |
 | 1.3 | Signing util: `signQuote`/`verifyQuote` (HMAC-SHA256 over canonical snapshot) + `computeInputsHash` | ✅ DONE |
 | 1.4 | `createQuote` service: validate → computePackagePrice → reject missing_pricing_config → snapshot → sign → persist (TTL) → return safe breakdown | ✅ DONE |
-| 1.5 | `getQuote` (lazy expiry + verify) + `isQuoteFresh` (recompute & compare total → drift) | ⬜ TODO |
+| 1.5 | `getQuote` (lazy expiry + verify) + `isQuoteFresh` (recompute & compare total → drift) | ✅ DONE |
 | 1.6 | Server actions `createPackageQuote` / `getPackageQuote` (types in non-'use server' file) | ⬜ TODO |
 | 1.7 | Wire PricingCard "Book" → createPackageQuote → router.push(`/book/[quoteId]`); guard no travelDate | ⬜ TODO |
 | 1.8 | `/book/[quoteId]` review page: locked snapshot + countdown to expires_at + expired/drift states; payment placeholder (Phase 2) | ⬜ TODO |
@@ -92,6 +92,16 @@ paymentStatus, status machine), `Payment` (gateway/order/payment/signature/refun
 - TTL from `QUOTE_TTL_MINUTES` (default 15). `travel_date` stored as UTC-midnight DateTime. currency hard-set "INR".
 - **money contract**: amounts ALWAYS go through `money2dp(...)` before signing AND storage, so Step 1.5 verify (reading Prisma Decimal → `money2dp`) reproduces identical signed bytes. (Prisma `Decimal.toString()` drops trailing zeros — never sign that directly.)
 - Live DB insert deferred to wiring (1.7/1.9): `server-only` throws in a standalone tsx script. tsc clean; crypto already smoke-tested.
+
+## Step 1.5 — what was done
+- `app/actions/quote/get-quote.service.ts` (`server-only`).
+- `getQuote(id)` → `GetQuoteResult`:
+  - integrity = recompute `computeInputsHash` from stored selectors **must equal** stored `inputs_hash`
+    (catches selector tampering) **AND** `verifyQuote` over the money snapshot (catches money/expiry tampering). Either fails → `{success:false, reason:'invalid'}`.
+  - lazy expiry: `ACTIVE` + past `expires_at` → flips to `EXPIRED` in DB on read (no cron). Returns `SafeQuote` with live status.
+  - `gst_percentage` pulled from the frozen `breakdown` JSON.
+- `isQuoteFresh(id)` → `{fresh, lockedTotal, currentTotal, drift}` (non-mutating). Recomputes today's price for the locked inputs; `missing_pricing_config` now ⇒ `fresh:false, currentTotal:null`. Used at payment time / review load to refuse a stale lock.
+- All Decimal reads go through `money2dp(row.x.toString())` so verify reproduces the signed bytes.
 
 ## Gotchas / conventions to remember
 - Prisma v7 client needs the `PrismaPg` adapter (see `app/lib/db.ts`); a bare `new PrismaClient()` throws.
