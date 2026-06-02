@@ -40,7 +40,7 @@ read-only preview wires it onto the existing `/book/[quoteId]` review page so th
 |------|-------------|--------|
 | 3.1 | `app/services/payment-policy/config.ts` — policy constants (env-overridable) + `PaymentPolicyConfig` type + `resolveConfig()` | ✅ DONE |
 | 3.2 | `app/services/payment-policy/engine.ts` — pure `computePaymentSchedule({ totalPaise, travelDate, now, config })` → `{ plan, depositPaise, balancePaise, balanceDueDate, installments[], reason }` | ✅ DONE |
-| 3.3 | `scripts/test-payment-policy.ts` + `npm run test:policy` (+ add to `npm test`): branch coverage — FULL vs DEPOSIT, exact cutoff boundary, legs sum to total, paise rounding, near/far, min-deposit floor, bad input | ⬜ TODO |
+| 3.3 | `scripts/test-payment-policy.ts` + `npm run test:policy` (+ add to `npm test`): branch coverage — FULL vs DEPOSIT, exact cutoff boundary, legs sum to total, paise rounding, near/far, min-deposit floor, bad input | ✅ DONE |
 | 3.4 | `getPaymentScheduleForQuote(quoteId)` server action (load quote → engine on its total+travel_date → safe DTO); types in non-'use server' module | ⬜ TODO |
 | 3.5 | Show the schedule on `/book/[quoteId]` (deposit/full + balance-due date) reading the action; docs/memory; Phase 3 complete | ⬜ TODO |
 
@@ -107,6 +107,13 @@ read-only preview wires it onto the existing `/book/[quoteId]` review page so th
 - tz-safe: calendar-day math via `Date.UTC(calendar numbers)`; `now` read by LOCAL components (server-local
   "today", matching the quote engine). Runtime invariants: integer paise, total>0, legs `sumPaise == total`.
 - Reasons: `FULL_NEAR_TRAVEL | FULL_DEPOSIT_COVERS_TOTAL | DEPOSIT_ALLOWED`.
+
+## Step 3.3 — what was done
+- `scripts/test-payment-policy.ts` + `npm run test:policy`; added to `npm test` (money→policy→quote).
+- 36 asserts, all green: far→DEPOSIT(25%/legs-sum/balanceDueDate), exact-15→FULL, 16→DEPOSIT,
+  near/today/past→FULL, odd-total rounding (no-floor) + half-up, floor raises deposit, floor-covers→FULL,
+  explicit config override (50%/10d), bad inputs throw (zero/neg/non-int/bad-date/impossible-date),
+  resolveConfig override + validation (percent 1–100, days≥0).
 
 ## Gotchas / conventions
 - Keep the engine pure: pass `now` in; don't call `Date.now()` inside (tests need determinism).
