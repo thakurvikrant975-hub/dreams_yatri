@@ -188,6 +188,10 @@ model Booking {
   advancePaidAmount       Decimal               @default(0) @db.Decimal(10, 2)
   balanceDueAmount        Decimal               @default(0) @db.Decimal(10, 2)
   balanceDueDate          DateTime?
+  quoteId                 String?               @unique // loose ref to package_quote.id (one booking per quote)
+  quoteInputsHash         String?               // audit trail back to the quote's locked inputs
+  priceSnapshot           Json?                 // frozen FullPricingBreakdown copied from the quote
+  paymentPlan             PaymentPlan?          // FULL vs DEPOSIT (resolved at booking time)
   sourceQueryId           String?               @unique
   convertedAt             DateTime?
   salesAgentId            String?
@@ -1916,6 +1920,11 @@ enum PaymentGateway {
   PHONEPE
   PAYU
   OFFLINE
+}
+
+enum PaymentPlan {
+  FULL
+  DEPOSIT
 }
 
 enum LogAction {

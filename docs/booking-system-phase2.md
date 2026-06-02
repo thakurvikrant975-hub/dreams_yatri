@@ -50,7 +50,7 @@ lets Phase 3+ do that safely.
 | Step | Description | Status |
 |------|-------------|--------|
 | 2.1 | Paise groundwork: pure `app/lib/money.ts` (rupees↔paise, format) + unit test; add `*_paise Int` cols to `Payment` & `Booking` (amount_paise; total/advance/balance) | ✅ DONE |
-| 2.2 | Booking↔quote: `quoteId String? @unique`, `priceSnapshot Json?`, `quoteInputsHash String?`, `paymentPlan PaymentPlan?` (new enum FULL/DEPOSIT) | ⬜ TODO |
+| 2.2 | Booking↔quote: `quoteId String? @unique`, `priceSnapshot Json?`, `quoteInputsHash String?`, `paymentPlan PaymentPlan?` (new enum FULL/DEPOSIT) | ✅ DONE |
 | 2.3 | `BookingTraveller` model + `TravellerType` enum (ADULT/CHILD/INFANT) + relation; lead-traveller + optional passport fields | ⬜ TODO |
 | 2.4 | `PaymentInstallment` model + `InstallmentType` (DEPOSIT/BALANCE) + `InstallmentStatus` enum + relation; amount in paise, dueDate, paidPaymentId? | ⬜ TODO |
 | 2.5 | `Payment` hardening: `amount_paise Int`, `idempotencyKey String? @unique`, **make `gatewayOrderId @unique`**, `rawResponse Json?`, `webhookEventId String?` | ⬜ TODO |
@@ -120,6 +120,14 @@ lets Phase 3+ do that safely.
    `prisma.config.ts` already supplies schema+datasource; passing `--schema` prints usage and the SQL
    silently does NOT run). Confirm you see "Script executed successfully."
 4. Record: `npx prisma migrate resolve --applied <migration_name>`.
+   - ⚠️ **Neon pooler breaks `migrate resolve`** — it hangs on "Timed out trying to acquire a postgres
+     advisory lock" (session advisory locks don't survive the transaction-mode pooler). The direct
+     endpoint didn't help either. **Fallback that works:** record the row by hand via `db execute`:
+     compute `checksum = sha256(migration.sql bytes)` (hex), then
+     `INSERT INTO "_prisma_migrations" (id, checksum, finished_at, migration_name, logs,
+     rolled_back_at, started_at, applied_steps_count) VALUES (gen_random_uuid()::text, '<checksum>',
+     now(), '<migration_name>', NULL, NULL, now(), 1);`. Verified the sha256 algorithm matches Prisma's
+     (2.1 row checksum reproduced exactly).
 5. `npx prisma generate`; restart dev server (stale client silently breaks).
 
 ## Step 2.1 — what was done
@@ -130,6 +138,13 @@ lets Phase 3+ do that safely.
   balanceAmount_paise Int @default(0)`. Decimal rupee columns untouched.
 - Migration `20260602110000_add_paise_columns` (ALTER ADD COLUMN ×4) applied + resolved + client regen.
 - LEARNED: `prisma db execute --file …` must omit `--schema` on this repo (see mechanics above).
+
+## Step 2.2 — what was done
+- `Booking`: `quoteId String? @unique` (loose ref, one booking per quote), `quoteInputsHash String?`,
+  `priceSnapshot Json?` (jsonb), `paymentPlan PaymentPlan?`. New `enum PaymentPlan { FULL DEPOSIT }`.
+- Migration `20260602120000_add_booking_quote_link` (CREATE TYPE + 4 ADD COLUMN + unique index
+  `bookings_quoteId_key`). SQL applied via `db execute`; **`migrate resolve` hit the Neon advisory-lock
+  bug**, so recorded via the hand-insert fallback (see mechanics ⚠️). Client regenerated; all 4 fields verified queryable.
 
 ## Gotchas / conventions
 - Prisma v7 needs the `PrismaPg` adapter (`app/lib/db.ts`); bare `new PrismaClient()` throws.
