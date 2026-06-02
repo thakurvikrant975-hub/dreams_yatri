@@ -8,6 +8,7 @@ import Button from '../ui/Button'
 import Image from 'next/image'
 import Link from 'next/link'
 import MobileMenu from './MobileMenu'
+import LanguageDropdown from './LanguageDropdown'
 import { useSession } from 'next-auth/react'
 import { useModal } from '@/app/hooks/useModals'
 import { useRouter } from 'next/navigation'
@@ -110,17 +111,7 @@ export default function Header({ transparent = false, sticky = true }: HeaderPro
                 <ChevronDownIcon className="size-6 opacity-50" />
               </motion.button>
 
-              <motion.button
-                animate={{ color: isSolid ? '#404040' : '#ffffff' }}
-                transition={{ duration: 0.3 }}
-                className="flex flex-col items-start gap-1 hover:text-red-500 transition-colors outline-none"
-              >
-                <span className="text-xs leading-none opacity-60">Language</span>
-                <span className="flex items-center gap-0.5 font-semibold font-heading leading-tight">
-                  En
-                  <ChevronDownIcon className="size-4.5 opacity-50" />
-                </span>
-              </motion.button>
+              <LanguageDropdown isSolid={isSolid} />
 
               {/* Logged in: profile avatar + Profile button */}
               {isLoggedIn && (
