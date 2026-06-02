@@ -53,7 +53,7 @@ lets Phase 3+ do that safely.
 | 2.2 | Booking↔quote: `quoteId String? @unique`, `priceSnapshot Json?`, `quoteInputsHash String?`, `paymentPlan PaymentPlan?` (new enum FULL/DEPOSIT) | ✅ DONE |
 | 2.3 | `BookingTraveller` model + `TravellerType` enum (ADULT/CHILD/INFANT) + relation; lead-traveller + optional passport fields | ✅ DONE |
 | 2.4 | `PaymentInstallment` model + `InstallmentType` (DEPOSIT/BALANCE) + `InstallmentStatus` enum + relation; amount in paise, dueDate, paidPaymentId? | ✅ DONE |
-| 2.5 | `Payment` hardening: `amount_paise Int`, `idempotencyKey String? @unique`, **make `gatewayOrderId @unique`**, `rawResponse Json?`, `webhookEventId String?` | ⬜ TODO |
+| 2.5 | `Payment` hardening: `amount_paise Int`, `idempotencyKey String? @unique`, **make `gatewayOrderId @unique`**, `rawResponse Json?`, `webhookEventId String?` | ✅ DONE |
 | 2.6 | `WebhookEvent` model + `WebhookStatus` enum + `@@unique([gateway, eventId])`; payload Json, signature, processedAt, optional Payment/Booking links | ⬜ TODO |
 | 2.7 | Constraints/index audit + `prisma validate` + regen + schema-shape e2e (insert booking+snapshot+travellers+installments+webhook; dedupe asserts) + docs/memory | ⬜ TODO |
 
@@ -164,6 +164,13 @@ lets Phase 3+ do that safely.
   `Booking.installments PaymentInstallment[]` added.
 - Migration `20260602140000_add_payment_installment` applied + recorded (checksum `64e03419…`); regen;
   `db.paymentInstallment` verified.
+
+## Step 2.5 — what was done
+- `Payment`: added `idempotencyKey String? @unique`, `rawResponse Json?` (jsonb), `webhookEventId String?`
+  (loose ref + `@@index`). **`gatewayOrderId` is now `@unique`** (dropped old `payments_gatewayOrderId_idx`,
+  created `payments_gatewayOrderId_key`). `amount_paise` was already added in 2.1.
+- Pre-check: `payments` table empty, 0 duplicate gatewayOrderId — safe for the unique constraint.
+- Migration `20260602150000_harden_payment` applied + recorded (checksum `35acd0c5…`); regen; fields verified.
 
 ## Gotchas / conventions
 - Prisma v7 needs the `PrismaPg` adapter (`app/lib/db.ts`); bare `new PrismaClient()` throws.

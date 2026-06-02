@@ -380,9 +380,12 @@ model Payment {
   gateway          PaymentGateway
   method           PaymentMethod?
   status           PaymentStatus  @default(PENDING)
-  gatewayOrderId   String?
+  idempotencyKey   String?        @unique // guards duplicate charge/order creation
+  gatewayOrderId   String?        @unique // one Payment per gateway order
   gatewayPaymentId String?        @unique
   gatewaySignature String?
+  rawResponse      Json?          // raw gateway response/payload for audit
+  webhookEventId   String?        // loose ref to the WebhookEvent that settled this
   refundId         String?
   refundAmount     Decimal?       @db.Decimal(10, 2)
   refundedAt       DateTime?
@@ -395,7 +398,7 @@ model Payment {
 
   @@index([bookingId])
   @@index([userId])
-  @@index([gatewayOrderId])
+  @@index([webhookEventId])
   @@map("payments")
 }
 
