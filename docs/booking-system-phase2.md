@@ -51,7 +51,7 @@ lets Phase 3+ do that safely.
 |------|-------------|--------|
 | 2.1 | Paise groundwork: pure `app/lib/money.ts` (rupees↔paise, format) + unit test; add `*_paise Int` cols to `Payment` & `Booking` (amount_paise; total/advance/balance) | ✅ DONE |
 | 2.2 | Booking↔quote: `quoteId String? @unique`, `priceSnapshot Json?`, `quoteInputsHash String?`, `paymentPlan PaymentPlan?` (new enum FULL/DEPOSIT) | ✅ DONE |
-| 2.3 | `BookingTraveller` model + `TravellerType` enum (ADULT/CHILD/INFANT) + relation; lead-traveller + optional passport fields | ⬜ TODO |
+| 2.3 | `BookingTraveller` model + `TravellerType` enum (ADULT/CHILD/INFANT) + relation; lead-traveller + optional passport fields | ✅ DONE |
 | 2.4 | `PaymentInstallment` model + `InstallmentType` (DEPOSIT/BALANCE) + `InstallmentStatus` enum + relation; amount in paise, dueDate, paidPaymentId? | ⬜ TODO |
 | 2.5 | `Payment` hardening: `amount_paise Int`, `idempotencyKey String? @unique`, **make `gatewayOrderId @unique`**, `rawResponse Json?`, `webhookEventId String?` | ⬜ TODO |
 | 2.6 | `WebhookEvent` model + `WebhookStatus` enum + `@@unique([gateway, eventId])`; payload Json, signature, processedAt, optional Payment/Booking links | ⬜ TODO |
@@ -145,6 +145,15 @@ lets Phase 3+ do that safely.
 - Migration `20260602120000_add_booking_quote_link` (CREATE TYPE + 4 ADD COLUMN + unique index
   `bookings_quoteId_key`). SQL applied via `db execute`; **`migrate resolve` hit the Neon advisory-lock
   bug**, so recorded via the hand-insert fallback (see mechanics ⚠️). Client regenerated; all 4 fields verified queryable.
+
+## Step 2.3 — what was done
+- `BookingTraveller` (`@@map("booking_travellers")`): id(cuid), bookingId(FK→bookings, cascade),
+  `type TravellerType`, fullName, age?, dateOfBirth?, `gender Gender?` (reused), isLead(bool),
+  passportNumber?, passportExpiry?, nationality?, createdAt. `@@index([bookingId])`.
+- `enum TravellerType { ADULT CHILD INFANT }`. `Booking.travellersList BookingTraveller[]` added;
+  `Booking.travellers Int` count kept for back-compat.
+- Migration `20260602130000_add_booking_traveller` applied via `db execute`; recorded via hand-insert
+  (checksum `bef33975…`). Client regen; `db.bookingTraveller` verified (count=0).
 
 ## Gotchas / conventions
 - Prisma v7 needs the `PrismaPg` adapter (`app/lib/db.ts`); bare `new PrismaClient()` throws.

@@ -207,6 +207,7 @@ model Booking {
   cabBookings             BookingCab[]
   hotelBookings           BookingHotel[]
   bookingMeals            BookingMeal[]
+  travellersList          BookingTraveller[]
   timeline                BookingTimeline[]
   cabAssignee             TeamMember?           @relation("BookingCabAssignee", fields: [cabAssigneeId], references: [id])
   currentAssignee         TeamMember?           @relation("BookingCurrentAssignee", fields: [currentAssigneeId], references: [id])
@@ -291,6 +292,25 @@ model BookingCab {
   @@unique([bookingId, legNumber])
   @@index([bookingId])
   @@map("booking_cabs")
+}
+
+model BookingTraveller {
+  id             String        @id @default(cuid())
+  bookingId      String
+  type           TravellerType
+  fullName       String
+  age            Int?
+  dateOfBirth    DateTime?
+  gender         Gender?
+  isLead         Boolean       @default(false)
+  passportNumber String?
+  passportExpiry DateTime?
+  nationality    String?
+  createdAt      DateTime      @default(now())
+  booking        Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@map("booking_travellers")
 }
 
 model PackageBookingHotel {
@@ -1926,6 +1946,12 @@ enum PaymentGateway {
 enum PaymentPlan {
   FULL
   DEPOSIT
+}
+
+enum TravellerType {
+  ADULT
+  CHILD
+  INFANT
 }
 
 enum LogAction {
