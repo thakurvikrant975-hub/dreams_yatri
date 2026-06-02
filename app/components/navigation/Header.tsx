@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { MagnifyingGlassIcon, ChevronDownIcon } from '@heroicons/react/20/solid'
+import { MagnifyingGlassIcon } from '@heroicons/react/20/solid'
 import { UserIcon } from '@heroicons/react/24/solid'
 import Button from '../ui/Button'
 import Image from 'next/image'
 import Link from 'next/link'
 import MobileMenu from './MobileMenu'
 import LanguageDropdown from './LanguageDropdown'
+import ServiceDropdown from './ServiceDropdown'
 import { useSession } from 'next-auth/react'
 import { useModal } from '@/app/hooks/useModals'
 import { useRouter } from 'next/navigation'
@@ -102,14 +103,7 @@ export default function Header({ transparent = false, sticky = true }: HeaderPro
 
             {/* Right nav — desktop */}
             <div className="hidden lg:flex lg:items-center lg:gap-8">
-              <motion.button
-                animate={{ color: isSolid ? '#171717' : '#ffffff' }}
-                transition={{ duration: 0.3 }}
-                className="flex items-center gap-1 font-semibold hover:text-red-500 transition-colors font-heading"
-              >
-                Services
-                <ChevronDownIcon className="size-6 opacity-50" />
-              </motion.button>
+              <ServiceDropdown isSolid={isSolid} />
 
               <LanguageDropdown isSolid={isSolid} />
 
