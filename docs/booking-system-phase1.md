@@ -47,7 +47,7 @@ paymentStatus, status machine), `Payment` (gateway/order/payment/signature/refun
 | 1.3 | Signing util: `signQuote`/`verifyQuote` (HMAC-SHA256 over canonical snapshot) + `computeInputsHash` | ✅ DONE |
 | 1.4 | `createQuote` service: validate → computePackagePrice → reject missing_pricing_config → snapshot → sign → persist (TTL) → return safe breakdown | ✅ DONE |
 | 1.5 | `getQuote` (lazy expiry + verify) + `isQuoteFresh` (recompute & compare total → drift) | ✅ DONE |
-| 1.6 | Server actions `createPackageQuote` / `getPackageQuote` (types in non-'use server' file) | ⬜ TODO |
+| 1.6 | Server actions `createPackageQuote` / `getPackageQuote` (types in non-'use server' file) | ✅ DONE |
 | 1.7 | Wire PricingCard "Book" → createPackageQuote → router.push(`/book/[quoteId]`); guard no travelDate | ⬜ TODO |
 | 1.8 | `/book/[quoteId]` review page: locked snapshot + countdown to expires_at + expired/drift states; payment placeholder (Phase 2) | ⬜ TODO |
 | 1.9 | env (QUOTE_SECRET, QUOTE_TTL_MINUTES), lazy-expiry policy, unit tests for pure pieces, e2e pass | ⬜ TODO |
@@ -102,6 +102,13 @@ paymentStatus, status machine), `Payment` (gateway/order/payment/signature/refun
   - `gst_percentage` pulled from the frozen `breakdown` JSON.
 - `isQuoteFresh(id)` → `{fresh, lockedTotal, currentTotal, drift}` (non-mutating). Recomputes today's price for the locked inputs; `missing_pricing_config` now ⇒ `fresh:false, currentTotal:null`. Used at payment time / review load to refuse a stale lock.
 - All Decimal reads go through `money2dp(row.x.toString())` so verify reproduces the signed bytes.
+
+## Step 1.6 — what was done
+- `app/actions/quote/actions.ts` (`'use server'`) — exports ONLY async fns:
+  - `createPackageQuote(input)` → resolves session via `getAuthenticatedUser`, passes `userId` to `createQuote`.
+  - `getPackageQuote(id)` → `getQuote`.
+  - `checkQuoteFreshness(id)` → `isQuoteFresh` (for the review page / payment guard).
+- Types stay in the service modules; this file imports them with `import type` only (no type re-exports, per the 'use server' rule). Client components `import type` straight from the service files — erased at build, so the `server-only` guard isn't tripped.
 
 ## Gotchas / conventions to remember
 - Prisma v7 client needs the `PrismaPg` adapter (see `app/lib/db.ts`); a bare `new PrismaClient()` throws.
