@@ -334,6 +334,26 @@ model PaymentInstallment {
   @@map("payment_installments")
 }
 
+model WebhookEvent {
+  id          String         @id @default(cuid())
+  gateway     PaymentGateway
+  eventId     String         // gateway's own event id — the idempotency key
+  eventType   String?
+  payload     Json           // full raw event body for replay/audit
+  signature   String?
+  status      WebhookStatus  @default(RECEIVED)
+  error       String?
+  paymentId   String?        // loose ref to Payment (no FK — events may arrive first)
+  bookingId   String?        // loose ref to Booking
+  receivedAt  DateTime       @default(now())
+  processedAt DateTime?
+
+  @@unique([gateway, eventId]) // THE idempotency guard for webhook handling
+  @@index([status])
+  @@index([paymentId])
+  @@map("webhook_events")
+}
+
 model PackageBookingHotel {
   id           String   @id @default(cuid())
   bookingId    String
@@ -1989,6 +2009,13 @@ enum InstallmentStatus {
   OVERDUE
   WAIVED
   CANCELLED
+}
+
+enum WebhookStatus {
+  RECEIVED
+  PROCESSED
+  FAILED
+  IGNORED
 }
 
 enum LogAction {

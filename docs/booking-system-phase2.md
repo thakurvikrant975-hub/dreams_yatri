@@ -54,7 +54,7 @@ lets Phase 3+ do that safely.
 | 2.3 | `BookingTraveller` model + `TravellerType` enum (ADULT/CHILD/INFANT) + relation; lead-traveller + optional passport fields | ✅ DONE |
 | 2.4 | `PaymentInstallment` model + `InstallmentType` (DEPOSIT/BALANCE) + `InstallmentStatus` enum + relation; amount in paise, dueDate, paidPaymentId? | ✅ DONE |
 | 2.5 | `Payment` hardening: `amount_paise Int`, `idempotencyKey String? @unique`, **make `gatewayOrderId @unique`**, `rawResponse Json?`, `webhookEventId String?` | ✅ DONE |
-| 2.6 | `WebhookEvent` model + `WebhookStatus` enum + `@@unique([gateway, eventId])`; payload Json, signature, processedAt, optional Payment/Booking links | ⬜ TODO |
+| 2.6 | `WebhookEvent` model + `WebhookStatus` enum + `@@unique([gateway, eventId])`; payload Json, signature, processedAt, optional Payment/Booking links | ✅ DONE |
 | 2.7 | Constraints/index audit + `prisma validate` + regen + schema-shape e2e (insert booking+snapshot+travellers+installments+webhook; dedupe asserts) + docs/memory | ⬜ TODO |
 
 ## Per-step detail
@@ -171,6 +171,14 @@ lets Phase 3+ do that safely.
   created `payments_gatewayOrderId_key`). `amount_paise` was already added in 2.1.
 - Pre-check: `payments` table empty, 0 duplicate gatewayOrderId — safe for the unique constraint.
 - Migration `20260602150000_harden_payment` applied + recorded (checksum `35acd0c5…`); regen; fields verified.
+
+## Step 2.6 — what was done
+- `WebhookEvent` (`@@map("webhook_events")`): id(cuid), `gateway PaymentGateway`, `eventId` (gateway's
+  id), eventType?, `payload Json` (jsonb, raw body), signature?, `status WebhookStatus @default(RECEIVED)`,
+  error?, paymentId? / bookingId? (loose refs — NO FK, events may arrive before the row), receivedAt, processedAt?.
+- `@@unique([gateway, eventId])` = the idempotency guard for Phase 4/5. `@@index([status])`, `@@index([paymentId])`.
+- `enum WebhookStatus { RECEIVED PROCESSED FAILED IGNORED }`.
+- Migration `20260602160000_add_webhook_event` applied + recorded (checksum `6a37d196…`); regen; `db.webhookEvent` verified.
 
 ## Gotchas / conventions
 - Prisma v7 needs the `PrismaPg` adapter (`app/lib/db.ts`); bare `new PrismaClient()` throws.
