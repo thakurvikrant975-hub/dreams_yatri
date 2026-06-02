@@ -1475,6 +1475,55 @@ model package_pricing {
   @@index([package_id])
 }
 
+// ── Booking: short-lived, server-computed, signed price quote ────────────────
+// An immutable snapshot of a FullPricingBreakdown locked for a few minutes so
+// the amount cannot drift between "review" and "pay". Selectors are stored as
+// loose scalars (no FK) so historical quotes survive package edits/deletes.
+enum QuoteStatus {
+  ACTIVE
+  EXPIRED
+  CONSUMED
+}
+
+model package_quote {
+  id               String      @id @default(cuid())
+  package_id       Int
+  duration_id      Int
+  route_id         Int
+  stay_category_id Int
+  package_slug     String
+  duration_slug    String
+  route_slug       String
+  stay_slug        String
+  adults           Int
+  children         Int         @default(0)
+  infants          Int         @default(0)
+  child_ages       Int[]       @default([])
+  cab_type_ids     Int[]       @default([])
+  travel_date      DateTime
+  currency         String      @default("INR")
+  breakdown        Json        // full FullPricingBreakdown snapshot
+  base_cost        Decimal     @default(0) @db.Decimal(10, 2)
+  margin_amount    Decimal     @default(0) @db.Decimal(10, 2)
+  gst_amount       Decimal     @default(0) @db.Decimal(10, 2)
+  total_amount     Decimal     @db.Decimal(10, 2)
+  price_per_adult  Decimal     @default(0) @db.Decimal(10, 2)
+  inputs_hash      String      // hash of price-affecting inputs (dedupe / drift id)
+  signature        String      // HMAC over the canonical snapshot
+  status           QuoteStatus @default(ACTIVE)
+  expires_at       DateTime
+  user_id          String?     // optional — set when a logged-in user requests it
+  created_at       DateTime    @default(now())
+  updated_at       DateTime    @updatedAt
+
+  @@index([package_id])
+  @@index([status])
+  @@index([expires_at])
+  @@index([inputs_hash])
+  @@index([user_id])
+  @@map("package_quote")
+}
+
 model package_cab_options {
   id           Int      @id @default(autoincrement())
   package_id   Int
