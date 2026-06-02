@@ -48,7 +48,7 @@ webhook via `WebhookEvent @@unique([gateway, eventId])`.
 |------|-------------|--------|
 | 4.1 | Razorpay client wrapper `app/lib/razorpay.ts` (server-only): `createOrder`, `verifyCheckoutSignature`, `verifyWebhookSignature`; env wiring; unit-test the (pure) signature verifiers | ✅ DONE |
 | 4.2 | `createBookingAndOrder(quoteId)` service: auth + getQuote(ACTIVE) + isQuoteFresh → tx{ create Booking(snapshot/installments), quote→CONSUMED, create Payment(PENDING) } → Razorpay order → return `{ bookingId, orderId, amountPaise, keyId }`; idempotent | ✅ DONE |
-| 4.3 | Checkout init: server action/route + client Razorpay-checkout on `/book/[quoteId]` (real Pay button → opens Razorpay with order) | ⬜ TODO |
+| 4.3 | Checkout init: server action/route + client Razorpay-checkout on `/book/[quoteId]` (real Pay button → opens Razorpay with order) | ✅ DONE |
 | 4.4 | Webhook handler `app/api/webhooks/razorpay/route.ts` (authoritative): verify sig → dedupe via WebhookEvent → on payment captured: Payment PAID + Booking paymentStatus/money + DEPOSIT installment PAID; idempotent re-delivery → IGNORED | ⬜ TODO |
 | 4.5 | Browser-callback verify (server action `verifyCheckoutPayment`) + confirmation page (`/book/[quoteId]/success` or `/bookings/[id]`): verify checkout sig, show status; truth still = webhook (show "processing" until captured) | ⬜ TODO |
 | 4.6 | Tests + e2e (test mode): signature-verify unit tests; signed-webhook simulation asserting Payment/Booking/installment transitions + dedupe; docs/memory; Phase 4 complete | ⬜ TODO |
@@ -130,6 +130,16 @@ webhook via `WebhookEvent @@unique([gateway, eventId])`.
   1 booking for 2 calls (idempotent), DEPOSIT plan, legs 911335+2734003=3645338, quote CONSUMED, payment PENDING.
   **Live Razorpay order creation needs test keys** → exercised in 4.3/4.6.
 - Open TODOs: `tripType` is hard-coded 'Leisure'; `bookingNumber` = `DY-<yymmdd>-<hex6>`.
+
+## Step 4.3 — what was done
+- `app/(website)/book/[quoteId]/razorpayCheckout.ts` (client): `loadRazorpay()` (inject checkout.js once,
+  resolves bool), `openRazorpay(options)`, typed `window.Razorpay` declaration + `RazorpayCheckoutOptions`.
+- `BookReview.tsx`: real **Pay {firstLeg}** button → `createPackageBooking(quote.id)` → `loadRazorpay` →
+  `openRazorpay({ key, order_id, amount, ... })`. Error reasons mapped (unauthenticated/stale/not_active/…).
+  On checkout success → inline "Payment received — confirming…" state (truth = webhook). "Secured by Razorpay" note.
+- Deliberately NOT redirecting/refreshing the review page on success (quote is now CONSUMED → would show the
+  expired panel). Dedicated confirmation page + browser-verify come in 4.5.
+- Needs test keys in `.env` to click through; code is complete + typechecks.
 
 ## Gotchas / conventions
 - Razorpay amounts are paise — reuse `app/lib/money.ts`; never float.
