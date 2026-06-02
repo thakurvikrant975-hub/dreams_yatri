@@ -11,7 +11,8 @@
     "reindex:locations": "tsx --env-file=.env scripts/reindex-locations.ts",
     "test:quote": "tsx --conditions=react-server --env-file=.env scripts/test-quote.ts",
     "test:money": "tsx scripts/test-money.ts",
-    "test": "npm run test:money && npm run test:quote"
+    "test:policy": "tsx scripts/test-payment-policy.ts",
+    "test": "npm run test:money && npm run test:policy && npm run test:quote"
   },
   "prisma": {
     "seed": "tsx --env-file=.env prisma/seed.ts"
