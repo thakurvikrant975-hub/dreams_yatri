@@ -15,8 +15,9 @@ const REVIEWS: Review[] = [
     name: "Rahul Sharma",
     package: "Manali Tour Package",
     date: "27 July, 2025",
+    profile:"https://lh3.googleusercontent.com/a-/ALV-UjVkVpYSzZJVpSoJsiX1r2wdqZa2mPirkwSIHIIZiJBzof6RsWF6=w144-h144-p-rp-mo-ba2-br100",
     rating: 5,
-    text: "Dreams Yatri made our Himachal honeymoon absolutely perfect. From the itinerary to the hotels, everything was flawless. The Avanti AI feature helped us customize everything to our liking! It was such an awesome experience.",
+    text: "I arvind kumar (rajan) am very glad to share my wonderful experience with your team in Sikkim and darjiling tour especially full coordination by YAMINI AND VARSA MAIDAN in this tour.",
     images: [
       "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=120&h=80&fit=crop",
       "https://images.unsplash.com/photo-1605649487212-47bdab064df7?w=120&h=80&fit=crop",
@@ -27,6 +28,7 @@ const REVIEWS: Review[] = [
   {
     id: 2,
     name: "Priya Mehta",
+    profile:"https://lh3.googleusercontent.com/a-/ALV-UjVkVpYSzZJVpSoJsiX1r2wdqZa2mPirkwSIHIIZiJBzof6RsWF6=w144-h144-p-rp-mo-ba2-br100",
     package: "Kashmir Tour Package",
     date: "14 August, 2025",
     rating: 5,
@@ -41,6 +43,67 @@ const REVIEWS: Review[] = [
   {
     id: 3,
     name: "Amit Verma",
+    profile:"https://lh3.googleusercontent.com/a-/ALV-UjVkVpYSzZJVpSoJsiX1r2wdqZa2mPirkwSIHIIZiJBzof6RsWF6=w144-h144-p-rp-mo-ba2-br100",
+    package: "Rajasthan Tour Package",
+    date: "3 September, 2025",
+    rating: 5,
+    text: "The royal Rajasthan tour was an absolute dream. Palace hotels, camel safaris, everything was top-tier. The team was responsive and made changes on the fly. 10/10 would book again.",
+    images: [
+      "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=120&h=80&fit=crop",
+      "https://images.unsplash.com/photo-1524492412937-b28074a5d7da?w=120&h=80&fit=crop",
+      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=120&h=80&fit=crop",
+      "https://images.unsplash.com/photo-1605649487212-47bdab064df7?w=120&h=80&fit=crop",
+    ],
+  },
+  {
+    id: 4,
+    name: "Amit Verma",
+    profile:"https://lh3.googleusercontent.com/a-/ALV-UjVkVpYSzZJVpSoJsiX1r2wdqZa2mPirkwSIHIIZiJBzof6RsWF6=w144-h144-p-rp-mo-ba2-br100",
+    package: "Rajasthan Tour Package",
+    date: "3 September, 2025",
+    rating: 5,
+    text: "The royal Rajasthan tour was an absolute dream. Palace hotels, camel safaris, everything was top-tier. The team was responsive and made changes on the fly. 10/10 would book again.",
+    images: [
+      "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=120&h=80&fit=crop",
+      "https://images.unsplash.com/photo-1524492412937-b28074a5d7da?w=120&h=80&fit=crop",
+      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=120&h=80&fit=crop",
+      "https://images.unsplash.com/photo-1605649487212-47bdab064df7?w=120&h=80&fit=crop",
+    ],
+  },
+  {
+    id: 5,
+    name: "Amit Verma",
+    profile:"https://lh3.googleusercontent.com/a-/ALV-UjVkVpYSzZJVpSoJsiX1r2wdqZa2mPirkwSIHIIZiJBzof6RsWF6=w144-h144-p-rp-mo-ba2-br100",
+    package: "Rajasthan Tour Package",
+    date: "3 September, 2025",
+    rating: 5,
+    text: "The royal Rajasthan tour was an absolute dream. Palace hotels, camel safaris, everything was top-tier. The team was responsive and made changes on the fly. 10/10 would book again.",
+    images: [
+      "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=120&h=80&fit=crop",
+      "https://images.unsplash.com/photo-1524492412937-b28074a5d7da?w=120&h=80&fit=crop",
+      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=120&h=80&fit=crop",
+      "https://images.unsplash.com/photo-1605649487212-47bdab064df7?w=120&h=80&fit=crop",
+    ],
+  },
+  {
+    id: 6,
+    name: "Amit Verma",
+    profile:"https://lh3.googleusercontent.com/a-/ALV-UjVkVpYSzZJVpSoJsiX1r2wdqZa2mPirkwSIHIIZiJBzof6RsWF6=w144-h144-p-rp-mo-ba2-br100",
+    package: "Rajasthan Tour Package",
+    date: "3 September, 2025",
+    rating: 5,
+    text: "The royal Rajasthan tour was an absolute dream. Palace hotels, camel safaris, everything was top-tier. The team was responsive and made changes on the fly. 10/10 would book again.",
+    images: [
+      "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=120&h=80&fit=crop",
+      "https://images.unsplash.com/photo-1524492412937-b28074a5d7da?w=120&h=80&fit=crop",
+      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=120&h=80&fit=crop",
+      "https://images.unsplash.com/photo-1605649487212-47bdab064df7?w=120&h=80&fit=crop",
+    ],
+  },
+  {
+    id: 7,
+    name: "Amit Verma",
+    profile:"https://lh3.googleusercontent.com/a-/ALV-UjVkVpYSzZJVpSoJsiX1r2wdqZa2mPirkwSIHIIZiJBzof6RsWF6=w144-h144-p-rp-mo-ba2-br100",
     package: "Rajasthan Tour Package",
     date: "3 September, 2025",
     rating: 5,
@@ -78,7 +141,7 @@ export default function TestimonialsSection() {
             />
 
             <a
-              href="https://g.page/r/review"
+              href="https://share.google/FpztNvEYjcMDt9lDd"
               target="_blank"
               rel="noopener noreferrer"
               className="group flex flex-col items-center gap-1.5 px-5 py-3 rounded-xl bg-white border border-neutral-200 shadow-sm hover:border-rose-300 hover:shadow-md transition-all duration-200 cursor-pointer"

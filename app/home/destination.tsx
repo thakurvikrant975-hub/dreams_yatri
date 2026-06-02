@@ -20,24 +20,25 @@ import { staggerContainer, staggerItem, fadeIn, fadeUp, fadeRight, fadeLeft } fr
 type DestinationItem = Omit<DestinationCardProps, 'onClick'> & {
     slug: string
     badge?: string
+    region?: string
 }
 
 const DOMESTIC: DestinationItem[] = [
-    { slug: 'himachal-pradesh', name: 'Himachal Pradesh', packageCount: 32, image: 'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=800&auto=format&fit=crop', icon: IslandIcon, badge: 'Most Popular' },
-    { slug: 'kashmir', name: 'Kashmir', packageCount: 102, image: 'https://images.unsplash.com/photo-1614591276564-7b3e69347a48?w=800&auto=format&fit=crop', icon: IslandIcon },
-    { slug: 'kerala', name: 'Kerala', packageCount: 25, image: 'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=800&auto=format&fit=crop', icon: IslandIcon },
-    { slug: 'goa', name: 'Goa', packageCount: 15, image: 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=800&auto=format&fit=crop', icon: IslandIcon },
-    { slug: 'rajasthan', name: 'Rajasthan', packageCount: 28, image: 'https://images.unsplash.com/photo-1477587458883-47145ed94245?w=800&auto=format&fit=crop', icon: IslandIcon },
-    { slug: 'uttarakhand', name: 'Uttarakhand', packageCount: 19, image: 'https://images.unsplash.com/photo-1502786129293-79981df4e689?w=800&auto=format&fit=crop', icon: IslandIcon },
+    { slug: 'himachal-pradesh', name: 'Himachal Pradesh', packageCount: 32, image: 'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=800&auto=format&fit=crop', icon: IslandIcon, badge: 'Most Popular', region: 'North India' },
+    { slug: 'kashmir', name: 'Kashmir', packageCount: 102, image: 'https://images.unsplash.com/photo-1614591276564-7b3e69347a48?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'North India' },
+    { slug: 'kerala', name: 'Kerala', packageCount: 25, image: 'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'South India' },
+    { slug: 'goa', name: 'Goa', packageCount: 15, image: 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'West India' },
+    { slug: 'rajasthan', name: 'Rajasthan', packageCount: 28, image: 'https://images.unsplash.com/photo-1477587458883-47145ed94245?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'West India' },
+    { slug: 'uttarakhand', name: 'Uttarakhand', packageCount: 19, image: 'https://images.unsplash.com/photo-1502786129293-79981df4e689?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'North India' },
 ]
 
 const INTERNATIONAL: DestinationItem[] = [
-    { slug: 'dubai', name: 'Dubai', packageCount: 50, image: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=800&auto=format&fit=crop', icon: IslandIcon },
-    { slug: 'switzerland', name: 'Switzerland', packageCount: 99, image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&auto=format&fit=crop', icon: IslandIcon },
-    { slug: 'france', name: 'France', packageCount: 102, image: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=800&auto=format&fit=crop', icon: IslandIcon },
-    { slug: 'japan', name: 'Japan', packageCount: 55, image: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=800&auto=format&fit=crop', icon: IslandIcon },
-    { slug: 'thailand', name: 'Thailand', packageCount: 44, image: 'https://images.unsplash.com/photo-1528181304800-259b08848526?w=800&auto=format&fit=crop', icon: IslandIcon },
-    { slug: 'maldives', name: 'Maldives', packageCount: 30, image: 'https://images.unsplash.com/photo-1514282401047-d79a71a590e8?w=800&auto=format&fit=crop', icon: IslandIcon },
+    { slug: 'dubai', name: 'Dubai', packageCount: 50, image: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'Middle East' },
+    { slug: 'switzerland', name: 'Switzerland', packageCount: 99, image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'Europe' },
+    { slug: 'france', name: 'France', packageCount: 102, image: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'Europe' },
+    { slug: 'japan', name: 'Japan', packageCount: 55, image: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'East Asia' },
+    { slug: 'thailand', name: 'Thailand', packageCount: 44, image: 'https://images.unsplash.com/photo-1528181304800-259b08848526?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'Southeast Asia' },
+    { slug: 'maldives', name: 'Maldives', packageCount: 30, image: 'https://images.unsplash.com/photo-1514282401047-d79a71a590e8?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'Indian Ocean' },
 ]
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -122,6 +123,7 @@ function DestinationRow({
                             packageCount={item.packageCount}
                             image={item.image}
                             icon={item.icon}
+                            region={item.region}
                             onClick={() => onItemClick?.(item.slug)}
                         />
                     </motion.div>
@@ -159,7 +161,7 @@ export default function ExploreDestinations({
                 />
 
                 <DestinationRow
-                    label="International"
+                    label="Beyond Borders"
                     icon={AirplaneTiltIcon}
                     items={international}
                     onViewAll={onViewAllInternational}

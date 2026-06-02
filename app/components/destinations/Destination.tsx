@@ -10,6 +10,7 @@ export interface DestinationCardProps {
     name: string
     packageCount: number
     image: string
+    region?: string
     /** Phosphor icon component — shown top-right */
     icon?: React.ElementType
     onClick?: () => void
@@ -21,6 +22,7 @@ export default function DestinationCard({
     name,
     packageCount,
     image,
+    region,
     icon: Icon,
     onClick,
     className = '',
@@ -63,6 +65,11 @@ export default function DestinationCard({
 
                 {/* ── Text — bottom left ── */}
                 <div className="absolute bottom-0 left-0 right-0 z-10 px-4 pb-4 pt-8">
+                    {region && (
+                        <span className="inline-flex items-center mb-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide uppercase bg-white/15 backdrop-blur-sm text-white/90 border border-white/20">
+                            {region}
+                        </span>
+                    )}
                     <Heading level={3} weight='semibold' intent='inverse'>
                         {name}
                     </Heading>
