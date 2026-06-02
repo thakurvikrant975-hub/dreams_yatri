@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "seed:locations": "tsx --env-file=.env prisma/seed-locations.ts",
-    "reindex:locations": "tsx --env-file=.env scripts/reindex-locations.ts"
+    "reindex:locations": "tsx --env-file=.env scripts/reindex-locations.ts",
+    "test:quote": "tsx --conditions=react-server --env-file=.env scripts/test-quote.ts"
   },
   "prisma": {
     "seed": "tsx --env-file=.env prisma/seed.ts"

@@ -50,7 +50,7 @@ paymentStatus, status machine), `Payment` (gateway/order/payment/signature/refun
 | 1.6 | Server actions `createPackageQuote` / `getPackageQuote` (types in non-'use server' file) | ✅ DONE |
 | 1.7 | Wire PricingCard "Book" → createPackageQuote → router.push(`/book/[quoteId]`); guard no travelDate | ✅ DONE |
 | 1.8 | `/book/[quoteId]` review page: locked snapshot + countdown to expires_at + expired/drift states; payment placeholder (Phase 2) | ✅ DONE |
-| 1.9 | env (QUOTE_SECRET, QUOTE_TTL_MINUTES), lazy-expiry policy, unit tests for pure pieces, e2e pass | ⬜ TODO |
+| 1.9 | env (QUOTE_SECRET, QUOTE_TTL_MINUTES), lazy-expiry policy, unit tests for pure pieces, e2e pass | ✅ DONE |
 
 ## Step 1.1 — what was done
 - `prisma/schema.prisma`: added `QuoteStatus` enum + `package_quote` model (after `package_pricing`).
@@ -125,6 +125,16 @@ paymentStatus, status machine), `Payment` (gateway/order/payment/signature/refun
 - `QuoteCountdown.tsx` (client): MM:SS to `expires_at`, urgent (red) ≤60s, fires `onExpire`.
 - Re-quote link = `/packages/{package_slug}/{duration_slug}/{route_slug}/{stay_slug}`.
 - SafeQuote gained `duration_label` + `stay_category_label` (from frozen breakdown) for display; getQuote reads them from breakdown JSON (slug fallback).
+
+## Step 1.9 — what was done
+- **Env** (in `.env`, gitignored): `QUOTE_SECRET` (≥16 chars; HMAC key), `QUOTE_TTL_MINUTES=15`. signing.ts throws if QUOTE_SECRET missing/short; createQuote defaults TTL→15 if unset/invalid.
+- **Unit tests**: `scripts/test-quote.ts` + npm script `test:quote` (`tsx --conditions=react-server --env-file=.env`). The `react-server` condition resolves `server-only` to a no-op so signing.ts is importable in tsx. 25 assertions (schema rules + hash order-insensitivity + sign/verify tamper rejection) — all green.
+- **Lazy expiry**: confirmed — getQuote flips ACTIVE→EXPIRED on read past expires_at (no cron in Phase 1).
+- **Backend e2e** (throwaway script, since removed) against the real Manali package: create→get(verify)→isQuoteFresh(drift 0)→tamper total→getQuote rejected `invalid`→cleanup. All passed.
+- NOTE: browser render of `/book/[quoteId]` (live countdown + states) to be eyeballed by the user; backend pipeline proven.
+
+## Phase 1 — COMPLETE ✅
+All 9 steps done. Quote+snapshot system live end-to-end: signed, DB-backed, TTL'd, integrity-checked, drift-aware, wired from the Book button to a review page with a payment placeholder. Next: **Phase 2** (schema additions — priceSnapshot on Booking, BookingTraveller, payment schedule, WebhookEvent, paise).
 
 ## Gotchas / conventions to remember
 - Prisma v7 client needs the `PrismaPg` adapter (see `app/lib/db.ts`); a bare `new PrismaClient()` throws.
