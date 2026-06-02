@@ -55,7 +55,7 @@ lets Phase 3+ do that safely.
 | 2.4 | `PaymentInstallment` model + `InstallmentType` (DEPOSIT/BALANCE) + `InstallmentStatus` enum + relation; amount in paise, dueDate, paidPaymentId? | ✅ DONE |
 | 2.5 | `Payment` hardening: `amount_paise Int`, `idempotencyKey String? @unique`, **make `gatewayOrderId @unique`**, `rawResponse Json?`, `webhookEventId String?` | ✅ DONE |
 | 2.6 | `WebhookEvent` model + `WebhookStatus` enum + `@@unique([gateway, eventId])`; payload Json, signature, processedAt, optional Payment/Booking links | ✅ DONE |
-| 2.7 | Constraints/index audit + `prisma validate` + regen + schema-shape e2e (insert booking+snapshot+travellers+installments+webhook; dedupe asserts) + docs/memory | ⬜ TODO |
+| 2.7 | Constraints/index audit + `prisma validate` + regen + schema-shape e2e (insert booking+snapshot+travellers+installments+webhook; dedupe asserts) + docs/memory | ✅ DONE |
 
 ## Per-step detail
 
@@ -179,6 +179,20 @@ lets Phase 3+ do that safely.
 - `@@unique([gateway, eventId])` = the idempotency guard for Phase 4/5. `@@index([status])`, `@@index([paymentId])`.
 - `enum WebhookStatus { RECEIVED PROCESSED FAILED IGNORED }`.
 - Migration `20260602160000_add_webhook_event` applied + recorded (checksum `6a37d196…`); regen; `db.webhookEvent` verified.
+
+## Step 2.7 — what was done
+- `npx prisma validate` → schema valid.
+- Schema-shape e2e (throwaway tsx, since removed): created a Booking with `priceSnapshot`, 2
+  `travellersList`, DEPOSIT/BALANCE `installments` (paise via `rupeesToPaise`), `paymentPlan=DEPOSIT`;
+  asserted the `[bookingId,type]` installment unique rejects a 2nd DEPOSIT, the `[gateway,eventId]`
+  webhook unique rejects a duplicate, and FK-cascade delete removed children. All passed (PHASE2_E2E_PASS).
+- Unit suites still green (money 19, quote 25).
+
+## Phase 2 — COMPLETE ✅
+All 7 steps done. Schema foundations for bookings/payments are in place: paise columns, Booking↔quote
+priceSnapshot, per-person travellers, deposit/balance installments, hardened idempotent Payment, and a
+webhook idempotency log — all with the right unique constraints. **No business logic yet** (that's
+Phase 3+). Next: **Phase 3** — payment-policy engine (deposit vs full by travel-date proximity), pure & tested.
 
 ## Gotchas / conventions
 - Prisma v7 needs the `PrismaPg` adapter (`app/lib/db.ts`); bare `new PrismaClient()` throws.
