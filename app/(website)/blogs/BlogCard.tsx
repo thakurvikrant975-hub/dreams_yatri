@@ -138,7 +138,7 @@ export function BlogCard({
             )}
           </div>
 
-          <Heading level={3} className="text-neutral-900 leading-snug mb-2 line-clamp-2 group-hover:text-primary-600 transition-colors text-base font-bold">
+          <Heading level={3} className="text-neutral-900 leading-snug mb-2 truncate group-hover:text-primary-600 transition-colors text-base font-bold">
             {post.title}
           </Heading>
 

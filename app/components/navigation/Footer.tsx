@@ -61,9 +61,10 @@ const FOOTER_COLUMNS: FooterColumn[] = [
       // { label: "Team", href: "/team" },
       { label: "Careers", href: "/careers" },
       // { label: "Press", href: "/press" },
-      // { label: "Blog", href: "/blog" },
+      { label: "Blogs", href: "/blogs" },
       // { label: "Partners", href: "/partners" },
       { label: "Testimonials", href: "/testimonials" },
+      { label: "Write for us", href: "/write-for-us" },
     ],
   },
   {
