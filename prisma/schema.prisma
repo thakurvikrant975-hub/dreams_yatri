@@ -208,6 +208,7 @@ model Booking {
   hotelBookings           BookingHotel[]
   bookingMeals            BookingMeal[]
   travellersList          BookingTraveller[]
+  installments            PaymentInstallment[]
   timeline                BookingTimeline[]
   cabAssignee             TeamMember?           @relation("BookingCabAssignee", fields: [cabAssigneeId], references: [id])
   currentAssignee         TeamMember?           @relation("BookingCurrentAssignee", fields: [currentAssigneeId], references: [id])
@@ -311,6 +312,26 @@ model BookingTraveller {
 
   @@index([bookingId])
   @@map("booking_travellers")
+}
+
+model PaymentInstallment {
+  id            String            @id @default(cuid())
+  bookingId     String
+  type          InstallmentType
+  sequence      Int               @default(0) // order legs are due (0 = deposit, 1 = balance)
+  amount_paise  Int               // integer minor units — what this leg charges
+  dueDate       DateTime?
+  status        InstallmentStatus @default(PENDING)
+  paidPaymentId String?           // loose ref to the Payment that settled this leg
+  paidAt        DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  booking       Booking           @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@unique([bookingId, type])
+  @@index([bookingId])
+  @@index([status])
+  @@map("payment_installments")
 }
 
 model PackageBookingHotel {
@@ -1952,6 +1973,19 @@ enum TravellerType {
   ADULT
   CHILD
   INFANT
+}
+
+enum InstallmentType {
+  DEPOSIT
+  BALANCE
+}
+
+enum InstallmentStatus {
+  PENDING
+  PAID
+  OVERDUE
+  WAIVED
+  CANCELLED
 }
 
 enum LogAction {
