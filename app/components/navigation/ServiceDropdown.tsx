@@ -69,7 +69,7 @@ export default function ServiceDropdown({ isSolid }: ServiceDropdownProps) {
             transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
             role="menu"
             aria-label="Services"
-            className="absolute left-0 top-full mt-3 w-72 bg-white rounded-2xl shadow-2xl shadow-black/10 border border-neutral-100 overflow-hidden z-200"
+            className="absolute right-0 top-full mt-3 w-72 bg-white rounded-2xl shadow-2xl shadow-black/10 border border-neutral-100 overflow-hidden z-200"
           >
             {/* Panel header */}
             <div className="px-4 py-3 bg-linear-to-r from-red-50 via-orange-50 to-amber-50 border-b border-neutral-100 flex items-center gap-2">
