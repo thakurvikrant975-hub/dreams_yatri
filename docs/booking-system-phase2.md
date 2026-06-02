@@ -51,11 +51,11 @@ lets Phase 3+ do that safely.
 |------|-------------|--------|
 | 2.1 | Paise groundwork: pure `app/lib/money.ts` (rupees↔paise, format) + unit test; add `*_paise Int` cols to `Payment` & `Booking` (amount_paise; total/advance/balance) | ✅ DONE |
 | 2.2 | Booking↔quote: `quoteId String? @unique`, `priceSnapshot Json?`, `quoteInputsHash String?`, `paymentPlan PaymentPlan?` (new enum FULL/DEPOSIT) | ✅ DONE |
-| 2.3 | `BookingTraveller` model + `TravellerType` enum (ADULT/CHILD/INFANT) + relation; lead-traveller + optional passport fields | ⬜ TODO |
-| 2.4 | `PaymentInstallment` model + `InstallmentType` (DEPOSIT/BALANCE) + `InstallmentStatus` enum + relation; amount in paise, dueDate, paidPaymentId? | ⬜ TODO |
-| 2.5 | `Payment` hardening: `amount_paise Int`, `idempotencyKey String? @unique`, **make `gatewayOrderId @unique`**, `rawResponse Json?`, `webhookEventId String?` | ⬜ TODO |
-| 2.6 | `WebhookEvent` model + `WebhookStatus` enum + `@@unique([gateway, eventId])`; payload Json, signature, processedAt, optional Payment/Booking links | ⬜ TODO |
-| 2.7 | Constraints/index audit + `prisma validate` + regen + schema-shape e2e (insert booking+snapshot+travellers+installments+webhook; dedupe asserts) + docs/memory | ⬜ TODO |
+| 2.3 | `BookingTraveller` model + `TravellerType` enum (ADULT/CHILD/INFANT) + relation; lead-traveller + optional passport fields | ✅ DONE |
+| 2.4 | `PaymentInstallment` model + `InstallmentType` (DEPOSIT/BALANCE) + `InstallmentStatus` enum + relation; amount in paise, dueDate, paidPaymentId? | ✅ DONE |
+| 2.5 | `Payment` hardening: `amount_paise Int`, `idempotencyKey String? @unique`, **make `gatewayOrderId @unique`**, `rawResponse Json?`, `webhookEventId String?` | ✅ DONE |
+| 2.6 | `WebhookEvent` model + `WebhookStatus` enum + `@@unique([gateway, eventId])`; payload Json, signature, processedAt, optional Payment/Booking links | ✅ DONE |
+| 2.7 | Constraints/index audit + `prisma validate` + regen + schema-shape e2e (insert booking+snapshot+travellers+installments+webhook; dedupe asserts) + docs/memory | ✅ DONE |
 
 ## Per-step detail
 
@@ -145,6 +145,54 @@ lets Phase 3+ do that safely.
 - Migration `20260602120000_add_booking_quote_link` (CREATE TYPE + 4 ADD COLUMN + unique index
   `bookings_quoteId_key`). SQL applied via `db execute`; **`migrate resolve` hit the Neon advisory-lock
   bug**, so recorded via the hand-insert fallback (see mechanics ⚠️). Client regenerated; all 4 fields verified queryable.
+
+## Step 2.3 — what was done
+- `BookingTraveller` (`@@map("booking_travellers")`): id(cuid), bookingId(FK→bookings, cascade),
+  `type TravellerType`, fullName, age?, dateOfBirth?, `gender Gender?` (reused), isLead(bool),
+  passportNumber?, passportExpiry?, nationality?, createdAt. `@@index([bookingId])`.
+- `enum TravellerType { ADULT CHILD INFANT }`. `Booking.travellersList BookingTraveller[]` added;
+  `Booking.travellers Int` count kept for back-compat.
+- Migration `20260602130000_add_booking_traveller` applied via `db execute`; recorded via hand-insert
+  (checksum `bef33975…`). Client regen; `db.bookingTraveller` verified (count=0).
+
+## Step 2.4 — what was done
+- `PaymentInstallment` (`@@map("payment_installments")`): id(cuid), bookingId(FK→bookings, cascade),
+  `type InstallmentType`, sequence(Int, 0=deposit), `amount_paise Int`, dueDate?, `status
+  InstallmentStatus @default(PENDING)`, paidPaymentId? (loose ref to Payment), paidAt?, created/updated.
+  `@@unique([bookingId, type])` (one DEPOSIT + one BALANCE per booking), `@@index([bookingId])`, `@@index([status])`.
+- `enum InstallmentType { DEPOSIT BALANCE }`, `enum InstallmentStatus { PENDING PAID OVERDUE WAIVED CANCELLED }`.
+  `Booking.installments PaymentInstallment[]` added.
+- Migration `20260602140000_add_payment_installment` applied + recorded (checksum `64e03419…`); regen;
+  `db.paymentInstallment` verified.
+
+## Step 2.5 — what was done
+- `Payment`: added `idempotencyKey String? @unique`, `rawResponse Json?` (jsonb), `webhookEventId String?`
+  (loose ref + `@@index`). **`gatewayOrderId` is now `@unique`** (dropped old `payments_gatewayOrderId_idx`,
+  created `payments_gatewayOrderId_key`). `amount_paise` was already added in 2.1.
+- Pre-check: `payments` table empty, 0 duplicate gatewayOrderId — safe for the unique constraint.
+- Migration `20260602150000_harden_payment` applied + recorded (checksum `35acd0c5…`); regen; fields verified.
+
+## Step 2.6 — what was done
+- `WebhookEvent` (`@@map("webhook_events")`): id(cuid), `gateway PaymentGateway`, `eventId` (gateway's
+  id), eventType?, `payload Json` (jsonb, raw body), signature?, `status WebhookStatus @default(RECEIVED)`,
+  error?, paymentId? / bookingId? (loose refs — NO FK, events may arrive before the row), receivedAt, processedAt?.
+- `@@unique([gateway, eventId])` = the idempotency guard for Phase 4/5. `@@index([status])`, `@@index([paymentId])`.
+- `enum WebhookStatus { RECEIVED PROCESSED FAILED IGNORED }`.
+- Migration `20260602160000_add_webhook_event` applied + recorded (checksum `6a37d196…`); regen; `db.webhookEvent` verified.
+
+## Step 2.7 — what was done
+- `npx prisma validate` → schema valid.
+- Schema-shape e2e (throwaway tsx, since removed): created a Booking with `priceSnapshot`, 2
+  `travellersList`, DEPOSIT/BALANCE `installments` (paise via `rupeesToPaise`), `paymentPlan=DEPOSIT`;
+  asserted the `[bookingId,type]` installment unique rejects a 2nd DEPOSIT, the `[gateway,eventId]`
+  webhook unique rejects a duplicate, and FK-cascade delete removed children. All passed (PHASE2_E2E_PASS).
+- Unit suites still green (money 19, quote 25).
+
+## Phase 2 — COMPLETE ✅
+All 7 steps done. Schema foundations for bookings/payments are in place: paise columns, Booking↔quote
+priceSnapshot, per-person travellers, deposit/balance installments, hardened idempotent Payment, and a
+webhook idempotency log — all with the right unique constraints. **No business logic yet** (that's
+Phase 3+). Next: **Phase 3** — payment-policy engine (deposit vs full by travel-date proximity), pure & tested.
 
 ## Gotchas / conventions
 - Prisma v7 needs the `PrismaPg` adapter (`app/lib/db.ts`); bare `new PrismaClient()` throws.
