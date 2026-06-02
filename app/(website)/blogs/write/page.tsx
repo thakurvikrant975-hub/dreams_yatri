@@ -9,7 +9,7 @@ export const metadata = { title: 'Write a Blog' };
 
 export default async function WriteBlogPage() {
   const session = await auth();
-  if (!session?.user?.id) redirect('/');
+  if (!session?.user?.id) redirect('/blogs');
 
   const categories = await getBlogCategories();
 

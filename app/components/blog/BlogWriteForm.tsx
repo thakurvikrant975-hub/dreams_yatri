@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { extractExcerpt } from '@/app/lib/tiptap/extractExcerpt';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { X, Tag, ChevronDown, Send, Save, Clock, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
@@ -46,24 +47,30 @@ export default function BlogWriteForm({ categories, initialData }: BlogWriteForm
   const [saveStatus,    setSaveStatus]    = useState<SaveStatus>('idle');
   const [isSubmitting,  setIsSubmitting]  = useState(false);
 
+  // Live preview of the auto-generated excerpt (only shown when excerpt field is empty)
+  const autoExcerpt = useMemo(() => extractExcerpt(content), [content]);
+
   // ── Auto-save refs ────────────────────────────────────────────────────────
   const saveTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isDirty     = useRef(false);
-  const latestState = useRef({ title, excerpt, coverImage, categoryId, tags, content, readTime });
+  // postId lives in the ref so the memoized scheduleSave always sees the latest value
+  const latestState = useRef({ postId, title, excerpt, coverImage, categoryId, tags, content, readTime });
 
   useEffect(() => {
-    latestState.current = { title, excerpt, coverImage, categoryId, tags, content, readTime };
-  }, [title, excerpt, coverImage, categoryId, tags, content, readTime]);
+    latestState.current = { postId, title, excerpt, coverImage, categoryId, tags, content, readTime };
+  }, [postId, title, excerpt, coverImage, categoryId, tags, content, readTime]);
 
   // ── Schedule save on any field change ─────────────────────────────────────
+  // useCallback with [] is intentional: the memoized fn always reads from latestState ref,
+  // so it never holds stale state values in its closure.
   const scheduleSave = useCallback(() => {
     isDirty.current = true;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       if (!isDirty.current) return;
       const s = latestState.current;
-      if (!s.title.trim()) return;          // need at minimum a title
-      await performSave(s);
+      if (!s.title.trim()) return;
+      await performSaveFromRef();
     }, 2500);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -72,13 +79,17 @@ export default function BlogWriteForm({ categories, initialData }: BlogWriteForm
   // ── Unmount: cancel pending timer ────────────────────────────────────────
   useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current); }, []);
 
+  // Stable ref that always points to the latest performSave implementation
+  const performSaveRef = useRef<() => Promise<void>>(async () => {});
+
   // ── Core save function ────────────────────────────────────────────────────
-  async function performSave(s: typeof latestState.current) {
+  async function performSave() {
+    const s = latestState.current;
     setSaveStatus('saving');
     isDirty.current = false;
 
     const input: SaveDraftInput = {
-      id:          postId ?? undefined,
+      id:          s.postId ?? undefined,   // read from ref — never stale
       title:       s.title,
       excerpt:     s.excerpt || null,
       content:     s.content as Record<string, unknown>,
@@ -88,27 +99,34 @@ export default function BlogWriteForm({ categories, initialData }: BlogWriteForm
       read_time:   s.readTime,
     };
 
-    const result = await saveBlogDraft(input);
-
-    if (result.success) {
-      setSaveStatus('saved');
-      if (!postId) {
-        setPostId(result.id);
-        // Replace URL so refresh doesn't lose the post
-        router.replace(`/blogs/${result.id}/edit`);
+    try {
+      const result = await saveBlogDraft(input);
+      if (result.success) {
+        setSaveStatus('saved');
+        if (!s.postId) {
+          setPostId(result.id);
+          router.replace(`/blogs/${result.id}/edit`);
+        }
+        setTimeout(() => setSaveStatus('idle'), 3000);
+      } else {
+        setSaveStatus('error');
+        setTimeout(() => setSaveStatus('idle'), 4000);
       }
-      setTimeout(() => setSaveStatus('idle'), 3000);
-    } else {
+    } catch {
       setSaveStatus('error');
       setTimeout(() => setSaveStatus('idle'), 4000);
     }
   }
 
+  // Keep the ref pointing to the latest performSave on every render
+  performSaveRef.current = performSave;
+  function performSaveFromRef() { return performSaveRef.current(); }
+
   // ── Manual save ──────────────────────────────────────────────────────────
   async function handleManualSave() {
     if (!title.trim()) { toast.error('Add a title first'); return; }
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    await performSave(latestState.current);
+    await performSave();
   }
 
   // ── Submit for review ─────────────────────────────────────────────────────
@@ -254,11 +272,16 @@ export default function BlogWriteForm({ categories, initialData }: BlogWriteForm
         <textarea
           value={excerpt}
           onChange={(e) => setExcerpt(e.target.value)}
-          placeholder="Short summary (shown on listing pages)…"
+          placeholder={autoExcerpt ?? "Short summary (shown on listing pages)…"}
           maxLength={500}
           rows={2}
           className="w-full text-sm text-neutral-600 placeholder:text-neutral-300 bg-transparent border-none outline-none resize-none leading-relaxed"
         />
+        {!excerpt && autoExcerpt && (
+          <p className="text-[11px] text-neutral-400 mt-0.5">
+            Auto-summary from your content — type here to override
+          </p>
+        )}
       </div>
 
       {/* ── Meta row: Category + Tags ── */}

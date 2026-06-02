@@ -10,6 +10,7 @@ import {
   Undo2, Redo2,
 } from 'lucide-react';
 import { useRef } from 'react';
+import { toast } from 'sonner';
 import { cn } from '@/app/lib/utils';
 
 interface ToolbarProps {
@@ -60,9 +61,20 @@ export default function EditorToolbar({ editor, onImageUpload, uploading }: Tool
   function handleImageFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    onImageUpload(file).then((url) => {
-      editor.chain().focus().setImage({ src: url }).run();
-    });
+    onImageUpload(file)
+      .then((url) => {
+        if (!url) { toast.error('Image upload returned no URL'); return; }
+        // Use insertContent directly — more reliable across Tiptap v3 versions
+        // than the setImage command shorthand.
+        editor.chain().focus().insertContent({
+          type:  'image',
+          attrs: { src: url, alt: '', title: null },
+        }).run();
+      })
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : 'Image upload failed';
+        toast.error(msg);
+      });
     e.target.value = '';
   }
 

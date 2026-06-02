@@ -26,9 +26,22 @@ async function uploadImageToR2(file: File): Promise<string> {
   const fd = new FormData();
   fd.append('file', file);
   fd.append('folder', 'blogs');
-  const res = await fetch('/api/upload', { method: 'POST', body: fd });
-  if (!res.ok) throw new Error('Image upload failed');
+
+  let res: Response;
+  try {
+    res = await fetch('/api/upload', { method: 'POST', body: fd });
+  } catch {
+    throw new Error('Could not reach the upload server. Check your connection.');
+  }
+
+  if (!res.ok) {
+    let detail = '';
+    try { detail = (await res.json()).error ?? ''; } catch { /* ignore */ }
+    throw new Error(detail || `Upload failed (${res.status})`);
+  }
+
   const { url } = await res.json();
+  if (!url) throw new Error('Upload succeeded but no URL was returned.');
   return url as string;
 }
 

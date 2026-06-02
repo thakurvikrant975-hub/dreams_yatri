@@ -5,6 +5,7 @@ import { auth } from "@/app/lib/auth";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { Prisma } from "@/app/generated/prisma/client";
+import { extractExcerpt } from "@/app/lib/tiptap/extractExcerpt";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -64,8 +65,8 @@ const SaveDraftSchema = z.object({
   id:          z.string().optional(),
   title:       z.string().min(1, "Title is required").max(255),
   excerpt:     z.string().max(500).optional().nullable(),
-  content:     z.record(z.string(), z.unknown()),   // Tiptap JSON doc
-  cover_image: z.string().url().optional().nullable(),
+  content:     z.any(),                             // Tiptap JSON — validated by Prisma
+  cover_image: z.string().optional().nullable(),    // R2 URL or null/empty — skip url() to avoid RSC proxy issues
   category_id: z.number().int().positive().optional().nullable(),
   tags:        z.array(z.string().max(50)).max(10).optional(),
   read_time:   z.number().int().min(1).optional().nullable(),
@@ -82,7 +83,12 @@ export async function saveBlogDraft(input: SaveDraftInput): Promise<BlogActionRe
   const parsed = SaveDraftSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
 
-  const { id, title, excerpt, content, cover_image, category_id, tags = [], read_time } = parsed.data;
+  const { id, title, cover_image, category_id, tags = [], read_time } = parsed.data;
+  // Strip React RSC proxy markers — Prisma's type validator accesses Symbol.toStringTag
+  // which throws on React proxy objects passed from client components via server actions.
+  const content = JSON.parse(JSON.stringify(parsed.data.content)) as Prisma.InputJsonValue;
+  // Auto-extract excerpt from first paragraph when the user left it blank
+  const excerpt = parsed.data.excerpt?.trim() || extractExcerpt(content) || null;
 
   // ── Tag upsert ── find-or-create each tag by slug
   const tagRecords = await Promise.all(
@@ -115,7 +121,7 @@ export async function saveBlogDraft(input: SaveDraftInput): Promise<BlogActionRe
       data: {
         title,
         excerpt:     excerpt ?? null,
-        content:     content as Prisma.InputJsonValue,
+        content,
         cover_image: cover_image ?? null,
         read_time:   read_time ?? null,
         categories: { deleteMany: {}, create: catLinks },
@@ -257,8 +263,8 @@ export async function getBlogForEdit(id: string): Promise<BlogForEdit | null> {
     id:          post.id,
     title:       post.title,
     excerpt:     post.excerpt,
-    content:     post.content as object,
-    cover_image: post.cover_image,
+    content:     JSON.parse(JSON.stringify(post.content)) as object,
+    cover_image: post.cover_image ?? null,
     status:      post.status as "DRAFT" | "REJECTED",
     read_time:   post.read_time,
     category_id: post.categories[0]?.category_id ?? null,

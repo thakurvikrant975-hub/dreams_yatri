@@ -6,7 +6,7 @@ import { getBlogForEdit, getBlogCategories } from '@/app/actions/blogs/actions';
 import BlogWriteForm from '@/app/components/blog/BlogWriteForm';
 
 interface Props {
-  params: Promise<{ id: string }>;
+  params: Promise<{ slug: string }>;
 }
 
 export const metadata = { title: 'Edit Blog' };
@@ -15,13 +15,12 @@ export default async function EditBlogPage({ params }: Props) {
   const session = await auth();
   if (!session?.user?.id) redirect('/');
 
-  const { id } = await params;
+  const { slug: id } = await params;
   const [post, categories] = await Promise.all([
     getBlogForEdit(id),
     getBlogCategories(),
   ]);
 
-  // null means: not found, wrong owner, or not editable status
   if (!post) notFound();
 
   return (
