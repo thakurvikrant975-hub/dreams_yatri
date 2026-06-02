@@ -66,6 +66,7 @@ model User {
   bookings               Booking[]
   payments               Payment[]
   travelPreference       TravelPreference?
+  blogPosts              blog_posts[]
 }
 
 model Account {
@@ -2047,4 +2048,86 @@ enum SalaryType {
   PER_TRIP
   PER_DAY
   COMMISSION
+}
+
+// ── Blog ─────────────────────────────────────────────────────────────────────
+
+enum BlogStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+  REJECTED
+}
+
+model blog_posts {
+  id             String               @id @default(cuid())
+  slug           String               @unique
+  title          String
+  excerpt        String?
+  content        Json                 // Tiptap JSON document
+  cover_image    String?
+  status         BlogStatus           @default(DRAFT)
+  rejection_note String?              // filled by reviewer on REJECTED
+  read_time      Int?                 // minutes, computed from word count on save
+  published_at   DateTime?
+  author_id      String
+  reviewed_by_id String?              // User with ADMIN role who approved/rejected
+  reviewed_at    DateTime?
+  created_at     DateTime             @default(now())
+  updated_at     DateTime             @updatedAt
+  author         User                 @relation(fields: [author_id], references: [id], onDelete: Cascade)
+  categories     blog_post_categories[]
+  tags           blog_post_tags[]
+
+  @@index([author_id])
+  @@index([status])
+  @@index([slug])
+  @@index([published_at])
+  @@map("blog_posts")
+}
+
+model blog_categories {
+  id          Int                    @id @default(autoincrement())
+  name        String                 @unique
+  slug        String                 @unique
+  description String?
+  is_active   Boolean                @default(true)
+  sort_order  Int                    @default(0)
+  posts       blog_post_categories[]
+
+  @@index([slug])
+  @@index([is_active])
+  @@map("blog_categories")
+}
+
+model blog_tags {
+  id    Int              @id @default(autoincrement())
+  name  String           @unique
+  slug  String           @unique
+  posts blog_post_tags[]
+
+  @@index([slug])
+  @@map("blog_tags")
+}
+
+model blog_post_categories {
+  post_id     String
+  category_id Int
+  post        blog_posts      @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  category    blog_categories @relation(fields: [category_id], references: [id])
+
+  @@id([post_id, category_id])
+  @@index([category_id])
+  @@map("blog_post_categories")
+}
+
+model blog_post_tags {
+  post_id String
+  tag_id  Int
+  post    blog_posts @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  tag     blog_tags  @relation(fields: [tag_id], references: [id])
+
+  @@id([post_id, tag_id])
+  @@index([tag_id])
+  @@map("blog_post_tags")
 }
