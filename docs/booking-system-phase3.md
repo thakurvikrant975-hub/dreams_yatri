@@ -42,7 +42,7 @@ read-only preview wires it onto the existing `/book/[quoteId]` review page so th
 | 3.2 | `app/services/payment-policy/engine.ts` — pure `computePaymentSchedule({ totalPaise, travelDate, now, config })` → `{ plan, depositPaise, balancePaise, balanceDueDate, installments[], reason }` | ✅ DONE |
 | 3.3 | `scripts/test-payment-policy.ts` + `npm run test:policy` (+ add to `npm test`): branch coverage — FULL vs DEPOSIT, exact cutoff boundary, legs sum to total, paise rounding, near/far, min-deposit floor, bad input | ✅ DONE |
 | 3.4 | `getPaymentScheduleForQuote(quoteId)` server action (load quote → engine on its total+travel_date → safe DTO); types in non-'use server' module | ✅ DONE |
-| 3.5 | Show the schedule on `/book/[quoteId]` (deposit/full + balance-due date) reading the action; docs/memory; Phase 3 complete | ⬜ TODO |
+| 3.5 | Show the schedule on `/book/[quoteId]` (deposit/full + balance-due date) reading the action; docs/memory; Phase 3 complete | ✅ DONE |
 
 ## Per-step detail
 
@@ -121,6 +121,21 @@ read-only preview wires it onto the existing `/book/[quoteId]` review page so th
 - `app/actions/payment/schedule.ts` (`'use server'`): `getPaymentScheduleForQuote(quoteId)` → reuse
   `getQuote` (integrity/expiry) → `computePaymentSchedule({ totalPaise: rupeesToPaise(total), travelDate,
   now })` → safe DTO. not_found/invalid pass through; schedule still computed for EXPIRED (page decides).
+
+## Step 3.5 — what was done
+- `/book/[quoteId]/page.tsx`: also calls `getPaymentScheduleForQuote(quote.id)` (in the Promise.all) and
+  passes `schedule` DTO (or null on failure) to `BookReview`.
+- `BookReview.tsx`: Payment card now renders the plan — DEPOSIT ⇒ "Pay now (X% deposit) <amount>" + "Balance
+  <amount> due by <date>"; FULL ⇒ "Pay in full <total>". Amounts via `formatPaise` (pure money util). Pay
+  button still disabled (gateway = Phase 4).
+- Live e2e (throwaway, removed): Manali quote far(+60d) ⇒ DEPOSIT ₹9,113.35 / balance ₹27,340.03 due
+  2026-07-17 (sums exact); near(+5d) ⇒ FULL. PASS.
+
+## Phase 3 — COMPLETE ✅
+All 5 steps done. Pure, tested payment-policy engine (25% deposit / 15-day balance window / ₹2,000 floor),
+wired read-only onto the review page. No gateway, no money movement, no schema change. Full unit suite:
+money 19 + policy 36 + quote 25 = 80 green. Next: **Phase 4** — one gateway happy path (Razorpay):
+idempotent order creation, webhook-authoritative confirmation, persist Payment + flip Booking/installments.
 
 ## Gotchas / conventions
 - Keep the engine pure: pass `now` in; don't call `Date.now()` inside (tests need determinism).

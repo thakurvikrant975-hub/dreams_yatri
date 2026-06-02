@@ -7,6 +7,7 @@ import Button from '@/app/components/ui/Button';
 import { Heading, Text } from '@/app/components/ui/Typography';
 import { db } from '@/app/lib/db';
 import { getPackageQuote, checkQuoteFreshness } from '@/app/actions/quote/actions';
+import { getPaymentScheduleForQuote } from '@/app/actions/payment/schedule';
 import BookReview from './BookReview';
 
 export const dynamic = 'force-dynamic';
@@ -65,13 +66,14 @@ export default async function BookQuotePage({
         const quote = result.quote;
         const packageHref = `/packages/${quote.package_slug}/${quote.duration_slug}/${quote.route_slug}/${quote.stay_slug}`;
 
-        // Display info + freshness (skip the recompute for already-expired quotes).
-        const [pkg, freshness] = await Promise.all([
+        // Display info + freshness + payment schedule (skip recompute for expired quotes).
+        const [pkg, freshness, scheduleRes] = await Promise.all([
             db.packages.findUnique({
                 where: { slug: quote.package_slug },
                 select: { title: true, thumbnail: true },
             }),
             quote.status === 'ACTIVE' ? checkQuoteFreshness(quote.id) : Promise.resolve(null),
+            getPaymentScheduleForQuote(quote.id),
         ]);
 
         content = (
@@ -81,6 +83,7 @@ export default async function BookQuotePage({
                 thumbnail={pkg?.thumbnail ?? null}
                 packageHref={packageHref}
                 drift={freshness ? { fresh: freshness.fresh, currentTotal: freshness.currentTotal } : null}
+                schedule={scheduleRes.success ? scheduleRes.schedule : null}
             />
         );
     }

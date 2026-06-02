@@ -7,7 +7,9 @@ import QuoteCountdown from './QuoteCountdown';
 import Button from '@/app/components/ui/Button';
 import Card from '@/app/components/ui/Card';
 import { Heading, Text } from '@/app/components/ui/Typography';
+import { formatPaise } from '@/app/lib/money';
 import type { SafeQuote } from '@/app/actions/quote/create-quote.service';
+import type { PaymentScheduleDTO } from '@/app/actions/payment/types';
 
 const fmt = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 
@@ -32,12 +34,14 @@ export default function BookReview({
     thumbnail,
     packageHref,
     drift,
+    schedule,
 }: {
     quote: SafeQuote;
     packageTitle: string;
     thumbnail: string | null;
     packageHref: string;
     drift: { fresh: boolean; currentTotal: number | null } | null;
+    schedule: PaymentScheduleDTO | null;
 }) {
     const [expired, setExpired] = useState(quote.status !== 'ACTIVE');
 
@@ -120,13 +124,57 @@ export default function BookReview({
                         </dl>
                     </Card>
 
-                    {/* Payment placeholder (Phase 2) */}
+                    {/* Payment plan + placeholder (gateway is Phase 4) */}
                     <Card className="px-6 py-5">
                         <Heading level={4} weight="semibold">Payment</Heading>
-                        <Text size="sm" intent="secondary" className="mt-1 block">
-                            Secure online payment is coming soon. Your price is locked while you complete
-                            your booking.
-                        </Text>
+
+                        {schedule ? (
+                            schedule.plan === 'DEPOSIT' ? (
+                                <div className="mt-3 rounded-lg border border-neutral-200 divide-y divide-neutral-100">
+                                    <div className="flex items-center justify-between px-4 py-3">
+                                        <div>
+                                            <Text size="sm" weight="semibold" intent="primary">Pay now to confirm</Text>
+                                            <Text size="xs" intent="muted" className="block mt-0.5">
+                                                {Math.round((schedule.depositPaise / schedule.totalPaise) * 100)}% deposit
+                                            </Text>
+                                        </div>
+                                        <Text size="lg" weight="bold" intent="primary" className="font-heading">
+                                            {formatPaise(schedule.depositPaise)}
+                                        </Text>
+                                    </div>
+                                    <div className="flex items-center justify-between px-4 py-3">
+                                        <div>
+                                            <Text size="sm" weight="medium" intent="secondary">Balance</Text>
+                                            {schedule.balanceDueDate && (
+                                                <Text size="xs" intent="muted" className="block mt-0.5">
+                                                    due by {formatDate(schedule.balanceDueDate)}
+                                                </Text>
+                                            )}
+                                        </div>
+                                        <Text size="sm" weight="semibold" intent="secondary">
+                                            {formatPaise(schedule.balancePaise)}
+                                        </Text>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="mt-3 flex items-center justify-between rounded-lg border border-neutral-200 px-4 py-3">
+                                    <div>
+                                        <Text size="sm" weight="semibold" intent="primary">Pay in full</Text>
+                                        <Text size="xs" intent="muted" className="block mt-0.5">
+                                            Full payment is required for this departure date
+                                        </Text>
+                                    </div>
+                                    <Text size="lg" weight="bold" intent="primary" className="font-heading">
+                                        {formatPaise(schedule.totalPaise)}
+                                    </Text>
+                                </div>
+                            )
+                        ) : (
+                            <Text size="sm" intent="secondary" className="mt-1 block">
+                                Your price is locked while you complete your booking.
+                            </Text>
+                        )}
+
                         <Button variant="premium" className="w-full mt-4" disabled>
                             Continue to payment (coming soon)
                         </Button>
