@@ -60,7 +60,7 @@ export default function LanguageDropdown({ isSolid }: LanguageDropdownProps) {
             transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
             role="listbox"
             aria-label="Select language"
-            className="absolute right-0 top-full mt-3 w-[280px] bg-white rounded-2xl shadow-2xl shadow-black/10 border border-neutral-100 overflow-hidden z-[200]"
+            className="absolute right-0 top-full mt-3 w-[480px] bg-white rounded-2xl shadow-2xl shadow-black/10 border border-neutral-100 overflow-hidden z-[200]"
           >
             {/* Panel header */}
             <div className="px-4 py-3 bg-gradient-to-r from-red-50 via-orange-50 to-amber-50 border-b border-neutral-100 flex items-center gap-2">
@@ -73,7 +73,7 @@ export default function LanguageDropdown({ isSolid }: LanguageDropdownProps) {
             </div>
 
             {/* Language grid */}
-            <div className="p-2.5 grid grid-cols-2 gap-1">
+            <div className="p-2.5 grid grid-cols-3 gap-1">
               {LANGUAGES.map((lang) => {
                 const active = currentLanguage === lang.code;
                 return (
@@ -82,7 +82,7 @@ export default function LanguageDropdown({ isSolid }: LanguageDropdownProps) {
                     role="option"
                     aria-selected={active}
                     onClick={() => { setLanguage(lang.code); setOpen(false); }}
-                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left w-full transition-all duration-150 group ${
+                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left w-full cursor-pointer transition-all duration-150 group ${
                       active
                         ? 'bg-red-50 ring-1 ring-red-200/80'
                         : 'hover:bg-neutral-50'

@@ -23,7 +23,7 @@ export const LANGUAGES: Language[] = [
   { code: 'te', label: 'తెలుగు',    labelEn: 'Telugu',    shortCode: 'తె', color: '#db2777' },
   { code: 'pa', label: 'ਪੰਜਾਬੀ',    labelEn: 'Punjabi',   shortCode: 'ਪੰ', color: '#ea580c' },
   { code: 'kn', label: 'ಕನ್ನಡ',     labelEn: 'Kannada',   shortCode: 'ಕ',  color: '#16a34a' },
-  { code: 'ml', label: 'മലയാളം',    labelEn: 'Malayalam', shortCode: 'മ',  color: '#9333ea' },
+  // { code: 'ml', label: 'മലയാളം',    labelEn: 'Malayalam', shortCode: 'മ',  color: '#9333ea' },
 ];
 
 interface LanguageState {

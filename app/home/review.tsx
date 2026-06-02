@@ -7,6 +7,7 @@ import { FcGoogle } from "react-icons/fc";
 import SectionHeader from "@/app/components/ui/SectionHeader";
 import ReviewCard from "@/app/components/ui/ReviewCard";
 import { fadeLeft, fadeRight, staggerContainer, staggerItem } from "@/app/lib/motionPresets";
+import { Star } from "lucide-react";
 
 const REVIEWS: Review[] = [
   {
@@ -66,14 +67,31 @@ export default function TestimonialsSection() {
       <div className="screen-space">
 
         {/* Header row — label from left, arrows from right */}
-        <div className="flex items-end justify-between mb-8">
-          <SectionHeader
-            noAnimation
-            icon={FcGoogle}
-            tag="Real Traveler Reviews"
-            title="What Our Guests Say"
-          />
+        <div className="flex items-end justify-between">
+          <div className="flex justify-between w-full items-center">
 
+            <SectionHeader
+              noAnimation
+              icon={FcGoogle}
+              tag="Real Traveler Reviews"
+              title="What Our Guests Say"
+            />
+
+            <button className="p-2 rounded-md bg-black items-center text-white text-sm font-medium  gap-2 px-4 hover:bg-rose-500 transition-colors cursor-pointer grid">
+              <div className="flex items-center gap-1">Review us on <FcGoogle /></div>
+
+              <span className="text-center flex justify-center text-xs w-full text-yellow-500 gap-1">
+                <Star width={14}/>
+                <Star width={14}/>
+                <Star width={14}/>
+                <Star width={14}/>
+                <Star width={14}/>
+                </span>
+            </button>
+          </div>
+        </div>
+
+        <div className="flex justify-end mb-2">
           <motion.div
             className="flex items-center gap-2 shrink-0"
             variants={fadeLeft}
@@ -81,7 +99,7 @@ export default function TestimonialsSection() {
             <button
               type="button"
               onClick={() => scroll("left")}
-              className="w-9 h-9 rounded-full border border-slate-200 bg-white flex items-center justify-center text-slate-500 hover:border-rose-300 hover:text-rose-500 transition-colors shadow-sm"
+              className="w-9 h-9 rounded-full border border-slate-200 bg-white flex items-center justify-center text-slate-500 hover:border-rose-300 hover:text-rose-500 transition-colors cursor-pointer shadow-sm"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -90,7 +108,7 @@ export default function TestimonialsSection() {
             <button
               type="button"
               onClick={() => scroll("right")}
-              className="w-9 h-9 rounded-full border border-slate-200 bg-white flex items-center justify-center text-slate-500 hover:border-rose-300 hover:text-rose-500 transition-colors shadow-sm"
+              className="w-9 h-9 cursor-pointer rounded-full border border-slate-200 bg-white flex items-center justify-center text-slate-500 hover:border-rose-300 hover:text-rose-500 transition-colors shadow-sm"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
