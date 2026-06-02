@@ -48,7 +48,7 @@ paymentStatus, status machine), `Payment` (gateway/order/payment/signature/refun
 | 1.4 | `createQuote` service: validate → computePackagePrice → reject missing_pricing_config → snapshot → sign → persist (TTL) → return safe breakdown | ✅ DONE |
 | 1.5 | `getQuote` (lazy expiry + verify) + `isQuoteFresh` (recompute & compare total → drift) | ✅ DONE |
 | 1.6 | Server actions `createPackageQuote` / `getPackageQuote` (types in non-'use server' file) | ✅ DONE |
-| 1.7 | Wire PricingCard "Book" → createPackageQuote → router.push(`/book/[quoteId]`); guard no travelDate | ⬜ TODO |
+| 1.7 | Wire PricingCard "Book" → createPackageQuote → router.push(`/book/[quoteId]`); guard no travelDate | ✅ DONE |
 | 1.8 | `/book/[quoteId]` review page: locked snapshot + countdown to expires_at + expired/drift states; payment placeholder (Phase 2) | ⬜ TODO |
 | 1.9 | env (QUOTE_SECRET, QUOTE_TTL_MINUTES), lazy-expiry policy, unit tests for pure pieces, e2e pass | ⬜ TODO |
 
@@ -109,6 +109,12 @@ paymentStatus, status machine), `Payment` (gateway/order/payment/signature/refun
   - `getPackageQuote(id)` → `getQuote`.
   - `checkQuoteFreshness(id)` → `isQuoteFresh` (for the review page / payment guard).
 - Types stay in the service modules; this file imports them with `import type` only (no type re-exports, per the 'use server' rule). Client components `import type` straight from the service files — erased at build, so the `server-only` guard isn't tripped.
+
+## Step 1.7 — what was done
+- `PackageBookingProvider`: context now also exposes `packageId/durationId/routeId/stayCategoryId` (needed to build a quote).
+- New shared hook `components/useBookQuote.ts` → `{ book, booking, error }`. Builds the QuoteInput from booking context + route slugs (`useParams`), guards missing `travelDate`, calls `createPackageQuote`, on success `router.push('/book/[id]')`, else surfaces `error`.
+- `PricingCard` + `MobileFooterBar` both call `useBookQuote` — single source of truth, both Book buttons live now (loading state + inline error).
+- NOTE: `/book/[quoteId]` route is built in Step 1.8 — until then the Book button 404s.
 
 ## Gotchas / conventions to remember
 - Prisma v7 client needs the `PrismaPg` adapter (see `app/lib/db.ts`); a bare `new PrismaClient()` throws.

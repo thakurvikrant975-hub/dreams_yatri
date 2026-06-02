@@ -1,6 +1,7 @@
 'use client';
 
 import { useBooking } from '../PackageBookingProvider';
+import { useBookQuote } from '../useBookQuote';
 import Button from '@/app/components/ui/Button';
 import Card from '@/app/components/ui/Card';
 import { Text } from '@/app/components/ui/Typography';
@@ -9,6 +10,7 @@ const fmt = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 
 export default function PricingCard() {
     const { pricing, isPricingLoading, adults, childCount, infants } = useBooking();
+    const { book, booking, error } = useBookQuote();
 
     const totalPax = adults + childCount + infants;
 
@@ -51,9 +53,22 @@ export default function PricingCard() {
                 </>
             )}
 
-            <Button variant="premium" className="w-full mt-4">
-                Book this package
+            <Button
+                variant="premium"
+                className="w-full mt-4"
+                onClick={book}
+                loading={booking}
+                disabled={isPricingLoading || !pricing}
+            >
+                {booking ? 'Locking your price…' : 'Book this package'}
             </Button>
+
+            {error && (
+                <Text size="xs" intent="error" className="mt-2 block text-center" role="alert">
+                    {error}
+                </Text>
+            )}
+
             <Button variant="outline" className="lg:hidden w-full mt-3">
                 Book a call
             </Button>

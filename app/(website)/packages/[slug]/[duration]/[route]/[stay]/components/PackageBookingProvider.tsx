@@ -62,6 +62,12 @@ export interface BookingContextValue {
 
     // Package metadata
     packageName: string;
+
+    // Selectors — needed to build a quote on "Book"
+    packageId:      number;
+    durationId:     number;
+    routeId:        number;
+    stayCategoryId: number;
 }
 
 export const BookingContext = createContext<BookingContextValue | null>(null);
@@ -236,6 +242,7 @@ export function PackageBookingProvider({
             setAdults, setChildCount, setInfants, setChildAge, setTravelDate, setLeavingFrom, setTravellers,
             cabGroups, cabSelections, setCabForGroup,
             pricing, isPricingLoading, packageName,
+            packageId, durationId, routeId, stayCategoryId,
         }}>
             {children}
         </BookingContext.Provider>
