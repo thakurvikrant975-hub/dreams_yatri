@@ -8,7 +8,8 @@ export type ImageFolder =
   | "hotels"
   | "packages"
   | "activities"
-  | "team-members";      
+  | "team-members"
+  | "blogs";
 
 export type UploadResult = {
   key: string;

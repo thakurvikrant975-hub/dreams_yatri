@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { uploadToR2 } from "@/app/lib/r2/r2upload";
 
-const VALID_FOLDERS = ["regions", "destinations", "hotels", "packages", "activities", "vehicles", "attractions", "cab-drivers"];
+const VALID_FOLDERS = ["regions", "destinations", "hotels", "packages", "activities", "vehicles", "attractions", "cab-drivers", "blogs"];
 const ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif"];
 const MAX_SIZE = 20 * 1024 * 1024; // 20MB
 
