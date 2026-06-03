@@ -38,7 +38,7 @@ reconciliation is the safety net; reminders chase the balance leg.
 ## Steps & Status
 | Step | Description | Status |
 |------|-------------|--------|
-| 5.1 | Schema: `PaymentStatus += FAILED`; `PaymentInstallment += reminderSentAt?, reminderCount` — migration + regen | ⬜ TODO |
+| 5.1 | Schema: `PaymentStatus += FAILED`; `PaymentInstallment += reminderSentAt?, reminderCount` — migration + regen | ✅ DONE |
 | 5.2 | Refactor `finalizeCapturedPayment(...)` shared by webhook + recon (idempotent, status-guarded); webhook uses it; existing e2e still green | ⬜ TODO |
 | 5.3 | Webhook: handle `payment.failed` (Payment FAILED + failureReason) and refund events (`refund.processed`/`payment.refunded` → REFUNDED/PARTIALLY_REFUNDED + refund fields, Booking paymentStatus); dedupe as before | ⬜ TODO |
 | 5.4 | Razorpay fetch helpers (`fetchOrderPayments`/`fetchPayment`) + `reconcilePendingPayments({ olderThanMinutes, fetcher })`: find stale PENDING RAZORPAY payments → poll → finalize/fail (never override webhook) | ⬜ TODO |
@@ -81,6 +81,12 @@ reconciliation is the safety net; reminders chase the balance leg.
 - e2e (self-signed / stubbed): `payment.failed` → Payment FAILED; refund event → REFUNDED; recon with a stub
   fetcher returning "captured" for a stale PENDING payment → finalized (booking ADVANCE_PAID); webhook-then-recon
   idempotent (no double).
+
+## Step 5.1 — what was done
+- `enum PaymentStatus` += `FAILED`; `PaymentInstallment` += `reminderSentAt DateTime?`, `reminderCount Int @default(0)`.
+- Migration `20260602170000_phase5_failure_fields` (`ALTER TYPE … ADD VALUE IF NOT EXISTS 'FAILED'` + 2 ADD COLUMN)
+  applied via `db execute`, recorded via hand-insert (checksum `113ba1e1…`), client regen. Verified enum now
+  ends with FAILED and reminder columns are queryable. (PG15 allows ADD VALUE alongside the ADD COLUMNs here.)
 
 ## Gotchas / conventions
 - `ALTER TYPE ... ADD VALUE` can't run in the same transaction as other statements — keep it standalone in the migration.
