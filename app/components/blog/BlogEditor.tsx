@@ -18,6 +18,7 @@ interface BlogEditorProps {
   initialContent?: object | null;
   onChange?: (json: object, wordCount: number) => void;
   onImageInserted?: (latestJson: object) => void;
+  onYoutubeInserted?: (latestJson: object) => void;
   placeholder?: string;
   className?: string;
   editable?: boolean;
@@ -50,6 +51,7 @@ export default function BlogEditor({
   initialContent,
   onChange,
   onImageInserted,
+  onYoutubeInserted,
   placeholder = 'Start writing your story…',
   className,
   editable = true,
@@ -105,6 +107,7 @@ export default function BlogEditor({
           editor={editor}
           onImageUpload={handleImageUpload}
           onImageInserted={onImageInserted}
+          onYoutubeInserted={onYoutubeInserted}
           uploading={uploading}
         />
       )}

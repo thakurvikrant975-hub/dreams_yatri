@@ -17,6 +17,7 @@ interface ToolbarProps {
   editor: Editor;
   onImageUpload: (file: File) => Promise<string>;
   onImageInserted?: (latestJson: object) => void;
+  onYoutubeInserted?: (latestJson: object) => void;
   uploading: boolean;
 }
 
@@ -56,7 +57,7 @@ function Divider() {
   return <span className="w-px h-5 bg-neutral-200 mx-0.5 shrink-0" />;
 }
 
-export default function EditorToolbar({ editor, onImageUpload, onImageInserted, uploading }: ToolbarProps) {
+export default function EditorToolbar({ editor, onImageUpload, onImageInserted, onYoutubeInserted, uploading }: ToolbarProps) {
   const fileRef = useRef<HTMLInputElement>(null);
 
   function handleImageFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -88,7 +89,9 @@ export default function EditorToolbar({ editor, onImageUpload, onImageInserted, 
 
   function handleYoutube() {
     const url = window.prompt('Enter YouTube URL');
-    if (url) editor.commands.setYoutubeVideo({ src: url });
+    if (!url) return;
+    editor.commands.setYoutubeVideo({ src: url });
+    onYoutubeInserted?.(editor.getJSON());
   }
 
   return (
