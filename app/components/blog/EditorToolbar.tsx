@@ -16,6 +16,8 @@ import { cn } from '@/app/lib/utils';
 interface ToolbarProps {
   editor: Editor;
   onImageUpload: (file: File) => Promise<string>;
+  onImageInserted?: (latestJson: object) => void;
+  onYoutubeInserted?: (latestJson: object) => void;
   uploading: boolean;
 }
 
@@ -55,7 +57,7 @@ function Divider() {
   return <span className="w-px h-5 bg-neutral-200 mx-0.5 shrink-0" />;
 }
 
-export default function EditorToolbar({ editor, onImageUpload, uploading }: ToolbarProps) {
+export default function EditorToolbar({ editor, onImageUpload, onImageInserted, onYoutubeInserted, uploading }: ToolbarProps) {
   const fileRef = useRef<HTMLInputElement>(null);
 
   function handleImageFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -64,12 +66,10 @@ export default function EditorToolbar({ editor, onImageUpload, uploading }: Tool
     onImageUpload(file)
       .then((url) => {
         if (!url) { toast.error('Image upload returned no URL'); return; }
-        // Use insertContent directly — more reliable across Tiptap v3 versions
-        // than the setImage command shorthand.
-        editor.chain().focus().insertContent({
-          type:  'image',
-          attrs: { src: url, alt: '', title: null },
-        }).run();
+        editor.chain().focus().setImage({ src: url, alt: '' }).run();
+        // Pass the fresh JSON directly — React state won't have updated yet
+        // so we must read from the editor, not from component state.
+        onImageInserted?.(editor.getJSON());
       })
       .catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : 'Image upload failed';
@@ -89,7 +89,9 @@ export default function EditorToolbar({ editor, onImageUpload, uploading }: Tool
 
   function handleYoutube() {
     const url = window.prompt('Enter YouTube URL');
-    if (url) editor.commands.setYoutubeVideo({ src: url });
+    if (!url) return;
+    editor.commands.setYoutubeVideo({ src: url });
+    onYoutubeInserted?.(editor.getJSON());
   }
 
   return (

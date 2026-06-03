@@ -10,7 +10,7 @@ import {
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from '../components/ui/sheet';
-import BlogEditor from '@/app/components/blog/BlogEditor';
+import { tiptapToHtml } from '@/app/lib/tiptap/renderHtml';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { approveBlog, rejectBlog, type AdminBlogDetail } from './actions';
@@ -165,13 +165,11 @@ export function BlogReviewSheet({ post, open, onClose, onAction }: BlogReviewShe
             </div>
           )}
 
-          {/* Blog content — rendered client-side by Tiptap (same engine that wrote it) */}
-          <div className="px-2">
-            <BlogEditor
-              initialContent={post.content}
-              editable={false}
-            />
-          </div>
+          {/* Blog content — same HTML renderer as the public post page */}
+          <article
+            className="prose-article px-6 py-4"
+            dangerouslySetInnerHTML={{ __html: tiptapToHtml(post.content) }}
+          />
 
           {/* Previous rejection note */}
           {post.status === 'REJECTED' && post.rejection_note && (

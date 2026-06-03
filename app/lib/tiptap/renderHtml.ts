@@ -107,15 +107,37 @@ function renderNode(node: TNode): string {
     }
 
     case "youtube": {
-      // YouTube embed — the extension stores the embed URL in src or in the
-      // original URL; normalise to nocookie embed format
-      const raw = String(a.src ?? "");
-      const src = raw.includes("youtube-nocookie.com") || raw.includes("youtu")
-        ? raw.replace("youtube.com/watch?v=", "www.youtube-nocookie.com/embed/")
-             .replace("youtu.be/", "www.youtube-nocookie.com/embed/")
-        : raw;
-      return src
-        ? `<iframe src="${esc(src)}" width="640" height="360" allowfullscreen loading="lazy" class="youtube-embed"></iframe>`
+      // Tiptap stores the original watch URL in src (e.g. https://www.youtube.com/watch?v=ID).
+      // We need to convert it to a proper nocookie embed URL.
+      const raw = String(a.src ?? "").trim();
+      if (!raw) return "";
+
+      let embedUrl = "";
+      try {
+        const u = new URL(raw);
+        const host = u.hostname.replace(/^www\./, "");
+
+        if (host === "youtube.com" || host === "youtube-nocookie.com") {
+          if (u.pathname.startsWith("/embed/")) {
+            // Already an embed URL — just switch to nocookie domain
+            embedUrl = `https://www.youtube-nocookie.com${u.pathname}${u.search}`;
+          } else {
+            // Watch URL: /watch?v=ID  or  /live/ID  or  /shorts/ID
+            const videoId = u.searchParams.get("v") || u.pathname.split("/").pop();
+            if (videoId) embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}`;
+          }
+        } else if (host === "youtu.be") {
+          const videoId = u.pathname.replace("/", "");
+          if (videoId) embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}`;
+        }
+      } catch {
+        // Fallback: try simple string-based extraction
+        const match = raw.match(/(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/);
+        if (match) embedUrl = `https://www.youtube-nocookie.com/embed/${match[1]}`;
+      }
+
+      return embedUrl
+        ? `<iframe src="${esc(embedUrl)}" allowfullscreen loading="lazy" class="youtube-embed" title="YouTube video"></iframe>`
         : "";
     }
 

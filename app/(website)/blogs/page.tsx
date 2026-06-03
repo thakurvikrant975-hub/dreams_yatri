@@ -26,9 +26,6 @@ export default async function BlogsListingPage() {
     getPublicBlogCategories(),
   ]);
 
-  const featured  = posts[0] ?? null;
-  const restPosts = posts.slice(1);
-
   return (
     <main className="min-h-screen">
 
@@ -57,8 +54,7 @@ export default async function BlogsListingPage() {
           </div>
         ) : (
           <BlogListingClient
-            featured={featured}
-            restPosts={restPosts}
+            posts={posts}
             categories={categories}
           />
         )}

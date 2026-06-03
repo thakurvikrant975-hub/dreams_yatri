@@ -6,25 +6,19 @@ import { BlogCard } from './BlogCard';
 import type { PublishedBlogItem, PublicBlogCategory } from '@/app/actions/blogs/public';
 
 interface Props {
-  featured:   PublishedBlogItem | null;
-  restPosts:  PublishedBlogItem[];
+  posts:      PublishedBlogItem[];
   categories: PublicBlogCategory[];
 }
 
-export default function BlogListingClient({ featured, restPosts, categories }: Props) {
+export default function BlogListingClient({ posts, categories }: Props) {
   const [activeCat, setActiveCat] = useState<number | null>(null);
 
   const filtered =
     activeCat === null
-      ? restPosts
-      : restPosts.filter((p) =>
+      ? posts
+      : posts.filter((p) =>
           p.category === categories.find((c) => c.id === activeCat)?.name
         );
-
-  const showFeatured =
-    featured &&
-    (activeCat === null ||
-      featured.category === categories.find((c) => c.id === activeCat)?.name);
 
   return (
     <div className="space-y-8">
@@ -61,22 +55,14 @@ export default function BlogListingClient({ featured, restPosts, categories }: P
         </div>
       )}
 
-      {/* Featured post */}
-      {showFeatured && (
-        <BlogCard post={featured!} featured />
-      )}
-
       {/* Grid */}
-      {filtered.length > 0 && (
+      {filtered.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((post) => (
             <BlogCard key={post.id} post={post} />
           ))}
         </div>
-      )}
-
-      {/* Empty filter state */}
-      {!showFeatured && filtered.length === 0 && (
+      ) : (
         <p className="text-center py-16 text-neutral-400 text-sm">
           No posts in this category yet.
         </p>
