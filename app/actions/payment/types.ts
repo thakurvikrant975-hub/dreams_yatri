@@ -43,3 +43,31 @@ export type CreateBookingOrderResult =
 export type VerifyCheckoutResult =
     | { success: true; bookingId: string }
     | { success: false; reason: "invalid_signature" | "not_found" | "unauthenticated" };
+
+export interface CancelRefundLine {
+    paymentId: string;
+    refundId: string;
+    state: "processed" | "pending" | "failed";
+    amountPaise: number;
+}
+
+export type CancelBookingResult =
+    | {
+          success: true;
+          alreadyCancelled: boolean;
+          paidPaise: number;
+          refundablePaise: number;
+          feePaise: number;
+          refundPct: number;
+          refunds: CancelRefundLine[];
+      }
+    | { success: false; reason: "unauthenticated" | "not_found" | "forbidden" | "not_cancellable" | "error"; message?: string };
+
+/** Read-only preview of what a cancellation would refund (for the confirm dialog). */
+export interface CancellationPreview {
+    paidPaise: number;
+    refundablePaise: number;
+    feePaise: number;
+    refundPct: number;
+    daysToTravel: number;
+}
