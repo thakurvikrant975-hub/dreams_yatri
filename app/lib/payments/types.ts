@@ -62,6 +62,18 @@ export interface ChargeStatus {
     method?: string;
 }
 
+// ── Refunds ──────────────────────────────────────────────────────────────────
+export interface RefundResult {
+    refundId: string;
+    state: "processed" | "pending" | "failed";
+    amountPaise?: number;
+}
+
+export interface RefundStatus {
+    state: "processed" | "pending" | "failed";
+    amountPaise?: number;
+}
+
 // ── The provider contract (implemented by server-only adapters) ───────────────
 export interface PaymentProvider {
     gateway: GatewayId;
@@ -72,4 +84,7 @@ export interface PaymentProvider {
     verifyWebhook(rawBody: string, headers: Headers): boolean;
     parseWebhookEvent(rawBody: string, headers: Headers): NormalizedWebhookEvent | null;
     fetchChargeStatus(gatewayOrderRef: string): Promise<ChargeStatus>;
+    /** Initiate a (possibly partial) refund against a captured payment. */
+    refund(args: { gatewayPaymentId: string; amountPaise: number; idempotencyKey?: string; notes?: Record<string, string> }): Promise<RefundResult>;
+    fetchRefundStatus(refundId: string): Promise<RefundStatus>;
 }

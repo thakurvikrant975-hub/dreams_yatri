@@ -4,6 +4,8 @@ import {
     verifyCheckoutSignature,
     verifyWebhookSignature,
     fetchOrderPayments,
+    refundRazorpayPayment,
+    fetchRazorpayRefund,
     razorpayKeyId,
 } from "@/app/lib/razorpay";
 import type {
@@ -14,7 +16,14 @@ import type {
     CallbackResult,
     NormalizedWebhookEvent,
     ChargeStatus,
+    RefundResult,
+    RefundStatus,
 } from "./types";
+
+/** Map Razorpay refund status → our normalized state. */
+export function mapRzpRefundStatus(s: string): RefundResult["state"] {
+    return s === "processed" ? "processed" : s === "failed" ? "failed" : "pending";
+}
 
 /**
  * Razorpay provider — a thin adapter over the existing `razorpay.ts` client that
@@ -89,5 +98,15 @@ export const razorpayProvider: PaymentProvider = {
         if (captured) return { state: "captured", gatewayPaymentId: captured.id, method: captured.method };
         if (attempts.length > 0 && attempts.every((a) => a.status === "failed")) return { state: "failed" };
         return { state: "pending" };
+    },
+
+    async refund(args): Promise<RefundResult> {
+        const r = await refundRazorpayPayment({ paymentId: args.gatewayPaymentId, amountPaise: args.amountPaise, notes: args.notes });
+        return { refundId: r.id, state: mapRzpRefundStatus(r.status), amountPaise: r.amount };
+    },
+
+    async fetchRefundStatus(refundId): Promise<RefundStatus> {
+        const r = await fetchRazorpayRefund(refundId);
+        return { state: mapRzpRefundStatus(r.status), amountPaise: r.amount };
     },
 };

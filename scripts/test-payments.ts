@@ -11,6 +11,7 @@ process.env.PAYU_SALT = "testsalt";
 process.env.PAYU_BASE_URL = "https://test.payu.in";
 
 import { getProvider, activeGateway } from "../app/lib/payments/registry";
+import { mapRzpRefundStatus } from "../app/lib/payments/razorpay.provider";
 
 import { createHmac } from "crypto";
 const sha512 = (s: string) => createHash("sha512").update(s).digest("hex");
@@ -66,7 +67,34 @@ async function payu() {
     check("payu captured normalized", !!ev && ev.type === "captured" && ev.gatewayOrderRef === txnid && ev.gatewayPaymentId === "mih_1" && ev.amountPaise === 911335);
     const fev = p.parseWebhookEvent(new URLSearchParams({ ...payload, status: "failure" }).toString(), new Headers());
     check("payu failure normalized", !!fev && fev.type === "failed");
+
+    // ── refund via stubbed fetch ──
+    const origFetch = global.fetch;
+    let captured: { body: string } | null = null;
+    let resp: unknown = { status: 1, request_id: "req_123" };
+    global.fetch = (async (_url: string, init: { body: string }) => {
+        captured = { body: init.body };
+        return { json: async () => resp } as Response;
+    }) as typeof fetch;
+    try {
+        const rf = await p.refund({ gatewayPaymentId: "mih_1", amountPaise: 911335 });
+        check("payu refund pending + request_id", rf.state === "pending" && rf.refundId === "req_123" && rf.amountPaise === 911335);
+        const params = new URLSearchParams(captured!.body);
+        check("payu refund request shape", params.get("command") === "cancel_refund_transaction" && params.get("var1") === "mih_1" && params.get("var3") === "9113.35");
+        check("payu refund hash", params.get("hash") === sha512("testkey|cancel_refund_transaction|mih_1|testsalt"));
+        resp = { status: 0 };
+        check("payu refund failed", (await p.refund({ gatewayPaymentId: "mih_1", amountPaise: 100 })).state === "failed");
+        resp = { transaction_details: { req_123: { status: "Refund Successful" } } };
+        check("payu refund status processed", (await p.fetchRefundStatus("req_123")).state === "processed");
+    } finally {
+        global.fetch = origFetch;
+    }
 }
+
+// ── Razorpay refund status mapper ──
+check("rzp refund map processed", mapRzpRefundStatus("processed") === "processed");
+check("rzp refund map failed", mapRzpRefundStatus("failed") === "failed");
+check("rzp refund map pending", mapRzpRefundStatus("created") === "pending");
 
 payu().then(() => {
     console.log(`\n${passed} passed, ${failures.length} failed`);

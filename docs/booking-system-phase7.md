@@ -39,7 +39,7 @@ Config defaults (env-overridable): `CANCEL_TIERS` = `[{minDays:30, refundPct:90}
 | Step | Description | Status |
 |------|-------------|--------|
 | 7.1 | Cancellation/refund **policy engine** (pure): `computeCancellationRefund({paidPaise, daysToTravel, policy})` → `{refundablePaise, feePaise, tier, reason}` + config (tiers, env-overridable) + tests | ✅ DONE |
-| 7.2 | `PaymentProvider.refund({gatewayPaymentId, amountPaise, notes})` + Razorpay & PayU impls (+ `fetchRefundStatus`); unit tests | ⬜ TODO |
+| 7.2 | `PaymentProvider.refund({gatewayPaymentId, amountPaise, notes})` + Razorpay & PayU impls (+ `fetchRefundStatus`); unit tests | ✅ DONE |
 | 7.3 | `cancelBooking` service: policy → initiate gateway refund(s) on captured payments → Booking CANCELLED + installments CANCELLED + paymentStatus; idempotent (refund webhook confirms) | ⬜ TODO |
 | 7.4 | Cancellation UX + action: refund **preview** (policy quote) + confirm on `/bookings/[id]`; `requestCancellation(bookingId, reason)` action (auth/owner) | ⬜ TODO |
 | 7.5 | Date-change: `changeTravelDate(bookingId, newDate)` — re-price (new quote), apply date-change fee, settle delta (top-up charge / refund difference), update dates + schedule | ⬜ TODO |
@@ -86,6 +86,16 @@ Config defaults (env-overridable): `CANCEL_TIERS` = `[{minDays:30, refundPct:90}
   (calendar math, caller passes `now`); refundable rounded once, fee = paid − refundable. Deposit not special.
 - `scripts/test-cancellation-policy.ts` + `npm run test:cancel` (in `npm test`): 23 asserts — every tier boundary
   (30/15/7), no-show, zero paid, rounding, override, bad input, config validation. Full `npm test` = 132 green.
+
+## Step 7.2 — what was done
+- `PaymentProvider` += `refund({gatewayPaymentId, amountPaise, idempotencyKey?, notes?})` → `RefundResult
+  {refundId, state: processed|pending|failed, amountPaise?}` and `fetchRefundStatus(refundId)` → `RefundStatus`.
+- Razorpay: `razorpay.ts` `refundRazorpayPayment` (SDK `payments.refund`, partial OK) + `fetchRazorpayRefund`;
+  provider maps status via exported `mapRzpRefundStatus` (processed/failed/pending).
+- PayU: `cancel_refund_transaction` (hash `key|command|mihpayid|salt`, var2=unique token, var3=rupees) →
+  async ⇒ `pending` (status 1) / `failed`; `fetchRefundStatus` via `check_action_status`. Rupees at the boundary.
+- Tests in `npm run test:payments` (now 26): PayU refund via stubbed `global.fetch` (request shape + hash + mapping),
+  Razorpay status mapper. Full `npm test` = 140 green; tsc clean.
 
 ## Gotchas / conventions
 - Webhook is truth: cancel/refund *initiate*; the refund webhook (Phase 5) *confirms* REFUNDED/PARTIAL.
