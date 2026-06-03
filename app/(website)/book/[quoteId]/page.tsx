@@ -76,11 +76,16 @@ export default async function BookQuotePage({
             getPaymentScheduleForQuote(quote.id),
         ]);
 
+        const R2 = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? '';
+        const thumbnail = pkg?.thumbnail
+            ? (pkg.thumbnail.startsWith('http') ? pkg.thumbnail : `${R2}/${pkg.thumbnail}`)
+            : null;
+
         content = (
             <BookReview
                 quote={quote}
                 packageTitle={pkg?.title ?? 'Your package'}
-                thumbnail={pkg?.thumbnail ?? null}
+                thumbnail={thumbnail}
                 packageHref={packageHref}
                 drift={freshness ? { fresh: freshness.fresh, currentTotal: freshness.currentTotal } : null}
                 schedule={scheduleRes.success ? scheduleRes.schedule : null}
