@@ -1,40 +1,62 @@
 'use client'
+
+import Link from "next/link";
 import { motion } from "framer-motion";
-import { BlogPost } from "@/app/types/home";
+import { ArrowRight } from "lucide-react";
 import SectionHeader from "@/app/components/ui/SectionHeader";
-import BlogCard from "../components/blog/BlogCard";
+import { BlogCard } from "@/app/(website)/blogs/BlogCard";
 import { staggerContainer, staggerItem } from "@/app/lib/motionPresets";
+import type { PublishedBlogItem } from "@/app/actions/blogs/public";
 
-const BLOG_POSTS: BlogPost[] = [
-  { id: 1, date: "March 25, 2026", category: "Travel", title: "How Dreams Yatri Make Your Tour Enjoyable", excerpt: "Dreams Yatri help everyone to reach everyone there awaited destinations with personalized care and expert guidance.", image: "https://images.unsplash.com/photo-1524492412937-b28074a5d7da?w=600&h=400&fit=crop" },
-  { id: 2, date: "March 25, 2026", category: "Travel", title: "How Dreams Yatri Make Your Tour Enjoyable", excerpt: "Dreams Yatri help everyone to reach everyone there awaited destinations with personalized care and expert guidance.", image: "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=600&h=400&fit=crop" },
-  { id: 3, date: "March 25, 2026", category: "Travel", title: "How Dreams Yatri Make Your Tour Enjoyable", excerpt: "Dreams Yatri help everyone to reach everyone there awaited destinations with personalized care and expert guidance.", image: "https://images.unsplash.com/photo-1605649487212-47bdab064df7?w=600&h=400&fit=crop" },
-  { id: 4, date: "March 25, 2026", category: "Travel", title: "How Dreams Yatri Make Your Tour Enjoyable", excerpt: "Dreams Yatri help everyone to reach everyone there awaited destinations with personalized care and expert guidance.", image: "https://images.unsplash.com/photo-1571536802807-30451e3955d8?w=600&h=400&fit=crop" },
-  { id: 5, date: "March 25, 2026", category: "Travel", title: "How Dreams Yatri Make Your Tour Enjoyable", excerpt: "Dreams Yatri help everyone to reach everyone there awaited destinations with personalized care and expert guidance.", image: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=600&h=400&fit=crop" },
-  { id: 6, date: "March 25, 2026", category: "Travel", title: "How Dreams Yatri Make Your Tour Enjoyable", excerpt: "Dreams Yatri help everyone to reach everyone there awaited destinations with personalized care and expert guidance.", image: "https://images.unsplash.com/photo-1548013146-72479768bada?w=600&h=400&fit=crop" },
-];
+interface BlogsSectionProps {
+  posts: PublishedBlogItem[];
+}
 
-export default function BlogsSection() {
+export default function BlogsSection({ posts }: BlogsSectionProps) {
+  if (posts.length === 0) return null;
+
   return (
-    <section className="py-section">
+    <section className="py-section bg-(--bg-page)">
       <div className="screen-space">
 
-        <SectionHeader
-          noAnimation
-          tag="Real journeys. Real memories."
-          title="Explore Blogs"
-        />
+        <div className="flex items-end justify-between mb-10 flex-wrap gap-4">
+          <SectionHeader
+            noAnimation
+            tag="Real journeys. Real memories."
+            title="Travel Stories"
+            subtitle="Discover destinations, tips, and first-hand experiences."
+          />
+          <Link
+            href="/blogs"
+            className="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-primary-600 hover:gap-3 transition-all shrink-0"
+          >
+            View all Blogs <ArrowRight className="size-4" />
+          </Link>
+        </div>
 
         <motion.div
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-7"
           variants={staggerContainer(0.09, 0.05)}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.1 }}
         >
-          {BLOG_POSTS.map((post, i) => (
+          {posts.map((post) => (
             <motion.div key={post.id} variants={staggerItem}>
-              <BlogCard post={post} index={i} />
+              <BlogCard post={post} />
             </motion.div>
           ))}
         </motion.div>
+
+        {/* Mobile "view all" */}
+        <div className="mt-8 flex justify-center sm:hidden">
+          <Link
+            href="/blogs"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary-600"
+          >
+            View all Blogs <ArrowRight className="size-4" />
+          </Link>
+        </div>
 
       </div>
     </section>

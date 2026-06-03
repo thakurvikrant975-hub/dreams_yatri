@@ -152,11 +152,11 @@ export const hotelSchema = (data: HotelSchemaData) => ({
 export const blogSchema = (data: BlogSchemaData) => ({
   "@context": "https://schema.org",
   "@type": "BlogPosting",
-  "@id": `${SITE_CONFIG.url}/blog/${data.slug}`,
+  "@id": `${SITE_CONFIG.url}/blogs/${data.slug}`,
   headline: data.title,
   description: data.description,
-  image: data.image,
-  url: `${SITE_CONFIG.url}/blog/${data.slug}`,
+  image: data.image || SITE_CONFIG.defaultOgImage,
+  url: `${SITE_CONFIG.url}/blogs/${data.slug}`,
   datePublished: data.publishedAt,
   dateModified: data.modifiedAt ?? data.publishedAt,
   author: {
@@ -165,6 +165,10 @@ export const blogSchema = (data: BlogSchemaData) => ({
   },
   publisher: {
     "@id": `${SITE_CONFIG.url}/#organization`,
+  },
+  mainEntityOfPage: {
+    "@type": "WebPage",
+    "@id": `${SITE_CONFIG.url}/blogs/${data.slug}`,
   },
 });
 

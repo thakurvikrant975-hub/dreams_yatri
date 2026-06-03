@@ -12,12 +12,14 @@ import Header from "../components/navigation/Header";
 import { fetchRecentPackages } from "@/app/actions/packages/fetch-page-data";
 import { fetchActiveRegions } from "@/app/actions/regions/fetch-region-page";
 import { fetchActiveDestinations } from "@/app/actions/destinations/fetch-destination-page";
+import { getPublishedBlogs } from "@/app/actions/blogs/public";
 
 export default async function Home() {
-  const [recentPackages, activeRegions, activeDestinations] = await Promise.all([
+  const [recentPackages, activeRegions, activeDestinations, { posts: latestBlogs }] = await Promise.all([
     fetchRecentPackages(6),
     fetchActiveRegions("India", 12),
     fetchActiveDestinations("India", 12),
+    getPublishedBlogs({ limit: 3 }),
   ]);
 
   const domesticItems = activeRegions.map((r) => ({
@@ -49,7 +51,7 @@ export default async function Home() {
         <AvantiSection />
         <WhyChooseUsSection />
         <TestimonialsSection />
-        <BlogsSection />
+        <BlogsSection posts={latestBlogs} />
         <NewsletterSection />
         <Footer />
       </main>

@@ -36,6 +36,7 @@ const navGroups = [
       { title: "Destinations", href: "/dashboard/destinations", icon: MapPinIcon, phosphor: true },
       { title: "Categories", href: "/dashboard/categories", icon: TagIcon, phosphor: true },
       { title: "Policies", href: "/dashboard/policies", icon: FileTextIcon, phosphor: true },
+      { title: "Blog Reviews", href: "/dashboard/blogs", icon: BookOpen },
     ],
   },
   {
@@ -177,7 +178,7 @@ export function AppSidebar() {
                             <Link href={item.href} className="flex items-center gap-2.5 cursor-pointer">
                               <IconComponent
                                 weight={item.phosphor ? "duotone" : undefined}
-                                className="size-[20px] shrink-0"
+                                className="size-5 shrink-0"
                                 style={{ color: "inherit" }}
                               />
                               <span className="text-[15px] leading-none">{item.title}</span>
