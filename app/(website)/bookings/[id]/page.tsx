@@ -112,6 +112,11 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
                                     A confirmation has been recorded. Our team will reach out with your trip details.
                                 </Text>
 
+                                <div className="mt-4 flex justify-center gap-4 text-sm">
+                                    <Link href={`/bookings/${booking.id}/invoice`} className="text-primary font-medium underline">Invoice</Link>
+                                    <Link href={`/bookings/${booking.id}/voucher`} className="text-primary font-medium underline">Trip voucher</Link>
+                                </div>
+
                                 <ChangeDatePanel bookingId={booking.id} />
                                 <CancelBookingPanel bookingId={booking.id} />
                             </>

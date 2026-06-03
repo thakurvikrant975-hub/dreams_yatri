@@ -12,7 +12,7 @@ import type { Prisma } from "@/app/generated/prisma";
  */
 
 export type FinalizeResult =
-    | { result: "finalized"; bookingId: string }
+    | { result: "finalized"; bookingId: string; purpose: "INITIAL" | "TOPUP" | "BALANCE" }
     | { result: "already"; bookingId: string }
     | { result: "not_found" }
     | { result: "no_booking" };
@@ -97,5 +97,5 @@ export async function finalizeCapturedPayment(
         });
     }
 
-    return { result: "finalized", bookingId: booking.id };
+    return { result: "finalized", bookingId: booking.id, purpose: payment.purpose };
 }

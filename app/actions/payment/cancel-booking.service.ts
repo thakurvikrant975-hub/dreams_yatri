@@ -3,6 +3,7 @@ import { db } from "@/app/lib/db";
 import { getProvider } from "@/app/lib/payments/registry";
 import type { GatewayId } from "@/app/lib/payments/types";
 import { computeCancellationRefund } from "@/app/services/cancellation-policy/engine";
+import { notifyCancellation } from "@/app/services/notifications/booking-notify";
 import type { CancelBookingResult, CancelRefundLine, CancellationPreview } from "./types";
 
 /**
@@ -84,6 +85,8 @@ export async function cancelBooking(params: {
             data: { status: "CANCELLED" },
         });
     });
+
+    try { await notifyCancellation(booking.id, policy.refundablePaise, policy.feePaise); } catch (e) { console.error("[cancelBooking] email failed", e); }
 
     return { success: true, alreadyCancelled: false, paidPaise, refundablePaise: policy.refundablePaise, feePaise: policy.feePaise, refundPct: policy.refundPct, refunds };
 }

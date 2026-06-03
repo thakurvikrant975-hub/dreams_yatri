@@ -3,6 +3,7 @@ import { db } from "@/app/lib/db";
 import { getProvider } from "@/app/lib/payments/registry";
 import type { ChargeStatus, RefundStatus, GatewayId } from "@/app/lib/payments/types";
 import { finalizeCapturedPayment } from "./finalize.service";
+import { notifyRefund } from "@/app/services/notifications/booking-notify";
 
 /**
  * Reconciliation — the safety net for missed/late webhooks.
@@ -102,6 +103,7 @@ export async function reconcileRefunds(opts?: { statusOf?: RefundStatusFetcher; 
                 await tx.payment.update({ where: { id: p.id }, data: { status, refundedAt: new Date() } });
                 await tx.booking.update({ where: { id: p.bookingId }, data: { paymentStatus: status } });
             });
+            try { await notifyRefund(p.bookingId, refundedPaise || p.amount_paise); } catch (e) { console.error("[reconcileRefunds] email failed", e); }
             confirmed++;
         } catch (e) {
             console.error("[reconcileRefunds]", p.refundId, e);
