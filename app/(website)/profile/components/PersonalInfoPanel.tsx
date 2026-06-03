@@ -1,9 +1,8 @@
 'use client'
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Section } from "./Section";
-import { EditableField } from "./EditableField";
 import Button from "@/app/components/ui/Button";
 import Label from "@/app/components/forms/Label";
 import Input from "@/app/components/forms/Input";
@@ -44,44 +43,64 @@ function toDateString(val: Date | string | null): string {
   return new Date(val).toISOString().split("T")[0];
 }
 
+function buildForm(info: UserBasicInfo) {
+  return {
+    name:                   info.name                ?? "",
+    email:                  info.email               ?? "",
+    phone:                  info.phone               ?? "",
+    country_code:           info.country_code        ?? "+91",
+    dateOfBirth:            toDateString(info.dateOfBirth),
+    city:                   info.city                ?? "",
+    state:                  info.state               ?? "",
+    gender:                 info.gender              ?? "",
+    nationality:            info.nationality         ?? "",
+    maritalStatus:          info.maritalStatus       ?? "",
+    anniversary:            toDateString(info.anniversary),
+    passportNumber:         info.passportNumber      ?? "",
+    passportExpiryDate:     toDateString(info.passportExpiryDate),
+    passportIssuingCountry: info.passportIssuingCountry ?? "",
+    panNumber:              info.panNumber           ?? "",
+  };
+}
+
+function buildGeo(info: UserBasicInfo): GeoState {
+  return {
+    countryId:   null,
+    countryName: info.nationality ?? "",
+    stateId:     null,
+    stateName:   info.state       ?? "",
+    cityName:    info.city        ?? "",
+  };
+}
+
 export function PersonalInfoPanel({ userBasicInfo }: { userBasicInfo: UserBasicInfo }) {
   const router = useRouter();
 
-  const [form, setForm] = useState({
-    name: userBasicInfo.name ?? "",
-    email: userBasicInfo.email ?? "",
-    phone: userBasicInfo.phone ?? "",
-    country_code: userBasicInfo.country_code ?? "+91",
-    dateOfBirth: toDateString(userBasicInfo.dateOfBirth),
-    city: userBasicInfo.city ?? "",
-    state: userBasicInfo.state ?? "",
-    gender: userBasicInfo.gender ?? "",
-    nationality: userBasicInfo.nationality ?? "",
-    maritalStatus: userBasicInfo.maritalStatus ?? "",
-    anniversary: toDateString(userBasicInfo.anniversary),
-    passportNumber: userBasicInfo.passportNumber ?? "",
-    passportExpiryDate: toDateString(userBasicInfo.passportExpiryDate),
-    passportIssuingCountry: userBasicInfo.passportIssuingCountry ?? "",
-    panNumber: userBasicInfo.panNumber ?? "",
-  });
+  const [form, setForm] = useState(() => buildForm(userBasicInfo));
+  const [geo,  setGeo]  = useState(() => buildGeo(userBasicInfo));
 
+  // Sync form + geo when server re-fetches data after save (router.refresh)
+  const prevInfoRef = useRef(userBasicInfo);
+  useEffect(() => {
+    if (prevInfoRef.current !== userBasicInfo) {
+      prevInfoRef.current = userBasicInfo;
+      setForm(buildForm(userBasicInfo));
+      setGeo(buildGeo(userBasicInfo));
+    }
+  }, [userBasicInfo]);
 
   // ── Separate state per section ─────────────────────────────────────────────
   const [basicSaving, setBasicSaving] = useState(false);
   const [basicStatus, setBasicStatus] = useState<SaveStatus>("idle");
   const [basicError, setBasicError] = useState("");
 
+  const [contactSaving, setContactSaving] = useState(false);
+  const [contactStatus, setContactStatus] = useState<SaveStatus>("idle");
+  const [contactError, setContactError] = useState("");
+
   const [docSaving, setDocSaving] = useState(false);
   const [docStatus, setDocStatus] = useState<SaveStatus>("idle");
   const [docError, setDocError] = useState("");
-
-  const [geo, setGeo] = useState<GeoState>({
-    countryId: null,
-    countryName: "",
-    stateId: null,
-    stateName: "",
-    cityName: "",
-  });
 
   function handleCountryChange(opt: SearchSelectOption) {
     setGeo({
@@ -123,17 +142,16 @@ export function PersonalInfoPanel({ userBasicInfo }: { userBasicInfo: UserBasicI
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: form.name || undefined,
-          email: form.email || undefined,
-          gender: form.gender || undefined,
-          dateOfBirth: form.dateOfBirth || undefined,
+          name:         form.name         || undefined,
+          email:        form.email        || undefined,
+          gender:       form.gender       || undefined,
+          dateOfBirth:  form.dateOfBirth  || undefined,
           maritalStatus: form.maritalStatus || undefined,
-          anniversary: form.anniversary || undefined,
+          anniversary:  form.anniversary  || undefined,
           country_code: form.country_code || undefined,
-          // ── geo fields come from geo state, not form ──
-          nationality: geo.countryName || undefined,
-          state: geo.stateName || undefined,
-          city: geo.cityName || undefined,
+          nationality:  geo.countryName   || form.nationality || undefined,
+          state:        geo.stateName     || form.state       || undefined,
+          city:         geo.cityName      || form.city        || undefined,
         }),
       });
 
@@ -146,6 +164,32 @@ export function PersonalInfoPanel({ userBasicInfo }: { userBasicInfo: UserBasicI
       setBasicStatus("error");
     } finally {
       setBasicSaving(false);
+    }
+  }
+
+  async function handleSaveContact() {
+    setContactSaving(true);
+    setContactStatus("idle");
+    setContactError("");
+
+    try {
+      const res = await fetch("/api/user/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: form.email || undefined,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) { setContactError(json.error ?? "Update failed."); setContactStatus("error"); return; }
+      setContactStatus("success");
+      router.refresh();
+    } catch {
+      setContactError("Network error. Please try again.");
+      setContactStatus("error");
+    } finally {
+      setContactSaving(false);
     }
   }
 
@@ -213,9 +257,9 @@ export function PersonalInfoPanel({ userBasicInfo }: { userBasicInfo: UserBasicI
               placeholder="Your Gender"
               className="h-11"
             >
-              <Option value="Male">Male</Option>
-              <Option value="Female">Female</Option>
-              <Option value="Other">Other</Option>
+              <Option value="MALE">Male</Option>
+              <Option value="FEMALE">Female</Option>
+              <Option value="OTHER">Other</Option>
               <Option value="">Prefer not to say</Option>
             </Select>
           </div>
@@ -235,11 +279,11 @@ export function PersonalInfoPanel({ userBasicInfo }: { userBasicInfo: UserBasicI
             <Label htmlFor="state">State</Label>
             <SearchSelect
               value={geo.stateName}
-              placeholder={geo.countryId ? "Search state..." : "Select country first"}
+              placeholder={geo.countryId ? "Search state..." : "Search state..."}
               fetchUrl="/api/geo/states"
               extraParams={geo.countryId ? { countryId: geo.countryId } : {}}
               onChange={handleStateChange}
-              disabled={!geo.countryId}
+              disabled={!geo.countryId && !geo.countryName}
             />
           </div>
 
@@ -248,12 +292,12 @@ export function PersonalInfoPanel({ userBasicInfo }: { userBasicInfo: UserBasicI
             <Label htmlFor="city">City</Label>
             <SearchSelect
               value={geo.cityName}
-              placeholder={geo.stateId ? "Search city..." : "Select state first"}
+              placeholder="Search city..."
               fetchUrl="/api/geo/cities"
               extraParams={geo.stateId ? { stateId: geo.stateId } : {}}
               onChange={handleCityChange}
-              disabled={!geo.stateId}
-              allowCustom={true}           // ← city allows manual entry
+              disabled={!geo.stateId && !geo.stateName}
+              allowCustom={true}
             />
           </div>
 
@@ -301,28 +345,22 @@ export function PersonalInfoPanel({ userBasicInfo }: { userBasicInfo: UserBasicI
           <div>
             <Label htmlFor="phone-number">Phone Number</Label>
             <div className="flex flex-row items-stretch gap-2">
-              <Select
-                id="country-code"
-                value={form.country_code}
-                onChange={val => handleChange("country_code", val)}
-                placeholder="+91"
-                className="min-w-18 h-full"
-              >
-                <Option value="+91">+91</Option>
-                <Option value="+1">+1 </Option>
-                <Option value="+44">+44 </Option>
-                <Option value="+61">+61 </Option>
-              </Select>
-
+              <div className="min-w-18 h-11 flex items-center justify-center px-3 rounded-lg border border-neutral-200 bg-neutral-50 text-sm font-medium text-neutral-500 select-none">
+                {form.country_code || '+91'}
+              </div>
               <Input
                 id="phone-number"
-                value={form.phone}
-                onChange={e => handleChange("phone", e.target.value)}
-                placeholder="+91"
+                value={
+                  form.country_code && form.phone.startsWith(form.country_code)
+                    ? form.phone.slice(form.country_code.length)
+                    : form.phone
+                }
+                readOnly
+                disabled
+                placeholder="Phone number"
                 wrapperClassName="flex-1"
               />
             </div>
-
           </div>
           <div>
             <Label htmlFor="email">Email Address</Label>
@@ -334,6 +372,14 @@ export function PersonalInfoPanel({ userBasicInfo }: { userBasicInfo: UserBasicI
           </div>
 
         </div>
+
+        <div className="flex items-center justify-end gap-3 border-t border-[--border] pt-3 mt-4">
+          {contactStatus === "success" && <span className="text-xs text-green-600 font-medium">Changes saved</span>}
+          {contactStatus === "error" && <span className="text-xs text-red-500 font-medium">{contactError}</span>}
+          <Button size="sm" onClick={handleSaveContact} disabled={contactSaving}>
+            {contactSaving ? "Saving…" : "Save Changes"}
+          </Button>
+        </div>
       </Section>
 
       {/* ── Travel Documents ───────────────────────────────────────────── */}
@@ -342,7 +388,7 @@ export function PersonalInfoPanel({ userBasicInfo }: { userBasicInfo: UserBasicI
           <div>
             <Label htmlFor="email">Passport Number</Label>
             <Input
-              id="email"
+              id="text"
               value={form.passportNumber}
               onChange={e => handleChange("passportNumber", e.target.value)}
               placeholder="A1234567" />

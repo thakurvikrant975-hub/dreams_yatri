@@ -136,7 +136,7 @@ function OnBoardingModal() {
               id="name"
               value={form.name}
               onChange={e => handleChange("name", e.target.value)}
-              placeholder="Enter your full name"
+              placeholder="Full name"
             />
           </div>
 

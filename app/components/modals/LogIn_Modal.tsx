@@ -8,7 +8,7 @@ import { phoneLoginSchema, emailLoginSchema, PHONE_RULES, type CountryCode } fro
 import { z } from 'zod';
 import { signIn } from 'next-auth/react';
 import axios from 'axios';
-import { X, Phone, Mail, ArrowLeft } from 'lucide-react';
+import { X, Phone, Mail, ArrowLeft, RotateCcw } from 'lucide-react';
 import { AirplaneIcon } from '@phosphor-icons/react';
 
 const COUNTRY_CODES = [
@@ -34,6 +34,8 @@ function GoogleIcon() {
 
 type LoginMethod = 'phone' | 'email';
 
+const EMPTY_DIGITS = (): string[] => ['', '', '', '', '', ''];
+
 function LoginModal() {
   const { isOpen, type, closeModal } = useModal();
   const [errors, setErrors]           = useState<Record<string, string>>({});
@@ -43,12 +45,26 @@ function LoginModal() {
   const [email, setEmail]   = useState('');
   const [sent, setSent]       = useState(false);
   const [otpSent, setOtpSent] = useState(false);
-  const [otp, setOtp]         = useState('');
+  const [otpDigits, setOtpDigits] = useState<string[]>(EMPTY_DIGITS());
+  const [resendTimer, setResendTimer] = useState(0);
   const [loading, setLoading] = useState(false);
 
+  const otp = otpDigits.join('');
+  const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
   const widgetReady     = useRef(false);
   const onVerifySuccess = useRef<((data: any) => void) | null>(null);
   const onVerifyFailure = useRef<((err: any)  => void) | null>(null);
+
+  useEffect(() => {
+    if (!otpSent) return;
+    setResendTimer(30);
+  }, [otpSent]);
+
+  useEffect(() => {
+    if (resendTimer <= 0) return;
+    const id = setTimeout(() => setResendTimer(t => t - 1), 1000);
+    return () => clearTimeout(id);
+  }, [resendTimer]);
 
   useEffect(() => {
     if (!isOpen || type !== 'login-modal') return;
@@ -85,6 +101,52 @@ function LoginModal() {
     if (!errors[field]) return;
     if (schema.safeParse(value).success)
       setErrors(prev => { const n = { ...prev }; delete n[field]; return n; });
+  }
+
+  function handleOtpChange(index: number, value: string) {
+    const digit = value.replace(/\D/g, '').slice(-1);
+    const newDigits = [...otpDigits];
+    newDigits[index] = digit;
+    setOtpDigits(newDigits);
+    if (errors.otp) setErrors(p => { const n = { ...p }; delete n.otp; return n; });
+    if (digit && index < 5) otpRefs.current[index + 1]?.focus();
+  }
+
+  function handleOtpKeyDown(index: number, e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Backspace') {
+      if (otpDigits[index]) {
+        const newDigits = [...otpDigits];
+        newDigits[index] = '';
+        setOtpDigits(newDigits);
+      } else if (index > 0) {
+        otpRefs.current[index - 1]?.focus();
+      }
+    } else if (e.key === 'ArrowLeft' && index > 0) {
+      otpRefs.current[index - 1]?.focus();
+    } else if (e.key === 'ArrowRight' && index < 5) {
+      otpRefs.current[index + 1]?.focus();
+    }
+  }
+
+  function handleOtpPaste(e: React.ClipboardEvent<HTMLInputElement>) {
+    e.preventDefault();
+    const paste = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (!paste) return;
+    const newDigits = [...otpDigits];
+    for (let i = 0; i < paste.length; i++) newDigits[i] = paste[i];
+    setOtpDigits(newDigits);
+    otpRefs.current[Math.min(paste.length, 5)]?.focus();
+    if (errors.otp) setErrors(p => { const n = { ...p }; delete n.otp; return n; });
+  }
+
+  function handleResend() {
+    const win = window as any;
+    if (!win.sendOtp) { setErrors({ otp: 'OTP service not ready. Please refresh.' }); return; }
+    setOtpDigits(EMPTY_DIGITS());
+    setErrors({});
+    win.sendOtp(`${countryCode.replace('+', '')}${phone}`);
+    setResendTimer(30);
+    setTimeout(() => otpRefs.current[0]?.focus(), 50);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -174,13 +236,6 @@ function LoginModal() {
               <X size={16} />
             </button>
 
-            <div className="relative flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-                <AirplaneIcon size={20} className="text-white" weight="fill" />
-              </div>
-              <span className="text-white/80 text-sm font-medium">Dreams Yatri</span>
-            </div>
-
             <h2 className="relative text-2xl font-bold text-white">Welcome back</h2>
             <p className="relative text-white/70 text-sm mt-1">Sign in to continue your journey</p>
           </div>
@@ -194,7 +249,7 @@ function LoginModal() {
                 <button
                   key={method}
                   type="button"
-                  onClick={() => { setActiveMethod(method); setSent(false); setOtpSent(false); setOtp(''); setErrors({}); }}
+                  onClick={() => { setActiveMethod(method); setSent(false); setOtpSent(false); setOtpDigits(EMPTY_DIGITS()); setResendTimer(0); setErrors({}); }}
                   className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-lg transition-all cursor-pointer
                     ${activeMethod === method
                       ? 'bg-white text-primary-600 shadow-sm'
@@ -262,45 +317,79 @@ function LoginModal() {
                   </div>
                 )}
 
-                {/* Phone step 2 — enter OTP */}
+                {/* Phone step 2 — OTP boxes */}
                 {activeMethod === 'phone' && otpSent && (
-                  <div className="space-y-4">
+                  <div className="space-y-5">
+                    {/* Sent-to banner */}
                     <div className="bg-primary-50 border border-primary-100 rounded-xl px-4 py-3 flex items-start gap-3">
                       <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center shrink-0 mt-0.5">
                         <Phone size={14} className="text-primary-600" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-neutral-800">OTP sent</p>
+                        <p className="text-sm font-medium text-neutral-800">OTP sent successfully</p>
                         <p className="text-xs text-neutral-500 mt-0.5">
-                          Enter the code sent to <strong>{countryCode} {phone}</strong>
+                          Enter the 6-digit code sent to <strong>{countryCode} {phone}</strong>
                         </p>
                       </div>
                     </div>
 
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-medium text-neutral-700">Enter OTP</label>
-                      <Input
-                        id="otp"
-                        type="text"
-                        placeholder="• • • • • •"
-                        size="md"
-                        className="tracking-[0.5em] text-center text-lg font-semibold"
-                        value={otp}
-                        onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                        inputMode="numeric"
-                        maxLength={6}
-                        error={errors.otp}
-                        autoFocus
-                      />
+                    {/* 6-box OTP input */}
+                    <div className="space-y-3">
+                      <label className="text-sm font-medium text-neutral-700 block text-center">Enter OTP</label>
+                      <div className="flex items-center justify-center gap-2">
+                        {Array.from({ length: 6 }).map((_, i) => (
+                          <input
+                            key={i}
+                            ref={el => { otpRefs.current[i] = el; }}
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={1}
+                            value={otpDigits[i]}
+                            autoFocus={i === 0}
+                            onChange={e => handleOtpChange(i, e.target.value)}
+                            onKeyDown={e => handleOtpKeyDown(i, e)}
+                            onPaste={handleOtpPaste}
+                            onFocus={e => e.target.select()}
+                            className={`w-11 h-13 text-center text-xl font-bold rounded-xl border-2 outline-none transition-all duration-150
+                              ${errors.otp
+                                ? 'border-red-400 bg-red-50 text-red-600 focus:border-red-500 focus:ring-2 focus:ring-red-100'
+                                : otpDigits[i]
+                                  ? 'border-primary-500 bg-primary-50 text-primary-700 focus:border-primary-600 focus:ring-2 focus:ring-primary-100'
+                                  : 'border-neutral-200 bg-white text-neutral-800 focus:border-primary-400 focus:ring-2 focus:ring-primary-100'
+                              }`}
+                          />
+                        ))}
+                      </div>
+                      {errors.otp && (
+                        <p className="text-xs text-red-500 text-center font-medium">{errors.otp}</p>
+                      )}
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => { setOtpSent(false); setOtp(''); setErrors({}); }}
-                      className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1 cursor-pointer"
-                    >
-                      <ArrowLeft size={14} /> Use a different number
-                    </button>
+                    {/* Resend + back */}
+                    <div className="flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => { setOtpSent(false); setOtpDigits(EMPTY_DIGITS()); setResendTimer(0); setErrors({}); }}
+                        className="text-sm text-neutral-500 hover:text-neutral-700 font-medium flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <ArrowLeft size={14} /> Change number
+                      </button>
+
+                      {resendTimer > 0 ? (
+                        <span className="text-sm text-neutral-400 flex items-center gap-1.5">
+                          
+                          Resend in {resendTimer}s
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleResend}
+                          className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1.5 cursor-pointer transition-colors"
+                        >
+                          <RotateCcw size={13} /> Resend OTP
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
 

@@ -99,7 +99,7 @@ const panels: Record<NavKey, React.ReactNode> = {
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-secondary text-xs">
                 <span className="flex items-center gap-1">
-                  <MapPinIcon className="size-3.5 text-muted" /> {user.country_code} {user.phone}
+                  <MapPinIcon className="size-3.5 text-muted" /> {user.phone}
                 </span>
                 <span>{user.email}</span>
               </div>

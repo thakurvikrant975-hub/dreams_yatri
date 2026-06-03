@@ -70,6 +70,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             status:            user.status,
             name:              user.name,
             email:             user.email,
+            image:             user.image,
             isProfileComplete: user.isProfileComplete,
           } as User;
         }
@@ -109,12 +110,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           if (user.status === "BANNED" || user.status === "DELETED") return null;
 
           return {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            phone: user.phone,
-            role: user.role,
-            status: user.status,
+            id:                user.id,
+            email:             user.email,
+            name:              user.name,
+            phone:             user.phone,
+            role:              user.role,
+            status:            user.status,
+            image:             user.image,
             isProfileComplete: user.isProfileComplete,
           } as User;
         }
@@ -151,12 +153,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (user.status === "BANNED" || user.status === "DELETED") return null;
 
         return {
-          id: user.id,
-          phone: user.phone,
-          role: user.role,
-          status: user.status,
-          name: user.name,
-          email: user.email,
+          id:                user.id,
+          phone:             user.phone,
+          role:              user.role,
+          status:            user.status,
+          name:              user.name,
+          email:             user.email,
+          image:             user.image,
           isProfileComplete: user.isProfileComplete,
         } as User;
       },
@@ -207,11 +210,13 @@ async signIn({ user, account }) {
 
     async jwt({ token, user, account }) {
       if (user) {
-        token.userId = user.id ?? "";
-        token.phone = user.phone ?? null;
-        token.role = user.role;
-        token.status = user.status;
+        token.userId  = user.id ?? "";
+        token.phone   = user.phone ?? null;
+        token.role    = user.role;
+        token.status  = user.status;
         token.isProfileComplete = user.isProfileComplete;
+        // carry the DB image so session.user.image stays accurate
+        if (user.image) token.picture = user.image;
       }
 
       if (account?.provider === "google" && token.email) {
@@ -222,16 +227,19 @@ async signIn({ user, account }) {
             phone: true,
             role: true,
             status: true,
+            image: true,
             isProfileComplete: true,
           },
         });
 
         if (dbUser) {
           token.userId = dbUser.id;
-          token.phone = dbUser.phone;
-          token.role = dbUser.role;
+          token.phone  = dbUser.phone;
+          token.role   = dbUser.role;
           token.status = dbUser.status;
           token.isProfileComplete = dbUser.isProfileComplete;
+          // prefer DB image (user may have uploaded a custom one)
+          if (dbUser.image) token.picture = dbUser.image;
         }
       }
 
