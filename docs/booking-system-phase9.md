@@ -43,7 +43,7 @@ Make `/book/[quoteId]` a complete checkout like MMT's review page:
 | 9.3 | Checkout form (client): traveller cards (first/last/DOB/gender ×pax), contact (email/mobile), GST (state, optional); shared Zod schema; Pay disabled until valid | ✅ DONE |
 | 9.4 | Wire form → `createPackageBooking`/`createBookingAndOrder`: persist `BookingTraveller` rows + contact/GST + plan; validate server-side too | ✅ DONE |
 | 9.5 | Full package preview section (from priceSnapshot) + payment selector UI (Book-Now-Pay-Later schedule vs Pay-Full), near⇒full only | ✅ DONE |
-| 9.6 | Tests (policy floor/choice, form schema) + e2e (booking with travellers + choice) + docs/memory; Phase 9 complete | ⬜ TODO |
+| 9.6 | Tests (policy floor/choice, form schema) + e2e (booking with travellers + choice) + docs/memory; Phase 9 complete | ✅ DONE |
 
 ## Per-step detail (provisional)
 - **9.2** engine `minDepositPaise` default → 1,000,000. `createBookingAndOrder({quoteId, userId, details, paymentChoice})`:
@@ -75,6 +75,20 @@ Make `/book/[quoteId]` a complete checkout like MMT's review page:
   `CheckoutForm`, and a **payment selector** (Book Now Pay Later vs Pay Full) when deposit allowed (near ⇒ full
   only). Pay button **disabled until the form is valid**; amount + plan follow the selection.
 - Verified (throwaway): details persist (split names + fullName + lead + contact), pax-mismatch rejected. tsc 0; suite green.
+
+## Step 9.6 — what was done
+- `scripts/test-checkout.ts` + `npm run test:checkout` (11 asserts, in `npm test`): schema valid/invalid
+  (names, dob future/malformed, gender, email, phone, empty list, GST optional, child/infant types).
+- `scripts/e2e-phase9.ts` + `npm run e2e:phase9`: createQuote → createBookingAndOrder with details — pax-mismatch
+  rejected; DEPOSIT → ₹10k floor + 2 travellers (lead) + contact + first payment = deposit; FULL → payment = total.
+- Final: tsc 0; `npm test` = 163 unit; e2e:phase4..9 all PASS.
+
+## Phase 9 — COMPLETE ✅
+MMT-style checkout on `/book/[quoteId]`: per-traveller details (first/last/dob/gender) + contact + optional GST,
+full package preview (collapsible itinerary from the frozen breakdown), Pay gated until the form is valid, and a
+Book-Now-Pay-Later (deposit = max(25%, ₹10,000)) vs Pay-Full selector (near-travel ⇒ full only). Small schema add
+(traveller names; booking contact/GST). On branch `feat/booking-checkout-details`. Future: customise-package
+flow feeding a different snapshot, multi-leg installments, per-traveller passport for international.
 
 ## Gotchas / conventions
 - Pay must stay server-authoritative: client gating is UX; `createBookingAndOrder` re-validates details + amount.
