@@ -402,6 +402,7 @@ model Payment {
   gateway          PaymentGateway
   method           PaymentMethod?
   status           PaymentStatus  @default(PENDING)
+  purpose          PaymentPurpose @default(INITIAL) // INITIAL booking payment vs TOPUP (date-change) etc
   idempotencyKey   String?        @unique // guards duplicate charge/order creation
   gatewayOrderId   String?        @unique // one Payment per gateway order
   gatewayPaymentId String?        @unique
@@ -1993,6 +1994,12 @@ enum PaymentGateway {
 enum PaymentPlan {
   FULL
   DEPOSIT
+}
+
+enum PaymentPurpose {
+  INITIAL
+  TOPUP
+  BALANCE
 }
 
 enum TravellerType {

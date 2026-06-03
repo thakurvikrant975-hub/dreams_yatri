@@ -9,6 +9,8 @@ import type {
     CallbackResult,
     NormalizedWebhookEvent,
     ChargeStatus,
+    RefundResult,
+    RefundStatus,
 } from "./types";
 
 /**
@@ -143,6 +145,43 @@ export const payuProvider: PaymentProvider = {
         const status = (detail?.status ?? "").toLowerCase();
         if (status === "success" || status === "captured") return { state: "captured", gatewayPaymentId: detail?.mihpayid, method: detail?.mode };
         if (status === "failure" || status === "failed") return { state: "failed" };
+        return { state: "pending" };
+    },
+
+    async refund(args): Promise<RefundResult> {
+        const key = env("PAYU_KEY");
+        const salt = env("PAYU_SALT");
+        const command = "cancel_refund_transaction";
+        const token = `rf${Date.now()}${Math.random().toString(36).slice(2, 6)}`.slice(0, 25);
+        // PayU hash for postservice commands: key|command|var1|salt (var1 = mihpayid).
+        const hash = sha512(`${key}|${command}|${args.gatewayPaymentId}|${salt}`);
+        const body = new URLSearchParams({ key, command, var1: args.gatewayPaymentId, var2: token, var3: rupees(args.amountPaise), hash });
+        const res = await fetch(`${env("PAYU_BASE_URL")}/merchant/postservice?form=2`, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: body.toString(),
+        });
+        const json = (await res.json()) as { status?: number; request_id?: string | number; mihpayid?: string };
+        // PayU refunds are async (status 1 = request accepted) → pending until the refund webhook confirms.
+        const ok = json.status === 1;
+        return { refundId: String(json.request_id ?? token), state: ok ? "pending" : "failed", amountPaise: args.amountPaise };
+    },
+
+    async fetchRefundStatus(refundId: string): Promise<RefundStatus> {
+        const key = env("PAYU_KEY");
+        const salt = env("PAYU_SALT");
+        const command = "check_action_status";
+        const hash = sha512(`${key}|${command}|${refundId}|${salt}`);
+        const body = new URLSearchParams({ key, command, var1: refundId, hash });
+        const res = await fetch(`${env("PAYU_BASE_URL")}/merchant/postservice?form=2`, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: body.toString(),
+        });
+        const json = (await res.json()) as { transaction_details?: Record<string, { status?: string }> };
+        const status = (json.transaction_details?.[refundId]?.status ?? "").toLowerCase();
+        if (status.includes("success") || status.includes("refund")) return { state: "processed" };
+        if (status.includes("fail")) return { state: "failed" };
         return { state: "pending" };
     },
 };

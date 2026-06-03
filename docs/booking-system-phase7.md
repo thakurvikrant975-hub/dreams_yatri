@@ -38,12 +38,12 @@ Config defaults (env-overridable): `CANCEL_TIERS` = `[{minDays:30, refundPct:90}
 ## Steps & Status (finalized after decisions)
 | Step | Description | Status |
 |------|-------------|--------|
-| 7.1 | Cancellation/refund **policy engine** (pure): `computeCancellationRefund({paidPaise, daysToTravel, policy})` → `{refundablePaise, feePaise, tier, reason}` + config (tiers, env-overridable) + tests | ⬜ TODO |
-| 7.2 | `PaymentProvider.refund({gatewayPaymentId, amountPaise, notes})` + Razorpay & PayU impls (+ `fetchRefundStatus`); unit tests | ⬜ TODO |
-| 7.3 | `cancelBooking` service: policy → initiate gateway refund(s) on captured payments → Booking CANCELLED + installments CANCELLED + paymentStatus; idempotent (refund webhook confirms) | ⬜ TODO |
-| 7.4 | Cancellation UX + action: refund **preview** (policy quote) + confirm on `/bookings/[id]`; `requestCancellation(bookingId, reason)` action (auth/owner) | ⬜ TODO |
-| 7.5 | Date-change: `changeTravelDate(bookingId, newDate)` — re-price (new quote), apply date-change fee, settle delta (top-up charge / refund difference), update dates + schedule | ⬜ TODO |
-| 7.6 | Refund reconciliation (`fetchRefundStatus`) + e2e (cancel→refund initiated→webhook confirms; date-change delta) + docs/memory; Phase 7 complete | ⬜ TODO |
+| 7.1 | Cancellation/refund **policy engine** (pure): `computeCancellationRefund({paidPaise, daysToTravel, policy})` → `{refundablePaise, feePaise, tier, reason}` + config (tiers, env-overridable) + tests | ✅ DONE |
+| 7.2 | `PaymentProvider.refund({gatewayPaymentId, amountPaise, notes})` + Razorpay & PayU impls (+ `fetchRefundStatus`); unit tests | ✅ DONE |
+| 7.3 | `cancelBooking` service: policy → initiate gateway refund(s) on captured payments → Booking CANCELLED + installments CANCELLED + paymentStatus; idempotent (refund webhook confirms) | ✅ DONE |
+| 7.4 | Cancellation UX + action: refund **preview** (policy quote) + confirm on `/bookings/[id]`; `requestCancellation(bookingId, reason)` action (auth/owner) | ✅ DONE |
+| 7.5 | Date-change: `changeTravelDate(bookingId, newDate)` — re-price (new quote), apply date-change fee, settle delta (top-up charge / refund difference), update dates + schedule | ✅ DONE |
+| 7.6 | Refund reconciliation (`fetchRefundStatus`) + e2e (cancel→refund initiated→webhook confirms; date-change delta) + docs/memory; Phase 7 complete | ✅ DONE |
 
 ## Per-step detail (provisional — refined after decisions)
 ### 7.1 — Policy engine
@@ -76,6 +76,81 @@ Config defaults (env-overridable): `CANCEL_TIERS` = `[{minDays:30, refundPct:90}
 ### 7.6 — Reconciliation + e2e
 - Refund reconciliation: pending refunds resolved via `fetchRefundStatus`. e2e (stubbed gateway): cancel →
   refund initiated → refund webhook → Booking REFUNDED; partial; date-change delta. docs/memory; mark complete.
+
+## Step 7.1 — what was done
+- `app/services/cancellation-policy/config.ts` (pure): `CancellationPolicyConfig {tiers[], dateChangeFeePaise}`,
+  `DEFAULT` = 90/50/25/0 + ₹500, `resolveConfig` (defaults ← env `CANCEL_TIERS` JSON / `DATE_CHANGE_FEE_PAISE` ←
+  overrides; validated; sorts tiers high→low + guarantees a 0-day catch-all).
+- `app/services/cancellation-policy/engine.ts` (pure): `computeCancellationRefund({paidPaise, travelDate, now?, config?})`
+  → `{daysToTravel, refundPct, tierMinDays, paidPaise, refundablePaise, feePaise, reason}`. Tier by daysToTravel
+  (calendar math, caller passes `now`); refundable rounded once, fee = paid − refundable. Deposit not special.
+- `scripts/test-cancellation-policy.ts` + `npm run test:cancel` (in `npm test`): 23 asserts — every tier boundary
+  (30/15/7), no-show, zero paid, rounding, override, bad input, config validation. Full `npm test` = 132 green.
+
+## Step 7.2 — what was done
+- `PaymentProvider` += `refund({gatewayPaymentId, amountPaise, idempotencyKey?, notes?})` → `RefundResult
+  {refundId, state: processed|pending|failed, amountPaise?}` and `fetchRefundStatus(refundId)` → `RefundStatus`.
+- Razorpay: `razorpay.ts` `refundRazorpayPayment` (SDK `payments.refund`, partial OK) + `fetchRazorpayRefund`;
+  provider maps status via exported `mapRzpRefundStatus` (processed/failed/pending).
+- PayU: `cancel_refund_transaction` (hash `key|command|mihpayid|salt`, var2=unique token, var3=rupees) →
+  async ⇒ `pending` (status 1) / `failed`; `fetchRefundStatus` via `check_action_status`. Rupees at the boundary.
+- Tests in `npm run test:payments` (now 26): PayU refund via stubbed `global.fetch` (request shape + hash + mapping),
+  Razorpay status mapper. Full `npm test` = 140 green; tsc clean.
+
+## Step 7.3 — what was done
+- `app/actions/payment/cancel-booking.service.ts` (`server-only`): `cancelBooking({ bookingId, reason?, byUserId? })`
+  → `CancelBookingResult`; `previewCancellation(bookingId, byUserId?)` → `CancellationPreview` (read-only).
+- Flow: load booking+payments → owner check (if byUserId) → if CANCELLED return alreadyCancelled (no re-refund);
+  exclude COMPLETED → `computeCancellationRefund` (paid = Σ FULLY_PAID amount_paise, travelDate = startDate) →
+  **initiate refunds** allocating `refundablePaise` across captured payments (skip ones with `refundId` = idempotent),
+  store `refundId`/`refundAmount` per Payment → THEN tx{ Booking CANCELLED + cancelledAt/reason; unpaid (PENDING/OVERDUE)
+  installments → CANCELLED }. Payment.status stays FULLY_PAID until the **refund webhook** flips it (Phase 5).
+- Refund-before-cancel ordering (failed refund ⇒ no cancel); per-payment `refundId` idempotency; only unpaid installments cancelled (PAID deposit kept).
+- Verified (throwaway, stubbed PayU fetch): 90% of ₹9113.35 refunded, refundId stored, booking CANCELLED + reason,
+  BALANCE→CANCELLED / DEPOSIT stays PAID, re-cancel = alreadyCancelled (no new refund), non-owner = forbidden. Suite green.
+
+## Step 7.4 — what was done
+- `booking.actions.ts` (`'use server'`): `getCancellationPreview(bookingId)` + `requestCancellation(bookingId, reason?)`
+  (auth → owner-scoped via `byUserId` → `previewCancellation`/`cancelBooking`).
+- `CancelBookingPanel.tsx` (client): "Cancel booking" → loads preview (refund %/amount, fee, paid) → reason textarea →
+  "Confirm cancellation" → `requestCancellation` → `router.refresh()`. Maps error reasons.
+- `/bookings/[id]/page.tsx`: selects `status`; three states — pending / **cancelled banner** / confirmed; renders
+  `<CancelBookingPanel>` in the confirmed state. tsc 0; suite green (logic covered by 7.3).
+
+## Step 7.5 — what was done
+- **Schema**: `enum PaymentPurpose { INITIAL TOPUP BALANCE }`; `Payment.purpose @default(INITIAL)`. Migration
+  `20260603100000_add_payment_purpose` (db execute + hand-insert). Regen.
+- **`finalize.service.ts`** now branches on `purpose`: INITIAL = original (deposit installment PAID + booking
+  paymentStatus/money from schedule); TOPUP/BALANCE = add to `paidAmount`, recompute `balanceDueAmount` +
+  paymentStatus (FULLY_PAID once paid ≥ total), **don't touch the deposit installment** — so a top-up capture
+  through the webhook no longer clobbers the booking.
+- **`change-date.service.ts`**: `changeTravelDate({bookingId, newDate, byUserId?})` + `previewDateChange` +
+  pure `planSettlement`. Re-prices newDate via `computePackagePrice` (selectors from the booking's quote),
+  `newOutstanding = newTotal + fee − paid`: <0 → refund excess; >0 + pending balance → fold into BALANCE leg;
+  >0 fully-paid → immediate **TOPUP** Payment + `createCharge` (returns CheckoutInit); =0 → none. Dates/total/
+  snapshot updated immediately; money confirmed by webhook. Fee from cancellation-policy config (₹500).
+- **Actions** `getDateChangePreview`/`requestDateChange` (auth/owner) + **`ChangeDatePanel`** on `/bookings/[id]`
+  (date picker → preview {new price, fee, settle direction} → confirm → topup launches checkout, else refresh).
+- Verified (throwaway): planSettlement (all 4 directions), **TOPUP webhook finalize** (paid 9113.35→14113.35,
+  deposit installment untouched, balance recomputed, still ADVANCE_PAID), live changeTravelDate (dates + total = re-priced).
+  e2e:phase4/5/6 still PASS (INITIAL finalize unchanged); tsc 0; unit suite green.
+
+## Step 7.6 — what was done
+- `reconcile.service.ts` `reconcileRefunds({ statusOf? })`: finds payments with `refundId` set but not yet
+  REFUNDED, polls `provider.fetchRefundStatus`, and on `processed` sets Payment + Booking to
+  REFUNDED/PARTIALLY_REFUNDED. Safety net for refunds with no webhook (esp. PayU). Injectable `statusOf`.
+- Cron `/api/cron/reconcile-payments` now runs **both** `reconcilePendingPayments` + `reconcileRefunds`.
+- Committed `scripts/e2e-phase7.ts` + `npm run e2e:phase7` (stubbed PayU fetch, self-cleaning): (A) cancel →
+  refund initiated (refundId, FULLY_PAID) → `reconcileRefunds` → PARTIALLY_REFUNDED on Payment + Booking;
+  (B) date-change TOPUP capture via webhook → paid 14113.35 / ADVANCE_PAID / deposit untouched. PASS.
+- All e2es (phase4/5/6/7) PASS; full `npm test` = 140; tsc 0.
+
+## Phase 7 — COMPLETE ✅
+Refunds / cancellation / date-change done: pure cancellation curve (90/50/25/0), provider `refund`/`fetchRefundStatus`
+(Razorpay + PayU), `cancelBooking` (policy refund, idempotent), cancellation UX, `changeTravelDate` (re-price +
+delta settle: refund / balance / immediate TOPUP via Payment.purpose), and refund reconciliation. Webhook stays
+truth; recon backs it up. On branch `feat/booking-payment-phase7`. **Validate Razorpay/PayU refund + PayU hash
+against real TEST creds before go-live.** Next: **Phase 8** — invoicing, comms, vouchers, ops handoff.
 
 ## Gotchas / conventions
 - Webhook is truth: cancel/refund *initiate*; the refund webhook (Phase 5) *confirms* REFUNDED/PARTIAL.

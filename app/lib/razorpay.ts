@@ -103,6 +103,18 @@ export interface RazorpayPaymentLite {
     amount?: number; // paise
 }
 
+/** Initiate a refund (partial if amountPaise < captured). */
+export async function refundRazorpayPayment(args: { paymentId: string; amountPaise: number; notes?: Record<string, string> }): Promise<{ id: string; status: string; amount: number }> {
+    const r = (await getClient().payments.refund(args.paymentId, { amount: args.amountPaise, notes: args.notes })) as unknown as { id: string; status: string; amount: number | string };
+    return { id: r.id, status: String(r.status), amount: Number(r.amount) };
+}
+
+/** Fetch a refund's current status. */
+export async function fetchRazorpayRefund(refundId: string): Promise<{ status: string; amount: number }> {
+    const r = (await getClient().refunds.fetch(refundId)) as unknown as { status: string; amount: number | string };
+    return { status: String(r.status), amount: Number(r.amount) };
+}
+
 /** Fetch all payment attempts on an order — used by reconciliation to learn the true status. */
 export async function fetchOrderPayments(orderId: string): Promise<RazorpayPaymentLite[]> {
     const res = (await getClient().orders.fetchPayments(orderId)) as unknown as {

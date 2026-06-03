@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/app/lib/db";
 import { getProvider } from "@/app/lib/payments/registry";
-import type { ChargeStatus, GatewayId } from "@/app/lib/payments/types";
+import type { ChargeStatus, RefundStatus, GatewayId } from "@/app/lib/payments/types";
 import { finalizeCapturedPayment } from "./finalize.service";
 
 /**
@@ -69,4 +69,43 @@ export async function reconcilePendingPayments(opts?: {
     }
 
     return { scanned: pendings.length, finalized, failed, skipped };
+}
+
+// ── Refund reconciliation (esp. PayU, which has no refund webhook) ────────────
+
+export type RefundStatusFetcher = (gateway: GatewayId, refundId: string) => Promise<RefundStatus>;
+export interface RefundReconSummary { scanned: number; confirmed: number; }
+
+const defaultRefundStatusOf: RefundStatusFetcher = (gateway, refundId) => getProvider(gateway).fetchRefundStatus(refundId);
+
+/**
+ * Confirm refunds that were initiated (Payment.refundId set) but not yet marked
+ * REFUNDED — i.e. the refund webhook never arrived (or the gateway sends none).
+ * Polls the gateway for each and finalizes REFUNDED/PARTIALLY_REFUNDED + Booking.
+ */
+export async function reconcileRefunds(opts?: { statusOf?: RefundStatusFetcher; limit?: number }): Promise<RefundReconSummary> {
+    const statusOf = opts?.statusOf ?? defaultRefundStatusOf;
+    const pending = await db.payment.findMany({
+        where: { refundId: { not: null }, status: { notIn: ["REFUNDED", "PARTIALLY_REFUNDED"] } },
+        select: { id: true, gateway: true, refundId: true, amount_paise: true, refundAmount: true, bookingId: true },
+        take: opts?.limit ?? 100,
+    });
+
+    let confirmed = 0;
+    for (const p of pending) {
+        try {
+            const st = await statusOf(p.gateway as GatewayId, p.refundId!);
+            if (st.state !== "processed") continue;
+            const refundedPaise = Math.round(Number(p.refundAmount ?? 0) * 100);
+            const status = refundedPaise > 0 && refundedPaise < p.amount_paise ? "PARTIALLY_REFUNDED" : "REFUNDED";
+            await db.$transaction(async (tx) => {
+                await tx.payment.update({ where: { id: p.id }, data: { status, refundedAt: new Date() } });
+                await tx.booking.update({ where: { id: p.bookingId }, data: { paymentStatus: status } });
+            });
+            confirmed++;
+        } catch (e) {
+            console.error("[reconcileRefunds]", p.refundId, e);
+        }
+    }
+    return { scanned: pending.length, confirmed };
 }

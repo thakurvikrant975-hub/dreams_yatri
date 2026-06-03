@@ -41,21 +41,21 @@ export async function finalizeCapturedPayment(
 ): Promise<FinalizeResult> {
     const payment = await tx.payment.findUnique({
         where: { id: args.paymentId },
-        select: { id: true, status: true, bookingId: true },
+        select: { id: true, status: true, bookingId: true, purpose: true, amount_paise: true },
     });
     if (!payment) return { result: "not_found" };
     if (payment.status === "FULLY_PAID") return { result: "already", bookingId: payment.bookingId };
 
     const booking = await tx.booking.findUnique({
         where: { id: payment.bookingId },
-        select: { id: true, paymentPlan: true, totalAmount_paise: true, advanceAmount_paise: true, balanceAmount_paise: true },
+        select: { id: true, paymentPlan: true, paidAmount: true, totalAmount_paise: true, advanceAmount_paise: true, balanceAmount_paise: true },
     });
     if (!booking) return { result: "no_booking" };
 
     const now = new Date();
-    const isFull = booking.paymentPlan === "FULL";
     const rupees = (paise: number) => (paise / 100).toFixed(2);
 
+    // Mark the captured payment paid (common to all purposes).
     await tx.payment.update({
         where: { id: payment.id },
         data: {
@@ -68,20 +68,34 @@ export async function finalizeCapturedPayment(
         },
     });
 
-    await tx.paymentInstallment.updateMany({
-        where: { bookingId: booking.id, type: "DEPOSIT" },
-        data: { status: "PAID", paidPaymentId: payment.id, paidAt: now },
-    });
-
-    await tx.booking.update({
-        where: { id: booking.id },
-        data: {
-            paymentStatus: isFull ? "FULLY_PAID" : "ADVANCE_PAID",
-            paidAmount: isFull ? rupees(booking.totalAmount_paise) : rupees(booking.advanceAmount_paise),
-            advancePaidAmount: isFull ? rupees(booking.totalAmount_paise) : rupees(booking.advanceAmount_paise),
-            balanceDueAmount: isFull ? "0.00" : rupees(booking.balanceAmount_paise),
-        },
-    });
+    if (payment.purpose === "INITIAL") {
+        const isFull = booking.paymentPlan === "FULL";
+        await tx.paymentInstallment.updateMany({
+            where: { bookingId: booking.id, type: "DEPOSIT" },
+            data: { status: "PAID", paidPaymentId: payment.id, paidAt: now },
+        });
+        await tx.booking.update({
+            where: { id: booking.id },
+            data: {
+                paymentStatus: isFull ? "FULLY_PAID" : "ADVANCE_PAID",
+                paidAmount: isFull ? rupees(booking.totalAmount_paise) : rupees(booking.advanceAmount_paise),
+                advancePaidAmount: isFull ? rupees(booking.totalAmount_paise) : rupees(booking.advanceAmount_paise),
+                balanceDueAmount: isFull ? "0.00" : rupees(booking.balanceAmount_paise),
+            },
+        });
+    } else {
+        // TOPUP / BALANCE: add to paid, recompute balance & status; don't touch the deposit installment.
+        const newPaidPaise = Math.round(Number(booking.paidAmount) * 100) + payment.amount_paise;
+        const balancePaise = Math.max(0, booking.totalAmount_paise - newPaidPaise);
+        await tx.booking.update({
+            where: { id: booking.id },
+            data: {
+                paidAmount: rupees(newPaidPaise),
+                balanceDueAmount: rupees(balancePaise),
+                paymentStatus: newPaidPaise >= booking.totalAmount_paise ? "FULLY_PAID" : "ADVANCE_PAID",
+            },
+        });
+    }
 
     return { result: "finalized", bookingId: booking.id };
 }
