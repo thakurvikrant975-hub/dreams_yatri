@@ -4,9 +4,8 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { Calendar, Clock, Tag, ArrowLeft, Share2 } from "lucide-react";
+import { Calendar, Clock, ArrowLeft } from "lucide-react";
 import { Heading, Text } from "@/app/components/ui/Typography";
-import Breadcrumbs from "@/app/components/ui/Breadcrumps";
 import { BlogCard } from "../BlogCard";
 import {
   getPublishedBlogBySlug,
@@ -82,114 +81,71 @@ export default async function BlogDetailPage({ params }: Props) {
     <main className="min-h-screen bg-(--bg-page)">
       <SchemaScript data={jsonLd} />
 
-      {/* ── Cover hero ── */}
-      <div className="relative w-full h-72 sm:h-96 lg:h-[480px] overflow-hidden bg-neutral-900">
-        {post.cover_image ? (
-          <>
-            <Image
-              src={post.cover_image}
-              alt={post.title}
-              fill
-              priority
-              sizes="100vw"
-              className="object-cover opacity-80"
-              unoptimized
-            />
-            <div className="absolute inset-0 bg-linear-to-t from-black/85 via-black/40 to-black/10" />
-          </>
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-primary-900 via-primary-800 to-neutral-900" />
-        )}
-
-        {/* Overlay content */}
-        <div className="absolute inset-0 flex items-end">
-          <div className="screen-space w-full pb-8 sm:pb-10">
-            <Breadcrumbs
-              cat={{ label: "Travel Stories", link: "/blogs" }}
-              title={post.title}
-              className="**:text-white/70!"
-            />
-
-            {post.category && (
-              <span className="inline-block mt-2 px-3 py-1 bg-primary-500 text-white text-xs font-bold rounded-full uppercase tracking-wide">
-                {post.category}
-              </span>
-            )}
-
-            <h1 className="font-heading font-bold text-white mt-3 text-2xl sm:text-3xl lg:text-4xl leading-tight max-w-4xl">
-              {post.title}
-            </h1>
-
-            {post.excerpt && (
-              <p className="text-white/80 mt-2 text-sm sm:text-base max-w-2xl leading-relaxed line-clamp-2">
-                {post.excerpt}
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Article ── */}
       <div className="screen-space py-8 lg:py-12">
-        <div className=" mx-auto">
+        <div className="max-w-6xl mx-auto">
 
-          {/* ── Meta bar ── */}
-          <div className="flex flex-wrap items-center justify-between gap-4 pb-6 border-b border-neutral-200 mb-8">
-            <div className="flex flex-wrap items-center gap-4">
-              {/* Author */}
-              {post.author_name && (
-                <div className="flex items-center gap-2.5">
-                  {post.author_image ? (
-                    <Image
-                      src={post.author_image}
-                      alt={post.author_name}
-                      width={40}
-                      height={40}
-                      className="size-10 rounded-full object-cover ring-2 ring-neutral-100"
-                      unoptimized
-                    />
-                  ) : (
-                    <div className="size-10 rounded-full bg-primary-100 flex items-center justify-center shrink-0">
-                      <span className="text-sm font-bold text-primary-600">
-                        {post.author_name[0].toUpperCase()}
-                      </span>
-                    </div>
-                  )}
-                  <div>
-                    <p className="text-sm font-semibold text-neutral-800">{post.author_name}</p>
-                    <p className="text-[11px] text-neutral-400">Author</p>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex items-center gap-3 text-xs text-neutral-400">
-                <span className="flex items-center gap-1.5">
-                  <Calendar className="size-3.5" /> {pubDate}
-                </span>
-                {post.read_time && (
-                  <span className="flex items-center gap-1.5">
-                    <Clock className="size-3.5" /> {post.read_time} min read
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Share */}
-            <ShareButtons title={post.title} />
-          </div>
+          {/* ── Back link ── */}
+          <Link
+            href="/blogs"
+            className="inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-primary-600 transition-colors mb-6"
+          >
+            <ArrowLeft className="size-4" />
+            Back to Blog
+          </Link>
 
           {/* ── Tags ── */}
-          {post.tags.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 mb-8">
-              <Tag className="size-3.5 text-neutral-400 shrink-0" />
+          {(post.category || post.tags.length > 0) && (
+            <div className="flex flex-wrap items-center gap-2 mb-4">
+              {post.category && (
+                <span className="px-3 py-1 bg-primary-100 text-primary-700 text-xs font-semibold rounded-full uppercase tracking-wide">
+                  {post.category}
+                </span>
+              )}
               {post.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="px-3 py-0.5 bg-neutral-100 text-neutral-600 text-xs font-medium rounded-full"
+                  className="px-3 py-1 bg-neutral-100 text-neutral-600 text-xs font-medium rounded-full"
                 >
                   {tag}
                 </span>
               ))}
+            </div>
+          )}
+
+          {/* ── Title ── */}
+          <h1 className="font-heading font-bold text-neutral-900 text-2xl sm:text-3xl lg:text-4xl leading-tight mb-4">
+            {post.title}
+          </h1>
+
+          {/* ── Meta: date · read time · author ── */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-neutral-500 mb-7">
+            <span className="flex items-center gap-1.5">
+              <Calendar className="size-4" /> {pubDate}
+            </span>
+            {post.read_time && (
+              <span className="flex items-center gap-1.5">
+                <Clock className="size-4" /> {post.read_time} min read
+              </span>
+            )}
+            {post.author_name && (
+              <span>
+                By <span className="text-neutral-700 font-medium">{post.author_name}</span>
+              </span>
+            )}
+          </div>
+
+          {/* ── Thumbnail ── */}
+          {post.cover_image && (
+            <div className="rounded-xl flex items-center justify-center overflow-hidden mb-8">
+              <Image
+                src={post.cover_image}
+                alt={post.title}
+                width={800}
+                height={450}
+                className="w-full h-auto object-cover max-w-3xl rounded-lg transition-transform duration-300 shadow-lg"
+                priority
+                unoptimized
+              />
             </div>
           )}
 

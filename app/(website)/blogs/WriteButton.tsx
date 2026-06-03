@@ -20,8 +20,8 @@ export default function WriteButton() {
   }
 
   return (
-    <Button variant="premium" size="md" onClick={handleClick}>
-      <PenLine className="size-4" />
+    <Button variant="outline" size="sm" onClick={handleClick}>
+      <PenLine className="size-3" />
       Write a Blog
     </Button>
   );
