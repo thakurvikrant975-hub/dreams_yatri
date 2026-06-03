@@ -35,7 +35,7 @@ and **trip voucher**, and hand confirmed bookings to **ops**. Money/state are un
 |------|-------------|--------|
 | 8.1 | Notifications service: HTML email builders (confirmation/receipt, cancellation, refund) + `sendBookingEmail` wrappers; `MAIL_FROM`/`OPS_EMAIL` env; unit-test the pure builders | ✅ DONE |
 | 8.2 | Wire comms into flows (post-commit, non-blocking): INITIAL capture → confirmation+receipt (+ ops notify); cancel → cancellation; refund confirmed → refund email | ✅ DONE |
-| 8.3 | Invoice/receipt: printable HTML route `/bookings/[id]/invoice` (owner-guarded) + invoice number; optional `TripDocument(INVOICE)` record | ⬜ TODO |
+| 8.3 | Invoice/receipt: printable HTML route `/bookings/[id]/invoice` (owner-guarded) + invoice number; optional `TripDocument(INVOICE)` record | ✅ DONE |
 | 8.4 | Voucher: printable HTML route `/bookings/[id]/voucher` (trip + itinerary from priceSnapshot + inclusions); links from booking page + confirmation email | ⬜ TODO |
 | 8.5 | Ops handoff (lightweight): OPS_EMAIL notification on paid bookings + optional System-actor `BookingTimeline` entry; status note | ⬜ TODO |
 | 8.6 | Tests (email builders, notification triggers via stub mailer) + invoice/voucher render smoke + docs/memory; Phase 8 + project complete | ⬜ TODO |
@@ -88,6 +88,14 @@ and **trip voucher**, and hand confirmed bookings to **ops**. Money/state are un
 - **Gate**: `sendBookingEmail` no-ops unless `NOTIFICATIONS_ENABLED=1` — prevents dev/test/e2e from emailing
   seeded real users; production sets it (with a verified `MAIL_FROM`). Env `NOTIFICATIONS_ENABLED` added.
 - e2e:phase4/5/7 still PASS (comms wired but dormant); tsc 0; unit suite green.
+
+## Step 8.3 — what was done
+- `app/(website)/bookings/[id]/invoice/page.tsx` (server, owner-guarded via `getAuthenticatedUser` → notFound,
+  noindex, `@media print` CSS). Invoice no. `INV-<bookingNumber>`. Line items: taxable (= total ÷ (1+gst%)),
+  GST, total (derived from `booking.totalAmount_paise` + `priceSnapshot.gst_percentage` — works post date-change);
+  payments table (FULLY_PAID, marks TOPUP as "date-change"); amount paid / balance.
+- `PrintButton.tsx` (client, `.no-print`) → `window.print()`. Invoice + voucher links added on `/bookings/[id]`
+  (confirmed state). (Voucher route built in 8.4.)
 
 ## Gotchas / conventions
 - Comms are side-effects: never block or fail the money path; log + continue.
