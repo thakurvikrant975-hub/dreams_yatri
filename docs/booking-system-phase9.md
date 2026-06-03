@@ -38,7 +38,7 @@ Make `/book/[quoteId]` a complete checkout like MMT's review page:
 ## Steps & Status (finalized after decisions)
 | Step | Description | Status |
 |------|-------------|--------|
-| 9.1 | Schema: `Booking += contactEmail/contactPhone/gstStateCode?`; `BookingTraveller += firstName/lastName` — migration + regen | ⬜ TODO |
+| 9.1 | Schema: `Booking += contactEmail/contactPhone/gstStateCode?`; `BookingTraveller += firstName/lastName` — migration + regen | ✅ DONE |
 | 9.2 | Payment policy: `MIN_DEPOSIT_PAISE → ₹10,000`; `createBookingAndOrder` accepts `paymentChoice` (FULL\|DEPOSIT, near⇒FULL) + traveller/contact/GST; tests | ⬜ TODO |
 | 9.3 | Checkout form (client): traveller cards (first/last/DOB/gender ×pax), contact (email/mobile), GST (state, optional); shared Zod schema; Pay disabled until valid | ⬜ TODO |
 | 9.4 | Wire form → `createPackageBooking`/`createBookingAndOrder`: persist `BookingTraveller` rows + contact/GST + plan; validate server-side too | ⬜ TODO |
