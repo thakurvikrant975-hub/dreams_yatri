@@ -7,6 +7,9 @@ import type { EmailContent } from "./booking-emails";
  * a failure is logged and swallowed, never thrown.
  */
 export async function sendBookingEmail(to: string | null | undefined, mail: EmailContent): Promise<boolean> {
+    // Off by default — production sets NOTIFICATIONS_ENABLED=1 (with a verified sender domain).
+    // Keeps dev/tests/e2e from firing real emails to seeded users.
+    if (process.env.NOTIFICATIONS_ENABLED !== "1") return false;
     if (!to) return false;
     try {
         return await sendEmail({ to, subject: mail.subject, html: mail.html });

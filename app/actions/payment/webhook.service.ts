@@ -3,6 +3,7 @@ import { db } from "@/app/lib/db";
 import { getProvider } from "@/app/lib/payments/registry";
 import type { GatewayId } from "@/app/lib/payments/types";
 import { finalizeCapturedPayment } from "./finalize.service";
+import { notifyBookingConfirmed, notifyRefund } from "@/app/services/notifications/booking-notify";
 
 /**
  * Gateway-agnostic webhook processing (the source of payment truth).
@@ -89,12 +90,16 @@ export async function processGatewayWebhook(
                 });
                 if (fin.result === "finalized" || fin.result === "already") {
                     await tx.webhookEvent.update({ where: { id: row.id }, data: { status: "PROCESSED", processedAt: new Date(), paymentId: payment.id, bookingId: fin.bookingId } });
-                    return "ok" as const;
+                    return { status: "ok" as const, confirmInitial: fin.result === "finalized" && fin.purpose === "INITIAL", bookingId: fin.result === "finalized" ? fin.bookingId : undefined };
                 }
                 await tx.webhookEvent.update({ where: { id: row.id }, data: { status: "FAILED", error: fin.result } });
-                return "fail" as const;
+                return { status: "fail" as const };
             });
-            return outcome === "fail" ? { httpStatus: 500, result: "error", detail: "finalize failed" } : { httpStatus: 200, result: "processed" };
+            if (outcome.status === "fail") return { httpStatus: 500, result: "error", detail: "finalize failed" };
+            if (outcome.confirmInitial && outcome.bookingId) {
+                try { await notifyBookingConfirmed(outcome.bookingId); } catch (e) { console.error("[webhook] confirm-email failed", e); }
+            }
+            return { httpStatus: 200, result: "processed" };
         }
 
         // ── failed → mark Payment FAILED (booking stays PENDING) ───────────────
@@ -124,6 +129,7 @@ export async function processGatewayWebhook(
                 await tx.booking.update({ where: { id: payment.bookingId }, data: { paymentStatus: status } });
                 await tx.webhookEvent.update({ where: { id: row.id }, data: { status: "PROCESSED", processedAt: new Date(), paymentId: payment.id, bookingId: payment.bookingId } });
             });
+            try { await notifyRefund(payment.bookingId, event.refundAmountPaise ?? payment.amount_paise); } catch (e) { console.error("[webhook] refund-email failed", e); }
             return { httpStatus: 200, result: "processed" };
         }
 

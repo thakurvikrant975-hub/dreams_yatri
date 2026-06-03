@@ -34,7 +34,7 @@ and **trip voucher**, and hand confirmed bookings to **ops**. Money/state are un
 | Step | Description | Status |
 |------|-------------|--------|
 | 8.1 | Notifications service: HTML email builders (confirmation/receipt, cancellation, refund) + `sendBookingEmail` wrappers; `MAIL_FROM`/`OPS_EMAIL` env; unit-test the pure builders | ✅ DONE |
-| 8.2 | Wire comms into flows (post-commit, non-blocking): INITIAL capture → confirmation+receipt (+ ops notify); cancel → cancellation; refund confirmed → refund email | ⬜ TODO |
+| 8.2 | Wire comms into flows (post-commit, non-blocking): INITIAL capture → confirmation+receipt (+ ops notify); cancel → cancellation; refund confirmed → refund email | ✅ DONE |
 | 8.3 | Invoice/receipt: printable HTML route `/bookings/[id]/invoice` (owner-guarded) + invoice number; optional `TripDocument(INVOICE)` record | ⬜ TODO |
 | 8.4 | Voucher: printable HTML route `/bookings/[id]/voucher` (trip + itinerary from priceSnapshot + inclusions); links from booking page + confirmation email | ⬜ TODO |
 | 8.5 | Ops handoff (lightweight): OPS_EMAIL notification on paid bookings + optional System-actor `BookingTimeline` entry; status note | ⬜ TODO |
@@ -79,8 +79,19 @@ and **trip voucher**, and hand confirmed bookings to **ops**. Money/state are un
 - Env: `MAIL_FROM` (sandbox sender for now), `OPS_EMAIL`. `scripts/test-notifications.ts` + `npm run test:notify`
   (12 asserts) in `npm test` (now 152 total). NOTE: en-IN renders short month as "Sept" (not "Sep").
 
+## Step 8.2 — what was done
+- `app/services/notifications/booking-notify.ts` (`server-only`): `notifyBookingConfirmed` (confirmation+receipt
+  to user + `opsNewBookingEmail` to OPS_EMAIL), `notifyCancellation`, `notifyRefund` — load data + send, post-commit.
+- Wired (all best-effort, try/catch, never block): webhook **captured** branch → `notifyBookingConfirmed` only on a
+  fresh INITIAL finalize (finalize now returns `purpose`); webhook **refunded** branch + `reconcileRefunds` →
+  `notifyRefund`; `cancelBooking` success → `notifyCancellation`.
+- **Gate**: `sendBookingEmail` no-ops unless `NOTIFICATIONS_ENABLED=1` — prevents dev/test/e2e from emailing
+  seeded real users; production sets it (with a verified `MAIL_FROM`). Env `NOTIFICATIONS_ENABLED` added.
+- e2e:phase4/5/7 still PASS (comms wired but dormant); tsc 0; unit suite green.
+
 ## Gotchas / conventions
 - Comms are side-effects: never block or fail the money path; log + continue.
+- Transactional sends are gated by `NOTIFICATIONS_ENABLED=1` (off in dev/tests).
 - No new deps for documents — printable HTML; users "Save as PDF" via the browser.
 - Owner-guard the invoice/voucher routes (noindex); money figures via `formatPaise`.
 - Production email needs a verified sender domain (`MAIL_FROM`); dev uses the Resend sandbox sender.
