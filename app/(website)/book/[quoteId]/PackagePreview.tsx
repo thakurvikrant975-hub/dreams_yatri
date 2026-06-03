@@ -1,8 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Heading, Text } from '@/app/components/ui/Typography';
-import Card from '@/app/components/ui/Card';
+import { Text } from '@/app/components/ui/Typography';
 
 export type PreviewDay = {
     day: number;
@@ -19,21 +18,20 @@ export default function PackagePreview({ days }: { days: PreviewDay[] }) {
     if (!days.length) return null;
 
     return (
-        <Card className="px-6 py-5">
-            <button type="button" className="w-full flex items-center justify-between" onClick={() => setOpen((o) => !o)}>
-                <Heading level={4} weight="semibold">Package details ({days.length} days)</Heading>
-                <Text size="sm" intent="secondary">{open ? 'Hide' : 'View itinerary'}</Text>
+        <div>
+            <button type="button" className="flex items-center gap-1.5 text-sm font-medium text-primary-600 hover:text-primary-700" onClick={() => setOpen((o) => !o)}>
+                {open ? 'Hide itinerary' : `View ${days.length}-day itinerary`}
+                <span className={`transition-transform ${open ? 'rotate-180' : ''}`}>⌄</span>
             </button>
 
             {open && (
                 <ol className="mt-4 space-y-3">
                     {days.map((d) => (
-                        <li key={d.day} className="rounded-lg border border-neutral-200 p-3">
-                            <Text size="sm" weight="semibold" intent="primary" className="block">Day {d.day}: {d.day_title}</Text>
+                        <li key={d.day} className="relative rounded-xl border border-(--border-muted) p-4">
+                            <span className="inline-flex h-6 items-center rounded-full bg-primary-50 px-2.5 text-xs font-semibold text-primary-600">Day {d.day}</span>
+                            <Text size="sm" weight="semibold" intent="primary" className="block mt-2">{d.day_title}</Text>
                             {d.hotel && (
-                                <Text size="sm" intent="secondary" className="block mt-1">
-                                    🏨 {d.hotel.hotel_name}{d.hotel.room_name ? ` · ${d.hotel.room_name}` : ''}{d.hotel.plan_name ? ` · ${d.hotel.plan_name}` : ''}
-                                </Text>
+                                <Text size="sm" intent="secondary" className="block mt-1.5">🏨 {d.hotel.hotel_name}{d.hotel.room_name ? ` · ${d.hotel.room_name}` : ''}{d.hotel.plan_name ? ` · ${d.hotel.plan_name}` : ''}</Text>
                             )}
                             {d.activities && d.activities.length > 0 && (
                                 <Text size="sm" intent="secondary" className="block mt-0.5">🎟 {d.activities.map((a) => a.name).join(', ')}</Text>
@@ -45,6 +43,6 @@ export default function PackagePreview({ days }: { days: PreviewDay[] }) {
                     ))}
                 </ol>
             )}
-        </Card>
+        </div>
     );
 }
