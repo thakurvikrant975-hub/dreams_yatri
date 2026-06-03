@@ -43,7 +43,7 @@ reconciliation is the safety net; reminders chase the balance leg.
 | 5.3 | Webhook: handle `payment.failed` (Payment FAILED + failureReason) and refund events (`refund.processed`/`payment.refunded` → REFUNDED/PARTIALLY_REFUNDED + refund fields, Booking paymentStatus); dedupe as before | ✅ DONE |
 | 5.4 | Razorpay fetch helpers (`fetchOrderPayments`/`fetchPayment`) + `reconcilePendingPayments({ olderThanMinutes, fetcher })`: find stale PENDING RAZORPAY payments → poll → finalize/fail (never override webhook) | ✅ DONE |
 | 5.5 | Cron routes: `/api/cron/reconcile-payments` + `/api/cron/balance-reminders` (CRON_SECRET); reminder logic marks OVERDUE, emails due-soon, sets reminderSentAt/Count | ✅ DONE |
-| 5.6 | Tests + e2e: failed/refund webhook sim; recon with stubbed fetcher (missed-capture → finalized); reminder selection unit; docs/memory; Phase 5 complete | ⬜ TODO |
+| 5.6 | Tests + e2e: failed/refund webhook sim; recon with stubbed fetcher (missed-capture → finalized); reminder selection unit; docs/memory; Phase 5 complete | ✅ DONE |
 
 ## Per-step detail
 
@@ -129,6 +129,19 @@ reconciliation is the safety net; reminders chase the balance leg.
 - Env: `CRON_SECRET`, `RECON_STALE_MINUTES=15` added to `.env`.
 - Verified (throwaway e2e, removed, stub mailer + fixed now): 5 scanned → 3 sent (7d/1d/overdue), 1 OVERDUE,
   count→3; second run idempotent (0 sent).
+
+## Step 5.6 — what was done
+- Committed `scripts/e2e-phase5.ts` + `npm run e2e:phase5` (DB-mutating, self-cleaning, stubs Razorpay fetch +
+  mailer, self-signs webhooks): payment.failed→FAILED; partial refund→PARTIALLY_REFUNDED (payment+booking)+dedupe;
+  reconcile (stale captured→finalized, all-failed→FAILED, fresh untouched, idempotent); reminders (3 sent / 1 overdue /
+  idempotent). PHASE5_E2E_PASS. e2e:phase4 still PASS; unit suite 91 green.
+
+## Phase 5 — COMPLETE ✅
+Failure & reconciliation done: failed/refund webhooks recorded truthfully, a reconciliation safety net that finalizes
+missed captures (shared `finalizeCapturedPayment`, never overrides a webhook), and a 3-touchpoint balance-reminder cron —
+both behind `CRON_SECRET` routes. Small schema add (PaymentStatus FAILED + installment reminder fields). On branch
+`feat/booking-payment-phase5` (not merged). Ops wires the scheduler; live gateway still needs Razorpay TEST keys.
+Next: **Phase 6** — second gateway (PayU) behind a PaymentProvider interface.
 
 ## Gotchas / conventions
 - `ALTER TYPE ... ADD VALUE` can't run in the same transaction as other statements — keep it standalone in the migration.

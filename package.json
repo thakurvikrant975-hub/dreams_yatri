@@ -14,7 +14,8 @@
     "test:policy": "tsx scripts/test-payment-policy.ts",
     "test:razorpay": "tsx --conditions=react-server scripts/test-razorpay.ts",
     "test": "npm run test:money && npm run test:policy && npm run test:razorpay && npm run test:quote",
-    "e2e:phase4": "tsx --conditions=react-server --env-file=.env scripts/e2e-phase4.ts"
+    "e2e:phase4": "tsx --conditions=react-server --env-file=.env scripts/e2e-phase4.ts",
+    "e2e:phase5": "tsx --conditions=react-server --env-file=.env scripts/e2e-phase5.ts"
   },
   "prisma": {
     "seed": "tsx --env-file=.env prisma/seed.ts"
