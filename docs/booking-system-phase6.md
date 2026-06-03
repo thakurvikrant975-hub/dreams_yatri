@@ -55,7 +55,7 @@ normalized event", "fetch status for recon", and "public config for the client".
 | 6.3 | Make shared services provider-driven: generalize webhook processor (`processGatewayWebhook(gateway, raw, headers)` using `parseWebhookEvent` + `finalizeCapturedPayment`), recon via `fetchChargeStatus`, booking via `getProvider(active).createCharge` | ✅ DONE |
 | 6.4 | `payu.provider.ts` — SHA-512 request hash, `createCharge` (txnid+fields), `verifyCallback` (reverse hash), `verifyWebhook`/`parseWebhookEvent`, `fetchChargeStatus` (verify_payment); envs | ✅ DONE |
 | 6.5 | Client + routes: launch `CheckoutInit` (RZP modal vs PayU form-post) in `BookReview`; PayU callback routes (surl/furl) + `/api/webhooks/payu`; provider selection wired | ✅ DONE |
-| 6.6 | Tests + e2e: PayU hash + reverse-hash unit; normalized webhook for both gateways; provider registry; recon via stub; docs/memory; Phase 6 complete | ⬜ TODO |
+| 6.6 | Tests + e2e: PayU hash + reverse-hash unit; normalized webhook for both gateways; provider registry; recon via stub; docs/memory; Phase 6 complete | ✅ DONE |
 
 ## Per-step detail
 ### 6.1 — Interface + types
@@ -150,6 +150,20 @@ normalized event", "fetch status for recon", and "public config for the client".
 - Fix: `finalize.mapMethod` now tolerant of Razorpay (lowercase) AND PayU codes (UPI/CC/DC/NB/EMI/CASH/WALLET).
 - Verified (throwaway): PayU captured webhook through the shared processor → Payment FULLY_PAID/UPI, Booking
   ADVANCE_PAID, deposit PAID, dedupe, bad-hash rejected. Razorpay `e2e:phase4/5` still PASS; tsc 0; 91 unit green.
+
+## Step 6.6 — what was done
+- `scripts/test-payments.ts` + `npm run test:payments` (pure, no DB; added to `npm test`): registry resolution,
+  Razorpay verify/parse/callback normalization, PayU forward+reverse hash round-trip / resume / parse. 18 asserts.
+- `scripts/e2e-phase6.ts` + `npm run e2e:phase6` (DB-mutating, self-cleaning): PayU captured webhook through
+  `processGatewayWebhook('PAYU')` → Payment FULLY_PAID/UPI, Booking ADVANCE_PAID, deposit PAID, dedupe, bad-hash. PASS.
+- Full `npm test` = 109 (money 19 / policy 36 / razorpay 11 / payments 18 / quote 25); e2e:phase4/5/6 all PASS; tsc 0.
+
+## Phase 6 — COMPLETE ✅
+Gateway is pluggable: `PaymentProvider` interface + registry; Razorpay refactored onto it (behavior unchanged);
+shared `processGatewayWebhook` / reconcile / booking are provider-driven; **PayU** fully implemented
+(hosted form-POST, callback+webhook, verify_payment recon). Env-selected via `PAYMENT_PROVIDER`. No schema change.
+On branch `feat/booking-payment-phase6`. **Validate PayU hashes vs real PayU TEST creds before go-live.**
+Next: **Phase 7** — refunds / cancellation / date-change (policy curves).
 
 ## Gotchas / conventions
 - Keep `finalize`/`schedule`/`reminders` gateway-agnostic — only the provider adapters know gateway specifics.
