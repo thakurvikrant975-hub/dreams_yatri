@@ -239,9 +239,16 @@ async signIn({ user, account }) {
         }
       }
 
-      // Refresh mutable profile fields from DB when explicitly triggered
-      // (called from client via useSession().update() after profile saves)
-      if (trigger === "update" && token.userId) {
+      // Refresh name/image/isProfileComplete from DB when:
+      // (a) explicitly triggered via update() after a profile save, OR
+      // (b) lazily, whenever token.name is still null for a known user
+      //     — this catches up automatically after any page refresh/navigation
+      //     once the user has saved their name, without needing update() at all
+      const needsRefresh =
+        (trigger === "update" && !!token.userId) ||
+        (!token.name && !!token.userId && !user && !account);
+
+      if (needsRefresh) {
         const fresh = await db.user.findUnique({
           where:  { id: token.userId as string },
           select: { name: true, image: true, isProfileComplete: true },
