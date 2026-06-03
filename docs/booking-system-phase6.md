@@ -54,7 +54,7 @@ normalized event", "fetch status for recon", and "public config for the client".
 | 6.2 | `razorpay.provider.ts` implementing the interface by wrapping existing `razorpay.ts` (normalize order/sig/webhook/fetch); no behavior change; `npm run e2e:phase4/5` green | ✅ DONE |
 | 6.3 | Make shared services provider-driven: generalize webhook processor (`processGatewayWebhook(gateway, raw, headers)` using `parseWebhookEvent` + `finalizeCapturedPayment`), recon via `fetchChargeStatus`, booking via `getProvider(active).createCharge` | ✅ DONE |
 | 6.4 | `payu.provider.ts` — SHA-512 request hash, `createCharge` (txnid+fields), `verifyCallback` (reverse hash), `verifyWebhook`/`parseWebhookEvent`, `fetchChargeStatus` (verify_payment); envs | ✅ DONE |
-| 6.5 | Client + routes: launch `CheckoutInit` (RZP modal vs PayU form-post) in `BookReview`; PayU callback routes (surl/furl) + `/api/webhooks/payu`; provider selection wired | ⬜ TODO |
+| 6.5 | Client + routes: launch `CheckoutInit` (RZP modal vs PayU form-post) in `BookReview`; PayU callback routes (surl/furl) + `/api/webhooks/payu`; provider selection wired | ✅ DONE |
 | 6.6 | Tests + e2e: PayU hash + reverse-hash unit; normalized webhook for both gateways; provider registry; recon via stub; docs/memory; Phase 6 complete | ⬜ TODO |
 
 ## Per-step detail
@@ -138,6 +138,18 @@ normalized event", "fetch status for recon", and "public config for the client".
     so resume reproduces the hash from (txnid, amount). **Validate exact hash vs PayU TEST creds before go-live.**
 - Registered `getProvider("PAYU")`. Verified (throwaway): forward hash matches documented sequence, resume hash
   identical, callback/webhook reverse-hash accept + reject tampered, parse normalization. tsc clean; 91 unit green.
+
+## Step 6.5 — what was done
+- `payuCheckout.ts` (client) `submitPayuForm(actionUrl, fields)` — builds + auto-submits a hidden form to PayU.
+  `BookReview` launches `checkout.provider==='PAYU'` via form-POST (redirect; sets processing), Razorpay via modal.
+- `app/api/payments/payu/callback/route.ts` (surl/furl): reads raw form body → `processGatewayWebhook('PAYU',…)`
+  (verify + finalize, idempotent) → 303-redirect to `/bookings/<b>` (b from query). `app/api/webhooks/payu/route.ts`
+  → same processor, JSON response.
+- Fix: `processGatewayWebhook` stored payload via `JSON.parse` (broke on PayU form bodies) → added `parsePayload`
+  (JSON or URLSearchParams) used for event row + rawResponse everywhere.
+- Fix: `finalize.mapMethod` now tolerant of Razorpay (lowercase) AND PayU codes (UPI/CC/DC/NB/EMI/CASH/WALLET).
+- Verified (throwaway): PayU captured webhook through the shared processor → Payment FULLY_PAID/UPI, Booking
+  ADVANCE_PAID, deposit PAID, dedupe, bad-hash rejected. Razorpay `e2e:phase4/5` still PASS; tsc 0; 91 unit green.
 
 ## Gotchas / conventions
 - Keep `finalize`/`schedule`/`reminders` gateway-agnostic — only the provider adapters know gateway specifics.

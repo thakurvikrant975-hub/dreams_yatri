@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import QuoteCountdown from './QuoteCountdown';
 import { loadRazorpay, openRazorpay } from './razorpayCheckout';
+import { submitPayuForm } from './payuCheckout';
 import { createPackageBooking, verifyCheckoutPayment } from '@/app/actions/payment/booking.actions';
 import Button from '@/app/components/ui/Button';
 import Card from '@/app/components/ui/Card';
@@ -81,10 +82,10 @@ export default function BookReview({
             const { order } = res;
             const { checkout } = order;
 
-            if (checkout.provider !== 'RAZORPAY') {
-                // PayU (form-POST redirect) is wired in 6.5.
-                setPaying(false);
-                setPayError('This payment method is not available yet.');
+            if (checkout.provider === 'PAYU') {
+                // Redirect to PayU's hosted page; the browser navigates away.
+                setProcessing(true);
+                submitPayuForm(checkout.actionUrl, checkout.fields);
                 return;
             }
 

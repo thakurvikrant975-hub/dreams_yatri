@@ -26,6 +26,17 @@ function isUniqueViolation(e: unknown): boolean {
     return typeof e === "object" && e !== null && (e as { code?: string }).code === "P2002";
 }
 
+/** Store the body as JSON object whether it's JSON (Razorpay) or form-urlencoded (PayU). */
+function parsePayload(raw: string): object {
+    try {
+        return JSON.parse(raw);
+    } catch {
+        const o: Record<string, string> = {};
+        new URLSearchParams(raw).forEach((v, k) => { o[k] = v; });
+        return o;
+    }
+}
+
 export async function processGatewayWebhook(
     gateway: GatewayId,
     rawBody: string,
@@ -40,6 +51,8 @@ export async function processGatewayWebhook(
     const event = provider.parseWebhookEvent(rawBody, headers);
     if (!event) return { httpStatus: 400, result: "error", detail: "unparseable" };
 
+    const payloadObj = parsePayload(rawBody);
+
     // ── Dedupe: find-or-create the event row (PROCESSED ⇒ no-op) ───────────────
     let eventRow = await db.webhookEvent.findUnique({
         where: { gateway_eventId: { gateway, eventId: event.eventId } },
@@ -48,7 +61,7 @@ export async function processGatewayWebhook(
     if (!eventRow) {
         try {
             eventRow = await db.webhookEvent.create({
-                data: { gateway, eventId: event.eventId, eventType: event.type, payload: JSON.parse(rawBody) },
+                data: { gateway, eventId: event.eventId, eventType: event.type, payload: payloadObj },
             });
         } catch (e) {
             if (isUniqueViolation(e)) return { httpStatus: 200, result: "duplicate" };
@@ -72,7 +85,7 @@ export async function processGatewayWebhook(
             const outcome = await db.$transaction(async (tx) => {
                 const fin = await finalizeCapturedPayment(tx, {
                     paymentId: payment.id, gatewayPaymentId: event.gatewayPaymentId!, method: event.method,
-                    rawPayload: JSON.parse(rawBody), webhookEventId: row.id,
+                    rawPayload: payloadObj, webhookEventId: row.id,
                 });
                 if (fin.result === "finalized" || fin.result === "already") {
                     await tx.webhookEvent.update({ where: { id: row.id }, data: { status: "PROCESSED", processedAt: new Date(), paymentId: payment.id, bookingId: fin.bookingId } });
@@ -91,7 +104,7 @@ export async function processGatewayWebhook(
             if (!payment) return ignore("no matching payment");
             await db.$transaction(async (tx) => {
                 if (payment.status === "PENDING") {
-                    await tx.payment.update({ where: { id: payment.id }, data: { status: "FAILED", failureReason: event.failureReason ?? "payment failed", rawResponse: JSON.parse(rawBody), webhookEventId: row.id } });
+                    await tx.payment.update({ where: { id: payment.id }, data: { status: "FAILED", failureReason: event.failureReason ?? "payment failed", rawResponse: payloadObj, webhookEventId: row.id } });
                 }
                 await tx.webhookEvent.update({ where: { id: row.id }, data: { status: "PROCESSED", processedAt: new Date(), paymentId: payment.id } });
             });
@@ -107,7 +120,7 @@ export async function processGatewayWebhook(
             const status = isPartial ? "PARTIALLY_REFUNDED" : "REFUNDED";
             const refundRupees = typeof event.refundAmountPaise === "number" ? (event.refundAmountPaise / 100).toFixed(2) : undefined;
             await db.$transaction(async (tx) => {
-                await tx.payment.update({ where: { id: payment.id }, data: { status, refundId: event.refundId, refundAmount: refundRupees, refundedAt: new Date(), rawResponse: JSON.parse(rawBody), webhookEventId: row.id } });
+                await tx.payment.update({ where: { id: payment.id }, data: { status, refundId: event.refundId, refundAmount: refundRupees, refundedAt: new Date(), rawResponse: payloadObj, webhookEventId: row.id } });
                 await tx.booking.update({ where: { id: payment.bookingId }, data: { paymentStatus: status } });
                 await tx.webhookEvent.update({ where: { id: row.id }, data: { status: "PROCESSED", processedAt: new Date(), paymentId: payment.id, bookingId: payment.bookingId } });
             });
