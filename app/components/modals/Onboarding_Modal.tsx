@@ -36,10 +36,10 @@ function OnBoardingModal() {
   const { isOpen, type, closeModal } = useModal();
   const router               = useRouter();
   const fileRef              = useRef<HTMLInputElement>(null);
-  const { data: session }    = useSession();
+  const { data: session, update } = useSession();
 
   const [form, setForm] = useState<FormState>({
-    name:          "",
+    name:          session?.user?.name ?? "",
     gender:        "",
     maritalStatus: "SINGLE",
     dateOfBirth:   "",
@@ -117,6 +117,9 @@ function OnBoardingModal() {
         state:         geo.stateName,
       });
 
+      // Refresh the JWT so session.user.name is updated — ShowLogin
+      // checks this to decide whether to re-open the onboarding modal
+      await update();
       router.refresh();
       closeModal();
     } catch (err: any) {

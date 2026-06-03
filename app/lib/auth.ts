@@ -208,14 +208,14 @@ async signIn({ user, account }) {
   return true;
 },
 
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account, trigger }) {
       if (user) {
         token.userId  = user.id ?? "";
         token.phone   = user.phone ?? null;
         token.role    = user.role;
         token.status  = user.status;
         token.isProfileComplete = user.isProfileComplete;
-        // carry the DB image so session.user.image stays accurate
+        if (user.name)  token.name    = user.name;
         if (user.image) token.picture = user.image;
       }
 
@@ -223,12 +223,8 @@ async signIn({ user, account }) {
         const dbUser = await db.user.findUnique({
           where: { email: token.email },
           select: {
-            id: true,
-            phone: true,
-            role: true,
-            status: true,
-            image: true,
-            isProfileComplete: true,
+            id: true, phone: true, role: true, status: true,
+            name: true, image: true, isProfileComplete: true,
           },
         });
 
@@ -238,8 +234,22 @@ async signIn({ user, account }) {
           token.role   = dbUser.role;
           token.status = dbUser.status;
           token.isProfileComplete = dbUser.isProfileComplete;
-          // prefer DB image (user may have uploaded a custom one)
+          if (dbUser.name)  token.name    = dbUser.name;
           if (dbUser.image) token.picture = dbUser.image;
+        }
+      }
+
+      // Refresh mutable profile fields from DB when explicitly triggered
+      // (called from client via useSession().update() after profile saves)
+      if (trigger === "update" && token.userId) {
+        const fresh = await db.user.findUnique({
+          where:  { id: token.userId as string },
+          select: { name: true, image: true, isProfileComplete: true },
+        });
+        if (fresh) {
+          if (fresh.name)  token.name    = fresh.name;
+          if (fresh.image) token.picture = fresh.image;
+          token.isProfileComplete = fresh.isProfileComplete;
         }
       }
 
@@ -252,6 +262,9 @@ async session({ session, token }) {
   session.user.role              = token.role;
   session.user.status            = token.status;
   session.user.isProfileComplete = token.isProfileComplete;
+  // Explicitly carry name and image so profile updates via update() are reflected
+  if (token.name)    session.user.name  = token.name as string;
+  if (token.picture) session.user.image = token.picture as string;
   return session;
 },
   },
