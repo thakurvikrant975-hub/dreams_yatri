@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/app/lib/db";
 import { bookingConfirmationEmail, cancellationEmail, refundConfirmedEmail, opsNewBookingEmail } from "./booking-emails";
 import { sendBookingEmail, opsEmail } from "./send";
+import { getSystemActorId } from "./system-actor";
 
 /**
  * Post-commit, best-effort booking notifications. Each loads the needed data and
@@ -41,6 +42,19 @@ export async function notifyBookingConfirmed(bookingId: string): Promise<void> {
     await sendBookingEmail(opsEmail(), opsNewBookingEmail({
         ...base, paidPaise: isFull ? b.totalAmount_paise : b.advanceAmount_paise,
     }));
+
+    // Ops handoff record (always written, even when emails are disabled).
+    try {
+        const actorId = await getSystemActorId();
+        await db.bookingTimeline.create({
+            data: {
+                bookingId, action: "NOTE_ADDED", performedById: actorId, performedByName: "System",
+                note: `Payment received (${isFull ? "full" : "deposit"}) — booking confirmed, ready for ops.`,
+            },
+        });
+    } catch (e) {
+        console.error("[ops handoff] timeline failed", e);
+    }
 }
 
 export async function notifyCancellation(bookingId: string, refundablePaise: number, feePaise: number): Promise<void> {

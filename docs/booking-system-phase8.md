@@ -37,7 +37,7 @@ and **trip voucher**, and hand confirmed bookings to **ops**. Money/state are un
 | 8.2 | Wire comms into flows (post-commit, non-blocking): INITIAL capture → confirmation+receipt (+ ops notify); cancel → cancellation; refund confirmed → refund email | ✅ DONE |
 | 8.3 | Invoice/receipt: printable HTML route `/bookings/[id]/invoice` (owner-guarded) + invoice number; optional `TripDocument(INVOICE)` record | ✅ DONE |
 | 8.4 | Voucher: printable HTML route `/bookings/[id]/voucher` (trip + itinerary from priceSnapshot + inclusions); links from booking page + confirmation email | ✅ DONE |
-| 8.5 | Ops handoff (lightweight): OPS_EMAIL notification on paid bookings + optional System-actor `BookingTimeline` entry; status note | ⬜ TODO |
+| 8.5 | Ops handoff (lightweight): OPS_EMAIL notification on paid bookings + optional System-actor `BookingTimeline` entry; status note | ✅ DONE |
 | 8.6 | Tests (email builders, notification triggers via stub mailer) + invoice/voucher render smoke + docs/memory; Phase 8 + project complete | ⬜ TODO |
 
 ## Per-step detail (provisional)
@@ -103,9 +103,16 @@ and **trip voucher**, and hand confirmed bookings to **ops**. Money/state are un
   activities, meals), package inclusions/exclusions, support note + PrintButton.
 - Booking-page voucher link (8.3) + confirmation-email `voucherUrl` now resolve. tsc 0.
 
+## Step 8.5 — what was done
+- `system-actor.ts` (`server-only`) `getSystemActorId()` — lazily seeds/returns a "System" TeamMember
+  (email `system@dreamsyatri.internal`, employeeId SYSTEM), idempotent + race-safe.
+- `notifyBookingConfirmed` now also writes a `BookingTimeline` `NOTE_ADDED` ("Payment received … ready for ops")
+  by the System actor — **not** email-gated (ops record always written). OPS_EMAIL notification was already wired (8.2).
+- Verified (throwaway): capture → System actor exists + timeline NOTE_ADDED present. Full ops dashboard deferred.
+
 ## Gotchas / conventions
 - Comms are side-effects: never block or fail the money path; log + continue.
-- Transactional sends are gated by `NOTIFICATIONS_ENABLED=1` (off in dev/tests).
+- Transactional sends are gated by `NOTIFICATIONS_ENABLED=1` (off in dev/tests); the ops timeline write is not gated.
 - No new deps for documents — printable HTML; users "Save as PDF" via the browser.
 - Owner-guard the invoice/voucher routes (noindex); money figures via `formatPaise`.
 - Production email needs a verified sender domain (`MAIL_FROM`); dev uses the Resend sandbox sender.
