@@ -93,3 +93,20 @@ export function verifyWebhookSignature(rawBody: string, signature: string): bool
     const expected = hmacHex(requireEnv("RAZORPAY_WEBHOOK_SECRET"), rawBody);
     return safeEqualHex(expected, signature);
 }
+
+// ── Fetch (for reconciliation) ───────────────────────────────────────────────
+
+export interface RazorpayPaymentLite {
+    id: string;
+    status: string; // created | authorized | captured | refunded | failed
+    method?: string;
+    amount?: number; // paise
+}
+
+/** Fetch all payment attempts on an order — used by reconciliation to learn the true status. */
+export async function fetchOrderPayments(orderId: string): Promise<RazorpayPaymentLite[]> {
+    const res = (await getClient().orders.fetchPayments(orderId)) as unknown as {
+        items?: Array<{ id: string; status: string; method?: string; amount?: number | string }>;
+    };
+    return (res.items ?? []).map((p) => ({ id: p.id, status: p.status, method: p.method, amount: Number(p.amount) }));
+}
