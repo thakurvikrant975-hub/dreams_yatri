@@ -131,26 +131,28 @@ export default function BlogWriteForm({ categories, initialData }: BlogWriteForm
 
   // ── Submit for review ─────────────────────────────────────────────────────
   async function handleSubmit() {
-    if (!title.trim()) { toast.error('Add a title before submitting'); return; }
+    // Always read from the ref — never stale React state — so any just-inserted
+    // images or YouTube embeds are included in the save payload.
+    const s = latestState.current;
+    if (!s.title.trim()) { toast.error('Add a title before submitting'); return; }
 
-    // Save any unsaved changes first
     if (saveTimer.current) clearTimeout(saveTimer.current);
     const saveResult = await (async () => {
-      if (!postId || isDirty.current) {
+      if (!s.postId || isDirty.current) {
         const r = await saveBlogDraft({
-          id:          postId ?? undefined,
-          title,
-          excerpt:     excerpt || null,
-          content:     content as Record<string, unknown>,
-          cover_image: coverImage,
-          category_id: categoryId,
-          tags,
-          read_time:   readTime,
+          id:          s.postId ?? undefined,
+          title:       s.title,
+          excerpt:     s.excerpt || null,
+          content:     s.content as Record<string, unknown>,
+          cover_image: s.coverImage ?? null,
+          category_id: s.categoryId ?? null,
+          tags:        s.tags,
+          read_time:   s.readTime,
         });
-        if (r.success && !postId) setPostId(r.id);
+        if (r.success && !s.postId) setPostId(r.id);
         return r;
       }
-      return { success: true as const, id: postId };
+      return { success: true as const, id: s.postId };
     })();
 
     if (!saveResult.success) { toast.error('Failed to save. Try again.'); return; }
@@ -195,15 +197,22 @@ export default function BlogWriteForm({ categories, initialData }: BlogWriteForm
     setReadTime(Math.max(1, Math.ceil(words / 200)));
   }
 
-  // ── Force-save immediately after an image is inserted ─────────────────────
+  // ── Force-save immediately after an image or YouTube is inserted ──────────
   // React state won't have updated yet when this fires, so the editor passes
   // the fresh JSON directly instead of us reading from latestState.current.
   async function handleImageInserted(latestJson: object) {
-    if (!title.trim()) return;
+    if (!latestState.current.title.trim()) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    // Update latestState.current with the editor-fresh JSON before saving.
     latestState.current = { ...latestState.current, content: latestJson };
-    setContent(latestJson); // keep React state in sync
+    setContent(latestJson);
+    await performSaveFromRef();
+  }
+
+  async function handleYoutubeInserted(latestJson: object) {
+    if (!latestState.current.title.trim()) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    latestState.current = { ...latestState.current, content: latestJson };
+    setContent(latestJson);
     await performSaveFromRef();
   }
 
@@ -378,6 +387,7 @@ export default function BlogWriteForm({ categories, initialData }: BlogWriteForm
         initialContent={initialData?.content as object ?? null}
         onChange={handleEditorChange}
         onImageInserted={handleImageInserted}
+        onYoutubeInserted={handleYoutubeInserted}
         placeholder="Start writing your travel story…"
       />
 

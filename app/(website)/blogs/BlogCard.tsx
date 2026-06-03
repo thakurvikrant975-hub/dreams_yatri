@@ -50,7 +50,7 @@ export function BlogCard({ post }: { post: PublishedBlogItem }) {
             )}
           </div>
 
-          <Heading level={3} className="text-neutral-900 leading-snug mb-2 truncate group-hover:text-primary-600 transition-colors text-base font-bold">
+          <Heading level={5} className="text-neutral-900 leading-snug mb-2 truncate group-hover:text-primary-600 transition-colors text-base font-semibold">
             {post.title}
           </Heading>
 
