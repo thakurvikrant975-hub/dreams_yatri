@@ -12,7 +12,9 @@
     "test:quote": "tsx --conditions=react-server --env-file=.env scripts/test-quote.ts",
     "test:money": "tsx scripts/test-money.ts",
     "test:policy": "tsx scripts/test-payment-policy.ts",
-    "test": "npm run test:money && npm run test:policy && npm run test:quote"
+    "test:razorpay": "tsx --conditions=react-server scripts/test-razorpay.ts",
+    "test": "npm run test:money && npm run test:policy && npm run test:razorpay && npm run test:quote",
+    "e2e:phase4": "tsx --conditions=react-server --env-file=.env scripts/e2e-phase4.ts"
   },
   "prisma": {
     "seed": "tsx --env-file=.env prisma/seed.ts"
@@ -55,6 +57,7 @@
     "node-fetch": "^3.3.2",
     "pg": "^8.20.0",
     "radix-ui": "^1.4.3",
+    "razorpay": "^2.9.6",
     "react": "19.2.3",
     "react-day-picker": "^10.0.1",
     "react-dom": "19.2.3",

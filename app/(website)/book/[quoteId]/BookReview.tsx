@@ -1,9 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import QuoteCountdown from './QuoteCountdown';
+import { loadRazorpay, openRazorpay } from './razorpayCheckout';
+import { createPackageBooking, verifyCheckoutPayment } from '@/app/actions/payment/booking.actions';
 import Button from '@/app/components/ui/Button';
 import Card from '@/app/components/ui/Card';
 import { Heading, Text } from '@/app/components/ui/Typography';
@@ -43,10 +46,71 @@ export default function BookReview({
     drift: { fresh: boolean; currentTotal: number | null } | null;
     schedule: PaymentScheduleDTO | null;
 }) {
+    const router = useRouter();
     const [expired, setExpired] = useState(quote.status !== 'ACTIVE');
+    const [paying, setPaying] = useState(false);
+    const [processing, setProcessing] = useState(false);
+    const [payError, setPayError] = useState<string | null>(null);
 
     const totalPax = quote.adults + quote.children + quote.infants;
     const priceChanged = drift && !drift.fresh && drift.currentTotal !== null;
+
+    async function handlePay() {
+        setPayError(null);
+        setPaying(true);
+        try {
+            const res = await createPackageBooking(quote.id);
+            if (!res.success) {
+                setPaying(false);
+                setPayError(
+                    res.reason === 'unauthenticated' ? 'Please log in to continue your booking.'
+                    : res.reason === 'stale' ? 'The price changed since this quote was created. Please refresh for the latest price.'
+                    : res.reason === 'not_active' ? 'This quote has expired. Please start again.'
+                    : res.message ?? 'Could not start payment. Please try again.',
+                );
+                return;
+            }
+
+            const ready = await loadRazorpay();
+            if (!ready) {
+                setPaying(false);
+                setPayError('Could not load the payment window. Please check your connection and try again.');
+                return;
+            }
+
+            const { order } = res;
+            openRazorpay({
+                key: order.keyId,
+                order_id: order.orderId,
+                amount: order.amountPaise,
+                currency: order.currency,
+                name: 'Dreams Yatri',
+                description: `${packageTitle} — ${order.plan === 'DEPOSIT' ? 'Deposit' : 'Full payment'}`,
+                notes: { bookingId: order.bookingId },
+                theme: { color: '#0f766e' },
+                handler: async (resp) => {
+                    // Truth comes from the webhook; verify the callback sig for UX, then
+                    // route to the confirmation page (which polls until confirmed).
+                    setProcessing(true);
+                    try {
+                        await verifyCheckoutPayment({
+                            orderId: resp.razorpay_order_id,
+                            paymentId: resp.razorpay_payment_id,
+                            signature: resp.razorpay_signature,
+                        });
+                    } catch (err) {
+                        console.error('[BookReview] verify failed', err);
+                    }
+                    router.push(`/bookings/${order.bookingId}`);
+                },
+                modal: { ondismiss: () => setPaying(false) },
+            });
+        } catch (err) {
+            console.error('[BookReview] pay failed', err);
+            setPaying(false);
+            setPayError('Something went wrong starting your payment. Please try again.');
+        }
+    }
 
     if (expired) {
         return (
@@ -175,9 +239,36 @@ export default function BookReview({
                             </Text>
                         )}
 
-                        <Button variant="premium" className="w-full mt-4" disabled>
-                            Continue to payment (coming soon)
-                        </Button>
+                        {processing ? (
+                            <div className="mt-4 rounded-lg bg-success-50 border border-success-200 px-4 py-3 text-center">
+                                <Text size="sm" weight="medium" className="text-success-700 block">
+                                    Payment received — confirming your booking…
+                                </Text>
+                                <Text size="xs" intent="muted" className="mt-0.5 block">
+                                    This can take a few moments. You'll get a confirmation shortly.
+                                </Text>
+                            </div>
+                        ) : (
+                            <Button
+                                variant="premium"
+                                className="w-full mt-4"
+                                onClick={handlePay}
+                                loading={paying}
+                                disabled={!schedule || paying}
+                            >
+                                {schedule ? `Pay ${formatPaise(schedule.depositPaise)}` : 'Payment unavailable'}
+                            </Button>
+                        )}
+
+                        {payError && (
+                            <Text size="xs" intent="error" className="mt-2 block text-center" role="alert">
+                                {payError}
+                            </Text>
+                        )}
+
+                        <Text size="xs" intent="muted" className="mt-3 block text-center">
+                            Secured by Razorpay · UPI, cards, net banking & wallets
+                        </Text>
                     </Card>
                 </div>
 
