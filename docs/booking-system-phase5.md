@@ -40,7 +40,7 @@ reconciliation is the safety net; reminders chase the balance leg.
 |------|-------------|--------|
 | 5.1 | Schema: `PaymentStatus += FAILED`; `PaymentInstallment += reminderSentAt?, reminderCount` — migration + regen | ✅ DONE |
 | 5.2 | Refactor `finalizeCapturedPayment(...)` shared by webhook + recon (idempotent, status-guarded); webhook uses it; existing e2e still green | ✅ DONE |
-| 5.3 | Webhook: handle `payment.failed` (Payment FAILED + failureReason) and refund events (`refund.processed`/`payment.refunded` → REFUNDED/PARTIALLY_REFUNDED + refund fields, Booking paymentStatus); dedupe as before | ⬜ TODO |
+| 5.3 | Webhook: handle `payment.failed` (Payment FAILED + failureReason) and refund events (`refund.processed`/`payment.refunded` → REFUNDED/PARTIALLY_REFUNDED + refund fields, Booking paymentStatus); dedupe as before | ✅ DONE |
 | 5.4 | Razorpay fetch helpers (`fetchOrderPayments`/`fetchPayment`) + `reconcilePendingPayments({ olderThanMinutes, fetcher })`: find stale PENDING RAZORPAY payments → poll → finalize/fail (never override webhook) | ⬜ TODO |
 | 5.5 | Cron routes: `/api/cron/reconcile-payments` + `/api/cron/balance-reminders` (CRON_SECRET); reminder logic marks OVERDUE, emails due-soon, sets reminderSentAt/Count | ⬜ TODO |
 | 5.6 | Tests + e2e: failed/refund webhook sim; recon with stubbed fetcher (missed-capture → finalized); reminder selection unit; docs/memory; Phase 5 complete | ⬜ TODO |
@@ -96,6 +96,17 @@ reconciliation is the safety net; reminders chase the balance leg.
   `mapMethod` moved here.
 - `webhook.service.ts` now calls it inside its tx, then sets WebhookEvent PROCESSED (or FAILED). Removed the
   inlined writes + duplicate mapMethod. `npm run e2e:phase4` still PASS.
+
+## Step 5.3 — what was done
+- `webhook.service.ts` now dispatches by `eventType` (after verify + dedupe):
+  - `payment.captured` → `finalizeCapturedPayment` (unchanged).
+  - `payment.failed` → Payment (if PENDING) → `FAILED` + `failureReason` (error_description/reason); Booking left PENDING.
+  - `refund.processed`/`refund.created`/`payment.refunded` → resolve Payment by `gatewayPaymentId`
+    (refund.payment_id, or entity.id for payment.refunded); set `REFUNDED` (full) / `PARTIALLY_REFUNDED`
+    (refund.amount < payment.amount_paise) + refundId/refundAmount/refundedAt; Booking.paymentStatus mirrors. Record-only.
+  - else → recorded + IGNORED. All keep the find-or-create WebhookEvent dedupe (PROCESSED ⇒ duplicate).
+- Verified (throwaway e2e, removed): failed→FAILED+reason; partial refund→PARTIALLY_REFUNDED (payment+booking)+refundId/amount;
+  refund duplicate→duplicate; captured regression (e2e:phase4) still PASS.
 
 ## Gotchas / conventions
 - `ALTER TYPE ... ADD VALUE` can't run in the same transaction as other statements — keep it standalone in the migration.
