@@ -18,7 +18,7 @@ import { cn } from '@/app/lib/utils';
 
 type GeoState = {
   countryId:   number | null;
-  countryName: string;
+  countryName: string; 
   stateId:     number | null;
   stateName:   string;
 };
