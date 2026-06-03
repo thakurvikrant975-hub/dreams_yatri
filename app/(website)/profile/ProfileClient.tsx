@@ -85,7 +85,7 @@ const panels: Record<NavKey, React.ReactNode> = {
         <div className="relative mx-auto px-4 sm:px-6 pt-10 pb-16">
           <div className="flex flex-col sm:flex-row items-start sm:items-end gap-5">
 
-            <AvatarUpload />
+            <AvatarUpload name={user.name} image={user.image} />
 
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
