@@ -42,7 +42,7 @@ reconciliation is the safety net; reminders chase the balance leg.
 | 5.2 | Refactor `finalizeCapturedPayment(...)` shared by webhook + recon (idempotent, status-guarded); webhook uses it; existing e2e still green | ✅ DONE |
 | 5.3 | Webhook: handle `payment.failed` (Payment FAILED + failureReason) and refund events (`refund.processed`/`payment.refunded` → REFUNDED/PARTIALLY_REFUNDED + refund fields, Booking paymentStatus); dedupe as before | ✅ DONE |
 | 5.4 | Razorpay fetch helpers (`fetchOrderPayments`/`fetchPayment`) + `reconcilePendingPayments({ olderThanMinutes, fetcher })`: find stale PENDING RAZORPAY payments → poll → finalize/fail (never override webhook) | ✅ DONE |
-| 5.5 | Cron routes: `/api/cron/reconcile-payments` + `/api/cron/balance-reminders` (CRON_SECRET); reminder logic marks OVERDUE, emails due-soon, sets reminderSentAt/Count | ⬜ TODO |
+| 5.5 | Cron routes: `/api/cron/reconcile-payments` + `/api/cron/balance-reminders` (CRON_SECRET); reminder logic marks OVERDUE, emails due-soon, sets reminderSentAt/Count | ✅ DONE |
 | 5.6 | Tests + e2e: failed/refund webhook sim; recon with stubbed fetcher (missed-capture → finalized); reminder selection unit; docs/memory; Phase 5 complete | ⬜ TODO |
 
 ## Per-step detail
@@ -117,6 +117,18 @@ reconciliation is the safety net; reminders chase the balance leg.
   overrides a webhook since only PENDING is selected); all-failed ⇒ Payment FAILED; else skip. Fetcher injectable.
 - Verified (throwaway e2e, removed, stub fetcher): stale captured→finalized (booking ADVANCE_PAID, installment PAID),
   stale all-failed→FAILED, fresh PENDING untouched, 2nd run idempotent (scanned 0).
+
+## Step 5.5 — what was done
+- `app/actions/payment/reminders.service.ts` `runBalanceReminders({ now?, mailer? })` → `{ scanned, remindersSent,
+  markedOverdue }`. Selects BALANCE installments (PENDING/OVERDUE, dueDate set) on ADVANCE_PAID bookings; stage by
+  days-to-due (overdue=3 / due1=2 / due7=1); `reminderCount` is a monotonic stage marker → each touchpoint fires once;
+  overdue also flips status OVERDUE; email via `sendEmail` (mailer injectable). Reuses `formatPaise`.
+- `app/api/cron/auth.ts` `isAuthorizedCron(req)` (Authorization: Bearer CRON_SECRET, or x-cron-secret; deny if unset).
+- Routes `app/api/cron/{reconcile-payments,balance-reminders}/route.ts` (nodejs, GET, 401 if unauthorized) → call the
+  services, return JSON summary. The scheduler (Vercel Cron/external) is wired by ops.
+- Env: `CRON_SECRET`, `RECON_STALE_MINUTES=15` added to `.env`.
+- Verified (throwaway e2e, removed, stub mailer + fixed now): 5 scanned → 3 sent (7d/1d/overdue), 1 OVERDUE,
+  count→3; second run idempotent (0 sent).
 
 ## Gotchas / conventions
 - `ALTER TYPE ... ADD VALUE` can't run in the same transaction as other statements — keep it standalone in the migration.
