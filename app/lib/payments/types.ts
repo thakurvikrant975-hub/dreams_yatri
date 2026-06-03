@@ -68,6 +68,6 @@ export interface PaymentProvider {
     createCharge(input: CreateChargeInput): Promise<CreateChargeResult>;
     verifyCallback(payload: Record<string, string>): CallbackResult;
     verifyWebhook(rawBody: string, headers: Headers): boolean;
-    parseWebhookEvent(rawBody: string): NormalizedWebhookEvent | null;
+    parseWebhookEvent(rawBody: string, headers: Headers): NormalizedWebhookEvent | null;
     fetchChargeStatus(gatewayOrderRef: string): Promise<ChargeStatus>;
 }

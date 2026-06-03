@@ -51,7 +51,7 @@ normalized event", "fetch status for recon", and "public config for the client".
 | Step | Description | Status |
 |------|-------------|--------|
 | 6.1 | `app/lib/payments/provider.ts` — `PaymentProvider` interface + normalized DTOs (`CheckoutInit`, `NormalizedWebhookEvent`, `ChargeStatus`) + `getProvider(gateway)` registry | ✅ DONE |
-| 6.2 | `razorpay.provider.ts` implementing the interface by wrapping existing `razorpay.ts` (normalize order/sig/webhook/fetch); no behavior change; `npm run e2e:phase4/5` green | ⬜ TODO |
+| 6.2 | `razorpay.provider.ts` implementing the interface by wrapping existing `razorpay.ts` (normalize order/sig/webhook/fetch); no behavior change; `npm run e2e:phase4/5` green | ✅ DONE |
 | 6.3 | Make shared services provider-driven: generalize webhook processor (`processGatewayWebhook(gateway, raw, headers)` using `parseWebhookEvent` + `finalizeCapturedPayment`), recon via `fetchChargeStatus`, booking via `getProvider(active).createCharge` | ⬜ TODO |
 | 6.4 | `payu.provider.ts` — SHA-512 request hash, `createCharge` (txnid+fields), `verifyCallback` (reverse hash), `verifyWebhook`/`parseWebhookEvent`, `fetchChargeStatus` (verify_payment); envs | ⬜ TODO |
 | 6.5 | Client + routes: launch `CheckoutInit` (RZP modal vs PayU form-post) in `BookReview`; PayU callback routes (surl/furl) + `/api/webhooks/payu`; provider selection wired | ⬜ TODO |
@@ -104,6 +104,15 @@ normalized event", "fetch status for recon", and "public config for the client".
 - `app/lib/payments/registry.ts` (server-only): `activeGateway()` (from `PAYMENT_PROVIDER`, default RAZORPAY),
   `getProvider(gateway)` switch (throws until Razorpay=6.2 / PayU=6.4 are wired).
 - Env added: `PAYMENT_PROVIDER=RAZORPAY`, `PAYU_KEY`/`PAYU_SALT` (blank), `PAYU_BASE_URL=https://test.payu.in`.
+
+## Step 6.2 — what was done
+- `app/lib/payments/razorpay.provider.ts` (`server-only`) implements `PaymentProvider` by delegating to
+  `razorpay.ts`: `createCharge`→order+CheckoutInit(modal); `verifyCallback`→checkout HMAC; `verifyWebhook`→
+  header `x-razorpay-signature`; `parseWebhookEvent`(captured/failed/refund/other → normalized, eventId from
+  `x-razorpay-event-id`); `fetchChargeStatus`→fetchOrderPayments→captured/failed/pending.
+- Interface tweak: `parseWebhookEvent(rawBody, headers)` (eventId source differs per gateway).
+- Registry `getProvider("RAZORPAY")` wired. Verified (throwaway): registry + verify/parse normalization;
+  `e2e:phase4/5` still PASS (provider not yet in the live flow — that's 6.3).
 
 ## Gotchas / conventions
 - Keep `finalize`/`schedule`/`reminders` gateway-agnostic — only the provider adapters know gateway specifics.
