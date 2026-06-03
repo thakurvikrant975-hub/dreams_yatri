@@ -6,18 +6,22 @@ import { verifyCheckoutSignature } from "@/app/lib/razorpay";
 import { createBookingAndOrder } from "./create-booking.service";
 import { cancelBooking, previewCancellation } from "./cancel-booking.service";
 import { changeTravelDate, previewDateChange } from "./change-date.service";
+import type { CheckoutInput } from "@/app/actions/quote/checkout-schema";
 import type { CreateBookingOrderResult, VerifyCheckoutResult, CancelBookingResult, CancellationPreview, DateChangeResult, DateChangePreview } from "./types";
 
 /**
  * Initiate a package booking + Razorpay order from a quote.
  * Auth is required (Booking.userId is non-null). The amount is server-derived.
  */
-export async function createPackageBooking(quoteId: string, paymentChoice?: "FULL" | "DEPOSIT"): Promise<CreateBookingOrderResult> {
+export async function createPackageBooking(
+    quoteId: string,
+    opts?: { paymentChoice?: "FULL" | "DEPOSIT"; details?: CheckoutInput },
+): Promise<CreateBookingOrderResult> {
     const user = await getAuthenticatedUser();
     if (!user?.id) return { success: false, reason: "unauthenticated" };
 
     try {
-        return await createBookingAndOrder({ quoteId, userId: user.id, paymentChoice });
+        return await createBookingAndOrder({ quoteId, userId: user.id, paymentChoice: opts?.paymentChoice, details: opts?.details });
     } catch (err) {
         console.error("[createPackageBooking] failed", err);
         return { success: false, reason: "error", message: "Could not start your booking. Please try again." };

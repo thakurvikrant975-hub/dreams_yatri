@@ -7,6 +7,9 @@ import Image from 'next/image';
 import QuoteCountdown from './QuoteCountdown';
 import { loadRazorpay, openRazorpay } from './razorpayCheckout';
 import { submitPayuForm } from './payuCheckout';
+import CheckoutForm from './CheckoutForm';
+import PackagePreview, { type PreviewDay } from './PackagePreview';
+import type { CheckoutInput } from '@/app/actions/quote/checkout-schema';
 import { createPackageBooking, verifyCheckoutPayment } from '@/app/actions/payment/booking.actions';
 import Button from '@/app/components/ui/Button';
 import Card from '@/app/components/ui/Card';
@@ -39,6 +42,7 @@ export default function BookReview({
     packageHref,
     drift,
     schedule,
+    itinerary = [],
 }: {
     quote: SafeQuote;
     packageTitle: string;
@@ -46,21 +50,28 @@ export default function BookReview({
     packageHref: string;
     drift: { fresh: boolean; currentTotal: number | null } | null;
     schedule: PaymentScheduleDTO | null;
+    itinerary?: PreviewDay[];
 }) {
     const router = useRouter();
     const [expired, setExpired] = useState(quote.status !== 'ACTIVE');
     const [paying, setPaying] = useState(false);
     const [processing, setProcessing] = useState(false);
     const [payError, setPayError] = useState<string | null>(null);
+    const [checkout, setCheckout] = useState<CheckoutInput | null>(null);
 
     const totalPax = quote.adults + quote.children + quote.infants;
     const priceChanged = drift && !drift.fresh && drift.currentTotal !== null;
+    const depositAllowed = schedule?.plan === 'DEPOSIT';
+    const [payChoice, setPayChoice] = useState<'DEPOSIT' | 'FULL'>('DEPOSIT');
+    const effectiveChoice: 'DEPOSIT' | 'FULL' = depositAllowed ? payChoice : 'FULL';
+    const payAmountPaise = schedule ? (effectiveChoice === 'FULL' ? schedule.totalPaise : schedule.depositPaise) : 0;
 
     async function handlePay() {
         setPayError(null);
+        if (!checkout) { setPayError('Please complete all traveller and contact details.'); return; }
         setPaying(true);
         try {
-            const res = await createPackageBooking(quote.id);
+            const res = await createPackageBooking(quote.id, { paymentChoice: effectiveChoice, details: checkout });
             if (!res.success) {
                 setPaying(false);
                 setPayError(
@@ -80,20 +91,20 @@ export default function BookReview({
             }
 
             const { order } = res;
-            const { checkout } = order;
+            const co = order.checkout;
 
-            if (checkout.provider === 'PAYU') {
+            if (co.provider === 'PAYU') {
                 // Redirect to PayU's hosted page; the browser navigates away.
                 setProcessing(true);
-                submitPayuForm(checkout.actionUrl, checkout.fields);
+                submitPayuForm(co.actionUrl, co.fields);
                 return;
             }
 
             openRazorpay({
-                key: checkout.keyId,
-                order_id: checkout.orderId,
-                amount: checkout.amountPaise,
-                currency: checkout.currency,
+                key: co.keyId,
+                order_id: co.orderId,
+                amount: co.amountPaise,
+                currency: co.currency,
                 name: 'Dreams Yatri',
                 description: `${packageTitle} — ${order.plan === 'DEPOSIT' ? 'Deposit' : 'Full payment'}`,
                 notes: { bookingId: order.bookingId },
@@ -198,37 +209,39 @@ export default function BookReview({
                         </dl>
                     </Card>
 
-                    {/* Payment plan + placeholder (gateway is Phase 4) */}
+                    {/* Full package preview (from the frozen quote breakdown) */}
+                    <PackagePreview days={itinerary} />
+
+                    {/* Traveller + contact + GST details (gates the Pay button) */}
+                    <Card className="px-6 py-5">
+                        <CheckoutForm pax={{ adults: quote.adults, children: quote.children, infants: quote.infants }} onChange={setCheckout} />
+                    </Card>
+
+                    {/* Payment plan + selector */}
                     <Card className="px-6 py-5">
                         <Heading level={4} weight="semibold">Payment</Heading>
 
                         {schedule ? (
-                            schedule.plan === 'DEPOSIT' ? (
-                                <div className="mt-3 rounded-lg border border-neutral-200 divide-y divide-neutral-100">
-                                    <div className="flex items-center justify-between px-4 py-3">
-                                        <div>
-                                            <Text size="sm" weight="semibold" intent="primary">Pay now to confirm</Text>
-                                            <Text size="xs" intent="muted" className="block mt-0.5">
-                                                {Math.round((schedule.depositPaise / schedule.totalPaise) * 100)}% deposit
-                                            </Text>
+                            depositAllowed ? (
+                                <div className="mt-3 flex flex-col gap-2">
+                                    <button type="button" onClick={() => setPayChoice('DEPOSIT')}
+                                        className={`text-left rounded-lg border px-4 py-3 ${payChoice === 'DEPOSIT' ? 'border-primary-500 ring-1 ring-primary-400 bg-primary-50' : 'border-neutral-200'}`}>
+                                        <div className="flex items-center justify-between">
+                                            <Text size="sm" weight="semibold" intent="primary">Book Now, Pay Later</Text>
+                                            <Text size="lg" weight="bold" intent="primary" className="font-heading">{formatPaise(schedule.depositPaise)}</Text>
                                         </div>
-                                        <Text size="lg" weight="bold" intent="primary" className="font-heading">
-                                            {formatPaise(schedule.depositPaise)}
+                                        <Text size="xs" intent="muted" className="block mt-0.5">
+                                            Pay {Math.round((schedule.depositPaise / schedule.totalPaise) * 100)}% now to reserve · balance {formatPaise(schedule.balancePaise)}{schedule.balanceDueDate ? ` due by ${formatDate(schedule.balanceDueDate)}` : ''}
                                         </Text>
-                                    </div>
-                                    <div className="flex items-center justify-between px-4 py-3">
-                                        <div>
-                                            <Text size="sm" weight="medium" intent="secondary">Balance</Text>
-                                            {schedule.balanceDueDate && (
-                                                <Text size="xs" intent="muted" className="block mt-0.5">
-                                                    due by {formatDate(schedule.balanceDueDate)}
-                                                </Text>
-                                            )}
+                                    </button>
+                                    <button type="button" onClick={() => setPayChoice('FULL')}
+                                        className={`text-left rounded-lg border px-4 py-3 ${payChoice === 'FULL' ? 'border-primary-500 ring-1 ring-primary-400 bg-primary-50' : 'border-neutral-200'}`}>
+                                        <div className="flex items-center justify-between">
+                                            <Text size="sm" weight="semibold" intent="primary">Pay Full Amount Now</Text>
+                                            <Text size="lg" weight="bold" intent="primary" className="font-heading">{formatPaise(schedule.totalPaise)}</Text>
                                         </div>
-                                        <Text size="sm" weight="semibold" intent="secondary">
-                                            {formatPaise(schedule.balancePaise)}
-                                        </Text>
-                                    </div>
+                                        <Text size="xs" intent="muted" className="block mt-0.5">Pay the whole amount today.</Text>
+                                    </button>
                                 </div>
                             ) : (
                                 <div className="mt-3 flex items-center justify-between rounded-lg border border-neutral-200 px-4 py-3">
@@ -264,9 +277,9 @@ export default function BookReview({
                                 className="w-full mt-4"
                                 onClick={handlePay}
                                 loading={paying}
-                                disabled={!schedule || paying}
+                                disabled={!schedule || paying || !checkout}
                             >
-                                {schedule ? `Pay ${formatPaise(schedule.depositPaise)}` : 'Payment unavailable'}
+                                {!schedule ? 'Payment unavailable' : !checkout ? 'Enter traveller details to continue' : `Pay ${formatPaise(payAmountPaise)}`}
                             </Button>
                         )}
 

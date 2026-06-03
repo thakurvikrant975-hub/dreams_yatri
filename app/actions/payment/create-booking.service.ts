@@ -6,6 +6,7 @@ import { computePaymentSchedule } from "@/app/services/payment-policy/engine";
 import { rupeesToPaise } from "@/app/lib/money";
 import { getProvider, activeGateway } from "@/app/lib/payments/registry";
 import type { CheckoutInit } from "@/app/lib/payments/types";
+import { checkoutSchema, type CheckoutInput } from "@/app/actions/quote/checkout-schema";
 import type { CreateBookingOrderResult } from "./types";
 
 /**
@@ -41,6 +42,8 @@ export async function createBookingAndOrder(params: {
     userId: string;
     /** User's choice when a deposit is allowed. Near-travel always forces FULL. Default: DEPOSIT (policy decides). */
     paymentChoice?: "FULL" | "DEPOSIT";
+    /** Traveller + contact (+ optional GST) details collected at checkout. */
+    details?: CheckoutInput;
 }): Promise<CreateBookingOrderResult> {
     const { quoteId, userId } = params;
 
@@ -102,6 +105,18 @@ export async function createBookingAndOrder(params: {
     ]);
     if (!pkg || !dur) return { success: false, reason: "error", message: "Package or duration not found." };
 
+    // ── Validate checkout details (server-authoritative) ───────────────────────
+    let validDetails: CheckoutInput | undefined;
+    if (params.details) {
+        const parsed = checkoutSchema.safeParse(params.details);
+        if (!parsed.success) return { success: false, reason: "error", message: "Please complete traveller and contact details." };
+        const expectedPax = row.adults + row.children + row.infants;
+        if (parsed.data.travellers.length !== expectedPax) {
+            return { success: false, reason: "error", message: `Please add details for all ${expectedPax} travellers.` };
+        }
+        validDetails = parsed.data;
+    }
+
     // ── Server-derived money + schedule ────────────────────────────────────────
     const totalPaise = rupeesToPaise(row.total_amount.toString());
     const schedule = computePaymentSchedule({ totalPaise, travelDate: isoDate(row.travel_date), now: new Date() });
@@ -149,6 +164,22 @@ export async function createBookingAndOrder(params: {
                 priceSnapshot: row.breakdown as object,
                 quoteId,
                 quoteInputsHash: row.inputs_hash,
+                contactEmail: validDetails?.contact.email ?? null,
+                contactPhone: validDetails?.contact.phone ?? null,
+                gstStateCode: validDetails?.gstStateCode || null,
+                travellersList: validDetails
+                    ? {
+                          create: validDetails.travellers.map((t, i) => ({
+                              type: t.type,
+                              fullName: `${t.firstName} ${t.lastName}`.trim(),
+                              firstName: t.firstName,
+                              lastName: t.lastName,
+                              dateOfBirth: new Date(`${t.dob}T00:00:00.000Z`),
+                              gender: t.gender,
+                              isLead: i === 0,
+                          })),
+                      }
+                    : undefined,
                 installments: {
                     create: effInstallments.map((l) => ({
                         type: l.type,

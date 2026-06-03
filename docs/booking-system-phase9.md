@@ -40,9 +40,9 @@ Make `/book/[quoteId]` a complete checkout like MMT's review page:
 |------|-------------|--------|
 | 9.1 | Schema: `Booking += contactEmail/contactPhone/gstStateCode?`; `BookingTraveller += firstName/lastName` — migration + regen | ✅ DONE |
 | 9.2 | Payment policy: `MIN_DEPOSIT_PAISE → ₹10,000`; `createBookingAndOrder` accepts `paymentChoice` (FULL\|DEPOSIT, near⇒FULL); tests | ✅ DONE |
-| 9.3 | Checkout form (client): traveller cards (first/last/DOB/gender ×pax), contact (email/mobile), GST (state, optional); shared Zod schema; Pay disabled until valid | ⬜ TODO |
-| 9.4 | Wire form → `createPackageBooking`/`createBookingAndOrder`: persist `BookingTraveller` rows + contact/GST + plan; validate server-side too | ⬜ TODO |
-| 9.5 | Full package preview section (from priceSnapshot) + payment selector UI (Book-Now-Pay-Later schedule vs Pay-Full), near⇒full only | ⬜ TODO |
+| 9.3 | Checkout form (client): traveller cards (first/last/DOB/gender ×pax), contact (email/mobile), GST (state, optional); shared Zod schema; Pay disabled until valid | ✅ DONE |
+| 9.4 | Wire form → `createPackageBooking`/`createBookingAndOrder`: persist `BookingTraveller` rows + contact/GST + plan; validate server-side too | ✅ DONE |
+| 9.5 | Full package preview section (from priceSnapshot) + payment selector UI (Book-Now-Pay-Later schedule vs Pay-Full), near⇒full only | ✅ DONE |
 | 9.6 | Tests (policy floor/choice, form schema) + e2e (booking with travellers + choice) + docs/memory; Phase 9 complete | ⬜ TODO |
 
 ## Per-step detail (provisional)
@@ -62,6 +62,19 @@ Make `/book/[quoteId]` a complete checkout like MMT's review page:
   FULL); builds effective plan/legs (FULL = single DEPOSIT-type leg = total, balance 0). `createPackageBooking(quoteId, paymentChoice?)` threads it.
 - Updated `test:payment-policy` for the new floor (36 green). Verified (throwaway): Manali deposit floored to
   ₹10,000 (25%=₹9,113 < floor); paymentChoice FULL on a far booking → full single leg. e2e:phase4/7 still pass.
+
+## Steps 9.3–9.5 — what was done
+- `app/actions/quote/checkout-schema.ts` (plain Zod): `travellers[]` (type/firstName/lastName/dob(past)/gender),
+  `contact{email,phone}`, `gstStateCode?`. Shared client + server.
+- `CheckoutForm.tsx` (client): traveller cards built from pax (adults/children/infants), contact, optional GST;
+  reports a valid `CheckoutInput` (or null) to the parent via `onChange`.
+- `createPackageBooking(quoteId, { paymentChoice, details })` → `createBookingAndOrder` validates `details`
+  server-side (count must match pax) and writes `BookingTraveller` rows (firstName/lastName + fullName, lead=first)
+  + `Booking.contactEmail/contactPhone/gstStateCode`.
+- `BookReview`: renders `PackagePreview` (collapsible day-wise itinerary from the quote breakdown), the
+  `CheckoutForm`, and a **payment selector** (Book Now Pay Later vs Pay Full) when deposit allowed (near ⇒ full
+  only). Pay button **disabled until the form is valid**; amount + plan follow the selection.
+- Verified (throwaway): details persist (split names + fullName + lead + contact), pax-mismatch rejected. tsc 0; suite green.
 
 ## Gotchas / conventions
 - Pay must stay server-authoritative: client gating is UX; `createBookingAndOrder` re-validates details + amount.
