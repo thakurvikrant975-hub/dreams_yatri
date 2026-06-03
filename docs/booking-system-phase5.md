@@ -39,7 +39,7 @@ reconciliation is the safety net; reminders chase the balance leg.
 | Step | Description | Status |
 |------|-------------|--------|
 | 5.1 | Schema: `PaymentStatus += FAILED`; `PaymentInstallment += reminderSentAt?, reminderCount` — migration + regen | ✅ DONE |
-| 5.2 | Refactor `finalizeCapturedPayment(...)` shared by webhook + recon (idempotent, status-guarded); webhook uses it; existing e2e still green | ⬜ TODO |
+| 5.2 | Refactor `finalizeCapturedPayment(...)` shared by webhook + recon (idempotent, status-guarded); webhook uses it; existing e2e still green | ✅ DONE |
 | 5.3 | Webhook: handle `payment.failed` (Payment FAILED + failureReason) and refund events (`refund.processed`/`payment.refunded` → REFUNDED/PARTIALLY_REFUNDED + refund fields, Booking paymentStatus); dedupe as before | ⬜ TODO |
 | 5.4 | Razorpay fetch helpers (`fetchOrderPayments`/`fetchPayment`) + `reconcilePendingPayments({ olderThanMinutes, fetcher })`: find stale PENDING RAZORPAY payments → poll → finalize/fail (never override webhook) | ⬜ TODO |
 | 5.5 | Cron routes: `/api/cron/reconcile-payments` + `/api/cron/balance-reminders` (CRON_SECRET); reminder logic marks OVERDUE, emails due-soon, sets reminderSentAt/Count | ⬜ TODO |
@@ -87,6 +87,15 @@ reconciliation is the safety net; reminders chase the balance leg.
 - Migration `20260602170000_phase5_failure_fields` (`ALTER TYPE … ADD VALUE IF NOT EXISTS 'FAILED'` + 2 ADD COLUMN)
   applied via `db execute`, recorded via hand-insert (checksum `113ba1e1…`), client regen. Verified enum now
   ends with FAILED and reminder columns are queryable. (PG15 allows ADD VALUE alongside the ADD COLUMNs here.)
+
+## Step 5.2 — what was done
+- `app/actions/payment/finalize.service.ts` (`server-only`): `finalizeCapturedPayment(tx, { paymentId,
+  gatewayPaymentId, method?, rawPayload?, webhookEventId? })` → `FinalizeResult`
+  (`finalized | already | not_found | no_booking`). Runs in a caller's tx; idempotent (Payment already
+  FULLY_PAID ⇒ `already`); does Payment FULLY_PAID + DEPOSIT installment PAID + Booking paymentStatus/money.
+  `mapMethod` moved here.
+- `webhook.service.ts` now calls it inside its tx, then sets WebhookEvent PROCESSED (or FAILED). Removed the
+  inlined writes + duplicate mapMethod. `npm run e2e:phase4` still PASS.
 
 ## Gotchas / conventions
 - `ALTER TYPE ... ADD VALUE` can't run in the same transaction as other statements — keep it standalone in the migration.

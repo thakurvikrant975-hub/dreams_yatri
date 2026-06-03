@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/app/lib/db";
 import { verifyWebhookSignature } from "@/app/lib/razorpay";
+import { finalizeCapturedPayment } from "./finalize.service";
 
 /**
  * Authoritative Razorpay webhook processing (the source of payment truth).
@@ -18,17 +19,6 @@ export interface WebhookOutcome {
     httpStatus: number;
     result: "invalid_signature" | "duplicate" | "ignored" | "processed" | "error";
     detail?: string;
-}
-
-function mapMethod(m: unknown): "UPI" | "CARD" | "NET_BANKING" | "WALLET" | "EMI" | null {
-    switch (m) {
-        case "upi": return "UPI";
-        case "card": return "CARD";
-        case "netbanking": return "NET_BANKING";
-        case "wallet": return "WALLET";
-        case "emi": return "EMI";
-        default: return null;
-    }
 }
 
 function isUniqueViolation(e: unknown): boolean {
@@ -92,60 +82,35 @@ export async function processRazorpayWebhook(args: {
 
     const payment = await db.payment.findUnique({
         where: { gatewayOrderId: entity.order_id },
-        select: { id: true, status: true, bookingId: true },
+        select: { id: true },
     });
     if (!payment) {
         await db.webhookEvent.update({ where: { id: eventRow.id }, data: { status: "IGNORED", processedAt: new Date(), error: "no matching payment" } });
         return { httpStatus: 200, result: "ignored", detail: "unknown order" };
     }
 
-    const booking = await db.booking.findUnique({
-        where: { id: payment.bookingId },
-        select: { id: true, paymentPlan: true, totalAmount_paise: true, advanceAmount_paise: true, balanceAmount_paise: true },
-    });
-    if (!booking) {
-        await db.webhookEvent.update({ where: { id: eventRow.id }, data: { status: "FAILED", error: "booking missing" } });
-        return { httpStatus: 500, result: "error", detail: "booking missing" };
-    }
-
-    const now = new Date();
-    const isFull = booking.paymentPlan === "FULL";
-    const rupees = (paise: number) => (paise / 100).toFixed(2);
-
     try {
-        await db.$transaction(async (tx) => {
-            await tx.payment.update({
-                where: { id: payment.id },
-                data: {
-                    status: "FULLY_PAID", // this payment captured in full
-                    gatewayPaymentId: entity.id,
-                    method: mapMethod(entity.method),
-                    paidAt: now,
-                    rawResponse: body as unknown as object,
-                    webhookEventId: eventRow!.id,
-                },
+        const row = eventRow;
+        const outcome = await db.$transaction(async (tx) => {
+            const fin = await finalizeCapturedPayment(tx, {
+                paymentId: payment.id,
+                gatewayPaymentId: entity.id!,
+                method: entity.method,
+                rawPayload: body as unknown as object,
+                webhookEventId: row.id,
             });
-
-            await tx.paymentInstallment.updateMany({
-                where: { bookingId: booking.id, type: "DEPOSIT" },
-                data: { status: "PAID", paidPaymentId: payment.id, paidAt: now },
-            });
-
-            await tx.booking.update({
-                where: { id: booking.id },
-                data: {
-                    paymentStatus: isFull ? "FULLY_PAID" : "ADVANCE_PAID",
-                    paidAmount: isFull ? rupees(booking.totalAmount_paise) : rupees(booking.advanceAmount_paise),
-                    advancePaidAmount: isFull ? rupees(booking.totalAmount_paise) : rupees(booking.advanceAmount_paise),
-                    balanceDueAmount: isFull ? "0.00" : rupees(booking.balanceAmount_paise),
-                },
-            });
-
-            await tx.webhookEvent.update({
-                where: { id: eventRow!.id },
-                data: { status: "PROCESSED", processedAt: now, paymentId: payment.id, bookingId: booking.id },
-            });
+            if (fin.result === "finalized" || fin.result === "already") {
+                await tx.webhookEvent.update({
+                    where: { id: row.id },
+                    data: { status: "PROCESSED", processedAt: new Date(), paymentId: payment.id, bookingId: fin.bookingId },
+                });
+                return "ok" as const;
+            }
+            // not_found / no_booking — surface as failure (no booking to credit).
+            await tx.webhookEvent.update({ where: { id: row.id }, data: { status: "FAILED", error: fin.result } });
+            return "fail" as const;
         });
+        if (outcome === "fail") return { httpStatus: 500, result: "error", detail: "finalize failed" };
     } catch (e) {
         console.error("[razorpay webhook] processing failed", e);
         await db.webhookEvent.update({ where: { id: eventRow.id }, data: { status: "FAILED", error: String(e) } }).catch(() => {});
