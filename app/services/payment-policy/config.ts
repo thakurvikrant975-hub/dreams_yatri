@@ -24,7 +24,7 @@ export interface PaymentPolicyConfig {
 export const DEFAULT_PAYMENT_POLICY: PaymentPolicyConfig = {
     depositPercent: 25,
     balanceDueDaysBeforeTravel: 15,
-    minDepositPaise: 200_000, // ₹2,000
+    minDepositPaise: 1_000_000, // ₹10,000 — "Book Now Pay Later": deposit = max(25%, ₹10,000)
 };
 
 function envNumber(key: string): number | undefined {

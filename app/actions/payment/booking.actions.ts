@@ -12,12 +12,12 @@ import type { CreateBookingOrderResult, VerifyCheckoutResult, CancelBookingResul
  * Initiate a package booking + Razorpay order from a quote.
  * Auth is required (Booking.userId is non-null). The amount is server-derived.
  */
-export async function createPackageBooking(quoteId: string): Promise<CreateBookingOrderResult> {
+export async function createPackageBooking(quoteId: string, paymentChoice?: "FULL" | "DEPOSIT"): Promise<CreateBookingOrderResult> {
     const user = await getAuthenticatedUser();
     if (!user?.id) return { success: false, reason: "unauthenticated" };
 
     try {
-        return await createBookingAndOrder({ quoteId, userId: user.id });
+        return await createBookingAndOrder({ quoteId, userId: user.id, paymentChoice });
     } catch (err) {
         console.error("[createPackageBooking] failed", err);
         return { success: false, reason: "error", message: "Could not start your booking. Please try again." };

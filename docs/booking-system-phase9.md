@@ -39,7 +39,7 @@ Make `/book/[quoteId]` a complete checkout like MMT's review page:
 | Step | Description | Status |
 |------|-------------|--------|
 | 9.1 | Schema: `Booking += contactEmail/contactPhone/gstStateCode?`; `BookingTraveller += firstName/lastName` — migration + regen | ✅ DONE |
-| 9.2 | Payment policy: `MIN_DEPOSIT_PAISE → ₹10,000`; `createBookingAndOrder` accepts `paymentChoice` (FULL\|DEPOSIT, near⇒FULL) + traveller/contact/GST; tests | ⬜ TODO |
+| 9.2 | Payment policy: `MIN_DEPOSIT_PAISE → ₹10,000`; `createBookingAndOrder` accepts `paymentChoice` (FULL\|DEPOSIT, near⇒FULL); tests | ✅ DONE |
 | 9.3 | Checkout form (client): traveller cards (first/last/DOB/gender ×pax), contact (email/mobile), GST (state, optional); shared Zod schema; Pay disabled until valid | ⬜ TODO |
 | 9.4 | Wire form → `createPackageBooking`/`createBookingAndOrder`: persist `BookingTraveller` rows + contact/GST + plan; validate server-side too | ⬜ TODO |
 | 9.5 | Full package preview section (from priceSnapshot) + payment selector UI (Book-Now-Pay-Later schedule vs Pay-Full), near⇒full only | ⬜ TODO |
@@ -55,6 +55,13 @@ Make `/book/[quoteId]` a complete checkout like MMT's review page:
   quote pax order: adults first, then children with their ages), `Booking.contactEmail/Phone/gstStateCode`.
 - **9.5** preview = collapsible itinerary from `priceSnapshot.days` (reuse voucher-style rendering); payment
   selector: two options (deposit schedule / full) shown only when deposit allowed, else full-only.
+
+## Step 9.2 — what was done
+- `payment-policy/config.ts`: `minDepositPaise` 200000 → **1,000,000 (₹10,000)**. Deposit = max(25%, ₹10k) ≤ total.
+- `createBookingAndOrder({…, paymentChoice?})`: `useFull = choice==='FULL' || schedule.plan==='FULL'` (near forces
+  FULL); builds effective plan/legs (FULL = single DEPOSIT-type leg = total, balance 0). `createPackageBooking(quoteId, paymentChoice?)` threads it.
+- Updated `test:payment-policy` for the new floor (36 green). Verified (throwaway): Manali deposit floored to
+  ₹10,000 (25%=₹9,113 < floor); paymentChoice FULL on a far booking → full single leg. e2e:phase4/7 still pass.
 
 ## Gotchas / conventions
 - Pay must stay server-authoritative: client gating is UX; `createBookingAndOrder` re-validates details + amount.
