@@ -70,6 +70,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             status:            user.status,
             name:              user.name,
             email:             user.email,
+            image:             user.image,
             isProfileComplete: user.isProfileComplete,
           } as User;
         }
@@ -109,12 +110,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           if (user.status === "BANNED" || user.status === "DELETED") return null;
 
           return {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            phone: user.phone,
-            role: user.role,
-            status: user.status,
+            id:                user.id,
+            email:             user.email,
+            name:              user.name,
+            phone:             user.phone,
+            role:              user.role,
+            status:            user.status,
+            image:             user.image,
             isProfileComplete: user.isProfileComplete,
           } as User;
         }
@@ -151,12 +153,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (user.status === "BANNED" || user.status === "DELETED") return null;
 
         return {
-          id: user.id,
-          phone: user.phone,
-          role: user.role,
-          status: user.status,
-          name: user.name,
-          email: user.email,
+          id:                user.id,
+          phone:             user.phone,
+          role:              user.role,
+          status:            user.status,
+          name:              user.name,
+          email:             user.email,
+          image:             user.image,
           isProfileComplete: user.isProfileComplete,
         } as User;
       },
@@ -205,33 +208,55 @@ async signIn({ user, account }) {
   return true;
 },
 
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account, trigger }) {
       if (user) {
-        token.userId = user.id ?? "";
-        token.phone = user.phone ?? null;
-        token.role = user.role;
-        token.status = user.status;
+        token.userId  = user.id ?? "";
+        token.phone   = user.phone ?? null;
+        token.role    = user.role;
+        token.status  = user.status;
         token.isProfileComplete = user.isProfileComplete;
+        if (user.name)  token.name    = user.name;
+        if (user.image) token.picture = user.image;
       }
 
       if (account?.provider === "google" && token.email) {
         const dbUser = await db.user.findUnique({
           where: { email: token.email },
           select: {
-            id: true,
-            phone: true,
-            role: true,
-            status: true,
-            isProfileComplete: true,
+            id: true, phone: true, role: true, status: true,
+            name: true, image: true, isProfileComplete: true,
           },
         });
 
         if (dbUser) {
           token.userId = dbUser.id;
-          token.phone = dbUser.phone;
-          token.role = dbUser.role;
+          token.phone  = dbUser.phone;
+          token.role   = dbUser.role;
           token.status = dbUser.status;
           token.isProfileComplete = dbUser.isProfileComplete;
+          if (dbUser.name)  token.name    = dbUser.name;
+          if (dbUser.image) token.picture = dbUser.image;
+        }
+      }
+
+      // Refresh name/image/isProfileComplete from DB when:
+      // (a) explicitly triggered via update() after a profile save, OR
+      // (b) lazily, whenever token.name is still null for a known user
+      //     — this catches up automatically after any page refresh/navigation
+      //     once the user has saved their name, without needing update() at all
+      const needsRefresh =
+        (trigger === "update" && !!token.userId) ||
+        (!token.name && !!token.userId && !user && !account);
+
+      if (needsRefresh) {
+        const fresh = await db.user.findUnique({
+          where:  { id: token.userId as string },
+          select: { name: true, image: true, isProfileComplete: true },
+        });
+        if (fresh) {
+          if (fresh.name)  token.name    = fresh.name;
+          if (fresh.image) token.picture = fresh.image;
+          token.isProfileComplete = fresh.isProfileComplete;
         }
       }
 
@@ -244,6 +269,9 @@ async session({ session, token }) {
   session.user.role              = token.role;
   session.user.status            = token.status;
   session.user.isProfileComplete = token.isProfileComplete;
+  // Explicitly carry name and image so profile updates via update() are reflected
+  if (token.name)    session.user.name  = token.name as string;
+  if (token.picture) session.user.image = token.picture as string;
   return session;
 },
   },

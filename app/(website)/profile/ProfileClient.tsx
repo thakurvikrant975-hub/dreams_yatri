@@ -85,7 +85,7 @@ const panels: Record<NavKey, React.ReactNode> = {
         <div className="relative mx-auto px-4 sm:px-6 pt-10 pb-16">
           <div className="flex flex-col sm:flex-row items-start sm:items-end gap-5">
 
-            <AvatarUpload />
+            <AvatarUpload name={user.name} image={user.image} />
 
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
@@ -99,7 +99,7 @@ const panels: Record<NavKey, React.ReactNode> = {
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-secondary text-xs">
                 <span className="flex items-center gap-1">
-                  <MapPinIcon className="size-3.5 text-muted" /> {user.country_code} {user.phone}
+                  <MapPinIcon className="size-3.5 text-muted" /> {user.phone}
                 </span>
                 <span>{user.email}</span>
               </div>

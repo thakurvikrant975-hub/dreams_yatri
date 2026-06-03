@@ -9,7 +9,8 @@ export type ImageFolder =
   | "packages"
   | "activities"
   | "team-members"
-  | "blogs";
+  | "blogs"
+  | "avatars";
 
 export type UploadResult = {
   key: string;

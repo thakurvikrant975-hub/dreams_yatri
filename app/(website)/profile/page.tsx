@@ -17,6 +17,7 @@ export default async function ProfilePage() {
         where:  { id: session.user.id },
         select: {
           id: true, phone: true, country_code: true, name: true, email: true,
+          image: true,
           gender: true, dateOfBirth: true, nationality: true, maritalStatus: true,
           anniversary: true, state: true, city: true, passportNumber: true,
           passportExpiryDate: true, passportIssuingCountry: true, panNumber: true,
@@ -35,11 +36,12 @@ export default async function ProfilePage() {
 
     return (
       <Profile
+        key={user.updatedAt.toISOString()}
         user={{
           ...user,
           totalTrips,
           upcomingTrips,
-          wishlistCount: 0,   // ← placeholder until wishlist feature is built
+          wishlistCount: 0,
         }}
       />
     );
