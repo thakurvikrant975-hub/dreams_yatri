@@ -50,7 +50,7 @@ normalized event", "fetch status for recon", and "public config for the client".
 ## Steps & Status
 | Step | Description | Status |
 |------|-------------|--------|
-| 6.1 | `app/lib/payments/provider.ts` — `PaymentProvider` interface + normalized DTOs (`CheckoutInit`, `NormalizedWebhookEvent`, `ChargeStatus`) + `getProvider(gateway)` registry | ⬜ TODO |
+| 6.1 | `app/lib/payments/provider.ts` — `PaymentProvider` interface + normalized DTOs (`CheckoutInit`, `NormalizedWebhookEvent`, `ChargeStatus`) + `getProvider(gateway)` registry | ✅ DONE |
 | 6.2 | `razorpay.provider.ts` implementing the interface by wrapping existing `razorpay.ts` (normalize order/sig/webhook/fetch); no behavior change; `npm run e2e:phase4/5` green | ⬜ TODO |
 | 6.3 | Make shared services provider-driven: generalize webhook processor (`processGatewayWebhook(gateway, raw, headers)` using `parseWebhookEvent` + `finalizeCapturedPayment`), recon via `fetchChargeStatus`, booking via `getProvider(active).createCharge` | ⬜ TODO |
 | 6.4 | `payu.provider.ts` — SHA-512 request hash, `createCharge` (txnid+fields), `verifyCallback` (reverse hash), `verifyWebhook`/`parseWebhookEvent`, `fetchChargeStatus` (verify_payment); envs | ⬜ TODO |
@@ -95,6 +95,15 @@ normalized event", "fetch status for recon", and "public config for the client".
 - Unit: PayU request-hash + reverse-hash (known vectors); provider registry returns correct impl.
 - e2e: `processGatewayWebhook` with a normalized captured/failed/refund for BOTH providers (self-signed/derived);
   recon via stub `fetchChargeStatus`; Razorpay regression (`e2e:phase4/5`).
+
+## Step 6.1 — what was done
+- `app/lib/payments/types.ts` (plain, client-importable): `GatewayId`, `CheckoutInit` (discriminated
+  RAZORPAY/PAYU union), `CreateChargeInput`/`CreateChargeResult` (`gatewayOrderRef` → Payment.gatewayOrderId),
+  `CallbackResult`, `NormalizedWebhookEvent` (type captured|failed|refunded|other + refs/amounts/method),
+  `ChargeStatus`, and the `PaymentProvider` interface (createCharge/verifyCallback/verifyWebhook/parseWebhookEvent/fetchChargeStatus).
+- `app/lib/payments/registry.ts` (server-only): `activeGateway()` (from `PAYMENT_PROVIDER`, default RAZORPAY),
+  `getProvider(gateway)` switch (throws until Razorpay=6.2 / PayU=6.4 are wired).
+- Env added: `PAYMENT_PROVIDER=RAZORPAY`, `PAYU_KEY`/`PAYU_SALT` (blank), `PAYU_BASE_URL=https://test.payu.in`.
 
 ## Gotchas / conventions
 - Keep `finalize`/`schedule`/`reminders` gateway-agnostic — only the provider adapters know gateway specifics.
