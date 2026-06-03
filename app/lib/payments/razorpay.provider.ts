@@ -10,6 +10,7 @@ import type {
     PaymentProvider,
     CreateChargeInput,
     CreateChargeResult,
+    CheckoutInit,
     CallbackResult,
     NormalizedWebhookEvent,
     ChargeStatus,
@@ -42,6 +43,10 @@ export const razorpayProvider: PaymentProvider = {
             gatewayOrderRef: order.orderId,
             checkout: { provider: "RAZORPAY", orderId: order.orderId, keyId: razorpayKeyId(), amountPaise: order.amountPaise, currency: order.currency },
         };
+    },
+
+    checkoutForExistingOrder(args: { gatewayOrderRef: string; amountPaise: number; currency?: string }): CheckoutInit {
+        return { provider: "RAZORPAY", orderId: args.gatewayOrderRef, keyId: razorpayKeyId(), amountPaise: args.amountPaise, currency: args.currency ?? "INR" };
     },
 
     verifyCallback(payload: Record<string, string>): CallbackResult {

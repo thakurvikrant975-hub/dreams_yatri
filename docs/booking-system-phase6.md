@@ -52,7 +52,7 @@ normalized event", "fetch status for recon", and "public config for the client".
 |------|-------------|--------|
 | 6.1 | `app/lib/payments/provider.ts` — `PaymentProvider` interface + normalized DTOs (`CheckoutInit`, `NormalizedWebhookEvent`, `ChargeStatus`) + `getProvider(gateway)` registry | ✅ DONE |
 | 6.2 | `razorpay.provider.ts` implementing the interface by wrapping existing `razorpay.ts` (normalize order/sig/webhook/fetch); no behavior change; `npm run e2e:phase4/5` green | ✅ DONE |
-| 6.3 | Make shared services provider-driven: generalize webhook processor (`processGatewayWebhook(gateway, raw, headers)` using `parseWebhookEvent` + `finalizeCapturedPayment`), recon via `fetchChargeStatus`, booking via `getProvider(active).createCharge` | ⬜ TODO |
+| 6.3 | Make shared services provider-driven: generalize webhook processor (`processGatewayWebhook(gateway, raw, headers)` using `parseWebhookEvent` + `finalizeCapturedPayment`), recon via `fetchChargeStatus`, booking via `getProvider(active).createCharge` | ✅ DONE |
 | 6.4 | `payu.provider.ts` — SHA-512 request hash, `createCharge` (txnid+fields), `verifyCallback` (reverse hash), `verifyWebhook`/`parseWebhookEvent`, `fetchChargeStatus` (verify_payment); envs | ⬜ TODO |
 | 6.5 | Client + routes: launch `CheckoutInit` (RZP modal vs PayU form-post) in `BookReview`; PayU callback routes (surl/furl) + `/api/webhooks/payu`; provider selection wired | ⬜ TODO |
 | 6.6 | Tests + e2e: PayU hash + reverse-hash unit; normalized webhook for both gateways; provider registry; recon via stub; docs/memory; Phase 6 complete | ⬜ TODO |
@@ -113,6 +113,19 @@ normalized event", "fetch status for recon", and "public config for the client".
 - Interface tweak: `parseWebhookEvent(rawBody, headers)` (eventId source differs per gateway).
 - Registry `getProvider("RAZORPAY")` wired. Verified (throwaway): registry + verify/parse normalization;
   `e2e:phase4/5` still PASS (provider not yet in the live flow — that's 6.3).
+
+## Step 6.3 — what was done
+- `webhook.service.ts`: `processRazorpayWebhook` → **`processGatewayWebhook(gateway, rawBody, headers)`** — uses
+  `provider.verifyWebhook`/`parseWebhookEvent`, dedupes on `WebhookEvent(gateway, event.eventId)`, then acts on
+  the normalized `captured|failed|refunded|other`. `/api/webhooks/razorpay` passes `'RAZORPAY' + req.headers`.
+- `reconcile.service.ts`: now loops any-gateway PENDING payments and calls `getProvider(gateway).fetchChargeStatus`;
+  injection changed `fetcher: ReconFetcher` → **`statusOf: StatusFetcher`** (gateway, ref) → `ChargeStatus`.
+- `create-booking.service.ts`: uses `activeGateway()` + `getProvider().createCharge` (charge outside the tx),
+  stores `Payment.gateway = active`, returns **`checkout: CheckoutInit`**. Resume rebuilds via
+  `checkoutForExistingOrder` (or re-creates). `BookingOrderDTO` now carries `checkout` (was orderId/keyId).
+- `BookReview` launches from `order.checkout` (RAZORPAY modal; PAYU branch stubbed → 6.5).
+- Interface +`checkoutForExistingOrder`. Updated `e2e:phase4/5` to the new APIs — both PASS through the
+  provider-driven path; full project tsc = 0 errors; unit suite 91 green.
 
 ## Gotchas / conventions
 - Keep `finalize`/`schedule`/`reminders` gateway-agnostic — only the provider adapters know gateway specifics.

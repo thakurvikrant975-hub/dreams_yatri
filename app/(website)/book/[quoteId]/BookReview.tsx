@@ -79,11 +79,20 @@ export default function BookReview({
             }
 
             const { order } = res;
+            const { checkout } = order;
+
+            if (checkout.provider !== 'RAZORPAY') {
+                // PayU (form-POST redirect) is wired in 6.5.
+                setPaying(false);
+                setPayError('This payment method is not available yet.');
+                return;
+            }
+
             openRazorpay({
-                key: order.keyId,
-                order_id: order.orderId,
-                amount: order.amountPaise,
-                currency: order.currency,
+                key: checkout.keyId,
+                order_id: checkout.orderId,
+                amount: checkout.amountPaise,
+                currency: checkout.currency,
                 name: 'Dreams Yatri',
                 description: `${packageTitle} — ${order.plan === 'DEPOSIT' ? 'Deposit' : 'Full payment'}`,
                 notes: { bookingId: order.bookingId },

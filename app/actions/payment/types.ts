@@ -2,6 +2,7 @@
  * Shared types for the payment-schedule action layer.
  * Plain module (NOT 'use server') — safe to `import type` from client components.
  */
+import type { CheckoutInit } from "@/app/lib/payments/types";
 
 export interface PaymentScheduleDTO {
     plan: "FULL" | "DEPOSIT";
@@ -17,15 +18,13 @@ export type PaymentScheduleResult =
     | { success: true; schedule: PaymentScheduleDTO }
     | { success: false; reason: "not_found" | "invalid" };
 
-/** What the client needs to open the Razorpay checkout. No secrets. */
+/** What the client needs to launch checkout (gateway-agnostic). No secrets. */
 export interface BookingOrderDTO {
     bookingId: string;
     bookingNumber: string;
-    orderId: string;
-    amountPaise: number;
-    currency: string;
-    keyId: string; // public Razorpay key id
     plan: "FULL" | "DEPOSIT";
+    amountPaise: number;
+    checkout: CheckoutInit;
 }
 
 export type CreateBookingOrderReason =

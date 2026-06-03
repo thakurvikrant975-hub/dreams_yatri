@@ -66,6 +66,8 @@ export interface ChargeStatus {
 export interface PaymentProvider {
     gateway: GatewayId;
     createCharge(input: CreateChargeInput): Promise<CreateChargeResult>;
+    /** Rebuild the client checkout for an already-created charge (idempotent resume). */
+    checkoutForExistingOrder(args: { gatewayOrderRef: string; amountPaise: number; currency?: string }): CheckoutInit;
     verifyCallback(payload: Record<string, string>): CallbackResult;
     verifyWebhook(rawBody: string, headers: Headers): boolean;
     parseWebhookEvent(rawBody: string, headers: Headers): NormalizedWebhookEvent | null;
