@@ -17,6 +17,7 @@ import { cn } from '@/app/lib/utils';
 interface BlogEditorProps {
   initialContent?: object | null;
   onChange?: (json: object, wordCount: number) => void;
+  onImageInserted?: (latestJson: object) => void;
   placeholder?: string;
   className?: string;
   editable?: boolean;
@@ -48,6 +49,7 @@ async function uploadImageToR2(file: File): Promise<string> {
 export default function BlogEditor({
   initialContent,
   onChange,
+  onImageInserted,
   placeholder = 'Start writing your story…',
   className,
   editable = true,
@@ -84,7 +86,8 @@ export default function BlogEditor({
   const handleImageUpload = useCallback(async (file: File): Promise<string> => {
     setUploading(true);
     try {
-      return await uploadImageToR2(file);
+      const url = await uploadImageToR2(file);
+      return url;
     } finally {
       setUploading(false);
     }
@@ -101,6 +104,7 @@ export default function BlogEditor({
         <EditorToolbar
           editor={editor}
           onImageUpload={handleImageUpload}
+          onImageInserted={onImageInserted}
           uploading={uploading}
         />
       )}
