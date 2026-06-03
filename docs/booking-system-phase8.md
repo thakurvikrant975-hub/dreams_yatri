@@ -36,7 +36,7 @@ and **trip voucher**, and hand confirmed bookings to **ops**. Money/state are un
 | 8.1 | Notifications service: HTML email builders (confirmation/receipt, cancellation, refund) + `sendBookingEmail` wrappers; `MAIL_FROM`/`OPS_EMAIL` env; unit-test the pure builders | ✅ DONE |
 | 8.2 | Wire comms into flows (post-commit, non-blocking): INITIAL capture → confirmation+receipt (+ ops notify); cancel → cancellation; refund confirmed → refund email | ✅ DONE |
 | 8.3 | Invoice/receipt: printable HTML route `/bookings/[id]/invoice` (owner-guarded) + invoice number; optional `TripDocument(INVOICE)` record | ✅ DONE |
-| 8.4 | Voucher: printable HTML route `/bookings/[id]/voucher` (trip + itinerary from priceSnapshot + inclusions); links from booking page + confirmation email | ⬜ TODO |
+| 8.4 | Voucher: printable HTML route `/bookings/[id]/voucher` (trip + itinerary from priceSnapshot + inclusions); links from booking page + confirmation email | ✅ DONE |
 | 8.5 | Ops handoff (lightweight): OPS_EMAIL notification on paid bookings + optional System-actor `BookingTimeline` entry; status note | ⬜ TODO |
 | 8.6 | Tests (email builders, notification triggers via stub mailer) + invoice/voucher render smoke + docs/memory; Phase 8 + project complete | ⬜ TODO |
 
@@ -96,6 +96,12 @@ and **trip voucher**, and hand confirmed bookings to **ops**. Money/state are un
   payments table (FULLY_PAID, marks TOPUP as "date-change"); amount paid / balance.
 - `PrintButton.tsx` (client, `.no-print`) → `window.print()`. Invoice + voucher links added on `/bookings/[id]`
   (confirmed state). (Voucher route built in 8.4.)
+
+## Step 8.4 — what was done
+- `app/(website)/bookings/[id]/voucher/page.tsx` (server, owner-guarded, noindex, print CSS): trip header,
+  lead/travellers/dates/duration+stay, **day-wise itinerary from `priceSnapshot.days`** (hotel/room/plan,
+  activities, meals), package inclusions/exclusions, support note + PrintButton.
+- Booking-page voucher link (8.3) + confirmation-email `voucherUrl` now resolve. tsc 0.
 
 ## Gotchas / conventions
 - Comms are side-effects: never block or fail the money path; log + continue.
