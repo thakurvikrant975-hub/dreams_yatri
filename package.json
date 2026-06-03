@@ -13,9 +13,10 @@
     "test:quote": "tsx --conditions=react-server --env-file=.env scripts/test-quote.ts",
     "test:money": "tsx scripts/test-money.ts",
     "test:policy": "tsx scripts/test-payment-policy.ts",
+    "test:cancel": "tsx scripts/test-cancellation-policy.ts",
     "test:razorpay": "tsx --conditions=react-server scripts/test-razorpay.ts",
     "test:payments": "tsx --conditions=react-server scripts/test-payments.ts",
-    "test": "npm run test:money && npm run test:policy && npm run test:razorpay && npm run test:payments && npm run test:quote",
+    "test": "npm run test:money && npm run test:policy && npm run test:cancel && npm run test:razorpay && npm run test:payments && npm run test:quote",
     "e2e:phase4": "tsx --conditions=react-server --env-file=.env scripts/e2e-phase4.ts",
     "e2e:phase5": "tsx --conditions=react-server --env-file=.env scripts/e2e-phase5.ts",
     "e2e:phase6": "tsx --conditions=react-server --env-file=.env scripts/e2e-phase6.ts"

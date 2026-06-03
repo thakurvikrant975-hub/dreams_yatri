@@ -38,7 +38,7 @@ Config defaults (env-overridable): `CANCEL_TIERS` = `[{minDays:30, refundPct:90}
 ## Steps & Status (finalized after decisions)
 | Step | Description | Status |
 |------|-------------|--------|
-| 7.1 | Cancellation/refund **policy engine** (pure): `computeCancellationRefund({paidPaise, daysToTravel, policy})` → `{refundablePaise, feePaise, tier, reason}` + config (tiers, env-overridable) + tests | ⬜ TODO |
+| 7.1 | Cancellation/refund **policy engine** (pure): `computeCancellationRefund({paidPaise, daysToTravel, policy})` → `{refundablePaise, feePaise, tier, reason}` + config (tiers, env-overridable) + tests | ✅ DONE |
 | 7.2 | `PaymentProvider.refund({gatewayPaymentId, amountPaise, notes})` + Razorpay & PayU impls (+ `fetchRefundStatus`); unit tests | ⬜ TODO |
 | 7.3 | `cancelBooking` service: policy → initiate gateway refund(s) on captured payments → Booking CANCELLED + installments CANCELLED + paymentStatus; idempotent (refund webhook confirms) | ⬜ TODO |
 | 7.4 | Cancellation UX + action: refund **preview** (policy quote) + confirm on `/bookings/[id]`; `requestCancellation(bookingId, reason)` action (auth/owner) | ⬜ TODO |
@@ -76,6 +76,16 @@ Config defaults (env-overridable): `CANCEL_TIERS` = `[{minDays:30, refundPct:90}
 ### 7.6 — Reconciliation + e2e
 - Refund reconciliation: pending refunds resolved via `fetchRefundStatus`. e2e (stubbed gateway): cancel →
   refund initiated → refund webhook → Booking REFUNDED; partial; date-change delta. docs/memory; mark complete.
+
+## Step 7.1 — what was done
+- `app/services/cancellation-policy/config.ts` (pure): `CancellationPolicyConfig {tiers[], dateChangeFeePaise}`,
+  `DEFAULT` = 90/50/25/0 + ₹500, `resolveConfig` (defaults ← env `CANCEL_TIERS` JSON / `DATE_CHANGE_FEE_PAISE` ←
+  overrides; validated; sorts tiers high→low + guarantees a 0-day catch-all).
+- `app/services/cancellation-policy/engine.ts` (pure): `computeCancellationRefund({paidPaise, travelDate, now?, config?})`
+  → `{daysToTravel, refundPct, tierMinDays, paidPaise, refundablePaise, feePaise, reason}`. Tier by daysToTravel
+  (calendar math, caller passes `now`); refundable rounded once, fee = paid − refundable. Deposit not special.
+- `scripts/test-cancellation-policy.ts` + `npm run test:cancel` (in `npm test`): 23 asserts — every tier boundary
+  (30/15/7), no-show, zero paid, rounding, override, bad input, config validation. Full `npm test` = 132 green.
 
 ## Gotchas / conventions
 - Webhook is truth: cancel/refund *initiate*; the refund webhook (Phase 5) *confirms* REFUNDED/PARTIAL.
