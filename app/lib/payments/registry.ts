@@ -1,6 +1,7 @@
 import "server-only";
 import type { GatewayId, PaymentProvider } from "./types";
 import { razorpayProvider } from "./razorpay.provider";
+import { payuProvider } from "./payu.provider";
 
 /**
  * Provider registry. The active gateway is env-configured (`PAYMENT_PROVIDER`,
@@ -16,7 +17,8 @@ export function getProvider(gateway: string): PaymentProvider {
     switch (gateway) {
         case "RAZORPAY":
             return razorpayProvider;
-        // PAYU → 6.4
+        case "PAYU":
+            return payuProvider;
         default:
             throw new Error(`PaymentProvider not implemented for gateway: ${gateway}`);
     }

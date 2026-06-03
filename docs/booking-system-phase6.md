@@ -53,7 +53,7 @@ normalized event", "fetch status for recon", and "public config for the client".
 | 6.1 | `app/lib/payments/provider.ts` — `PaymentProvider` interface + normalized DTOs (`CheckoutInit`, `NormalizedWebhookEvent`, `ChargeStatus`) + `getProvider(gateway)` registry | ✅ DONE |
 | 6.2 | `razorpay.provider.ts` implementing the interface by wrapping existing `razorpay.ts` (normalize order/sig/webhook/fetch); no behavior change; `npm run e2e:phase4/5` green | ✅ DONE |
 | 6.3 | Make shared services provider-driven: generalize webhook processor (`processGatewayWebhook(gateway, raw, headers)` using `parseWebhookEvent` + `finalizeCapturedPayment`), recon via `fetchChargeStatus`, booking via `getProvider(active).createCharge` | ✅ DONE |
-| 6.4 | `payu.provider.ts` — SHA-512 request hash, `createCharge` (txnid+fields), `verifyCallback` (reverse hash), `verifyWebhook`/`parseWebhookEvent`, `fetchChargeStatus` (verify_payment); envs | ⬜ TODO |
+| 6.4 | `payu.provider.ts` — SHA-512 request hash, `createCharge` (txnid+fields), `verifyCallback` (reverse hash), `verifyWebhook`/`parseWebhookEvent`, `fetchChargeStatus` (verify_payment); envs | ✅ DONE |
 | 6.5 | Client + routes: launch `CheckoutInit` (RZP modal vs PayU form-post) in `BookReview`; PayU callback routes (surl/furl) + `/api/webhooks/payu`; provider selection wired | ⬜ TODO |
 | 6.6 | Tests + e2e: PayU hash + reverse-hash unit; normalized webhook for both gateways; provider registry; recon via stub; docs/memory; Phase 6 complete | ⬜ TODO |
 
@@ -126,6 +126,18 @@ normalized event", "fetch status for recon", and "public config for the client".
 - `BookReview` launches from `order.checkout` (RAZORPAY modal; PAYU branch stubbed → 6.5).
 - Interface +`checkoutForExistingOrder`. Updated `e2e:phase4/5` to the new APIs — both PASS through the
   provider-driven path; full project tsc = 0 errors; unit suite 91 green.
+
+## Step 6.4 — what was done
+- `app/lib/payments/payu.provider.ts` (`server-only`) implements `PaymentProvider`:
+  - `createCharge` → txnid + `CheckoutInit{provider:'PAYU', actionUrl:`${BASE}/_payment`, fields{...,hash}}`.
+  - SHA-512 **request hash** + **reverse hash** built as explicit pipe-arrays (forward 17 / reverse 18 elements;
+    5 empty udf-slots mirrored) — auditable, symmetric. `verifyCallback`/`verifyWebhook` recompute reverse hash.
+  - `parseWebhookEvent` (form-urlencoded → normalized success=captured/failure=failed). `fetchChargeStatus`
+    → `verify_payment` POST to `/merchant/postservice?form=2`.
+  - Money converted rupees↔paise only here. Customer prefill deferred → constants (productinfo/firstname/email)
+    so resume reproduces the hash from (txnid, amount). **Validate exact hash vs PayU TEST creds before go-live.**
+- Registered `getProvider("PAYU")`. Verified (throwaway): forward hash matches documented sequence, resume hash
+  identical, callback/webhook reverse-hash accept + reject tampered, parse normalization. tsc clean; 91 unit green.
 
 ## Gotchas / conventions
 - Keep `finalize`/`schedule`/`reminders` gateway-agnostic — only the provider adapters know gateway specifics.
