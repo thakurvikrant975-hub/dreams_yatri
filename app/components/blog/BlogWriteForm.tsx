@@ -195,6 +195,18 @@ export default function BlogWriteForm({ categories, initialData }: BlogWriteForm
     setReadTime(Math.max(1, Math.ceil(words / 200)));
   }
 
+  // ── Force-save immediately after an image is inserted ─────────────────────
+  // React state won't have updated yet when this fires, so the editor passes
+  // the fresh JSON directly instead of us reading from latestState.current.
+  async function handleImageInserted(latestJson: object) {
+    if (!title.trim()) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    // Update latestState.current with the editor-fresh JSON before saving.
+    latestState.current = { ...latestState.current, content: latestJson };
+    setContent(latestJson); // keep React state in sync
+    await performSaveFromRef();
+  }
+
   // ── Helpers ───────────────────────────────────────────────────────────────
   const selectedCat = categories.find((c) => c.id === categoryId);
 
@@ -365,6 +377,7 @@ export default function BlogWriteForm({ categories, initialData }: BlogWriteForm
       <BlogEditor
         initialContent={initialData?.content as object ?? null}
         onChange={handleEditorChange}
+        onImageInserted={handleImageInserted}
         placeholder="Start writing your travel story…"
       />
 

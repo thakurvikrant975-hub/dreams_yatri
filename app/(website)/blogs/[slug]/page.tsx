@@ -206,7 +206,7 @@ export default async function BlogDetailPage({ params }: Props) {
               className="inline-flex items-center gap-2 text-sm text-neutral-500 hover:text-primary-600 transition-colors"
             >
               <ArrowLeft className="size-4" />
-              All Travel Stories
+              All Blogs
             </Link>
             <ShareButtons title={post.title} />
           </div>
