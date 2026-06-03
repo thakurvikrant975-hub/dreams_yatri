@@ -4,18 +4,20 @@ import { db } from "@/app/lib/db";
 import { getQuote, isQuoteFresh } from "@/app/actions/quote/get-quote.service";
 import { computePaymentSchedule } from "@/app/services/payment-policy/engine";
 import { rupeesToPaise } from "@/app/lib/money";
-import { createRazorpayOrder, razorpayKeyId } from "@/app/lib/razorpay";
+import { getProvider, activeGateway } from "@/app/lib/payments/registry";
+import type { CheckoutInit } from "@/app/lib/payments/types";
 import type { CreateBookingOrderResult } from "./types";
 
 /**
  * Turn an ACTIVE + fresh quote into a Booking (+ installment legs, quote→CONSUMED,
- * a PENDING Payment) and a Razorpay order for the FIRST leg (deposit, or full).
+ * a PENDING Payment) and a gateway charge for the FIRST leg (deposit, or full),
+ * via the active PaymentProvider.
  *
  * Server-authoritative: the amount comes from the quote total + Phase-3 policy,
- * never the client. The Razorpay order is created OUTSIDE the DB transaction
+ * never the client. The gateway charge is created OUTSIDE the DB transaction
  * (no network call inside a tx). Idempotent: a quote already turned into a
- * booking is resumed (its pending order returned / created), so retries — and
- * the already-CONSUMED quote — never duplicate a booking (Booking.quoteId @unique).
+ * booking is resumed (its pending charge rebuilt), so retries — and the
+ * already-CONSUMED quote — never duplicate a booking (Booking.quoteId @unique).
  */
 
 function genBookingNumber(): string {
@@ -28,22 +30,10 @@ function isoDate(d: Date): string {
     return d.toISOString().slice(0, 10);
 }
 
-async function ensureOrderForPayment(args: {
-    paymentId: string;
-    existingOrderId: string | null;
-    amountPaise: number;
-    receipt: string;
-    bookingId: string;
-    quoteId: string;
-}): Promise<string> {
-    if (args.existingOrderId) return args.existingOrderId;
-    const order = await createRazorpayOrder({
-        amountPaise: args.amountPaise,
-        receipt: args.receipt,
-        notes: { quoteId: args.quoteId, bookingId: args.bookingId },
-    });
-    await db.payment.update({ where: { id: args.paymentId }, data: { gatewayOrderId: order.orderId } });
-    return order.orderId;
+/** Absolute return URL for redirect-based gateways (PayU surl/furl). */
+function payuReturnUrl(bookingId: string, kind: "success" | "failure"): string {
+    const base = process.env.NEXT_PUBLIC_BASE_URL ?? "";
+    return `${base}/api/payments/payu/callback?b=${bookingId}&k=${kind}`;
 }
 
 export async function createBookingAndOrder(params: {
@@ -62,30 +52,33 @@ export async function createBookingAndOrder(params: {
             return { success: false, reason: "invalid", message: "Booking belongs to another user." };
         }
         const payment = await db.payment.findFirst({
-            where: { bookingId: existing.id, gateway: "RAZORPAY", status: "PENDING" },
+            where: { bookingId: existing.id, status: "PENDING" },
             orderBy: { createdAt: "asc" },
-            select: { id: true, amount_paise: true, gatewayOrderId: true },
+            select: { id: true, gateway: true, amount_paise: true, gatewayOrderId: true },
         });
         if (!payment) return { success: false, reason: "error", message: "No pending payment to resume." };
 
-        const orderId = await ensureOrderForPayment({
-            paymentId: payment.id,
-            existingOrderId: payment.gatewayOrderId,
-            amountPaise: payment.amount_paise,
-            receipt: existing.bookingNumber,
-            bookingId: existing.id,
-            quoteId,
-        });
+        const provider = getProvider(payment.gateway);
+        let checkout: CheckoutInit;
+        if (payment.gatewayOrderId) {
+            checkout = provider.checkoutForExistingOrder({ gatewayOrderRef: payment.gatewayOrderId, amountPaise: payment.amount_paise, currency: existing.currency });
+        } else {
+            const charge = await provider.createCharge({
+                amountPaise: payment.amount_paise, receipt: existing.bookingNumber, bookingId: existing.id,
+                customer: {}, notes: { quoteId, bookingId: existing.id },
+                successUrl: payuReturnUrl(existing.id, "success"), failureUrl: payuReturnUrl(existing.id, "failure"),
+            });
+            await db.payment.update({ where: { id: payment.id }, data: { gatewayOrderId: charge.gatewayOrderRef } });
+            checkout = charge.checkout;
+        }
         return {
             success: true,
             order: {
                 bookingId: existing.id,
                 bookingNumber: existing.bookingNumber,
-                orderId,
-                amountPaise: payment.amount_paise,
-                currency: existing.currency,
-                keyId: razorpayKeyId(),
                 plan: existing.paymentPlan ?? "FULL",
+                amountPaise: payment.amount_paise,
+                checkout,
             },
         };
     }
@@ -115,6 +108,7 @@ export async function createBookingAndOrder(params: {
     const startDate = new Date(`${isoDate(row.travel_date)}T00:00:00.000Z`);
     const endDate = new Date(startDate.getTime() + dur.nights * 86_400_000);
     const balanceRupees = (schedule.balancePaise / 100).toFixed(2);
+    const gateway = activeGateway();
 
     // ── Create booking + legs + PENDING payment; consume quote (atomic) ────────
     const created = await db.$transaction(async (tx) => {
@@ -162,7 +156,7 @@ export async function createBookingAndOrder(params: {
                 userId,
                 amount: (firstLeg.amountPaise / 100).toFixed(2),
                 amount_paise: firstLeg.amountPaise,
-                gateway: "RAZORPAY",
+                gateway,
                 status: "PENDING",
                 idempotencyKey: `quote:${quoteId}:${firstLeg.type}`,
             },
@@ -172,26 +166,26 @@ export async function createBookingAndOrder(params: {
         return { bookingId: booking.id, bookingNumber: booking.bookingNumber, paymentId: payment.id };
     });
 
-    // ── Razorpay order (outside the tx) ────────────────────────────────────────
-    const orderId = await ensureOrderForPayment({
-        paymentId: created.paymentId,
-        existingOrderId: null,
+    // ── Gateway charge (outside the tx) ────────────────────────────────────────
+    const charge = await getProvider(gateway).createCharge({
         amountPaise: firstLeg.amountPaise,
         receipt: created.bookingNumber,
         bookingId: created.bookingId,
-        quoteId,
+        customer: {},
+        notes: { quoteId, bookingId: created.bookingId },
+        successUrl: payuReturnUrl(created.bookingId, "success"),
+        failureUrl: payuReturnUrl(created.bookingId, "failure"),
     });
+    await db.payment.update({ where: { id: created.paymentId }, data: { gatewayOrderId: charge.gatewayOrderRef } });
 
     return {
         success: true,
         order: {
             bookingId: created.bookingId,
             bookingNumber: created.bookingNumber,
-            orderId,
-            amountPaise: firstLeg.amountPaise,
-            currency: row.currency,
-            keyId: razorpayKeyId(),
             plan: schedule.plan,
+            amountPaise: firstLeg.amountPaise,
+            checkout: charge.checkout,
         },
     };
 }

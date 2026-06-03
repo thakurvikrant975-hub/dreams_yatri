@@ -17,15 +17,16 @@ export type FinalizeResult =
     | { result: "not_found" }
     | { result: "no_booking" };
 
-function mapMethod(m: unknown): "UPI" | "CARD" | "NET_BANKING" | "WALLET" | "EMI" | null {
-    switch (m) {
-        case "upi": return "UPI";
-        case "card": return "CARD";
-        case "netbanking": return "NET_BANKING";
-        case "wallet": return "WALLET";
-        case "emi": return "EMI";
-        default: return null;
-    }
+/** Map a gateway method/mode (Razorpay lowercase or PayU codes) to our enum. */
+function mapMethod(m: unknown): "UPI" | "CARD" | "NET_BANKING" | "WALLET" | "EMI" | "CASH" | null {
+    const s = String(m ?? "").toLowerCase();
+    if (s === "upi") return "UPI";
+    if (s === "card" || s === "cc" || s === "dc" || s === "creditcard" || s === "debitcard") return "CARD";
+    if (s === "netbanking" || s === "nb") return "NET_BANKING";
+    if (s === "wallet" || s === "cashcard") return "WALLET";
+    if (s === "emi") return "EMI";
+    if (s === "cash") return "CASH";
+    return null;
 }
 
 export async function finalizeCapturedPayment(

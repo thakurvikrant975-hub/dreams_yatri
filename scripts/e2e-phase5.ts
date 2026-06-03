@@ -7,12 +7,14 @@ import { createHmac } from "crypto";
 process.env.RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET || "test_wh_secret_e2e";
 
 import { db } from "../app/lib/db";
-import { processRazorpayWebhook } from "../app/actions/payment/webhook.service";
-import { reconcilePendingPayments, type ReconFetcher } from "../app/actions/payment/reconcile.service";
+import { processGatewayWebhook } from "../app/actions/payment/webhook.service";
+import { reconcilePendingPayments, type StatusFetcher } from "../app/actions/payment/reconcile.service";
 import { runBalanceReminders, type Mailer } from "../app/actions/payment/reminders.service";
+import type { Prisma } from "../app/generated/prisma";
 
 const tag = Date.now();
 const sign = (b: string) => createHmac("sha256", process.env.RAZORPAY_WEBHOOK_SECRET!).update(b).digest("hex");
+const rzpHeaders = (sig: string, eventId: string) => new Headers({ "x-razorpay-signature": sig, "x-razorpay-event-id": eventId });
 const failures: string[] = [];
 const expect = (n: string, c: boolean) => { if (!c) { failures.push(n); console.error(`  ✗ ${n}`); } };
 const bookingIds: string[] = [];
@@ -20,7 +22,7 @@ const eventIds: string[] = [];
 
 async function seed(opts: {
     paymentStatus: "PENDING" | "ADVANCE_PAID";
-    payment?: object;
+    payment?: Prisma.PaymentUncheckedCreateWithoutBookingInput;
     balanceInstallment?: { dueDate: Date; reminderCount: number; status?: "PENDING" | "OVERDUE" };
 }) {
     const user = await db.user.findFirst({ select: { id: true } });
@@ -38,7 +40,7 @@ async function seed(opts: {
                     { type: "BALANCE", sequence: 1, amount_paise: 2734003, status: opts.balanceInstallment?.status ?? "PENDING", dueDate: opts.balanceInstallment?.dueDate, reminderCount: opts.balanceInstallment?.reminderCount ?? 0 },
                 ],
             },
-            ...(opts.payment ? { payments: { create: [opts.payment] } } : {}),
+            payments: opts.payment ? { create: [opts.payment] } : undefined,
         },
         select: { id: true },
     });
@@ -53,7 +55,7 @@ async function failedAndRefund() {
     await seed({ paymentStatus: "PENDING", payment: { userId: await userId(), amount: "9113.35", amount_paise: 911335, gateway: "RAZORPAY", status: "PENDING", gatewayOrderId: orderF, idempotencyKey: `f:${tag}` } });
     const fb = JSON.stringify({ event: "payment.failed", payload: { payment: { entity: { id: `pay_F_${tag}`, order_id: orderF, error_description: "card declined" } } } });
     eventIds.push(`evt_F_${tag}`);
-    const fr = await processRazorpayWebhook({ rawBody: fb, signature: sign(fb), eventId: `evt_F_${tag}` });
+    const fr = await processGatewayWebhook("RAZORPAY", fb, rzpHeaders(sign(fb), `evt_F_${tag}`));
     const pf = await db.payment.findFirst({ where: { gatewayOrderId: orderF }, select: { status: true, failureReason: true } });
     expect("failed→processed", fr.result === "processed");
     expect("payment FAILED + reason", pf?.status === "FAILED" && pf.failureReason === "card declined");
@@ -63,13 +65,13 @@ async function failedAndRefund() {
     const bId = await seed({ paymentStatus: "ADVANCE_PAID", payment: { userId: await userId(), amount: "9113.35", amount_paise: 911335, gateway: "RAZORPAY", status: "FULLY_PAID", gatewayPaymentId: payR, gatewayOrderId: `order_R_${tag}`, idempotencyKey: `r:${tag}` } });
     const rb = JSON.stringify({ event: "refund.processed", payload: { refund: { entity: { id: `rfnd_${tag}`, payment_id: payR, amount: 500000 } } } });
     eventIds.push(`evt_R_${tag}`);
-    const rr = await processRazorpayWebhook({ rawBody: rb, signature: sign(rb), eventId: `evt_R_${tag}` });
+    const rr = await processGatewayWebhook("RAZORPAY", rb, rzpHeaders(sign(rb), `evt_R_${tag}`));
     const pr = await db.payment.findFirst({ where: { gatewayPaymentId: payR }, select: { status: true, refundId: true, refundAmount: true } });
     const bk = await db.booking.findUnique({ where: { id: bId }, select: { paymentStatus: true } });
     expect("refund→processed", rr.result === "processed");
     expect("payment PARTIALLY_REFUNDED", pr?.status === "PARTIALLY_REFUNDED" && pr.refundId === `rfnd_${tag}` && Number(pr.refundAmount) === 5000);
     expect("booking mirrors PARTIALLY_REFUNDED", bk?.paymentStatus === "PARTIALLY_REFUNDED");
-    const dup = await processRazorpayWebhook({ rawBody: rb, signature: sign(rb), eventId: `evt_R_${tag}` });
+    const dup = await processGatewayWebhook("RAZORPAY", rb, rzpHeaders(sign(rb), `evt_R_${tag}`));
     expect("refund duplicate→duplicate", dup.result === "duplicate");
 }
 
@@ -79,15 +81,15 @@ async function reconciliation() {
     const bCap = await seed({ paymentStatus: "PENDING", payment: { userId: await userId(), amount: "9113.35", amount_paise: 911335, gateway: "RAZORPAY", status: "PENDING", gatewayOrderId: sc, idempotencyKey: `sc:${tag}`, createdAt: old } });
     await seed({ paymentStatus: "PENDING", payment: { userId: await userId(), amount: "9113.35", amount_paise: 911335, gateway: "RAZORPAY", status: "PENDING", gatewayOrderId: sf, idempotencyKey: `sf:${tag}`, createdAt: old } });
     await seed({ paymentStatus: "PENDING", payment: { userId: await userId(), amount: "9113.35", amount_paise: 911335, gateway: "RAZORPAY", status: "PENDING", gatewayOrderId: fr, idempotencyKey: `fr:${tag}`, createdAt: recent } });
-    const stub: ReconFetcher = async (o) => o === sc ? [{ id: `pay_${tag}_c`, status: "captured", method: "upi", amount: 911335 }] : o === sf ? [{ id: `pay_${tag}_x`, status: "failed" }] : [];
-    const sum = await reconcilePendingPayments({ olderThanMinutes: 15, fetcher: stub });
+    const stub: StatusFetcher = async (_g, o) => o === sc ? { state: "captured", gatewayPaymentId: `pay_${tag}_c`, method: "upi" } : o === sf ? { state: "failed" } : { state: "pending" };
+    const sum = await reconcilePendingPayments({ olderThanMinutes: 15, statusOf: stub });
     const capPay = await db.payment.findFirst({ where: { gatewayOrderId: sc }, select: { status: true } });
     const capBk = await db.booking.findUnique({ where: { id: bCap }, select: { paymentStatus: true } });
     const freshPay = await db.payment.findFirst({ where: { gatewayOrderId: fr }, select: { status: true } });
     expect("recon finalized 1 + failed 1", sum.finalized === 1 && sum.failed === 1);
     expect("recon captured→FULLY_PAID + booking ADVANCE_PAID", capPay?.status === "FULLY_PAID" && capBk?.paymentStatus === "ADVANCE_PAID");
     expect("recon fresh untouched (PENDING)", freshPay?.status === "PENDING");
-    const again = await reconcilePendingPayments({ olderThanMinutes: 15, fetcher: stub });
+    const again = await reconcilePendingPayments({ olderThanMinutes: 15, statusOf: stub });
     expect("recon idempotent (2nd scans 0)", again.scanned === 0);
 }
 

@@ -12,7 +12,9 @@ import { createHmac } from "crypto";
 process.env.RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET || "test_wh_secret_e2e";
 
 import { db } from "../app/lib/db";
-import { processRazorpayWebhook } from "../app/actions/payment/webhook.service";
+import { processGatewayWebhook } from "../app/actions/payment/webhook.service";
+
+const rzpHeaders = (sig: string, eventId: string) => new Headers({ "x-razorpay-signature": sig, "x-razorpay-event-id": eventId });
 
 const tag = Date.now();
 const ORDER_ID = `order_E2E_${tag}`;
@@ -65,13 +67,13 @@ async function main() {
     const body = JSON.stringify({ event: "payment.captured", payload: { payment: { entity: { id: PAYMENT_ID, order_id: ORDER_ID, method: "upi" } } } });
     const goodSig = sign(body);
 
-    const bad = await processRazorpayWebhook({ rawBody: body, signature: "deadbeef", eventId: EVENT_ID });
+    const bad = await processGatewayWebhook("RAZORPAY", body, rzpHeaders("deadbeef", EVENT_ID));
     expect("bad signature → 400 invalid_signature", bad.httpStatus === 400 && bad.result === "invalid_signature");
 
-    const first = await processRazorpayWebhook({ rawBody: body, signature: goodSig, eventId: EVENT_ID });
+    const first = await processGatewayWebhook("RAZORPAY", body, rzpHeaders(goodSig, EVENT_ID));
     expect("valid capture → processed", first.result === "processed");
 
-    const dup = await processRazorpayWebhook({ rawBody: body, signature: goodSig, eventId: EVENT_ID });
+    const dup = await processGatewayWebhook("RAZORPAY", body, rzpHeaders(goodSig, EVENT_ID));
     expect("duplicate → duplicate (no reprocess)", dup.result === "duplicate");
 
     const pay = await db.payment.findFirst({ where: { gatewayOrderId: ORDER_ID }, select: { status: true, gatewayPaymentId: true, paidAt: true, method: true } });
