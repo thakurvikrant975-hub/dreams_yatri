@@ -39,3 +39,8 @@ export type CreateBookingOrderReason =
 export type CreateBookingOrderResult =
     | { success: true; order: BookingOrderDTO }
     | { success: false; reason: CreateBookingOrderReason; message?: string };
+
+/** Browser-callback verify — confirms the checkout signature (UX only; truth = webhook). */
+export type VerifyCheckoutResult =
+    | { success: true; bookingId: string }
+    | { success: false; reason: "invalid_signature" | "not_found" | "unauthenticated" };

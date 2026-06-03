@@ -50,7 +50,7 @@ webhook via `WebhookEvent @@unique([gateway, eventId])`.
 | 4.2 | `createBookingAndOrder(quoteId)` service: auth + getQuote(ACTIVE) + isQuoteFresh → tx{ create Booking(snapshot/installments), quote→CONSUMED, create Payment(PENDING) } → Razorpay order → return `{ bookingId, orderId, amountPaise, keyId }`; idempotent | ✅ DONE |
 | 4.3 | Checkout init: server action/route + client Razorpay-checkout on `/book/[quoteId]` (real Pay button → opens Razorpay with order) | ✅ DONE |
 | 4.4 | Webhook handler `app/api/webhooks/razorpay/route.ts` (authoritative): verify sig → dedupe via WebhookEvent → on payment captured: Payment PAID + Booking paymentStatus/money + DEPOSIT installment PAID; idempotent re-delivery → IGNORED | ✅ DONE |
-| 4.5 | Browser-callback verify (server action `verifyCheckoutPayment`) + confirmation page (`/book/[quoteId]/success` or `/bookings/[id]`): verify checkout sig, show status; truth still = webhook (show "processing" until captured) | ⬜ TODO |
+| 4.5 | Browser-callback verify (server action `verifyCheckoutPayment`) + confirmation page (`/book/[quoteId]/success` or `/bookings/[id]`): verify checkout sig, show status; truth still = webhook (show "processing" until captured) | ✅ DONE |
 | 4.6 | Tests + e2e (test mode): signature-verify unit tests; signed-webhook simulation asserting Payment/Booking/installment transitions + dedupe; docs/memory; Phase 4 complete | ⬜ TODO |
 
 ## Per-step detail
@@ -153,6 +153,16 @@ webhook via `WebhookEvent @@unique([gateway, eventId])`.
 - Note: Payment.status uses the shared `PaymentStatus` enum → `FULLY_PAID` denotes "this payment captured".
 - Verified (throwaway e2e, removed, self-signed — no live keys): bad sig→400; capture→processed (Payment
   FULLY_PAID/UPI, Booking ADVANCE_PAID ₹9113.35/bal ₹27340.03, DEPOSIT installment PAID); duplicate→no reprocess; 1 event row.
+
+## Step 4.5 — what was done
+- `verifyCheckoutPayment({ orderId, paymentId, signature })` (`'use server'` in booking.actions.ts): auth →
+  `verifyCheckoutSignature` → find Payment by gatewayOrderId (must belong to user) → store `gatewaySignature`
+  → return `{ bookingId }`. Does NOT finalize money (webhook owns it). `VerifyCheckoutResult` type added.
+- Confirmation page `app/(website)/bookings/[id]/page.tsx` (auth-guarded, noindex): owner check; shows
+  "Confirming your payment…" while `paymentStatus === PENDING` (with `StatusPoller` client that `router.refresh`
+  every 4s ×8), else "Booking confirmed!" with package/dates/travellers/paid + balance-due (deposit) / paid-in-full.
+- `BookReview` success handler now: `verifyCheckoutPayment(resp)` → `router.push('/bookings/<id>')` (replaces the
+  inline-only processing state). `useRouter` added.
 
 ## Gotchas / conventions
 - Razorpay amounts are paise — reuse `app/lib/money.ts`; never float.

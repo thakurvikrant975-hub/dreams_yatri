@@ -1,11 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import QuoteCountdown from './QuoteCountdown';
 import { loadRazorpay, openRazorpay } from './razorpayCheckout';
-import { createPackageBooking } from '@/app/actions/payment/booking.actions';
+import { createPackageBooking, verifyCheckoutPayment } from '@/app/actions/payment/booking.actions';
 import Button from '@/app/components/ui/Button';
 import Card from '@/app/components/ui/Card';
 import { Heading, Text } from '@/app/components/ui/Typography';
@@ -45,6 +46,7 @@ export default function BookReview({
     drift: { fresh: boolean; currentTotal: number | null } | null;
     schedule: PaymentScheduleDTO | null;
 }) {
+    const router = useRouter();
     const [expired, setExpired] = useState(quote.status !== 'ACTIVE');
     const [paying, setPaying] = useState(false);
     const [processing, setProcessing] = useState(false);
@@ -86,9 +88,20 @@ export default function BookReview({
                 description: `${packageTitle} — ${order.plan === 'DEPOSIT' ? 'Deposit' : 'Full payment'}`,
                 notes: { bookingId: order.bookingId },
                 theme: { color: '#0f766e' },
-                handler: () => {
-                    // Truth comes from the webhook; reflect "confirming" optimistically.
+                handler: async (resp) => {
+                    // Truth comes from the webhook; verify the callback sig for UX, then
+                    // route to the confirmation page (which polls until confirmed).
                     setProcessing(true);
+                    try {
+                        await verifyCheckoutPayment({
+                            orderId: resp.razorpay_order_id,
+                            paymentId: resp.razorpay_payment_id,
+                            signature: resp.razorpay_signature,
+                        });
+                    } catch (err) {
+                        console.error('[BookReview] verify failed', err);
+                    }
+                    router.push(`/bookings/${order.bookingId}`);
                 },
                 modal: { ondismiss: () => setPaying(false) },
             });
