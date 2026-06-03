@@ -4,7 +4,8 @@ import { getAuthenticatedUser } from "@/app/lib/functions/getAuthenticatedUser";
 import { db } from "@/app/lib/db";
 import { verifyCheckoutSignature } from "@/app/lib/razorpay";
 import { createBookingAndOrder } from "./create-booking.service";
-import type { CreateBookingOrderResult, VerifyCheckoutResult } from "./types";
+import { cancelBooking, previewCancellation } from "./cancel-booking.service";
+import type { CreateBookingOrderResult, VerifyCheckoutResult, CancelBookingResult, CancellationPreview } from "./types";
 
 /**
  * Initiate a package booking + Razorpay order from a quote.
@@ -45,4 +46,18 @@ export async function verifyCheckoutPayment(input: {
 
     await db.payment.update({ where: { id: payment.id }, data: { gatewaySignature: input.signature } });
     return { success: true, bookingId: payment.bookingId };
+}
+
+/** Refund preview for the cancel dialog (owner-scoped). */
+export async function getCancellationPreview(bookingId: string): Promise<CancellationPreview | null> {
+    const user = await getAuthenticatedUser();
+    if (!user?.id) return null;
+    return previewCancellation(bookingId, user.id);
+}
+
+/** Cancel the user's own booking (policy-driven refund). */
+export async function requestCancellation(bookingId: string, reason?: string): Promise<CancelBookingResult> {
+    const user = await getAuthenticatedUser();
+    if (!user?.id) return { success: false, reason: "unauthenticated" };
+    return cancelBooking({ bookingId, reason, byUserId: user.id });
 }

@@ -9,6 +9,7 @@ import { db } from '@/app/lib/db';
 import { getAuthenticatedUser } from '@/app/lib/functions/getAuthenticatedUser';
 import { formatPaise } from '@/app/lib/money';
 import StatusPoller from './StatusPoller';
+import CancelBookingPanel from './CancelBookingPanel';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
@@ -45,7 +46,7 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
         const booking = await db.booking.findUnique({
             where: { id },
             select: {
-                id: true, userId: true, bookingNumber: true, paymentStatus: true, paymentPlan: true,
+                id: true, userId: true, bookingNumber: true, status: true, paymentStatus: true, paymentPlan: true,
                 startDate: true, endDate: true, travellers: true,
                 totalAmount_paise: true, advanceAmount_paise: true, balanceAmount_paise: true, balanceDueDate: true,
                 package: { select: { title: true } },
@@ -56,14 +57,24 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
             content = <StatusScreen heading="Booking not found" body="This booking doesn't exist or isn't associated with your account." />;
         } else {
             const pending = booking.paymentStatus === 'PENDING';
+            const cancelled = booking.status === 'CANCELLED';
             const isFull = booking.paymentPlan === 'FULL';
             const paidPaise = isFull ? booking.totalAmount_paise : booking.advanceAmount_paise;
 
             content = (
                 <div className="screen-space py-10">
-                    {pending && <StatusPoller />}
+                    {pending && !cancelled && <StatusPoller />}
                     <Card className="max-w-xl mx-auto px-8 py-9">
-                        {pending ? (
+                        {cancelled ? (
+                            <div className="text-center">
+                                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-error-50 text-error-600 text-2xl">✕</div>
+                                <Heading level={3} weight="semibold">Booking cancelled</Heading>
+                                <Text intent="secondary" className="mt-1 block">
+                                    Booking <span className="font-medium text-primary">{booking.bookingNumber}</span> has been cancelled.
+                                    Any eligible refund is being processed back to your original payment method.
+                                </Text>
+                            </div>
+                        ) : pending ? (
                             <>
                                 <div className="text-center">
                                     <Heading level={3} weight="semibold">Confirming your payment…</Heading>
@@ -99,6 +110,8 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
                                 <Text size="sm" intent="secondary" className="mt-5 block text-center">
                                     A confirmation has been recorded. Our team will reach out with your trip details.
                                 </Text>
+
+                                <CancelBookingPanel bookingId={booking.id} />
                             </>
                         )}
 

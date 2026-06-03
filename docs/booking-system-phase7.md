@@ -41,7 +41,7 @@ Config defaults (env-overridable): `CANCEL_TIERS` = `[{minDays:30, refundPct:90}
 | 7.1 | Cancellation/refund **policy engine** (pure): `computeCancellationRefund({paidPaise, daysToTravel, policy})` → `{refundablePaise, feePaise, tier, reason}` + config (tiers, env-overridable) + tests | ✅ DONE |
 | 7.2 | `PaymentProvider.refund({gatewayPaymentId, amountPaise, notes})` + Razorpay & PayU impls (+ `fetchRefundStatus`); unit tests | ✅ DONE |
 | 7.3 | `cancelBooking` service: policy → initiate gateway refund(s) on captured payments → Booking CANCELLED + installments CANCELLED + paymentStatus; idempotent (refund webhook confirms) | ✅ DONE |
-| 7.4 | Cancellation UX + action: refund **preview** (policy quote) + confirm on `/bookings/[id]`; `requestCancellation(bookingId, reason)` action (auth/owner) | ⬜ TODO |
+| 7.4 | Cancellation UX + action: refund **preview** (policy quote) + confirm on `/bookings/[id]`; `requestCancellation(bookingId, reason)` action (auth/owner) | ✅ DONE |
 | 7.5 | Date-change: `changeTravelDate(bookingId, newDate)` — re-price (new quote), apply date-change fee, settle delta (top-up charge / refund difference), update dates + schedule | ⬜ TODO |
 | 7.6 | Refund reconciliation (`fetchRefundStatus`) + e2e (cancel→refund initiated→webhook confirms; date-change delta) + docs/memory; Phase 7 complete | ⬜ TODO |
 
@@ -108,6 +108,14 @@ Config defaults (env-overridable): `CANCEL_TIERS` = `[{minDays:30, refundPct:90}
 - Refund-before-cancel ordering (failed refund ⇒ no cancel); per-payment `refundId` idempotency; only unpaid installments cancelled (PAID deposit kept).
 - Verified (throwaway, stubbed PayU fetch): 90% of ₹9113.35 refunded, refundId stored, booking CANCELLED + reason,
   BALANCE→CANCELLED / DEPOSIT stays PAID, re-cancel = alreadyCancelled (no new refund), non-owner = forbidden. Suite green.
+
+## Step 7.4 — what was done
+- `booking.actions.ts` (`'use server'`): `getCancellationPreview(bookingId)` + `requestCancellation(bookingId, reason?)`
+  (auth → owner-scoped via `byUserId` → `previewCancellation`/`cancelBooking`).
+- `CancelBookingPanel.tsx` (client): "Cancel booking" → loads preview (refund %/amount, fee, paid) → reason textarea →
+  "Confirm cancellation" → `requestCancellation` → `router.refresh()`. Maps error reasons.
+- `/bookings/[id]/page.tsx`: selects `status`; three states — pending / **cancelled banner** / confirmed; renders
+  `<CancelBookingPanel>` in the confirmed state. tsc 0; suite green (logic covered by 7.3).
 
 ## Gotchas / conventions
 - Webhook is truth: cancel/refund *initiate*; the refund webhook (Phase 5) *confirms* REFUNDED/PARTIAL.
