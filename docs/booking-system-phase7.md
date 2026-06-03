@@ -42,7 +42,7 @@ Config defaults (env-overridable): `CANCEL_TIERS` = `[{minDays:30, refundPct:90}
 | 7.2 | `PaymentProvider.refund({gatewayPaymentId, amountPaise, notes})` + Razorpay & PayU impls (+ `fetchRefundStatus`); unit tests | ✅ DONE |
 | 7.3 | `cancelBooking` service: policy → initiate gateway refund(s) on captured payments → Booking CANCELLED + installments CANCELLED + paymentStatus; idempotent (refund webhook confirms) | ✅ DONE |
 | 7.4 | Cancellation UX + action: refund **preview** (policy quote) + confirm on `/bookings/[id]`; `requestCancellation(bookingId, reason)` action (auth/owner) | ✅ DONE |
-| 7.5 | Date-change: `changeTravelDate(bookingId, newDate)` — re-price (new quote), apply date-change fee, settle delta (top-up charge / refund difference), update dates + schedule | ⬜ TODO |
+| 7.5 | Date-change: `changeTravelDate(bookingId, newDate)` — re-price (new quote), apply date-change fee, settle delta (top-up charge / refund difference), update dates + schedule | ✅ DONE |
 | 7.6 | Refund reconciliation (`fetchRefundStatus`) + e2e (cancel→refund initiated→webhook confirms; date-change delta) + docs/memory; Phase 7 complete | ⬜ TODO |
 
 ## Per-step detail (provisional — refined after decisions)
@@ -116,6 +116,24 @@ Config defaults (env-overridable): `CANCEL_TIERS` = `[{minDays:30, refundPct:90}
   "Confirm cancellation" → `requestCancellation` → `router.refresh()`. Maps error reasons.
 - `/bookings/[id]/page.tsx`: selects `status`; three states — pending / **cancelled banner** / confirmed; renders
   `<CancelBookingPanel>` in the confirmed state. tsc 0; suite green (logic covered by 7.3).
+
+## Step 7.5 — what was done
+- **Schema**: `enum PaymentPurpose { INITIAL TOPUP BALANCE }`; `Payment.purpose @default(INITIAL)`. Migration
+  `20260603100000_add_payment_purpose` (db execute + hand-insert). Regen.
+- **`finalize.service.ts`** now branches on `purpose`: INITIAL = original (deposit installment PAID + booking
+  paymentStatus/money from schedule); TOPUP/BALANCE = add to `paidAmount`, recompute `balanceDueAmount` +
+  paymentStatus (FULLY_PAID once paid ≥ total), **don't touch the deposit installment** — so a top-up capture
+  through the webhook no longer clobbers the booking.
+- **`change-date.service.ts`**: `changeTravelDate({bookingId, newDate, byUserId?})` + `previewDateChange` +
+  pure `planSettlement`. Re-prices newDate via `computePackagePrice` (selectors from the booking's quote),
+  `newOutstanding = newTotal + fee − paid`: <0 → refund excess; >0 + pending balance → fold into BALANCE leg;
+  >0 fully-paid → immediate **TOPUP** Payment + `createCharge` (returns CheckoutInit); =0 → none. Dates/total/
+  snapshot updated immediately; money confirmed by webhook. Fee from cancellation-policy config (₹500).
+- **Actions** `getDateChangePreview`/`requestDateChange` (auth/owner) + **`ChangeDatePanel`** on `/bookings/[id]`
+  (date picker → preview {new price, fee, settle direction} → confirm → topup launches checkout, else refresh).
+- Verified (throwaway): planSettlement (all 4 directions), **TOPUP webhook finalize** (paid 9113.35→14113.35,
+  deposit installment untouched, balance recomputed, still ADVANCE_PAID), live changeTravelDate (dates + total = re-priced).
+  e2e:phase4/5/6 still PASS (INITIAL finalize unchanged); tsc 0; unit suite green.
 
 ## Gotchas / conventions
 - Webhook is truth: cancel/refund *initiate*; the refund webhook (Phase 5) *confirms* REFUNDED/PARTIAL.

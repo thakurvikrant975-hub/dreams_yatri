@@ -5,7 +5,8 @@ import { db } from "@/app/lib/db";
 import { verifyCheckoutSignature } from "@/app/lib/razorpay";
 import { createBookingAndOrder } from "./create-booking.service";
 import { cancelBooking, previewCancellation } from "./cancel-booking.service";
-import type { CreateBookingOrderResult, VerifyCheckoutResult, CancelBookingResult, CancellationPreview } from "./types";
+import { changeTravelDate, previewDateChange } from "./change-date.service";
+import type { CreateBookingOrderResult, VerifyCheckoutResult, CancelBookingResult, CancellationPreview, DateChangeResult, DateChangePreview } from "./types";
 
 /**
  * Initiate a package booking + Razorpay order from a quote.
@@ -60,4 +61,18 @@ export async function requestCancellation(bookingId: string, reason?: string): P
     const user = await getAuthenticatedUser();
     if (!user?.id) return { success: false, reason: "unauthenticated" };
     return cancelBooking({ bookingId, reason, byUserId: user.id });
+}
+
+/** Preview a date change (re-price + settlement direction) for the dialog. */
+export async function getDateChangePreview(bookingId: string, newDate: string): Promise<DateChangePreview | null> {
+    const user = await getAuthenticatedUser();
+    if (!user?.id) return null;
+    return previewDateChange(bookingId, newDate, user.id);
+}
+
+/** Apply a date change to the user's own booking. */
+export async function requestDateChange(bookingId: string, newDate: string): Promise<DateChangeResult> {
+    const user = await getAuthenticatedUser();
+    if (!user?.id) return { success: false, reason: "unauthenticated" };
+    return changeTravelDate({ bookingId, newDate, byUserId: user.id });
 }

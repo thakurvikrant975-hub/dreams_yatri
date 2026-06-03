@@ -10,6 +10,7 @@ import { getAuthenticatedUser } from '@/app/lib/functions/getAuthenticatedUser';
 import { formatPaise } from '@/app/lib/money';
 import StatusPoller from './StatusPoller';
 import CancelBookingPanel from './CancelBookingPanel';
+import ChangeDatePanel from './ChangeDatePanel';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
@@ -111,6 +112,7 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
                                     A confirmation has been recorded. Our team will reach out with your trip details.
                                 </Text>
 
+                                <ChangeDatePanel bookingId={booking.id} />
                                 <CancelBookingPanel bookingId={booking.id} />
                             </>
                         )}

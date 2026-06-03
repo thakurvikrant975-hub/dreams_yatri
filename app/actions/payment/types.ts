@@ -71,3 +71,22 @@ export interface CancellationPreview {
     refundPct: number;
     daysToTravel: number;
 }
+
+export type DateChangeDirection = "topup" | "refund" | "balance" | "none";
+
+/** Read-only preview of a date change (for the confirm dialog). */
+export interface DateChangePreview {
+    newDate: string;
+    oldTotalPaise: number;
+    newTotalPaise: number;
+    feePaise: number;
+    paidPaise: number;
+    newOutstandingPaise: number; // (newTotal + fee) − paid
+    direction: DateChangeDirection;
+    settleAmountPaise: number; // amount charged (topup) or refunded (refund)
+}
+
+export type DateChangeResult =
+    | { success: true; direction: "topup"; bookingId: string; amountPaise: number; checkout: CheckoutInit }
+    | { success: true; direction: "refund" | "balance" | "none"; bookingId: string; amountPaise: number }
+    | { success: false; reason: "unauthenticated" | "not_found" | "forbidden" | "not_changeable" | "unpriceable" | "invalid_date" | "error"; message?: string };
