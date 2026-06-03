@@ -51,7 +51,7 @@ webhook via `WebhookEvent @@unique([gateway, eventId])`.
 | 4.3 | Checkout init: server action/route + client Razorpay-checkout on `/book/[quoteId]` (real Pay button → opens Razorpay with order) | ✅ DONE |
 | 4.4 | Webhook handler `app/api/webhooks/razorpay/route.ts` (authoritative): verify sig → dedupe via WebhookEvent → on payment captured: Payment PAID + Booking paymentStatus/money + DEPOSIT installment PAID; idempotent re-delivery → IGNORED | ✅ DONE |
 | 4.5 | Browser-callback verify (server action `verifyCheckoutPayment`) + confirmation page (`/book/[quoteId]/success` or `/bookings/[id]`): verify checkout sig, show status; truth still = webhook (show "processing" until captured) | ✅ DONE |
-| 4.6 | Tests + e2e (test mode): signature-verify unit tests; signed-webhook simulation asserting Payment/Booking/installment transitions + dedupe; docs/memory; Phase 4 complete | ⬜ TODO |
+| 4.6 | Tests + e2e (test mode): signature-verify unit tests; signed-webhook simulation asserting Payment/Booking/installment transitions + dedupe; docs/memory; Phase 4 complete | ✅ DONE |
 
 ## Per-step detail
 
@@ -163,6 +163,21 @@ webhook via `WebhookEvent @@unique([gateway, eventId])`.
   every 4s ×8), else "Booking confirmed!" with package/dates/travellers/paid + balance-due (deposit) / paid-in-full.
 - `BookReview` success handler now: `verifyCheckoutPayment(resp)` → `router.push('/bookings/<id>')` (replaces the
   inline-only processing state). `useRouter` added.
+
+## Step 4.6 — what was done
+- Committed integration e2e `scripts/e2e-phase4.ts` + `npm run e2e:phase4` (DB-mutating, self-signed webhook
+  secret, NOT in `npm test`): seeds a DEPOSIT booking+payment → bad sig 400 → capture processed → duplicate
+  no-reprocess; asserts Payment FULLY_PAID/UPI, Booking ADVANCE_PAID ₹9113.35/bal ₹27340.03, deposit
+  installment PAID, single event row; cleans up in `finally`. PHASE4_E2E_PASS.
+- Signature-verify unit tests already in `npm run test:razorpay` (11). Full `npm test` = 91 green.
+
+## Phase 4 — COMPLETE ✅
+Razorpay happy path is wired end-to-end: review → Pay (createBookingAndOrder) → Razorpay checkout →
+**authoritative webhook** confirms (Payment/Booking/installment) → confirmation page reflects it. Idempotent
+throughout (Booking.quoteId, Payment.gatewayOrderId/idempotencyKey, WebhookEvent[gateway,eventId]). No schema change.
+**Needs real Razorpay TEST keys in `.env`** for a live browser click-through (4.3/4.5); all server logic verified
+without them. On branch `feat/booking-payment-phase4` (not merged).
+Next: **Phase 5** — failure & reconciliation (webhook truth for failed/refunded, recon job, balance-due reminders cron).
 
 ## Gotchas / conventions
 - Razorpay amounts are paise — reuse `app/lib/money.ts`; never float.
