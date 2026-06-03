@@ -231,9 +231,9 @@ function LoginModal() {
             <button
               type="button"
               onClick={closeModal}
-              className="absolute top-4 right-4 p-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors cursor-pointer"
+              className="absolute top-4 right-4 p-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white cursor-pointer transition-colors"
             >
-              <X size={16} />
+              <X className='cursor-pointer' size={16} />
             </button>
 
             <h2 className="relative text-2xl font-bold text-white">Welcome back</h2>
@@ -354,8 +354,8 @@ function LoginModal() {
                               ${errors.otp
                                 ? 'border-red-400 bg-red-50 text-red-600 focus:border-red-500 focus:ring-2 focus:ring-red-100'
                                 : otpDigits[i]
-                                  ? 'border-primary-500 bg-primary-50 text-primary-700 focus:border-primary-600 focus:ring-2 focus:ring-primary-100'
-                                  : 'border-neutral-200 bg-white text-neutral-800 focus:border-primary-400 focus:ring-2 focus:ring-primary-100'
+                                  ? 'border-neutral-800 bg-white text-neutral-900 focus:border-neutral-900 focus:ring-2 focus:ring-neutral-200'
+                                  : 'border-neutral-200 bg-white text-neutral-800 focus:border-neutral-400 focus:ring-2 focus:ring-neutral-100'
                               }`}
                           />
                         ))}
@@ -431,7 +431,7 @@ function LoginModal() {
                   By continuing, you agree to our{' '}
                   <a href="/terms" className="underline hover:text-primary-600">Terms</a>
                   {' '}and{' '}
-                  <a href="/privacy" className="underline hover:text-primary-600">Privacy Policy</a>.
+                  <a href="/privacy-policy" className="underline hover:text-primary-600">Privacy Policy</a>.
                 </p>
               </>
             )}
