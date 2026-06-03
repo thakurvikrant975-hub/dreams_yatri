@@ -38,7 +38,7 @@ and **trip voucher**, and hand confirmed bookings to **ops**. Money/state are un
 | 8.3 | Invoice/receipt: printable HTML route `/bookings/[id]/invoice` (owner-guarded) + invoice number; optional `TripDocument(INVOICE)` record | ✅ DONE |
 | 8.4 | Voucher: printable HTML route `/bookings/[id]/voucher` (trip + itinerary from priceSnapshot + inclusions); links from booking page + confirmation email | ✅ DONE |
 | 8.5 | Ops handoff (lightweight): OPS_EMAIL notification on paid bookings + optional System-actor `BookingTimeline` entry; status note | ✅ DONE |
-| 8.6 | Tests (email builders, notification triggers via stub mailer) + invoice/voucher render smoke + docs/memory; Phase 8 + project complete | ⬜ TODO |
+| 8.6 | Tests (email builders, notification triggers via stub mailer) + invoice/voucher render smoke + docs/memory; Phase 8 + project complete | ✅ DONE |
 
 ## Per-step detail (provisional)
 ### 8.1 — Notifications service
@@ -110,9 +110,23 @@ and **trip voucher**, and hand confirmed bookings to **ops**. Money/state are un
   by the System actor — **not** email-gated (ops record always written). OPS_EMAIL notification was already wired (8.2).
 - Verified (throwaway): capture → System actor exists + timeline NOTE_ADDED present. Full ops dashboard deferred.
 
-## Gotchas / conventions
-- Comms are side-effects: never block or fail the money path; log + continue.
-- Transactional sends are gated by `NOTIFICATIONS_ENABLED=1` (off in dev/tests); the ops timeline write is not gated.
+## Step 8.6 — what was done
+- Committed `scripts/e2e-phase8.ts` + `npm run e2e:phase8`: capture → booking ADVANCE_PAID + System actor seeded
+  + ops `BookingTimeline` NOTE_ADDED. Email builders covered by `npm run test:notify` (8.1). PHASE8_E2E_PASS.
+- Final green check: tsc 0; e2e:phase4/5/6/7/8 all PASS; full `npm test` = 152.
+
+## Phase 8 — COMPLETE ✅
+Post-payment layer done: transactional emails (confirmation+receipt / cancellation / refund — gated by
+`NOTIFICATIONS_ENABLED`, post-commit best-effort), printable **invoice** + **voucher** routes (no PDF dep),
+and lightweight **ops handoff** (OPS_EMAIL + System-actor timeline). On branch `feat/booking-payment-phase8`.
+
+## 🎉 Booking system — ALL PHASES COMPLETE
+P1 signed quote+review · P2 schema · P3 payment-policy · P4 Razorpay happy path · P5 failure/reconciliation ·
+P6 PayU behind PaymentProvider · P7 refunds/cancellation/date-change · P8 invoicing/comms/vouchers/ops.
+Tests: `npm test` (152 unit) + `npm run e2e:phase4..8`. **Go-live checklist:** real Razorpay/PayU TEST keys in
+`.env`; validate PayU hash + gateway refunds against live test creds; set `NOTIFICATIONS_ENABLED=1` + a verified
+`MAIL_FROM` domain; wire the cron scheduler (`/api/cron/*` with `CRON_SECRET`); configure the gateway webhook
+URLs (`/api/webhooks/razorpay|payu`). Future: full ops dashboard, per-traveller capture, balance-payment UI.
 - No new deps for documents — printable HTML; users "Save as PDF" via the browser.
 - Owner-guard the invoice/voucher routes (noindex); money figures via `formatPaise`.
 - Production email needs a verified sender domain (`MAIL_FROM`); dev uses the Resend sandbox sender.

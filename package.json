@@ -21,7 +21,8 @@
     "e2e:phase4": "tsx --conditions=react-server --env-file=.env scripts/e2e-phase4.ts",
     "e2e:phase5": "tsx --conditions=react-server --env-file=.env scripts/e2e-phase5.ts",
     "e2e:phase6": "tsx --conditions=react-server --env-file=.env scripts/e2e-phase6.ts",
-    "e2e:phase7": "tsx --conditions=react-server --env-file=.env scripts/e2e-phase7.ts"
+    "e2e:phase7": "tsx --conditions=react-server --env-file=.env scripts/e2e-phase7.ts",
+    "e2e:phase8": "tsx --conditions=react-server --env-file=.env scripts/e2e-phase8.ts"
   },
   "prisma": {
     "seed": "tsx --env-file=.env prisma/seed.ts"
