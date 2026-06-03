@@ -33,7 +33,7 @@ and **trip voucher**, and hand confirmed bookings to **ops**. Money/state are un
 ## Steps & Status (finalized after decisions)
 | Step | Description | Status |
 |------|-------------|--------|
-| 8.1 | Notifications service: HTML email builders (confirmation/receipt, cancellation, refund) + `sendBookingEmail` wrappers; `MAIL_FROM`/`OPS_EMAIL` env; unit-test the pure builders | ⬜ TODO |
+| 8.1 | Notifications service: HTML email builders (confirmation/receipt, cancellation, refund) + `sendBookingEmail` wrappers; `MAIL_FROM`/`OPS_EMAIL` env; unit-test the pure builders | ✅ DONE |
 | 8.2 | Wire comms into flows (post-commit, non-blocking): INITIAL capture → confirmation+receipt (+ ops notify); cancel → cancellation; refund confirmed → refund email | ⬜ TODO |
 | 8.3 | Invoice/receipt: printable HTML route `/bookings/[id]/invoice` (owner-guarded) + invoice number; optional `TripDocument(INVOICE)` record | ⬜ TODO |
 | 8.4 | Voucher: printable HTML route `/bookings/[id]/voucher` (trip + itinerary from priceSnapshot + inclusions); links from booking page + confirmation email | ⬜ TODO |
@@ -69,6 +69,15 @@ and **trip voucher**, and hand confirmed bookings to **ops**. Money/state are un
 ### 8.6 — Tests + wrap-up
 - Unit: email builders (subject/required content) for each type. Notification triggers via a stub mailer
   (capture sends) in a small e2e. Invoice/voucher pages render (smoke). docs/memory; mark Phase 8 + project COMPLETE.
+
+## Step 8.1 — what was done
+- `app/services/notifications/booking-emails.ts` (pure): `bookingConfirmationEmail` (receipt summary + voucher
+  link; deposit shows balance/due, full hides it), `cancellationEmail` (refund/fee), `refundConfirmedEmail`,
+  `opsNewBookingEmail` — each → `{subject, html}` with a shared branded layout; money via `formatPaise`.
+- `app/services/notifications/send.ts` (`server-only`): `sendBookingEmail(to, mail)` best-effort (swallows errors)
+  + `opsEmail()` (reads `OPS_EMAIL`, null when unset).
+- Env: `MAIL_FROM` (sandbox sender for now), `OPS_EMAIL`. `scripts/test-notifications.ts` + `npm run test:notify`
+  (12 asserts) in `npm test` (now 152 total). NOTE: en-IN renders short month as "Sept" (not "Sep").
 
 ## Gotchas / conventions
 - Comms are side-effects: never block or fail the money path; log + continue.
