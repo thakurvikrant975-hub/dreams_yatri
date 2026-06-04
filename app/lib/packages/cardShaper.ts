@@ -29,7 +29,7 @@ export const PACKAGE_CARD_SELECT = {
   title: true,
   slug: true,
   thumbnail: true,
-  images: { orderBy: { sort_order: "asc" }, take: 3, select: { url: true } },
+  images: { orderBy: { sort_order: "asc" }, take: 6, select: { url: true } },
   durations: {
     where: { is_active: true },
     orderBy: [{ is_default: "desc" }, { sort_order: "asc" }],

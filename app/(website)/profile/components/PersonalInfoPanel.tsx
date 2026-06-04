@@ -3,29 +3,32 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Section } from "./Section";
+import { ChangeContactModal } from "./ChangeContactModal";
 import Button from "@/app/components/ui/Button";
 import Label from "@/app/components/forms/Label";
 import Input from "@/app/components/forms/Input";
 import { Select, Option } from "@/app/components/forms/Select";
 import { SearchSelect, type SearchSelectOption } from "@/app/components/forms/SearchSelect";
 import { DatePicker } from "@/app/components/forms/DatePicker";
+import { CheckCircle2 } from "lucide-react";
 
 interface UserBasicInfo {
-  name: string | null;
-  email: string | null;
-  phone: string | null;
-  country_code: string;
-  dateOfBirth: Date | string | null;
-  city: string | null;
-  state: string | null;
-  gender: string | null;
-  nationality: string | null;
-  maritalStatus: string | null;
-  anniversary: Date | string | null;
-  passportNumber: string | null;
-  passportExpiryDate: Date | string | null;
+  name:                   string | null;
+  email:                  string | null;
+  whatsapp:               string | null;
+  phone:                  string | null;
+  country_code:           string;
+  dateOfBirth:            Date | string | null;
+  city:                   string | null;
+  state:                  string | null;
+  gender:                 string | null;
+  nationality:            string | null;
+  maritalStatus:          string | null;
+  anniversary:            Date | string | null;
+  passportNumber:         string | null;
+  passportExpiryDate:     Date | string | null;
   passportIssuingCountry: string | null;
-  panNumber: string | null;
+  panNumber:              string | null;
 }
 
 type SaveStatus = "idle" | "success" | "error";
@@ -94,9 +97,26 @@ export function PersonalInfoPanel({ userBasicInfo }: { userBasicInfo: UserBasicI
   const [basicStatus, setBasicStatus] = useState<SaveStatus>("idle");
   const [basicError, setBasicError] = useState("");
 
-  const [contactSaving, setContactSaving] = useState(false);
-  const [contactStatus, setContactStatus] = useState<SaveStatus>("idle");
-  const [contactError, setContactError] = useState("");
+  const [contactModal, setContactModal] = useState<{ open: boolean; type: "email" | "whatsapp" }>({ open: false, type: "email" });
+  const [contactBanner, setContactBanner] = useState<string | null>(null);
+
+  // Show success banner when email verify link redirects back
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const success = params.get("contact_success");
+    const err     = params.get("contact_error");
+    if (success === "email_updated") setContactBanner("Email address updated successfully.");
+    if (err === "link_expired")      setContactBanner("Verification link expired. Please try again.");
+    if (err === "email_taken")       setContactBanner("That email is already in use by another account.");
+    if (err === "invalid_link")      setContactBanner("Invalid verification link.");
+    if (success || err) {
+      // Clean the URL params without reload
+      const url = new URL(window.location.href);
+      url.searchParams.delete("contact_success");
+      url.searchParams.delete("contact_error");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, []);
 
   const [docSaving, setDocSaving] = useState(false);
   const [docStatus, setDocStatus] = useState<SaveStatus>("idle");
@@ -143,7 +163,6 @@ export function PersonalInfoPanel({ userBasicInfo }: { userBasicInfo: UserBasicI
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name:         form.name         || undefined,
-          email:        form.email        || undefined,
           gender:       form.gender       || undefined,
           dateOfBirth:  form.dateOfBirth  || undefined,
           maritalStatus: form.maritalStatus || undefined,
@@ -164,32 +183,6 @@ export function PersonalInfoPanel({ userBasicInfo }: { userBasicInfo: UserBasicI
       setBasicStatus("error");
     } finally {
       setBasicSaving(false);
-    }
-  }
-
-  async function handleSaveContact() {
-    setContactSaving(true);
-    setContactStatus("idle");
-    setContactError("");
-
-    try {
-      const res = await fetch("/api/user/profile", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: form.email || undefined,
-        }),
-      });
-
-      const json = await res.json();
-      if (!res.ok) { setContactError(json.error ?? "Update failed."); setContactStatus("error"); return; }
-      setContactStatus("success");
-      router.refresh();
-    } catch {
-      setContactError("Network error. Please try again.");
-      setContactStatus("error");
-    } finally {
-      setContactSaving(false);
     }
   }
 
@@ -234,7 +227,9 @@ export function PersonalInfoPanel({ userBasicInfo }: { userBasicInfo: UserBasicI
               id="full-name"
               value={form.name}
               onChange={e => handleChange("name", e.target.value)}
-              placeholder="Enter full name" autoFocus />
+              placeholder="Enter full name"
+              className="capitalize"
+              autoFocus />
           </div>
 
           <div>
@@ -341,45 +336,74 @@ export function PersonalInfoPanel({ userBasicInfo }: { userBasicInfo: UserBasicI
       </Section>
 
       <Section title="Contact Details" subtitle="Your preferred contact information for discounts and offers">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 ">
-          <div>
-            <Label htmlFor="phone-number">Phone Number</Label>
-            <div className="flex flex-row items-stretch gap-2">
-              <div className="min-w-18 h-11 flex items-center justify-center px-3 rounded-lg border border-neutral-200 bg-neutral-50 text-sm font-medium text-neutral-500 select-none">
-                {form.country_code || '+91'}
-              </div>
-              <Input
-                id="phone-number"
-                value={
-                  form.country_code && form.phone.startsWith(form.country_code)
-                    ? form.phone.slice(form.country_code.length)
-                    : form.phone
-                }
-                readOnly
-                disabled
-                placeholder="Phone number"
-                wrapperClassName="flex-1"
-              />
+        {/* Success / error banner from email verification redirect */}
+        {contactBanner && (
+          <div className={`flex items-center gap-2 px-4 py-2.5 rounded-lg mb-4 text-sm font-medium
+            ${contactBanner.includes("successfully") ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+            {contactBanner.includes("successfully") && <CheckCircle2 size={15} />}
+            {contactBanner}
+          </div>
+        )}
+
+        <div className="divide-y divide-neutral-100">
+          {/* Phone — read-only (login identifier) */}
+          <div className="flex items-center justify-between gap-4 py-3 first:pt-0">
+            <div>
+              <p className="text-xs text-neutral-400 font-medium uppercase tracking-wide mb-0.5">Phone Number</p>
+              <p className="text-sm font-medium text-neutral-800">
+                {form.phone
+                  ? `${form.country_code || ''} ${form.country_code && form.phone.startsWith(form.country_code) ? form.phone.slice(form.country_code.length) : form.phone}`
+                  : <span className="text-neutral-400">Not added</span>}
+              </p>
             </div>
-          </div>
-          <div>
-            <Label htmlFor="email">Email Address</Label>
-            <Input
-              id="email"
-              value={form.email}
-              onChange={e => handleChange("email", e.target.value)}
-              placeholder="you@example.com" />
+            <span className="text-[11px] text-neutral-400 bg-neutral-100 px-2 py-1 rounded-full shrink-0">Login number</span>
           </div>
 
+          {/* Email */}
+          <div className="flex items-center justify-between gap-4 py-3">
+            <div>
+              <p className="text-xs text-neutral-400 font-medium uppercase tracking-wide mb-0.5">Email Address</p>
+              <p className="text-sm font-medium text-neutral-800">
+                {userBasicInfo.email ?? <span className="text-neutral-400">Not added</span>}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setContactModal({ open: true, type: "email" })}
+            >
+              {userBasicInfo.email ? "Change" : "Add Email"}
+            </Button>
+          </div>
+
+          {/* WhatsApp */}
+          <div className="flex items-center justify-between gap-4 py-3 last:pb-0">
+            <div>
+              <p className="text-xs text-neutral-400 font-medium uppercase tracking-wide mb-0.5">WhatsApp Number</p>
+              <p className="text-sm font-medium text-neutral-800">
+                {userBasicInfo.whatsapp ?? <span className="text-neutral-400">Not added</span>}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setContactModal({ open: true, type: "whatsapp" })}
+            >
+              {userBasicInfo.whatsapp ? "Change" : "Add WhatsApp"}
+            </Button>
+          </div>
         </div>
 
-        <div className="flex items-center justify-end gap-3 border-t border-[--border] pt-3 mt-4">
-          {contactStatus === "success" && <span className="text-xs text-green-600 font-medium">Changes saved</span>}
-          {contactStatus === "error" && <span className="text-xs text-red-500 font-medium">{contactError}</span>}
-          <Button size="sm" onClick={handleSaveContact} disabled={contactSaving}>
-            {contactSaving ? "Saving…" : "Save Changes"}
-          </Button>
-        </div>
+        <ChangeContactModal
+          open={contactModal.open}
+          onClose={() => setContactModal(m => ({ ...m, open: false }))}
+          type={contactModal.type}
+          currentValue={contactModal.type === "email" ? userBasicInfo.email : userBasicInfo.whatsapp}
+          onSuccess={() => {
+            setContactModal(m => ({ ...m, open: false }));
+            router.refresh();
+          }}
+        />
       </Section>
 
       {/* ── Travel Documents ───────────────────────────────────────────── */}

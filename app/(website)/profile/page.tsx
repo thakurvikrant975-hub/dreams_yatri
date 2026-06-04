@@ -2,6 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 
+import { Suspense } from 'react';
 import Profile from './ProfileClient';
 import { auth } from '@/app/lib/auth';
 import { db } from '@/app/lib/db';
@@ -16,7 +17,7 @@ export default async function ProfilePage() {
       db.user.findUnique({
         where:  { id: session.user.id },
         select: {
-          id: true, phone: true, country_code: true, name: true, email: true,
+          id: true, phone: true, whatsapp: true, country_code: true, name: true, email: true,
           image: true,
           gender: true, dateOfBirth: true, nationality: true, maritalStatus: true,
           anniversary: true, state: true, city: true, passportNumber: true,
@@ -35,15 +36,17 @@ export default async function ProfilePage() {
     if (!user) redirect("/");
 
     return (
-      <Profile
-        key={user.updatedAt.toISOString()}
-        user={{
-          ...user,
-          totalTrips,
-          upcomingTrips,
-          wishlistCount: 0,
-        }}
-      />
+      <Suspense>
+        <Profile
+          key={user.updatedAt.toISOString()}
+          user={{
+            ...user,
+            totalTrips,
+            upcomingTrips,
+            wishlistCount: 0,
+          }}
+        />
+      </Suspense>
     );
 
   } catch (err) {

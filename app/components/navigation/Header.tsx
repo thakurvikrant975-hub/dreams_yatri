@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { MagnifyingGlassIcon } from '@heroicons/react/20/solid'
 import { UserIcon } from '@heroicons/react/24/solid'
 import Button from '../ui/Button'
@@ -10,6 +10,7 @@ import Link from 'next/link'
 import MobileMenu from './MobileMenu'
 import LanguageDropdown from './LanguageDropdown'
 import ServiceDropdown from './ServiceDropdown'
+import { SearchDropdown } from './SearchDropdown'
 import { useSession } from 'next-auth/react'
 import { useModal } from '@/app/hooks/useModals'
 import { useRouter } from 'next/navigation'
@@ -20,10 +21,11 @@ interface HeaderProps {
 }
 
 export default function Header({ transparent = false, sticky = true }: HeaderProps) {
-  const [scrolled, setScrolled] = useState(false)
+  const [scrolled,          setScrolled]          = useState(false)
+  const [mobileSearchOpen,  setMobileSearchOpen]  = useState(false)
   const { data: session, status } = useSession()
-  const openModal = useModal(s => s.openModal)
-  const router = useRouter()
+  const openModal  = useModal(s => s.openModal)
+  const router     = useRouter()
 
   useEffect(() => {
     if (!transparent) return
@@ -32,15 +34,20 @@ export default function Header({ transparent = false, sticky = true }: HeaderPro
     return () => window.removeEventListener('scroll', handleScroll)
   }, [transparent])
 
-  const isSolid = !transparent || scrolled
+  // Close mobile search on resize to md+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)')
+    const handler = (e: MediaQueryListEvent) => { if (e.matches) setMobileSearchOpen(false) }
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
+  const isSolid   = !transparent || scrolled
   const isLoggedIn = status === 'authenticated' && !!session?.user
 
   function handleProfileClick() {
-    if (isLoggedIn) {
-      router.push('/profile')
-    } else {
-      openModal('login-modal')
-    }
+    if (isLoggedIn) router.push('/profile')
+    else openModal('login-modal')
   }
 
   function handleRegisterClick() {
@@ -60,7 +67,7 @@ export default function Header({ transparent = false, sticky = true }: HeaderPro
         className="relative h-header-height overflow-visible"
       >
         <div className="screen-space h-full">
-          <div className="flex items-center justify-between gap-4 lg:gap-6 h-full">
+          <div className="flex items-center justify-between gap-3 lg:gap-6 h-full">
 
             {/* Logo */}
             <div className={`flex shrink-0 items-center ${isSolid ? 'brightness-100' : 'brightness-130'}`}>
@@ -70,44 +77,22 @@ export default function Header({ transparent = false, sticky = true }: HeaderPro
                   src="/dy_logo.svg"
                   width={160}
                   height={42}
-                  className="h-auto w-46"
+                  className="h-auto w-36 sm:w-46"
                   priority
                 />
               </Link>
             </div>
 
-            {/* Search */}
-            <div className="hidden md:block md:flex-1 md:px-8 lg:px-0 xl:col-span-6">
-              <div className="max-w-80 m-auto">
-                <div className="flex items-center px-6 py-3.5 md:mx-auto md:max-w-3xl lg:mx-0 lg:max-w-none xl:px-0">
-                  <div className="grid w-full grid-cols-1">
-                    <input
-                      name="search"
-                      placeholder="Search"
-                      className={`col-start-1 row-start-1 block w-full rounded-full py-2 pr-3 pl-12 outline-1 -outline-offset-1 focus:outline-2 focus:-outline-offset-2 focus:outline-primary-400 sm:text-sm/6 transition-all duration-300 ${
-                        isSolid
-                          ? 'bg-white text-neutral-900 outline-neutral-300 shadow-md shadow-gray-200/70'
-                          : 'bg-white/15 text-white outline-white/30 placeholder:text-white/70! backdrop-blur-sm shadow-none'
-                      }`}
-                    />
-                    <MagnifyingGlassIcon
-                      aria-hidden="true"
-                      className={`pointer-events-none col-start-1 row-start-1 ml-5 size-5 self-center transition-colors duration-300 z-10 ${
-                        isSolid ? 'text-muted' : 'text-white/70'
-                      }`}
-                    />
-                  </div>
-                </div>
-              </div>
+            {/* Desktop search — md and up */}
+            <div className="hidden md:block md:flex-1 md:max-w-sm lg:max-w-md xl:max-w-lg">
+              <SearchDropdown isSolid={isSolid} />
             </div>
 
             {/* Right nav — desktop */}
             <div className="hidden lg:flex lg:items-center lg:gap-8">
               <ServiceDropdown isSolid={isSolid} />
-
               <LanguageDropdown isSolid={isSolid} />
 
-              {/* Logged in: profile avatar */}
               {isLoggedIn && (
                 <motion.button
                   onClick={handleProfileClick}
@@ -134,7 +119,6 @@ export default function Header({ transparent = false, sticky = true }: HeaderPro
                 </motion.button>
               )}
 
-              {/* Not logged in: Register button only */}
               {!isLoggedIn && (
                 <Button variant="premium" size="md" onClick={handleRegisterClick}>
                   Register
@@ -142,8 +126,25 @@ export default function Header({ transparent = false, sticky = true }: HeaderPro
               )}
             </div>
 
-            {/* Mobile right spacer */}
-            <div className="lg:hidden w-[52px] shrink-0" />
+            {/* Mobile right: search icon + spacer for hamburger */}
+            <div className="lg:hidden flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={() => setMobileSearchOpen(v => !v)}
+                aria-label="Toggle search"
+                className={`size-9 rounded-full flex items-center justify-center cursor-pointer transition-all ${
+                  mobileSearchOpen
+                    ? 'bg-primary-50 text-primary-600'
+                    : isSolid
+                      ? 'text-neutral-500 hover:bg-neutral-100'
+                      : 'text-white/80 hover:bg-white/15'
+                }`}
+              >
+                <MagnifyingGlassIcon className="size-5" />
+              </button>
+              {/* spacer for MobileMenu hamburger */}
+              <div className="w-11 shrink-0" />
+            </div>
 
           </div>
         </div>
@@ -152,8 +153,30 @@ export default function Header({ transparent = false, sticky = true }: HeaderPro
         <div className="lg:hidden">
           <MobileMenu />
         </div>
-
       </motion.header>
+
+      {/* Mobile search bar — slides in below header */}
+      <AnimatePresence>
+        {mobileSearchOpen && (
+          <motion.div
+            key="mobile-search"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: 'easeInOut' }}
+            className="md:hidden overflow-hidden bg-white border-b border-neutral-200 shadow-md shadow-neutral-100/80"
+          >
+            <div className="px-4 py-3">
+              <SearchDropdown
+                isSolid
+                autoFocus
+                onClose={() => setMobileSearchOpen(false)}
+                className="w-full"
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

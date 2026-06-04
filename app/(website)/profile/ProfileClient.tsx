@@ -2,7 +2,8 @@
 
 'use client'
 
-import { useState } from 'react'
+import { useCallback } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/app/lib/utils'
 
 import { Heading } from '@/app/components/ui/Typography'
@@ -49,8 +50,20 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'payments',       label: 'Payments',           icon: <CreditCardIcon className="size-5" /> },
 ]
 
+const VALID_TABS = new Set<NavKey>(['personal', 'security', 'preferences', 'payments', 'notifications', 'travel-history']);
+
 export default function Profile({ user }: { user: any }) {
-  const [activeNav, setActiveNav] = useState<NavKey>('personal');
+  const router       = useRouter();
+  const searchParams = useSearchParams();
+
+  const tabParam  = searchParams.get('tab') as NavKey | null;
+  const activeNav = tabParam && VALID_TABS.has(tabParam) ? tabParam : 'personal';
+
+  const setActiveNav = useCallback((key: NavKey) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('tab', key);
+    router.replace(`/profile?${params.toString()}`, { scroll: false });
+  }, [router, searchParams]);
 
   const panels: Record<NavKey, React.ReactNode> = {
     personal:        <PersonalInfoPanel userBasicInfo={user} />,

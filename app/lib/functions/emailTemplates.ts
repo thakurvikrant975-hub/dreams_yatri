@@ -89,6 +89,61 @@ export function otpEmailTemplate(otp: number): string {
   return baseTemplate(content);
 }
 
+export function emailChangeVerificationTemplate(url: string): string {
+  const content = `
+    <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:${PRE_HEADING};letter-spacing:1px;text-transform:uppercase;">Email Verification</p>
+    <h1 style="margin:0 0 24px;font-size:24px;font-weight:700;color:${BRAND_DARK};">Verify your new email address</h1>
+
+    <p style="margin:0 0 32px;font-size:15px;color:#374151;line-height:1.6;">
+      You requested to update your email address on Dreams Yatri.
+      Click the button below to confirm this is your email.
+      This link is single-use and expires in <strong>10 minutes</strong>.
+    </p>
+
+    <!-- CTA Button -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 32px;">
+      <tr>
+        <td align="center">
+          <a href="${url}"
+            style="
+              display:         inline-block;
+              background:      ${BRAND_RED};
+              color:           #ffffff;
+              font-size:       15px;
+              font-weight:     600;
+              text-decoration: none;
+              padding:         14px 36px;
+              border-radius:   6px;
+              letter-spacing:  0.3px;
+            "
+          >
+            Verify Email Address
+          </a>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Divider -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+      <tr>
+        <td style="border-top:1px solid ${BORDER_COLOR};padding-top:24px;">
+          <p style="margin:0 0 8px;font-size:12px;color:${TEXT_MUTED};">
+            Button not working? Copy and paste this link into your browser:
+          </p>
+          <a href='${url}' style="margin:0;font-size:12px;color:oklch(62.3% 0.214 259.815);word-break:break-all;">${url}</a>
+        </td>
+      </tr>
+    </table>
+
+    <p style="margin:0;font-size:13px;color:${TEXT_MUTED};line-height:1.6;">
+      If you did not request this change, you can safely ignore this email.
+      Your existing email address will remain unchanged.
+    </p>
+  `;
+
+  return baseTemplate(content);
+}
+
 export function magicLinkEmailTemplate(url: string): string {
   const content = `
     <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:${PRE_HEADING};letter-spacing:1px;text-transform:uppercase;">Sign In Link</p>
