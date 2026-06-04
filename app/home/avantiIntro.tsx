@@ -99,6 +99,7 @@ export default function AvantiAISection() {
               </motion.li>
             ))}
           </motion.ul>
+          
 
           {/* CTA */}
           <motion.div variants={fadeUp}>
