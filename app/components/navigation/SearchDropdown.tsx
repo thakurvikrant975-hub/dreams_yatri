@@ -227,7 +227,7 @@ export function SearchDropdown({ isSolid = true, autoFocus = false, onClose, cla
 
       {/* ── Dropdown ── */}
       {open && query.length >= 2 && (
-        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2.5 w-[min(460px,calc(100vw-2rem))] bg-white rounded-2xl shadow-2xl shadow-neutral-300/40 ring-1 ring-neutral-100 overflow-hidden z-200">
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2.5 w-[min(500px,calc(100vw-2rem))] bg-white rounded-2xl shadow-2xl shadow-neutral-300/40 ring-1 ring-neutral-100 overflow-hidden z-200 shadow-lg">
 
           {!hasResults ? (
             <div className="flex flex-col items-center py-10 gap-2 text-neutral-400">

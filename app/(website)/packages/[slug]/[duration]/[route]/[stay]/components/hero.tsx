@@ -97,7 +97,7 @@ export default function PackageHero({
       {/* ── Sticky info band ── */}
       <div
         id="package-info-band"
-        className="sticky top-0 z-210 bg-white"
+        className="sticky top-0 z-20 bg-white"
         style={{
           marginLeft:  'calc(50% - 50vw)',
           marginRight: 'calc(50% - 50vw)',
