@@ -3,6 +3,16 @@ import "server-only";
 export async function sendWhatsappOtp(phone: string, otp: number): Promise<boolean> {
   const authKey    = process.env.MSG91_API_KEY;
   const templateId = process.env.MSG91_WA_TEMPLATE_ID;
+  const isDev      = process.env.NODE_ENV === "development";
+
+  // Dev fallback: log OTP to console so the flow is testable without MSG91 WhatsApp setup
+  if (isDev && (!authKey || !templateId)) {
+    console.log(`\n[DEV] WhatsApp OTP ──────────────────`);
+    console.log(`  Phone : ${phone}`);
+    console.log(`  OTP   : ${otp}`);
+    console.log(`──────────────────────────────────────\n`);
+    return true;
+  }
 
   if (!authKey) {
     console.warn("[sendWhatsappOtp] MSG91_API_KEY is not set");
