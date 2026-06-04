@@ -17,7 +17,6 @@ interface PackageResult {
   thumbnail: string | null
   destination: { name: string } | null
 }
-
 interface HotelResult {
   id: number
   name: string
@@ -27,7 +26,6 @@ interface HotelResult {
   state: string | null
   category: string | null
 }
-
 interface BlogResult {
   id: string
   title: string
@@ -36,48 +34,80 @@ interface BlogResult {
   excerpt: string | null
   read_time: number | null
 }
-
 interface SearchResults {
   packages: PackageResult[]
   hotels:   HotelResult[]
   blogs:    BlogResult[]
 }
 
+type TabKey = 'packages' | 'hotels' | 'blogs'
+
 const EMPTY: SearchResults = { packages: [], hotels: [], blogs: [] }
 
+const R2 = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? ''
+
+function imgSrc(key: string | null | undefined): string | null {
+  if (!key) return null
+  if (key.startsWith('http://') || key.startsWith('https://')) return key
+  return `${R2}/${key.replace(/^\//, '')}`
+}
+
+// ─── Props ────────────────────────────────────────────────────────────────────
+
 interface Props {
-  isSolid?:  boolean
+  isSolid?:   boolean
   autoFocus?: boolean
-  onClose?:  () => void
+  onClose?:   () => void
   className?: string
 }
 
-// ─── Thumbnail shell ─────────────────────────────────────────────────────────
-
-function normalizeSrc(src: string): string {
-  if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('/')) return src
-  return `/${src}`
-}
+// ─── Thumbnail ────────────────────────────────────────────────────────────────
 
 function Thumb({ src, alt, fallback }: { src: string | null; alt: string; fallback: React.ReactNode }) {
-  const normalized = src ? normalizeSrc(src) : null
+  const url = imgSrc(src)
   return (
-    <div className="size-11 rounded-xl overflow-hidden shrink-0 bg-neutral-100 flex items-center justify-center">
-      {normalized
-        ? <Image src={normalized} alt={alt} width={44} height={44} className="w-full h-full object-cover" />
+    <div className="size-10 rounded-lg overflow-hidden shrink-0 bg-neutral-100 flex items-center justify-center">
+      {url
+        ? <Image src={url} alt={alt} width={40} height={40} className="w-full h-full object-cover" unoptimized />
         : fallback
       }
     </div>
   )
 }
 
-// ─── Main component ──────────────────────────────────────────────────────────
+// ─── Tab button ───────────────────────────────────────────────────────────────
+
+function Tab({ label, count, active, onClick }: { label: string; count: number; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap',
+        active
+          ? 'bg-primary-600 text-white shadow-sm'
+          : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700'
+      )}
+    >
+      {label}
+      <span className={cn(
+        'rounded-full text-[10px] font-bold px-1.5 py-0.5 leading-none',
+        active ? 'bg-white/25 text-white' : 'bg-neutral-200 text-neutral-500'
+      )}>
+        {count}
+      </span>
+    </button>
+  )
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export function SearchDropdown({ isSolid = true, autoFocus = false, onClose, className }: Props) {
-  const [query,   setQuery]   = useState('')
-  const [results, setResults] = useState<SearchResults>(EMPTY)
-  const [loading, setLoading] = useState(false)
-  const [open,    setOpen]    = useState(false)
+  const [query,      setQuery]      = useState('')
+  const [results,    setResults]    = useState<SearchResults>(EMPTY)
+  const [loading,    setLoading]    = useState(false)
+  const [open,       setOpen]       = useState(false)
+  const [activeTab,  setActiveTab]  = useState<TabKey>('packages')
 
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef     = useRef<HTMLInputElement>(null)
@@ -86,13 +116,11 @@ export function SearchDropdown({ isSolid = true, autoFocus = false, onClose, cla
 
   // Close on outside click
   useEffect(() => {
-    function onMouseDown(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
+    function onDown(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false)
     }
-    document.addEventListener('mousedown', onMouseDown)
-    return () => document.removeEventListener('mousedown', onMouseDown)
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
   }, [])
 
   // Close on Escape
@@ -103,6 +131,13 @@ export function SearchDropdown({ isSolid = true, autoFocus = false, onClose, cla
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [])
+
+  // Auto-select first tab that has results
+  useEffect(() => {
+    if (results.packages.length)    setActiveTab('packages')
+    else if (results.hotels.length) setActiveTab('hotels')
+    else if (results.blogs.length)  setActiveTab('blogs')
+  }, [results])
 
   const doSearch = useCallback(async (q: string) => {
     if (q.length < 2) { setResults(EMPTY); setOpen(false); return }
@@ -131,21 +166,28 @@ export function SearchDropdown({ isSolid = true, autoFocus = false, onClose, cla
   }
 
   function clear() {
-    setQuery('')
-    setResults(EMPTY)
-    setOpen(false)
+    setQuery(''); setResults(EMPTY); setOpen(false)
     inputRef.current?.focus()
   }
 
   function closeDropdown() {
-    setOpen(false)
-    setQuery('')
-    setResults(EMPTY)
+    setOpen(false); setQuery(''); setResults(EMPTY)
     onClose?.()
   }
 
-  const hasResults = results.packages.length > 0 || results.hotels.length > 0 || results.blogs.length > 0
-  const showDropdown = open && query.length >= 2
+  const counts = {
+    packages: results.packages.length,
+    hotels:   results.hotels.length,
+    blogs:    results.blogs.length,
+  }
+  const hasResults = counts.packages + counts.hotels + counts.blogs > 0
+  const tabs: { key: TabKey; label: string }[] = [
+    { key: 'packages', label: 'Packages' },
+    { key: 'hotels',   label: 'Hotels'   },
+    { key: 'blogs',    label: 'Blogs'    },
+  ]
+  // Only show tabs that have results
+  const visibleTabs = tabs.filter(t => counts[t.key] > 0)
 
   return (
     <div ref={containerRef} className={cn('relative', className)}>
@@ -172,7 +214,6 @@ export function SearchDropdown({ isSolid = true, autoFocus = false, onClose, cla
           )}
         />
 
-        {/* Spinner or clear button */}
         <div className="absolute right-3 top-1/2 -translate-y-1/2 size-5 flex items-center justify-center">
           {loading ? (
             <div className="size-4 rounded-full border-2 border-neutral-200 border-t-primary-500 animate-spin" />
@@ -185,129 +226,99 @@ export function SearchDropdown({ isSolid = true, autoFocus = false, onClose, cla
       </div>
 
       {/* ── Dropdown ── */}
-      {showDropdown && (
-        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2.5 w-[min(480px,calc(100vw-2rem))] bg-white rounded-2xl shadow-2xl shadow-neutral-300/50 ring-1 ring-neutral-100 overflow-hidden z-200">
+      {open && query.length >= 2 && (
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2.5 w-[min(460px,calc(100vw-2rem))] bg-white rounded-2xl shadow-2xl shadow-neutral-300/40 ring-1 ring-neutral-100 overflow-hidden z-200">
 
           {!hasResults ? (
-            /* Empty state */
             <div className="flex flex-col items-center py-10 gap-2 text-neutral-400">
               <MagnifyingGlassIcon className="size-8 opacity-30" />
               <p className="text-sm font-medium text-neutral-600">No results for &ldquo;{query}&rdquo;</p>
               <p className="text-xs">Try different keywords</p>
             </div>
           ) : (
-            <div className="max-h-120 overflow-y-auto divide-y divide-neutral-100">
+            <>
+              {/* ── Tab bar ── */}
+              <div className="flex items-center gap-1 px-3 pt-3 pb-2 border-b border-neutral-100">
+                {visibleTabs.map(t => (
+                  <Tab
+                    key={t.key}
+                    label={t.label}
+                    count={counts[t.key]}
+                    active={activeTab === t.key}
+                    onClick={() => setActiveTab(t.key)}
+                  />
+                ))}
+              </div>
 
-              {/* ── Packages ── */}
-              {results.packages.length > 0 && (
-                <section className="p-2">
-                  <div className="flex items-center justify-between px-2 pt-1 pb-2">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Packages</span>
-                    <Link
-                      href={`/packages?q=${encodeURIComponent(query)}`}
-                      onClick={closeDropdown}
-                      className="flex items-center gap-0.5 text-[11px] font-semibold text-primary-600 hover:text-primary-700"
-                    >
-                      View all <ArrowRightIcon className="size-3" />
-                    </Link>
-                  </div>
-                  {results.packages.map(p => (
-                    <Link
-                      key={p.id}
-                      href={`/packages/${p.slug}`}
-                      onClick={closeDropdown}
-                      className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-neutral-50 transition-colors group"
-                    >
-                      <Thumb
-                        src={p.thumbnail}
-                        alt={p.title}
-                        fallback={<SuitcaseRolling weight="duotone" className="size-5 text-neutral-300" />}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-neutral-800 truncate group-hover:text-primary-600 transition-colors">{p.title}</p>
-                        {p.destination && (
-                          <p className="text-xs text-neutral-400 truncate mt-0.5">{p.destination.name}</p>
-                        )}
-                      </div>
-                    </Link>
-                  ))}
-                </section>
-              )}
+              {/* ── Results ── */}
+              <div className="p-2 max-h-72 overflow-y-auto">
 
-              {/* ── Hotels ── */}
-              {results.hotels.length > 0 && (
-                <section className="p-2">
-                  <div className="flex items-center justify-between px-2 pt-1 pb-2">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Hotels</span>
-                    <Link
-                      href={`/hotels?q=${encodeURIComponent(query)}`}
-                      onClick={closeDropdown}
-                      className="flex items-center gap-0.5 text-[11px] font-semibold text-primary-600 hover:text-primary-700"
-                    >
-                      View all <ArrowRightIcon className="size-3" />
-                    </Link>
-                  </div>
-                  {results.hotels.map(h => (
-                    <Link
-                      key={h.id}
-                      href={`/hotels/${h.slug}`}
-                      onClick={closeDropdown}
-                      className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-neutral-50 transition-colors group"
-                    >
-                      <Thumb
-                        src={h.thumbnail}
-                        alt={h.name}
-                        fallback={<BuildingOffice2Icon className="size-5 text-neutral-300" />}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-neutral-800 truncate group-hover:text-primary-600 transition-colors">{h.name}</p>
-                        <p className="text-xs text-neutral-400 truncate mt-0.5">
-                          {[h.city, h.state].filter(Boolean).join(', ')}
-                          {h.category ? ` · ${h.category}` : ''}
-                        </p>
-                      </div>
-                    </Link>
-                  ))}
-                </section>
-              )}
+                {activeTab === 'packages' && results.packages.map(p => (
+                  <Link
+                    key={p.id}
+                    href={`/packages/${p.slug}`}
+                    onClick={closeDropdown}
+                    className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-neutral-50 transition-colors group"
+                  >
+                    <Thumb src={p.thumbnail} alt={p.title} fallback={<SuitcaseRolling weight="duotone" className="size-5 text-neutral-300" />} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-neutral-800 truncate group-hover:text-primary-600 transition-colors">{p.title}</p>
+                      {p.destination && <p className="text-xs text-neutral-400 mt-0.5 truncate">{p.destination.name}</p>}
+                    </div>
+                    <ArrowRightIcon className="size-3.5 text-neutral-300 group-hover:text-primary-400 shrink-0 transition-colors" />
+                  </Link>
+                ))}
 
-              {/* ── Blogs ── */}
-              {results.blogs.length > 0 && (
-                <section className="p-2">
-                  <div className="flex items-center justify-between px-2 pt-1 pb-2">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Blogs</span>
-                    <Link
-                      href={`/blogs?q=${encodeURIComponent(query)}`}
-                      onClick={closeDropdown}
-                      className="flex items-center gap-0.5 text-[11px] font-semibold text-primary-600 hover:text-primary-700"
-                    >
-                      View all <ArrowRightIcon className="size-3" />
-                    </Link>
-                  </div>
-                  {results.blogs.map(b => (
-                    <Link
-                      key={b.id}
-                      href={`/blogs/${b.slug}`}
-                      onClick={closeDropdown}
-                      className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-neutral-50 transition-colors group"
-                    >
-                      <Thumb
-                        src={b.cover_image}
-                        alt={b.title}
-                        fallback={<BookOpenIcon className="size-5 text-neutral-300" />}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-neutral-800 truncate group-hover:text-primary-600 transition-colors">{b.title}</p>
-                        <p className="text-xs text-neutral-400 truncate mt-0.5">
-                          {b.excerpt ?? (b.read_time ? `${b.read_time} min read` : 'Blog post')}
-                        </p>
-                      </div>
-                    </Link>
-                  ))}
-                </section>
-              )}
+                {activeTab === 'hotels' && results.hotels.map(h => (
+                  <Link
+                    key={h.id}
+                    href={`/hotels/${h.slug}`}
+                    onClick={closeDropdown}
+                    className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-neutral-50 transition-colors group"
+                  >
+                    <Thumb src={h.thumbnail} alt={h.name} fallback={<BuildingOffice2Icon className="size-5 text-neutral-300" />} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-neutral-800 truncate group-hover:text-primary-600 transition-colors">{h.name}</p>
+                      <p className="text-xs text-neutral-400 mt-0.5 truncate">
+                        {[h.city, h.state].filter(Boolean).join(', ')}{h.category ? ` · ${h.category}` : ''}
+                      </p>
+                    </div>
+                    <ArrowRightIcon className="size-3.5 text-neutral-300 group-hover:text-primary-400 shrink-0 transition-colors" />
+                  </Link>
+                ))}
 
-            </div>
+                {activeTab === 'blogs' && results.blogs.map(b => (
+                  <Link
+                    key={b.id}
+                    href={`/blogs/${b.slug}`}
+                    onClick={closeDropdown}
+                    className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-neutral-50 transition-colors group"
+                  >
+                    <Thumb src={b.cover_image} alt={b.title} fallback={<BookOpenIcon className="size-5 text-neutral-300" />} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-neutral-800 truncate group-hover:text-primary-600 transition-colors">{b.title}</p>
+                      <p className="text-xs text-neutral-400 mt-0.5 truncate">
+                        {b.excerpt ?? (b.read_time ? `${b.read_time} min read` : 'Blog post')}
+                      </p>
+                    </div>
+                    <ArrowRightIcon className="size-3.5 text-neutral-300 group-hover:text-primary-400 shrink-0 transition-colors" />
+                  </Link>
+                ))}
+
+              </div>
+
+              {/* ── View all footer ── */}
+              <div className="px-4 py-2.5 border-t border-neutral-100 bg-neutral-50">
+                <Link
+                  href={`/${activeTab}?q=${encodeURIComponent(query)}`}
+                  onClick={closeDropdown}
+                  className="flex items-center justify-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-700 transition-colors"
+                >
+                  View all {activeTab} results for &ldquo;{query}&rdquo;
+                  <ArrowRightIcon className="size-3.5" />
+                </Link>
+              </div>
+            </>
           )}
         </div>
       )}
