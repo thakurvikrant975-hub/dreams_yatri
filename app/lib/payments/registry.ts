@@ -13,6 +13,16 @@ export function activeGateway(): GatewayId {
     return process.env.PAYMENT_PROVIDER?.toUpperCase() === "PAYU" ? "PAYU" : "RAZORPAY";
 }
 
+/** Gateways that have credentials configured — what the customer may choose from (default first). */
+export function enabledGateways(): GatewayId[] {
+    const list: GatewayId[] = [];
+    if (process.env.RAZORPAY_KEY_ID && process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID) list.push("RAZORPAY");
+    if (process.env.PAYU_KEY && process.env.PAYU_SALT) list.push("PAYU");
+    if (list.length === 0) list.push(activeGateway());
+    const def = activeGateway();
+    return [...list].sort((a, b) => (a === def ? -1 : b === def ? 1 : 0));
+}
+
 export function getProvider(gateway: string): PaymentProvider {
     switch (gateway) {
         case "RAZORPAY":

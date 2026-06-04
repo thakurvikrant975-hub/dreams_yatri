@@ -4,8 +4,8 @@ import { db } from "@/app/lib/db";
 import { getQuote, isQuoteFresh } from "@/app/actions/quote/get-quote.service";
 import { computePaymentSchedule } from "@/app/services/payment-policy/engine";
 import { rupeesToPaise } from "@/app/lib/money";
-import { getProvider, activeGateway } from "@/app/lib/payments/registry";
-import type { CheckoutInit } from "@/app/lib/payments/types";
+import { getProvider, enabledGateways } from "@/app/lib/payments/registry";
+import type { CheckoutInit, GatewayId } from "@/app/lib/payments/types";
 import { checkoutSchema, type CheckoutInput } from "@/app/actions/quote/checkout-schema";
 import type { CreateBookingOrderResult } from "./types";
 
@@ -44,6 +44,8 @@ export async function createBookingAndOrder(params: {
     paymentChoice?: "FULL" | "DEPOSIT";
     /** Traveller + contact (+ optional GST) details collected at checkout. */
     details?: CheckoutInput;
+    /** Customer-chosen gateway (must be enabled); defaults to the first enabled. */
+    gateway?: GatewayId;
 }): Promise<CreateBookingOrderResult> {
     const { quoteId, userId } = params;
 
@@ -137,7 +139,8 @@ export async function createBookingAndOrder(params: {
     const startDate = new Date(`${isoDate(row.travel_date)}T00:00:00.000Z`);
     const endDate = new Date(startDate.getTime() + dur.nights * 86_400_000);
     const balanceRupees = (effBalancePaise / 100).toFixed(2);
-    const gateway = activeGateway();
+    const enabled = enabledGateways();
+    const gateway: GatewayId = params.gateway && enabled.includes(params.gateway) ? params.gateway : enabled[0];
 
     // ── Create booking + legs + PENDING payment; consume quote (atomic) ────────
     const created = await db.$transaction(async (tx) => {

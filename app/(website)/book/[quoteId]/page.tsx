@@ -8,6 +8,7 @@ import { Heading, Text } from '@/app/components/ui/Typography';
 import { db } from '@/app/lib/db';
 import { getPackageQuote, checkQuoteFreshness } from '@/app/actions/quote/actions';
 import { getPaymentScheduleForQuote } from '@/app/actions/payment/schedule';
+import { enabledGateways } from '@/app/lib/payments/registry';
 import BookReview from './BookReview';
 import type { PreviewDay } from './PackagePreview';
 
@@ -93,6 +94,7 @@ export default async function BookQuotePage({
                 drift={freshness ? { fresh: freshness.fresh, currentTotal: freshness.currentTotal } : null}
                 schedule={scheduleRes.success ? scheduleRes.schedule : null}
                 itinerary={itinerary}
+                gateways={enabledGateways()}
             />
         );
     }

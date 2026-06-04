@@ -10,6 +10,9 @@ import { submitPayuForm } from './payuCheckout';
 import CheckoutForm from './CheckoutForm';
 import PackagePreview, { type PreviewDay } from './PackagePreview';
 import type { CheckoutInput } from '@/app/actions/quote/checkout-schema';
+import type { GatewayId } from '@/app/lib/payments/types';
+
+const GATEWAY_LABEL: Record<GatewayId, string> = { RAZORPAY: 'Razorpay', PAYU: 'PayU' };
 import { createPackageBooking, verifyCheckoutPayment } from '@/app/actions/payment/booking.actions';
 import Button from '@/app/components/ui/Button';
 import Card from '@/app/components/ui/Card';
@@ -52,6 +55,7 @@ export default function BookReview({
     drift,
     schedule,
     itinerary = [],
+    gateways = ['RAZORPAY'],
 }: {
     quote: SafeQuote;
     packageTitle: string;
@@ -60,6 +64,7 @@ export default function BookReview({
     drift: { fresh: boolean; currentTotal: number | null } | null;
     schedule: PaymentScheduleDTO | null;
     itinerary?: PreviewDay[];
+    gateways?: GatewayId[];
 }) {
     const router = useRouter();
     const [expired, setExpired] = useState(quote.status !== 'ACTIVE');
@@ -67,6 +72,7 @@ export default function BookReview({
     const [processing, setProcessing] = useState(false);
     const [payError, setPayError] = useState<string | null>(null);
     const [checkout, setCheckout] = useState<CheckoutInput | null>(null);
+    const [gateway, setGateway] = useState<GatewayId>(gateways[0] ?? 'RAZORPAY');
 
     const totalPax = quote.adults + quote.children + quote.infants;
     const priceChanged = drift && !drift.fresh && drift.currentTotal !== null;
@@ -80,7 +86,7 @@ export default function BookReview({
         if (!checkout) { setPayError('Please complete all traveller and contact details.'); return; }
         setPaying(true);
         try {
-            const res = await createPackageBooking(quote.id, { paymentChoice: effectiveChoice, details: checkout });
+            const res = await createPackageBooking(quote.id, { paymentChoice: effectiveChoice, details: checkout, gateway });
             if (!res.success) {
                 setPaying(false);
                 setPayError(
@@ -92,13 +98,6 @@ export default function BookReview({
                 return;
             }
 
-            const ready = await loadRazorpay();
-            if (!ready) {
-                setPaying(false);
-                setPayError('Could not load the payment window. Please check your connection and try again.');
-                return;
-            }
-
             const { order } = res;
             const co = order.checkout;
 
@@ -106,6 +105,13 @@ export default function BookReview({
                 // Redirect to PayU's hosted page; the browser navigates away.
                 setProcessing(true);
                 submitPayuForm(co.actionUrl, co.fields);
+                return;
+            }
+
+            const ready = await loadRazorpay();
+            if (!ready) {
+                setPaying(false);
+                setPayError('Could not load the payment window. Please check your connection and try again.');
                 return;
             }
 
@@ -237,6 +243,20 @@ export default function BookReview({
                     <Card className="px-6 py-5">
                         <StepHeader n={3} title="Payment" />
 
+                        {gateways.length > 1 && (
+                            <div className="mb-4">
+                                <Text size="xs" intent="muted" weight="medium" className="block mb-2">Pay using</Text>
+                                <div className="flex gap-2">
+                                    {gateways.map((g) => (
+                                        <button key={g} type="button" onClick={() => setGateway(g)}
+                                            className={`flex-1 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${gateway === g ? 'border-primary-500 ring-2 ring-primary-200 bg-primary-50/60 text-primary-700' : 'border-(--border-muted) text-(--text-secondary) hover:border-primary-300'}`}>
+                                            {GATEWAY_LABEL[g]}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         {schedule ? (
                             depositAllowed ? (
                                 <div className="flex flex-col gap-3">
@@ -276,7 +296,7 @@ export default function BookReview({
                         )}
 
                         {payError && <Text size="xs" intent="error" className="mt-2 block text-center" role="alert">{payError}</Text>}
-                        <Text size="xs" intent="muted" className="mt-3 block text-center">🔒 Secured by Razorpay · UPI · Cards · Net banking · Wallets</Text>
+                        <Text size="xs" intent="muted" className="mt-3 block text-center">🔒 Secured by {GATEWAY_LABEL[gateway]} · UPI · Cards · Net banking · Wallets</Text>
                     </Card>
                 </div>
 

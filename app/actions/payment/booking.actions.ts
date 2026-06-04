@@ -7,6 +7,7 @@ import { createBookingAndOrder } from "./create-booking.service";
 import { cancelBooking, previewCancellation } from "./cancel-booking.service";
 import { changeTravelDate, previewDateChange } from "./change-date.service";
 import type { CheckoutInput } from "@/app/actions/quote/checkout-schema";
+import type { GatewayId } from "@/app/lib/payments/types";
 import type { CreateBookingOrderResult, VerifyCheckoutResult, CancelBookingResult, CancellationPreview, DateChangeResult, DateChangePreview } from "./types";
 
 /**
@@ -15,13 +16,13 @@ import type { CreateBookingOrderResult, VerifyCheckoutResult, CancelBookingResul
  */
 export async function createPackageBooking(
     quoteId: string,
-    opts?: { paymentChoice?: "FULL" | "DEPOSIT"; details?: CheckoutInput },
+    opts?: { paymentChoice?: "FULL" | "DEPOSIT"; details?: CheckoutInput; gateway?: GatewayId },
 ): Promise<CreateBookingOrderResult> {
     const user = await getAuthenticatedUser();
     if (!user?.id) return { success: false, reason: "unauthenticated" };
 
     try {
-        return await createBookingAndOrder({ quoteId, userId: user.id, paymentChoice: opts?.paymentChoice, details: opts?.details });
+        return await createBookingAndOrder({ quoteId, userId: user.id, paymentChoice: opts?.paymentChoice, details: opts?.details, gateway: opts?.gateway });
     } catch (err) {
         console.error("[createPackageBooking] failed", err);
         return { success: false, reason: "error", message: "Could not start your booking. Please try again." };
