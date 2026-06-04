@@ -16,7 +16,7 @@ export default async function ProfilePage() {
       db.user.findUnique({
         where:  { id: session.user.id },
         select: {
-          id: true, phone: true, country_code: true, name: true, email: true,
+          id: true, phone: true, whatsapp: true, country_code: true, name: true, email: true,
           image: true,
           gender: true, dateOfBirth: true, nationality: true, maritalStatus: true,
           anniversary: true, state: true, city: true, passportNumber: true,

@@ -40,6 +40,7 @@ model pricing_rules {
 model User {
   id                     String            @id @default(cuid())
   phone                  String?           @unique
+  whatsapp               String?           @unique
   name                   String?
   email                  String?           @unique
   gender                 Gender?
@@ -123,6 +124,19 @@ model MagicSession {
   email     String
   expiresAt DateTime
   createdAt DateTime @default(now())
+}
+
+model PendingContactVerification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   // "email" | "whatsapp"
+  value     String   // new email or phone being verified
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("pending_contact_verifications")
 }
 
 model TravelPreference {

@@ -7,12 +7,13 @@ import { ApiResponse }        from "@/app/lib/api-response";
 import { handleApiError }     from "@/app/lib/api-error";
 import { getAuthenticatedUser } from "@/app/lib/functions/getAuthenticatedUser";
 import { Gender, MaritalStatus } from "@/app/generated/prisma";
+import { toTitleCase }        from "@/app/lib/utils";
 
 // ─── Zod Schemas ──────────────────────────────────────────────────────────────
 
 const patchProfileSchema = z.object({
   name:                   z.string().min(1).max(100).optional(),
-  email:                  z.email().optional(),
+  // email is intentionally excluded — changes go through the verification flow
   gender:                 z.enum(Object.values(Gender) as [string, ...string[]]).optional(),
   dateOfBirth:            z.string().date().optional(),
   nationality:            z.string().min(1).max(100).optional(),
@@ -44,6 +45,7 @@ export async function GET() {
         select: {
           id:                     true,
           phone:                  true,
+          whatsapp:               true,
           country_code:           true,
           name:                   true,
           email:                  true,
@@ -97,7 +99,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     const {
-      name, email, gender, dateOfBirth, nationality, state, city,
+      name, gender, dateOfBirth, nationality, state, city,
       maritalStatus, anniversary, passportNumber, passportExpiryDate,
       passportIssuingCountry, panNumber, country_code,
     } = parsed.data;
@@ -107,11 +109,27 @@ export async function PATCH(req: NextRequest) {
       return ApiResponse.badRequest("Anniversary can only be set for married users.");
     }
 
+    // ── Duplicate checks for unique fields ──────────────────────────────────
+    if (passportNumber) {
+      const conflict = await db.user.findFirst({
+        where: { passportNumber, NOT: { id: sessionUser.id } },
+        select: { id: true },
+      });
+      if (conflict) return ApiResponse.conflict("This passport number is already registered with another account.");
+    }
+
+    if (panNumber) {
+      const conflict = await db.user.findFirst({
+        where: { panNumber: panNumber.toUpperCase(), NOT: { id: sessionUser.id } },
+        select: { id: true },
+      });
+      if (conflict) return ApiResponse.conflict("This PAN number is already registered with another account.");
+    }
+
     // ── Build update payload ─────────────────────────────────────────────────
     const data: Record<string, unknown> = {};
 
-    if (name                    !== undefined) data.name                   = name;
-    if (email                   !== undefined) data.email                  = email;
+    if (name                    !== undefined) data.name                   = toTitleCase(name);
     if (gender                  !== undefined) data.gender                 = gender;
     if (nationality             !== undefined) data.nationality            = nationality;
     if (state                   !== undefined) data.state                  = state;
@@ -145,7 +163,7 @@ export async function PATCH(req: NextRequest) {
       where:  { id: sessionUser.id },
       data:   { isProfileComplete },
       select: {
-        id: true, phone: true, country_code: true, name: true, email: true,
+        id: true, phone: true, whatsapp: true, country_code: true, name: true, email: true,
         gender: true, dateOfBirth: true, nationality: true, maritalStatus: true,
         anniversary: true, state: true, city: true, passportNumber: true,
         passportExpiryDate: true, passportIssuingCountry: true, panNumber: true,
