@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/app/lib/db";
 import { formatPaise } from "@/app/lib/money";
 import { PaymentPill, StatusPill } from "../pills";
+import BookingAdminActions from "./BookingAdminActions";
 
 export const metadata: Metadata = {
     title: "Booking detail - Dashboard",
@@ -182,6 +183,14 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                 </div>
 
                 <div className="flex flex-col gap-5">
+                    <Section title="Actions">
+                        <BookingAdminActions
+                            bookingId={booking.id}
+                            cancellable={!["CANCELLED", "COMPLETED"].includes(booking.status)}
+                            hasPendingPayments={booking.payments.some((p) => p.status === "PENDING")}
+                        />
+                    </Section>
+
                     <Section title="Customer">
                         <dl className="flex flex-col gap-3">
                             <Field label="Name" value={booking.user?.name} />
