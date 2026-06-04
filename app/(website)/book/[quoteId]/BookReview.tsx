@@ -5,15 +5,10 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import QuoteCountdown from './QuoteCountdown';
-import { loadRazorpay, openRazorpay } from './razorpayCheckout';
-import { submitPayuForm } from './payuCheckout';
 import CheckoutForm from './CheckoutForm';
 import PackagePreview, { type PreviewDay } from './PackagePreview';
 import type { CheckoutInput } from '@/app/actions/quote/checkout-schema';
-import type { GatewayId } from '@/app/lib/payments/types';
-
-const GATEWAY_LABEL: Record<GatewayId, string> = { RAZORPAY: 'Razorpay', PAYU: 'PayU' };
-import { createPackageBooking, verifyCheckoutPayment } from '@/app/actions/payment/booking.actions';
+import { createBookingDraft } from '@/app/actions/payment/booking.actions';
 import Button from '@/app/components/ui/Button';
 import Card from '@/app/components/ui/Card';
 import { Heading, Text } from '@/app/components/ui/Typography';
@@ -38,11 +33,12 @@ function travellersLabel(adults: number, children: number, infants: number): str
     return parts.join(', ');
 }
 
-function StepHeader({ n, title }: { n: number; title: string }) {
+function StepHeader({ n, title, hint }: { n: number; title: string; hint?: string }) {
     return (
         <div className="flex items-center gap-3 mb-4">
             <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-600 text-xs font-bold text-white">{n}</span>
             <Heading level={4} weight="semibold">{title}</Heading>
+            {hint && <Text size="xs" intent="muted" className="ml-auto">{hint}</Text>}
         </div>
     );
 }
@@ -55,7 +51,6 @@ export default function BookReview({
     drift,
     schedule,
     itinerary = [],
-    gateways = ['RAZORPAY'],
 }: {
     quote: SafeQuote;
     packageTitle: string;
@@ -64,15 +59,13 @@ export default function BookReview({
     drift: { fresh: boolean; currentTotal: number | null } | null;
     schedule: PaymentScheduleDTO | null;
     itinerary?: PreviewDay[];
-    gateways?: GatewayId[];
 }) {
     const router = useRouter();
     const [expired, setExpired] = useState(quote.status !== 'ACTIVE');
-    const [paying, setPaying] = useState(false);
-    const [processing, setProcessing] = useState(false);
-    const [payError, setPayError] = useState<string | null>(null);
+    const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const [checkout, setCheckout] = useState<CheckoutInput | null>(null);
-    const [gateway, setGateway] = useState<GatewayId>(gateways[0] ?? 'RAZORPAY');
+    const [policy, setPolicy] = useState(false);
 
     const totalPax = quote.adults + quote.children + quote.infants;
     const priceChanged = drift && !drift.fresh && drift.currentTotal !== null;
@@ -81,70 +74,30 @@ export default function BookReview({
     const effectiveChoice: 'DEPOSIT' | 'FULL' = depositAllowed ? payChoice : 'FULL';
     const payAmountPaise = schedule ? (effectiveChoice === 'FULL' ? schedule.totalPaise : schedule.depositPaise) : 0;
 
-    async function handlePay() {
-        setPayError(null);
-        if (!checkout) { setPayError('Please complete all traveller and contact details.'); return; }
-        setPaying(true);
+    const canProceed = Boolean(schedule && checkout && policy && !submitting);
+
+    async function handleProceed() {
+        setError(null);
+        if (!checkout) { setError('Please complete all traveller and contact details.'); return; }
+        if (!policy) { setError('Please accept the booking policies to continue.'); return; }
+        setSubmitting(true);
         try {
-            const res = await createPackageBooking(quote.id, { paymentChoice: effectiveChoice, details: checkout, gateway });
+            const res = await createBookingDraft(quote.id, { paymentChoice: effectiveChoice, details: checkout });
             if (!res.success) {
-                setPaying(false);
-                setPayError(
+                setSubmitting(false);
+                setError(
                     res.reason === 'unauthenticated' ? 'Please log in to continue your booking.'
                     : res.reason === 'stale' ? 'The price changed since this quote was created. Please refresh for the latest price.'
                     : res.reason === 'not_active' ? 'This quote has expired. Please start again.'
-                    : res.message ?? 'Could not start payment. Please try again.',
+                    : res.message ?? 'Could not continue to payment. Please try again.',
                 );
                 return;
             }
-
-            const { order } = res;
-            const co = order.checkout;
-
-            if (co.provider === 'PAYU') {
-                // Redirect to PayU's hosted page; the browser navigates away.
-                setProcessing(true);
-                submitPayuForm(co.actionUrl, co.fields);
-                return;
-            }
-
-            const ready = await loadRazorpay();
-            if (!ready) {
-                setPaying(false);
-                setPayError('Could not load the payment window. Please check your connection and try again.');
-                return;
-            }
-
-            openRazorpay({
-                key: co.keyId,
-                order_id: co.orderId,
-                amount: co.amountPaise,
-                currency: co.currency,
-                name: 'Dreams Yatri',
-                description: `${packageTitle} — ${order.plan === 'DEPOSIT' ? 'Deposit' : 'Full payment'}`,
-                notes: { bookingId: order.bookingId },
-                theme: { color: '#0f766e' },
-                handler: async (resp) => {
-                    // Truth comes from the webhook; verify the callback sig for UX, then
-                    // route to the confirmation page (which polls until confirmed).
-                    setProcessing(true);
-                    try {
-                        await verifyCheckoutPayment({
-                            orderId: resp.razorpay_order_id,
-                            paymentId: resp.razorpay_payment_id,
-                            signature: resp.razorpay_signature,
-                        });
-                    } catch (err) {
-                        console.error('[BookReview] verify failed', err);
-                    }
-                    router.push(`/bookings/${order.bookingId}`);
-                },
-                modal: { ondismiss: () => setPaying(false) },
-            });
+            router.push(`/bookings/${res.bookingId}/pay`);
         } catch (err) {
-            console.error('[BookReview] pay failed', err);
-            setPaying(false);
-            setPayError('Something went wrong starting your payment. Please try again.');
+            console.error('[BookReview] proceed failed', err);
+            setSubmitting(false);
+            setError('Something went wrong. Please try again.');
         }
     }
 
@@ -165,8 +118,6 @@ export default function BookReview({
         );
     }
 
-    const payNowPaise = schedule ? payAmountPaise : 0;
-
     return (
         <div className="screen-space py-8 max-w-6xl">
             {/* Countdown band */}
@@ -180,7 +131,10 @@ export default function BookReview({
                 </span>
             </div>
 
-            <Heading level={2} weight="bold" className="mb-5">Review your booking</Heading>
+            <div className="flex items-center justify-between gap-4 mb-5">
+                <Heading level={2} weight="bold">Review your booking</Heading>
+                <Text size="xs" intent="muted" weight="medium" className="shrink-0">Step 1 of 2 · Details</Text>
+            </div>
 
             {priceChanged && (
                 <div role="alert" className="mb-6 rounded-xl bg-warning-50 border border-warning-200 px-4 py-3">
@@ -227,7 +181,7 @@ export default function BookReview({
 
                     {/* 1 · Traveller details */}
                     <Card className="px-6 py-5">
-                        <StepHeader n={1} title="Traveller details" />
+                        <StepHeader n={1} title="Traveller details" hint="Tap a traveller to fill in details" />
                         <CheckoutForm pax={{ adults: quote.adults, children: quote.children, infants: quote.infants }} onChange={setCheckout} />
                     </Card>
 
@@ -239,23 +193,9 @@ export default function BookReview({
                         </Card>
                     )}
 
-                    {/* 3 · Payment */}
+                    {/* 3 · How you'd like to pay */}
                     <Card className="px-6 py-5">
-                        <StepHeader n={3} title="Payment" />
-
-                        {gateways.length > 1 && (
-                            <div className="mb-4">
-                                <Text size="xs" intent="muted" weight="medium" className="block mb-2">Pay using</Text>
-                                <div className="flex gap-2">
-                                    {gateways.map((g) => (
-                                        <button key={g} type="button" onClick={() => setGateway(g)}
-                                            className={`flex-1 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${gateway === g ? 'border-primary-500 ring-2 ring-primary-200 bg-primary-50/60 text-primary-700' : 'border-(--border-muted) text-(--text-secondary) hover:border-primary-300'}`}>
-                                            {GATEWAY_LABEL[g]}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+                        <StepHeader n={3} title="How you'd like to pay" />
 
                         {schedule ? (
                             depositAllowed ? (
@@ -283,20 +223,6 @@ export default function BookReview({
                         ) : (
                             <Text size="sm" intent="secondary">Your price is locked while you complete your booking.</Text>
                         )}
-
-                        {processing ? (
-                            <div className="mt-4 rounded-xl bg-success-50 border border-success-200 px-4 py-3 text-center">
-                                <Text size="sm" weight="medium" className="text-success-700 block">Payment received — confirming your booking…</Text>
-                                <Text size="xs" intent="muted" className="mt-0.5 block">This can take a few moments. You'll get a confirmation shortly.</Text>
-                            </div>
-                        ) : (
-                            <Button variant="premium" size="lg" className="w-full mt-4" onClick={handlePay} loading={paying} disabled={!schedule || paying || !checkout}>
-                                {!schedule ? 'Payment unavailable' : !checkout ? 'Complete traveller details to pay' : `Pay ${formatPaise(payAmountPaise)}`}
-                            </Button>
-                        )}
-
-                        {payError && <Text size="xs" intent="error" className="mt-2 block text-center" role="alert">{payError}</Text>}
-                        <Text size="xs" intent="muted" className="mt-3 block text-center">🔒 Secured by {GATEWAY_LABEL[gateway]} · UPI · Cards · Net banking · Wallets</Text>
                     </Card>
                 </div>
 
@@ -325,7 +251,7 @@ export default function BookReview({
                                 <div className="mt-4 rounded-xl bg-primary-50 border border-primary-100 px-4 py-3">
                                     <div className="flex items-center justify-between">
                                         <Text size="sm" weight="medium" className="text-primary-800">Pay now</Text>
-                                        <Text size="lg" weight="bold" intent="primary" className="font-heading">{formatPaise(payNowPaise)}</Text>
+                                        <Text size="lg" weight="bold" intent="primary" className="font-heading">{formatPaise(payAmountPaise)}</Text>
                                     </div>
                                     {effectiveChoice === 'DEPOSIT' && schedule.balancePaise > 0 && (
                                         <Text size="xs" intent="muted" className="block mt-0.5">
@@ -334,6 +260,36 @@ export default function BookReview({
                                     )}
                                 </div>
                             )}
+
+                            {/* Policy acceptance */}
+                            <label className="mt-4 flex items-start gap-2.5 cursor-pointer select-none">
+                                <input
+                                    type="checkbox"
+                                    checked={policy}
+                                    onChange={(e) => setPolicy(e.target.checked)}
+                                    className="mt-0.5 size-4 shrink-0 accent-primary-600"
+                                />
+                                <Text size="xs" intent="secondary">
+                                    I have read and accept the{' '}
+                                    <Link href="/cancellation-policy" target="_blank" className="text-primary-600 underline">Cancellation Policy</Link>,{' '}
+                                    <Link href="/terms" target="_blank" className="text-primary-600 underline">Terms of Service</Link>{' '}and{' '}
+                                    <Link href="/privacy-policy" target="_blank" className="text-primary-600 underline">Privacy Policy</Link>.
+                                </Text>
+                            </label>
+
+                            <Button
+                                variant="premium"
+                                size="lg"
+                                className="w-full mt-4"
+                                onClick={handleProceed}
+                                loading={submitting}
+                                disabled={!canProceed}
+                            >
+                                {!schedule ? 'Unavailable' : !checkout ? 'Complete traveller details' : !policy ? 'Accept policies to continue' : 'Proceed to Payment'}
+                            </Button>
+
+                            {error && <Text size="xs" intent="error" className="mt-2 block text-center" role="alert">{error}</Text>}
+                            <Text size="xs" intent="muted" className="mt-3 block text-center">🔒 You'll choose how to pay on the next step</Text>
                         </div>
                     </Card>
                 </div>

@@ -62,9 +62,23 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
             const isFull = booking.paymentPlan === 'FULL';
             const paidPaise = isFull ? booking.totalAmount_paise : booking.advanceAmount_paise;
 
+            // If still pending, is there an in-flight charge (PENDING payment) or did
+            // the last attempt fail? A failed attempt → offer a retry instead of
+            // polling forever for a confirmation that will never come.
+            let paymentFailed = false;
+            if (pending && !cancelled) {
+                const lastInit = await db.payment.findFirst({
+                    where: { bookingId: booking.id, purpose: 'INITIAL' },
+                    orderBy: { createdAt: 'desc' },
+                    select: { status: true },
+                });
+                paymentFailed = !lastInit || lastInit.status === 'FAILED';
+            }
+            const confirming = pending && !cancelled && !paymentFailed;
+
             content = (
                 <div className="screen-space py-10">
-                    {pending && !cancelled && <StatusPoller />}
+                    {confirming && <StatusPoller />}
                     <Card className="max-w-xl mx-auto px-8 py-9">
                         {cancelled ? (
                             <div className="text-center">
@@ -75,7 +89,19 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
                                     Any eligible refund is being processed back to your original payment method.
                                 </Text>
                             </div>
-                        ) : pending ? (
+                        ) : paymentFailed ? (
+                            <div className="text-center">
+                                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-error-50 text-error-600 text-2xl">!</div>
+                                <Heading level={3} weight="semibold">Payment not completed</Heading>
+                                <Text intent="secondary" className="mt-1 block">
+                                    We couldn't confirm a payment for booking <span className="font-medium text-primary">{booking.bookingNumber}</span>.
+                                    No money was taken. You can try again — your booking is held for now.
+                                </Text>
+                                <Link href={`/bookings/${booking.id}/pay`} className="inline-block mt-5">
+                                    <Button variant="premium">Try payment again</Button>
+                                </Link>
+                            </div>
+                        ) : confirming ? (
                             <>
                                 <div className="text-center">
                                     <Heading level={3} weight="semibold">Confirming your payment…</Heading>
