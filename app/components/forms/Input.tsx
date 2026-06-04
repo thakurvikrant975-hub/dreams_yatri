@@ -8,7 +8,7 @@ import { CheckIcon } from '@heroicons/react/24/solid';
 
 
 const inputVariants = cva(
-  'w-full rounded-xl font-medium outline-none border-none ring-[0.09em] ring-inset placeholder:text-(--text-muted) outline-none',
+  'w-full rounded-xl font-medium outline-none border-none ring-[0.09em] ring-inset placeholder:text-neutral-400/60 placeholder:font-normal outline-none',
   {
     variants: {
       state: {

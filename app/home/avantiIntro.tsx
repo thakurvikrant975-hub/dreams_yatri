@@ -102,7 +102,7 @@ export default function AvantiAISection() {
 
           {/* CTA */}
           <motion.div variants={fadeUp}>
-            <Button variant="premium">Chat With Avanti</Button>
+            <Button variant="premium">Coming soon</Button>
           </motion.div>
         </motion.div>
 

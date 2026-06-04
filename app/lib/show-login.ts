@@ -18,7 +18,6 @@ export default function ShowLogin() {
 
     if (status === "unauthenticated") {
       onboardingOpenedRef.current = false; // reset on sign-out
-      openModal("login-modal");
       return;
     }
 
