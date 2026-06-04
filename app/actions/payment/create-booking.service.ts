@@ -7,18 +7,28 @@ import { rupeesToPaise } from "@/app/lib/money";
 import { getProvider, enabledGateways } from "@/app/lib/payments/registry";
 import type { CheckoutInit, GatewayId } from "@/app/lib/payments/types";
 import { checkoutSchema, type CheckoutInput } from "@/app/actions/quote/checkout-schema";
-import type { CreateBookingOrderResult } from "./types";
+import type { CreateBookingOrderResult, CreateBookingResult } from "./types";
 
 /**
- * Turn an ACTIVE + fresh quote into a Booking (+ installment legs, quote→CONSUMED,
- * a PENDING Payment) and a gateway charge for the FIRST leg (deposit, or full),
- * via the active PaymentProvider.
+ * Two-step (MMT-style) checkout:
+ *
+ *   1. `createBooking`        — turn an ACTIVE + fresh quote into a Booking
+ *                               (+ installment legs, quote→CONSUMED, a PENDING
+ *                               Payment with the *default* gateway and NO charge
+ *                               yet). This is what "Proceed to Payment" calls;
+ *                               the customer then lands on the payment page.
+ *   2. `createOrderForBooking`— on the payment page, the customer picks a gateway;
+ *                               this creates (or rebuilds/switches) the gateway
+ *                               charge for the pending first leg and returns what
+ *                               the browser launches.
+ *
+ * `createBookingAndOrder` composes both in one shot (tests / back-compat).
  *
  * Server-authoritative: the amount comes from the quote total + Phase-3 policy,
  * never the client. The gateway charge is created OUTSIDE the DB transaction
  * (no network call inside a tx). Idempotent: a quote already turned into a
- * booking is resumed (its pending charge rebuilt), so retries — and the
- * already-CONSUMED quote — never duplicate a booking (Booking.quoteId @unique).
+ * booking is resumed, so retries — and the already-CONSUMED quote — never
+ * duplicate a booking (Booking.quoteId @unique).
  */
 
 function genBookingNumber(): string {
@@ -37,57 +47,27 @@ function payuReturnUrl(bookingId: string, kind: "success" | "failure"): string {
     return `${base}/api/payments/payu/callback?b=${bookingId}&k=${kind}`;
 }
 
-export async function createBookingAndOrder(params: {
+// ── Step 1 — create the Booking (no gateway charge) ────────────────────────────
+export async function createBooking(params: {
     quoteId: string;
     userId: string;
     /** User's choice when a deposit is allowed. Near-travel always forces FULL. Default: DEPOSIT (policy decides). */
     paymentChoice?: "FULL" | "DEPOSIT";
     /** Traveller + contact (+ optional GST) details collected at checkout. */
     details?: CheckoutInput;
-    /** Customer-chosen gateway (must be enabled); defaults to the first enabled. */
-    gateway?: GatewayId;
-}): Promise<CreateBookingOrderResult> {
+}): Promise<CreateBookingResult> {
     const { quoteId, userId } = params;
 
     // ── Resume path: this quote already became a booking (idempotent retry) ────
     const existing = await db.booking.findUnique({
         where: { quoteId },
-        select: { id: true, userId: true, bookingNumber: true, paymentPlan: true, currency: true },
+        select: { id: true, userId: true, bookingNumber: true },
     });
     if (existing) {
         if (existing.userId !== userId) {
             return { success: false, reason: "invalid", message: "Booking belongs to another user." };
         }
-        const payment = await db.payment.findFirst({
-            where: { bookingId: existing.id, status: "PENDING" },
-            orderBy: { createdAt: "asc" },
-            select: { id: true, gateway: true, amount_paise: true, gatewayOrderId: true },
-        });
-        if (!payment) return { success: false, reason: "error", message: "No pending payment to resume." };
-
-        const provider = getProvider(payment.gateway);
-        let checkout: CheckoutInit;
-        if (payment.gatewayOrderId) {
-            checkout = provider.checkoutForExistingOrder({ gatewayOrderRef: payment.gatewayOrderId, amountPaise: payment.amount_paise, currency: existing.currency });
-        } else {
-            const charge = await provider.createCharge({
-                amountPaise: payment.amount_paise, receipt: existing.bookingNumber, bookingId: existing.id,
-                customer: {}, notes: { quoteId, bookingId: existing.id },
-                successUrl: payuReturnUrl(existing.id, "success"), failureUrl: payuReturnUrl(existing.id, "failure"),
-            });
-            await db.payment.update({ where: { id: payment.id }, data: { gatewayOrderId: charge.gatewayOrderRef } });
-            checkout = charge.checkout;
-        }
-        return {
-            success: true,
-            order: {
-                bookingId: existing.id,
-                bookingNumber: existing.bookingNumber,
-                plan: existing.paymentPlan ?? "FULL",
-                amountPaise: payment.amount_paise,
-                checkout,
-            },
-        };
+        return { success: true, bookingId: existing.id, bookingNumber: existing.bookingNumber };
     }
 
     // ── Gate: quote must verify, be ACTIVE, and still be fresh ─────────────────
@@ -139,8 +119,9 @@ export async function createBookingAndOrder(params: {
     const startDate = new Date(`${isoDate(row.travel_date)}T00:00:00.000Z`);
     const endDate = new Date(startDate.getTime() + dur.nights * 86_400_000);
     const balanceRupees = (effBalancePaise / 100).toFixed(2);
-    const enabled = enabledGateways();
-    const gateway: GatewayId = params.gateway && enabled.includes(params.gateway) ? params.gateway : enabled[0];
+    // Default gateway for the PENDING payment; the customer picks the real one at
+    // the pay step (createOrderForBooking), which may switch it before any charge.
+    const gateway: GatewayId = enabledGateways()[0];
 
     // ── Create booking + legs + PENDING payment; consume quote (atomic) ────────
     const created = await db.$transaction(async (tx) => {
@@ -198,7 +179,7 @@ export async function createBookingAndOrder(params: {
 
         await tx.package_quote.update({ where: { id: quoteId }, data: { status: "CONSUMED" } });
 
-        const payment = await tx.payment.create({
+        await tx.payment.create({
             data: {
                 bookingId: booking.id,
                 userId,
@@ -208,32 +189,120 @@ export async function createBookingAndOrder(params: {
                 status: "PENDING",
                 idempotencyKey: `quote:${quoteId}:${firstLeg.type}`,
             },
-            select: { id: true },
         });
 
-        return { bookingId: booking.id, bookingNumber: booking.bookingNumber, paymentId: payment.id };
+        return { bookingId: booking.id, bookingNumber: booking.bookingNumber };
     });
 
-    // ── Gateway charge (outside the tx) ────────────────────────────────────────
-    const charge = await getProvider(gateway).createCharge({
-        amountPaise: firstLeg.amountPaise,
-        receipt: created.bookingNumber,
-        bookingId: created.bookingId,
-        customer: {},
-        notes: { quoteId, bookingId: created.bookingId },
-        successUrl: payuReturnUrl(created.bookingId, "success"),
-        failureUrl: payuReturnUrl(created.bookingId, "failure"),
+    return { success: true, bookingId: created.bookingId, bookingNumber: created.bookingNumber };
+}
+
+// ── Step 2 — create the gateway charge for the booking's pending first leg ──────
+export async function createOrderForBooking(params: {
+    bookingId: string;
+    userId: string;
+    /** Customer-chosen gateway (must be enabled). Honoured while no charge exists, or to switch gateways before paying. */
+    gateway?: GatewayId;
+}): Promise<CreateBookingOrderResult> {
+    const booking = await db.booking.findUnique({
+        where: { id: params.bookingId },
+        select: { id: true, userId: true, bookingNumber: true, paymentPlan: true, currency: true, paymentStatus: true, advanceAmount_paise: true },
     });
-    await db.payment.update({ where: { id: created.paymentId }, data: { gatewayOrderId: charge.gatewayOrderRef } });
+    if (!booking) return { success: false, reason: "not_found" };
+    if (booking.userId !== params.userId) {
+        return { success: false, reason: "invalid", message: "Booking belongs to another user." };
+    }
+    if (booking.paymentStatus !== "PENDING") {
+        return { success: false, reason: "error", message: "This booking has already been paid." };
+    }
+
+    const enabled = enabledGateways();
+    const defaultGateway: GatewayId = enabled[0];
+
+    // The initial-leg payments, newest first. A booking can have several if earlier
+    // attempts failed (e.g. a declined card); we never charge twice once one succeeds.
+    const inits = await db.payment.findMany({
+        where: { bookingId: booking.id, purpose: "INITIAL" },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, status: true, gateway: true, amount_paise: true, gatewayOrderId: true },
+    });
+    if (inits.some((p) => p.status === "ADVANCE_PAID" || p.status === "FULLY_PAID")) {
+        return { success: false, reason: "error", message: "This booking has already been paid." };
+    }
+
+    // Reuse the open PENDING leg if there is one; otherwise the last attempt failed
+    // (or none exists) — start a fresh PENDING leg so the customer can try again.
+    let payment = inits.find((p) => p.status === "PENDING") ?? null;
+    if (!payment) {
+        const amountPaise = inits[0]?.amount_paise ?? booking.advanceAmount_paise;
+        payment = await db.payment.create({
+            data: {
+                bookingId: booking.id,
+                userId: booking.userId,
+                amount: (amountPaise / 100).toFixed(2),
+                amount_paise: amountPaise,
+                gateway: params.gateway && enabled.includes(params.gateway) ? params.gateway : defaultGateway,
+                status: "PENDING",
+                purpose: "INITIAL",
+                idempotencyKey: `booking:${booking.id}:initial:${randomBytes(4).toString("hex")}`,
+            },
+            select: { id: true, status: true, gateway: true, amount_paise: true, gatewayOrderId: true },
+        });
+    }
+
+    // Which gateway to charge on: the customer's pick (if enabled), else the one
+    // already on the payment. We reuse an existing charge only when it's for the
+    // *same* gateway; switching gateways (before capture) builds a fresh charge.
+    const wantGateway: GatewayId =
+        params.gateway && enabled.includes(params.gateway) ? params.gateway : (payment.gateway as GatewayId);
+    const reuse = Boolean(payment.gatewayOrderId) && payment.gateway === wantGateway;
+    const provider = getProvider(wantGateway);
+
+    let checkout: CheckoutInit;
+    if (reuse && payment.gatewayOrderId) {
+        checkout = provider.checkoutForExistingOrder({
+            gatewayOrderRef: payment.gatewayOrderId,
+            amountPaise: payment.amount_paise,
+            currency: booking.currency,
+        });
+    } else {
+        const charge = await provider.createCharge({
+            amountPaise: payment.amount_paise,
+            receipt: booking.bookingNumber,
+            bookingId: booking.id,
+            customer: {},
+            notes: { bookingId: booking.id },
+            successUrl: payuReturnUrl(booking.id, "success"),
+            failureUrl: payuReturnUrl(booking.id, "failure"),
+        });
+        await db.payment.update({
+            where: { id: payment.id },
+            data: { gateway: wantGateway, gatewayOrderId: charge.gatewayOrderRef },
+        });
+        checkout = charge.checkout;
+    }
 
     return {
         success: true,
         order: {
-            bookingId: created.bookingId,
-            bookingNumber: created.bookingNumber,
-            plan: schedule.plan,
-            amountPaise: firstLeg.amountPaise,
-            checkout: charge.checkout,
+            bookingId: booking.id,
+            bookingNumber: booking.bookingNumber,
+            plan: booking.paymentPlan ?? "FULL",
+            amountPaise: payment.amount_paise,
+            checkout,
         },
     };
+}
+
+// ── Single-shot — create booking + order together (tests / back-compat) ─────────
+export async function createBookingAndOrder(params: {
+    quoteId: string;
+    userId: string;
+    paymentChoice?: "FULL" | "DEPOSIT";
+    details?: CheckoutInput;
+    gateway?: GatewayId;
+}): Promise<CreateBookingOrderResult> {
+    const booking = await createBooking(params);
+    if (!booking.success) return { success: false, reason: booking.reason, message: booking.message };
+    return createOrderForBooking({ bookingId: booking.bookingId, userId: params.userId, gateway: params.gateway });
 }

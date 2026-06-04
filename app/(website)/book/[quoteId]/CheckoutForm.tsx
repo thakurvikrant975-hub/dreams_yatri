@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { PencilSimpleIcon, PlusIcon, CheckCircleIcon } from '@phosphor-icons/react';
 import { Input } from '@/app/components/forms/Input';
-import { checkoutSchema, travellerSchema, type CheckoutInput, type TravellerInput } from '@/app/actions/quote/checkout-schema';
+import { checkoutSchema, type CheckoutInput, type TravellerInput } from '@/app/actions/quote/checkout-schema';
+import TravellerModal, { isTravellerComplete } from './TravellerModal';
 
 type Pax = { adults: number; children: number; infants: number };
 
@@ -15,25 +17,31 @@ function initialTravellers({ adults, children, infants }: Pax): TravellerInput[]
     ];
 }
 
-const GENDERS: { value: TravellerInput['gender']; label: string }[] = [
-    { value: 'MALE', label: 'Male' }, { value: 'FEMALE', label: 'Female' },
-    { value: 'OTHER', label: 'Other' }, { value: 'PREFER_NOT_TO_SAY', label: 'Prefer not to say' },
-];
-
-const selectCls =
-    'h-11 w-full rounded-xl bg-white px-3 text-sm font-medium text-(--text-primary) ring-[0.09em] ring-inset ring-neutral-400/80 outline-none hover:ring-neutral-300 focus:ring-2 focus:ring-primary-400';
-
-function Label({ children, htmlFor }: { children: React.ReactNode; htmlFor?: string }) {
-    return <label htmlFor={htmlFor} className="block text-xs font-medium text-(--text-secondary) mb-1.5">{children}</label>;
+function travellerLabels(list: TravellerInput[]): string[] {
+    const seen: Record<string, number> = {};
+    return list.map((t) => {
+        const word = t.type === 'ADULT' ? 'Adult' : t.type === 'CHILD' ? 'Child' : 'Infant';
+        seen[t.type] = (seen[t.type] ?? 0) + 1;
+        return `${word} ${seen[t.type]}`;
+    });
 }
 
-/** Collects traveller + contact (+ optional GST) details; reports a valid CheckoutInput (or null) to the parent. */
+function Label({ children }: { children: React.ReactNode }) {
+    return <label className="block text-xs font-medium text-(--text-secondary) mb-1.5">{children}</label>;
+}
+
+/** Collects traveller (via modal) + contact (+ optional GST) details; reports a valid CheckoutInput (or null) to the parent. */
 export default function CheckoutForm({ pax, onChange }: { pax: Pax; onChange: (v: CheckoutInput | null) => void }) {
     const [travellers, setTravellers] = useState<TravellerInput[]>(() => initialTravellers(pax));
     const [email, setEmail] = useState('');
     const [phone, setPhone] = useState('');
     const [gst, setGst] = useState('');
     const [touched, setTouched] = useState<Record<string, boolean>>({});
+
+    const [modalOpen, setModalOpen] = useState(false);
+    const [modalTab, setModalTab] = useState(0);
+
+    const labels = useMemo(() => travellerLabels(travellers), [travellers]);
 
     useEffect(() => {
         const parsed = checkoutSchema.safeParse({ travellers, contact: { email, phone }, gstStateCode: gst });
@@ -42,57 +50,48 @@ export default function CheckoutForm({ pax, onChange }: { pax: Pax; onChange: (v
     }, [travellers, email, phone, gst]);
 
     const markTouched = (k: string) => setTouched((p) => ({ ...p, [k]: true }));
-    function setField(i: number, key: keyof TravellerInput, value: string) {
-        setTravellers((prev) => prev.map((t, idx) => (idx === i ? { ...t, [key]: value } : t)));
-    }
-
-    // Per-field error (only after the field is touched).
-    const travErr = (i: number, key: keyof TravellerInput): string | undefined => {
-        if (!touched[`t${i}.${key}`]) return undefined;
-        const res = travellerSchema.safeParse(travellers[i]);
-        if (res.success) return undefined;
-        return res.error.issues.find((iss) => iss.path[0] === key)?.message;
-    };
     const emailErr = touched.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) ? 'Enter a valid email.' : undefined;
     const phoneErr = touched.phone && !/^[+\d][\d\s\-().]{6,}$/.test(phone) ? 'Enter a valid phone number.' : undefined;
 
-    const labelFor = (t: TravellerInput, i: number, all: TravellerInput[]) => {
-        const sameType = all.slice(0, i + 1).filter((x) => x.type === t.type).length;
-        const word = t.type === 'ADULT' ? 'Adult' : t.type === 'CHILD' ? 'Child' : 'Infant';
-        return `${word} ${sameType}`;
-    };
+    function openModal(tab: number) {
+        setModalTab(tab);
+        setModalOpen(true);
+    }
 
     return (
         <div className="flex flex-col gap-5">
-            {travellers.map((t, i) => (
-                <div key={i} className="rounded-xl border border-(--border-muted) p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                        <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-primary-50 px-2 text-xs font-semibold text-primary-600">{labelFor(t, i, travellers)}</span>
-                        {i === 0 && <span className="text-xs font-medium text-(--text-secondary)">Lead traveller</span>}
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            <Label>First name</Label>
-                            <Input value={t.firstName} placeholder="First name" onChange={(e) => setField(i, 'firstName', e.target.value)} onBlur={() => markTouched(`t${i}.firstName`)} error={travErr(i, 'firstName')} />
-                        </div>
-                        <div>
-                            <Label>Last name</Label>
-                            <Input value={t.lastName} placeholder="Last name" onChange={(e) => setField(i, 'lastName', e.target.value)} onBlur={() => markTouched(`t${i}.lastName`)} error={travErr(i, 'lastName')} />
-                        </div>
-                        <div>
-                            <Label>Date of birth</Label>
-                            <Input type="date" max={new Date().toISOString().slice(0, 10)} value={t.dob} onChange={(e) => setField(i, 'dob', e.target.value)} onBlur={() => markTouched(`t${i}.dob`)} error={travErr(i, 'dob')} />
-                        </div>
-                        <div>
-                            <Label>Gender</Label>
-                            <select className={selectCls} value={t.gender} onChange={(e) => setField(i, 'gender', e.target.value)}>
-                                {GENDERS.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
-                            </select>
-                        </div>
-                    </div>
-                </div>
-            ))}
+            {/* Traveller slots — tap to fill in the modal */}
+            <div className="rounded-xl border border-(--border-muted) divide-y divide-(--border-muted)">
+                {travellers.map((t, i) => {
+                    const done = isTravellerComplete(t);
+                    const name = `${t.firstName} ${t.lastName}`.trim();
+                    return (
+                        <button
+                            key={i}
+                            type="button"
+                            onClick={() => openModal(i)}
+                            className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-neutral-50"
+                        >
+                            <span className={`flex size-9 shrink-0 items-center justify-center rounded-full ${done ? 'bg-success-50 text-success-600' : 'bg-primary-50 text-primary-600'}`}>
+                                {done ? <CheckCircleIcon weight="fill" className="size-5" /> : <PlusIcon weight="bold" className="size-4" />}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block text-sm font-semibold text-(--text-primary)">
+                                    {done ? name : `Add ${labels[i]}`}
+                                </span>
+                                <span className="block text-xs text-(--text-muted)">
+                                    {done ? labels[i] + (i === 0 ? ' · Lead traveller' : '') : i === 0 ? 'Lead traveller — required' : 'Required'}
+                                </span>
+                            </span>
+                            <span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-primary-600">
+                                {done ? <><PencilSimpleIcon weight="bold" className="size-3.5" /> Edit</> : 'Add'}
+                            </span>
+                        </button>
+                    );
+                })}
+            </div>
 
+            {/* Contact + GST */}
             <div className="rounded-xl border border-(--border-muted) p-4">
                 <div className="text-sm font-semibold text-primary mb-3">Contact details</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -110,6 +109,15 @@ export default function CheckoutForm({ pax, onChange }: { pax: Pax; onChange: (v
                     <Input placeholder="For a GST invoice" value={gst} onChange={(e) => setGst(e.target.value)} />
                 </div>
             </div>
+
+            <TravellerModal
+                open={modalOpen}
+                travellers={travellers}
+                labels={labels}
+                initialTab={modalTab}
+                onClose={() => setModalOpen(false)}
+                onSave={setTravellers}
+            />
         </div>
     );
 }

@@ -39,6 +39,11 @@ export type CreateBookingOrderResult =
     | { success: true; order: BookingOrderDTO }
     | { success: false; reason: CreateBookingOrderReason; message?: string };
 
+/** Step 1 of MMT-style checkout: the Booking is created (no gateway charge yet). */
+export type CreateBookingResult =
+    | { success: true; bookingId: string; bookingNumber: string }
+    | { success: false; reason: CreateBookingOrderReason; message?: string };
+
 /** Browser-callback verify — confirms the checkout signature (UX only; truth = webhook). */
 export type VerifyCheckoutResult =
     | { success: true; bookingId: string }
