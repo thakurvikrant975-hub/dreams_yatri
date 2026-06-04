@@ -185,7 +185,22 @@ export default function PackageCard({
 }: PackageCardProps) {
     const [activeImage, setActiveImage] = useState(0)
     const touchStartX = useRef(0)
+    const intervalRef  = useRef<ReturnType<typeof setInterval> | null>(null)
     const savings = originalPrice - discountedPrice
+
+    function startAutoSlide() {
+        if (images.length <= 1) return
+        intervalRef.current = setInterval(() => {
+            setActiveImage(i => (i + 1) % images.length)
+        }, 1500)
+    }
+    function stopAutoSlide() {
+        if (intervalRef.current) {
+            clearInterval(intervalRef.current)
+            intervalRef.current = null
+        }
+        setActiveImage(0)
+    }
 
     function prev(e: React.MouseEvent) {
         e.stopPropagation()
@@ -205,7 +220,7 @@ export default function PackageCard({
     }
 
     return (
-        <div className='relative group'>
+        <div className='relative group' onMouseEnter={startAutoSlide} onMouseLeave={stopAutoSlide}>
             <Card
                 asArticle
                 variant="elevated"
