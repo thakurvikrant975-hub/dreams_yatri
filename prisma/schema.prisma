@@ -193,6 +193,9 @@ model Booking {
   quoteInputsHash         String?               // audit trail back to the quote's locked inputs
   priceSnapshot           Json?                 // frozen FullPricingBreakdown copied from the quote
   paymentPlan             PaymentPlan?          // FULL vs DEPOSIT (resolved at booking time)
+  contactEmail            String?               // checkout contact (may differ from account email)
+  contactPhone            String?
+  gstStateCode            String?               // optional GST state for invoicing
   sourceQueryId           String?               @unique
   convertedAt             DateTime?
   salesAgentId            String?
@@ -300,6 +303,8 @@ model BookingTraveller {
   bookingId      String
   type           TravellerType
   fullName       String
+  firstName      String?
+  lastName       String?
   age            Int?
   dateOfBirth    DateTime?
   gender         Gender?

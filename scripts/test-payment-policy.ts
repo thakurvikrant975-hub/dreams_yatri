@@ -26,11 +26,11 @@ console.log("Payment policy:");
 
 // 1) Far → DEPOSIT 25% with DEFAULT config; legs sum to total; balance due travel−15.
 {
-    const total = 3_645_338; // ₹36,453.38
+    const total = 6_000_000; // ₹60,000 — 25% = ₹15,000 > ₹10,000 floor, so tests the pct path
     const s = computePaymentSchedule({ totalPaise: total, travelDate: "2026-08-01", now: NOW });
     check("far → DEPOSIT", s.plan === "DEPOSIT" && s.reason === "DEPOSIT_ALLOWED");
-    check("deposit = round(25%)", s.depositPaise === 911_335); // 911334.5 → 911335 (half-up)
-    check("balance = total − deposit", s.balancePaise === total - 911_335);
+    check("deposit = round(25%)", s.depositPaise === 1_500_000);
+    check("balance = total − deposit", s.balancePaise === total - 1_500_000);
     check("legs sum to total", s.installments.reduce((a, l) => a + l.amountPaise, 0) === total);
     check("balanceDueDate = travel − 15d", s.balanceDueDate === "2026-07-17");
     check("two legs DEPOSIT+BALANCE", s.installments.length === 2 && s.installments[0].type === "DEPOSIT" && s.installments[1].type === "BALANCE");
@@ -49,7 +49,7 @@ console.log("Payment policy:");
 
 // 3) Just past cutoff (16 days) → DEPOSIT.
 {
-    const s = computePaymentSchedule({ totalPaise: 1_000_000, travelDate: "2026-06-18", now: NOW });
+    const s = computePaymentSchedule({ totalPaise: 6_000_000, travelDate: "2026-06-18", now: NOW });
     check("16 days → DEPOSIT", s.plan === "DEPOSIT" && s.daysUntilTravel === 16);
 }
 
@@ -73,14 +73,14 @@ check("past → FULL (daysUntil < 0)", (() => { const s = computePaymentSchedule
 
 // 6) Floor RAISES a small-percentage deposit (still < total → DEPOSIT).
 {
-    const s = computePaymentSchedule({ totalPaise: 600_000, travelDate: "2026-08-01", now: NOW }); // 25% = 150000 < ₹2000 floor
-    check("floor raises deposit to 200000", s.depositPaise === 200_000 && s.plan === "DEPOSIT");
-    check("floor-raised balance", s.balancePaise === 400_000);
+    const s = computePaymentSchedule({ totalPaise: 2_000_000, travelDate: "2026-08-01", now: NOW }); // ₹20k: 25% = ₹5,000 < ₹10,000 floor < total
+    check("floor raises deposit to ₹10,000", s.depositPaise === 1_000_000 && s.plan === "DEPOSIT");
+    check("floor-raised balance", s.balancePaise === 1_000_000);
 }
 
 // 7) Floor covers whole (cheap trip) → FULL.
 {
-    const s = computePaymentSchedule({ totalPaise: 150_000, travelDate: "2026-08-01", now: NOW }); // < ₹2000 floor
+    const s = computePaymentSchedule({ totalPaise: 150_000, travelDate: "2026-08-01", now: NOW }); // ₹1,500 < ₹10,000 floor → full
     check("cheap trip → FULL_DEPOSIT_COVERS_TOTAL", s.plan === "FULL" && s.reason === "FULL_DEPOSIT_COVERS_TOTAL");
     check("cheap trip single leg = total", s.installments.length === 1 && s.installments[0].amountPaise === 150_000);
 }
@@ -100,7 +100,7 @@ check("malformed date throws", throws(() => computePaymentSchedule({ totalPaise:
 check("impossible date throws", throws(() => computePaymentSchedule({ totalPaise: 1000, travelDate: "2026-02-30", now: NOW })));
 
 // 10) Config resolution + validation.
-check("defaults are 25/15/200000", DEFAULT_PAYMENT_POLICY.depositPercent === 25 && DEFAULT_PAYMENT_POLICY.balanceDueDaysBeforeTravel === 15 && DEFAULT_PAYMENT_POLICY.minDepositPaise === 200_000);
+check("defaults are 25/15/1000000", DEFAULT_PAYMENT_POLICY.depositPercent === 25 && DEFAULT_PAYMENT_POLICY.balanceDueDaysBeforeTravel === 15 && DEFAULT_PAYMENT_POLICY.minDepositPaise === 1_000_000);
 check("resolveConfig override wins", resolveConfig({ depositPercent: 40 }).depositPercent === 40);
 check("resolveConfig percent 0 throws", throws(() => resolveConfig({ depositPercent: 0 })));
 check("resolveConfig percent 101 throws", throws(() => resolveConfig({ depositPercent: 101 })));

@@ -6,6 +6,7 @@ import { computePaymentSchedule } from "@/app/services/payment-policy/engine";
 import { rupeesToPaise } from "@/app/lib/money";
 import { getProvider, activeGateway } from "@/app/lib/payments/registry";
 import type { CheckoutInit } from "@/app/lib/payments/types";
+import { checkoutSchema, type CheckoutInput } from "@/app/actions/quote/checkout-schema";
 import type { CreateBookingOrderResult } from "./types";
 
 /**
@@ -39,6 +40,10 @@ function payuReturnUrl(bookingId: string, kind: "success" | "failure"): string {
 export async function createBookingAndOrder(params: {
     quoteId: string;
     userId: string;
+    /** User's choice when a deposit is allowed. Near-travel always forces FULL. Default: DEPOSIT (policy decides). */
+    paymentChoice?: "FULL" | "DEPOSIT";
+    /** Traveller + contact (+ optional GST) details collected at checkout. */
+    details?: CheckoutInput;
 }): Promise<CreateBookingOrderResult> {
     const { quoteId, userId } = params;
 
@@ -100,14 +105,38 @@ export async function createBookingAndOrder(params: {
     ]);
     if (!pkg || !dur) return { success: false, reason: "error", message: "Package or duration not found." };
 
+    // ── Validate checkout details (server-authoritative) ───────────────────────
+    let validDetails: CheckoutInput | undefined;
+    if (params.details) {
+        const parsed = checkoutSchema.safeParse(params.details);
+        if (!parsed.success) return { success: false, reason: "error", message: "Please complete traveller and contact details." };
+        const expectedPax = row.adults + row.children + row.infants;
+        if (parsed.data.travellers.length !== expectedPax) {
+            return { success: false, reason: "error", message: `Please add details for all ${expectedPax} travellers.` };
+        }
+        validDetails = parsed.data;
+    }
+
     // ── Server-derived money + schedule ────────────────────────────────────────
     const totalPaise = rupeesToPaise(row.total_amount.toString());
     const schedule = computePaymentSchedule({ totalPaise, travelDate: isoDate(row.travel_date), now: new Date() });
-    const firstLeg = schedule.installments[0];
+
+    // Honour the user's payment choice: FULL is always allowed; DEPOSIT only when the
+    // policy allows it (far enough). Near-travel (schedule.plan === FULL) forces FULL.
+    const useFull = params.paymentChoice === "FULL" || schedule.plan === "FULL";
+    const todayISO = schedule.installments[0].dueDate;
+    const effPlan: "FULL" | "DEPOSIT" = useFull ? "FULL" : "DEPOSIT";
+    const effDepositPaise = useFull ? totalPaise : schedule.depositPaise;
+    const effBalancePaise = useFull ? 0 : schedule.balancePaise;
+    const effBalanceDue = useFull ? null : schedule.balanceDueDate;
+    const effInstallments = useFull
+        ? [{ type: "DEPOSIT" as const, sequence: 0, amountPaise: totalPaise, dueDate: todayISO }]
+        : schedule.installments;
+    const firstLeg = effInstallments[0];
 
     const startDate = new Date(`${isoDate(row.travel_date)}T00:00:00.000Z`);
     const endDate = new Date(startDate.getTime() + dur.nights * 86_400_000);
-    const balanceRupees = (schedule.balancePaise / 100).toFixed(2);
+    const balanceRupees = (effBalancePaise / 100).toFixed(2);
     const gateway = activeGateway();
 
     // ── Create booking + legs + PENDING payment; consume quote (atomic) ────────
@@ -125,18 +154,34 @@ export async function createBookingAndOrder(params: {
                 travellers: row.adults + row.children + row.infants,
                 totalAmount: row.total_amount.toString(),
                 totalAmount_paise: totalPaise,
-                advanceAmount_paise: schedule.depositPaise,
-                balanceAmount_paise: schedule.balancePaise,
+                advanceAmount_paise: effDepositPaise,
+                balanceAmount_paise: effBalancePaise,
                 balanceDueAmount: balanceRupees,
-                balanceDueDate: schedule.balanceDueDate ? new Date(`${schedule.balanceDueDate}T00:00:00.000Z`) : null,
+                balanceDueDate: effBalanceDue ? new Date(`${effBalanceDue}T00:00:00.000Z`) : null,
                 currency: row.currency,
-                paymentPlan: schedule.plan,
+                paymentPlan: effPlan,
                 paymentStatus: "PENDING",
                 priceSnapshot: row.breakdown as object,
                 quoteId,
                 quoteInputsHash: row.inputs_hash,
+                contactEmail: validDetails?.contact.email ?? null,
+                contactPhone: validDetails?.contact.phone ?? null,
+                gstStateCode: validDetails?.gstStateCode || null,
+                travellersList: validDetails
+                    ? {
+                          create: validDetails.travellers.map((t, i) => ({
+                              type: t.type,
+                              fullName: `${t.firstName} ${t.lastName}`.trim(),
+                              firstName: t.firstName,
+                              lastName: t.lastName,
+                              dateOfBirth: new Date(`${t.dob}T00:00:00.000Z`),
+                              gender: t.gender,
+                              isLead: i === 0,
+                          })),
+                      }
+                    : undefined,
                 installments: {
-                    create: schedule.installments.map((l) => ({
+                    create: effInstallments.map((l) => ({
                         type: l.type,
                         sequence: l.sequence,
                         amount_paise: l.amountPaise,
