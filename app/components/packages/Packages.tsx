@@ -190,6 +190,7 @@ export default function PackageCard({
 
     function startAutoSlide() {
         if (images.length <= 1) return
+        setActiveImage(i => (i + 1) % images.length)
         intervalRef.current = setInterval(() => {
             setActiveImage(i => (i + 1) % images.length)
         }, 1500)
