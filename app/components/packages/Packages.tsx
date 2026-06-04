@@ -9,9 +9,8 @@ import {
     ForkKnifeIcon,
     CarIcon,
     StarIcon,
-    ArrowsOutIcon,
 } from '@phosphor-icons/react'
-import { CalendarDaysIcon } from '@heroicons/react/24/solid'
+import { CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/solid'
 import SavingsBadge from './SavingBadge'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -140,26 +139,18 @@ function ItineraryRow({ items }: { items: Itinerary[] }) {
     )
 }
 
-// ─── Image slideshow dots ─────────────────────────────────────────────────────
-function ImageDots({
-    total,
-    active,
-    onSelect,
-}: {
-    total: number
-    active: number
-    onSelect: (i: number) => void
-}) {
+// ─── Dots ─────────────────────────────────────────────────────────────────────
+function ImageDots({ total, active, onSelect }: { total: number; active: number; onSelect: (i: number) => void }) {
     return (
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-20 pointer-events-auto">
             {Array.from({ length: total }).map((_, i) => (
                 <button
                     key={i}
-                    onClick={(e) => { e.stopPropagation(); onSelect(i) }}
-                    className={`h-1.5 rounded-full transition-all duration-300 ${i === active
-                        ? 'w-5 bg-white'
-                        : 'w-1.5 bg-white/50 hover:bg-white/75'
-                        }`}
+                    type="button"
+                    onClick={e => { e.stopPropagation(); onSelect(i) }}
+                    className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
+                        i === active ? 'w-5 bg-white' : 'w-1.5 bg-white/50 hover:bg-white/80'
+                    }`}
                 />
             ))}
         </div>
@@ -193,7 +184,25 @@ export default function PackageCard({
     className = '',
 }: PackageCardProps) {
     const [activeImage, setActiveImage] = useState(0)
+    const touchStartX = useRef(0)
     const savings = originalPrice - discountedPrice
+
+    function prev(e: React.MouseEvent) {
+        e.stopPropagation()
+        setActiveImage(i => (i - 1 + images.length) % images.length)
+    }
+    function next(e: React.MouseEvent) {
+        e.stopPropagation()
+        setActiveImage(i => (i + 1) % images.length)
+    }
+    function onTouchStart(e: React.TouchEvent) {
+        touchStartX.current = e.touches[0].clientX
+    }
+    function onTouchEnd(e: React.TouchEvent) {
+        const delta = touchStartX.current - e.changedTouches[0].clientX
+        if (delta > 40)       setActiveImage(i => (i + 1) % images.length)
+        else if (delta < -40) setActiveImage(i => (i - 1 + images.length) % images.length)
+    }
 
     return (
         <div className='relative group'>
@@ -205,29 +214,61 @@ export default function PackageCard({
                 className={`group overflow-hidden w-full max-w-sm ${className}`}
                 onClick={onClick}
             >
-                {/* ── Image ── */}
-                <CardMedia className="w-full aspect-video rounded-t-xl ">
-                    <Image
-                        src={images[activeImage]}
-                        alt={title}
-                        fill
-                        className="object-cover transition-opacity duration-500"
-                        sizes="(max-width: 768px) 100vw, 384px "
-                    />
+                {/* ── Image slider ── */}
+                <CardMedia className="w-full aspect-video rounded-t-xl">
+                  <div
+                    className="absolute inset-0"
+                    onTouchStart={onTouchStart}
+                    onTouchEnd={onTouchEnd}
+                  >
+                    {/* Slides — each absolutely positioned, shifted by transform */}
+                    {images.map((src, i) => (
+                        <div
+                            key={i}
+                            className="absolute inset-0 transition-transform duration-300 ease-out"
+                            style={{ transform: `translateX(${(i - activeImage) * 100}%)` }}
+                        >
+                            <Image
+                                src={src}
+                                alt={`${title} — image ${i + 1}`}
+                                fill
+                                className="object-cover"
+                                sizes="(max-width: 768px) 100vw, 384px"
+                                priority={i === 0}
+                            />
+                        </div>
+                    ))}
 
+                    {/* Bottom gradient */}
+                    <div className="absolute inset-x-0 bottom-0 h-16 bg-linear-to-t from-black/40 to-transparent pointer-events-none z-10" />
 
-
-                    {/* Image dots */}
+                    {/* Prev / Next arrows — visible on group-hover (desktop) */}
                     {images.length > 1 && (
-                        <ImageDots
-                            total={images.length}
-                            active={activeImage}
-                            onSelect={setActiveImage}
-                        />
+                        <>
+                            <button
+                                type="button"
+                                onClick={prev}
+                                className="absolute left-2 top-1/2 -translate-y-1/2 z-20 size-7 rounded-full bg-black/45 backdrop-blur-sm flex items-center justify-center text-white cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-black/60"
+                                aria-label="Previous image"
+                            >
+                                <ChevronLeftIcon className="size-4" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={next}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 z-20 size-7 rounded-full bg-black/45 backdrop-blur-sm flex items-center justify-center text-white cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-black/60"
+                                aria-label="Next image"
+                            >
+                                <ChevronRightIcon className="size-4" />
+                            </button>
+                        </>
                     )}
 
-                    {/* Bottom gradient for dot readability */}
-                    <div className="absolute inset-x-0 bottom-0 h-16 bg-linear-to-t from-black/40 to-transparent pointer-events-none" />
+                    {/* Dots */}
+                    {images.length > 1 && (
+                        <ImageDots total={images.length} active={activeImage} onSelect={setActiveImage} />
+                    )}
+                  </div>
                 </CardMedia>
 
 
