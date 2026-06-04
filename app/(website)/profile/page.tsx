@@ -2,6 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 
+import { Suspense } from 'react';
 import Profile from './ProfileClient';
 import { auth } from '@/app/lib/auth';
 import { db } from '@/app/lib/db';
@@ -35,15 +36,17 @@ export default async function ProfilePage() {
     if (!user) redirect("/");
 
     return (
-      <Profile
-        key={user.updatedAt.toISOString()}
-        user={{
-          ...user,
-          totalTrips,
-          upcomingTrips,
-          wishlistCount: 0,
-        }}
-      />
+      <Suspense>
+        <Profile
+          key={user.updatedAt.toISOString()}
+          user={{
+            ...user,
+            totalTrips,
+            upcomingTrips,
+            wishlistCount: 0,
+          }}
+        />
+      </Suspense>
     );
 
   } catch (err) {
