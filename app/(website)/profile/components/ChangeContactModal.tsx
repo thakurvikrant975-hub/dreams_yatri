@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react';
 import Modal, { ModalHeader, ModalBody, ModalFooter } from '@/app/components/modals/Modal_Structure';
 import Input from '@/app/components/forms/Input';
 import Button from '@/app/components/ui/Button';
-import Label from '@/app/components/forms/Label';
 import { Select, Option } from '@/app/components/forms/Select';
 import { Mail, MessageCircle, RotateCcw, ArrowLeft, CheckCircle } from 'lucide-react';
 
@@ -205,7 +204,7 @@ export function ChangeContactModal({ open, onClose, type, currentValue, onSucces
               </p>
             )}
             <div>
-              <Label htmlFor="cc-email">New Email Address</Label>
+              <label htmlFor="cc-email" className="block text-sm font-medium text-neutral-700 mb-1.5">New Email Address</label>
               <Input
                 id="cc-email"
                 type="email"
@@ -228,7 +227,7 @@ export function ChangeContactModal({ open, onClose, type, currentValue, onSucces
               </p>
             )}
             <div>
-              <Label htmlFor="cc-wa">WhatsApp Number</Label>
+              <label htmlFor="cc-wa" className="block text-sm font-medium text-neutral-700 mb-1.5">WhatsApp Number</label>
               <div className="flex gap-2">
                 <Select value={countryCode} onChange={setCountryCode} className="min-w-28 h-11">
                   {COUNTRY_CODES.map(c => (
@@ -380,20 +379,25 @@ export function ChangeContactModal({ open, onClose, type, currentValue, onSucces
             <Button type="button" variant="outline" size="sm" onClick={onClose}>Cancel</Button>
 
             {step === 'input' && (
-              <Button type="button" size="sm" onClick={handleSend} disabled={loading || !value.trim()}>
+              <button
+                type="button"
+                onClick={handleSend}
+                disabled={loading || !value.trim()}
+                className="px-4 py-2 text-sm font-semibold bg-primary-600 hover:bg-primary-700 disabled:bg-neutral-200 disabled:text-neutral-400 disabled:cursor-not-allowed text-white rounded-xl transition-colors cursor-pointer shadow-sm shadow-primary-200"
+              >
                 {loading ? 'Sending…' : 'Send Verification'}
-              </Button>
+              </button>
             )}
 
             {step === 'pending' && !isEmail && (
-              <Button
+              <button
                 type="button"
-                size="sm"
                 onClick={handleVerifyOtp}
                 disabled={loading || otpDigits.join('').length !== 6}
+                className="px-4 py-2 text-sm font-semibold bg-primary-600 hover:bg-primary-700 disabled:bg-neutral-200 disabled:text-neutral-400 disabled:cursor-not-allowed text-white rounded-xl transition-colors cursor-pointer shadow-sm shadow-primary-200"
               >
                 {loading ? 'Verifying…' : 'Verify OTP'}
-              </Button>
+              </button>
             )}
           </div>
         </ModalFooter>
