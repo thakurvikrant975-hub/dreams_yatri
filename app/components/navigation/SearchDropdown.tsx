@@ -54,11 +54,17 @@ interface Props {
 
 // ─── Thumbnail shell ─────────────────────────────────────────────────────────
 
+function normalizeSrc(src: string): string {
+  if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('/')) return src
+  return `/${src}`
+}
+
 function Thumb({ src, alt, fallback }: { src: string | null; alt: string; fallback: React.ReactNode }) {
+  const normalized = src ? normalizeSrc(src) : null
   return (
     <div className="size-11 rounded-xl overflow-hidden shrink-0 bg-neutral-100 flex items-center justify-center">
-      {src
-        ? <Image src={src} alt={alt} width={44} height={44} className="w-full h-full object-cover" />
+      {normalized
+        ? <Image src={normalized} alt={alt} width={44} height={44} className="w-full h-full object-cover" />
         : fallback
       }
     </div>
@@ -180,7 +186,7 @@ export function SearchDropdown({ isSolid = true, autoFocus = false, onClose, cla
 
       {/* ── Dropdown ── */}
       {showDropdown && (
-        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2.5 w-[min(480px,calc(100vw-2rem))] bg-white rounded-2xl shadow-2xl shadow-neutral-300/50 ring-1 ring-neutral-100 overflow-hidden z-[200]">
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2.5 w-[min(480px,calc(100vw-2rem))] bg-white rounded-2xl shadow-2xl shadow-neutral-300/50 ring-1 ring-neutral-100 overflow-hidden z-200">
 
           {!hasResults ? (
             /* Empty state */
@@ -190,7 +196,7 @@ export function SearchDropdown({ isSolid = true, autoFocus = false, onClose, cla
               <p className="text-xs">Try different keywords</p>
             </div>
           ) : (
-            <div className="max-h-[480px] overflow-y-auto divide-y divide-neutral-100">
+            <div className="max-h-120 overflow-y-auto divide-y divide-neutral-100">
 
               {/* ── Packages ── */}
               {results.packages.length > 0 && (
