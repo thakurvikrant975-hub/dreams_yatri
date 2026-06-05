@@ -29,7 +29,9 @@ export default async function VerifyHotelsPage({
     const search = (sp.search ?? "").trim();
 
     const where: Prisma.BookingWhereInput = {
-        status: "HOTEL_VERIFICATION",
+        paymentStatus: { in: ["ADVANCE_PAID", "FULLY_PAID"] },
+        hotelConfirmedAt: null,
+        status: { notIn: ["CANCELLED", "COMPLETED", "REJECTED", "HOTEL_CONFIRMED", "CAB_CONFIRMED", "CAB_VERIFICATION", "OPS_REVIEW", "CONFIRMED"] },
         ...(search
             ? {
                   OR: [
@@ -86,7 +88,7 @@ export default async function VerifyHotelsPage({
                 <div>
                     <h1 className="text-xl font-semibold text-dashboard-base-content">Verify Hotels</h1>
                     <p className="text-sm text-dashboard-neutral mt-0.5">
-                        {total} booking{total !== 1 ? "s" : ""} awaiting hotel confirmation
+                        {total} booking{total !== 1 ? "s" : ""} paid — hotels not yet confirmed
                     </p>
                 </div>
             </div>
