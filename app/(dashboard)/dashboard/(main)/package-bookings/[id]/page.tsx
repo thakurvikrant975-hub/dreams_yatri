@@ -83,7 +83,7 @@ function BookedItinerary({ snapshot }: { snapshot: Snapshot }) {
                                 {(d.hotel.hotel_city || d.hotel.hotel_state) && (
                                     <span className="text-dashboard-neutral"> · {[d.hotel.hotel_city, d.hotel.hotel_state].filter(Boolean).join(", ")}</span>
                                 )}
-                                <span className="ml-2">{ref("hotel", d.hotel.hotel_id)} {ref("rate", d.hotel.room_pricing_id)} {ref("room", d.hotel.room_id)}</span>
+                                <span className="ml-2">{ref("hotel", d.hotel.hotel_id)} {ref("room_pricing", d.hotel.room_pricing_id)} {ref("room", d.hotel.room_id)}</span>
                             </div>
                             <div className="text-dashboard-neutral">
                                 {d.hotel.room_name}{d.hotel.plan_name ? ` · ${d.hotel.plan_name}` : ""} · {d.hotel.rooms_count} room{d.hotel.rooms_count !== 1 ? "s" : ""} · {d.hotel.num_nights} night{d.hotel.num_nights !== 1 ? "s" : ""}

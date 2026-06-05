@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import { VanIcon, BedIcon, TicketIcon, ForkKnifeIcon, type Icon } from '@phosphor-icons/react';
 import QuoteCountdown from './QuoteCountdown';
 import CheckoutForm from './CheckoutForm';
 import { type PreviewDay } from './PackagePreview';
@@ -100,9 +101,9 @@ export default function BookReview({
                 setSubmitting(false);
                 setError(
                     res.reason === 'unauthenticated' ? 'Please log in to continue your booking.'
-                    : res.reason === 'stale' ? 'The price changed since this quote was created. Please refresh for the latest price.'
-                    : res.reason === 'not_active' ? 'This quote has expired. Please start again.'
-                    : res.message ?? 'Could not continue to payment. Please try again.',
+                        : res.reason === 'stale' ? 'The price changed since this quote was created. Please refresh for the latest price.'
+                            : res.reason === 'not_active' ? 'This quote has expired. Please start again.'
+                                : res.message ?? 'Could not continue to payment. Please try again.',
                 );
                 return;
             }
@@ -162,9 +163,9 @@ export default function BookReview({
                                 <div className="min-w-0 flex-1">
                                     <div className="flex items-start justify-between gap-3">
                                         <Heading level={3} weight="semibold" className="truncate">{packageTitle}</Heading>
-                                        <span className="shrink-0 rounded-md border border-primary-200 px-2 py-0.5 text-[11px] font-semibold text-primary-700">Customizable</span>
+                                        <span className="shrink-0 rounded-md border border-orange-200 px-2 py-0.5 text-[11px] font-semibold text-transparent bg-clip-text bg-linear-to-r from-red-500 via-orange-500 to-amber-600">Customizable</span>
                                     </div>
-                                    <Text size="sm" intent="secondary" className="block mt-1">{quote.duration_label} · {quote.stay_category_label}</Text>
+                                    <Text size="sm" intent="secondary" weight="medium" className="block ">{quote.duration_label} · {quote.stay_category_label}</Text>
                                     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-(--text-primary)">
                                         <span className="font-semibold">{formatDate(quote.travel_date)}</span>
                                         <span className="text-(--text-muted)">→</span>
@@ -330,12 +331,14 @@ export default function BookReview({
 
 function Section({ id, n, title, children }: { id: string; n: number; title: string; children: React.ReactNode }) {
     return (
-        <section id={id} className="scroll-mt-24 rounded-xl bg-white shadow-sm">
-            <div className="flex items-center gap-3 px-5 py-4 border-b border-(--border-muted)">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-600 text-xs font-bold text-white">{n}</span>
-                <Heading level={4} weight="semibold">{title}</Heading>
-            </div>
-            <div className="px-5 py-5">{children}</div>
+        <section id={id} className="scroll-mt-24 rounded-xl">
+            <Card>
+                <div className="flex items-center gap-3 px-5 py-4 border-b border-(--border-muted)">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-neutral-50 text-xs font-bold text-secondary ring-1 ring-inset ring-neutral-200 shadow-sm shadow-neutral-200/80 font-heading">{n}</span>
+                    <Heading level={4} weight="semibold">{title}</Heading>
+                </div>
+                <div className="px-5 py-5">{children}</div>
+            </Card>
         </section>
     );
 }
@@ -348,34 +351,85 @@ function DayBlock({ day, dateISO }: { day: PreviewDay; dateISO: string }) {
     return (
         <li className="rounded-lg border border-(--border-muted) overflow-hidden">
             <div className="flex items-center gap-2.5 bg-neutral-50 px-4 py-2.5 border-b border-(--border-muted)">
-                <span className="rounded-full bg-primary-600 px-2.5 py-0.5 text-xs font-semibold text-white">Day {day.day}</span>
+                <span className="rounded-full bg-primary-500 px-2.5 py-0.5 text-xs font-semibold text-white">Day {day.day}</span>
                 <Text size="sm" weight="medium" intent="primary">{shortDate(dateISO)}</Text>
                 <Text size="sm" intent="secondary" className="truncate">· {day.day_title}</Text>
             </div>
-            <div className="px-4 py-3 flex flex-col gap-2">
+            <div className="px-4 py-3 flex flex-col gap-3">
                 {day.transfers?.map((t, i) => (
-                    <Row key={`t${i}`} tag="Transfer" text={`${t.pickup_name ?? '—'} → ${t.drop_name ?? '—'}`} />
+                    <Row key={`t${i}`} icon={VanIcon} tag="Transfer" text={`${t.pickup_name ?? '—'} → ${t.drop_name ?? '—'}`} suffix={t.distance_km ? `${Math.round(t.distance_km)} km` : undefined} />
                 ))}
-                {day.hotel && (
-                    <Row tag="Stay" text={`${day.hotel.hotel_name}${day.hotel.room_name ? ` · ${day.hotel.room_name}` : ''}${day.hotel.plan_name ? ` · ${day.hotel.plan_name}` : ''}`} />
+
+                {day.hotel && (() => {
+                    const hotelImg = day.hotel.room_image || day.hotel.image || null;
+                    const mealsIncluded = day.meals && day.meals.length > 0;
+                    return (
+                        <div className="flex gap-3">
+                            <span className="flex w-24 shrink-0 items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-(--text-muted) pt-0.5">
+                                <BedIcon className="size-4 text-primary-500" weight="duotone" />Stay
+                            </span>
+                            <div className="flex flex-1 gap-3 min-w-0">
+                                {hotelImg && (
+                                    <div className="relative w-20 h-14 shrink-0 overflow-hidden rounded-lg bg-neutral-100">
+                                        <Image src={hotelImg} alt={day.hotel.hotel_name} fill className="object-cover" sizes="96px" />
+                                    </div>
+                                )}
+                                <div className="min-w-0">
+                                    <Text size="sm" weight="semibold" intent="primary" className="block">{day.hotel.hotel_name}</Text>
+                                    {(day.hotel.room_name || day.hotel.plan_name) && (
+                                        <Text size="xs" intent="secondary" className="block">{[day.hotel.room_name, day.hotel.plan_name].filter(Boolean).join(' · ')}</Text>
+                                    )}
+                                    <span className={`mt-0.5 block text-xs ${mealsIncluded ? 'text-success-600' : 'text-(--text-muted)'}`}>
+                                        {mealsIncluded ? `✓ ${day.meals!.map((m) => m.label).join(', ')} included` : 'Room only · meals not included'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })()}
+
+                {!day.hotel && day.meals && day.meals.length > 0 && (
+                    <Row icon={ForkKnifeIcon} tag="Meals" text={`${day.meals.map((m) => m.label).join(', ')} included`} />
                 )}
-                {day.meals && day.meals.length > 0 && (
-                    <Row tag="Meals" text={day.meals.map((m) => m.label).join(', ')} />
-                )}
-                {day.activities?.map((a, i) => (
-                    <Row key={`a${i}`} tag="Activity" text={a.name} muted={a.is_optional} suffix={a.is_optional ? 'optional' : undefined} />
-                ))}
+
+                {day.activities?.map((a, i) => {
+                    const meta = [a.category, a.duration_hours ? `${a.duration_hours} hr${a.duration_hours !== 1 ? 's' : ''}` : null, a.difficulty].filter(Boolean).join(' · ');
+                    return (
+                        <div key={`a${i}`} className="flex gap-3">
+                            <span className="flex w-24 shrink-0 items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-(--text-muted) pt-0.5">
+                                <TicketIcon className="size-4 text-primary-500" weight="duotone" />Activity
+                            </span>
+                            <div className="flex flex-1 gap-3 min-w-0">
+                                {a.image && (
+                                    <div className="relative w-20 h-14 shrink-0 overflow-hidden rounded-lg bg-neutral-100">
+                                        <Image src={a.image} alt={a.name} fill className="object-cover" sizes="96px" />
+                                    </div>
+                                )}
+                                <div className="min-w-0">
+                                    <Text size="sm" weight="medium" intent={a.is_optional ? 'secondary' : 'primary'} className="block">
+                                        {a.name}
+                                        {a.is_optional && <span className="ml-1.5 text-[11px] text-amber-600">(optional)</span>}
+                                    </Text>
+                                    {meta && <Text size="xs" intent="muted" className="block mt-0.5">{meta}</Text>}
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
             </div>
         </li>
     );
 }
 
-function Row({ tag, text, muted, suffix }: { tag: string; text: string; muted?: boolean; suffix?: string }) {
+function Row({ tag, text, suffix, icon: IconC }: { tag: string; text: string; suffix?: string; icon?: Icon }) {
     return (
         <div className="flex gap-3 text-sm">
-            <span className="w-20 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-(--text-muted) pt-0.5">{tag}</span>
-            <span className={muted ? 'text-(--text-muted)' : 'text-(--text-primary)'}>
-                {text}{suffix && <span className="ml-1.5 text-[11px] text-amber-600">({suffix})</span>}
+            <span className="flex w-24 shrink-0 items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-(--text-muted) pt-0.5">
+                {IconC && <IconC className="size-4 text-primary-500" weight="duotone" />}
+                {tag}
+            </span>
+            <span className="text-(--text-primary)">
+                {text}{suffix && <span className="ml-2 text-xs text-(--text-muted)">· {suffix}</span>}
             </span>
         </div>
     );

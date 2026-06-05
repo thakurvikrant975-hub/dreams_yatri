@@ -15,7 +15,7 @@ const inputVariants = cva(
         default:
           'text-primary bg-surface ring-neutral-400/80 hover:ring-neutral-300 focus:ring-2 focus:ring-primary-400',
         error:
-          'text-error-800 ring-error-300 focus:ring-2 focus:ring-error-400 bg-error-500/15',
+          'text-error-800 ring-error-600 focus:ring-2 focus:ring-error-400 ',
         success:
           'text-primary bg-surface ring-neutral-400/60 focus:ring-2 focus:ring-success-400',
         disabled:

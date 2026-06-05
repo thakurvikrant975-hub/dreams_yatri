@@ -6,10 +6,23 @@ import { Text } from '@/app/components/ui/Typography';
 export type PreviewDay = {
     day: number;
     day_title: string;
-    hotel?: { hotel_name: string; room_name: string | null; plan_name: string | null } | null;
+    hotel?: {
+        hotel_name: string;
+        room_name: string | null;
+        plan_name: string | null;
+        image?: string | null;       // display-safe image URL (R2)
+        room_image?: string | null;
+    } | null;
     meals?: { label: string }[];
-    activities?: { name: string; is_optional: boolean }[];
-    transfers?: { pickup_name: string | null; drop_name: string | null }[];
+    activities?: {
+        name: string;
+        is_optional: boolean;
+        duration_hours?: number | null;
+        category?: string | null;
+        difficulty?: string | null;
+        image?: string | null;
+    }[];
+    transfers?: { pickup_name: string | null; drop_name: string | null; distance_km?: number | null }[];
 };
 
 /** Collapsible day-wise package preview rendered from the quote's frozen breakdown. */

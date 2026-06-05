@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { PencilSimpleIcon, PlusIcon, CheckCircleIcon } from '@phosphor-icons/react';
+import { PencilSimpleIcon, PlusIcon, CheckCircleIcon, UserCirclePlusIcon } from '@phosphor-icons/react';
 import { Input } from '@/app/components/forms/Input';
 import { checkoutSchema, type CheckoutInput, type TravellerInput } from '@/app/actions/quote/checkout-schema';
 import TravellerModal, { isTravellerComplete } from './TravellerModal';
+import Label from '@/app/components/forms/Label';
 
 type Pax = { adults: number; children: number; infants: number };
 
@@ -26,9 +27,7 @@ function travellerLabels(list: TravellerInput[]): string[] {
     });
 }
 
-function Label({ children }: { children: React.ReactNode }) {
-    return <label className="block text-xs font-medium text-(--text-secondary) mb-1.5">{children}</label>;
-}
+
 
 /** Collects traveller (via modal) + contact (+ optional GST) details; reports a valid CheckoutInput (or null) to the parent. */
 export default function CheckoutForm({ pax, onChange }: { pax: Pax; onChange: (v: CheckoutInput | null) => void }) {
@@ -70,10 +69,10 @@ export default function CheckoutForm({ pax, onChange }: { pax: Pax; onChange: (v
                             key={i}
                             type="button"
                             onClick={() => openModal(i)}
-                            className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-neutral-50"
+                            className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-neutral-50 rounded-xl bg-linear-to-b from-neutral-50 via-white to-white cursor-pointer "
                         >
-                            <span className={`flex size-9 shrink-0 items-center justify-center rounded-full ${done ? 'bg-success-50 text-success-600' : 'bg-primary-50 text-primary-600'}`}>
-                                {done ? <CheckCircleIcon weight="fill" className="size-5" /> : <PlusIcon weight="bold" className="size-4" />}
+                            <span className={`flex size-9 shrink-0 items-center justify-center rounded-full bg-white shadow-sm shadow-neutral-300 ${done ? ' text-success-600' : ' text-muted'}`}>
+                                {done ? <CheckCircleIcon weight="fill" className="size-5" /> : <UserCirclePlusIcon weight="fill" className="size-7" />}
                             </span>
                             <span className="min-w-0 flex-1">
                                 <span className="block text-sm font-semibold text-(--text-primary)">
@@ -83,7 +82,7 @@ export default function CheckoutForm({ pax, onChange }: { pax: Pax; onChange: (v
                                     {done ? labels[i] + (i === 0 ? ' · Lead traveller' : '') : i === 0 ? 'Lead traveller — required' : 'Required'}
                                 </span>
                             </span>
-                            <span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-primary-600">
+                            <span className="flex shrink-0 items-center gap-1 text-xs font-bold text-primary-500">
                                 {done ? <><PencilSimpleIcon weight="bold" className="size-3.5" /> Edit</> : 'Add'}
                             </span>
                         </button>
@@ -96,11 +95,11 @@ export default function CheckoutForm({ pax, onChange }: { pax: Pax; onChange: (v
                 <div className="text-sm font-semibold text-primary mb-3">Contact details</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                        <Label>Email</Label>
+                        <Label required>Email</Label>
                         <Input type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} onBlur={() => markTouched('email')} error={emailErr} />
                     </div>
                     <div>
-                        <Label>Mobile number</Label>
+                        <Label required>Mobile number</Label>
                         <Input type="tel" placeholder="98765 43210" value={phone} onChange={(e) => setPhone(e.target.value)} onBlur={() => markTouched('phone')} error={phoneErr} />
                     </div>
                 </div>

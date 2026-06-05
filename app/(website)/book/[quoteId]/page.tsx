@@ -79,27 +79,65 @@ export default async function BookQuotePage({
         ]);
         // The stored breakdown carries internal costs (room/cab/activity prices,
         // margins). Project ONLY display-safe inclusion fields for the browser —
-        // never ship pricing/margins to the client.
+        // never ship pricing/margins to the client. Catalog detail (images,
+        // distance, activity duration/category) is fetched live by ID and added.
         type RawDay = {
             day: number; day_title: string;
-            hotel?: { hotel_name?: string; room_name?: string | null; plan_name?: string | null } | null;
+            hotel?: { hotel_name?: string; room_name?: string | null; plan_name?: string | null; hotel_id?: number; room_id?: number | null } | null;
             meals?: { label: string }[];
-            activities?: { name: string; is_optional: boolean }[];
-            transfers?: { pickup_name?: string | null; drop_name?: string | null }[];
+            activities?: { id?: number; name: string; is_optional: boolean }[];
+            transfers?: { pickup_name?: string | null; drop_name?: string | null; distance_km?: number | null }[];
         };
         const rawDays = ((quoteRow?.breakdown as { days?: RawDay[] } | null)?.days ?? []);
+
+        const R2 = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? '';
+        const r2 = (k: string | null | undefined): string | null => (k ? (k.startsWith('http') ? k : `${R2}/${k}`) : null);
+
+        const hotelIds = [...new Set(rawDays.map((d) => d.hotel?.hotel_id).filter((x): x is number => !!x))];
+        const roomIds = [...new Set(rawDays.map((d) => d.hotel?.room_id).filter((x): x is number => !!x))];
+        const activityIds = [...new Set(rawDays.flatMap((d) => (d.activities ?? []).map((a) => a.id).filter((x): x is number => !!x)))];
+
+        const [hotelRows, roomImgRows, actRows, actImgRows] = await Promise.all([
+            hotelIds.length ? db.hotels.findMany({ where: { id: { in: hotelIds } }, select: { id: true, thumbnail: true } }) : Promise.resolve([]),
+            roomIds.length ? db.hotel_room_images.findMany({ where: { room_id: { in: roomIds } }, orderBy: [{ is_primary: 'desc' }, { sort_order: 'asc' }], select: { room_id: true, url: true, thumbnail: true } }) : Promise.resolve([]),
+            activityIds.length ? db.activities.findMany({ where: { id: { in: activityIds } }, select: { id: true, duration_hours: true, difficulty: true, category: { select: { name: true } } } }) : Promise.resolve([]),
+            activityIds.length ? db.activity_images.findMany({ where: { activity_id: { in: activityIds } }, orderBy: [{ is_primary: 'desc' }, { sort_order: 'asc' }], select: { activity_id: true, url: true, thumbnail: true } }) : Promise.resolve([]),
+        ]);
+
+        const hotelThumb = new Map(hotelRows.map((h) => [h.id, h.thumbnail]));
+        const roomImg = new Map<number, string | null>();
+        for (const r of roomImgRows) if (!roomImg.has(r.room_id)) roomImg.set(r.room_id, r.thumbnail ?? r.url);
+        const actMeta = new Map(actRows.map((a) => [a.id, { duration: a.duration_hours != null ? Number(a.duration_hours) : null, difficulty: a.difficulty, category: a.category?.name ?? null }]));
+        const actImg = new Map<number, string | null>();
+        for (const a of actImgRows) if (!actImg.has(a.activity_id)) actImg.set(a.activity_id, a.thumbnail ?? a.url);
+
         const itinerary: PreviewDay[] = rawDays.map((d) => ({
             day: d.day,
             day_title: d.day_title,
             hotel: d.hotel
-                ? { hotel_name: d.hotel.hotel_name ?? '', room_name: d.hotel.room_name ?? null, plan_name: d.hotel.plan_name ?? null }
+                ? {
+                      hotel_name: d.hotel.hotel_name ?? '',
+                      room_name: d.hotel.room_name ?? null,
+                      plan_name: d.hotel.plan_name ?? null,
+                      image: r2(d.hotel.hotel_id ? hotelThumb.get(d.hotel.hotel_id) : null),
+                      room_image: r2(d.hotel.room_id ? roomImg.get(d.hotel.room_id) : null),
+                  }
                 : null,
             meals: (d.meals ?? []).map((m) => ({ label: m.label })),
-            activities: (d.activities ?? []).map((a) => ({ name: a.name, is_optional: a.is_optional })),
-            transfers: (d.transfers ?? []).map((t) => ({ pickup_name: t.pickup_name ?? null, drop_name: t.drop_name ?? null })),
+            activities: (d.activities ?? []).map((a) => {
+                const meta = a.id ? actMeta.get(a.id) : null;
+                return {
+                    name: a.name,
+                    is_optional: a.is_optional,
+                    duration_hours: meta?.duration ?? null,
+                    category: meta?.category ?? null,
+                    difficulty: meta?.difficulty ?? null,
+                    image: r2(a.id ? actImg.get(a.id) : null),
+                };
+            }),
+            transfers: (d.transfers ?? []).map((t) => ({ pickup_name: t.pickup_name ?? null, drop_name: t.drop_name ?? null, distance_km: t.distance_km ?? null })),
         }));
 
-        const R2 = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? '';
         const thumbnail = pkg?.thumbnail
             ? (pkg.thumbnail.startsWith('http') ? pkg.thumbnail : `${R2}/${pkg.thumbnail}`)
             : null;
