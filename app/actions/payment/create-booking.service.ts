@@ -146,6 +146,7 @@ export async function createBooking(params: {
                 paymentPlan: effPlan,
                 paymentStatus: "PENDING",
                 priceSnapshot: row.breakdown as object,
+                packageUrl: `/packages/${row.package_slug}/${row.duration_slug}/${row.route_slug}/${row.stay_slug}`,
                 quoteId,
                 quoteInputsHash: row.inputs_hash,
                 contactEmail: validDetails?.contact.email ?? null,

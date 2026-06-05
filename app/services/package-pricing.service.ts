@@ -18,6 +18,10 @@ export type PricingInput = {
 };
 
 export type DayHotelLine = {
+  hotel_id: number;
+  room_pricing_id: number;    // identifies the exact hotel+room+plan rate variant booked
+  room_id: number | null;
+  occupancy_selected: number; // occupancy tier the price was resolved at
   hotel_name: string;
   room_name: string | null;
   plan_name: string | null;
@@ -42,6 +46,8 @@ export type DayMealLine = {
 
 export type DayActivityLine = {
   id: number;
+  variant_id: number | null;  // the chosen pricing category/variant
+  variant_label: string | null;
   name: string;
   is_optional: boolean;
   pricing_type: string;       // "PER_PERSON" | "PER_GROUP"
@@ -56,6 +62,8 @@ export type DayActivityLine = {
 
 export type DayTransferLine = {
   id: number;
+  route_id: number | null;
+  vehicle_id: number | null;
   pickup_name: string | null;
   drop_name: string | null;
   vehicle_name: string | null;
@@ -69,6 +77,8 @@ export type CabSegmentBreakdown = {
   day_to: number;
   days: number;
   km: number;
+  cab_type_id: number;
+  vehicle_id: number;
   vehicle_name: string;
   vehicle_capacity: number;
   destination_name: string;
@@ -341,7 +351,7 @@ export async function computePackagePrice(
                   },
                 },
                 extra_bed_rate: true,
-                room: { select: { name: true, max_occupancy: true, extra_bed_capacity: true } },
+                room: { select: { id: true, name: true, max_occupancy: true, extra_bed_capacity: true } },
                 occupancy_prices: {
                   orderBy: { occupancy: "asc" },
                   select: { occupancy: true, price_per_night: true },
@@ -394,7 +404,7 @@ export async function computePackagePrice(
           orderBy: { sort_order: "asc" },
           include: {
             route: { select: { pickup_name: true, drop_name: true, distance_km: true } },
-            vehicle: { select: { name: true } },
+            vehicle: { select: { id: true, name: true } },
           },
         },
       },
@@ -622,6 +632,8 @@ export async function computePackagePrice(
     ),
   ];
   type FallbackVariant = {
+    id: number;
+    name: string;
     activity_id: number;
     pricing_type: string;
     pricing: { label: string; price: unknown; is_active: boolean; sort_order: number }[];
@@ -716,6 +728,10 @@ export async function computePackagePrice(
       const total        = roomCost + mattressCost;
 
       hotel = {
+        hotel_id: stay.room_pricing.hotel.id,
+        room_pricing_id: stay.room_pricing_id,
+        room_id: stay.room_pricing.room?.id ?? null,
+        occupancy_selected: typicalOccupancy,
         hotel_name: stay.room_pricing.hotel.name,
         room_name: stay.room_pricing.room?.name ?? null,
         plan_name: stay.room_pricing.plan_name,
@@ -818,6 +834,8 @@ export async function computePackagePrice(
 
       return {
         id: ia.activity.id,
+        variant_id: ia.variant ? ia.variant.id : (fallback?.id ?? null),
+        variant_label: ia.variant ? ia.variant.name : (fallback?.name ?? null),
         name: ia.activity.name,
         is_optional: ia.is_optional,
         pricing_type: pricingType,
@@ -834,6 +852,8 @@ export async function computePackagePrice(
     // ── Transfers — display only, cost captured at segment level ─────────────
     const transfers: DayTransferLine[] = itin.itinerary_transfers.map((tr) => ({
       id: tr.id,
+      route_id: tr.route_id ?? null,
+      vehicle_id: tr.vehicle_id ?? null,
       pickup_name: tr.route?.pickup_name ?? null,
       drop_name: tr.route?.drop_name ?? null,
       vehicle_name: tr.vehicle?.name ?? null,
@@ -907,6 +927,8 @@ export async function computePackagePrice(
         day_to: seg.day_to,
         days: segDays,
         km: segKm,
+        cab_type_id: cabTypeData.id,
+        vehicle_id: cabTypeData.vehicle_id,
         vehicle_name: cabTypeData.vehicle.name,
         vehicle_capacity: cabTypeData.vehicle.passenger_capacity,
         destination_name: seg.cab_pricing.destination.name,

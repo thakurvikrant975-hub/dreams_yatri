@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ExternalLink } from "lucide-react";
 import { db } from "@/app/lib/db";
 import { formatPaise } from "@/app/lib/money";
 import { PaymentPill, StatusPill } from "../pills";
@@ -42,6 +43,93 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
     );
 }
 
+// Minimal shape of the (enriched) FullPricingBreakdown snapshot we render for ops.
+type SnapHotel = { hotel_id: number; room_pricing_id: number; room_id: number | null; hotel_name: string; room_name: string | null; plan_name: string | null; occupancy_selected: number; rooms_count: number; num_nights: number };
+type SnapActivity = { id: number; variant_id: number | null; variant_label: string | null; name: string; is_optional: boolean };
+type SnapTransfer = { id: number; route_id: number | null; vehicle_id: number | null; pickup_name: string | null; drop_name: string | null; vehicle_name: string | null };
+type SnapDay = { day: number; day_title: string; day_date: string | null; hotel: SnapHotel | null; meals: { label: string }[]; activities: SnapActivity[]; transfers: SnapTransfer[] };
+type SnapCab = { day_from: number; day_to: number; cab_type_id: number; vehicle_id: number; vehicle_name: string; vehicle_capacity: number; upgraded: boolean };
+type Snapshot = { days?: SnapDay[]; cab_segments?: SnapCab[] };
+
+const ref = (label: string, id: number | null | undefined) => (id == null ? null : <span className="text-[11px] text-dashboard-neutral/80">{label} #{id}</span>);
+
+function BookedItinerary({ snapshot }: { snapshot: Snapshot }) {
+    const days = snapshot.days ?? [];
+    const cabs = snapshot.cab_segments ?? [];
+    if (days.length === 0) return <p className="text-sm text-dashboard-neutral">No itinerary snapshot stored for this booking.</p>;
+
+    return (
+        <div className="flex flex-col gap-4">
+            <p className="text-xs text-dashboard-neutral">Exact selection captured at booking — hotels, room categories, activities (with chosen variant) and transfers, with their IDs for management.</p>
+            {days.map((d) => (
+                <div key={d.day} className="rounded-lg border border-dashboard-base-300/70 p-3.5">
+                    <div className="flex items-baseline gap-2">
+                        <span className="rounded bg-dashboard-primary/10 px-1.5 py-0.5 text-[11px] font-semibold text-dashboard-primary">Day {d.day}</span>
+                        <span className="text-sm font-medium text-dashboard-base-content">{d.day_title}</span>
+                        {d.day_date && <span className="text-xs text-dashboard-neutral">· {fmtDate(new Date(`${d.day_date}T00:00:00`))}</span>}
+                    </div>
+
+                    {d.hotel && (
+                        <div className="mt-2 text-sm">
+                            <span className="text-dashboard-neutral">🏨 </span>
+                            <span className="text-dashboard-base-content">{d.hotel.hotel_name}</span>
+                            {d.hotel.room_name && <span className="text-dashboard-neutral"> · {d.hotel.room_name}</span>}
+                            {d.hotel.plan_name && <span className="text-dashboard-neutral"> · {d.hotel.plan_name}</span>}
+                            <span className="text-dashboard-neutral"> · {d.hotel.rooms_count} room{d.hotel.rooms_count !== 1 ? "s" : ""} · {d.hotel.num_nights}N</span>
+                            <span className="ml-2">{ref("hotel", d.hotel.hotel_id)} {ref("rate", d.hotel.room_pricing_id)} {ref("room", d.hotel.room_id)}</span>
+                        </div>
+                    )}
+
+                    {d.activities.length > 0 && (
+                        <ul className="mt-1.5 flex flex-col gap-1">
+                            {d.activities.map((a) => (
+                                <li key={a.id} className="text-sm">
+                                    <span className="text-dashboard-neutral">🎟 </span>
+                                    <span className="text-dashboard-base-content">{a.name}</span>
+                                    {a.variant_label && <span className="text-dashboard-neutral"> · {a.variant_label}</span>}
+                                    <span className={`ml-1.5 text-[11px] ${a.is_optional ? "text-amber-600" : "text-green-600"}`}>{a.is_optional ? "optional" : "included"}</span>
+                                    <span className="ml-2">{ref("activity", a.id)} {ref("variant", a.variant_id)}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+
+                    {d.transfers.length > 0 && (
+                        <ul className="mt-1.5 flex flex-col gap-1">
+                            {d.transfers.map((t) => (
+                                <li key={t.id} className="text-sm">
+                                    <span className="text-dashboard-neutral">🚐 </span>
+                                    <span className="text-dashboard-base-content">{t.pickup_name ?? "—"} → {t.drop_name ?? "—"}</span>
+                                    {t.vehicle_name && <span className="text-dashboard-neutral"> · {t.vehicle_name}</span>}
+                                    <span className="ml-2">{ref("route", t.route_id)} {ref("vehicle", t.vehicle_id)}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+
+                    {d.meals.length > 0 && (
+                        <div className="mt-1.5 text-xs text-dashboard-neutral">Meals: {d.meals.map((m) => m.label).join(", ")}</div>
+                    )}
+                </div>
+            ))}
+
+            {cabs.length > 0 && (
+                <div className="rounded-lg border border-dashboard-base-300/70 p-3.5">
+                    <div className="text-xs uppercase tracking-wide text-dashboard-neutral mb-2">Cabs</div>
+                    <ul className="flex flex-col gap-1">
+                        {cabs.map((c, i) => (
+                            <li key={i} className="text-sm text-dashboard-base-content">
+                                Day {c.day_from}–{c.day_to}: {c.vehicle_name} ({c.vehicle_capacity}-seater){c.upgraded ? " · upgraded" : ""}
+                                <span className="ml-2">{ref("cabType", c.cab_type_id)} {ref("vehicle", c.vehicle_id)}</span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+        </div>
+    );
+}
+
 export default async function BookingDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
 
@@ -52,6 +140,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
             startDate: true, endDate: true, duration: true, travellers: true, createdAt: true, currency: true,
             totalAmount_paise: true, advanceAmount_paise: true, balanceAmount_paise: true, balanceDueDate: true,
             contactEmail: true, contactPhone: true, gstStateCode: true, cancelReason: true, cancelledAt: true,
+            packageId: true, packageUrl: true, priceSnapshot: true,
             user: { select: { name: true, email: true } },
             package: { select: { title: true } },
             destination: { select: { name: true } },
@@ -65,6 +154,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
     if (!booking) notFound();
 
     const isFull = booking.paymentPlan === "FULL";
+    const snapshot = (booking.priceSnapshot ?? {}) as Snapshot;
 
     return (
         <div className="flex flex-col gap-5">
@@ -94,7 +184,15 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                 <div className="lg:col-span-2 flex flex-col gap-5">
                     <Section title="Trip">
                         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                            <Field label="Package" value={booking.package?.title} />
+                            <Field
+                                label="Package"
+                                value={booking.packageUrl && booking.package?.title ? (
+                                    <Link href={booking.packageUrl} target="_blank" className="inline-flex items-center gap-1 text-dashboard-primary hover:underline">
+                                        {booking.package.title}
+                                        <ExternalLink className="size-3.5" />
+                                    </Link>
+                                ) : booking.package?.title}
+                            />
                             <Field label="Destination" value={booking.destination?.name} />
                             <Field label="Trip type" value={titleCase(booking.tripType)} />
                             <Field label="Travel dates" value={`${fmtDate(booking.startDate)} – ${fmtDate(booking.endDate)}`} />
@@ -121,6 +219,10 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                                 ))}
                             </ul>
                         )}
+                    </Section>
+
+                    <Section title="Itinerary (as booked)">
+                        <BookedItinerary snapshot={snapshot} />
                     </Section>
 
                     <Section title="Payments">

@@ -206,6 +206,7 @@ model Booking {
   quoteId                 String?               @unique // loose ref to package_quote.id (one booking per quote)
   quoteInputsHash         String?               // audit trail back to the quote's locked inputs
   priceSnapshot           Json?                 // frozen FullPricingBreakdown copied from the quote
+  packageUrl              String?               // public package URL booked (for admin reference/management)
   paymentPlan             PaymentPlan?          // FULL vs DEPOSIT (resolved at booking time)
   contactEmail            String?               // checkout contact (may differ from account email)
   contactPhone            String?

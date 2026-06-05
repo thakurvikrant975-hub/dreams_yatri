@@ -119,7 +119,7 @@ export default function BookReview({
     }
 
     return (
-        <div className="screen-space py-8 max-w-6xl">
+        <div className="screen-space py-8 max-w-7xl">
             {/* Countdown band */}
             <div className="flex items-center justify-between gap-4 rounded-2xl bg-linear-to-r from-primary-50 to-white border border-primary-100 px-5 py-3.5 mb-6">
                 <Text size="sm" weight="medium" className="text-primary-800">

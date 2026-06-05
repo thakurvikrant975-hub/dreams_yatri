@@ -4,6 +4,7 @@ import type { Prisma } from "@/app/generated/prisma";
 import { db } from "@/app/lib/db";
 import { formatPaise } from "@/app/lib/money";
 import BookingsFilters from "./BookingsFilters";
+import BookingRowActions from "./BookingRowActions";
 import { PaymentPill, StatusPill } from "./pills";
 
 export const metadata: Metadata = {
@@ -116,12 +117,13 @@ export default async function PackageBookingsPage({
                             <th className="px-4 py-3 font-medium text-right">Amount</th>
                             <th className="px-4 py-3 font-medium">Payment</th>
                             <th className="px-4 py-3 font-medium">Status</th>
+                            <th className="px-4 py-3 font-medium text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {bookings.length === 0 ? (
                             <tr>
-                                <td colSpan={8} className="px-4 py-12 text-center text-dashboard-neutral">No bookings match these filters.</td>
+                                <td colSpan={9} className="px-4 py-12 text-center text-dashboard-neutral">No bookings match these filters.</td>
                             </tr>
                         ) : (
                             bookings.map((b) => (
@@ -148,6 +150,16 @@ export default async function PackageBookingsPage({
                                     </td>
                                     <td className="px-4 py-3"><PaymentPill status={b.paymentStatus} /></td>
                                     <td className="px-4 py-3"><StatusPill status={b.status} /></td>
+                                    <td className="px-4 py-3 text-right">
+                                        <div className="flex justify-end">
+                                            <BookingRowActions
+                                                bookingId={b.id}
+                                                bookingNumber={b.bookingNumber}
+                                                cancellable={!["CANCELLED", "COMPLETED"].includes(b.status)}
+                                                hasPendingPayments={b.paymentStatus === "PENDING"}
+                                            />
+                                        </div>
+                                    </td>
                                 </tr>
                             ))
                         )}
