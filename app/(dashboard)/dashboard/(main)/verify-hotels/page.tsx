@@ -171,13 +171,11 @@ export default async function VerifyHotelsPage({
                                             <PaymentPill status={b.paymentStatus} />
                                         </td>
                                         <td className="px-4 py-3 text-center">
-                                            <span
-                                                className="inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-semibold"
-                                                style={pending === 0
-                                                    ? { backgroundColor: "color-mix(in oklch, var(--color-dashboard-success) 15%, white)", color: "var(--color-dashboard-success)" }
-                                                    : { backgroundColor: "color-mix(in oklch, var(--color-dashboard-warning) 15%, white)", color: "var(--color-dashboard-warning-content)" }
-                                                }
-                                            >
+                                            <span className={`inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                                                pending === 0
+                                                    ? "bg-dashboard-success/20 text-dashboard-success"
+                                                    : "bg-dashboard-warning/20 text-dashboard-neutral"
+                                            }`}>
                                                 {pending} / {total} left
                                             </span>
                                         </td>
