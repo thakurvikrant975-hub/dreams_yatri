@@ -9,7 +9,7 @@ import { db } from '@/app/lib/db';
 import { redirect } from 'next/navigation';
 
 export default async function ProfilePage() {
-  try {
+  try { 
     const session = await auth();
     if (!session?.user) redirect("/");
 
