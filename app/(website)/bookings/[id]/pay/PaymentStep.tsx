@@ -123,7 +123,7 @@ export default function PaymentStep({
     }
 
     return (
-        <div className="screen-space py-8 max-w-7xl">
+        <div className="screen-space py-8">
             <div className="flex items-center justify-between gap-4 mb-5">
                 <button type="button" onClick={() => router.back()} className="inline-flex items-center gap-1.5 text-sm font-medium text-(--text-secondary) hover:text-primary-600">
                     <ArrowLeftIcon weight="bold" className="size-4" /> Edit details

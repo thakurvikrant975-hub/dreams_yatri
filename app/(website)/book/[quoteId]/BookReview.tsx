@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import QuoteCountdown from './QuoteCountdown';
 import CheckoutForm from './CheckoutForm';
-import PackagePreview, { type PreviewDay } from './PackagePreview';
+import { type PreviewDay } from './PackagePreview';
 import type { CheckoutInput } from '@/app/actions/quote/checkout-schema';
 import { createBookingDraft } from '@/app/actions/payment/booking.actions';
 import Button from '@/app/components/ui/Button';
@@ -18,12 +18,20 @@ import type { PaymentScheduleDTO } from '@/app/actions/payment/types';
 
 const fmt = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 
+function addDaysISO(iso: string, n: number): string {
+    const d = new Date(`${iso}T00:00:00`);
+    d.setDate(d.getDate() + n);
+    return d.toISOString().slice(0, 10);
+}
 function formatDate(iso: string): string {
     const d = new Date(`${iso}T00:00:00`);
     if (isNaN(d.getTime())) return iso;
-    return new Intl.DateTimeFormat('en-IN', {
-        weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
-    }).format(d);
+    return new Intl.DateTimeFormat('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }).format(d);
+}
+function shortDate(iso: string): string {
+    const d = new Date(`${iso}T00:00:00`);
+    if (isNaN(d.getTime())) return iso;
+    return new Intl.DateTimeFormat('en-IN', { weekday: 'short', day: '2-digit', month: 'short' }).format(d);
 }
 
 function travellersLabel(adults: number, children: number, infants: number): string {
@@ -33,15 +41,11 @@ function travellersLabel(adults: number, children: number, infants: number): str
     return parts.join(', ');
 }
 
-function StepHeader({ n, title, hint }: { n: number; title: string; hint?: string }) {
-    return (
-        <div className="flex items-center gap-3 mb-4">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-600 text-xs font-bold text-white">{n}</span>
-            <Heading level={4} weight="semibold">{title}</Heading>
-            {hint && <Text size="xs" intent="muted" className="ml-auto">{hint}</Text>}
-        </div>
-    );
-}
+const SECTIONS = [
+    { id: 'sec-travellers', label: 'Traveller Details' },
+    { id: 'sec-itinerary', label: 'Package Itinerary & Inclusions' },
+    { id: 'sec-policy', label: 'Cancellation & Date Change' },
+];
 
 export default function BookReview({
     quote,
@@ -75,6 +79,15 @@ export default function BookReview({
     const payAmountPaise = schedule ? (effectiveChoice === 'FULL' ? schedule.totalPaise : schedule.depositPaise) : 0;
 
     const canProceed = Boolean(schedule && checkout && policy && !submitting);
+
+    // Derived trip facts for the header / fare breakup
+    const days = itinerary.length;
+    const endISO = days > 0 ? addDaysISO(quote.travel_date, days - 1) : quote.travel_date;
+    const fromCity = itinerary[0]?.transfers?.[0]?.pickup_name ?? null;
+    const hotelsCount = itinerary.filter((d) => d.hotel).length;
+    const transfersCount = itinerary.reduce((s, d) => s + (d.transfers?.length ?? 0), 0);
+    const activitiesCount = itinerary.reduce((s, d) => s + (d.activities?.length ?? 0), 0);
+    const baseAmount = Math.max(0, quote.total_amount - quote.gst_amount);
 
     async function handleProceed() {
         setError(null);
@@ -119,181 +132,251 @@ export default function BookReview({
     }
 
     return (
-        <div className="screen-space py-8 max-w-7xl">
-            {/* Countdown band */}
-            <div className="flex items-center justify-between gap-4 rounded-2xl bg-linear-to-r from-primary-50 to-white border border-primary-100 px-5 py-3.5 mb-6">
-                <Text size="sm" weight="medium" className="text-primary-800">
-                    Complete your booking before the price expires
-                </Text>
-                <span className="inline-flex items-center gap-2 rounded-full bg-white border border-primary-200 px-3 py-1 shadow-sm">
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary-500 animate-pulse" />
-                    <QuoteCountdown expiresAt={quote.expires_at} onExpire={() => setExpired(true)} />
-                </span>
-            </div>
-
-            <div className="flex items-center justify-between gap-4 mb-5">
-                <Heading level={2} weight="bold">Review your booking</Heading>
-                <Text size="xs" intent="muted" weight="medium" className="shrink-0">Step 1 of 2 · Details</Text>
-            </div>
-
-            {priceChanged && (
-                <div role="alert" className="mb-6 rounded-xl bg-warning-50 border border-warning-200 px-4 py-3">
-                    <Text size="sm" weight="medium" className="text-warning-700 block">
-                        Heads up — the price for this package has changed since this quote was created.
-                    </Text>
-                    <Text size="xs" intent="secondary" className="mt-0.5 block">
-                        Current price: {fmt(drift!.currentTotal!)}. Please{' '}
-                        <Link href={packageHref} className="underline font-medium">get a fresh price</Link>{' '}
-                        to continue at the latest rate.
-                    </Text>
+        <div className="bg-neutral-100 min-h-screen pb-16">
+            {/* ── Dark "Review package" bar with step anchors ───────────────────── */}
+            <div className="bg-surface-inverse text-white">
+                <div className="screen-space flex flex-wrap items-center justify-between gap-3 py-3.5">
+                    <span className="text-base font-medium">Review Package</span>
+                    <nav className="flex flex-wrap items-center gap-x-6 gap-y-1">
+                        {SECTIONS.map((s, i) => (
+                            <a key={s.id} href={`#${s.id}`} className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400 hover:text-white transition-colors">
+                                {i + 1}. {s.label}
+                            </a>
+                        ))}
+                    </nav>
                 </div>
-            )}
+            </div>
 
-            <div className="grid gap-6 lg:grid-cols-3 items-start">
-                <div className="lg:col-span-2 flex flex-col gap-5">
-                    {/* Trip hero */}
-                    <Card className="overflow-hidden">
-                        <div className="flex gap-4 p-5">
-                            {thumbnail && (
-                                <div className="relative h-28 w-40 shrink-0 overflow-hidden rounded-xl bg-neutral-100">
-                                    <Image src={thumbnail} alt={packageTitle} fill className="object-cover" sizes="160px" />
-                                </div>
-                            )}
-                            <div className="min-w-0 flex flex-col justify-center">
-                                <Heading level={3} weight="bold" className="truncate">{packageTitle}</Heading>
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                    <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-(--text-secondary)">{quote.duration_label}</span>
-                                    <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-(--text-secondary)">{quote.stay_category_label}</span>
+            <div className="screen-space pt-5">
+                <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] items-start">
+                    {/* ── LEFT column ──────────────────────────────────────────────── */}
+                    <div className="flex flex-col gap-4">
+                        {/* Package header */}
+                        <div className="rounded-xl bg-white shadow-sm overflow-hidden">
+                            <div className="flex gap-4 p-5">
+                                {thumbnail && (
+                                    <div className="relative h-24 w-36 shrink-0 overflow-hidden rounded-lg bg-neutral-100">
+                                        <Image src={thumbnail} alt={packageTitle} fill className="object-cover" sizes="144px" />
+                                    </div>
+                                )}
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <Heading level={3} weight="semibold" className="truncate">{packageTitle}</Heading>
+                                        <span className="shrink-0 rounded-md border border-primary-200 px-2 py-0.5 text-[11px] font-semibold text-primary-700">Customizable</span>
+                                    </div>
+                                    <Text size="sm" intent="secondary" className="block mt-1">{quote.duration_label} · {quote.stay_category_label}</Text>
+                                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-(--text-primary)">
+                                        <span className="font-semibold">{formatDate(quote.travel_date)}</span>
+                                        <span className="text-(--text-muted)">→</span>
+                                        <span className="font-semibold">{formatDate(endISO)}</span>
+                                        {fromCity && <span className="text-(--text-secondary)">/ From {fromCity}</span>}
+                                        <span className="text-(--text-muted)">·</span>
+                                        <span className="text-(--text-secondary)">{travellersLabel(quote.adults, quote.children, quote.infants)}</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                        <dl className="grid grid-cols-2 border-t border-(--border-muted)">
-                            <div className="px-5 py-3.5 border-r border-(--border-muted)">
-                                <dt className="text-xs uppercase tracking-wide text-neutral-500">Departure</dt>
-                                <dd className="text-sm font-semibold text-primary mt-0.5">{formatDate(quote.travel_date)}</dd>
+
+                        {/* 1 · Traveller Details */}
+                        <Section id="sec-travellers" n={1} title="Traveller Details">
+                            <CheckoutForm pax={{ adults: quote.adults, children: quote.children, infants: quote.infants }} onChange={setCheckout} />
+                        </Section>
+
+                        {/* 2 · Package Itinerary & Inclusions */}
+                        <Section id="sec-itinerary" n={2} title="Package Itinerary & Inclusions">
+                            {itinerary.length > 0 ? (
+                                <>
+                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm mb-4">
+                                        <span className="font-semibold text-(--text-primary)">Package Features</span>
+                                        <span className="text-(--text-muted)">/</span>
+                                        <Feature n={hotelsCount} label="Hotels" />
+                                        <span className="text-(--text-muted)">/</span>
+                                        <Feature n={transfersCount} label="Transfers" />
+                                        <span className="text-(--text-muted)">/</span>
+                                        <Feature n={activitiesCount} label="Activities" />
+                                    </div>
+                                    <ol className="flex flex-col gap-3">
+                                        {itinerary.map((d) => (
+                                            <DayBlock key={d.day} day={d} dateISO={addDaysISO(quote.travel_date, d.day - 1)} />
+                                        ))}
+                                    </ol>
+                                </>
+                            ) : (
+                                <Text size="sm" intent="secondary">Your full day-by-day itinerary will be shared with your confirmation.</Text>
+                            )}
+                        </Section>
+
+                        {/* 3 · Cancellation & Date Change */}
+                        <Section id="sec-policy" n={3} title="Cancellation & Date Change">
+                            <div className="flex flex-col gap-3 text-sm">
+                                <div>
+                                    <Text size="sm" weight="semibold" intent="primary" className="block">Package Cancellation Policy</Text>
+                                    <Text size="sm" intent="secondary" className="block mt-0.5">
+                                        Free-look and refunds follow our{' '}
+                                        <Link href="/cancellation-policy" target="_blank" className="text-primary-600 underline">cancellation policy</Link>
+                                        {' '}— the closer to travel, the lower the refund.
+                                    </Text>
+                                </div>
+                                <div>
+                                    <Text size="sm" weight="semibold" intent="primary" className="block">Package Date Change Policy</Text>
+                                    <Text size="sm" intent="secondary" className="block mt-0.5">
+                                        Date changes are subject to availability, re-pricing for the new dates, and a date-change fee.
+                                    </Text>
+                                </div>
                             </div>
-                            <div className="px-5 py-3.5">
-                                <dt className="text-xs uppercase tracking-wide text-neutral-500">Travellers</dt>
-                                <dd className="text-sm font-semibold text-primary mt-0.5">{travellersLabel(quote.adults, quote.children, quote.infants)}</dd>
+                        </Section>
+                    </div>
+
+                    {/* ── RIGHT rail ───────────────────────────────────────────────── */}
+                    <aside className="lg:sticky lg:top-4 flex flex-col gap-4">
+                        {priceChanged && (
+                            <div className="rounded-xl border border-primary-200 bg-primary-50 px-4 py-3" role="alert">
+                                <Text size="xs" weight="bold" className="text-primary-700 uppercase tracking-wide block">Updated</Text>
+                                <Text size="xs" intent="secondary" className="mt-0.5 block">
+                                    The price for this package has changed. Current price {fmt(drift!.currentTotal!)}.{' '}
+                                    <Link href={packageHref} className="underline font-medium text-primary-700">Get a fresh price</Link>.
+                                </Text>
                             </div>
-                        </dl>
-                    </Card>
+                        )}
 
-                    {/* 1 · Traveller details */}
-                    <Card className="px-6 py-5">
-                        <StepHeader n={1} title="Traveller details" hint="Tap a traveller to fill in details" />
-                        <CheckoutForm pax={{ adults: quote.adults, children: quote.children, infants: quote.infants }} onChange={setCheckout} />
-                    </Card>
+                        {/* Grand total + fare breakup */}
+                        <div className="rounded-xl bg-white shadow-sm overflow-hidden">
+                            <div className="px-5 py-4 border-b border-(--border-muted)">
+                                <div className="flex items-center justify-between">
+                                    <Text size="xs" intent="muted" weight="semibold" className="uppercase tracking-wide">Grand Total · {totalPax} traveller{totalPax !== 1 ? 's' : ''}</Text>
+                                </div>
+                                <div className="mt-1 flex items-baseline gap-2">
+                                    <span className="text-2xl font-bold text-(--text-primary) font-heading">{fmt(quote.total_amount)}</span>
+                                    <span className="text-xs text-(--text-muted)">(incl. GST)</span>
+                                </div>
+                                <Text size="sm" weight="semibold" className="text-primary-700 block mt-1">
+                                    {effectiveChoice === 'FULL' ? 'Pay Full Amount Now' : `Pay ${formatPaise(payAmountPaise)} now to reserve`}
+                                </Text>
+                            </div>
 
-                    {/* 2 · Package details */}
-                    {itinerary.length > 0 && (
-                        <Card className="px-6 py-5">
-                            <StepHeader n={2} title="Package details" />
-                            <PackagePreview days={itinerary} />
-                        </Card>
-                    )}
+                            {/* Fare Breakup */}
+                            <div className="px-5 py-4 border-b border-(--border-muted)">
+                                <Text size="sm" weight="semibold" intent="primary" className="block mb-2.5">Fare Breakup</Text>
+                                <div className="flex items-start justify-between">
+                                    <div>
+                                        <Text size="sm" intent="secondary" className="block">Total Basic Cost</Text>
+                                        <Text size="xs" intent="muted" className="block">{fmt(quote.price_per_adult)} × {totalPax} traveller{totalPax !== 1 ? 's' : ''}</Text>
+                                    </div>
+                                    <Text size="sm" weight="medium" intent="primary">{fmt(baseAmount)}</Text>
+                                </div>
+                                <div className="flex items-start justify-between mt-2">
+                                    <div>
+                                        <Text size="sm" intent="secondary" className="block">Fees &amp; Taxes</Text>
+                                        <Text size="xs" intent="muted" className="block">GST {quote.gst_percentage}%</Text>
+                                    </div>
+                                    <Text size="sm" weight="medium" intent="secondary">+ {fmt(quote.gst_amount)}</Text>
+                                </div>
+                            </div>
 
-                    {/* 3 · How you'd like to pay */}
-                    <Card className="px-6 py-5">
-                        <StepHeader n={3} title="How you'd like to pay" />
-
-                        {schedule ? (
-                            depositAllowed ? (
-                                <div className="flex flex-col gap-3">
+                            {/* Pay plan choice */}
+                            {schedule && depositAllowed && (
+                                <div className="px-5 py-4 border-b border-(--border-muted) flex flex-col gap-2.5">
                                     <PayOption
                                         selected={payChoice === 'DEPOSIT'} onSelect={() => setPayChoice('DEPOSIT')}
                                         title="Book Now, Pay Later" amount={formatPaise(schedule.depositPaise)}
-                                        sub={`Pay ${Math.round((schedule.depositPaise / schedule.totalPaise) * 100)}% now to reserve · balance ${formatPaise(schedule.balancePaise)}${schedule.balanceDueDate ? ` by ${formatDate(schedule.balanceDueDate)}` : ''}`}
+                                        sub={`Balance ${formatPaise(schedule.balancePaise)}${schedule.balanceDueDate ? ` by ${formatDate(schedule.balanceDueDate)}` : ''}`}
                                     />
                                     <PayOption
                                         selected={payChoice === 'FULL'} onSelect={() => setPayChoice('FULL')}
                                         title="Pay Full Amount Now" amount={formatPaise(schedule.totalPaise)}
-                                        sub="Pay the whole amount today — nothing left to pay later."
+                                        sub="Nothing left to pay later."
                                     />
-                                </div>
-                            ) : (
-                                <div className="flex items-center justify-between rounded-xl border border-(--border-muted) bg-neutral-50 px-4 py-3.5">
-                                    <div>
-                                        <Text size="sm" weight="semibold" intent="primary">Pay in full</Text>
-                                        <Text size="xs" intent="muted" className="block mt-0.5">Full payment is required for this departure date.</Text>
-                                    </div>
-                                    <Text size="lg" weight="bold" intent="primary" className="font-heading">{formatPaise(schedule.totalPaise)}</Text>
-                                </div>
-                            )
-                        ) : (
-                            <Text size="sm" intent="secondary">Your price is locked while you complete your booking.</Text>
-                        )}
-                    </Card>
-                </div>
-
-                {/* Price summary (sticky) */}
-                <div className="lg:sticky lg:top-24">
-                    <Card className="overflow-hidden">
-                        <div className="px-6 py-4 border-b border-(--border-muted) bg-neutral-50">
-                            <Text size="xs" intent="muted" weight="semibold" className="uppercase tracking-wide">Price summary</Text>
-                        </div>
-                        <div className="px-6 py-5">
-                            <div className="flex items-center justify-between">
-                                <Text size="sm" intent="secondary">Price per adult</Text>
-                                <Text size="sm" weight="medium" intent="primary">{fmt(quote.price_per_adult)}</Text>
-                            </div>
-                            <div className="flex items-center justify-between mt-2">
-                                <Text size="sm" intent="secondary">GST ({quote.gst_percentage}%)</Text>
-                                <Text size="sm" weight="medium" intent="secondary">{fmt(quote.gst_amount)}</Text>
-                            </div>
-                            <div className="flex items-center justify-between mt-3 pt-3 border-t border-(--border-muted)">
-                                <Text size="sm" weight="semibold" intent="primary">Total ({totalPax} traveller{totalPax !== 1 ? 's' : ''})</Text>
-                                <Text size="xl" weight="bold" intent="primary" className="font-heading">{fmt(quote.total_amount)}</Text>
-                            </div>
-                            <Text size="xs" intent="muted" className="block mt-1 text-right">incl. all taxes</Text>
-
-                            {schedule && (
-                                <div className="mt-4 rounded-xl bg-primary-50 border border-primary-100 px-4 py-3">
-                                    <div className="flex items-center justify-between">
-                                        <Text size="sm" weight="medium" className="text-primary-800">Pay now</Text>
-                                        <Text size="lg" weight="bold" intent="primary" className="font-heading">{formatPaise(payAmountPaise)}</Text>
-                                    </div>
-                                    {effectiveChoice === 'DEPOSIT' && schedule.balancePaise > 0 && (
-                                        <Text size="xs" intent="muted" className="block mt-0.5">
-                                            Balance {formatPaise(schedule.balancePaise)}{schedule.balanceDueDate ? ` due by ${formatDate(schedule.balanceDueDate)}` : ''}
-                                        </Text>
-                                    )}
                                 </div>
                             )}
 
-                            {/* Policy acceptance */}
-                            <label className="mt-4 flex items-start gap-2.5 cursor-pointer select-none">
-                                <input
-                                    type="checkbox"
-                                    checked={policy}
-                                    onChange={(e) => setPolicy(e.target.checked)}
-                                    className="mt-0.5 size-4 shrink-0 accent-primary-600"
-                                />
-                                <Text size="xs" intent="secondary">
-                                    I have read and accept the{' '}
-                                    <Link href="/cancellation-policy" target="_blank" className="text-primary-600 underline">Cancellation Policy</Link>,{' '}
-                                    <Link href="/terms" target="_blank" className="text-primary-600 underline">Terms of Service</Link>{' '}and{' '}
-                                    <Link href="/privacy-policy" target="_blank" className="text-primary-600 underline">Privacy Policy</Link>.
-                                </Text>
-                            </label>
+                            {/* Important Information + policy */}
+                            <div className="px-5 py-4">
+                                <Text size="sm" weight="semibold" intent="primary" className="block mb-2">Important Information</Text>
+                                <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                                    <input type="checkbox" checked={policy} onChange={(e) => setPolicy(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-primary-600" />
+                                    <Text size="xs" intent="secondary">
+                                        I confirm I have read and accept the{' '}
+                                        <Link href="/cancellation-policy" target="_blank" className="text-primary-600 underline">Cancellation Policy</Link>,{' '}
+                                        <Link href="/terms" target="_blank" className="text-primary-600 underline">Terms of Service</Link>{' '}and{' '}
+                                        <Link href="/privacy-policy" target="_blank" className="text-primary-600 underline">Privacy Policy</Link>.
+                                    </Text>
+                                </label>
 
-                            <Button
-                                variant="premium"
-                                size="lg"
-                                className="w-full mt-4"
-                                onClick={handleProceed}
-                                loading={submitting}
-                                disabled={!canProceed}
-                            >
-                                {!schedule ? 'Unavailable' : !checkout ? 'Complete traveller details' : !policy ? 'Accept policies to continue' : 'Proceed to Payment'}
-                            </Button>
+                                <Button variant="premium" size="lg" className="w-full mt-4" onClick={handleProceed} loading={submitting} disabled={!canProceed}>
+                                    {!schedule ? 'Unavailable' : !checkout ? 'Complete Traveller Details' : !policy ? 'Accept Policies to Continue' : 'Proceed to Payments'}
+                                </Button>
 
-                            {error && <Text size="xs" intent="error" className="mt-2 block text-center" role="alert">{error}</Text>}
-                            <Text size="xs" intent="muted" className="mt-3 block text-center">🔒 You'll choose how to pay on the next step</Text>
+                                {error && <Text size="xs" intent="error" className="mt-2 block text-center" role="alert">{error}</Text>}
+                            </div>
                         </div>
-                    </Card>
+
+                        {/* Countdown */}
+                        <div className="rounded-xl bg-white shadow-sm px-5 py-3.5 flex items-center justify-between gap-3">
+                            <div>
+                                <Text size="sm" weight="semibold" intent="primary" className="block">Complete booking in</Text>
+                                <Text size="xs" intent="muted" className="block">The package price will refresh after that</Text>
+                            </div>
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 border border-primary-200 px-3 py-1.5">
+                                <span className="h-1.5 w-1.5 rounded-full bg-primary-500 animate-pulse" />
+                                <QuoteCountdown expiresAt={quote.expires_at} onExpire={() => setExpired(true)} />
+                            </span>
+                        </div>
+                    </aside>
                 </div>
             </div>
+        </div>
+    );
+}
+
+function Section({ id, n, title, children }: { id: string; n: number; title: string; children: React.ReactNode }) {
+    return (
+        <section id={id} className="scroll-mt-24 rounded-xl bg-white shadow-sm">
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-(--border-muted)">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-600 text-xs font-bold text-white">{n}</span>
+                <Heading level={4} weight="semibold">{title}</Heading>
+            </div>
+            <div className="px-5 py-5">{children}</div>
+        </section>
+    );
+}
+
+function Feature({ n, label }: { n: number; label: string }) {
+    return <span className="text-(--text-secondary)"><span className="font-semibold text-(--text-primary)">{n}</span> {label}</span>;
+}
+
+function DayBlock({ day, dateISO }: { day: PreviewDay; dateISO: string }) {
+    return (
+        <li className="rounded-lg border border-(--border-muted) overflow-hidden">
+            <div className="flex items-center gap-2.5 bg-neutral-50 px-4 py-2.5 border-b border-(--border-muted)">
+                <span className="rounded-full bg-primary-600 px-2.5 py-0.5 text-xs font-semibold text-white">Day {day.day}</span>
+                <Text size="sm" weight="medium" intent="primary">{shortDate(dateISO)}</Text>
+                <Text size="sm" intent="secondary" className="truncate">· {day.day_title}</Text>
+            </div>
+            <div className="px-4 py-3 flex flex-col gap-2">
+                {day.transfers?.map((t, i) => (
+                    <Row key={`t${i}`} tag="Transfer" text={`${t.pickup_name ?? '—'} → ${t.drop_name ?? '—'}`} />
+                ))}
+                {day.hotel && (
+                    <Row tag="Stay" text={`${day.hotel.hotel_name}${day.hotel.room_name ? ` · ${day.hotel.room_name}` : ''}${day.hotel.plan_name ? ` · ${day.hotel.plan_name}` : ''}`} />
+                )}
+                {day.meals && day.meals.length > 0 && (
+                    <Row tag="Meals" text={day.meals.map((m) => m.label).join(', ')} />
+                )}
+                {day.activities?.map((a, i) => (
+                    <Row key={`a${i}`} tag="Activity" text={a.name} muted={a.is_optional} suffix={a.is_optional ? 'optional' : undefined} />
+                ))}
+            </div>
+        </li>
+    );
+}
+
+function Row({ tag, text, muted, suffix }: { tag: string; text: string; muted?: boolean; suffix?: string }) {
+    return (
+        <div className="flex gap-3 text-sm">
+            <span className="w-20 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-(--text-muted) pt-0.5">{tag}</span>
+            <span className={muted ? 'text-(--text-muted)' : 'text-(--text-primary)'}>
+                {text}{suffix && <span className="ml-1.5 text-[11px] text-amber-600">({suffix})</span>}
+            </span>
         </div>
     );
 }
@@ -301,15 +384,15 @@ export default function BookReview({
 function PayOption({ selected, onSelect, title, amount, sub }: { selected: boolean; onSelect: () => void; title: string; amount: string; sub: string }) {
     return (
         <button type="button" onClick={onSelect}
-            className={`w-full text-left rounded-xl border px-4 py-3.5 transition ${selected ? 'border-primary-500 ring-2 ring-primary-200 bg-primary-50/60' : 'border-(--border-muted) hover:border-primary-300'}`}>
-            <div className="flex items-center gap-3">
-                <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${selected ? 'border-primary-600' : 'border-neutral-300'}`}>
-                    {selected && <span className="h-2 w-2 rounded-full bg-primary-600" />}
+            className={`w-full text-left rounded-lg border px-3 py-2.5 transition ${selected ? 'border-primary-500 ring-2 ring-primary-200 bg-primary-50/60' : 'border-(--border-muted) hover:border-primary-300'}`}>
+            <div className="flex items-center gap-2.5">
+                <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${selected ? 'border-primary-600' : 'border-neutral-300'}`}>
+                    {selected && <span className="h-1.5 w-1.5 rounded-full bg-primary-600" />}
                 </span>
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                         <Text size="sm" weight="semibold" intent="primary">{title}</Text>
-                        <Text size="lg" weight="bold" intent="primary" className="font-heading">{amount}</Text>
+                        <Text size="sm" weight="bold" intent="primary">{amount}</Text>
                     </div>
                     <Text size="xs" intent="muted" className="block mt-0.5">{sub}</Text>
                 </div>

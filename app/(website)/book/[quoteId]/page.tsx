@@ -77,7 +77,27 @@ export default async function BookQuotePage({
             getPaymentScheduleForQuote(quote.id),
             db.package_quote.findUnique({ where: { id: quote.id }, select: { breakdown: true } }),
         ]);
-        const itinerary = ((quoteRow?.breakdown as { days?: unknown } | null)?.days ?? []) as PreviewDay[];
+        // The stored breakdown carries internal costs (room/cab/activity prices,
+        // margins). Project ONLY display-safe inclusion fields for the browser —
+        // never ship pricing/margins to the client.
+        type RawDay = {
+            day: number; day_title: string;
+            hotel?: { hotel_name?: string; room_name?: string | null; plan_name?: string | null } | null;
+            meals?: { label: string }[];
+            activities?: { name: string; is_optional: boolean }[];
+            transfers?: { pickup_name?: string | null; drop_name?: string | null }[];
+        };
+        const rawDays = ((quoteRow?.breakdown as { days?: RawDay[] } | null)?.days ?? []);
+        const itinerary: PreviewDay[] = rawDays.map((d) => ({
+            day: d.day,
+            day_title: d.day_title,
+            hotel: d.hotel
+                ? { hotel_name: d.hotel.hotel_name ?? '', room_name: d.hotel.room_name ?? null, plan_name: d.hotel.plan_name ?? null }
+                : null,
+            meals: (d.meals ?? []).map((m) => ({ label: m.label })),
+            activities: (d.activities ?? []).map((a) => ({ name: a.name, is_optional: a.is_optional })),
+            transfers: (d.transfers ?? []).map((t) => ({ pickup_name: t.pickup_name ?? null, drop_name: t.drop_name ?? null })),
+        }));
 
         const R2 = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? '';
         const thumbnail = pkg?.thumbnail

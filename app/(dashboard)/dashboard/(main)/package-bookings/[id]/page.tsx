@@ -21,6 +21,12 @@ function fmtDateTime(d: Date | null): string {
     return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(d);
 }
 const titleCase = (s: string) => s.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+function addNightsISO(iso: string, n: number): string {
+    const d = new Date(`${iso}T00:00:00`);
+    d.setDate(d.getDate() + n);
+    return d.toISOString().slice(0, 10);
+}
 
 function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
     return (
@@ -44,11 +50,11 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 // Minimal shape of the (enriched) FullPricingBreakdown snapshot we render for ops.
-type SnapHotel = { hotel_id: number; room_pricing_id: number; room_id: number | null; hotel_name: string; room_name: string | null; plan_name: string | null; occupancy_selected: number; rooms_count: number; num_nights: number };
-type SnapActivity = { id: number; variant_id: number | null; variant_label: string | null; name: string; is_optional: boolean };
+type SnapHotel = { hotel_id: number; room_pricing_id: number; room_id: number | null; hotel_name: string; hotel_city: string | null; hotel_state: string | null; hotel_address: string | null; check_in_time: string | null; check_out_time: string | null; room_name: string | null; plan_name: string | null; occupancy_selected: number; rooms_count: number; num_nights: number; price_per_room: number; total: number };
+type SnapActivity = { id: number; variant_id: number | null; variant_label: string | null; name: string; is_optional: boolean; pricing_type?: string; adult_price?: number; child_price?: number; infant_price?: number; adult_count?: number; child_count?: number; infant_count?: number; total?: number };
 type SnapTransfer = { id: number; route_id: number | null; vehicle_id: number | null; pickup_name: string | null; drop_name: string | null; vehicle_name: string | null };
 type SnapDay = { day: number; day_title: string; day_date: string | null; hotel: SnapHotel | null; meals: { label: string }[]; activities: SnapActivity[]; transfers: SnapTransfer[] };
-type SnapCab = { day_from: number; day_to: number; cab_type_id: number; vehicle_id: number; vehicle_name: string; vehicle_capacity: number; upgraded: boolean };
+type SnapCab = { day_from: number; day_to: number; cab_type_id: number; vehicle_id: number; vehicle_name: string; vehicle_capacity: number; upgraded: boolean; pricing_type?: string; price_used?: number; total?: number; km?: number; days?: number; destination_name?: string };
 type Snapshot = { days?: SnapDay[]; cab_segments?: SnapCab[] };
 
 const ref = (label: string, id: number | null | undefined) => (id == null ? null : <span className="text-[11px] text-dashboard-neutral/80">{label} #{id}</span>);
@@ -70,13 +76,26 @@ function BookedItinerary({ snapshot }: { snapshot: Snapshot }) {
                     </div>
 
                     {d.hotel && (
-                        <div className="mt-2 text-sm">
-                            <span className="text-dashboard-neutral">🏨 </span>
-                            <span className="text-dashboard-base-content">{d.hotel.hotel_name}</span>
-                            {d.hotel.room_name && <span className="text-dashboard-neutral"> · {d.hotel.room_name}</span>}
-                            {d.hotel.plan_name && <span className="text-dashboard-neutral"> · {d.hotel.plan_name}</span>}
-                            <span className="text-dashboard-neutral"> · {d.hotel.rooms_count} room{d.hotel.rooms_count !== 1 ? "s" : ""} · {d.hotel.num_nights}N</span>
-                            <span className="ml-2">{ref("hotel", d.hotel.hotel_id)} {ref("rate", d.hotel.room_pricing_id)} {ref("room", d.hotel.room_id)}</span>
+                        <div className="mt-2 text-sm leading-relaxed">
+                            <div>
+                                <span className="text-dashboard-neutral">🏨 </span>
+                                <span className="font-medium text-dashboard-base-content">{d.hotel.hotel_name}</span>
+                                {(d.hotel.hotel_city || d.hotel.hotel_state) && (
+                                    <span className="text-dashboard-neutral"> · {[d.hotel.hotel_city, d.hotel.hotel_state].filter(Boolean).join(", ")}</span>
+                                )}
+                                <span className="ml-2">{ref("hotel", d.hotel.hotel_id)} {ref("rate", d.hotel.room_pricing_id)} {ref("room", d.hotel.room_id)}</span>
+                            </div>
+                            <div className="text-dashboard-neutral">
+                                {d.hotel.room_name}{d.hotel.plan_name ? ` · ${d.hotel.plan_name}` : ""} · {d.hotel.rooms_count} room{d.hotel.rooms_count !== 1 ? "s" : ""} · {d.hotel.num_nights} night{d.hotel.num_nights !== 1 ? "s" : ""}
+                            </div>
+                            <div className="text-dashboard-base-content">
+                                {inr(d.hotel.price_per_room)}/room/night × {d.hotel.rooms_count} × {d.hotel.num_nights} = <span className="font-medium">{inr(d.hotel.total)}</span>
+                            </div>
+                            {d.day_date && (
+                                <div className="text-dashboard-neutral">
+                                    Check-in {fmtDate(new Date(`${d.day_date}T00:00:00`))}{d.hotel.check_in_time ? ` · ${d.hotel.check_in_time}` : ""} → Check-out {fmtDate(new Date(`${addNightsISO(d.day_date, d.hotel.num_nights)}T00:00:00`))}{d.hotel.check_out_time ? ` · ${d.hotel.check_out_time}` : ""}
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -84,11 +103,19 @@ function BookedItinerary({ snapshot }: { snapshot: Snapshot }) {
                         <ul className="mt-1.5 flex flex-col gap-1">
                             {d.activities.map((a) => (
                                 <li key={a.id} className="text-sm">
-                                    <span className="text-dashboard-neutral">🎟 </span>
-                                    <span className="text-dashboard-base-content">{a.name}</span>
-                                    {a.variant_label && <span className="text-dashboard-neutral"> · {a.variant_label}</span>}
-                                    <span className={`ml-1.5 text-[11px] ${a.is_optional ? "text-amber-600" : "text-green-600"}`}>{a.is_optional ? "optional" : "included"}</span>
-                                    <span className="ml-2">{ref("activity", a.id)} {ref("variant", a.variant_id)}</span>
+                                    <div>
+                                        <span className="text-dashboard-neutral">🎟 </span>
+                                        <span className="text-dashboard-base-content">{a.name}</span>
+                                        {a.variant_label && <span className="text-dashboard-neutral"> · {a.variant_label}</span>}
+                                        <span className={`ml-1.5 text-[11px] ${a.is_optional ? "text-amber-600" : "text-green-600"}`}>{a.is_optional ? "optional" : "included"}</span>
+                                        <span className="ml-2">{ref("activity", a.id)} {ref("variant", a.variant_id)}</span>
+                                    </div>
+                                    {(a.total != null || a.adult_price != null) && (
+                                        <div className="ml-5 text-xs text-dashboard-neutral">
+                                            {a.adult_price != null && <>{inr(a.adult_price)}/adult{a.child_price ? ` · ${inr(a.child_price)}/child` : ""} </>}
+                                            {a.total != null && <span className="text-dashboard-base-content">{a.is_optional ? `(${inr(a.total || a.adult_price || 0)} on request)` : `= ${inr(a.total)}`}</span>}
+                                        </div>
+                                    )}
                                 </li>
                             ))}
                         </ul>
@@ -118,9 +145,18 @@ function BookedItinerary({ snapshot }: { snapshot: Snapshot }) {
                     <div className="text-xs uppercase tracking-wide text-dashboard-neutral mb-2">Cabs</div>
                     <ul className="flex flex-col gap-1">
                         {cabs.map((c, i) => (
-                            <li key={i} className="text-sm text-dashboard-base-content">
-                                Day {c.day_from}–{c.day_to}: {c.vehicle_name} ({c.vehicle_capacity}-seater){c.upgraded ? " · upgraded" : ""}
-                                <span className="ml-2">{ref("cabType", c.cab_type_id)} {ref("vehicle", c.vehicle_id)}</span>
+                            <li key={i} className="text-sm">
+                                <div className="text-dashboard-base-content">
+                                    Day {c.day_from}–{c.day_to}: {c.vehicle_name} ({c.vehicle_capacity}-seater){c.upgraded ? " · upgraded" : ""}
+                                    {c.destination_name ? <span className="text-dashboard-neutral"> · {c.destination_name}</span> : null}
+                                    <span className="ml-2">{ref("cabType", c.cab_type_id)} {ref("vehicle", c.vehicle_id)}</span>
+                                </div>
+                                {(c.total != null || c.price_used != null) && (
+                                    <div className="text-xs text-dashboard-neutral">
+                                        {c.price_used != null && <>{inr(c.price_used)}/{c.pricing_type === "PER_KM" ? "km" : "day"}{c.km ? ` · ${c.km} km` : ""} </>}
+                                        {c.total != null && <span className="text-dashboard-base-content">= {inr(c.total)}</span>}
+                                    </div>
+                                )}
                             </li>
                         ))}
                     </ul>

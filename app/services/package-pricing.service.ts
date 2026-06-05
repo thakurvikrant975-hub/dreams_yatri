@@ -23,6 +23,11 @@ export type DayHotelLine = {
   room_id: number | null;
   occupancy_selected: number; // occupancy tier the price was resolved at
   hotel_name: string;
+  hotel_city: string | null;
+  hotel_state: string | null;
+  hotel_address: string | null;
+  check_in_time: string | null;
+  check_out_time: string | null;
   room_name: string | null;
   plan_name: string | null;
   bed_capacity: number;       // people who sleep on standard beds (max_occupancy)
@@ -348,6 +353,11 @@ export async function computePackagePrice(
                   select: {
                     id: true,
                     name: true,
+                    city: true,
+                    state: true,
+                    address: true,
+                    check_in_time: true,
+                    check_out_time: true,
                   },
                 },
                 extra_bed_rate: true,
@@ -733,6 +743,11 @@ export async function computePackagePrice(
         room_id: stay.room_pricing.room?.id ?? null,
         occupancy_selected: typicalOccupancy,
         hotel_name: stay.room_pricing.hotel.name,
+        hotel_city: stay.room_pricing.hotel.city ?? null,
+        hotel_state: stay.room_pricing.hotel.state ?? null,
+        hotel_address: stay.room_pricing.hotel.address ?? null,
+        check_in_time: stay.room_pricing.hotel.check_in_time ?? null,
+        check_out_time: stay.room_pricing.hotel.check_out_time ?? null,
         room_name: stay.room_pricing.room?.name ?? null,
         plan_name: stay.room_pricing.plan_name,
         bed_capacity: bedCapacity,
