@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { confirmHotelStay } from "../actions";
 
-type Hotel = { id: number; name: string; category: string | null; city: string | null; destination_id: number };
+type Hotel = { id: number; name: string; category: string | null; city: string | null; address: string | null; destination_id: number };
 
 export default function HotelConfirmPanel({
     bookingId, dayNumber, defaultHotelId, cityName,
@@ -126,13 +126,19 @@ export default function HotelConfirmPanel({
                                         : "text-dashboard-base-content hover:bg-dashboard-base-200"
                                 }`}
                             >
-                                {h.name}
-                                {h.city && <span className="ml-1.5 text-xs text-dashboard-neutral">{h.city}</span>}
-                                {h.category && <span className="ml-1.5 text-xs text-dashboard-neutral">· {h.category}</span>}
-                                {h.id === defaultHotelId && (
-                                    <span className="ml-2 rounded bg-dashboard-secondary/15 px-1.5 py-0.5 text-[10px] text-dashboard-secondary">
-                                        booked
-                                    </span>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span>{h.name}</span>
+                                    {h.category && <span className="text-xs text-dashboard-neutral">· {h.category}</span>}
+                                    {h.id === defaultHotelId && (
+                                        <span className="rounded bg-dashboard-secondary/15 px-1.5 py-0.5 text-[10px] text-dashboard-secondary">
+                                            booked
+                                        </span>
+                                    )}
+                                </div>
+                                {(h.city || h.address) && (
+                                    <div className="mt-0.5 text-xs text-dashboard-neutral truncate">
+                                        {[h.address, h.city].filter(Boolean).join(", ")}
+                                    </div>
                                 )}
                             </button>
                         ))

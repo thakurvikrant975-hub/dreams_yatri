@@ -91,7 +91,7 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
             : Promise.resolve([]),
         db.hotels.findMany({
             where: { is_active: true },
-            select: { id: true, name: true, category: true, city: true, destination_id: true },
+            select: { id: true, name: true, category: true, city: true, address: true, destination_id: true },
             orderBy: { name: "asc" },
             take: 300,
         }),
