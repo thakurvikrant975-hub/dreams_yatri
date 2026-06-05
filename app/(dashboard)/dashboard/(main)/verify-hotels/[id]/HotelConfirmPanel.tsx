@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { confirmHotelStay } from "../actions";
 
-type Hotel = { id: number; name: string; category: string | null; city: string | null; address: string | null; destination_id: number };
+type Hotel = { id: number; name: string; category: string | null; city: string | null; state: string | null; address: string | null; destination_id: number };
 
 export default function HotelConfirmPanel({
     bookingId, dayNumber, defaultHotelId, cityName,
@@ -135,9 +135,11 @@ export default function HotelConfirmPanel({
                                         </span>
                                     )}
                                 </div>
-                                {(h.city || h.address) && (
+                                {(h.address || h.city || h.state) && (
                                     <div className="mt-0.5 text-xs text-dashboard-neutral truncate">
-                                        {[h.address, h.city].filter(Boolean).join(", ")}
+                                        {h.address
+                                            ? [h.address, h.city, h.state].filter(Boolean).join(", ")
+                                            : [h.city, h.state].filter(Boolean).join(", ")}
                                     </div>
                                 )}
                             </button>
