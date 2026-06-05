@@ -102,14 +102,14 @@ export default async function VerifyHotelsPage({
                 />
                 <button
                     type="submit"
-                    className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-100 px-4 py-2 text-sm text-dashboard-base-content hover:bg-dashboard-base-200 transition-colors"
+                    className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-100 px-4 py-2 text-sm text-dashboard-base-content hover:bg-dashboard-base-200 transition-colors cursor-pointer"
                 >
                     Search
                 </button>
                 {search && (
                     <Link
                         href="/dashboard/verify-hotels"
-                        className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-100 px-4 py-2 text-sm text-dashboard-neutral hover:bg-dashboard-base-200 transition-colors"
+                        className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-100 px-4 py-2 text-sm text-dashboard-neutral hover:bg-dashboard-base-200 transition-colors cursor-pointer"
                     >
                         Clear
                     </Link>
@@ -171,11 +171,13 @@ export default async function VerifyHotelsPage({
                                             <PaymentPill status={b.paymentStatus} />
                                         </td>
                                         <td className="px-4 py-3 text-center">
-                                            <span className={`inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                                                pending === 0
-                                                    ? "bg-green-100 text-green-700"
-                                                    : "bg-amber-100 text-amber-700"
-                                            }`}>
+                                            <span
+                                                className="inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                                                style={pending === 0
+                                                    ? { backgroundColor: "color-mix(in oklch, var(--color-dashboard-success) 15%, white)", color: "var(--color-dashboard-success)" }
+                                                    : { backgroundColor: "color-mix(in oklch, var(--color-dashboard-warning) 15%, white)", color: "var(--color-dashboard-warning-content)" }
+                                                }
+                                            >
                                                 {pending} / {total} left
                                             </span>
                                         </td>

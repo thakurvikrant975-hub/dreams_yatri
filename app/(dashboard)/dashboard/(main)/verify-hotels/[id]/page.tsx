@@ -12,22 +12,12 @@ export const metadata: Metadata = {
 };
 
 type SnapHotel = {
-    hotel_id: number;
-    room_pricing_id: number;
-    room_id: number | null;
-    hotel_name: string;
-    hotel_city: string | null;
-    hotel_state: string | null;
-    hotel_address: string | null;
-    check_in_time: string | null;
-    check_out_time: string | null;
-    room_name: string | null;
-    plan_name: string | null;
-    occupancy_selected: number;
-    rooms_count: number;
-    num_nights: number;
-    price_per_room: number;
-    total: number;
+    hotel_id: number; room_pricing_id: number; room_id: number | null;
+    hotel_name: string; hotel_city: string | null; hotel_state: string | null; hotel_address: string | null;
+    check_in_time: string | null; check_out_time: string | null;
+    room_name: string | null; plan_name: string | null;
+    occupancy_selected: number; rooms_count: number; num_nights: number;
+    price_per_room: number; total: number;
 };
 type SnapDay = { day: number; day_title: string; day_date: string | null; hotel: SnapHotel | null; meals: { label: string }[] };
 type Snapshot = { days?: SnapDay[] };
@@ -46,7 +36,6 @@ function addDays(dateStr: string, n: number): string {
     d.setDate(d.getDate() + n);
     return d.toISOString().split("T")[0];
 }
-const fmt = (n: number) => `₹${Number(n).toLocaleString("en-IN")}`;
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
     return (
@@ -55,6 +44,10 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
             <dd className="mt-0.5 text-sm text-dashboard-base-content">{value ?? "—"}</dd>
         </div>
     );
+}
+
+function Dot() {
+    return <span className="text-dashboard-base-300 select-none">·</span>;
 }
 
 export default async function VerifyHotelDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -84,19 +77,18 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
     const snapshot = (booking.priceSnapshot ?? {}) as Snapshot;
     const hotelDays = (snapshot.days ?? []).filter((d): d is SnapDay & { hotel: SnapHotel } => d.hotel !== null);
 
-    // Fetch hotel contacts + room details in parallel
     const uniqueHotelIds = [...new Set(hotelDays.map((d) => d.hotel.hotel_id))];
-    const uniqueRoomIds = [...new Set(hotelDays.map((d) => d.hotel.room_id).filter((id): id is number => id !== null))];
+    const uniqueRoomIds = [...new Set(hotelDays.map((d) => d.hotel.room_id).filter((x): x is number => x !== null))];
 
     const [hotelDetailsList, roomDetailsList, allHotels] = await Promise.all([
         db.hotels.findMany({
             where: { id: { in: uniqueHotelIds } },
-            select: { id: true, business_phone: true, business_email: true, address: true, category: true },
+            select: { id: true, business_phone: true, business_email: true, category: true },
         }),
         uniqueRoomIds.length > 0
             ? db.hotel_rooms.findMany({
                   where: { id: { in: uniqueRoomIds } },
-                  select: { id: true, name: true, bed_type: true, max_occupancy: true, area_sqft: true, view_type: true },
+                  select: { id: true, bed_type: true, max_occupancy: true, area_sqft: true, view_type: true },
               })
             : Promise.resolve([]),
         db.hotels.findMany({
@@ -118,7 +110,7 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
 
     return (
         <div className="flex flex-col gap-5">
-            <Link href="/dashboard/verify-hotels" className="text-sm text-dashboard-neutral hover:text-dashboard-primary">
+            <Link href="/dashboard/verify-hotels" className="text-sm text-dashboard-neutral hover:text-dashboard-primary cursor-pointer">
                 ← Back to verify hotels
             </Link>
 
@@ -133,7 +125,7 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                     <PaymentPill status={booking.paymentStatus} />
                     <Link
                         href={`/dashboard/package-bookings/${booking.id}`}
-                        className="rounded-md border border-dashboard-base-300 px-3 py-1.5 text-sm text-dashboard-base-content hover:bg-dashboard-base-200 transition-colors"
+                        className="rounded-md border border-dashboard-base-300 px-3 py-1.5 text-sm text-dashboard-base-content hover:bg-dashboard-base-200 transition-colors cursor-pointer"
                     >
                         Full booking →
                     </Link>
@@ -141,25 +133,27 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
             </div>
 
             {/* Progress bar */}
-            <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 px-5 py-4">
+            <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 px-5 py-3.5">
                 <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-dashboard-base-content">Confirmation Progress</span>
-                    <span className="text-sm text-dashboard-neutral">{confirmedCount} of {totalCount} hotel stay{totalCount !== 1 ? "s" : ""} confirmed</span>
+                    <span className="text-sm text-dashboard-neutral">{confirmedCount} / {totalCount} confirmed</span>
                 </div>
-                <div className="h-2 rounded-full bg-dashboard-base-300 overflow-hidden">
+                <div className="h-1.5 rounded-full bg-dashboard-base-300 overflow-hidden">
                     <div
-                        className={`h-2 rounded-full transition-all ${pct === 100 ? "bg-green-500" : "bg-dashboard-primary"}`}
-                        style={{ width: `${pct}%` }}
+                        className="h-1.5 rounded-full transition-all"
+                        style={{ width: `${pct}%`, backgroundColor: pct === 100 ? "var(--color-dashboard-success)" : "var(--color-dashboard-primary)" }}
                     />
                 </div>
                 {pct === 100 && (
-                    <p className="mt-1.5 text-xs text-green-600 font-medium">All hotel stays confirmed — booking will be moved to Hotel Confirmed.</p>
+                    <p className="mt-1.5 text-xs font-medium" style={{ color: "var(--color-dashboard-success)" }}>
+                        All stays confirmed — booking will advance to Hotel Confirmed.
+                    </p>
                 )}
             </div>
 
             <div className="grid gap-5 lg:grid-cols-3 items-start">
                 {/* Hotel cards */}
-                <div className="lg:col-span-2 flex flex-col gap-4">
+                <div className="lg:col-span-2 flex flex-col gap-3">
                     {totalCount === 0 ? (
                         <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 px-5 py-10 text-center text-sm text-dashboard-neutral">
                             No hotel stays found in the booking itinerary snapshot.
@@ -175,125 +169,116 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                             const checkIn = d.day_date ?? null;
                             const checkOut = checkIn ? addDays(checkIn, snap.num_nights) : null;
 
+                            const roomChips = [
+                                snap.room_name,
+                                snap.plan_name,
+                                room?.bed_type ? `${room.bed_type} bed` : null,
+                                room?.max_occupancy ? `Max ${room.max_occupancy} guests` : null,
+                                room?.area_sqft ? `${room.area_sqft} sqft` : null,
+                                room?.view_type ? `${room.view_type} view` : null,
+                            ].filter(Boolean) as string[];
+
                             return (
                                 <div
                                     key={d.day}
-                                    className={`rounded-xl border overflow-hidden ${isConfirmed ? "border-green-200" : "border-dashboard-base-300"}`}
+                                    className="rounded-xl border bg-dashboard-base-100 overflow-hidden"
+                                    style={{ borderColor: isConfirmed ? "var(--color-dashboard-success)" : "var(--color-dashboard-base-300)", opacity: 1 }}
                                 >
-                                    {/* Card top bar */}
-                                    <div className={`flex items-center justify-between px-4 py-2.5 border-b ${isConfirmed ? "bg-green-50 border-green-200" : "bg-dashboard-base-200/50 border-dashboard-base-300"}`}>
-                                        <div className="flex items-center gap-2">
-                                            <span className="rounded bg-dashboard-primary px-2 py-0.5 text-[11px] font-bold text-white">Day {d.day}</span>
-                                            <span className="text-sm font-medium text-dashboard-base-content">{d.day_title}</span>
-                                            <span className="text-xs text-dashboard-neutral">· {snap.num_nights} night{snap.num_nights !== 1 ? "s" : ""}</span>
+                                    {/* Top bar */}
+                                    <div
+                                        className="flex items-center justify-between px-4 py-2 border-b"
+                                        style={{
+                                            backgroundColor: isConfirmed ? "color-mix(in oklch, var(--color-dashboard-success) 10%, white)" : "var(--color-dashboard-base-200)",
+                                            borderColor: isConfirmed ? "color-mix(in oklch, var(--color-dashboard-success) 20%, white)" : "var(--color-dashboard-base-300)",
+                                        }}
+                                    >
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <span className="shrink-0 rounded bg-dashboard-primary px-2 py-0.5 text-[11px] font-bold text-dashboard-primary-content">Day {d.day}</span>
+                                            <span className="text-sm font-medium text-dashboard-base-content truncate">{d.day_title}</span>
+                                            <Dot />
+                                            <span className="shrink-0 text-xs text-dashboard-neutral">{snap.num_nights}N</span>
                                         </div>
                                         {isConfirmed ? (
-                                            <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-[11px] font-semibold text-green-700">✓ Confirmed</span>
+                                            <span className="shrink-0 ml-2 rounded-full px-2.5 py-0.5 text-[11px] font-semibold" style={{ backgroundColor: "color-mix(in oklch, var(--color-dashboard-success) 15%, white)", color: "var(--color-dashboard-success)" }}>✓ Confirmed</span>
                                         ) : (
-                                            <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700">Pending</span>
+                                            <span className="shrink-0 ml-2 rounded-full px-2.5 py-0.5 text-[11px] font-semibold" style={{ backgroundColor: "color-mix(in oklch, var(--color-dashboard-warning) 15%, white)", color: "var(--color-dashboard-warning-content)" }}>Pending</span>
                                         )}
                                     </div>
 
-                                    <div className="p-4 flex flex-col gap-4 bg-dashboard-base-100">
-                                        {/* Hotel name + location */}
-                                        <div className="flex items-start gap-3">
-                                            <div className="shrink-0 rounded-lg bg-dashboard-primary/10 flex items-center justify-center size-10 text-xl">🏨</div>
-                                            <div>
-                                                <h3 className="font-semibold text-dashboard-base-content text-base">{snap.hotel_name}</h3>
-                                                <p className="text-sm text-dashboard-neutral mt-0.5">
-                                                    {[snap.hotel_city, snap.hotel_state, snap.hotel_address].filter(Boolean).join(", ") || "—"}
-                                                </p>
-                                                {(hotel?.business_phone || hotel?.business_email) && (
-                                                    <div className="flex flex-wrap gap-3 mt-1 text-xs text-dashboard-neutral">
-                                                        {hotel.business_phone && (
-                                                            <a href={`tel:${hotel.business_phone}`} className="hover:text-dashboard-primary">
-                                                                📞 {hotel.business_phone}
-                                                            </a>
-                                                        )}
-                                                        {hotel.business_email && (
-                                                            <a href={`mailto:${hotel.business_email}`} className="hover:text-dashboard-primary">
-                                                                ✉ {hotel.business_email}
-                                                            </a>
-                                                        )}
-                                                    </div>
+                                    <div className="px-4 py-3 flex flex-col gap-3">
+                                        {/* Hotel name + location + contacts — one row */}
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="text-sm font-semibold text-dashboard-base-content">🏨 {snap.hotel_name}</span>
+                                                    {hotel?.category && <span className="rounded bg-dashboard-base-200 px-1.5 py-0.5 text-[10px] text-dashboard-neutral">{hotel.category}</span>}
+                                                </div>
+                                                {(snap.hotel_city || snap.hotel_state) && (
+                                                    <p className="text-xs text-dashboard-neutral mt-0.5">
+                                                        {[snap.hotel_city, snap.hotel_state].filter(Boolean).join(", ")}
+                                                    </p>
                                                 )}
+                                            </div>
+                                            {(hotel?.business_phone || hotel?.business_email) && (
+                                                <div className="shrink-0 flex flex-col items-end gap-1 text-xs text-dashboard-neutral">
+                                                    {hotel.business_phone && (
+                                                        <a href={`tel:${hotel.business_phone}`} className="hover:text-dashboard-primary cursor-pointer transition-colors">
+                                                            📞 {hotel.business_phone}
+                                                        </a>
+                                                    )}
+                                                    {hotel.business_email && (
+                                                        <a href={`mailto:${hotel.business_email}`} className="hover:text-dashboard-primary cursor-pointer transition-colors">
+                                                            ✉ {hotel.business_email}
+                                                        </a>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Room to book — compact chips row */}
+                                        <div className="rounded-lg border border-dashboard-primary/20 bg-dashboard-primary/5 px-3 py-2.5">
+                                            <div className="text-[10px] uppercase tracking-widest font-bold mb-2" style={{ color: "var(--color-dashboard-primary)" }}>
+                                                Room to Book · {snap.rooms_count} room{snap.rooms_count !== 1 ? "s" : ""} · {booking.travellers} guest{booking.travellers !== 1 ? "s" : ""}
+                                            </div>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {roomChips.map((chip) => (
+                                                    <span key={chip} className="rounded-full border border-dashboard-primary/25 bg-dashboard-base-100 px-2.5 py-0.5 text-xs text-dashboard-base-content">
+                                                        {chip}
+                                                    </span>
+                                                ))}
                                             </div>
                                         </div>
 
-                                        {/* Room to book — highlighted */}
-                                        <div className="rounded-lg border border-dashboard-primary/20 bg-dashboard-primary/5 p-3.5">
-                                            <div className="text-[10px] uppercase tracking-widest text-dashboard-primary font-bold mb-3">Room to Book</div>
-                                            <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3">
-                                                <div>
-                                                    <div className="text-[11px] uppercase tracking-wide text-dashboard-neutral mb-0.5">Room Type</div>
-                                                    <div className="text-sm font-semibold text-dashboard-base-content">{snap.room_name ?? "Standard"}</div>
-                                                </div>
-                                                <div>
-                                                    <div className="text-[11px] uppercase tracking-wide text-dashboard-neutral mb-0.5">Meal Plan</div>
-                                                    <div className="text-sm font-semibold text-dashboard-base-content">{snap.plan_name ?? "—"}</div>
-                                                </div>
-                                                <div>
-                                                    <div className="text-[11px] uppercase tracking-wide text-dashboard-neutral mb-0.5">No. of Rooms</div>
-                                                    <div className="text-sm font-semibold text-dashboard-base-content">{snap.rooms_count} room{snap.rooms_count !== 1 ? "s" : ""}</div>
-                                                </div>
-                                                <div>
-                                                    <div className="text-[11px] uppercase tracking-wide text-dashboard-neutral mb-0.5">Guests</div>
-                                                    <div className="text-sm font-semibold text-dashboard-base-content">{booking.travellers} guest{booking.travellers !== 1 ? "s" : ""}</div>
-                                                </div>
-                                                {room?.bed_type && (
-                                                    <div>
-                                                        <div className="text-[11px] uppercase tracking-wide text-dashboard-neutral mb-0.5">Bed Type</div>
-                                                        <div className="text-sm font-semibold text-dashboard-base-content">{room.bed_type}</div>
-                                                    </div>
-                                                )}
-                                                {room?.max_occupancy && (
-                                                    <div>
-                                                        <div className="text-[11px] uppercase tracking-wide text-dashboard-neutral mb-0.5">Max Occupancy</div>
-                                                        <div className="text-sm font-semibold text-dashboard-base-content">{room.max_occupancy} persons</div>
-                                                    </div>
-                                                )}
-                                                {room?.area_sqft && (
-                                                    <div>
-                                                        <div className="text-[11px] uppercase tracking-wide text-dashboard-neutral mb-0.5">Room Size</div>
-                                                        <div className="text-sm font-semibold text-dashboard-base-content">{room.area_sqft} sqft</div>
-                                                    </div>
-                                                )}
-                                                {room?.view_type && (
-                                                    <div>
-                                                        <div className="text-[11px] uppercase tracking-wide text-dashboard-neutral mb-0.5">View</div>
-                                                        <div className="text-sm font-semibold text-dashboard-base-content">{room.view_type}</div>
-                                                    </div>
-                                                )}
+                                        {/* Dates + price — one compact row */}
+                                        <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-xs text-dashboard-neutral">Check-in</span>
+                                                <span className="font-medium text-dashboard-base-content">{fmtDate(checkIn)}</span>
+                                                {snap.check_in_time && <span className="text-xs text-dashboard-neutral">({snap.check_in_time})</span>}
+                                            </div>
+                                            <span className="text-dashboard-neutral">→</span>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-xs text-dashboard-neutral">Check-out</span>
+                                                <span className="font-medium text-dashboard-base-content">{fmtDate(checkOut)}</span>
+                                                {snap.check_out_time && <span className="text-xs text-dashboard-neutral">({snap.check_out_time})</span>}
+                                            </div>
+                                            <div className="ml-auto flex items-center gap-2 text-xs text-dashboard-neutral">
+                                                <span>₹{Number(snap.price_per_room).toLocaleString("en-IN")}/room</span>
+                                                <Dot />
+                                                <span className="font-semibold text-dashboard-base-content text-sm">₹{Number(snap.total).toLocaleString("en-IN")}</span>
                                             </div>
                                         </div>
 
-                                        {/* Dates */}
-                                        <div className="flex flex-wrap items-center gap-4 rounded-lg bg-dashboard-base-200/60 px-4 py-3 text-sm">
-                                            <div>
-                                                <div className="text-[11px] uppercase tracking-wide text-dashboard-neutral mb-0.5">Check-in</div>
-                                                <div className="font-semibold text-dashboard-base-content">{fmtDate(checkIn)}</div>
-                                                {snap.check_in_time && <div className="text-xs text-dashboard-neutral">by {snap.check_in_time}</div>}
+                                        {/* Confirmed info */}
+                                        {isConfirmed && confirmed && (
+                                            <div className="rounded-lg px-3 py-2 text-xs" style={{ backgroundColor: "color-mix(in oklch, var(--color-dashboard-success) 10%, white)", color: "var(--color-dashboard-success)" }}>
+                                                <span className="font-semibold">Confirmed</span> by {confirmed.confirmedBy?.name ?? "—"} · {fmtDateTime(confirmed.confirmedAt)}
+                                                {confirmed.notes && <p className="mt-0.5 opacity-80">Note: {confirmed.notes}</p>}
                                             </div>
-                                            <div className="text-dashboard-neutral text-xl">→</div>
-                                            <div>
-                                                <div className="text-[11px] uppercase tracking-wide text-dashboard-neutral mb-0.5">Check-out</div>
-                                                <div className="font-semibold text-dashboard-base-content">{fmtDate(checkOut)}</div>
-                                                {snap.check_out_time && <div className="text-xs text-dashboard-neutral">by {snap.check_out_time}</div>}
-                                            </div>
-                                            <div className="ml-auto text-right">
-                                                <div className="text-[11px] uppercase tracking-wide text-dashboard-neutral mb-0.5">Price</div>
-                                                <div className="font-semibold text-dashboard-base-content">{fmt(snap.total)}</div>
-                                                <div className="text-xs text-dashboard-neutral">{fmt(snap.price_per_room)} / room / night</div>
-                                            </div>
-                                        </div>
+                                        )}
 
-                                        {/* Confirmed info or confirm button */}
-                                        {isConfirmed && confirmed ? (
-                                            <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800">
-                                                <span className="font-medium">Confirmed</span> by {confirmed.confirmedBy?.name ?? "—"} · {fmtDateTime(confirmed.confirmedAt)}
-                                                {confirmed.notes && <p className="mt-1 text-green-700">Note: {confirmed.notes}</p>}
-                                            </div>
-                                        ) : (
+                                        {/* Confirm form */}
+                                        {!isConfirmed && (
                                             <HotelConfirmPanel
                                                 bookingId={booking.id}
                                                 dayNumber={d.day}
@@ -317,22 +302,22 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                 </div>
 
                 {/* Sidebar */}
-                <div className="flex flex-col gap-5">
+                <div className="flex flex-col gap-4">
                     <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100">
                         <div className="border-b border-dashboard-base-300 px-5 py-3">
                             <h2 className="text-sm font-semibold text-dashboard-base-content">Booking Info</h2>
                         </div>
-                        <div className="p-5">
-                            <dl className="flex flex-col gap-3">
+                        <div className="p-4">
+                            <dl className="flex flex-col gap-2.5">
                                 <Field label="Customer" value={booking.user?.name} />
-                                <Field label="Contact email" value={booking.contactEmail ?? booking.user?.email} />
-                                <Field label="Contact phone" value={booking.contactPhone} />
+                                <Field label="Email" value={booking.contactEmail ?? booking.user?.email} />
+                                <Field label="Phone" value={booking.contactPhone} />
                                 <Field label="Package" value={booking.package?.title} />
                                 <Field label="Destination" value={booking.destination?.name} />
                                 <Field label="Travel dates" value={`${fmtDate(booking.startDate)} – ${fmtDate(booking.endDate)}`} />
                                 <Field label="Duration" value={`${booking.duration} day${booking.duration !== 1 ? "s" : ""}`} />
                                 <Field label="Travellers" value={booking.travellers} />
-                                <Field label="Total amount" value={formatPaise(booking.totalAmount_paise)} />
+                                <Field label="Total" value={formatPaise(booking.totalAmount_paise)} />
                             </dl>
                         </div>
                     </div>
@@ -342,20 +327,23 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                             <div className="border-b border-dashboard-base-300 px-5 py-3">
                                 <h2 className="text-sm font-semibold text-dashboard-base-content">Hotel Summary</h2>
                             </div>
-                            <div className="p-4 flex flex-col divide-y divide-dashboard-base-300/60">
+                            <div className="divide-y divide-dashboard-base-300/60">
                                 {hotelDays.map((d) => {
                                     const c = confirmedMap.get(d.day);
                                     return (
-                                        <div key={d.day} className="flex items-start justify-between gap-2 py-2.5 first:pt-0 last:pb-0">
+                                        <div key={d.day} className="flex items-center justify-between gap-2 px-4 py-2.5">
                                             <div className="min-w-0">
-                                                <div className="flex items-center gap-1.5 text-xs text-dashboard-neutral mb-0.5">
-                                                    <span className="font-medium">Day {d.day}</span>
-                                                    <span>· {d.hotel.num_nights}N</span>
-                                                </div>
+                                                <div className="text-xs text-dashboard-neutral mb-0.5">Day {d.day} · {d.hotel.num_nights}N</div>
                                                 <div className="text-sm text-dashboard-base-content truncate">{d.hotel.hotel_name}</div>
-                                                <div className="text-xs text-dashboard-neutral truncate">{d.hotel.room_name}</div>
+                                                {d.hotel.room_name && <div className="text-xs text-dashboard-neutral truncate">{d.hotel.room_name}</div>}
                                             </div>
-                                            <span className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${c?.isConfirmed ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
+                                            <span
+                                                className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                                                style={c?.isConfirmed
+                                                    ? { backgroundColor: "color-mix(in oklch, var(--color-dashboard-success) 15%, white)", color: "var(--color-dashboard-success)" }
+                                                    : { backgroundColor: "color-mix(in oklch, var(--color-dashboard-warning) 15%, white)", color: "var(--color-dashboard-warning-content)" }
+                                                }
+                                            >
                                                 {c?.isConfirmed ? "Done" : "Pending"}
                                             </span>
                                         </div>
