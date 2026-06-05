@@ -135,19 +135,21 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
             <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 px-5 py-3.5">
                 <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-dashboard-base-content">Confirmation Progress</span>
-                    <span className="text-sm text-dashboard-neutral">{confirmedCount} / {totalCount} confirmed</span>
+                    <span className={`text-sm font-medium ${allDone ? "text-dashboard-success" : "text-dashboard-error"}`}>
+                        {confirmedCount} / {totalCount} confirmed
+                    </span>
                 </div>
-                <div className="h-1.5 rounded-full bg-dashboard-base-300 overflow-hidden">
+                <div className="h-2 rounded-full bg-dashboard-base-300 overflow-hidden">
                     <div
-                        className={`h-1.5 rounded-full transition-all duration-500 ${allDone ? "bg-dashboard-success" : "bg-dashboard-primary"}`}
+                        className={`h-2 rounded-full transition-all duration-500 ${allDone ? "bg-dashboard-success" : "bg-dashboard-error"}`}
                         style={{ width: `${pct}%` }}
                     />
                 </div>
-                {allDone && (
-                    <p className="mt-1.5 text-xs font-medium text-dashboard-success">
-                        All stays confirmed — booking will advance to Hotel Confirmed.
-                    </p>
-                )}
+                <p className={`mt-1.5 text-xs font-medium ${allDone ? "text-dashboard-success" : "text-dashboard-error"}`}>
+                    {allDone
+                        ? "✓ All stays confirmed — booking will advance to Hotel Confirmed."
+                        : `${totalCount - confirmedCount} hotel stay${totalCount - confirmedCount !== 1 ? "s" : ""} still need confirmation`}
+                </p>
             </div>
 
             <div className="grid gap-5 lg:grid-cols-3 items-start">
@@ -180,10 +182,10 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                             return (
                                 <div
                                     key={d.day}
-                                    className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 overflow-hidden"
+                                    className={`rounded-xl border overflow-hidden ${isDone ? "border-dashboard-success/30 bg-dashboard-success/5" : "border-dashboard-base-300 bg-dashboard-base-100"}`}
                                 >
                                     {/* Top bar */}
-                                    <div className={`flex items-center justify-between px-4 py-2 border-b border-dashboard-base-300 ${isDone ? "bg-dashboard-success/10" : "bg-dashboard-base-200"}`}>
+                                    <div className={`flex items-center justify-between px-4 py-2 border-b ${isDone ? "bg-dashboard-success/15 border-dashboard-success/20" : "bg-dashboard-base-200 border-dashboard-base-300"}`}>
                                         <div className="flex items-center gap-2 min-w-0">
                                             <span className="shrink-0 rounded bg-dashboard-primary px-2 py-0.5 text-[11px] font-bold text-dashboard-primary-content">
                                                 Day {d.day}
@@ -211,7 +213,7 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                                                         🏨 {snap.hotel_name}
                                                     </span>
                                                     {hotel?.category && (
-                                                        <span className="rounded bg-dashboard-base-200 px-1.5 py-0.5 text-[10px] text-dashboard-neutral">
+                                                        <span className={`rounded px-1.5 py-0.5 text-[10px] text-dashboard-neutral ${isDone ? "bg-dashboard-success/10" : "bg-dashboard-base-200"}`}>
                                                             {hotel.category}
                                                         </span>
                                                     )}
@@ -239,7 +241,7 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                                         </div>
 
                                         {/* Room to book */}
-                                        <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/60 px-3 py-2.5">
+                                        <div className={`rounded-lg border px-3 py-2.5 ${isDone ? "border-dashboard-success/20 bg-dashboard-success/8" : "border-dashboard-base-300 bg-dashboard-base-200/60"}`}>
                                             <p className="text-[10px] uppercase tracking-widest text-dashboard-neutral font-semibold mb-2">
                                                 Room to Book &nbsp;·&nbsp; {snap.rooms_count} room{snap.rooms_count !== 1 ? "s" : ""} &nbsp;·&nbsp; {booking.travellers} guest{booking.travellers !== 1 ? "s" : ""}
                                             </p>
@@ -247,7 +249,7 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                                                 {chips.map((chip) => (
                                                     <span
                                                         key={chip}
-                                                        className="rounded-full border border-dashboard-base-300 bg-dashboard-base-100 px-2.5 py-0.5 text-xs text-dashboard-base-content"
+                                                        className={`rounded-full border px-2.5 py-0.5 text-xs text-dashboard-base-content ${isDone ? "border-dashboard-success/20 bg-dashboard-base-100" : "border-dashboard-base-300 bg-dashboard-base-100"}`}
                                                     >
                                                         {chip}
                                                     </span>
@@ -256,7 +258,7 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                                         </div>
 
                                         {/* Dates + price */}
-                                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg bg-dashboard-base-200/50 px-3 py-2.5 text-sm">
+                                        <div className={`flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg px-3 py-2.5 text-sm ${isDone ? "bg-dashboard-success/8" : "bg-dashboard-base-200/50"}`}>
                                             <div className="flex items-center gap-1.5">
                                                 <span className="text-[11px] text-dashboard-neutral">Check-in</span>
                                                 <span className="font-medium text-dashboard-base-content">{fmtDate(checkIn)}</span>

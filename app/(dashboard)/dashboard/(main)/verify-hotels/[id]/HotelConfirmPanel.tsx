@@ -73,12 +73,14 @@ export default function HotelConfirmPanel({
 
     if (!open) {
         return (
-            <button
-                onClick={() => setOpen(true)}
-                className="w-full cursor-pointer rounded-lg bg-dashboard-primary px-4 py-2 text-sm font-medium text-dashboard-primary-content transition-colors hover:bg-dashboard-primary/90"
-            >
-                Confirm Hotel
-            </button>
+            <div className="flex items-center justify-end">
+                <button
+                    onClick={() => setOpen(true)}
+                    className="w-fit cursor-pointer rounded-lg bg-dashboard-primary px-4 py-2 text-sm font-medium text-dashboard-primary-content transition-colors hover:bg-dashboard-primary/90"
+                >
+                    Confirm Hotel
+                </button>
+            </div>
         );
     }
 
