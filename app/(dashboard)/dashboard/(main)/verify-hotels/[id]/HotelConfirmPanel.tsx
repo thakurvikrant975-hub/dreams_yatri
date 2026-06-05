@@ -76,7 +76,7 @@ export default function HotelConfirmPanel({
             <div className="flex items-center justify-end">
                 <button
                     onClick={() => setOpen(true)}
-                    className="w-fit cursor-pointer rounded-lg bg-dashboard-primary px-4 py-2 text-sm font-medium text-dashboard-primary-content transition-colors hover:bg-dashboard-primary/90"
+                    className="w-fit cursor-pointer rounded-lg bg-green-700 px-4 py-2 text-sm font-medium text-dashboard-primary-content transition-colors hover:bg-green-700/90"
                 >
                     Confirm Hotel
                 </button>
