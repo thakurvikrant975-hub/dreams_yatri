@@ -73,10 +73,10 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
     if (!booking) notFound();
 
     const snapshot = (booking.priceSnapshot ?? {}) as Snapshot;
-    const hotelDays = (snapshot.days ?? []).filter((d): d is SnapDay & { hotel: SnapHotel } => d.hotel !== null);
+    const hotelDays = (snapshot.days ?? []).filter((d): d is SnapDay & { hotel: SnapHotel } => d.hotel != null && d.hotel.hotel_id != null);
 
-    const uniqueHotelIds = [...new Set(hotelDays.map((d) => d.hotel.hotel_id))];
-    const uniqueRoomIds = [...new Set(hotelDays.map((d) => d.hotel.room_id).filter((x): x is number => x !== null))];
+    const uniqueHotelIds = [...new Set(hotelDays.map((d) => d.hotel.hotel_id).filter((x): x is number => x != null))];
+    const uniqueRoomIds  = [...new Set(hotelDays.map((d) => d.hotel.room_id).filter((x): x is number => x != null))];
 
     const [hotelDetailsList, roomDetailsList, allHotels] = await Promise.all([
         db.hotels.findMany({
