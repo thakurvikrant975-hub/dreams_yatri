@@ -3,26 +3,42 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { confirmHotelBooking } from "../actions";
+import { confirmHotelStay } from "../actions";
 
 type Hotel = { id: number; name: string; category: string | null; city: string | null; destination_id: number };
 
 const btn = "rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
 
 export default function HotelConfirmPanel({
-    bookingHotelId,
-    currentHotelId,
+    bookingId,
+    dayNumber,
+    defaultHotelId,
+    cityName,
+    checkInDate,
+    checkOutDate,
+    roomType,
+    roomsCount,
+    ratePerRoom,
+    totalCost,
     destinationHotels,
     allHotels,
 }: {
-    bookingHotelId: string;
-    currentHotelId: number;
+    bookingId: string;
+    dayNumber: number;
+    defaultHotelId: number;
+    cityName: string;
+    checkInDate: string;
+    checkOutDate: string;
+    roomType: string;
+    roomsCount: number;
+    ratePerRoom: number;
+    totalCost: number;
     destinationHotels: Hotel[];
     allHotels: Hotel[];
 }) {
     const router = useRouter();
     const [open, setOpen] = useState(false);
-    const [selectedHotelId, setSelectedHotelId] = useState<number>(currentHotelId);
+    const [selectedHotelId, setSelectedHotelId] = useState<number>(defaultHotelId);
     const [notes, setNotes] = useState("");
     const [confirming, setConfirming] = useState(false);
     const [search, setSearch] = useState("");
@@ -43,14 +59,23 @@ export default function HotelConfirmPanel({
         setOpen(false);
         setSearch("");
         setNotes("");
-        setSelectedHotelId(currentHotelId);
+        setSelectedHotelId(defaultHotelId);
         setShowAll(false);
     }
 
     async function handleConfirm() {
         setConfirming(true);
         try {
-            const res = await confirmHotelBooking(bookingHotelId, selectedHotelId, notes);
+            const res = await confirmHotelStay(bookingId, dayNumber, selectedHotelId, {
+                cityName,
+                checkInDate,
+                checkOutDate,
+                roomType,
+                roomsCount,
+                ratePerRoom,
+                totalCost,
+                notes,
+            });
             if (!res.success) {
                 toast.error(res.error);
                 return;
@@ -79,8 +104,10 @@ export default function HotelConfirmPanel({
     }
 
     return (
-        <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-100 p-4">
-            <div className="text-sm font-semibold text-dashboard-base-content mb-4">Confirm Hotel Stay</div>
+        <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-100 p-4 mt-3">
+            <div className="text-sm font-semibold text-dashboard-base-content mb-4">
+                Confirm Hotel — Day {dayNumber} · {cityName}
+            </div>
 
             {/* Hotel selection */}
             <div className="mb-4">
@@ -91,7 +118,7 @@ export default function HotelConfirmPanel({
                         onClick={() => { setShowAll((v) => !v); setSearch(""); }}
                         className="text-xs text-dashboard-primary hover:underline"
                     >
-                        {showAll ? "Show destination only" : "Show all hotels"}
+                        {showAll ? "Destination only" : "Show all hotels"}
                     </button>
                 </div>
 
@@ -99,7 +126,7 @@ export default function HotelConfirmPanel({
                     type="text"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder={`Search in ${showAll ? "all hotels" : "destination hotels"}…`}
+                    placeholder={showAll ? "Search all hotels…" : "Search destination hotels…"}
                     className="w-full rounded-md border border-dashboard-base-300 bg-dashboard-base-100 px-3 py-2 text-sm text-dashboard-base-content placeholder:text-dashboard-neutral outline-none focus:border-dashboard-primary mb-2"
                 />
 
@@ -121,22 +148,17 @@ export default function HotelConfirmPanel({
                                 <span className="font-medium">{h.name}</span>
                                 {h.city && <span className="ml-1.5 text-xs text-dashboard-neutral">{h.city}</span>}
                                 {h.category && <span className="ml-1.5 text-xs text-dashboard-neutral">· {h.category}</span>}
-                                {h.id === currentHotelId && (
-                                    <span className="ml-2 text-[10px] bg-blue-100 text-blue-600 rounded px-1 py-0.5">booked</span>
+                                {h.id === defaultHotelId && (
+                                    <span className="ml-2 text-[10px] bg-blue-100 text-blue-600 rounded px-1.5 py-0.5">originally booked</span>
                                 )}
                             </button>
                         ))
                     )}
                 </div>
 
-                {selectedHotel && (
-                    <p className="mt-1.5 text-xs text-dashboard-neutral">
-                        Selected:{" "}
-                        <span className="text-dashboard-base-content font-medium">{selectedHotel.name}</span>
-                        {selectedHotel.city && ` · ${selectedHotel.city}`}
-                        {selectedHotelId !== currentHotelId && (
-                            <span className="ml-2 text-amber-600 font-medium">⚠ Changed from originally booked hotel</span>
-                        )}
+                {selectedHotel && selectedHotelId !== defaultHotelId && (
+                    <p className="mt-1.5 text-xs text-amber-600 font-medium">
+                        ⚠ Hotel changed from originally booked — price may differ
                     </p>
                 )}
             </div>
@@ -144,12 +166,15 @@ export default function HotelConfirmPanel({
             {/* Notes */}
             <div className="mb-5">
                 <label className="block text-xs uppercase tracking-wide text-dashboard-neutral mb-1.5">
-                    Notes <span className="normal-case text-dashboard-neutral/70">(confirmation no., special instructions, etc.)</span>
+                    Notes{" "}
+                    <span className="normal-case text-dashboard-neutral/70">
+                        (confirmation no., special requests, any remarks)
+                    </span>
                 </label>
                 <textarea
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    placeholder="e.g. Booking ref: HTL-2024-001, breakfast included, room on floor 3…"
+                    placeholder="e.g. Conf. ref: HTL-2024-001, breakfast included, non-smoking floor…"
                     rows={3}
                     className="w-full rounded-md border border-dashboard-base-300 bg-dashboard-base-100 px-3 py-2 text-sm text-dashboard-base-content placeholder:text-dashboard-neutral outline-none focus:border-dashboard-primary resize-none"
                 />
