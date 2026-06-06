@@ -86,9 +86,19 @@ export default async function BookQuotePage({
             hotel?: { hotel_name?: string; room_name?: string | null; plan_name?: string | null; hotel_id?: number; room_id?: number | null } | null;
             meals?: { label: string }[];
             activities?: { id?: number; name: string; is_optional: boolean }[];
-            transfers?: { pickup_name?: string | null; drop_name?: string | null; distance_km?: number | null }[];
+            transfers?: { pickup_name?: string | null; drop_name?: string | null; distance_km?: number | null; vehicle_name?: string | null }[];
         };
-        const rawDays = ((quoteRow?.breakdown as { days?: RawDay[] } | null)?.days ?? []);
+        type RawCab = { day_from: number; day_to: number; vehicle_name?: string | null };
+        const breakdown = (quoteRow?.breakdown ?? null) as { days?: RawDay[]; cab_segments?: RawCab[] } | null;
+        const rawDays = breakdown?.days ?? [];
+
+        // Per-day cab name (transfers are served by the day's cab; the vehicle name
+        // is display-safe — costs stay server-side).
+        const dayCab = new Map<number, string>();
+        for (const c of breakdown?.cab_segments ?? []) {
+            if (!c.vehicle_name) continue;
+            for (let d = c.day_from; d <= c.day_to; d++) dayCab.set(d, c.vehicle_name);
+        }
 
         const R2 = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? '';
         const r2 = (k: string | null | undefined): string | null => (k ? (k.startsWith('http') ? k : `${R2}/${k}`) : null);
@@ -135,7 +145,7 @@ export default async function BookQuotePage({
                     image: r2(a.id ? actImg.get(a.id) : null),
                 };
             }),
-            transfers: (d.transfers ?? []).map((t) => ({ pickup_name: t.pickup_name ?? null, drop_name: t.drop_name ?? null, distance_km: t.distance_km ?? null })),
+            transfers: (d.transfers ?? []).map((t) => ({ pickup_name: t.pickup_name ?? null, drop_name: t.drop_name ?? null, distance_km: t.distance_km ?? null, vehicle_name: t.vehicle_name ?? dayCab.get(d.day) ?? null })),
         }));
 
         const thumbnail = pkg?.thumbnail

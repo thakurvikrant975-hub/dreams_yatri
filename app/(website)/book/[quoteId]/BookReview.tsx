@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { VanIcon, BedIcon, TicketIcon, ForkKnifeIcon, type Icon } from '@phosphor-icons/react';
+import { CarProfileIcon, BedIcon, ParachuteIcon, ForkKnifeIcon, type Icon } from '@phosphor-icons/react';
 import QuoteCountdown from './QuoteCountdown';
 import CheckoutForm from './CheckoutForm';
 import { type PreviewDay } from './PackagePreview';
@@ -229,7 +229,7 @@ export default function BookReview({
                     </div>
 
                     {/* ── RIGHT rail ───────────────────────────────────────────────── */}
-                    <aside className="lg:sticky lg:top-4 flex flex-col gap-4">
+                    <aside className="lg:sticky lg:top-20 flex flex-col gap-4">
                         {priceChanged && (
                             <div className="rounded-xl border border-primary-200 bg-primary-50 px-4 py-3" role="alert">
                                 <Text size="xs" weight="bold" className="text-primary-700 uppercase tracking-wide block">Updated</Text>
@@ -241,16 +241,16 @@ export default function BookReview({
                         )}
 
                         {/* Grand total + fare breakup */}
-                        <div className="rounded-xl bg-white shadow-sm overflow-hidden">
+                        <Card className=" overflow-hidden">
                             <div className="px-5 py-4 border-b border-(--border-muted)">
                                 <div className="flex items-center justify-between">
-                                    <Text size="xs" intent="muted" weight="semibold" className="uppercase tracking-wide">Grand Total · {totalPax} traveller{totalPax !== 1 ? 's' : ''}</Text>
+                                    <Text size="xs" intent="secondary" weight="medium" className="uppercase tracking-wide">Grand Total · {totalPax} traveller{totalPax !== 1 ? 's' : ''}</Text>
                                 </div>
                                 <div className="mt-1 flex items-baseline gap-2">
                                     <span className="text-2xl font-bold text-(--text-primary) font-heading">{fmt(quote.total_amount)}</span>
-                                    <span className="text-xs text-(--text-muted)">(incl. GST)</span>
+                                    <span className="text-xs text-secondary">(incl. GST)</span>
                                 </div>
-                                <Text size="sm" weight="semibold" className="text-primary-700 block mt-1">
+                                <Text size="sm" weight="semibold" className="text-primary-500 block mt-1">
                                     {effectiveChoice === 'FULL' ? 'Pay Full Amount Now' : `Pay ${formatPaise(payAmountPaise)} now to reserve`}
                                 </Text>
                             </div>
@@ -263,7 +263,7 @@ export default function BookReview({
                                         <Text size="sm" intent="secondary" className="block">Total Basic Cost</Text>
                                         <Text size="xs" intent="muted" className="block">{fmt(quote.price_per_adult)} × {totalPax} traveller{totalPax !== 1 ? 's' : ''}</Text>
                                     </div>
-                                    <Text size="sm" weight="medium" intent="primary">{fmt(baseAmount)}</Text>
+                                    <Text size="sm" weight="semibold" intent="primary" className="font-heading">{fmt(baseAmount)}</Text>
                                 </div>
                                 <div className="flex items-start justify-between mt-2">
                                     <div>
@@ -294,12 +294,12 @@ export default function BookReview({
                             <div className="px-5 py-4">
                                 <Text size="sm" weight="semibold" intent="primary" className="block mb-2">Important Information</Text>
                                 <label className="flex items-start gap-2.5 cursor-pointer select-none">
-                                    <input type="checkbox" checked={policy} onChange={(e) => setPolicy(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-primary-600" />
+                                    <input type="checkbox" checked={policy} onChange={(e) => setPolicy(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-primary-500" />
                                     <Text size="xs" intent="secondary">
                                         I confirm I have read and accept the{' '}
-                                        <Link href="/cancellation-policy" target="_blank" className="text-primary-600 underline">Cancellation Policy</Link>,{' '}
-                                        <Link href="/terms" target="_blank" className="text-primary-600 underline">Terms of Service</Link>{' '}and{' '}
-                                        <Link href="/privacy-policy" target="_blank" className="text-primary-600 underline">Privacy Policy</Link>.
+                                        <Link href="/cancellation-policy" target="_blank" className="text-primary-500 underline">Cancellation Policy</Link>,{' '}
+                                        <Link href="/terms" target="_blank" className="text-primary-500 underline">Terms of Service</Link>{' '}and{' '}
+                                        <Link href="/privacy-policy" target="_blank" className="text-primary-500 underline">Privacy Policy</Link>.
                                     </Text>
                                 </label>
 
@@ -309,10 +309,10 @@ export default function BookReview({
 
                                 {error && <Text size="xs" intent="error" className="mt-2 block text-center" role="alert">{error}</Text>}
                             </div>
-                        </div>
+                        </Card>
 
                         {/* Countdown */}
-                        <div className="rounded-xl bg-white shadow-sm px-5 py-3.5 flex items-center justify-between gap-3">
+                        <Card className="rounded-xl px-5 py-3.5 flex items-center justify-between gap-3">
                             <div>
                                 <Text size="sm" weight="semibold" intent="primary" className="block">Complete booking in</Text>
                                 <Text size="xs" intent="muted" className="block">The package price will refresh after that</Text>
@@ -321,7 +321,7 @@ export default function BookReview({
                                 <span className="h-1.5 w-1.5 rounded-full bg-primary-500 animate-pulse" />
                                 <QuoteCountdown expiresAt={quote.expires_at} onExpire={() => setExpired(true)} />
                             </span>
-                        </div>
+                        </Card>
                     </aside>
                 </div>
             </div>
@@ -357,7 +357,8 @@ function DayBlock({ day, dateISO }: { day: PreviewDay; dateISO: string }) {
             </div>
             <div className="px-4 py-3 flex flex-col gap-3">
                 {day.transfers?.map((t, i) => (
-                    <Row key={`t${i}`} icon={VanIcon} tag="Transfer" text={`${t.pickup_name ?? '—'} → ${t.drop_name ?? '—'}`} suffix={t.distance_km ? `${Math.round(t.distance_km)} km` : undefined} />
+                    <Row key={`t${i}`} icon={CarProfileIcon} tag="Transfer" text={`${t.pickup_name ?? '—'} → ${t.drop_name ?? '—'}`}
+                        suffix={[t.distance_km ? `${Math.round(t.distance_km)} km` : null, t.vehicle_name].filter(Boolean).join(' · ') || undefined} />
                 ))}
 
                 {day.hotel && (() => {
@@ -366,7 +367,9 @@ function DayBlock({ day, dateISO }: { day: PreviewDay; dateISO: string }) {
                     return (
                         <div className="flex gap-3">
                             <span className="flex w-24 shrink-0 items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-(--text-muted) pt-0.5">
-                                <BedIcon className="size-4 text-primary-500" weight="duotone" />Stay
+                                <BedIcon className="size-6 text-muted scale-95" weight="duotone" /> 
+                                <span className="text-secondary"> Stay</span>
+                               
                             </span>
                             <div className="flex flex-1 gap-3 min-w-0">
                                 {hotelImg && (
@@ -397,7 +400,8 @@ function DayBlock({ day, dateISO }: { day: PreviewDay; dateISO: string }) {
                     return (
                         <div key={`a${i}`} className="flex gap-3">
                             <span className="flex w-24 shrink-0 items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-(--text-muted) pt-0.5">
-                                <TicketIcon className="size-4 text-primary-500" weight="duotone" />Activity
+                                <ParachuteIcon className="size-6 text-muted" weight="duotone" />
+                                <span className="text-secondary">Activity</span>
                             </span>
                             <div className="flex flex-1 gap-3 min-w-0">
                                 {a.image && (
@@ -425,11 +429,12 @@ function Row({ tag, text, suffix, icon: IconC }: { tag: string; text: string; su
     return (
         <div className="flex gap-3 text-sm">
             <span className="flex w-24 shrink-0 items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-(--text-muted) pt-0.5">
-                {IconC && <IconC className="size-4 text-primary-500" weight="duotone" />}
-                {tag}
+                {IconC && <IconC className="size-6 text-muted" weight="duotone" />}
+                <span className='text-secondary'>{tag}</span>
+                
             </span>
             <span className="text-(--text-primary)">
-                {text}{suffix && <span className="ml-2 text-xs text-(--text-muted)">· {suffix}</span>}
+                {text}{suffix && <span className="ml-2 text-xs text-secondary">· {suffix}</span>}
             </span>
         </div>
     );
@@ -440,8 +445,8 @@ function PayOption({ selected, onSelect, title, amount, sub }: { selected: boole
         <button type="button" onClick={onSelect}
             className={`w-full text-left rounded-lg border px-3 py-2.5 transition ${selected ? 'border-primary-500 ring-2 ring-primary-200 bg-primary-50/60' : 'border-(--border-muted) hover:border-primary-300'}`}>
             <div className="flex items-center gap-2.5">
-                <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${selected ? 'border-primary-600' : 'border-neutral-300'}`}>
-                    {selected && <span className="h-1.5 w-1.5 rounded-full bg-primary-600" />}
+                <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${selected ? 'border-primary-500' : 'border-neutral-300'}`}>
+                    {selected && <span className="h-1.5 w-1.5 rounded-full bg-primary-500" />}
                 </span>
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">

@@ -22,7 +22,7 @@ export type PreviewDay = {
         difficulty?: string | null;
         image?: string | null;
     }[];
-    transfers?: { pickup_name: string | null; drop_name: string | null; distance_km?: number | null }[];
+    transfers?: { pickup_name: string | null; drop_name: string | null; distance_km?: number | null; vehicle_name?: string | null }[];
 };
 
 /** Collapsible day-wise package preview rendered from the quote's frozen breakdown. */
