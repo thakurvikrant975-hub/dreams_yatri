@@ -13,6 +13,7 @@ import Card from '@/app/components/ui/Card';
 import Button from '@/app/components/ui/Button';
 import { Heading, Text } from '@/app/components/ui/Typography';
 import { chooseReplacement } from '@/app/actions/fulfillment.actions';
+import StatusAutoRefresh from './StatusAutoRefresh';
 import type { BookingFulfillment, FulfillmentItem, FulfillmentState, ItemKind, ReplacementOfferView } from '@/app/services/fulfillment/status.service';
 
 const KIND_ICON: Record<ItemKind, Icon> = { HOTEL: BedIcon, TRANSFER: CarProfileIcon, ACTIVITY: TicketIcon };
@@ -142,6 +143,7 @@ export default function StatusView({
 
     return (
         <div className="screen-space py-8 max-w-3xl">
+            {overall === 'IN_PROGRESS' && <StatusAutoRefresh />}
             {/* Trip header */}
             <Card className="overflow-hidden mb-5">
                 <div className="flex gap-4 p-5">

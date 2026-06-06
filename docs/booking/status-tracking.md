@@ -108,5 +108,5 @@ Booking-level rollup (page header / `BookingStatus`): derived from item statuses
 | 4 | 4.1 ReplacementOffer + ops propose (admin) + read-model surfacing | ✅ DONE |
 | 4 | 4.2 customer choose → in-place swap (chooseReplacement + StatusView picker) | ✅ DONE |
 | 4 | 4.3 paid-upgrade settlement (opt) | DEFERRED (v1 = no price change, decision #1) |
-| 5 | 5.1 notifications | NOT STARTED |
-| 5 | 5.2 live refresh | NOT STARTED |
+| 5 | 5.1 notifications | ✅ DONE (delivered in Phase 3.3 — READY / ATTENTION emails) |
+| 5 | 5.2 live refresh (StatusAutoRefresh: 30s poll while IN_PROGRESS, capped) | ✅ DONE |
