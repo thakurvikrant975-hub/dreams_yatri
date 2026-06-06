@@ -17,7 +17,22 @@ const selectCls =
     'h-11 w-full rounded-xl bg-white px-3 text-sm font-medium text-(--text-primary) ring-[0.09em] ring-inset ring-neutral-400/80 outline-none hover:ring-neutral-300 focus:ring-2 focus:ring-primary-400';
 
 function Label({ children }: { children: React.ReactNode }) {
-    return <label className="block text-xs font-medium text-(--text-secondary) mb-1.5">{children}</label>;
+    return (
+        <label className="block text-xs font-medium text-(--text-secondary) mb-1.5">
+            {children} <span className="text-red-500">*</span>
+        </label>
+    );
+}
+
+function calcAge(dob: string): number | null {
+    if (!dob) return null;
+    const birth = new Date(dob);
+    if (isNaN(birth.getTime())) return null;
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+    return age >= 0 ? age : null;
 }
 
 export function isTravellerComplete(t: TravellerInput): boolean {
@@ -61,8 +76,13 @@ export default function TravellerModal({
     const cur = draft[active];
     if (!cur) return null;
 
-    const setField = (key: keyof TravellerInput, value: string) =>
-        setDraft((prev) => prev.map((t, i) => (i === active ? { ...t, [key]: value } : t)));
+    function setField(key: keyof TravellerInput, value: string) {
+        const processed =
+            (key === 'firstName' || key === 'lastName') && value
+                ? value.charAt(0).toUpperCase() + value.slice(1)
+                : value;
+        setDraft((prev) => prev.map((t, i) => (i === active ? { ...t, [key]: processed } : t)));
+    }
 
     const fieldErr = (key: keyof TravellerInput): string | undefined => {
         if (!showErrors) return undefined;
@@ -99,7 +119,7 @@ export default function TravellerModal({
                     <div className="flex items-center justify-between border-b border-(--border-muted) px-6 py-4">
                         <h2 className="text-base font-semibold text-(--text-primary)">Add traveller details</h2>
                         <Dialog.Close asChild>
-                            <button aria-label="Close" className="flex size-8 items-center justify-center rounded-full text-(--text-secondary) hover:bg-neutral-100">
+                            <button aria-label="Close" className="flex size-8 cursor-pointer items-center justify-center rounded-full text-(--text-secondary) hover:bg-neutral-100">
                                 <XIcon weight="bold" className="size-4" />
                             </button>
                         </Dialog.Close>
@@ -145,6 +165,11 @@ export default function TravellerModal({
                             <div>
                                 <Label>Date of birth</Label>
                                 <Input type="date" max={new Date().toISOString().slice(0, 10)} value={cur.dob} onChange={(e) => setField('dob', e.target.value)} error={fieldErr('dob')} />
+                                {calcAge(cur.dob) !== null && (
+                                    <p className="mt-1.5 text-xs font-semibold text-primary-600">
+                                        Age: {calcAge(cur.dob)} year{calcAge(cur.dob) !== 1 ? 's' : ''}
+                                    </p>
+                                )}
                             </div>
                             <div>
                                 <Label>Gender</Label>
@@ -163,7 +188,7 @@ export default function TravellerModal({
                         <button
                             type="button"
                             onClick={confirm}
-                            className="rounded-xl bg-primary-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700"
+                            className="cursor-pointer rounded-xl bg-primary-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700"
                         >
                             Confirm details
                         </button>
