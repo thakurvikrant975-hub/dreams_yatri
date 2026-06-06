@@ -2,9 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/app/lib/db";
+import type { Prisma } from "@/app/generated/prisma";
 import { getCurrentMember } from "../lib/get-current-member";
 import { getBookingFulfillment } from "@/app/services/fulfillment/status.service";
 import { notifyFulfillmentChange } from "@/app/services/notifications/booking-notify";
+
+export type ReplacementCandidate = { id: string; label: string; sublabel: string | null; hotelId?: number; activityId?: number; vehicleId?: number };
 
 /**
  * Admin fulfilment actions (Status tracking, Phase 3).
@@ -154,6 +157,74 @@ export async function setItemFulfillment(params: {
     } catch (e) {
         console.error("[setItemFulfillment] notify", e);
     }
+
+    revalidatePath(`/dashboard/package-bookings/${bookingId}`);
+    revalidatePath(`/bookings/${bookingId}/status`);
+    return { success: true };
+}
+
+/** Candidate alternatives for a replacement (same destination), for the admin picker. */
+export async function getReplacementCandidates(
+    bookingId: string,
+    kind: Kind,
+): Promise<{ success: true; candidates: ReplacementCandidate[] } | { success: false; error: string }> {
+    const gate = await requireMember();
+    if (!gate.ok) return { success: false, error: gate.error };
+    const b = await db.booking.findUnique({ where: { id: bookingId }, select: { destinationId: true } });
+    if (!b) return { success: false, error: "Booking not found." };
+
+    let candidates: ReplacementCandidate[] = [];
+    if (kind === "HOTEL") {
+        const rows = await db.hotels.findMany({ where: { destination_id: b.destinationId, is_active: true }, select: { id: true, name: true, city: true }, orderBy: { name: "asc" }, take: 60 });
+        candidates = rows.map((r) => ({ id: `h${r.id}`, label: r.name, sublabel: r.city, hotelId: r.id }));
+    } else if (kind === "ACTIVITY") {
+        const rows = await db.activities.findMany({ where: { destination_id: b.destinationId, is_active: true }, select: { id: true, name: true, city: true }, orderBy: { name: "asc" }, take: 60 });
+        candidates = rows.map((r) => ({ id: `a${r.id}`, label: r.name, sublabel: r.city, activityId: r.id }));
+    } else {
+        const rows = await db.vehicles.findMany({ where: { is_active: true }, select: { id: true, name: true, passenger_capacity: true }, orderBy: { passenger_capacity: "asc" }, take: 30 });
+        candidates = rows.map((r) => ({ id: `v${r.id}`, label: r.name, sublabel: `${r.passenger_capacity}-seater`, vehicleId: r.id }));
+    }
+    return { success: true, candidates };
+}
+
+/** Propose a set of alternatives to the customer for an unavailable item. */
+export async function proposeReplacement(params: {
+    bookingId: string;
+    kind: Kind;
+    day: number;
+    activityId?: number | null;
+    options: ReplacementCandidate[];
+}): Promise<{ success: true } | { success: false; error: string }> {
+    const gate = await requireMember();
+    if (!gate.ok) return { success: false, error: gate.error };
+    const { bookingId, kind, day } = params;
+    const activityId = params.activityId ?? null;
+    if (!params.options?.length) return { success: false, error: "Pick at least one alternative." };
+
+    // Replace any prior open offer for this item.
+    await db.replacementOffer.deleteMany({ where: { bookingId, kind, day, activityId, status: "PROPOSED" } });
+    await db.replacementOffer.create({
+        data: {
+            bookingId, kind, day, activityId,
+            options: params.options as unknown as Prisma.InputJsonValue,
+            status: "PROPOSED",
+            proposedById: gate.member.id,
+            proposedByName: gate.member.name,
+        },
+    });
+
+    try {
+        await db.bookingTimeline.create({
+            data: {
+                bookingId, action: "NOTE_ADDED",
+                note: `Proposed ${params.options.length} alternative${params.options.length !== 1 ? "s" : ""} for the Day ${day} ${kind.toLowerCase()} by ${gate.member.name}.`,
+                performedById: gate.member.id, performedByName: gate.member.name,
+                departmentId: gate.member.department?.id ?? null,
+            },
+        });
+    } catch (e) { console.error("[proposeReplacement] timeline", e); }
+
+    try { await notifyFulfillmentChange(bookingId, "ATTENTION"); } catch (e) { console.error("[proposeReplacement] notify", e); }
 
     revalidatePath(`/dashboard/package-bookings/${bookingId}`);
     revalidatePath(`/bookings/${bookingId}/status`);

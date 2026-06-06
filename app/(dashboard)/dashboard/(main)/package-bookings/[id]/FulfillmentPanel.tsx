@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { setItemFulfillment } from "../fulfillment.actions";
+import { setItemFulfillment, getReplacementCandidates, proposeReplacement, type ReplacementCandidate } from "../fulfillment.actions";
 import type { BookingFulfillment, FulfillmentItem, FulfillmentState } from "@/app/services/fulfillment/status.service";
 
 const SETTABLE = [
@@ -43,19 +43,88 @@ function ItemEditor({ bookingId, item }: { bookingId: string; item: FulfillmentI
     }
 
     return (
-        <div className="flex flex-wrap items-center gap-2 py-2.5">
-            <div className="min-w-44 flex-1">
-                <div className="text-sm text-dashboard-base-content">{item.title}</div>
-                <div className="text-xs text-dashboard-neutral">{titleCase(item.kind)}{item.subtitle ? ` · ${item.subtitle}` : ""}</div>
+        <div className="py-2.5">
+            <div className="flex flex-wrap items-center gap-2">
+                <div className="min-w-44 flex-1">
+                    <div className="text-sm text-dashboard-base-content">{item.title}</div>
+                    <div className="text-xs text-dashboard-neutral">{titleCase(item.kind)}{item.subtitle ? ` · ${item.subtitle}` : ""}</div>
+                </div>
+                <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${CHIP[item.status]}`}>{titleCase(item.status)}</span>
+                <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className={inputCls}>
+                    {SETTABLE.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
+                </select>
+                <input value={voucher} onChange={(e) => setVoucher(e.target.value)} placeholder="Voucher/ticket URL" className={`${inputCls} w-48`} />
+                <button onClick={save} disabled={saving} className="h-8 rounded-md bg-dashboard-primary px-3 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50">
+                    {saving ? "…" : "Save"}
+                </button>
             </div>
-            <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${CHIP[item.status]}`}>{titleCase(item.status)}</span>
-            <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className={inputCls}>
-                {SETTABLE.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
-            </select>
-            <input value={voucher} onChange={(e) => setVoucher(e.target.value)} placeholder="Voucher/ticket URL" className={`${inputCls} w-48`} />
-            <button onClick={save} disabled={saving} className="h-8 rounded-md bg-dashboard-primary px-3 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50">
-                {saving ? "…" : "Save"}
-            </button>
+            {item.status === "UNAVAILABLE" && <ProposeBox bookingId={bookingId} item={item} />}
+        </div>
+    );
+}
+
+function ProposeBox({ bookingId, item }: { bookingId: string; item: FulfillmentItem }) {
+    const router = useRouter();
+    const [open, setOpen] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [cands, setCands] = useState<ReplacementCandidate[]>([]);
+    const [sel, setSel] = useState<Set<string>>(new Set());
+    const [sending, setSending] = useState(false);
+
+    async function load() {
+        setOpen(true);
+        if (cands.length) return;
+        setLoading(true);
+        try {
+            const res = await getReplacementCandidates(bookingId, item.kind);
+            if (!res.success) { toast.error(res.error); setOpen(false); return; }
+            setCands(res.candidates);
+        } finally { setLoading(false); }
+    }
+    function toggle(id: string) { setSel((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; }); }
+    async function send() {
+        const options = cands.filter((c) => sel.has(c.id));
+        if (!options.length) { toast.error("Select at least one alternative."); return; }
+        setSending(true);
+        try {
+            const res = await proposeReplacement({ bookingId, kind: item.kind, day: item.day, activityId: item.activityId ?? null, options });
+            if (!res.success) { toast.error(res.error); return; }
+            toast.success("Alternatives sent to the customer.");
+            router.refresh();
+        } finally { setSending(false); }
+    }
+
+    return (
+        <div className="mt-1.5 rounded-md border border-red-100 bg-red-50/50 px-3 py-2">
+            <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-red-700">
+                    {item.offer ? `${item.offer.options.length} alternative${item.offer.options.length !== 1 ? "s" : ""} sent — awaiting customer choice` : "Unavailable — propose alternatives to the customer"}
+                </span>
+                {!open && <button onClick={load} className="text-xs font-semibold text-dashboard-primary">{item.offer ? "Change options" : "Propose alternatives"}</button>}
+            </div>
+            {open && (
+                <div className="mt-2">
+                    {loading ? <span className="text-xs text-dashboard-neutral">Loading…</span> : (
+                        <>
+                            <div className="flex max-h-40 flex-col gap-1 overflow-y-auto">
+                                {cands.length === 0 ? (
+                                    <span className="text-xs text-dashboard-neutral">No alternatives found for this destination.</span>
+                                ) : cands.map((c) => (
+                                    <label key={c.id} className="flex items-center gap-2 text-sm">
+                                        <input type="checkbox" checked={sel.has(c.id)} onChange={() => toggle(c.id)} className="accent-dashboard-primary" />
+                                        <span className="text-dashboard-base-content">{c.label}</span>
+                                        {c.sublabel && <span className="text-xs text-dashboard-neutral">· {c.sublabel}</span>}
+                                    </label>
+                                ))}
+                            </div>
+                            <div className="mt-2 flex gap-2">
+                                <button onClick={send} disabled={sending} className="h-7 rounded-md bg-dashboard-primary px-3 text-xs font-medium text-white disabled:opacity-50">{sending ? "Sending…" : "Send options"}</button>
+                                <button onClick={() => setOpen(false)} className="h-7 rounded-md border border-dashboard-base-300 px-3 text-xs text-dashboard-neutral">Cancel</button>
+                            </div>
+                        </>
+                    )}
+                </div>
+            )}
         </div>
     );
 }

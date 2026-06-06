@@ -34,6 +34,12 @@ export interface FulfillmentItem {
     voucherUrl: string | null;
     paid: boolean; // activities: ticketed vs free; hotels/transfers: part of package
     driver?: { name: string | null; phone: string | null; vehicleNumber: string | null };
+    offer?: ReplacementOfferView | null; // ops-proposed alternatives (when UNAVAILABLE)
+}
+
+export interface ReplacementOfferView {
+    id: string;
+    options: { id: string; label: string; sublabel: string | null }[];
 }
 
 export interface DayFulfillment {
@@ -90,16 +96,26 @@ export async function getBookingFulfillment(bookingId: string): Promise<BookingF
     const snapshot = (booking.priceSnapshot ?? {}) as Snapshot;
     const days = snapshot.days ?? [];
 
-    // Fulfilment rows
-    const [hotels, cabs, activities] = await Promise.all([
+    // Fulfilment rows + open replacement offers
+    const [hotels, cabs, activities, offers] = await Promise.all([
         db.bookingHotel.findMany({ where: { bookingId }, select: { dayNumber: true, hotelId: true, status: true, isConfirmed: true, voucherUrl: true } }),
         db.bookingCab.findMany({ where: { bookingId }, select: { transferDate: true, status: true, isConfirmed: true, voucherUrl: true, driverName: true, driverPhone: true, vehicleNumber: true } }),
-        db.bookingActivity.findMany({ where: { bookingId }, select: { dayNumber: true, activityId: true, status: true, voucherUrl: true } }),
+        db.bookingActivity.findMany({ where: { bookingId }, select: { dayNumber: true, activityId: true, name: true, status: true, voucherUrl: true } }),
+        db.replacementOffer.findMany({ where: { bookingId, status: "PROPOSED" }, select: { id: true, kind: true, day: true, activityId: true, options: true } }),
     ]);
 
     const hotelByDay = new Map(hotels.map((h) => [h.dayNumber, h]));
     const activityByKey = new Map(activities.map((a) => [`${a.dayNumber}:${a.activityId}`, a]));
     const cabByDate = new Map(cabs.map((c) => [c.transferDate.toISOString().slice(0, 10), c]));
+
+    type RawOption = { id?: string; label?: string; sublabel?: string | null };
+    const offerByKey = new Map<string, ReplacementOfferView>();
+    for (const o of offers) {
+        const key = o.kind === "ACTIVITY" ? `ACTIVITY:${o.day}:${o.activityId}` : `${o.kind}:${o.day}`;
+        const opts = (Array.isArray(o.options) ? o.options : []) as RawOption[];
+        offerByKey.set(key, { id: o.id, options: opts.map((x) => ({ id: x.id ?? "", label: x.label ?? "", sublabel: x.sublabel ?? null })) });
+    }
+    const offerFor = (key: string): ReplacementOfferView | null => offerByKey.get(key) ?? null;
 
     // Final hotel names for confirmed/replaced rows (the booked hotel may differ from the planned one)
     const rowHotelIds = [...new Set(hotels.map((h) => h.hotelId))];
@@ -128,6 +144,7 @@ export async function getBookingFulfillment(bookingId: string): Promise<BookingF
                 title: finalName,
                 subtitle: [d.hotel.room_name, d.hotel.plan_name, d.hotel.hotel_city].filter(Boolean).join(" · ") || null,
                 status, voucherUrl: row?.voucherUrl ?? null, paid: true,
+                offer: status === "UNAVAILABLE" ? offerFor(`HOTEL:${d.day}`) : null,
             });
             total++; count(status);
         }
@@ -142,6 +159,7 @@ export async function getBookingFulfillment(bookingId: string): Promise<BookingF
                 subtitle: t.vehicle_name ?? null,
                 status, voucherUrl: row?.voucherUrl ?? null, paid: true,
                 driver: row ? { name: row.driverName, phone: row.driverPhone, vehicleNumber: row.vehicleNumber } : undefined,
+                offer: status === "UNAVAILABLE" ? offerFor(`TRANSFER:${d.day}`) : null,
             });
             total++; count(status);
         }
@@ -155,9 +173,10 @@ export async function getBookingFulfillment(bookingId: string): Promise<BookingF
             items.push({
                 kind: "ACTIVITY", day: d.day, key: `activity:${d.day}:${a.id ?? a.name}`,
                 activityId: a.id ?? null,
-                title: a.name ?? "Activity",
+                title: row?.name ?? a.name ?? "Activity",
                 subtitle: a.variant_label ?? null,
                 status, voucherUrl: row?.voucherUrl ?? null, paid: isPaid,
+                offer: status === "UNAVAILABLE" ? offerFor(`ACTIVITY:${d.day}:${a.id}`) : null,
             });
             total++; count(status);
         }

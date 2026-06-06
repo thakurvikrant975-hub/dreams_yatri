@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import {
@@ -10,7 +12,8 @@ import {
 import Card from '@/app/components/ui/Card';
 import Button from '@/app/components/ui/Button';
 import { Heading, Text } from '@/app/components/ui/Typography';
-import type { BookingFulfillment, FulfillmentItem, FulfillmentState, ItemKind } from '@/app/services/fulfillment/status.service';
+import { chooseReplacement } from '@/app/actions/fulfillment.actions';
+import type { BookingFulfillment, FulfillmentItem, FulfillmentState, ItemKind, ReplacementOfferView } from '@/app/services/fulfillment/status.service';
 
 const KIND_ICON: Record<ItemKind, Icon> = { HOTEL: BedIcon, TRANSFER: CarProfileIcon, ACTIVITY: TicketIcon };
 
@@ -67,7 +70,48 @@ function ItemRow({ item }: { item: FulfillmentItem }) {
                         {item.kind === 'ACTIVITY' ? 'View ticket' : 'View voucher'}
                     </a>
                 )}
+
+                {/* Ops-proposed alternatives (item unavailable) */}
+                {item.offer && item.offer.options.length > 0 && <OfferPicker offer={item.offer} />}
             </div>
+        </div>
+    );
+}
+
+function OfferPicker({ offer }: { offer: ReplacementOfferView }) {
+    const router = useRouter();
+    const [sel, setSel] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [err, setErr] = useState<string | null>(null);
+
+    async function confirm() {
+        if (!sel) { setErr('Please select an option.'); return; }
+        setBusy(true); setErr(null);
+        try {
+            const res = await chooseReplacement(offer.id, sel);
+            if (!res.success) { setErr(res.error); return; }
+            router.refresh();
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    return (
+        <div className="mt-2 rounded-lg border border-error-200 bg-error-50/50 p-3">
+            <Text size="xs" weight="semibold" className="text-error-700 block mb-1.5">Choose an alternative</Text>
+            <div className="flex flex-col gap-1.5">
+                {offer.options.map((o) => (
+                    <label key={o.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="radio" name={`offer-${offer.id}`} checked={sel === o.id} onChange={() => setSel(o.id)} className="accent-primary-600" />
+                        <span className="text-(--text-primary)">{o.label}</span>
+                        {o.sublabel && <span className="text-xs text-(--text-muted)">· {o.sublabel}</span>}
+                    </label>
+                ))}
+            </div>
+            {err && <Text size="xs" intent="error" className="mt-1 block">{err}</Text>}
+            <button onClick={confirm} disabled={busy} className="mt-2 rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700 disabled:opacity-50">
+                {busy ? 'Confirming…' : 'Confirm choice'}
+            </button>
         </div>
     );
 }

@@ -226,6 +226,7 @@ model Booking {
   hotelBookings           BookingHotel[]
   bookingMeals            BookingMeal[]
   bookingActivities       BookingActivity[]
+  replacementOffers       ReplacementOffer[]
   travellersList          BookingTraveller[]
   installments            PaymentInstallment[]
   timeline                BookingTimeline[]
@@ -338,6 +339,27 @@ model BookingActivity {
   @@unique([bookingId, dayNumber, activityId])
   @@index([bookingId])
   @@map("booking_activities")
+}
+
+// An ops-proposed set of alternatives for an UNAVAILABLE item; the customer picks one.
+model ReplacementOffer {
+  id             String    @id @default(cuid())
+  bookingId      String
+  kind           String    // HOTEL | TRANSFER | ACTIVITY
+  day            Int
+  activityId     Int? // targets the specific activity when kind = ACTIVITY
+  options        Json // [{ id, label, sublabel?, hotelId?, roomPricingId?, activityId?, variantId?, vehicleId? }]
+  status         String    @default("PROPOSED") // PROPOSED | CHOSEN | DISMISSED
+  chosenOptionId String?
+  proposedById   String
+  proposedByName String
+  chosenAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  booking        Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@map("replacement_offers")
 }
 
 model BookingTraveller {
