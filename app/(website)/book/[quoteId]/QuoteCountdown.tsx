@@ -3,10 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Text } from '@/app/components/ui/Typography';
 
-/**
- * Live countdown to a quote's expiry. When it hits zero it calls `onExpire`
- * (so the parent can swap to the expired UI) and shows 00:00.
- */
+
 export default function QuoteCountdown({
     expiresAt,
     onExpire,
@@ -43,7 +40,7 @@ export default function QuoteCountdown({
         <span
             role="timer"
             aria-live="off"
-            className={`font-heading font-bold tabular-nums ${urgent ? 'text-error-600' : 'text-primary'}`}
+            className={`font-heading font-semibold tabular-nums ${urgent ? 'text-error-600' : 'text-primary'}`}
         >
             {mm}:{ss}
         </span>

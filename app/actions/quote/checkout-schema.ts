@@ -15,7 +15,17 @@ function isRealPastOrToday(s: string): boolean {
     const [y, m, d] = s.split("-").map(Number);
     const dt = new Date(Date.UTC(y, m - 1, d));
     if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return false;
-    return s <= todayISO(); // DOB can't be in the future
+    return s <= todayISO();
+}
+
+function ageFromDob(dob: string): number | null {
+    if (!isRealPastOrToday(dob)) return null;
+    const birth = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+    return age;
 }
 
 export const travellerSchema = z.object({
@@ -24,6 +34,18 @@ export const travellerSchema = z.object({
     lastName: z.string().trim().min(1, "Last name is required.").max(60),
     dob: z.string().refine(isRealPastOrToday, "Enter a valid date of birth."),
     gender: z.enum(["MALE", "FEMALE", "OTHER", "PREFER_NOT_TO_SAY"]),
+}).superRefine((data, ctx) => {
+    const age = ageFromDob(data.dob);
+    if (age === null) return;
+    if (data.type === "ADULT" && age < 12) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["dob"], message: "Adult must be 12 years or older." });
+    }
+    if (data.type === "CHILD" && age >= 12) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["dob"], message: "Child must be below 12 years old." });
+    }
+    if (data.type === "INFANT" && age >= 2) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["dob"], message: "Infant must be below 2 years old." });
+    }
 });
 
 export const checkoutSchema = z.object({
