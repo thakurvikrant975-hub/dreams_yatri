@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useBooking } from './PackageBookingProvider';
 import { createPackageQuote } from '@/app/actions/quote/actions';
@@ -15,6 +15,7 @@ export function useBookQuote() {
         adults, childCount, infants, childAges, travelDate,
         cabSelections,
         packageId, durationId, routeId, stayCategoryId,
+        setDateHighlight,
     } = useBooking();
 
     const router = useRouter();
@@ -23,11 +24,21 @@ export function useBookQuote() {
     const [booking, setBooking] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    // Auto-clear the date error once the user picks a date
+    useEffect(() => {
+        if (travelDate && error === 'Please pick your departure date to continue.') {
+            setError(null);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [travelDate]);
+
     async function book() {
         setError(null);
 
         if (!travelDate) {
             setError('Please pick your departure date to continue.');
+            setDateHighlight(true);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
             return;
         }
 
