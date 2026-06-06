@@ -225,6 +225,8 @@ model Booking {
   cabBookings             BookingCab[]
   hotelBookings           BookingHotel[]
   bookingMeals            BookingMeal[]
+  bookingActivities       BookingActivity[]
+  replacementOffers       ReplacementOffer[]
   travellersList          BookingTraveller[]
   installments            PaymentInstallment[]
   timeline                BookingTimeline[]
@@ -272,6 +274,8 @@ model BookingHotel {
   ratePerRoom   Decimal       @db.Decimal(10, 2)
   totalCost     Decimal       @db.Decimal(10, 2)
   isConfirmed   Boolean       @default(false)
+  status        FulfillmentStatus @default(PENDING)
+  voucherUrl    String?
   confirmedAt   DateTime?
   confirmedById String?
   notes         String?
@@ -299,6 +303,8 @@ model BookingCab {
   ratePerCab    Decimal     @db.Decimal(10, 2)
   totalCost     Decimal     @db.Decimal(10, 2)
   isConfirmed   Boolean     @default(false)
+  status        FulfillmentStatus @default(PENDING)
+  voucherUrl    String?
   confirmedAt   DateTime?
   confirmedById String?
   driverName    String?
@@ -311,6 +317,49 @@ model BookingCab {
   @@unique([bookingId, legNumber])
   @@index([bookingId])
   @@map("booking_cabs")
+}
+
+model BookingActivity {
+  id            String            @id @default(cuid())
+  bookingId     String
+  dayNumber     Int
+  activityId    Int
+  variantId     Int?
+  name          String
+  isPaid        Boolean           @default(false) // included/ticketed (needs voucher) vs free
+  status        FulfillmentStatus @default(PENDING)
+  voucherUrl    String?
+  confirmedAt   DateTime?
+  confirmedById String?
+  notes         String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  booking       Booking           @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@unique([bookingId, dayNumber, activityId])
+  @@index([bookingId])
+  @@map("booking_activities")
+}
+
+// An ops-proposed set of alternatives for an UNAVAILABLE item; the customer picks one.
+model ReplacementOffer {
+  id             String    @id @default(cuid())
+  bookingId      String
+  kind           String    // HOTEL | TRANSFER | ACTIVITY
+  day            Int
+  activityId     Int? // targets the specific activity when kind = ACTIVITY
+  options        Json // [{ id, label, sublabel?, hotelId?, roomPricingId?, activityId?, variantId?, vehicleId? }]
+  status         String    @default("PROPOSED") // PROPOSED | CHOSEN | DISMISSED
+  chosenOptionId String?
+  proposedById   String
+  proposedByName String
+  chosenAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  booking        Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@map("replacement_offers")
 }
 
 model BookingTraveller {
@@ -2118,10 +2167,21 @@ enum ReferralSource {
 enum DocumentType {
   HOTEL_VOUCHER
   CAB_CONFIRMATION
+  ACTIVITY_TICKET
   ITINERARY
   INVOICE
   FLIGHT_TICKET
   OTHER
+}
+
+// Per-item fulfilment lifecycle for hotels / cabs / activities (status tracking).
+enum FulfillmentStatus {
+  PENDING
+  IN_PROCESS
+  CONFIRMED
+  UNAVAILABLE
+  REPLACED
+  CANCELLED
 }
 
 enum CustomPackageStatus {

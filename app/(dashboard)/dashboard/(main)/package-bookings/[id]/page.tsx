@@ -6,6 +6,8 @@ import { db } from "@/app/lib/db";
 import { formatPaise } from "@/app/lib/money";
 import { PaymentPill, StatusPill } from "../pills";
 import BookingAdminActions from "./BookingAdminActions";
+import FulfillmentPanel from "./FulfillmentPanel";
+import { getBookingFulfillment } from "@/app/services/fulfillment/status.service";
 
 export const metadata: Metadata = {
     title: "Booking detail - Dashboard",
@@ -191,6 +193,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
 
     const isFull = booking.paymentPlan === "FULL";
     const snapshot = (booking.priceSnapshot ?? {}) as Snapshot;
+    const fulfillment = await getBookingFulfillment(id);
 
     return (
         <div className="flex flex-col gap-5">
@@ -260,6 +263,12 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                     <Section title="Itinerary (as booked)">
                         <BookedItinerary snapshot={snapshot} />
                     </Section>
+
+                    {fulfillment && (
+                        <Section title="Fulfilment status">
+                            <FulfillmentPanel bookingId={booking.id} fulfillment={fulfillment} />
+                        </Section>
+                    )}
 
                     <Section title="Payments">
                         {booking.payments.length === 0 ? (

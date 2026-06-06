@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/app/lib/db";
-import { bookingConfirmationEmail, cancellationEmail, refundConfirmedEmail, opsNewBookingEmail } from "./booking-emails";
+import { bookingConfirmationEmail, cancellationEmail, refundConfirmedEmail, opsNewBookingEmail, tripStatusEmail } from "./booking-emails";
 import { sendBookingEmail, opsEmail } from "./send";
 import { getSystemActorId } from "./system-actor";
 
@@ -67,4 +67,12 @@ export async function notifyRefund(bookingId: string, refundAmountPaise: number)
     const b = await db.booking.findUnique({ where: { id: bookingId }, select: { bookingNumber: true, user: { select: { email: true } }, package: { select: { title: true } } } });
     if (!b) return;
     await sendBookingEmail(b.user?.email, refundConfirmedEmail({ bookingNumber: b.bookingNumber, packageTitle: b.package?.title ?? "Your package", refundAmountPaise }));
+}
+
+/** Fulfilment status update — trip fully confirmed (READY) or an item needs an alternative (ATTENTION). */
+export async function notifyFulfillmentChange(bookingId: string, kind: "READY" | "ATTENTION", itemLabel?: string): Promise<void> {
+    const b = await db.booking.findUnique({ where: { id: bookingId }, select: { bookingNumber: true, user: { select: { email: true } }, package: { select: { title: true } } } });
+    if (!b) return;
+    const statusUrl = `${process.env.NEXT_PUBLIC_BASE_URL ?? ""}/bookings/${bookingId}/status`;
+    await sendBookingEmail(b.user?.email, tripStatusEmail({ kind, bookingNumber: b.bookingNumber, packageTitle: b.package?.title ?? "Your package", itemLabel, statusUrl }));
 }
