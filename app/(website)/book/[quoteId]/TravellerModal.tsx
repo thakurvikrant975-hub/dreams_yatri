@@ -35,6 +35,33 @@ function calcAge(dob: string): number | null {
     return age >= 0 ? age : null;
 }
 
+function toISO(d: Date) { return d.toISOString().slice(0, 10); }
+
+function dobLimits(type: TravellerInput['type']): { min: string; max: string } {
+    const today = new Date();
+
+    if (type === 'ADULT') {
+        // Must be 12+ years old → latest allowed birth = today − 12 years
+        const max = new Date(today);
+        max.setFullYear(max.getFullYear() - 12);
+        return { min: '1900-01-01', max: toISO(max) };
+    }
+
+    if (type === 'CHILD') {
+        // 0 ≤ age < 12 → earliest allowed birth = 12 years ago + 1 day
+        const min = new Date(today);
+        min.setFullYear(min.getFullYear() - 12);
+        min.setDate(min.getDate() + 1);
+        return { min: toISO(min), max: toISO(today) };
+    }
+
+    // INFANT: age < 2
+    const min = new Date(today);
+    min.setFullYear(min.getFullYear() - 2);
+    min.setDate(min.getDate() + 1);
+    return { min: toISO(min), max: toISO(today) };
+}
+
 export function isTravellerComplete(t: TravellerInput): boolean {
     return travellerSchema.safeParse(t).success;
 }
@@ -164,7 +191,14 @@ export default function TravellerModal({
                             </div>
                             <div>
                                 <Label>Date of birth</Label>
-                                <Input type="date" max={new Date().toISOString().slice(0, 10)} value={cur.dob} onChange={(e) => setField('dob', e.target.value)} error={fieldErr('dob')} />
+                                <Input
+                                    type="date"
+                                    min={dobLimits(cur.type).min}
+                                    max={dobLimits(cur.type).max}
+                                    value={cur.dob}
+                                    onChange={(e) => setField('dob', e.target.value)}
+                                    error={fieldErr('dob')}
+                                />
                                 {calcAge(cur.dob) !== null && (
                                     <p className="mt-1.5 text-xs font-semibold text-primary-600">
                                         Age: {calcAge(cur.dob)} year{calcAge(cur.dob) !== 1 ? 's' : ''}
