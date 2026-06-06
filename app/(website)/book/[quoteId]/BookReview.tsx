@@ -108,14 +108,16 @@ export default function BookReview({
 
     function openOtpDialog() {
         if (!checkout) return;
+        const phoneForOtp = checkout.contact.phone.replace('+', '');
+        console.log('[BookReview] openOtpDialog — checkout.contact.phone:', checkout.contact.phone, '→ sending to:', phoneForOtp);
         setOtpDigits(['', '', '', '', '', '']);
         setOtpError('');
         setOtpSending(true);
         msg91Send(
-            checkout.contact.phone.replace('+', ''),
+            phoneForOtp,
             () => {},
             () => {},
-            (msg) => { setOtpError(msg); setOtpSending(false); },
+            (msg) => { console.error('[BookReview] sendOtp service error:', msg); setOtpError(msg); setOtpSending(false); },
         );
         setOtpSending(false);
         setResendTimer(30);
