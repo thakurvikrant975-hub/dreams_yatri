@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/app/lib/db";
 import { getCurrentMember } from "../lib/get-current-member";
+import { getBookingFulfillment } from "@/app/services/fulfillment/status.service";
+import { notifyFulfillmentChange } from "@/app/services/notifications/booking-notify";
 
 /**
  * Admin fulfilment actions (Status tracking, Phase 3).
@@ -139,6 +141,18 @@ export async function setItemFulfillment(params: {
         });
     } catch (e) {
         console.error("[setItemFulfillment] timeline", e);
+    }
+
+    // Customer notifications (best-effort, gated by NOTIFICATIONS_ENABLED).
+    try {
+        if (status === "UNAVAILABLE") {
+            await notifyFulfillmentChange(bookingId, "ATTENTION", label);
+        } else if (status === "CONFIRMED") {
+            const f = await getBookingFulfillment(bookingId);
+            if (f?.overall === "READY") await notifyFulfillmentChange(bookingId, "READY");
+        }
+    } catch (e) {
+        console.error("[setItemFulfillment] notify", e);
     }
 
     revalidatePath(`/dashboard/package-bookings/${bookingId}`);

@@ -36,6 +36,38 @@ function row(label: string, value: string): string {
     return `<tr><td style="padding:6px 0;color:#6b7280">${label}</td><td style="padding:6px 0;text-align:right;font-weight:600">${value}</td></tr>`;
 }
 
+function cta(href: string, label: string): string {
+    return `<p><a href="${href}" style="display:inline-block;background:#0f766e;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none">${label}</a></p>`;
+}
+
+// ── Fulfilment status updates (trip ready / item needs an alternative) ──────────
+export function tripStatusEmail(d: {
+    kind: "READY" | "ATTENTION";
+    bookingNumber: string;
+    packageTitle: string;
+    itemLabel?: string;
+    statusUrl: string;
+}): EmailContent {
+    if (d.kind === "READY") {
+        return {
+            subject: `Your trip is confirmed — ${d.packageTitle}`,
+            html: layout("Your trip is fully confirmed 🎉", `
+                <p style="margin:0 0 12px">Great news! Every hotel, transfer and activity for <strong>${d.packageTitle}</strong> (booking ${d.bookingNumber}) is now confirmed.</p>
+                <p style="margin:0 0 12px">View your day-by-day status and download your vouchers:</p>
+                ${cta(d.statusUrl, "View trip status")}
+            `),
+        };
+    }
+    return {
+        subject: `Update on your booking ${d.bookingNumber}`,
+        html: layout("We're arranging an alternative", `
+            <p style="margin:0 0 12px">One item in <strong>${d.packageTitle}</strong>${d.itemLabel ? ` — <strong>${d.itemLabel}</strong>` : ""} isn't available, so our team is lining up the best alternative for you.</p>
+            <p style="margin:0 0 12px">We'll share options shortly. You can track progress here:</p>
+            ${cta(d.statusUrl, "View trip status")}
+        `),
+    };
+}
+
 // ── Booking confirmation + receipt ────────────────────────────────────────────
 export function bookingConfirmationEmail(d: {
     bookingNumber: string;

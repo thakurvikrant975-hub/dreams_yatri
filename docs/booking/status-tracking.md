@@ -104,7 +104,7 @@ Booking-level rollup (page header / `BookingStatus`): derived from item statuses
 | 2 | 2.3 link from confirmation page (emails deferred to Phase 5) | ✅ DONE |
 | 3 | 3.1 unified Fulfilment panel on admin booking detail (hotels+cabs+activities; status + voucher URL) | ✅ DONE |
 | 3 | 3.2 verify-activities desk → **folded into the unified panel** (no separate desk needed) | ✅ DONE |
-| 3 | 3.3 booking-status rollup + notify hook | NOT STARTED |
+| 3 | 3.3 rollup (derived, no BookingStatus mutation) + notify hook (READY / ATTENTION) | ✅ DONE |
 | 4 | 4.1 unavailable + options | NOT STARTED |
 | 4 | 4.2 customer approve/swap | NOT STARTED |
 | 4 | 4.3 paid-upgrade settlement (opt) | NOT STARTED |
