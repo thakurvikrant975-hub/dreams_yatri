@@ -51,6 +51,10 @@ export interface BookingContextValue {
     /** Set adults + children (with ages) in one go — for the TravellersField component */
     setTravellers: (adults: number, childAges: number[]) => void;
 
+    // Date validation highlight — set true when user tries to book without picking a date
+    dateHighlight:    boolean;
+    setDateHighlight: (v: boolean) => void;
+
     // Cab selection
     cabGroups:         CabGroup[];
     cabSelections:     Map<string, number>; // groupKey → cabTypeId
@@ -136,8 +140,14 @@ export function PackageBookingProvider({
     const [childCount, setChildRaw]     = useState(initialChildAges?.length ?? 0);
     const [infants,    setInfantsRaw]   = useState(0);
     const [childAges,  setChildAges]    = useState<number[]>(initialChildAges ?? []);
-    const [travelDate, setTravelDate]   = useState(initialTravelDate ?? '');
-    const [leavingFrom, setLeavingFrom] = useState<LocationValue | null>(initialLeavingFrom ?? null);
+    const [travelDate, setTravelDateRaw] = useState(initialTravelDate ?? '');
+    const [leavingFrom, setLeavingFrom]  = useState<LocationValue | null>(initialLeavingFrom ?? null);
+    const [dateHighlight, setDateHighlight] = useState(false);
+
+    function setTravelDate(d: string) {
+        setTravelDateRaw(d);
+        if (d) setDateHighlight(false);
+    }
     const [pricing,    setPricing]      = useState<SafePricing | null>(null);
     const [isPricingLoading, setLoading] = useState(false);
 
@@ -243,6 +253,7 @@ export function PackageBookingProvider({
             cabGroups, cabSelections, setCabForGroup,
             pricing, isPricingLoading, packageName,
             packageId, durationId, routeId, stayCategoryId,
+            dateHighlight, setDateHighlight,
         }}>
             {children}
         </BookingContext.Provider>

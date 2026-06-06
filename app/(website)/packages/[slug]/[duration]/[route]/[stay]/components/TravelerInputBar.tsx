@@ -24,6 +24,7 @@ export default function TravelerInputBar() {
         travelDate, setTravelDate,
         leavingFrom, setLeavingFrom,
         adults, childAges, setTravellers,
+        dateHighlight,
     } = useBooking();
 
     const dateValue = travelDate ? new Date(`${travelDate}T00:00:00`) : null;
@@ -44,6 +45,7 @@ export default function TravelerInputBar() {
                 <Field label="Leaving from" className="min-w-72 flex-1 max-w-sm">
                     <LocationSearchSelect
                         value={leavingFrom}
+                        className='cursor-pointer'
                         onChange={setLeavingFrom}
                         placeholder="Select your city"
                         showCurrentLocation
@@ -53,13 +55,22 @@ export default function TravelerInputBar() {
 
                 {/* Departure date */}
                 <Field label="Departure date" className="min-w-48">
-                    <DatePickerField value={dateValue} onChange={onDateChange} placeholder="Pick a date" menuZClass={MENU_Z} />
+                    <div className={
+                        dateHighlight
+                            ? 'rounded-input ring-2 ring-red-500 ring-offset-2 ring-offset-neutral-900 bg-red-50'
+                            : ''
+                    }>
+                        <DatePickerField value={dateValue} onChange={onDateChange}
+                        className={dateHighlight ? 'bg-red-50 cursor-pointer' : ''}
+                        placeholder="Pick a date" menuZClass={MENU_Z} />
+                    </div>
                 </Field>
 
                 {/* Travellers */}
                 <Field label="Travellers" className="min-w-48">
                     <TravellersField
                         value={{ adults, childrenAges: childAges }}
+                        className='cursor-pointer'
                         onChange={(v) => setTravellers(v.adults, v.childrenAges)}
                         menuZClass={MENU_Z}
                     />

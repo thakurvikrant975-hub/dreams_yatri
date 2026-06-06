@@ -269,6 +269,7 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
                                 <div className="flex flex-col gap-1.5">
                                     <label className={FIELD_LABEL_CLASS}>Departure Date</label>
                                     <DatePickerField
+                                        className='cursor-pointer'
                                         value={departDate}
                                         onChange={setDepartDate}
                                         placeholder="Pick a date"
