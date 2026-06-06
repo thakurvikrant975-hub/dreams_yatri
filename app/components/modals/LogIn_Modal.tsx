@@ -6,6 +6,7 @@ import { useModal } from '@/app/hooks/useModals';
 import Input from '../forms/Input';
 import { Select, Option } from '../forms/Select';
 import { phoneLoginSchema, emailLoginSchema, PHONE_RULES, type CountryCode } from '@/app/lib/validators/login';
+import { sendOtp as msg91Send, verifyOtp as msg91Verify } from '@/app/lib/msg91';
 import { z } from 'zod';
 import { signIn } from 'next-auth/react';
 import axios from 'axios';
@@ -54,9 +55,6 @@ function LoginModal() {
 
   const otp = otpDigits.join('');
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const widgetReady     = useRef(false);
-  const onVerifySuccess = useRef<((data: any) => void) | null>(null);
-  const onVerifyFailure = useRef<((err: any)  => void) | null>(null);
 
   useEffect(() => {
     if (!otpSent) return;
@@ -68,37 +66,6 @@ function LoginModal() {
     const id = setTimeout(() => setResendTimer(t => t - 1), 1000);
     return () => clearTimeout(id);
   }, [resendTimer]);
-
-  useEffect(() => {
-    if (!isOpen || type !== 'login-modal') return;
-
-    function initWidget() {
-      if (widgetReady.current) return;
-      if (typeof (window as any).initSendOTP !== 'function') return;
-      (window as any).initSendOTP({
-        widgetId:      process.env.NEXT_PUBLIC_MSG91_WIDGET_ID!,
-        tokenAuth:     process.env.NEXT_PUBLIC_MSG91_TOKEN_AUTH!,
-        exposeMethods: true,
-        success: (data: any) => onVerifySuccess.current?.(data),
-        failure: (err: any)  => onVerifyFailure.current?.(err),
-      });
-      widgetReady.current = true;
-    }
-
-    if (typeof (window as any).initSendOTP === 'function') { initWidget(); return; }
-    if (document.getElementById('msg91-otp-provider')) return;
-
-    const urls = ['https://verify.msg91.com/otp-provider.js', 'https://verify.phone91.com/otp-provider.js'];
-    let i = 0;
-    function attempt() {
-      const script = document.createElement('script');
-      script.id = 'msg91-otp-provider'; script.src = urls[i]; script.async = true;
-      script.onload = initWidget;
-      script.onerror = () => { script.remove(); i++; if (i < urls.length) attempt(); };
-      document.head.appendChild(script);
-    }
-    attempt();
-  }, [isOpen, type]);
 
   function clearErrorIfValid(field: string, schema: z.ZodType, value: unknown) {
     if (!errors[field]) return;
@@ -143,11 +110,13 @@ function LoginModal() {
   }
 
   function handleResend() {
-    const win = window as any;
-    if (!win.sendOtp) { setErrors({ otp: 'OTP service not ready. Please refresh.' }); return; }
     setOtpDigits(EMPTY_DIGITS());
     setErrors({});
-    win.sendOtp(`${countryCode.replace('+', '')}${phone}`);
+    msg91Send(
+      `${countryCode.replace('+', '')}${phone}`,
+      () => {}, () => {},
+      (msg) => setErrors({ otp: msg }),
+    );
     setResendTimer(30);
     setTimeout(() => otpRefs.current[0]?.focus(), 50);
   }
@@ -178,41 +147,37 @@ function LoginModal() {
     }
 
     if (activeMethod === 'phone') {
-      const win = window as any;
-
       if (otpSent) {
         if (!otp || otp.length !== 6) { setErrors({ otp: 'Enter the 6-digit OTP.' }); setLoading(false); return; }
-        if (!win.verifyOtp) { setErrors({ otp: 'OTP service not ready. Please refresh.' }); setLoading(false); return; }
-
-        onVerifySuccess.current = async (data: any) => {
-          const token = data?.message ?? data?.access_token ?? data?.token ?? data;
-          const res = await signIn('credentials', {
-            redirect: false,
-            msg91Token: typeof token === 'string' ? token : JSON.stringify(token),
-            phone: `${countryCode}${phone}`,
-          });
-          if (res?.error) { setErrors({ otp: 'Verification failed. Please try again.' }); }
-          else {
-            closeModal();
-            const currentPath = window.location.pathname + window.location.search;
-            if (redirectTo === currentPath) {
-              router.refresh();
-            } else {
-              window.location.href = redirectTo;
+        msg91Verify(
+          otp,
+          async (data: any) => {
+            const token = data?.message ?? data?.access_token ?? data?.token ?? data;
+            const res = await signIn('credentials', {
+              redirect: false,
+              msg91Token: typeof token === 'string' ? token : JSON.stringify(token),
+              phone: `${countryCode}${phone}`,
+            });
+            if (res?.error) { setErrors({ otp: 'Verification failed. Please try again.' }); }
+            else {
+              closeModal();
+              const currentPath = window.location.pathname + window.location.search;
+              if (redirectTo === currentPath) { router.refresh(); }
+              else { window.location.href = redirectTo; }
             }
-          }
-          setLoading(false);
-        };
-        onVerifyFailure.current = (err: any) => {
-          setErrors({ otp: err?.message ?? 'Invalid OTP. Please try again.' });
-          setLoading(false);
-        };
-        win.verifyOtp(otp);
+            setLoading(false);
+          },
+          (err: any) => { setErrors({ otp: err?.message ?? 'Invalid OTP. Please try again.' }); setLoading(false); },
+          (msg: string) => { setErrors({ otp: msg }); setLoading(false); },
+        );
         return;
       }
 
-      if (!win.sendOtp) { setErrors({ phone: 'OTP service not ready. Please refresh.' }); setLoading(false); return; }
-      win.sendOtp(`${countryCode.replace('+', '')}${phone}`);
+      msg91Send(
+        `${countryCode.replace('+', '')}${phone}`,
+        () => {}, () => {},
+        (msg) => { setErrors({ phone: msg }); setLoading(false); },
+      );
       setOtpSent(true);
       setLoading(false);
     }

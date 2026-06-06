@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react';
 import { Dialog, DialogBackdrop, DialogPanel } from '@headlessui/react';
 import { ArrowLeft, RotateCcw } from 'lucide-react';
 import { useModal } from '@/app/hooks/useModals';
+import { sendOtp as msg91Send, verifyOtp as msg91Verify } from '@/app/lib/msg91';
 import Link from 'next/link';
 import Image from 'next/image';
 import QuoteCountdown from './QuoteCountdown';
@@ -85,10 +86,7 @@ export default function BookReview({
     const [otpSending, setOtpSending]   = useState(false);
     const [resendTimer, setResendTimer] = useState(0);
     const [otpError, setOtpError]       = useState('');
-    const otpRefs         = useRef<(HTMLInputElement | null)[]>([]);
-    const widgetReady     = useRef(false);
-    const onVerifySuccess = useRef<((data: any) => void) | null>(null);
-    const onVerifyFailure = useRef<((err: any)  => void) | null>(null);
+    const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
     const totalPax = quote.adults + quote.children + quote.infants;
     const priceChanged = drift && !drift.fresh && drift.currentTotal !== null;
@@ -108,62 +106,32 @@ export default function BookReview({
     const activitiesCount = itinerary.reduce((s, d) => s + (d.activities?.length ?? 0), 0);
     const baseAmount = Math.max(0, quote.total_amount - quote.gst_amount);
 
-    // ── MSG91 widget helpers ──────────────────────────────────────────────────
-    function initWidget(onReady: () => void) {
-        function setup() {
-            if (typeof (window as any).initSendOTP !== 'function') return;
-            (window as any).initSendOTP({
-                widgetId:      process.env.NEXT_PUBLIC_MSG91_WIDGET_ID!,
-                tokenAuth:     process.env.NEXT_PUBLIC_MSG91_TOKEN_AUTH!,
-                exposeMethods: true,
-                success: (data: any) => onVerifySuccess.current?.(data),
-                failure: (err: any)  => onVerifyFailure.current?.(err),
-            });
-            widgetReady.current = true;
-            onReady();
-        }
-        if (typeof (window as any).initSendOTP === 'function') { setup(); return; }
-        if (document.getElementById('msg91-otp-provider')) {
-            const poll = setInterval(() => {
-                if (typeof (window as any).initSendOTP === 'function') { clearInterval(poll); setup(); }
-            }, 100);
-            return;
-        }
-        const urls = ['https://verify.msg91.com/otp-provider.js', 'https://verify.phone91.com/otp-provider.js'];
-        let i = 0;
-        function attempt() {
-            const script = document.createElement('script');
-            script.id = 'msg91-otp-provider'; script.src = urls[i]; script.async = true;
-            script.onload = setup;
-            script.onerror = () => { script.remove(); i++; if (i < urls.length) attempt(); };
-            document.head.appendChild(script);
-        }
-        attempt();
-    }
-
     function openOtpDialog() {
         if (!checkout) return;
         setOtpDigits(['', '', '', '', '', '']);
         setOtpError('');
         setOtpSending(true);
-        initWidget(() => {
-            const win = window as any;
-            if (!win.sendOtp) { setOtpError('OTP service not ready. Please refresh.'); setOtpSending(false); return; }
-            // strip the leading + for MSG91
-            win.sendOtp(checkout.contact.phone.replace('+', ''));
-            setResendTimer(30);
-            setOtpSending(false);
-            setOtpOpen(true);
-        });
+        msg91Send(
+            checkout.contact.phone.replace('+', ''),
+            () => {},
+            () => {},
+            (msg) => { setOtpError(msg); setOtpSending(false); },
+        );
+        setOtpSending(false);
+        setResendTimer(30);
+        setOtpOpen(true);
     }
 
     function handleResend() {
         if (!checkout) return;
-        const win = window as any;
-        if (!win.sendOtp) { setOtpError('OTP service not ready. Please refresh.'); return; }
         setOtpDigits(['', '', '', '', '', '']);
         setOtpError('');
-        win.sendOtp(checkout.contact.phone.replace('+', ''));
+        msg91Send(
+            checkout.contact.phone.replace('+', ''),
+            () => {},
+            () => {},
+            (msg) => setOtpError(msg),
+        );
         setResendTimer(30);
         setTimeout(() => otpRefs.current[0]?.focus(), 50);
     }
@@ -243,21 +211,22 @@ export default function BookReview({
     function handleVerifyOtp() {
         const otp = otpDigits.join('');
         if (otp.length !== 6) { setOtpError('Enter the 6-digit OTP.'); return; }
-        const win = window as any;
-        if (!win.verifyOtp) { setOtpError('OTP service not ready. Please refresh.'); return; }
         setOtpVerifying(true);
         setOtpError('');
-        onVerifySuccess.current = async () => {
-            setVerifiedPhone(checkout!.contact.phone);
-            setOtpOpen(false);
-            setOtpVerifying(false);
-            await proceedToPayment();
-        };
-        onVerifyFailure.current = (err: any) => {
-            setOtpError(err?.message ?? 'Invalid OTP. Please try again.');
-            setOtpVerifying(false);
-        };
-        win.verifyOtp(otp);
+        msg91Verify(
+            otp,
+            async () => {
+                setVerifiedPhone(checkout!.contact.phone);
+                setOtpOpen(false);
+                setOtpVerifying(false);
+                await proceedToPayment();
+            },
+            (err: any) => {
+                setOtpError(err?.message ?? 'Invalid OTP. Please try again.');
+                setOtpVerifying(false);
+            },
+            (msg: string) => { setOtpError(msg); setOtpVerifying(false); },
+        );
     }
 
     // Resend countdown tick — must be useEffect, not useState
