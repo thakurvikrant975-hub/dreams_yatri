@@ -203,6 +203,7 @@ export function SearchDropdown({ isSolid = true, autoFocus = false, onClose, cla
           ref={inputRef}
           autoFocus={autoFocus}
           value={query}
+          type='text'
           onChange={handleChange}
           onFocus={() => query.length >= 2 && setOpen(true)}
           placeholder="Search packages, hotels, blogs…"

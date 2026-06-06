@@ -118,6 +118,19 @@ export default function TravellerModal({
         return res.error.issues.find((iss) => iss.path[0] === key)?.message;
     };
 
+    // Age-based DOB error shown immediately (not gated by showErrors)
+    const age = calcAge(cur.dob);
+    const dobAgeError: string | null =
+        age !== null && cur.type === 'ADULT' && age < 12
+            ? 'Adult must be 12 years or older.'
+            : age !== null && cur.type === 'CHILD' && age >= 12
+            ? 'Child must be below 12 years old.'
+            : age !== null && cur.type === 'INFANT' && age >= 2
+            ? 'Infant must be below 2 years old.'
+            : null;
+
+    const dobError = dobAgeError ?? fieldErr('dob');
+
     function confirm() {
         const firstBad = draft.findIndex((t) => !isTravellerComplete(t));
         if (firstBad !== -1) {
@@ -197,11 +210,11 @@ export default function TravellerModal({
                                     max={dobLimits(cur.type).max}
                                     value={cur.dob}
                                     onChange={(e) => setField('dob', e.target.value)}
-                                    error={fieldErr('dob')}
+                                    error={dobError}
                                 />
-                                {calcAge(cur.dob) !== null && (
-                                    <p className="mt-1.5 text-xs font-semibold text-primary-600">
-                                        Age: {calcAge(cur.dob)} year{calcAge(cur.dob) !== 1 ? 's' : ''}
+                                {age !== null && (
+                                    <p className={`mt-1.5 text-xs font-semibold ${dobAgeError ? 'text-red-500' : 'text-gray-600'}`}>
+                                        Age: {age} year{age !== 1 ? 's' : ''}
                                     </p>
                                 )}
                             </div>

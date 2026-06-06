@@ -1,12 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Dialog, DialogBackdrop, DialogPanel } from '@headlessui/react';
-import { ArrowLeft, RotateCcw } from 'lucide-react';
 import { useModal } from '@/app/hooks/useModals';
-import { sendOtp as msg91Send, verifyOtp as msg91Verify } from '@/app/lib/msg91';
 import Link from 'next/link';
 import Image from 'next/image';
 import { CarProfileIcon, BedIcon, ParachuteIcon, ForkKnifeIcon, type Icon } from '@phosphor-icons/react';
@@ -23,10 +20,6 @@ import type { SafeQuote } from '@/app/actions/quote/create-quote.service';
 import type { PaymentScheduleDTO } from '@/app/actions/payment/types';
 
 const fmt = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
-
-// TESTING ONLY — bypasses phone OTP verification before payment.
-// Set back to `false` to re-enable the OTP step.
-const SKIP_OTP = true;
 
 function addDaysISO(iso: string, n: number): string {
     const d = new Date(`${iso}T00:00:00`);
@@ -83,16 +76,6 @@ export default function BookReview({
     const [checkout, setCheckout] = useState<CheckoutInput | null>(null);
     const [policy, setPolicy] = useState(false);
 
-    // Phone OTP verification before payment
-    const [verifiedPhone, setVerifiedPhone] = useState<string | null>(null);
-    const [otpOpen, setOtpOpen]         = useState(false);
-    const [otpDigits, setOtpDigits]     = useState<string[]>(['', '', '', '', '', '']);
-    const [otpVerifying, setOtpVerifying] = useState(false);
-    const [otpSending, setOtpSending]   = useState(false);
-    const [resendTimer, setResendTimer] = useState(0);
-    const [otpError, setOtpError]       = useState('');
-    const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
-
     const totalPax = quote.adults + quote.children + quote.infants;
     const priceChanged = drift && !drift.fresh && drift.currentTotal !== null;
     const depositAllowed = schedule?.plan === 'DEPOSIT';
@@ -110,36 +93,6 @@ export default function BookReview({
     const transfersCount = itinerary.reduce((s, d) => s + (d.transfers?.length ?? 0), 0);
     const activitiesCount = itinerary.reduce((s, d) => s + (d.activities?.length ?? 0), 0);
     const baseAmount = Math.max(0, quote.total_amount - quote.gst_amount);
-
-    function openOtpDialog() {
-        if (!checkout) return;
-        setOtpDigits(['', '', '', '', '', '']);
-        setOtpError('');
-        setOtpSending(true);
-        msg91Send(
-            checkout.contact.phone.replace('+', ''),
-            () => {},
-            () => {},
-            (msg) => { setOtpError(msg); setOtpSending(false); },
-        );
-        setOtpSending(false);
-        setResendTimer(30);
-        setOtpOpen(true);
-    }
-
-    function handleResend() {
-        if (!checkout) return;
-        setOtpDigits(['', '', '', '', '', '']);
-        setOtpError('');
-        msg91Send(
-            checkout.contact.phone.replace('+', ''),
-            () => {},
-            () => {},
-            (msg) => setOtpError(msg),
-        );
-        setResendTimer(30);
-        setTimeout(() => otpRefs.current[0]?.focus(), 50);
-    }
 
     async function proceedToPayment() {
         setSubmitting(true);
@@ -171,77 +124,13 @@ export default function BookReview({
         if (!checkout) { setError('Please complete all traveller and contact details.'); return; }
         if (!policy) { setError('Please accept the booking policies to continue.'); return; }
 
-        // Step 1: must be logged in
         if (status === 'unauthenticated') {
             openModal('login-modal', { redirectTo: window.location.pathname + window.location.search });
             return;
         }
 
-        // Step 2: must verify phone via OTP (skipped while SKIP_OTP is true — testing)
-        if (!SKIP_OTP && checkout.contact.phone !== verifiedPhone) {
-            openOtpDialog();
-            return;
-        }
-
-        // Step 3: create booking
         await proceedToPayment();
     }
-
-    function handleOtpChange(index: number, value: string) {
-        const digit = value.replace(/\D/g, '').slice(-1);
-        const next = [...otpDigits]; next[index] = digit; setOtpDigits(next);
-        if (otpError) setOtpError('');
-        if (digit && index < 5) otpRefs.current[index + 1]?.focus();
-    }
-
-    function handleOtpKeyDown(index: number, e: React.KeyboardEvent<HTMLInputElement>) {
-        if (e.key === 'Backspace') {
-            if (otpDigits[index]) { const n = [...otpDigits]; n[index] = ''; setOtpDigits(n); }
-            else if (index > 0) otpRefs.current[index - 1]?.focus();
-        } else if (e.key === 'ArrowLeft'  && index > 0) otpRefs.current[index - 1]?.focus();
-          else if (e.key === 'ArrowRight' && index < 5) otpRefs.current[index + 1]?.focus();
-    }
-
-    function handleOtpPaste(e: React.ClipboardEvent<HTMLInputElement>) {
-        e.preventDefault();
-        const paste = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
-        if (!paste) return;
-        const n = [...otpDigits];
-        for (let i = 0; i < paste.length; i++) n[i] = paste[i];
-        setOtpDigits(n);
-        otpRefs.current[Math.min(paste.length, 5)]?.focus();
-        if (otpError) setOtpError('');
-    }
-
-    function handleVerifyOtp() {
-        const otp = otpDigits.join('');
-        if (otp.length !== 6) { setOtpError('Enter the 6-digit OTP.'); return; }
-        setOtpVerifying(true);
-        setOtpError('');
-        msg91Verify(
-            otp,
-            async () => {
-                setVerifiedPhone(checkout!.contact.phone);
-                setOtpOpen(false);
-                setOtpVerifying(false);
-                await proceedToPayment();
-            },
-            (err: any) => {
-                setOtpError(err?.message ?? 'Invalid OTP. Please try again.');
-                setOtpVerifying(false);
-            },
-            (msg: string) => { setOtpError(msg); setOtpVerifying(false); },
-        );
-    }
-
-    // Resend countdown tick — must be useEffect, not useState
-    // (useState is misuse here; useEffect runs the side-effect correctly)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    useEffect(() => {
-        if (resendTimer <= 0) return;
-        const id = setTimeout(() => setResendTimer(t => t - 1), 1000);
-        return () => clearTimeout(id);
-    }, [resendTimer]);
 
     if (expired) {
         return (
@@ -261,7 +150,6 @@ export default function BookReview({
     }
 
     return (
-        <>
         <div className="bg-neutral-100 min-h-screen pb-16">
             {/* ── Dark "Review package" bar with step anchors ───────────────────── */}
             <div className="bg-surface-inverse text-white">
@@ -423,7 +311,7 @@ export default function BookReview({
                             <div className="px-5 py-4">
                                 <Text size="sm" weight="semibold" intent="primary" className="block mb-2">Important Information</Text>
                                 <label className="flex items-start gap-2.5 cursor-pointer select-none">
-                                    <input type="checkbox" checked={policy} onChange={(e) => setPolicy(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-primary-500" />
+                                    <input type="checkbox" checked={policy} onChange={(e) => setPolicy(e.target.checked)} className="mt-0.5 size-4 cursor-pointer shrink-0 accent-primary-500" />
                                     <Text size="xs" intent="secondary">
                                         I confirm I have read and accept the{' '}
                                         <Link href="/cancellation-policy" target="_blank" className="text-primary-500 underline">Cancellation Policy</Link>,{' '}
@@ -455,78 +343,6 @@ export default function BookReview({
                 </div>
             </div>
         </div>
-
-        {/* ── Phone OTP verification dialog ─────────────────────────────── */}
-        <Dialog open={otpOpen} onClose={() => setOtpOpen(false)} className="relative z-[500]">
-            <DialogBackdrop transition
-                className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity data-closed:opacity-0 data-enter:duration-300 data-leave:duration-200" />
-            <div className="fixed inset-0 flex items-end sm:items-center justify-center p-0 sm:p-4">
-                <DialogPanel transition
-                    className="relative w-full sm:max-w-sm bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden
-                        data-closed:translate-y-8 data-closed:opacity-0 data-enter:duration-300 data-leave:duration-200 transition-all">
-
-                    <div className="px-6 pt-7 pb-5 bg-linear-to-br from-primary-600 via-primary-500 to-primary-400">
-                        <h2 className="text-xl font-bold text-white">Confirm your number</h2>
-                        <p className="text-white/70 text-sm mt-0.5">
-                            {otpSending ? 'Sending OTP…' : `OTP sent to ${checkout?.contact.phone}`}
-                        </p>
-                    </div>
-
-                    <div className="px-6 py-6 space-y-5">
-                        {/* 6-box OTP input */}
-                        <div className="space-y-3">
-                            <label className="text-sm font-medium text-neutral-700 block text-center">Enter 6-digit OTP</label>
-                            <div className="flex items-center justify-center gap-2">
-                                {Array.from({ length: 6 }).map((_, i) => (
-                                    <input key={i}
-                                        ref={el => { otpRefs.current[i] = el; }}
-                                        type="text" inputMode="numeric" maxLength={1}
-                                        value={otpDigits[i]} autoFocus={i === 0}
-                                        onChange={e => handleOtpChange(i, e.target.value)}
-                                        onKeyDown={e => handleOtpKeyDown(i, e)}
-                                        onPaste={handleOtpPaste}
-                                        onFocus={e => e.target.select()}
-                                        className={`w-11 h-13 text-center text-xl font-bold rounded-xl border-2 outline-none transition-all duration-150
-                                            ${otpError
-                                                ? 'border-red-400 bg-red-50 text-red-600 focus:border-red-500 focus:ring-2 focus:ring-red-100'
-                                                : otpDigits[i]
-                                                    ? 'border-neutral-800 bg-white text-neutral-900 focus:border-neutral-900 focus:ring-2 focus:ring-neutral-200'
-                                                    : 'border-neutral-200 bg-white text-neutral-800 focus:border-neutral-400 focus:ring-2 focus:ring-neutral-100'
-                                            }`}
-                                    />
-                                ))}
-                            </div>
-                            {otpError && <p className="text-xs text-red-500 text-center font-medium">{otpError}</p>}
-                        </div>
-
-                        {/* Resend + close */}
-                        <div className="flex items-center justify-between">
-                            <button type="button"
-                                onClick={() => { setOtpOpen(false); setOtpDigits(['', '', '', '', '', '']); setResendTimer(0); setOtpError(''); }}
-                                className="text-sm text-neutral-500 hover:text-neutral-700 font-medium flex items-center gap-1 cursor-pointer transition-colors">
-                                <ArrowLeft size={14} /> Cancel
-                            </button>
-                            {resendTimer > 0 ? (
-                                <span className="text-sm text-neutral-400">Resend in {resendTimer}s</span>
-                            ) : (
-                                <button type="button" onClick={handleResend}
-                                    className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1.5 cursor-pointer transition-colors">
-                                    <RotateCcw size={13} /> Resend OTP
-                                </button>
-                            )}
-                        </div>
-
-                        <button type="button" onClick={handleVerifyOtp}
-                            disabled={otpVerifying || otpDigits.join('').length !== 6}
-                            className="w-full py-3 px-4 bg-primary-600 hover:bg-primary-700 disabled:opacity-60 disabled:cursor-not-allowed
-                                text-white font-semibold rounded-xl transition-colors cursor-pointer shadow-md shadow-primary-200">
-                            {otpVerifying ? 'Verifying…' : 'Confirm & Pay'}
-                        </button>
-                    </div>
-                </DialogPanel>
-            </div>
-        </Dialog>
-        </>
     );
 }
 
@@ -568,9 +384,9 @@ function DayBlock({ day, dateISO }: { day: PreviewDay; dateISO: string }) {
                     return (
                         <div className="flex gap-3">
                             <span className="flex w-24 shrink-0 items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-(--text-muted) pt-0.5">
-                                <BedIcon className="size-6 text-muted scale-95" weight="duotone" /> 
+                                <BedIcon className="size-6 text-muted scale-95" weight="duotone" />
                                 <span className="text-secondary"> Stay</span>
-                               
+
                             </span>
                             <div className="flex flex-1 gap-3 min-w-0">
                                 {hotelImg && (
@@ -632,7 +448,7 @@ function Row({ tag, text, suffix, icon: IconC }: { tag: string; text: string; su
             <span className="flex w-24 shrink-0 items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-(--text-muted) pt-0.5">
                 {IconC && <IconC className="size-6 text-muted" weight="duotone" />}
                 <span className='text-secondary'>{tag}</span>
-                
+
             </span>
             <span className="text-(--text-primary)">
                 {text}{suffix && <span className="ml-2 text-xs text-secondary">· {suffix}</span>}
