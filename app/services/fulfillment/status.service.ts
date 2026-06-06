@@ -27,6 +27,7 @@ export interface FulfillmentItem {
     kind: ItemKind;
     day: number;
     key: string;
+    activityId?: number | null; // set for ACTIVITY items (target for admin writes)
     title: string;
     subtitle: string | null;
     status: FulfillmentState;
@@ -153,6 +154,7 @@ export async function getBookingFulfillment(bookingId: string): Promise<BookingF
             const status = resolve(row?.status, false, paid, cancelled);
             items.push({
                 kind: "ACTIVITY", day: d.day, key: `activity:${d.day}:${a.id ?? a.name}`,
+                activityId: a.id ?? null,
                 title: a.name ?? "Activity",
                 subtitle: a.variant_label ?? null,
                 status, voucherUrl: row?.voucherUrl ?? null, paid: isPaid,
