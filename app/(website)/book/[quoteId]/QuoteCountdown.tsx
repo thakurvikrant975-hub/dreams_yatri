@@ -40,7 +40,7 @@ export default function QuoteCountdown({
         <span
             role="timer"
             aria-live="off"
-            className={`font-heading font-semibold tabular-nums ${urgent ? 'text-error-600' : 'text-primary'}`}
+            className={`font-heading font-semibold text-sm tabular-nums ${urgent ? 'text-error-600' : 'text-primary'}`}
         >
             {mm}:{ss}
         </span>

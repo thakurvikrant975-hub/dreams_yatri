@@ -267,7 +267,7 @@ export default function BookReview({
                                     <span className="text-2xl font-bold text-(--text-primary) font-heading">{fmt(quote.total_amount)}</span>
                                     <span className="text-xs text-secondary">(incl. GST)</span>
                                 </div>
-                                <Text size="sm" weight="semibold" className="text-primary-500 block mt-1">
+                                <Text size="sm" weight="semibold" className="text-gray-700 block mt-1">
                                     {effectiveChoice === 'FULL' ? 'Pay Full Amount Now' : `Pay ${formatPaise(payAmountPaise)} now to reserve`}
                                 </Text>
                             </div>
@@ -335,7 +335,6 @@ export default function BookReview({
                                 <Text size="xs" intent="muted" className="block">The package price will refresh after that</Text>
                             </div>
                             <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 border border-primary-200 px-3 py-1.5">
-                                <span className="h-1.5 w-1.5 rounded-full bg-primary-500 animate-pulse" />
                                 <QuoteCountdown expiresAt={quote.expires_at} onExpire={() => setExpired(true)} />
                             </span>
                         </Card>
