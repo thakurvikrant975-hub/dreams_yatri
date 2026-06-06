@@ -86,7 +86,7 @@ export default function CheckoutForm({ pax, onChange }: { pax: Pax; onChange: (v
                                     {done ? labels[i] + (i === 0 ? ' · Lead traveller' : '') : i === 0 ? 'Lead traveller — required' : 'Required'}
                                 </span>
                             </span>
-                            <span className="flex shrink-0 items-center gap-1 text-xs font-bold text-primary-500">
+                            <span className="flex shrink-0 items-center gap-1 text-xs font-bold text-gray-700 bg-gray-200 rounded-md px-3 py-1.5">
                                 {done ? <><PencilSimpleIcon weight="bold" className="size-3.5" /> Edit</> : 'Add'}
                             </span>
                         </button>
