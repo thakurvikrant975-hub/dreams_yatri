@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useModal } from '@/app/hooks/useModals';
 import Link from 'next/link';
 import Image from 'next/image';
 import QuoteCountdown from './QuoteCountdown';
@@ -65,6 +66,7 @@ export default function BookReview({
     itinerary?: PreviewDay[];
 }) {
     const router = useRouter();
+    const { openModal } = useModal();
     const [expired, setExpired] = useState(quote.status !== 'ACTIVE');
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -98,9 +100,12 @@ export default function BookReview({
             const res = await createBookingDraft(quote.id, { paymentChoice: effectiveChoice, details: checkout });
             if (!res.success) {
                 setSubmitting(false);
+                if (res.reason === 'unauthenticated') {
+                    openModal('login-modal');
+                    return;
+                }
                 setError(
-                    res.reason === 'unauthenticated' ? 'Please log in to continue your booking.'
-                    : res.reason === 'stale' ? 'The price changed since this quote was created. Please refresh for the latest price.'
+                    res.reason === 'stale' ? 'The price changed since this quote was created. Please refresh for the latest price.'
                     : res.reason === 'not_active' ? 'This quote has expired. Please start again.'
                     : res.message ?? 'Could not continue to payment. Please try again.',
                 );
