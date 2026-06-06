@@ -24,6 +24,10 @@ import type { PaymentScheduleDTO } from '@/app/actions/payment/types';
 
 const fmt = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 
+// TESTING ONLY — bypasses phone OTP verification before payment.
+// Set back to `false` to re-enable the OTP step.
+const SKIP_OTP = true;
+
 function addDaysISO(iso: string, n: number): string {
     const d = new Date(`${iso}T00:00:00`);
     d.setDate(d.getDate() + n);
@@ -173,8 +177,8 @@ export default function BookReview({
             return;
         }
 
-        // Step 2: must verify phone via OTP
-        if (checkout.contact.phone !== verifiedPhone) {
+        // Step 2: must verify phone via OTP (skipped while SKIP_OTP is true — testing)
+        if (!SKIP_OTP && checkout.contact.phone !== verifiedPhone) {
             openOtpDialog();
             return;
         }
