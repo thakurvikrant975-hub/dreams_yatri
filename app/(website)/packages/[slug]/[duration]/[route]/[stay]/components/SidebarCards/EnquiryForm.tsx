@@ -14,10 +14,20 @@ type EnquiryFormProps = {
   packageName: string;
 };
 
+const COUNTRY_CODES = [
+  { code: '+91',  label: '🇮🇳 +91'  },
+  { code: '+1',   label: '🇺🇸 +1'   },
+  { code: '+44',  label: '🇬🇧 +44'  },
+  { code: '+61',  label: '🇦🇺 +61'  },
+  { code: '+971', label: '🇦🇪 +971' },
+  { code: '+65',  label: '🇸🇬 +65'  },
+  { code: '+60',  label: '🇲🇾 +60'  },
+];
+
 const EnquiryForm: React.FC<EnquiryFormProps> = ({ packageName }) => {
   const { pricing, adults, childCount, infants } = useBooking();
 
-  const [formData, setFormData] = useState({ name: '', email: '', phone: '' });
+  const [formData, setFormData] = useState({ name: '', email: '', countryCode: '+91', mobileNumber: '' });
   const [errors,   setErrors]   = useState<EnquiryErrors>({});
   const [formError, setFormError] = useState('');
   const [status,   setStatus]   = useState<'idle' | 'loading' | 'success'>('idle');
@@ -25,8 +35,7 @@ const EnquiryForm: React.FC<EnquiryFormProps> = ({ packageName }) => {
   const totalPax = adults + childCount + infants;
   const fmt = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 
-  // Validate a single field on blur and update errors
-  const validateField = (field: keyof typeof formData, value: string) => {
+  const validateField = (field: keyof EnquiryErrors, value: string) => {
     const shape = enquirySchema.shape[field as 'name' | 'email' | 'phone'];
     if (!shape) return;
     const result = shape.safeParse(value);
@@ -39,8 +48,8 @@ const EnquiryForm: React.FC<EnquiryFormProps> = ({ packageName }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Full client-side validation before hitting the server
-    const parsed = enquirySchema.safeParse({ ...formData, packageName });
+    const phone = formData.countryCode + formData.mobileNumber;
+    const parsed = enquirySchema.safeParse({ name: formData.name, email: formData.email, phone, packageName });
     if (!parsed.success) {
       const fe: EnquiryErrors = {};
       for (const issue of parsed.error.issues) {
@@ -55,7 +64,9 @@ const EnquiryForm: React.FC<EnquiryFormProps> = ({ packageName }) => {
     setFormError('');
 
     const result = await submitPackageEnquiry({
-      ...formData,
+      name:       formData.name,
+      email:      formData.email,
+      phone,
       packageName,
       packageUrl: typeof window !== 'undefined' ? window.location.pathname : undefined,
       pageUrl:    typeof window !== 'undefined' ? window.location.href     : undefined,
@@ -63,7 +74,7 @@ const EnquiryForm: React.FC<EnquiryFormProps> = ({ packageName }) => {
 
     if (result.ok) {
       setStatus('success');
-      setFormData({ name: '', email: '', phone: '' });
+      setFormData({ name: '', email: '', countryCode: '+91', mobileNumber: '' });
       setErrors({});
     } else if ('fieldErrors' in result && result.fieldErrors) {
       setErrors(result.fieldErrors);
@@ -135,15 +146,28 @@ const EnquiryForm: React.FC<EnquiryFormProps> = ({ packageName }) => {
 
           <div>
             <Label htmlFor="enquiry-phone" required>Phone No.</Label>
-            <Input
-              id="enquiry-phone"
-              type="tel"
-              placeholder="+91 8219986345"
-              value={formData.phone}
-              error={errors.phone}
-              onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))}
-              onBlur={e => validateField('phone', e.target.value)}
-            />
+            <div className="flex gap-2">
+              <select
+                value={formData.countryCode}
+                onChange={e => setFormData(p => ({ ...p, countryCode: e.target.value }))}
+                className="h-11 w-24 shrink-0 rounded-xl bg-white px-2 text-sm font-medium text-(--text-primary) ring-[0.09em] ring-inset ring-neutral-400/80 outline-none hover:ring-neutral-300 focus:ring-2 focus:ring-primary-400"
+              >
+                {COUNTRY_CODES.map(c => (
+                  <option key={c.code} value={c.code}>{c.label}</option>
+                ))}
+              </select>
+              <Input
+                id="enquiry-phone"
+                type="tel"
+                inputMode="numeric"
+                placeholder="Mobile number"
+                value={formData.mobileNumber}
+                error={errors.phone}
+                wrapperClassName="flex-1"
+                onChange={e => setFormData(p => ({ ...p, mobileNumber: e.target.value.replace(/\D/g, '') }))}
+                onBlur={e => validateField('phone', formData.countryCode + e.target.value)}
+              />
+            </div>
           </div>
 
         </div>
