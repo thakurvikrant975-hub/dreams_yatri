@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { Dialog, DialogBackdrop, DialogPanel } from '@headlessui/react';
 import { useModal } from '@/app/hooks/useModals';
 import Input from '../forms/Input';
@@ -37,7 +38,9 @@ type LoginMethod = 'phone' | 'email';
 const EMPTY_DIGITS = (): string[] => ['', '', '', '', '', ''];
 
 function LoginModal() {
-  const { isOpen, type, closeModal } = useModal();
+  const { isOpen, type, data, closeModal } = useModal();
+  const redirectTo = (data as { redirectTo?: string } | null)?.redirectTo ?? '/profile';
+  const router = useRouter();
   const [errors, setErrors]           = useState<Record<string, string>>({});
   const [countryCode, setCountryCode] = useState('+91');
   const [activeMethod, setActiveMethod] = useState<LoginMethod>('phone');
@@ -189,7 +192,15 @@ function LoginModal() {
             phone: `${countryCode}${phone}`,
           });
           if (res?.error) { setErrors({ otp: 'Verification failed. Please try again.' }); }
-          else { closeModal(); window.location.href = '/profile'; }
+          else {
+            closeModal();
+            const currentPath = window.location.pathname + window.location.search;
+            if (redirectTo === currentPath) {
+              router.refresh();
+            } else {
+              window.location.href = redirectTo;
+            }
+          }
           setLoading(false);
         };
         onVerifyFailure.current = (err: any) => {
@@ -419,7 +430,7 @@ function LoginModal() {
                 {/* Google */}
                 <button
                   type="button"
-                  onClick={() => signIn('google', { callbackUrl: '/profile' })}
+                  onClick={() => signIn('google', { callbackUrl: redirectTo })}
                   className="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-neutral-200 rounded-xl
                     bg-white hover:bg-neutral-50 text-neutral-700 text-sm font-medium transition-colors cursor-pointer shadow-sm"
                 >

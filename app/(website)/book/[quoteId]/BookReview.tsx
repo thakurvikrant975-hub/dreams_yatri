@@ -101,7 +101,7 @@ export default function BookReview({
             if (!res.success) {
                 setSubmitting(false);
                 if (res.reason === 'unauthenticated') {
-                    openModal('login-modal');
+                    openModal('login-modal', { redirectTo: window.location.pathname + window.location.search });
                     return;
                 }
                 setError(
