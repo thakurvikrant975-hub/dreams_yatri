@@ -135,8 +135,12 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
                                 </div>
 
                                 <Text size="sm" intent="secondary" className="mt-5 block text-center">
-                                    A confirmation has been recorded. Our team will reach out with your trip details.
+                                    A confirmation has been recorded. Track each hotel, transfer and activity as our team confirms it.
                                 </Text>
+
+                                <Link href={`/bookings/${booking.id}/status`} className="mt-4 block">
+                                    <Button variant="premium" className="w-full">Track your trip status</Button>
+                                </Link>
 
                                 <div className="mt-4 flex justify-center gap-4 text-sm">
                                     <Link href={`/bookings/${booking.id}/invoice`} className="text-primary font-medium underline">Invoice</Link>

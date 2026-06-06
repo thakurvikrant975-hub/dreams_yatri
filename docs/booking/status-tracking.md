@@ -99,9 +99,9 @@ Booking-level rollup (page header / `BookingStatus`): derived from item statuses
 | 1 | 1.1 schema + migration | ✅ DONE (migration 20260606120000_status_tracking_phase1) |
 | 1 | 1.2 fulfilment read-model (derive, not materialise) | ✅ DONE (app/services/fulfillment/status.service.ts) |
 | 1 | 1.3 verify-hotels sets status=CONFIRMED (verify-cabs/activities land in Phase 3) | ✅ DONE |
-| 2 | 2.1 loader | NOT STARTED |
-| 2 | 2.2 checklist UI | NOT STARTED |
-| 2 | 2.3 links/emails | NOT STARTED |
+| 2 | 2.1 loader (status/page.tsx + getBookingFulfillment) | ✅ DONE |
+| 2 | 2.2 checklist UI (StatusView) | ✅ DONE |
+| 2 | 2.3 link from confirmation page (emails deferred to Phase 5) | ✅ DONE |
 | 3 | 3.1 verify hotels/cabs status+voucher | NOT STARTED |
 | 3 | 3.2 verify-activities desk | NOT STARTED |
 | 3 | 3.3 rollup + notify hook | NOT STARTED |
