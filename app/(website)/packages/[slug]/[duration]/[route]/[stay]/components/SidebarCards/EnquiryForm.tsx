@@ -330,7 +330,7 @@ const EnquiryForm: React.FC<EnquiryFormProps> = ({ packageName }) => {
               <select
                 value={formData.countryCode}
                 onChange={e => setFormData(p => ({ ...p, countryCode: e.target.value }))}
-                className="h-11 w-40 shrink-0 rounded-xl bg-white px-2 text-sm font-medium text-(--text-primary) ring-[0.09em] ring-inset ring-neutral-400/80 outline-none hover:ring-neutral-300 focus:ring-2 focus:ring-primary-400"
+                className="h-11 w-32 shrink-0 rounded-xl bg-white px-2 text-sm font-medium text-(--text-primary) ring-[0.09em] ring-inset ring-neutral-400/80 outline-none hover:ring-neutral-300 focus:ring-2 focus:ring-primary-400"
               >
                 {COUNTRY_CODES.map(c => (
                   <option key={c.code} value={c.code}>{c.label}</option>
