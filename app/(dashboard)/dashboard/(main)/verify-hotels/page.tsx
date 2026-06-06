@@ -102,14 +102,14 @@ export default async function VerifyHotelsPage({
                 />
                 <button
                     type="submit"
-                    className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-100 px-4 py-2 text-sm text-dashboard-base-content hover:bg-dashboard-base-200 transition-colors"
+                    className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-100 px-4 py-2 text-sm text-dashboard-base-content hover:bg-dashboard-base-200 transition-colors cursor-pointer"
                 >
                     Search
                 </button>
                 {search && (
                     <Link
                         href="/dashboard/verify-hotels"
-                        className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-100 px-4 py-2 text-sm text-dashboard-neutral hover:bg-dashboard-base-200 transition-colors"
+                        className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-100 px-4 py-2 text-sm text-dashboard-neutral hover:bg-dashboard-base-200 transition-colors cursor-pointer"
                     >
                         Clear
                     </Link>
@@ -173,8 +173,8 @@ export default async function VerifyHotelsPage({
                                         <td className="px-4 py-3 text-center">
                                             <span className={`inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                                                 pending === 0
-                                                    ? "bg-green-100 text-green-700"
-                                                    : "bg-amber-100 text-amber-700"
+                                                    ? "bg-dashboard-success/20 text-dashboard-success"
+                                                    : "bg-dashboard-warning/20 text-dashboard-neutral"
                                             }`}>
                                                 {pending} / {total} left
                                             </span>
