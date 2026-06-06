@@ -55,9 +55,11 @@ Booking-level rollup (page header / `BookingStatus`): derived from item statuses
   `final*` fields for replacements) to `BookingHotel` & `BookingCab`; add
   `BookingActivity` model; add `DocumentType` values (`HOTEL_VOUCHER`,
   `ACTIVITY_TICKET`, `CAB_SLIP`). Migration on Neon.
-- **1.2** Materialise at booking: in `createBooking`, create `BookingHotel` /
-  `BookingCab` / `BookingActivity` rows in `PENDING` from the snapshot. Backfill
-  script for existing paid bookings.
+- **1.2** ~~Materialise at booking~~ → **revised to a derive-based read-model**
+  (`getBookingFulfillment`): join the snapshot (plan) with fulfilment rows;
+  un-rowed items default to IN_PROCESS once paid (else AWAITING_PAYMENT). Avoids
+  duplicating snapshot data + the `BookingCab.cabType` enum mismatch. Rows stay
+  created lazily by the ops desks. Legacy `isConfirmed` honoured as CONFIRMED.
 - **1.3** Reconcile the lazy create paths (Verify-Hotels `upsert`, Verify-Cabs)
   so they update the pre-materialised rows instead of duplicating; switch their
   "confirmed" writes to set `status = CONFIRMED`.
@@ -95,7 +97,7 @@ Booking-level rollup (page header / `BookingStatus`): derived from item statuses
 | Phase | Step | State |
 |-------|------|-------|
 | 1 | 1.1 schema + migration | ✅ DONE (migration 20260606120000_status_tracking_phase1) |
-| 1 | 1.2 materialise at booking | NOT STARTED |
+| 1 | 1.2 fulfilment read-model (derive, not materialise) | ✅ DONE (app/services/fulfillment/status.service.ts) |
 | 1 | 1.3 reconcile admin upserts | NOT STARTED |
 | 2 | 2.1 loader | NOT STARTED |
 | 2 | 2.2 checklist UI | NOT STARTED |
