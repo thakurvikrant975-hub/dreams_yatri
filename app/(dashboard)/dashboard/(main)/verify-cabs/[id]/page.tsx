@@ -6,6 +6,7 @@ import { db } from "@/app/lib/db";
 import { formatPaise } from "@/app/lib/money";
 import { PaymentPill, StatusPill } from "../../package-bookings/pills";
 import CabConfirmPanel from "./CabConfirmPanel";
+import BulkCabConfirmPanel from "./BulkCabConfirmPanel";
 
 export const metadata: Metadata = {
     title: "Cab Verification - Dashboard",
@@ -113,6 +114,15 @@ export default async function VerifyCabDetailPage({ params }: { params: Promise<
     const pct            = totalCount > 0 ? Math.round((confirmedCount / totalCount) * 100) : 0;
     const allDone        = pct === 100 && totalCount > 0;
 
+    // Legs that still need confirmation — passed to the bulk panel
+    const pendingLegs = transferDays
+        .filter((d) => !(confirmedMap.get(d.day)?.isConfirmed))
+        .map((d) => ({
+            day:  d.day,
+            from: d.transfers?.[0]?.pickup_name ?? "—",
+            to:   d.transfers?.[d.transfers.length - 1]?.drop_name ?? "—",
+        }));
+
     // Helper: find the segment for a given day
     function segForDay(day: number): SnapCab | undefined {
         return cabSegs.find((s) => day >= s.day_from && day <= s.day_to);
@@ -172,6 +182,14 @@ export default async function VerifyCabDetailPage({ params }: { params: Promise<
             <div className="grid gap-5 lg:grid-cols-3 items-start">
                 {/* ── Cab day cards ────────────────────────────────────────── */}
                 <div className="lg:col-span-2 flex flex-col gap-3">
+                    {/* Bulk confirm panel — shown only when ≥1 pending leg */}
+                    {pendingLegs.length > 0 && (
+                        <BulkCabConfirmPanel
+                            bookingId={booking.id}
+                            pendingLegs={pendingLegs}
+                        />
+                    )}
+
                     {totalCount === 0 ? (
                         <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 px-5 py-10 text-center text-sm text-dashboard-neutral">
                             No cab transfers found in the booking itinerary snapshot.
