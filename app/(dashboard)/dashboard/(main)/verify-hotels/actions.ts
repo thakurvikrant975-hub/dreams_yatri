@@ -3,6 +3,68 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/app/lib/db";
 import { getCurrentMember } from "../lib/get-current-member";
+import { getThumbnailImage } from "@/app/lib/imageUrl";
+
+export type RoomOption = {
+    id: number;
+    name: string;
+    bed_type: string | null;
+    view_type: string | null;
+    max_occupancy: number;
+    area_sqft: number | null;
+    image_url: string | null;
+    image_thumbnail: string | null;
+    pricing: { id: number; plan_name: string | null; price_per_night: number; season_name: string | null }[];
+};
+
+export async function getRoomsForHotel(hotelId: number, checkInDate?: string): Promise<RoomOption[]> {
+    const targetDate = checkInDate ? new Date(`${checkInDate}T00:00:00`) : null;
+
+    const rows = await db.hotel_rooms.findMany({
+        where: { hotel_id: hotelId, is_active: true },
+        orderBy: { sort_order: "asc" },
+        select: {
+            id: true, name: true, bed_type: true, view_type: true, max_occupancy: true, area_sqft: true,
+            images: {
+                orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
+                select: { url: true, thumbnail: true },
+                take: 1,
+            },
+            pricing: {
+                where: { is_active: true },
+                orderBy: { price_per_night: "asc" },
+                select: {
+                    id: true, plan_name: true, price_per_night: true,
+                    seasons: {
+                        where: { is_active: true },
+                        select: { season_name: true, valid_from: true, valid_to: true, price_per_night: true },
+                    },
+                },
+            },
+        },
+    });
+
+    return rows.map((r) => ({
+        id: r.id, name: r.name, bed_type: r.bed_type, view_type: r.view_type,
+        max_occupancy: r.max_occupancy, area_sqft: r.area_sqft,
+        image_url: r.images[0]?.url ? getThumbnailImage(r.images[0].url) : null,
+        image_thumbnail: r.images[0]?.thumbnail ? getThumbnailImage(r.images[0].thumbnail) : null,
+        pricing: r.pricing.map((p) => {
+            let effectivePrice = Number(p.price_per_night);
+            let seasonName: string | null = null;
+            if (targetDate) {
+                const season = p.seasons.find(
+                    (s) => targetDate >= new Date(s.valid_from) && targetDate <= new Date(s.valid_to),
+                );
+                if (season) {
+                    effectivePrice = Number(season.price_per_night);
+                    seasonName = season.season_name;
+                }
+            }
+            return { id: p.id, plan_name: p.plan_name, price_per_night: effectivePrice, season_name: seasonName };
+        }),
+    }));
+}
 
 type Member = NonNullable<Awaited<ReturnType<typeof getCurrentMember>>>;
 
