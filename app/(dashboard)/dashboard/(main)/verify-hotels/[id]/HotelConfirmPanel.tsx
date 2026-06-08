@@ -134,7 +134,7 @@ function ChangeHotelModal({
                 </div>
 
                 {/* Hotel list */}
-                <div className="flex-1 min-h-0 overflow-y-auto px-5 py-3 flex flex-col gap-2">
+                <div className="flex-1 min-h-0 overflow-y-auto px-5 py-3 space-y-2">
                     {filtered.length === 0 ? (
                         <p className="py-8 text-center text-sm text-dashboard-neutral">No hotels found.</p>
                     ) : filtered.map((hotel) => {
@@ -200,7 +200,7 @@ function ChangeHotelModal({
 
                                 {/* Rooms — flat list: one selectable card per room+plan */}
                                 {isExpanded && (
-                                    <div className="border-t border-dashboard-base-300/60 bg-dashboard-base-200/30 px-4 py-3 flex flex-col gap-2 max-h-80 overflow-y-auto">
+                                    <div className="border-t border-dashboard-base-300/60 bg-dashboard-base-200/30 px-4 py-3 space-y-2 max-h-80 overflow-y-auto">
                                         {rooms === "loading" ? (
                                             <p className="py-3 text-center text-xs text-dashboard-neutral">Loading rooms…</p>
                                         ) : !rooms || rooms.length === 0 ? (
