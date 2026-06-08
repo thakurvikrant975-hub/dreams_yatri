@@ -125,7 +125,7 @@ const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onTabChange, trailing, idP
                   )}
                   <div
                     className={cn(
-                      'flex items-center gap-2 px-3 py-1.5 rounded-full transition-all',
+                      'flex items-center gap-2 px-2 py-1.5 rounded-full transition-all',
                       isActive ? 'text-primary-500' : 'text-neutral-500'
                     )}
                   >

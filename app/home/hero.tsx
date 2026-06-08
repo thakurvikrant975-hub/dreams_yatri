@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion'
 import Button from '@/app/components/ui/Button';
 import Image from 'next/image';
-import { IslandIcon, MagnifyingGlassIcon } from '@phosphor-icons/react';
+import { IslandIcon, MagnifyingGlassIcon, BedIcon, CarProfileIcon, RocketLaunchIcon, XIcon } from '@phosphor-icons/react';
+import { toast } from 'sonner';
 import LocationSearchSelect, { type LocationValue } from '@/app/components/ui/LocationSearchSelect';
 import DatePickerField from '@/app/components/ui/DatePickerField';
 import TravellersField, { type TravellersValue } from '@/app/components/ui/TravellersField';
@@ -74,6 +75,35 @@ interface HeroProps {
 // ─── Shared field label styling ───────────────────────────────────────────────
 const FIELD_LABEL_CLASS = 'text-xs sm:text-sm font-medium font-heading text-inverse pl-1'
 
+// ─── Hero search tabs (Holidays live; Hotels & Cabs coming soon) ──────────────
+const HERO_TABS = [
+    { key: 'holidays', label: 'Holidays', Icon: IslandIcon, soon: false },
+    { key: 'hotels', label: 'Hotels', Icon: BedIcon, soon: true },
+    { key: 'cabs', label: 'Cabs', Icon: CarProfileIcon, soon: true },
+] as const
+
+// Branded "coming soon" toast card
+function comingSoonToast(label: string) {
+    toast.custom((id) => (
+        <div className="flex w-[min(92vw,380px)] items-center gap-3 rounded-2xl border border-neutral-200/70 bg-white/95 px-4 py-3.5 shadow-2xl shadow-black/15 backdrop-blur-md">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary-500 to-primary-600 text-white shadow-md shadow-primary-500/30">
+                <RocketLaunchIcon weight="duotone" className="size-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+                <p className="font-heading text-sm font-semibold text-neutral-900">{label} — coming soon</p>
+                <p className="text-xs text-neutral-500">We&apos;re putting the finishing touches on it. Stay tuned!</p>
+            </div>
+            <button
+                onClick={() => toast.dismiss(id)}
+                aria-label="Dismiss"
+                className="shrink-0 rounded-md p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
+            >
+                <XIcon weight="bold" className="size-4" />
+            </button>
+        </div>
+    ))
+}
+
 // ─── Slideshow dot indicator ──────────────────────────────────────────────────
 function SlideDots({ total, active }: { total: number; active: number }) {
     return (
@@ -107,11 +137,9 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
     const [toLoc, setToLoc] = useState<LocationValue | null>(null)
     const [departDate, setDepartDate] = useState<Date | null>(null)
     const [travellers, setTravellers] = useState<TravellersValue>({ adults: 2, childrenAges: [] })
-    const [searchError, setSearchError] = useState('')
 
     function handleSearch() {
-        if (!toLoc) { setSearchError('Please choose where you want to go.'); return }
-        setSearchError('')
+        if (!toLoc) { toast.error('Please choose where you want to go.'); return }
         const params = new URLSearchParams()
         params.set('to', toLoc.id)
         params.set('toName', toLoc.name)
@@ -233,12 +261,28 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
                     <div className="relative z-10 w-full screen-space mt-12 sm:mt-16">
                         <div className="rounded-3xl bg-white/20 backdrop-blur-[2px] shadow-2xl shadow-black/30 ring-[0.1em] ring-inset ring-white/30 px-4 sm:px-8 pt-6 ">
 
-                            {/* Header pill — floats slightly above the card */}
-                            <div className="flex justify-center  -mt-11 mb-6">
-                                <span className="inline-flex items-center gap-2 bg-white rounded-full pl-4 pr-5 py-2.5 shadow-xl shadow-black/15">
-                                    <IslandIcon weight="duotone" className="size-7 duo_icons" />
-                                    <span className="font-heading font-semibold text-neutral-900">Holiday Packages</span>
-                                </span>
+                            {/* Tabs — Holidays is live; Hotels & Cabs are coming soon. Floats above the card. */}
+                            <div className="flex justify-center -mt-12 mb-6">
+                                <div className="inline-flex items-stretch gap-1 rounded-2xl bg-white p-1.5 shadow-xl shadow-black/15">
+                                    {HERO_TABS.map(({ key, label, Icon, soon }) => {
+                                        const active = key === 'holidays'
+                                        return (
+                                            <button
+                                                key={key}
+                                                type="button"
+                                                aria-current={active ? 'page' : undefined}
+                                                onClick={() => { if (soon) comingSoonToast(label) }}
+                                                className={`flex flex-col items-center justify-center gap-1 rounded-xl px-5 sm:px-7 py-2 transition-colors cursor-pointer ${active
+                                                    ? 'bg-primary-500 text-white'
+                                                    : 'text-neutral-700 hover:bg-neutral-100'
+                                                    }`}
+                                            >
+                                                <Icon weight="duotone" className="size-6" />
+                                                <span className="text-xs font-semibold">{label}</span>
+                                            </button>
+                                        )
+                                    })}
+                                </div>
                             </div>
 
                             {/* Fields */}
@@ -286,16 +330,11 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
 
                             {/* Search */}
                             <div className="flex flex-col items-center mt-7 translate-y-1/2">
-                                {searchError && (
-                                    <p className="mb-2 text-xs font-medium text-white bg-red-500/90 rounded-full px-3 py-1 shadow">
-                                        {searchError}
-                                    </p>
-                                )}
                                 <Button
                                     variant="premium"
                                     size="lg"
                                     onClick={handleSearch}
-                                    className="rounded-pill px-12 font-bold text-base shadow-lg shadow-red-400/40 hover:shadow-red-400/60 hover:scale-105 flex items-center gap-2"
+                                    className="rounded-pill  font-bold text-base shadow-lg shadow-red-400/40 hover:shadow-red-400/60 hover:scale-105 flex items-center gap-2"
                                 >
                                     <MagnifyingGlassIcon weight="bold" className="size-5" />
                                     Search Packages

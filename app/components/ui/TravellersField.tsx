@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Popover } from 'radix-ui'
-import { MinusIcon, PlusIcon, UsersThreeIcon, CaretDownIcon } from '@phosphor-icons/react'
+import { MinusIcon, PlusIcon, UsersFourIcon, CaretDownIcon } from '@phosphor-icons/react'
 import Button from './Button'
 import { cn } from '@/app/lib/utils'
 
@@ -104,13 +104,13 @@ export default function TravellersField({
                     aria-expanded={open}
                     className={cn(
                         'flex w-full items-center rounded-input border border-neutral-200 bg-white px-3 py-2.5 text-left shadow-sm transition-colors',
-                        'focus:outline-none focus:border-red-400 focus:ring-[0.12em] focus:ring-red-100',
-                        open && 'border-red-400 ring-[0.12em] ring-red-100',
+                        'focus:outline-none focus:border-primary-400 border-[0.13em] focus:ring-[0.11em] focus:ring-primary-100',
+                        open && 'border-primary-400 border-[0.13em] ring-[0.11em] ring-primary-100',
                         disabled && 'pointer-events-none opacity-50',
                         className,
                     )}
                 >
-                    <UsersThreeIcon weight="duotone" className="mr-2 size-4 shrink-0 text-red-500" />
+                    <UsersFourIcon weight="fill" className="mr-2 size-4.5 shrink-0 text-muted" />
                     <span className="flex-1 truncate text-sm text-neutral-800">{summarizeTravellers(value)}</span>
                     <CaretDownIcon className={cn('ml-2 size-4 shrink-0 text-neutral-400 transition-transform', open && 'rotate-180')} />
                 </button>
@@ -142,11 +142,11 @@ export default function TravellersField({
                         <Stepper value={childrenAges.length} min={0} max={MAX_CHILDREN} onChange={setChildrenCount} />
                     </div>
 
-                    {/* Per-child age — required */}
+                    {/* Per-child age — requiprimary */}
                     {childrenAges.length > 0 && (
                         <div className="mt-3 rounded-lg bg-neutral-50 p-3">
                             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
-                                Age of each child <span className="text-red-500">*</span>
+                                Age of each child <span className="text-primary-500">*</span>
                             </p>
                             <div className="grid grid-cols-2 gap-2">
                                 {childrenAges.map((age, i) => (
@@ -157,7 +157,7 @@ export default function TravellersField({
                                             onChange={(e) => setChildAge(i, Number(e.target.value))}
                                             className={cn(
                                                 'flex-1 rounded-md border bg-white px-2 py-1.5 text-xs text-neutral-800 outline-none transition-colors',
-                                                age < 0 ? 'border-red-300 text-neutral-400' : 'border-neutral-200',
+                                                age < 0 ? 'border-primary-300 text-neutral-400' : 'border-neutral-200',
                                             )}
                                         >
                                             <option value={-1} disabled>Age</option>
@@ -169,7 +169,7 @@ export default function TravellersField({
                                 ))}
                             </div>
                             {hasUnsetAge && (
-                                <p className="mt-2 text-[11px] text-red-500">Select an age for each child.</p>
+                                <p className="mt-2 text-[11px] text-primary-500">Select an age for each child.</p>
                             )}
                         </div>
                     )}

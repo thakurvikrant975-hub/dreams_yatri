@@ -52,7 +52,7 @@ function TypeBadge({ type }: { type: LocationType }) {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
     return (
-        <p className="px-3 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-widest text-neutral-400 select-none">
+        <p className="px-3 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-widest text-primary select-none">
             {children}
         </p>
     )
@@ -71,6 +71,7 @@ function Row({
 }) {
     return (
         <button
+           data-layout="website"
             type="button"
             onMouseDown={(e) => { e.preventDefault(); onClick() }}
             className={cn(
@@ -84,7 +85,7 @@ function Row({
                     <span className="truncate">{primary}</span>
                     {badge}
                 </span>
-                {secondary && <span className="truncate text-xs text-neutral-400">{secondary}</span>}
+                {secondary && <span className="truncate text-xs text-secondary">{secondary}</span>}
             </span>
         </button>
     )
@@ -228,19 +229,19 @@ export default function LocationSearchSelect({
     }
 
     // ── Build navigable list (mirrors render order) ───────────────────────────
-    const recentFiltered = types?.length ? recent.filter((r) => types.includes(r.type)) : recent
-    const popularFiltered = popular.filter((p) => !recentFiltered.some((r) => r.id === p.id))
+    const recentFilteprimary = types?.length ? recent.filter((r) => types.includes(r.type)) : recent
+    const popularFilteprimary = popular.filter((p) => !recentFilteprimary.some((r) => r.id === p.id))
     const showCurrentRow = showCurrentLocation && !query.trim()
-    const showRecent = !query.trim() && recentFiltered.length > 0
-    const showPopular = !query.trim() && popularFiltered.length > 0
+    const showRecent = !query.trim() && recentFilteprimary.length > 0
+    const showPopular = !query.trim() && popularFilteprimary.length > 0
 
     const navList: NavEntry[] = []
     if (showCurrentRow) navList.push({ kind: 'current' })
     if (query.trim()) {
         results.forEach((loc) => navList.push({ kind: 'location', loc }))
     } else {
-        recentFiltered.forEach((loc) => navList.push({ kind: 'location', loc }))
-        popularFiltered.forEach((loc) => navList.push({ kind: 'location', loc }))
+        recentFilteprimary.forEach((loc) => navList.push({ kind: 'location', loc }))
+        popularFilteprimary.forEach((loc) => navList.push({ kind: 'location', loc }))
     }
 
     function activate(entry: NavEntry) {
@@ -275,13 +276,13 @@ export default function LocationSearchSelect({
                     aria-expanded={open}
                     className={cn(
                         'flex w-full items-center rounded-input border border-neutral-200 bg-white px-3 py-2.5 text-left shadow-sm transition-colors',
-                        'focus:outline-none focus:border-red-400 focus:ring-[0.12em] focus:ring-red-100',
-                        open && 'border-red-400 ring-[0.12em] ring-red-100',
+                        'focus:outline-none focus:border-primary-400 focus:ring-[0.12em] border-[0.13em] focus:ring-primary-100',
+                        open && 'border-primary-400 border-[0.13em] ring-[0.11em] ring-primary-100',
                         disabled && 'pointer-events-none opacity-50',
                         className,
                     )}
                 >
-                    <MapPinIcon weight="duotone" className="mr-2 size-4 shrink-0 text-red-500" />
+                    <MapPinIcon weight="fill" className="mr-2 size-5 shrink-0 text-muted" />
                     {value ? (
                         <span className="flex flex-1 min-w-0 items-center gap-1.5">
                             <span className="truncate text-sm text-neutral-800">{value.name}</span>
@@ -326,7 +327,7 @@ export default function LocationSearchSelect({
                     </div>
 
                     {/* Results / suggestions */}
-                    <div role="listbox" className="max-h-80 overflow-y-auto py-1">
+                    <div role="listbox" className="scrollbar-slim max-h-80 overflow-y-auto py-1">
 
                         {/* Current location */}
                         {showCurrentRow && (() => {
@@ -334,8 +335,8 @@ export default function LocationSearchSelect({
                             return (
                                 <Row
                                     icon={geoLoading
-                                        ? <CircleNotchIcon className="size-4 animate-spin" />
-                                        : <CrosshairIcon weight="bold" className="size-4 text-red-500" />}
+                                        ? <CircleNotchIcon className="size-4.5 animate-spin" />
+                                        : <CrosshairIcon weight="bold" className="size-4.5 text-primary-500" />}
                                     primary={geoLoading ? 'Detecting your location…' : 'Use current location'}
                                     secondary={geoError || undefined}
                                     highlighted={activeIdx === idx}
@@ -346,12 +347,12 @@ export default function LocationSearchSelect({
 
                         {/* Recent */}
                         {showRecent && <SectionLabel>Recent searches</SectionLabel>}
-                        {showRecent && recentFiltered.map((r) => {
+                        {showRecent && recentFilteprimary.map((r) => {
                             const idx = navIdx++
                             return (
                                 <Row
                                     key={`recent-${r.id}`}
-                                    icon={<ClockIcon className="size-4" />}
+                                    icon={<ClockIcon weight="duotone" className="size-4.5" />}
                                     primary={r.name}
                                     secondary={r.breadcrumb && r.breadcrumb !== r.name ? r.breadcrumb : undefined}
                                     badge={<TypeBadge type={r.type} />}
@@ -363,12 +364,12 @@ export default function LocationSearchSelect({
 
                         {/* Popular destinations */}
                         {showPopular && <SectionLabel>Popular destinations</SectionLabel>}
-                        {showPopular && popularFiltered.map((r) => {
+                        {showPopular && popularFilteprimary.map((r) => {
                             const idx = navIdx++
                             return (
                                 <Row
                                     key={`popular-${r.id}`}
-                                    icon={<MapPinIcon weight="duotone" className="size-4" />}
+                                    icon={<MapPinIcon weight="duotone" className="size-4.5" />}
                                     primary={r.name}
                                     secondary={r.breadcrumb && r.breadcrumb !== r.name ? r.breadcrumb : undefined}
                                     badge={<TypeBadge type={r.type} />}

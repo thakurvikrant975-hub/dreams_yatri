@@ -1,6 +1,7 @@
 // app/layout.tsx
 import { Providers } from "./providers";
 import ModalRoot from "@/app/components/modals/ModalRoot";
+import { Toaster } from "sonner";
 
 
 export const metadata = {
@@ -35,6 +36,7 @@ export default function WebsiteLayout({
         {children}
       </div>
       <ModalRoot />
+      <Toaster position="top-center" richColors />
     </Providers>
   );
 }

@@ -6,6 +6,7 @@ import { MagnifyingGlassIcon } from '@heroicons/react/20/solid'
 import { UserIcon } from '@heroicons/react/24/solid'
 import Button from '../ui/Button'
 import Image from 'next/image'
+import DyLogo from '@/app/components/ui/DyLogo'
 import Link from 'next/link'
 import MobileMenu from './MobileMenu'
 import LanguageDropdown from './LanguageDropdown'
@@ -70,16 +71,9 @@ export default function Header({ transparent = false, sticky = true }: HeaderPro
           <div className="flex items-center justify-between gap-3 lg:gap-6 h-full">
 
             {/* Logo */}
-            <div className={`flex shrink-0 items-center ${isSolid ? 'brightness-100' : 'brightness-130'}`}>
-              <Link href="/">
-                <Image
-                  alt="Dreams Yatri"
-                  src="/dy_logo.svg"
-                  width={160}
-                  height={42}
-                  className="h-auto w-36 sm:w-46"
-                  priority
-                />
+            <div className="flex shrink-0 items-center">
+              <Link href="/" aria-label="Dreams Yatri home">
+                <DyLogo className={`w-36 sm:w-46 ${isSolid ? 'text-primary-500' : 'text-white'}`} />
               </Link>
             </div>
 

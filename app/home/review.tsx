@@ -1,13 +1,11 @@
 "use client";
 
-import { useRef } from "react";
-import { motion } from "framer-motion";
 import { Review } from "@/app/types/home";
 import { FcGoogle } from "react-icons/fc";
+import { Star } from "lucide-react";
 import SectionHeader from "@/app/components/ui/SectionHeader";
 import ReviewCard from "@/app/components/ui/ReviewCard";
-import { fadeLeft, fadeRight, staggerContainer, staggerItem } from "@/app/lib/motionPresets";
-import { Star } from "lucide-react";
+import { Carousel } from "@/app/components/ui/Carousel";
 
 const REVIEWS: Review[] = [
   {
@@ -101,13 +99,6 @@ const REVIEWS: Review[] = [
 ];
 
 export default function TestimonialsSection() {
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  const scroll = (dir: "left" | "right") => {
-    if (!scrollRef.current) return;
-    scrollRef.current.scrollBy({ left: dir === "right" ? 340 : -340, behavior: "smooth" });
-  };
-
   return (
     <section className="py-section bg-surface-muted overflow-hidden">
       <div className="screen-space">
@@ -143,49 +134,15 @@ export default function TestimonialsSection() {
           </div>
         </div>
 
-        <div className="flex justify-end mb-2">
-          <motion.div
-            className="flex items-center gap-2 shrink-0"
-            variants={fadeLeft}
-          >
-            <button
-              type="button"
-              onClick={() => scroll("left")}
-              className="w-9 h-9 rounded-full border border-slate-200 bg-white flex items-center justify-center text-slate-500 hover:border-rose-300 hover:text-rose-500 transition-colors cursor-pointer shadow-sm"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              onClick={() => scroll("right")}
-              className="w-9 h-9 cursor-pointer rounded-full border border-slate-200 bg-white flex items-center justify-center text-slate-500 hover:border-rose-300 hover:text-rose-500 transition-colors shadow-sm"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          </motion.div>
-        </div>
-
-        {/* Scrollable cards — staggered */}
-        <motion.div
-          ref={scrollRef}
-          className="flex gap-5 overflow-x-auto snap-x snap-mandatory pb-8 pl-4 scrollbar-hide"
-          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-          variants={staggerContainer(0.12, 0.1)}
-        >
-          {REVIEWS.map((review) => (
-            <motion.div
-              key={review.id}
-              variants={staggerItem}
-              className="snap-start shrink-0"
-            >
-              <ReviewCard review={review} />
-            </motion.div>
-          ))}
-        </motion.div>
+        {/* Reviews carousel */}
+        <Carousel
+          items={REVIEWS}
+          renderItem={(review) => <ReviewCard review={review} />}
+          perView={3}
+          gap={20}
+          ariaLabel="Guest reviews"
+          className="mt-6"
+        />
 
       </div>
     </section>

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Popover } from 'radix-ui'
 import {
-    CalendarBlankIcon,
+    CalendarDotsIcon,
     CaretLeftIcon,
     CaretRightIcon,
     CaretDownIcon,
@@ -64,7 +64,7 @@ function MonthGrid({
                             className={cn(
                                 'mx-auto flex size-9 items-center justify-center rounded-lg text-sm transition-colors',
                                 disabled && 'text-neutral-300 cursor-not-allowed',
-                                !disabled && selected && 'bg-red-500 text-white font-semibold shadow-md shadow-red-300/40',
+                                !disabled && selected && 'bg-primary-500 text-white font-semibold shadow-md shadow-primary-300/40',
                                 !disabled && !selected && 'text-neutral-700 hover:bg-neutral-100 cursor-pointer',
                             )}
                         >
@@ -129,13 +129,13 @@ export default function DatePickerField({
                     aria-expanded={open}
                     className={cn(
                         'flex w-full items-center rounded-input border border-neutral-200 bg-white px-3 py-2.5 text-left shadow-sm transition-colors',
-                        'focus:outline-none focus:border-red-400 focus:ring-[0.12em] focus:ring-red-100',
-                        open && 'border-red-400 ring-[0.12em] ring-red-100',
+                        'focus:outline-none focus:border-primary-400 focus:ring-[0.11em] border-[0.13em] focus:ring-primary-100',
+                        open && 'border-primary-400 border-[0.13em] ring-[0.11em] ring-primary-100',
                         disabled && 'pointer-events-none opacity-50',
                         className,
                     )}
                 >
-                    <CalendarBlankIcon weight="duotone" className="mr-2 size-4 shrink-0 text-red-500" />
+                    <CalendarDotsIcon weight="fill" className="mr-2 size-4.5 shrink-0 text-muted" />
                     {value ? (
                         <span className="flex-1 truncate text-sm text-neutral-800">{formatted}</span>
                     ) : (
@@ -160,18 +160,18 @@ export default function DatePickerField({
                             aria-label="Previous month"
                             className={cn(
                                 'absolute left-0 top-0 flex size-8 items-center justify-center rounded-full transition-colors',
-                                canGoPrev ? 'text-red-500 hover:bg-red-50 cursor-pointer' : 'text-neutral-300 cursor-not-allowed',
+                                canGoPrev ? 'text-primary-500 hover:bg-primary-50 cursor-pointer' : 'text-neutral-300 cursor-not-allowed',
                             )}
                         >
-                            <CaretLeftIcon weight="bold" className="size-4" />
+                            <CaretLeftIcon weight="bold" className="size-4.5" />
                         </button>
                         <button
                             type="button"
                             onClick={() => setView((v) => addMonths(v, 1))}
                             aria-label="Next month"
-                            className="absolute right-0 top-0 flex size-8 items-center justify-center rounded-full text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                            className="absolute right-0 top-0 flex size-8 items-center justify-center rounded-full text-primary-500 hover:bg-primary-50 transition-colors cursor-pointer"
                         >
-                            <CaretRightIcon weight="bold" className="size-4" />
+                            <CaretRightIcon weight="bold" className="size-4.5" />
                         </button>
 
                         {/* One month on mobile, two side-by-side on desktop */}

@@ -732,3 +732,26 @@ body {
     display: none;
     /* Chrome, Safari */
 }
+
+/* Slim, brand-tinted custom scrollbar (e.g. dropdown lists) */
+.scrollbar-slim {
+    scrollbar-width: thin; /* Firefox: thumb + track */
+    scrollbar-color: var(--color-neutral-400, #9ca3af) var(--color-neutral-100, #e5e7eb);
+}
+.scrollbar-slim::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+.scrollbar-slim::-webkit-scrollbar-track {
+    background-color: var(--color-neutral-100, #e5e7eb);
+    background: var(--color-neutral-100, #e5e7eb);
+    border-radius: 9999px;
+}
+.scrollbar-slim::-webkit-scrollbar-thumb {
+    background-color: var(--color-neutral-400, #9ca3af);
+    border-radius: 9999px;
+    border: 2px solid var(--color-neutral-200, #e5e7eb); /* inset so the track shows around the thumb */
+}
+.scrollbar-slim:hover::-webkit-scrollbar-thumb {
+    background-color: var(--color-neutral-500, #6b7280);
+}

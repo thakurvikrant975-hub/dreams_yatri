@@ -2,6 +2,7 @@ import { SectionHeaderProps } from "@/app/types/home";
 import { Heading, Text } from "./Typography";
 import { motion } from "framer-motion";
 import { fadeRight, fadeUp, zoomPop, staggerContainer } from "@/app/lib/motionPresets";
+import { cn } from "@/lib/utils";
 
 export default function SectionHeader({
   tag,
@@ -9,6 +10,8 @@ export default function SectionHeader({
   subtitle,
   icon: Icon,
   noAnimation = false,
+  className,
+  children,
 }: SectionHeaderProps & { noAnimation?: boolean }) {
   // When noAnimation is set (e.g. on the home page) skip the view-trigger props
   // so child variants stay inert and the header renders statically.
@@ -22,7 +25,7 @@ export default function SectionHeader({
 
   return (
     <motion.div
-      className="mb-10 flex gap-4"
+      className={cn("mb-10 flex gap-4", className)}
       variants={staggerContainer(0.12, 0)}
       {...containerAnim}
     >
@@ -49,6 +52,7 @@ export default function SectionHeader({
           </motion.div>
         )}
       </div>
+      {children}
     </motion.div>
   );
 }

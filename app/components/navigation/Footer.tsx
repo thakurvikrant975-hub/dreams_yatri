@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import DyLogo from "@/app/components/ui/DyLogo";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface FooterLink {
@@ -181,15 +182,8 @@ export default function Footer() {
             {/* Left — Brand + Contact */}
             <div className="flex flex-col gap-7">
               {/* Logo */}
-              <Link href="/">
-                <Image
-                  alt="Dreams Yatri"
-                  src="/dy_logo.svg"
-                  width={160}
-                  height={42}
-                  className="h-auto w-46"
-                  priority
-                />
+              <Link href="/" aria-label="Dreams Yatri home">
+                <DyLogo className="w-46 text-primary-500" />
               </Link>
 
               {/* Tagline */}

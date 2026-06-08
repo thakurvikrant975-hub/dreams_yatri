@@ -19,6 +19,7 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
+import DyLogo from "@/app/components/ui/DyLogo";
 import { cn } from "@/app/lib/utils";
 
 const navGroups = [
@@ -146,7 +147,7 @@ export function AppSidebar() {
 
         {/* Logo */}
         <div className="px-5 py-4 flex items-center border-b border-dashboard-base-300">
-          <Image src="/dy_logo.svg" alt="Dreams Yatri Logo" width={1267} height={461} className="h-8 w-auto" />
+          <DyLogo className="h-8 text-primary-500" />
         </div>
 
         {/* Nav */}

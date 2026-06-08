@@ -39,6 +39,8 @@ export interface SectionHeaderProps {
     title: string;
     subtitle?: string;
     icon?: React.ElementType;
+    className?: string;
+    children?: React.ReactNode;
 }
 
 export interface FeatureCardProps {
