@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { CalendarDays, Mail, MapPin, Phone, Users, Hotel } from "lucide-react";
 import { db } from "@/app/lib/db";
 import { formatPaise } from "@/app/lib/money";
 import { PaymentPill, StatusPill } from "../../package-bookings/pills";
@@ -16,19 +17,13 @@ type SnapHotel = {
     hotel_name: string; hotel_city: string | null; hotel_state: string | null; hotel_address: string | null;
     check_in_time: string | null; check_out_time: string | null;
     room_name: string | null; plan_name: string | null;
-    bed_capacity: number;         // beds only (max_occupancy on the room)
-    extra_bed_capacity: number;   // mattress slots per room
-    rooms_count: number;
-    mattresses_count: number;     // actual mattresses needed for this booking
-    extra_bed_rate: number;       // rate per mattress per night
-    num_nights: number;
-    price_per_room: number;
-    total: number;                // room + mattress cost (meals billed separately)
-    // legacy field — may be absent in older snapshots
+    bed_capacity: number; extra_bed_capacity: number;
+    rooms_count: number; mattresses_count: number; extra_bed_rate: number;
+    num_nights: number; price_per_room: number; total: number;
     occupancy_selected?: number;
 };
 type SnapMeal = { label: string; meal_type?: string; price_per_person?: number; persons?: number; total?: number };
-type SnapDay = { day: number; day_title: string; day_date: string | null; hotel: SnapHotel | null; meals: SnapMeal[] };
+type SnapDay  = { day: number; day_title: string; day_date: string | null; hotel: SnapHotel | null; meals: SnapMeal[] };
 type Snapshot = { days?: SnapDay[] };
 
 function fmtDate(d: Date | string | null): string {
@@ -48,11 +43,29 @@ function addDays(dateStr: string, n: number): string {
     return d.toISOString().split("T")[0];
 }
 
-function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+// ── Sidebar helpers ───────────────────────────────────────────────────────────
+function SideCard({ title, children }: { title: string; children: React.ReactNode }) {
     return (
-        <div>
-            <dt className="text-[11px] uppercase tracking-wide text-dashboard-neutral">{label}</dt>
-            <dd className="mt-0.5 text-sm text-dashboard-base-content">{value ?? "—"}</dd>
+        <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 overflow-hidden">
+            <div className="border-b border-dashboard-base-300 bg-dashboard-base-200/60 px-4 py-2.5">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-dashboard-neutral">{title}</h3>
+            </div>
+            <div className="p-4">{children}</div>
+        </div>
+    );
+}
+
+function InfoItem({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: React.ReactNode }) {
+    if (!value) return null;
+    return (
+        <div className="flex items-start gap-2.5">
+            <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-dashboard-base-200">
+                <Icon className="size-3.5 text-dashboard-neutral" />
+            </div>
+            <div className="min-w-0">
+                <p className="text-[10px] uppercase tracking-wide text-dashboard-neutral">{label}</p>
+                <p className="text-sm text-dashboard-base-content">{value}</p>
+            </div>
         </div>
     );
 }
@@ -67,8 +80,8 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
             startDate: true, endDate: true, duration: true, travellers: true, createdAt: true,
             totalAmount_paise: true, contactEmail: true, contactPhone: true,
             destinationId: true, priceSnapshot: true,
-            user: { select: { name: true, email: true } },
-            package: { select: { title: true } },
+            user:        { select: { name: true, email: true } },
+            package:     { select: { title: true } },
             destination: { select: { name: true } },
             hotelBookings: {
                 select: {
@@ -82,7 +95,9 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
     if (!booking) notFound();
 
     const snapshot = (booking.priceSnapshot ?? {}) as Snapshot;
-    const hotelDays = (snapshot.days ?? []).filter((d): d is SnapDay & { hotel: SnapHotel } => d.hotel != null && d.hotel.hotel_id != null);
+    const hotelDays = (snapshot.days ?? []).filter(
+        (d): d is SnapDay & { hotel: SnapHotel } => d.hotel != null && d.hotel.hotel_id != null,
+    );
 
     const uniqueHotelIds = [...new Set(hotelDays.map((d) => d.hotel.hotel_id).filter((x): x is number => x != null))];
     const uniqueRoomIds  = [...new Set(hotelDays.map((d) => d.hotel.room_id).filter((x): x is number => x != null))];
@@ -100,7 +115,11 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
             : Promise.resolve([]),
         db.hotels.findMany({
             where: { is_active: true },
-            select: { id: true, name: true, category: true, city: true, state: true, address: true, destination_id: true, business_phone: true, business_email: true, location: { select: { latitude: true, longitude: true } } },
+            select: {
+                id: true, name: true, category: true, city: true, state: true,
+                address: true, destination_id: true, business_phone: true, business_email: true,
+                location: { select: { latitude: true, longitude: true } },
+            },
             orderBy: { name: "asc" },
             take: 300,
         }).then((rows) => rows.map(({ location, ...h }) => ({
@@ -110,15 +129,15 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
         }))),
     ]);
 
-    const hotelMap = new Map(hotelDetailsList.map((h) => [h.id, h]));
-    const roomMap  = new Map(roomDetailsList.map((r) => [r.id, r]));
-    const confirmedMap = new Map(booking.hotelBookings.map((bh) => [bh.dayNumber, bh]));
+    const hotelMap        = new Map(hotelDetailsList.map((h) => [h.id, h]));
+    const roomMap         = new Map(roomDetailsList.map((r) => [r.id, r]));
+    const confirmedMap    = new Map(booking.hotelBookings.map((bh) => [bh.dayNumber, bh]));
     const destinationHotels = allHotels.filter((h) => h.destination_id === booking.destinationId);
 
     const totalCount     = hotelDays.length;
     const confirmedCount = hotelDays.filter((d) => confirmedMap.get(d.day)?.isConfirmed).length;
-    const pct = totalCount > 0 ? Math.round((confirmedCount / totalCount) * 100) : 0;
-    const allDone = pct === 100;
+    const pct            = totalCount > 0 ? Math.round((confirmedCount / totalCount) * 100) : 0;
+    const allDone        = pct === 100;
 
     return (
         <div className="flex flex-col gap-5">
@@ -133,7 +152,7 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                     <p className="text-sm text-dashboard-neutral mt-0.5">Booked on {fmtDateTime(booking.createdAt)}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                    <StatusPill status={booking.status} />
+                    <StatusPill  status={booking.status} />
                     <PaymentPill status={booking.paymentStatus} />
                     <Link
                         href={`/dashboard/package-bookings/${booking.id}`}
@@ -166,7 +185,7 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
             </div>
 
             <div className="grid gap-5 lg:grid-cols-3 items-start">
-                {/* Hotel cards */}
+                {/* ── Hotel cards (original) ──────────────────────────────── */}
                 <div className="lg:col-span-2 flex flex-col gap-3">
                     {totalCount === 0 ? (
                         <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 px-5 py-10 text-center text-sm text-dashboard-neutral">
@@ -186,16 +205,16 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                             const chips = [
                                 snap.room_name,
                                 snap.plan_name,
-                                room?.bed_type  ? `${room.bed_type} bed`       : null,
-                                room?.max_occupancy ? `Max ${room.max_occupancy} guests` : null,
-                                room?.area_sqft ? `${room.area_sqft} sqft`    : null,
-                                room?.view_type ? `${room.view_type} view`    : null,
+                                room?.bed_type       ? `${room.bed_type} bed`           : null,
+                                room?.max_occupancy  ? `Max ${room.max_occupancy} guests` : null,
+                                room?.area_sqft      ? `${room.area_sqft} sqft`          : null,
+                                room?.view_type      ? `${room.view_type} view`           : null,
                             ].filter(Boolean) as string[];
 
                             return (
                                 <div
                                     key={d.day}
-                                    className={`rounded-xl border overflow-hidden ${isDone ? "border-dashboard-base-300 bg-dashboard-base-100" : "border-dashboard-base-300 bg-dashboard-base-100"}`}
+                                    className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 overflow-hidden"
                                 >
                                     {/* Top bar */}
                                     <div className="flex items-center justify-between px-4 py-2 border-b bg-dashboard-base-200 border-dashboard-base-300">
@@ -270,40 +289,6 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                                             </div>
                                         </div>
 
-                                        {/* Meals */}
-                                        {d.meals.length > 0 && (
-                                            <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/60 px-3 py-2.5">
-                                                <p className="text-[10px] uppercase tracking-widest text-dashboard-neutral font-semibold mb-2">
-                                                    Meals Included
-                                                </p>
-                                                <div className="flex flex-col gap-1">
-                                                    {d.meals.map((m, i) => {
-                                                        const lc = (m.label ?? "").toLowerCase();
-                                                        const icon = lc.includes("breakfast") ? "🍳"
-                                                            : lc.includes("lunch") ? "🍽"
-                                                            : lc.includes("dinner") ? "🌙"
-                                                            : "🥘";
-                                                        return (
-                                                            <div key={i} className="flex items-center justify-between text-xs">
-                                                                <span className="text-dashboard-base-content">{icon} {m.label}</span>
-                                                                <span className="text-dashboard-neutral tabular-nums">
-                                                                    {m.price_per_person != null && m.price_per_person > 0
-                                                                        ? `₹${Number(m.price_per_person).toLocaleString("en-IN")}/pax`
-                                                                        : ""}
-                                                                    {m.persons != null ? ` × ${m.persons}` : ""}
-                                                                    {m.total != null && m.total > 0 && (
-                                                                        <span className="ml-2 font-semibold text-dashboard-base-content">
-                                                                            = ₹{Number(m.total).toLocaleString("en-IN")}
-                                                                        </span>
-                                                                    )}
-                                                                </span>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-                                        )}
-
                                         {/* Dates + price */}
                                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg px-3 py-2.5 text-sm bg-dashboard-base-200/50">
                                             <div className="flex items-center gap-1.5">
@@ -362,60 +347,72 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                     )}
                 </div>
 
-                {/* Sidebar */}
+                {/* ── Sidebar (new style) ─────────────────────────────────── */}
                 <div className="flex flex-col gap-4">
-                    {/* Booking Info */}
-                    <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100">
-                        <div className="border-b border-dashboard-base-300 px-5 py-3">
-                            <h2 className="text-sm font-semibold text-dashboard-base-content">Booking Info</h2>
-                        </div>
-                        <div className="p-4">
-                            <dl className="flex flex-col gap-2.5">
-                                <InfoRow label="Customer"     value={booking.user?.name} />
-                                <InfoRow label="Email"        value={booking.contactEmail ?? booking.user?.email} />
-                                <InfoRow label="Phone"        value={booking.contactPhone} />
-                                <InfoRow label="Package"      value={booking.package?.title} />
-                                <InfoRow label="Destination"  value={booking.destination?.name} />
-                                <InfoRow label="Travel dates" value={`${fmtDate(booking.startDate)} – ${fmtDate(booking.endDate)}`} />
-                                <InfoRow label="Duration"     value={`${booking.duration} day${booking.duration !== 1 ? "s" : ""}`} />
-                                <InfoRow label="Travellers"   value={booking.travellers} />
-                                <InfoRow label="Total"        value={formatPaise(booking.totalAmount_paise)} />
-                            </dl>
-                        </div>
-                    </div>
 
-                    {/* Hotel Summary */}
-                    {totalCount > 0 && (
-                        <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100">
-                            <div className="border-b border-dashboard-base-300 px-5 py-3">
-                                <h2 className="text-sm font-semibold text-dashboard-base-content">Hotel Summary</h2>
+                    {/* Booking Details */}
+                    <SideCard title="Booking Details">
+                        <div className="flex flex-col gap-3">
+                            <InfoItem icon={Users}        label="Customer"      value={booking.user?.name} />
+                            <InfoItem icon={Mail}         label="Email"         value={booking.contactEmail ?? booking.user?.email} />
+                            <InfoItem icon={Phone}        label="Phone"         value={booking.contactPhone} />
+                            <InfoItem icon={Hotel}        label="Package"       value={booking.package?.title} />
+                            <InfoItem icon={MapPin}       label="Destination"   value={booking.destination?.name} />
+                            <InfoItem icon={CalendarDays} label="Travel Dates"  value={`${fmtDate(booking.startDate)} – ${fmtDate(booking.endDate)}`} />
+                            <InfoItem icon={Users}        label="Travellers"    value={`${booking.travellers} pax · ${booking.duration}D`} />
+                            <div className="mt-1 flex items-center justify-between rounded-lg bg-dashboard-base-200 px-3 py-2.5">
+                                <span className="text-xs font-medium text-dashboard-neutral">Total Amount</span>
+                                <span className="text-sm font-bold text-dashboard-base-content">{formatPaise(booking.totalAmount_paise)}</span>
                             </div>
-                            <div className="divide-y divide-dashboard-base-300/60">
+                        </div>
+                    </SideCard>
+
+                    {/* Hotel Checklist */}
+                    {totalCount > 0 && (
+                        <SideCard title="Hotel Checklist">
+                            <div className="flex flex-col gap-1">
                                 {hotelDays.map((d) => {
-                                    const c = confirmedMap.get(d.day);
+                                    const c    = confirmedMap.get(d.day);
+                                    const done = c?.isConfirmed ?? false;
                                     return (
-                                        <div key={d.day} className="flex items-center justify-between gap-2 px-4 py-2.5">
-                                            <div className="min-w-0">
-                                                <div className="text-xs text-dashboard-neutral mb-0.5">
-                                                    Day {d.day} · {d.hotel.num_nights}N
-                                                </div>
-                                                <div className="text-sm text-dashboard-base-content truncate">{d.hotel.hotel_name}</div>
-                                                {d.hotel.room_name && (
-                                                    <div className="text-xs text-dashboard-neutral truncate">{d.hotel.room_name}</div>
-                                                )}
-                                            </div>
-                                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                                                c?.isConfirmed
-                                                    ? "bg-dashboard-success/20 text-dashboard-success"
-                                                    : "bg-dashboard-warning/20 text-dashboard-neutral"
+                                        <div
+                                            key={d.day}
+                                            className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 ${
+                                                done
+                                                    ? "bg-green-50 border border-green-100"
+                                                    : "bg-dashboard-base-200/50 border border-dashboard-base-300/40"
+                                            }`}
+                                        >
+                                            <div className={`flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                                                done ? "bg-green-200 text-green-800" : "bg-dashboard-base-300/70 text-dashboard-neutral"
                                             }`}>
-                                                {c?.isConfirmed ? "Done" : "Pending"}
+                                                {done ? "✓" : d.day}
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="truncate text-xs font-medium text-dashboard-base-content">{d.hotel.hotel_name}</p>
+                                                <p className="text-[10px] text-dashboard-neutral">{d.hotel.num_nights}N · Day {d.day}</p>
+                                            </div>
+                                            <span className={`shrink-0 text-[10px] font-semibold ${done ? "text-green-700" : "text-amber-600"}`}>
+                                                {done ? "Done" : "Pending"}
                                             </span>
                                         </div>
                                     );
                                 })}
                             </div>
-                        </div>
+                            {/* Mini progress */}
+                            <div className="mt-3 pt-3 border-t border-dashboard-base-300/50">
+                                <div className="flex items-center justify-between mb-1.5 text-xs">
+                                    <span className="text-dashboard-neutral">Progress</span>
+                                    <span className={`font-semibold ${allDone ? "text-green-700" : "text-dashboard-neutral"}`}>{pct}%</span>
+                                </div>
+                                <div className="h-1.5 rounded-full bg-dashboard-base-300/60 overflow-hidden">
+                                    <div
+                                        className={`h-full rounded-full transition-all ${allDone ? "bg-green-500" : pct > 50 ? "bg-amber-400" : "bg-red-400"}`}
+                                        style={{ width: `${pct}%` }}
+                                    />
+                                </div>
+                            </div>
+                        </SideCard>
                     )}
                 </div>
             </div>

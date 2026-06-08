@@ -403,6 +403,66 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                         </Section>
                     )}
 
+                    {/* Price Changes log — entries tagged [PRICE CHANGE] by confirmHotelStay */}
+                    {booking.timeline.some((e) => e.note?.startsWith("[PRICE CHANGE]")) && (
+                        <Section title="Price Changes">
+                            {(() => {
+                                const snap = (booking.priceSnapshot ?? {}) as { final_price?: number };
+                                const originalPaise = snap.final_price != null
+                                    ? Math.round(snap.final_price * 100)
+                                    : booking.totalAmount_paise;
+                                const totalDiff = booking.totalAmount_paise - originalPaise;
+                                return (
+                                    <div className="flex flex-col gap-3">
+                                        {/* Current vs original total banner */}
+                                        <div className="flex items-center justify-between rounded-lg border border-dashboard-base-300/70 bg-dashboard-base-200/40 px-4 py-3">
+                                            <div className="text-xs text-dashboard-neutral">
+                                                <span className="block font-medium text-dashboard-base-content text-sm">
+                                                    Current total: {formatPaise(booking.totalAmount_paise)}
+                                                </span>
+                                                {originalPaise !== booking.totalAmount_paise && (
+                                                    <span>Original: {formatPaise(originalPaise)}</span>
+                                                )}
+                                            </div>
+                                            {totalDiff !== 0 && (
+                                                <span className={`text-sm font-bold tabular-nums ${totalDiff > 0 ? "text-red-600" : "text-green-600"}`}>
+                                                    {totalDiff > 0 ? "+" : "−"}{formatPaise(Math.abs(totalDiff))}
+                                                </span>
+                                            )}
+                                        </div>
+                                        {/* Individual change entries */}
+                                        <ul className="flex flex-col gap-2">
+                                            {booking.timeline
+                                                .filter((e) => e.note?.startsWith("[PRICE CHANGE]"))
+                                                .map((e) => {
+                                                    const note = e.note!.replace("[PRICE CHANGE] ", "");
+                                                    const isIncrease = note.includes("increased");
+                                                    const isDecrease = note.includes("decreased");
+                                                    return (
+                                                        <li key={e.id} className={`flex gap-3 rounded-lg border px-4 py-3 ${
+                                                            isIncrease ? "border-red-100 bg-red-50/40"
+                                                            : isDecrease ? "border-green-100 bg-green-50/40"
+                                                            : "border-amber-100 bg-amber-50/40"
+                                                        }`}>
+                                                            <span className="mt-0.5 shrink-0 text-base select-none">
+                                                                {isIncrease ? "📈" : isDecrease ? "📉" : "🔄"}
+                                                            </span>
+                                                            <div>
+                                                                <div className="text-sm text-dashboard-base-content">{note}</div>
+                                                                <div className="mt-0.5 text-xs text-dashboard-neutral">
+                                                                    {e.performedByName} · {fmtDateTime(e.createdAt)}
+                                                                </div>
+                                                            </div>
+                                                        </li>
+                                                    );
+                                                })}
+                                        </ul>
+                                    </div>
+                                );
+                            })()}
+                        </Section>
+                    )}
+
                     <Section title="Payments">
                         {booking.payments.length === 0 ? (
                             <p className="text-sm text-dashboard-neutral">No payment attempts yet.</p>

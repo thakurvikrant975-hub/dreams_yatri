@@ -48,6 +48,9 @@ export interface FulfillmentItem {
     driver?: { name: string | null; phone: string | null; vehicleNumber: string | null };
     offer?: ReplacementOfferView | null; // ops-proposed alternatives (when UNAVAILABLE)
     hotelPricing?: HotelPricing | null;
+    hotelChanged?: boolean;           // confirmed hotel differs from snapshot
+    hotelPriceDiff?: number | null;   // rupees: confirmed room cost − snapshot room cost
+    originalHotelName?: string | null; // snapshot hotel name (before the change)
 }
 
 export interface ReplacementOfferView {
@@ -166,6 +169,11 @@ export async function getBookingFulfillment(bookingId: string): Promise<BookingF
             const status = resolve(row?.status, row?.isConfirmed ?? false, paid, cancelled);
             const finalName = row ? (hotelNames.get(row.hotelId) ?? d.hotel.hotel_name ?? "Hotel") : (d.hotel.hotel_name ?? "Hotel");
 
+            const hotelChanged = row != null && d.hotel.hotel_id != null ? row.hotelId !== d.hotel.hotel_id : false;
+            const snapRoomTotal = Number(d.hotel.total ?? 0);
+            const hotelPriceDiff = row != null ? Number(row.totalCost) - snapRoomTotal : null;
+            const originalHotelName = hotelChanged ? (d.hotel.hotel_name ?? null) : null;
+
             // Build pricing from confirmed BookingHotel row or fall back to snapshot
             let hotelPricing: HotelPricing | null = null;
             if (row) {
@@ -219,6 +227,9 @@ export async function getBookingFulfillment(bookingId: string): Promise<BookingF
                 status, voucherUrl: row?.voucherUrl ?? null, paid: true,
                 offer: status === "UNAVAILABLE" ? offerFor(`HOTEL:${d.day}`) : null,
                 hotelPricing,
+                hotelChanged,
+                hotelPriceDiff,
+                originalHotelName,
             });
             total++; count(status);
         }

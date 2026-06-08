@@ -203,9 +203,11 @@ async function requireMember(): Promise<{ ok: true; member: Member } | { ok: fal
     return { ok: true, member };
 }
 
-type SnapHotel = { hotel_id: number; rooms_count: number; num_nights: number };
+type SnapHotel = { hotel_id?: number; rooms_count?: number; num_nights?: number; total?: number };
 type SnapDay = { day: number; hotel: SnapHotel | null };
 type Snapshot = { days?: SnapDay[] };
+
+const inrFmt = (r: number) => `₹${Math.abs(Math.round(r)).toLocaleString("en-IN")}`;
 
 export async function confirmHotelStay(
     bookingId: string,
@@ -239,9 +241,28 @@ export async function confirmHotelStay(
 
     const booking = await db.booking.findUnique({
         where: { id: bookingId },
-        select: { status: true, priceSnapshot: true },
+        select: { status: true, priceSnapshot: true, totalAmount_paise: true, balanceAmount_paise: true },
     });
     if (!booking) return { success: false, error: "Booking not found." };
+
+    // Read existing BookingHotel row (before upsert) to compute price delta
+    const existingRow = await db.bookingHotel.findUnique({
+        where: { bookingId_dayNumber: { bookingId, dayNumber } },
+        select: { totalCost: true, hotelId: true },
+    });
+
+    const snapshot = (booking.priceSnapshot ?? {}) as Snapshot;
+    const snapDay = (snapshot.days ?? []).find((d) => d.day === dayNumber);
+    const snapHotelTotal = snapDay?.hotel?.total != null ? Number(snapDay.hotel.total) : null;
+    const snapHotelId = snapDay?.hotel?.hotel_id ?? null;
+
+    // Baseline cost: previous confirmed row, or snapshot total if first confirmation
+    const baselineCost = existingRow != null ? Number(existingRow.totalCost) : (snapHotelTotal ?? totalCost);
+    const priceDeltaRupees = totalCost - baselineCost;
+    const deltaPaise = Math.round(priceDeltaRupees * 100);
+    const hotelActuallyChanged = existingRow != null
+        ? existingRow.hotelId !== hotelId
+        : (snapHotelId != null && snapHotelId !== hotelId);
 
     // Upsert the BookingHotel record
     await db.bookingHotel.upsert({
@@ -277,8 +298,18 @@ export async function confirmHotelStay(
         },
     });
 
+    // Update booking totals when room cost changed
+    if (Math.abs(deltaPaise) >= 1) {
+        await db.booking.update({
+            where: { id: bookingId },
+            data: {
+                totalAmount_paise: booking.totalAmount_paise + deltaPaise,
+                balanceAmount_paise: Math.max(0, booking.balanceAmount_paise + deltaPaise),
+            },
+        });
+    }
+
     // Count total hotel days in snapshot
-    const snapshot = (booking.priceSnapshot ?? {}) as Snapshot;
     const totalHotelDays = (snapshot.days ?? []).filter((d) => d.hotel !== null).length;
 
     // Count confirmed BookingHotel records for this booking
@@ -324,7 +355,28 @@ export async function confirmHotelStay(
         });
     }
 
+    // Price change log — written whenever hotel changes or cost differs from baseline
+    if (hotelActuallyChanged || Math.abs(deltaPaise) >= 100) {
+        const diffStr = priceDeltaRupees > 0 ? `+${inrFmt(priceDeltaRupees)}` : `-${inrFmt(priceDeltaRupees)}`;
+        const changeLabel = hotelActuallyChanged ? `Hotel changed to "${hotel.name}"` : `Hotel re-confirmed as "${hotel.name}"`;
+        const priceLabel = Math.abs(deltaPaise) >= 100
+            ? `. Room cost ${priceDeltaRupees > 0 ? "increased" : "decreased"} by ${inrFmt(priceDeltaRupees)} (${diffStr} vs baseline).`
+            : " (no room cost change).";
+        await db.bookingTimeline.create({
+            data: {
+                bookingId,
+                action: "NOTE_ADDED",
+                note: `[PRICE CHANGE] Day ${dayNumber}: ${changeLabel}${priceLabel}`,
+                performedById: gate.member.id,
+                performedByName: gate.member.name,
+                departmentId: gate.member.department?.id ?? null,
+            },
+        });
+    }
+
     revalidatePath(`/dashboard/verify-hotels/${bookingId}`);
     revalidatePath("/dashboard/verify-hotels");
+    revalidatePath(`/dashboard/package-bookings/${bookingId}`);
+    revalidatePath(`/bookings/${bookingId}/status`);
     return { success: true, allConfirmed };
 }

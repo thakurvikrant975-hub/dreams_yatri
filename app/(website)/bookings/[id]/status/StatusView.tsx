@@ -53,6 +53,36 @@ function ItemRow({ item }: { item: FulfillmentItem }) {
                 </div>
                 {item.subtitle && <Text size="xs" intent="muted" className="block mt-0.5">{item.subtitle}</Text>}
 
+                {/* Hotel changed notice */}
+                {item.hotelChanged && (
+                    <div className="mt-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-xs">
+                        <div className="flex items-center gap-1.5 font-semibold text-warning-700">
+                            <span>🔄</span>
+                            <span>Hotel changed</span>
+                            {item.hotelPriceDiff != null && item.hotelPriceDiff !== 0 && (
+                                <span className={`ml-1 font-bold ${item.hotelPriceDiff > 0 ? 'text-error-600' : 'text-success-600'}`}>
+                                    · {item.hotelPriceDiff > 0 ? '+' : '−'}₹{Math.abs(Math.round(item.hotelPriceDiff)).toLocaleString('en-IN')}
+                                </span>
+                            )}
+                        </div>
+                        {item.originalHotelName && (
+                            <div className="mt-1 flex items-center gap-1.5 text-warning-600">
+                                <span className="text-warning-400">From:</span>
+                                <span className="line-through opacity-70">{item.originalHotelName}</span>
+                                <span className="text-warning-400">→</span>
+                                <span className="font-medium text-warning-800">{item.title}</span>
+                            </div>
+                        )}
+                        {item.hotelPriceDiff != null && item.hotelPriceDiff !== 0 && (
+                            <div className="mt-0.5 text-warning-500">
+                                {item.hotelPriceDiff > 0
+                                    ? 'Your package price has been adjusted upward for this change.'
+                                    : 'Your package price has been adjusted downward for this change.'}
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* Activity: free vs paid */}
                 {item.kind === 'ACTIVITY' && !item.paid && (
                     <Text size="xs" className="mt-0.5 block text-success-600">Included — no extra cost</Text>
