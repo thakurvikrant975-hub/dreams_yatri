@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { confirmHotelStay, getRoomsForHotels, type RoomOption } from "../actions";
+import { confirmHotelStay, getRoomsForHotels, getRoadDistances, type RoomOption } from "../actions";
 
 type Hotel = {
     id: number; name: string; category: string | null;
@@ -11,12 +11,18 @@ type Hotel = {
     destination_id: number;
     business_phone: string | null;
     business_email: string | null;
+    latitude: number | null;
+    longitude: number | null;
 };
 
 type RoomWithHotelId = RoomOption & { hotel_id: number };
 type SelectedOption = { hotel: Hotel; room: RoomOption; pricing: RoomOption["pricing"][0] };
 
 const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+
+function fmtDist(km: number): string {
+    return km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`;
+}
 
 function RoomImage({ url, thumbnail, alt }: { url: string | null; thumbnail: string | null; alt: string }) {
     const [failed, setFailed] = useState(false);
@@ -51,6 +57,7 @@ function ChangeHotelModal({
     const [search, setSearch] = useState("");
     const [showAll, setShowAll] = useState(false);
     const [rooms, setRooms] = useState<RoomWithHotelId[]>([]);
+    const [distances, setDistances] = useState<Map<number, number>>(new Map());
     const [loading, setLoading] = useState(true);
     const [selected, setSelected] = useState<SelectedOption | null>(null);
     const [notes, setNotes] = useState(initialNotes);
@@ -59,13 +66,42 @@ function ChangeHotelModal({
     // Build a lookup map from hotel id → Hotel for the full allHotels list
     const hotelMap = new Map(allHotels.map((h) => [h.id, h]));
 
-    // Fetch rooms for the current pool whenever showAll changes
+    // Fetch rooms + road distances in parallel whenever showAll changes
     useEffect(() => {
         let cancelled = false;
         setLoading(true);
+        setDistances(new Map());
+
         const pool = showAll ? allHotels : destinationHotels;
-        getRoomsForHotels(pool.map((h) => h.id), checkInDate).then((data) => {
-            if (!cancelled) { setRooms(data); setLoading(false); }
+        const currentHotel = allHotels.find((h) => h.id === defaultHotelId);
+        const cLat = currentHotel?.latitude ?? null;
+        const cLon = currentHotel?.longitude ?? null;
+
+        const hotelsWithCoords = (cLat != null && cLon != null)
+            ? pool
+                .filter((h) => h.id !== defaultHotelId && h.latitude != null && h.longitude != null)
+                .map((h) => ({ id: h.id, lat: h.latitude!, lon: h.longitude! }))
+            : [];
+
+        const distFetch = hotelsWithCoords.length > 0
+            ? getRoadDistances(cLat!, cLon!, hotelsWithCoords)
+            : Promise.resolve([] as { id: number; distanceKm: number }[]);
+
+        Promise.all([
+            getRoomsForHotels(pool.map((h) => h.id), checkInDate),
+            distFetch,
+        ]).then(([roomData, distData]) => {
+            if (!cancelled) {
+                const dMap = new Map(distData.map((d) => [d.id, d.distanceKm]));
+                roomData.sort((a, b) => {
+                    if (a.hotel_id === defaultHotelId) return -1;
+                    if (b.hotel_id === defaultHotelId) return 1;
+                    return (dMap.get(a.hotel_id) ?? Infinity) - (dMap.get(b.hotel_id) ?? Infinity);
+                });
+                setRooms(roomData);
+                setDistances(dMap);
+                setLoading(false);
+            }
         });
         return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -109,6 +145,10 @@ function ChangeHotelModal({
         if (!hotel) return [];
         const isBookedHotel = hotel.id === defaultHotelId;
 
+        const distKm = distances.get(hotel.id);
+        const distLabel = distKm != null && !isBookedHotel ? fmtDist(distKm) : null;
+        const hotelLocation = [hotel.city, hotel.state].filter(Boolean).join(", ");
+
         if (room.pricing.length === 0) {
             return [(
                 <div key={`${room.id}-noprice`} className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-100 flex gap-3 p-3 items-center">
@@ -117,10 +157,11 @@ function ChangeHotelModal({
                     </div>
                     <div className="min-w-0">
                         <p className="text-sm font-semibold text-dashboard-base-content">{room.name}</p>
-                        <p className="text-xs text-dashboard-neutral mt-0.5 flex items-center gap-1">
+                        <p className="text-xs text-dashboard-neutral mt-0.5 flex items-center gap-1 flex-wrap">
                             {hotel.name}
-                            {isBookedHotel && <span className="rounded bg-dashboard-primary/15 px-1 text-[9px] font-medium text-dashboard-primary">booked</span>}
+                            {isBookedHotel && <span className="rounded bg-dashboard-primary/15 px-1 text-[9px] font-medium text-dashboard-primary">current</span>}
                         </p>
+                        {hotelLocation && <p className="text-[11px] text-dashboard-neutral">{hotelLocation}{distLabel && <span className="ml-1.5 text-dashboard-neutral/70">· {distLabel}</span>}</p>}
                         <p className="text-xs text-dashboard-neutral italic mt-1">No pricing configured</p>
                     </div>
                 </div>
@@ -157,10 +198,16 @@ function ChangeHotelModal({
                                 <span className="ml-1.5 text-xs font-normal text-dashboard-neutral">· {p.plan_name}</span>
                             )}
                         </p>
-                        <p className="text-xs text-dashboard-neutral mt-0.5 flex items-center gap-1">
+                        <p className="text-xs text-dashboard-neutral mt-0.5 flex items-center gap-1 flex-wrap">
                             {hotel.name}
-                            {isBookedHotel && <span className="rounded bg-dashboard-primary/15 px-1 text-[9px] font-medium text-dashboard-primary">booked</span>}
+                            {isBookedHotel && <span className="rounded bg-dashboard-primary/15 px-1 text-[9px] font-medium text-dashboard-primary">current</span>}
                         </p>
+                        {(hotelLocation || distLabel) && (
+                            <p className="text-[11px] text-dashboard-neutral/80 mt-0.5">
+                                {hotelLocation}
+                                {distLabel && <span className="ml-1.5 font-medium text-dashboard-neutral">· {distLabel}</span>}
+                            </p>
+                        )}
                         <div className="mt-1.5 flex flex-wrap gap-1">
                             {room.view_type && (
                                 <span className="rounded-full border border-dashboard-base-300 px-2 py-0.5 text-[10px] text-dashboard-base-content">

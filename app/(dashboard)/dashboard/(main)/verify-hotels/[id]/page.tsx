@@ -91,10 +91,14 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
             : Promise.resolve([]),
         db.hotels.findMany({
             where: { is_active: true },
-            select: { id: true, name: true, category: true, city: true, state: true, address: true, destination_id: true, business_phone: true, business_email: true },
+            select: { id: true, name: true, category: true, city: true, state: true, address: true, destination_id: true, business_phone: true, business_email: true, location: { select: { latitude: true, longitude: true } } },
             orderBy: { name: "asc" },
             take: 300,
-        }),
+        }).then((rows) => rows.map(({ location, ...h }) => ({
+            ...h,
+            latitude:  location?.latitude  != null ? Number(location.latitude)  : null,
+            longitude: location?.longitude != null ? Number(location.longitude) : null,
+        }))),
     ]);
 
     const hotelMap = new Map(hotelDetailsList.map((h) => [h.id, h]));
@@ -182,10 +186,10 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                             return (
                                 <div
                                     key={d.day}
-                                    className={`rounded-xl border overflow-hidden ${isDone ? "border-dashboard-success/30 bg-dashboard-success/5" : "border-dashboard-base-300 bg-dashboard-base-100"}`}
+                                    className={`rounded-xl border overflow-hidden ${isDone ? "border-dashboard-base-300 bg-dashboard-base-100" : "border-dashboard-base-300 bg-dashboard-base-100"}`}
                                 >
                                     {/* Top bar */}
-                                    <div className={`flex items-center justify-between px-4 py-2 border-b ${isDone ? "bg-dashboard-success/15 border-dashboard-success/20" : "bg-dashboard-base-200 border-dashboard-base-300"}`}>
+                                    <div className="flex items-center justify-between px-4 py-2 border-b bg-dashboard-base-200 border-dashboard-base-300">
                                         <div className="flex items-center gap-2 min-w-0">
                                             <span className="shrink-0 rounded bg-dashboard-primary px-2 py-0.5 text-[11px] font-bold text-dashboard-primary-content">
                                                 Day {d.day}
@@ -213,7 +217,7 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                                                         🏨 {snap.hotel_name}
                                                     </span>
                                                     {hotel?.category && (
-                                                        <span className={`rounded px-1.5 py-0.5 text-[10px] text-dashboard-neutral ${isDone ? "bg-dashboard-success/10" : "bg-dashboard-base-200"}`}>
+                                                        <span className="rounded px-1.5 py-0.5 text-[10px] text-dashboard-neutral bg-dashboard-base-200">
                                                             {hotel.category}
                                                         </span>
                                                     )}
@@ -241,7 +245,7 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                                         </div>
 
                                         {/* Room to book */}
-                                        <div className={`rounded-lg border px-3 py-2.5 ${isDone ? "border-dashboard-success/20 bg-dashboard-success/8" : "border-dashboard-base-300 bg-dashboard-base-200/60"}`}>
+                                        <div className="rounded-lg border px-3 py-2.5 border-dashboard-base-300 bg-dashboard-base-200/60">
                                             <p className="text-[10px] uppercase tracking-widest text-dashboard-neutral font-semibold mb-2">
                                                 Room to Book &nbsp;·&nbsp; {snap.rooms_count} room{snap.rooms_count !== 1 ? "s" : ""} &nbsp;·&nbsp; {booking.travellers} guest{booking.travellers !== 1 ? "s" : ""}
                                             </p>
@@ -249,7 +253,7 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                                                 {chips.map((chip) => (
                                                     <span
                                                         key={chip}
-                                                        className={`rounded-full border px-2.5 py-0.5 text-xs text-dashboard-base-content ${isDone ? "border-dashboard-success/20 bg-dashboard-base-100" : "border-dashboard-base-300 bg-dashboard-base-100"}`}
+                                                        className="rounded-full border px-2.5 py-0.5 text-xs text-dashboard-base-content border-dashboard-base-300 bg-dashboard-base-100"
                                                     >
                                                         {chip}
                                                     </span>
@@ -258,7 +262,7 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                                         </div>
 
                                         {/* Dates + price */}
-                                        <div className={`flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg px-3 py-2.5 text-sm ${isDone ? "bg-dashboard-success/8" : "bg-dashboard-base-200/50"}`}>
+                                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg px-3 py-2.5 text-sm bg-dashboard-base-200/50">
                                             <div className="flex items-center gap-1.5">
                                                 <span className="text-[11px] text-dashboard-neutral">Check-in</span>
                                                 <span className="font-medium text-dashboard-base-content">{fmtDate(checkIn)}</span>

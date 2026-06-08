@@ -65,6 +65,35 @@ export async function getRoomsForHotel(hotelId: number, checkInDate?: string): P
     }));
 }
 
+// Fetch real road distances from OSRM (OpenStreetMap routing)
+export async function getRoadDistances(
+    originLat: number,
+    originLon: number,
+    hotels: { id: number; lat: number; lon: number }[],
+): Promise<{ id: number; distanceKm: number }[]> {
+    if (hotels.length === 0) return [];
+    const limited = hotels.slice(0, 100); // OSRM URL length safety
+    const coords = [
+        `${originLon},${originLat}`,
+        ...limited.map((h) => `${h.lon},${h.lat}`),
+    ].join(";");
+    try {
+        const res = await fetch(
+            `https://router.project-osrm.org/table/v1/driving/${coords}?sources=0&annotations=distance`,
+            { next: { revalidate: 86400 } }, // cache 24 h — road distances rarely change
+        );
+        if (!res.ok) return [];
+        const data = await res.json();
+        if (data.code !== "Ok" || !Array.isArray(data.distances?.[0])) return [];
+        const row: (number | null)[] = data.distances[0];
+        return limited
+            .map((h, i) => ({ id: h.id, distanceKm: (row[i + 1] ?? -1) / 1000 }))
+            .filter((d) => d.distanceKm >= 0);
+    } catch {
+        return [];
+    }
+}
+
 export async function getRoomsForHotels(hotelIds: number[], checkInDate?: string): Promise<(RoomOption & { hotel_id: number })[]> {
     if (hotelIds.length === 0) return [];
     const targetDate = checkInDate ? new Date(`${checkInDate}T00:00:00`) : null;
