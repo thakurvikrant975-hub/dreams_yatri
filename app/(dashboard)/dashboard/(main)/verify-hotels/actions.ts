@@ -65,6 +65,57 @@ export async function getRoomsForHotel(hotelId: number, checkInDate?: string): P
     }));
 }
 
+export async function getRoomsForHotels(hotelIds: number[], checkInDate?: string): Promise<(RoomOption & { hotel_id: number })[]> {
+    if (hotelIds.length === 0) return [];
+    const targetDate = checkInDate ? new Date(`${checkInDate}T00:00:00`) : null;
+
+    const rows = await db.hotel_rooms.findMany({
+        where: { hotel_id: { in: hotelIds }, is_active: true },
+        orderBy: [{ hotel_id: "asc" }, { sort_order: "asc" }],
+        select: {
+            id: true, hotel_id: true, name: true, bed_type: true, view_type: true,
+            max_occupancy: true, area_sqft: true,
+            images: {
+                orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
+                select: { url: true, thumbnail: true },
+                take: 1,
+            },
+            pricing: {
+                orderBy: { price_per_night: "asc" },
+                select: {
+                    id: true, plan_name: true, price_per_night: true,
+                    seasons: {
+                        where: { is_active: true },
+                        select: { season_name: true, valid_from: true, valid_to: true, price_per_night: true },
+                    },
+                },
+            },
+        },
+    });
+
+    return rows.map((r) => ({
+        hotel_id: r.hotel_id,
+        id: r.id, name: r.name, bed_type: r.bed_type, view_type: r.view_type,
+        max_occupancy: r.max_occupancy, area_sqft: r.area_sqft,
+        image_url: r.images[0]?.url ? getThumbnailImage(r.images[0].url) : null,
+        image_thumbnail: r.images[0]?.thumbnail ? getThumbnailImage(r.images[0].thumbnail) : null,
+        pricing: r.pricing.map((p) => {
+            let effectivePrice = Number(p.price_per_night);
+            let seasonName: string | null = null;
+            if (targetDate) {
+                const season = p.seasons.find(
+                    (s) => targetDate >= new Date(s.valid_from) && targetDate <= new Date(s.valid_to),
+                );
+                if (season) {
+                    effectivePrice = Number(season.price_per_night);
+                    seasonName = season.season_name;
+                }
+            }
+            return { id: p.id, plan_name: p.plan_name, price_per_night: effectivePrice, season_name: seasonName };
+        }),
+    }));
+}
+
 type Member = NonNullable<Awaited<ReturnType<typeof getCurrentMember>>>;
 
 async function requireMember(): Promise<{ ok: true; member: Member } | { ok: false; error: string }> {

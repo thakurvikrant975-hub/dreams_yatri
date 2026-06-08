@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { confirmHotelStay, getRoomsForHotel, type RoomOption } from "../actions";
+import { confirmHotelStay, getRoomsForHotels, type RoomOption } from "../actions";
 
 type Hotel = {
     id: number; name: string; category: string | null;
@@ -13,6 +13,7 @@ type Hotel = {
     business_email: string | null;
 };
 
+type RoomWithHotelId = RoomOption & { hotel_id: number };
 type SelectedOption = { hotel: Hotel; room: RoomOption; pricing: RoomOption["pricing"][0] };
 
 const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
@@ -49,30 +50,37 @@ function ChangeHotelModal({
 }) {
     const [search, setSearch] = useState("");
     const [showAll, setShowAll] = useState(false);
-    const [expandedHotelId, setExpandedHotelId] = useState<number | null>(null);
-    const [hotelRooms, setHotelRooms] = useState<Map<number, RoomOption[] | "loading">>(new Map());
+    const [rooms, setRooms] = useState<RoomWithHotelId[]>([]);
+    const [loading, setLoading] = useState(true);
     const [selected, setSelected] = useState<SelectedOption | null>(null);
     const [notes, setNotes] = useState(initialNotes);
     const [confirming, setConfirming] = useState(false);
 
-    const pool = showAll ? allHotels : destinationHotels;
-    const filtered = search.trim()
-        ? pool.filter((h) =>
-              h.name.toLowerCase().includes(search.toLowerCase()) ||
-              (h.city ?? "").toLowerCase().includes(search.toLowerCase()) ||
-              (h.address ?? "").toLowerCase().includes(search.toLowerCase()),
-          )
-        : pool;
+    // Build a lookup map from hotel id → Hotel for the full allHotels list
+    const hotelMap = new Map(allHotels.map((h) => [h.id, h]));
 
-    async function toggleHotel(hotel: Hotel) {
-        if (expandedHotelId === hotel.id) { setExpandedHotelId(null); return; }
-        setExpandedHotelId(hotel.id);
-        if (!hotelRooms.has(hotel.id)) {
-            setHotelRooms((prev) => new Map(prev).set(hotel.id, "loading"));
-            const rooms = await getRoomsForHotel(hotel.id, checkInDate);
-            setHotelRooms((prev) => new Map(prev).set(hotel.id, rooms));
-        }
-    }
+    // Fetch rooms for the current pool whenever showAll changes
+    useEffect(() => {
+        let cancelled = false;
+        setLoading(true);
+        const pool = showAll ? allHotels : destinationHotels;
+        getRoomsForHotels(pool.map((h) => h.id), checkInDate).then((data) => {
+            if (!cancelled) { setRooms(data); setLoading(false); }
+        });
+        return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [showAll]);
+
+    // Filter rooms by search query (room name, hotel name, city)
+    const q = search.trim().toLowerCase();
+    const visibleRooms = q
+        ? rooms.filter((r) => {
+              const hotel = hotelMap.get(r.hotel_id);
+              return r.name.toLowerCase().includes(q) ||
+                     (hotel?.name ?? "").toLowerCase().includes(q) ||
+                     (hotel?.city ?? "").toLowerCase().includes(q);
+          })
+        : rooms;
 
     async function handleConfirmChange() {
         if (!selected) return;
@@ -95,6 +103,107 @@ function ChangeHotelModal({
 
     const newTotal = selected ? selected.pricing.price_per_night * roomsCount * numNights : 0;
 
+    // Build flat list: one card per room+plan
+    const cards = visibleRooms.flatMap((room) => {
+        const hotel = hotelMap.get(room.hotel_id);
+        if (!hotel) return [];
+        const isBookedHotel = hotel.id === defaultHotelId;
+
+        if (room.pricing.length === 0) {
+            return [(
+                <div key={`${room.id}-noprice`} className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-100 flex gap-3 p-3 items-center">
+                    <div className="shrink-0 w-14 h-14 rounded-md overflow-hidden bg-dashboard-base-200 flex items-center justify-center">
+                        <RoomImage url={room.image_url} thumbnail={room.image_thumbnail} alt={room.name} />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="text-sm font-semibold text-dashboard-base-content">{room.name}</p>
+                        <p className="text-xs text-dashboard-neutral mt-0.5 flex items-center gap-1">
+                            {hotel.name}
+                            {isBookedHotel && <span className="rounded bg-dashboard-primary/15 px-1 text-[9px] font-medium text-dashboard-primary">booked</span>}
+                        </p>
+                        <p className="text-xs text-dashboard-neutral italic mt-1">No pricing configured</p>
+                    </div>
+                </div>
+            )];
+        }
+
+        return room.pricing.map((p) => {
+            const isSelected = selected?.room.id === room.id && selected?.pricing.id === p.id && selected?.hotel.id === hotel.id;
+            const priceDiff = p.price_per_night - oldRatePerRoom;
+            const planTotal = p.price_per_night * roomsCount * numNights;
+            const diffLabel = priceDiff === 0 ? null : `${priceDiff > 0 ? "+" : "-"}${inr(Math.abs(priceDiff))}`;
+
+            return (
+                <button
+                    key={`${room.id}-${p.id}`}
+                    type="button"
+                    onClick={() => setSelected({ hotel, room, pricing: p })}
+                    className={`cursor-pointer w-full rounded-lg border text-left flex gap-3 p-3 transition-colors ${
+                        isSelected
+                            ? "border-green-500 bg-green-50"
+                            : "border-dashboard-base-300 bg-dashboard-base-100 hover:bg-dashboard-base-200/50"
+                    }`}
+                >
+                    {/* Image */}
+                    <div className="shrink-0 w-14 h-14 rounded-md overflow-hidden bg-dashboard-base-200 flex items-center justify-center">
+                        <RoomImage url={room.image_url} thumbnail={room.image_thumbnail} alt={room.name} />
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-semibold ${isSelected ? "text-green-700" : "text-dashboard-base-content"}`}>
+                            {room.name}
+                            {p.plan_name && (
+                                <span className="ml-1.5 text-xs font-normal text-dashboard-neutral">· {p.plan_name}</span>
+                            )}
+                        </p>
+                        <p className="text-xs text-dashboard-neutral mt-0.5 flex items-center gap-1">
+                            {hotel.name}
+                            {isBookedHotel && <span className="rounded bg-dashboard-primary/15 px-1 text-[9px] font-medium text-dashboard-primary">booked</span>}
+                        </p>
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                            {room.view_type && (
+                                <span className="rounded-full border border-dashboard-base-300 px-2 py-0.5 text-[10px] text-dashboard-base-content">
+                                    📍 {room.view_type}
+                                </span>
+                            )}
+                            {room.bed_type && (
+                                <span className="rounded-full border border-dashboard-base-300 px-2 py-0.5 text-[10px] text-dashboard-neutral">
+                                    🛏 {room.bed_type}
+                                </span>
+                            )}
+                            <span className="rounded-full border border-dashboard-base-300 px-2 py-0.5 text-[10px] text-dashboard-neutral">
+                                👤 Max {room.max_occupancy}
+                            </span>
+                            {room.area_sqft && (
+                                <span className="rounded-full border border-dashboard-base-300 px-2 py-0.5 text-[10px] text-dashboard-neutral">
+                                    {room.area_sqft} sqft
+                                </span>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Price column */}
+                    <div className="shrink-0 flex flex-col items-end justify-center gap-0.5 min-w-[80px]">
+                        {diffLabel && (
+                            <span className={`text-sm font-bold tabular-nums ${priceDiff > 0 ? "text-red-500" : "text-green-600"}`}>
+                                {diffLabel}
+                            </span>
+                        )}
+                        <span className={`text-sm font-semibold tabular-nums ${isSelected ? "text-green-700" : "text-dashboard-base-content"}`}>
+                            {inr(p.price_per_night)}
+                            <span className="text-[10px] font-normal text-dashboard-neutral">/night</span>
+                        </span>
+                        <span className="text-[10px] text-dashboard-neutral tabular-nums">{inr(planTotal)} total</span>
+                        {isSelected && (
+                            <span className="text-[10px] font-semibold text-green-600 mt-0.5">✓ Selected</span>
+                        )}
+                    </div>
+                </button>
+            );
+        });
+    });
+
     return (
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
@@ -104,9 +213,16 @@ function ChangeHotelModal({
 
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-dashboard-base-300 px-5 py-3.5 shrink-0">
-                    <h3 className="text-sm font-semibold text-dashboard-base-content">
-                        🏨 Change Hotel — Day {dayNumber} · {cityName}
-                    </h3>
+                    <div>
+                        <h3 className="text-sm font-semibold text-dashboard-base-content">
+                            🏨 Change Room — Day {dayNumber} · {cityName}
+                        </h3>
+                        {!loading && (
+                            <p className="text-[11px] text-dashboard-neutral mt-0.5">
+                                {visibleRooms.length} room{visibleRooms.length !== 1 ? "s" : ""} available
+                            </p>
+                        )}
+                    </div>
                     <button
                         onClick={onClose}
                         className="cursor-pointer rounded-md p-1.5 text-dashboard-neutral hover:bg-dashboard-base-200 hover:text-dashboard-base-content transition-colors"
@@ -121,7 +237,7 @@ function ChangeHotelModal({
                         type="text"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search hotel name or city…"
+                        placeholder="Search room or hotel name…"
                         className="flex-1 rounded-md border border-dashboard-base-300 bg-dashboard-base-200/60 px-3 py-2 text-sm text-dashboard-base-content placeholder:text-dashboard-neutral outline-none focus:border-dashboard-primary"
                     />
                     <button
@@ -133,171 +249,15 @@ function ChangeHotelModal({
                     </button>
                 </div>
 
-                {/* Hotel list */}
+                {/* Room list */}
                 <div className="flex-1 min-h-0 overflow-y-auto px-5 py-3 space-y-2">
-                    {filtered.length === 0 ? (
-                        <p className="py-8 text-center text-sm text-dashboard-neutral">No hotels found.</p>
-                    ) : filtered.map((hotel) => {
-                        const isExpanded = expandedHotelId === hotel.id;
-                        const rooms = hotelRooms.get(hotel.id);
-                        const isDefault = hotel.id === defaultHotelId;
-
-                        return (
-                            <div
-                                key={hotel.id}
-                                className={`rounded-lg border overflow-hidden ${isDefault ? "border-dashboard-primary/40" : "border-dashboard-base-300"}`}
-                            >
-                                {/* Hotel row */}
-                                <button
-                                    type="button"
-                                    onClick={() => toggleHotel(hotel)}
-                                    className="cursor-pointer w-full text-left px-4 py-3 hover:bg-dashboard-base-200/50 transition-colors"
-                                >
-                                    <div className="flex items-start justify-between gap-2">
-                                        <div className="min-w-0 flex-1">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <span className="text-sm font-semibold text-dashboard-base-content">{hotel.name}</span>
-                                                {hotel.category && (
-                                                    <span className="text-xs text-dashboard-neutral">{hotel.category}</span>
-                                                )}
-                                                {isDefault && (
-                                                    <span className="rounded bg-dashboard-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-dashboard-primary">
-                                                        booked
-                                                    </span>
-                                                )}
-                                            </div>
-                                            {(hotel.city || hotel.state || hotel.address) && (
-                                                <p className="mt-0.5 text-xs text-dashboard-neutral truncate">
-                                                    📍 {[hotel.address, hotel.city, hotel.state].filter(Boolean).join(", ")}
-                                                </p>
-                                            )}
-                                            <div className="mt-1 flex flex-wrap gap-3">
-                                                {hotel.business_phone && (
-                                                    <a
-                                                        href={`tel:${hotel.business_phone}`}
-                                                        onClick={(e) => e.stopPropagation()}
-                                                        className="cursor-pointer text-xs text-dashboard-primary hover:underline"
-                                                    >
-                                                        📞 {hotel.business_phone}
-                                                    </a>
-                                                )}
-                                                {hotel.business_email && (
-                                                    <a
-                                                        href={`mailto:${hotel.business_email}`}
-                                                        onClick={(e) => e.stopPropagation()}
-                                                        className="cursor-pointer text-xs text-dashboard-primary hover:underline"
-                                                    >
-                                                        ✉ {hotel.business_email}
-                                                    </a>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <span className="shrink-0 text-xs text-dashboard-neutral mt-0.5 whitespace-nowrap">
-                                            {isExpanded ? "▲ close" : "▼ rooms"}
-                                        </span>
-                                    </div>
-                                </button>
-
-                                {/* Rooms — flat list: one selectable card per room+plan */}
-                                {isExpanded && (
-                                    <div className="border-t border-dashboard-base-300/60 bg-dashboard-base-200/30 px-4 py-3 space-y-2 max-h-80 overflow-y-auto">
-                                        {rooms === "loading" ? (
-                                            <p className="py-3 text-center text-xs text-dashboard-neutral">Loading rooms…</p>
-                                        ) : !rooms || rooms.length === 0 ? (
-                                            <p className="py-3 text-center text-xs text-dashboard-neutral">No rooms available for this hotel.</p>
-                                        ) : rooms.flatMap((room) =>
-                                            room.pricing.length === 0
-                                                ? [(
-                                                    <div key={room.id} className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-100 flex gap-3 p-3 items-center">
-                                                        <div className="shrink-0 w-14 h-14 rounded-md overflow-hidden bg-dashboard-base-200 flex items-center justify-center">
-                                                            <RoomImage url={room.image_url} thumbnail={room.image_thumbnail} alt={room.name} />
-                                                        </div>
-                                                        <div className="min-w-0">
-                                                            <p className="text-sm font-semibold text-dashboard-base-content">{room.name}</p>
-                                                            <p className="text-xs text-dashboard-neutral mt-0.5">{hotel.name}</p>
-                                                            <p className="text-xs text-dashboard-neutral italic mt-1">No pricing configured</p>
-                                                        </div>
-                                                    </div>
-                                                )]
-                                                : room.pricing.map((p) => {
-                                                    const isSelected = selected?.room.id === room.id && selected?.pricing.id === p.id && selected?.hotel.id === hotel.id;
-                                                    const priceDiff = p.price_per_night - oldRatePerRoom;
-                                                    const planTotal = p.price_per_night * roomsCount * numNights;
-                                                    const diffLabel = priceDiff === 0
-                                                        ? null
-                                                        : `${priceDiff > 0 ? "+" : "-"}${inr(Math.abs(priceDiff))}`;
-                                                    return (
-                                                        <button
-                                                            key={`${room.id}-${p.id}`}
-                                                            type="button"
-                                                            onClick={() => setSelected({ hotel, room, pricing: p })}
-                                                            className={`cursor-pointer w-full rounded-lg border text-left flex gap-3 p-3 transition-colors ${
-                                                                isSelected
-                                                                    ? "border-green-500 bg-green-50"
-                                                                    : "border-dashboard-base-300 bg-dashboard-base-100 hover:bg-dashboard-base-200/50"
-                                                            }`}
-                                                        >
-                                                            {/* Image */}
-                                                            <div className="shrink-0 w-14 h-14 rounded-md overflow-hidden bg-dashboard-base-200 flex items-center justify-center">
-                                                                <RoomImage url={room.image_url} thumbnail={room.image_thumbnail} alt={room.name} />
-                                                            </div>
-
-                                                            {/* Info */}
-                                                            <div className="flex-1 min-w-0">
-                                                                <p className={`text-sm font-semibold ${isSelected ? "text-green-700" : "text-dashboard-base-content"}`}>
-                                                                    {room.name}
-                                                                    {p.plan_name && (
-                                                                        <span className="ml-1.5 text-xs font-normal text-dashboard-neutral">· {p.plan_name}</span>
-                                                                    )}
-                                                                </p>
-                                                                <p className="text-xs text-dashboard-neutral mt-0.5">{hotel.name}</p>
-                                                                <div className="mt-1.5 flex flex-wrap gap-1">
-                                                                    {room.view_type && (
-                                                                        <span className="rounded-full border border-dashboard-base-300 px-2 py-0.5 text-[10px] text-dashboard-base-content">
-                                                                            📍 {room.view_type}
-                                                                        </span>
-                                                                    )}
-                                                                    {room.bed_type && (
-                                                                        <span className="rounded-full border border-dashboard-base-300 px-2 py-0.5 text-[10px] text-dashboard-neutral">
-                                                                            🛏 {room.bed_type}
-                                                                        </span>
-                                                                    )}
-                                                                    <span className="rounded-full border border-dashboard-base-300 px-2 py-0.5 text-[10px] text-dashboard-neutral">
-                                                                        👤 Max {room.max_occupancy}
-                                                                    </span>
-                                                                    {room.area_sqft && (
-                                                                        <span className="rounded-full border border-dashboard-base-300 px-2 py-0.5 text-[10px] text-dashboard-neutral">
-                                                                            {room.area_sqft} sqft
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Price column */}
-                                                            <div className="shrink-0 flex flex-col items-end justify-center gap-0.5 min-w-[80px]">
-                                                                {diffLabel && (
-                                                                    <span className={`text-sm font-bold tabular-nums ${priceDiff > 0 ? "text-red-500" : "text-green-600"}`}>
-                                                                        {diffLabel}
-                                                                    </span>
-                                                                )}
-                                                                <span className={`text-sm font-semibold tabular-nums ${isSelected ? "text-green-700" : "text-dashboard-base-content"}`}>
-                                                                    {inr(p.price_per_night)}
-                                                                    <span className="text-[10px] font-normal text-dashboard-neutral">/night</span>
-                                                                </span>
-                                                                <span className="text-[10px] text-dashboard-neutral tabular-nums">{inr(planTotal)} total</span>
-                                                                {isSelected && (
-                                                                    <span className="text-[10px] font-semibold text-green-600 mt-0.5">✓ Selected</span>
-                                                                )}
-                                                            </div>
-                                                        </button>
-                                                    );
-                                                })
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
+                    {loading ? (
+                        <p className="py-10 text-center text-sm text-dashboard-neutral">Loading rooms…</p>
+                    ) : cards.length === 0 ? (
+                        <p className="py-10 text-center text-sm text-dashboard-neutral">
+                            {q ? "No rooms match your search." : "No rooms available."}
+                        </p>
+                    ) : cards}
                 </div>
 
                 {/* Footer */}
@@ -319,7 +279,7 @@ function ChangeHotelModal({
                                     <span className="ml-1.5 font-bold tabular-nums">{inr(newTotal)}</span>
                                 </span>
                             ) : (
-                                <span className="text-dashboard-neutral">Expand a hotel and select a room</span>
+                                <span className="text-dashboard-neutral">Select a room from the list above</span>
                             )}
                         </div>
                         <div className="flex gap-2 shrink-0">
