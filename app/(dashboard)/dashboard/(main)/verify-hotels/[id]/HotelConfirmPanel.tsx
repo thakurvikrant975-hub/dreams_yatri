@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { confirmHotelStay, getRoomsForHotels, getRoadDistances, type RoomOption } from "../actions";
+import { confirmHotelStay, getRoomsForHotels, getRoadDistances, getMealsForHotels, type RoomOption, type MealOption } from "../actions";
 
 type Hotel = {
     id: number; name: string; category: string | null;
@@ -39,16 +39,19 @@ function RoomImage({ url, thumbnail, alt }: { url: string | null; thumbnail: str
 
 // ── Change Hotel Modal ────────────────────────────────────────────────────────
 function ChangeHotelModal({
-    bookingId, dayNumber, defaultHotelId, cityName,
+    bookingId, dayNumber, defaultHotelId, defaultPricingId, cityName,
     checkInDate, checkOutDate, roomsCount, numNights,
-    oldRatePerRoom,
+    travellers, oldRatePerRoom, snapshotTotal, snapshotMealTypes,
     destinationHotels, allHotels, initialNotes,
     onClose, onConfirmed,
 }: {
-    bookingId: string; dayNumber: number; defaultHotelId: number; cityName: string;
+    bookingId: string; dayNumber: number; defaultHotelId: number; defaultPricingId: number; cityName: string;
     checkInDate: string; checkOutDate: string;
     roomsCount: number; numNights: number;
+    travellers: number;
     oldRatePerRoom: number;
+    snapshotTotal: number;
+    snapshotMealTypes: string[];
     destinationHotels: Hotel[]; allHotels: Hotel[];
     initialNotes: string;
     onClose: () => void;
@@ -58,6 +61,7 @@ function ChangeHotelModal({
     const [showAll, setShowAll] = useState(false);
     const [rooms, setRooms] = useState<RoomWithHotelId[]>([]);
     const [distances, setDistances] = useState<Map<number, number>>(new Map());
+    const [meals, setMeals] = useState<Map<number, MealOption[]>>(new Map());
     const [loading, setLoading] = useState(true);
     const [selected, setSelected] = useState<SelectedOption | null>(null);
     const [notes, setNotes] = useState(initialNotes);
@@ -71,8 +75,10 @@ function ChangeHotelModal({
         let cancelled = false;
         setLoading(true);
         setDistances(new Map());
+        setMeals(new Map());
 
         const pool = showAll ? allHotels : destinationHotels;
+        const poolIds = pool.map((h) => h.id);
         const currentHotel = allHotels.find((h) => h.id === defaultHotelId);
         const cLat = currentHotel?.latitude ?? null;
         const cLon = currentHotel?.longitude ?? null;
@@ -88,9 +94,10 @@ function ChangeHotelModal({
             : Promise.resolve([] as { id: number; distanceKm: number }[]);
 
         Promise.all([
-            getRoomsForHotels(pool.map((h) => h.id), checkInDate),
+            getRoomsForHotels(poolIds, checkInDate),
             distFetch,
-        ]).then(([roomData, distData]) => {
+            getMealsForHotels(poolIds, snapshotMealTypes, checkInDate),
+        ]).then(([roomData, distData, mealData]) => {
             if (!cancelled) {
                 const dMap = new Map(distData.map((d) => [d.id, d.distanceKm]));
                 roomData.sort((a, b) => {
@@ -98,8 +105,10 @@ function ChangeHotelModal({
                     if (b.hotel_id === defaultHotelId) return 1;
                     return (dMap.get(a.hotel_id) ?? Infinity) - (dMap.get(b.hotel_id) ?? Infinity);
                 });
+                const mMap = new Map(mealData.map((m) => [m.hotel_id, m.meals]));
                 setRooms(roomData);
                 setDistances(dMap);
+                setMeals(mMap);
                 setLoading(false);
             }
         });
@@ -143,10 +152,10 @@ function ChangeHotelModal({
     const cards = visibleRooms.flatMap((room) => {
         const hotel = hotelMap.get(room.hotel_id);
         if (!hotel) return [];
-        const isBookedHotel = hotel.id === defaultHotelId;
+        const isCurrentHotel = hotel.id === defaultHotelId;
 
         const distKm = distances.get(hotel.id);
-        const distLabel = distKm != null && !isBookedHotel ? fmtDist(distKm) : null;
+        const distLabel = distKm != null && !isCurrentHotel ? fmtDist(distKm) : null;
         const hotelLocation = [hotel.city, hotel.state].filter(Boolean).join(", ");
 
         if (room.pricing.length === 0) {
@@ -159,7 +168,6 @@ function ChangeHotelModal({
                         <p className="text-sm font-semibold text-dashboard-base-content">{room.name}</p>
                         <p className="text-xs text-dashboard-neutral mt-0.5 flex items-center gap-1 flex-wrap">
                             {hotel.name}
-                            {isBookedHotel && <span className="rounded bg-dashboard-primary/15 px-1 text-[9px] font-medium text-dashboard-primary">current</span>}
                         </p>
                         {hotelLocation && <p className="text-[11px] text-dashboard-neutral">{hotelLocation}{distLabel && <span className="ml-1.5 text-dashboard-neutral/70">· {distLabel}</span>}</p>}
                         <p className="text-xs text-dashboard-neutral italic mt-1">No pricing configured</p>
@@ -168,11 +176,26 @@ function ChangeHotelModal({
             )];
         }
 
+        const hotelMeals = meals.get(hotel.id) ?? [];
+
         return room.pricing.map((p) => {
             const isSelected = selected?.room.id === room.id && selected?.pricing.id === p.id && selected?.hotel.id === hotel.id;
-            const priceDiff = p.price_per_night - oldRatePerRoom;
-            const planTotal = p.price_per_night * roomsCount * numNights;
-            const diffLabel = priceDiff === 0 ? null : `${priceDiff > 0 ? "+" : "-"}${inr(Math.abs(priceDiff))}`;
+            const isCurrentBooking = isCurrentHotel && p.id === defaultPricingId;
+
+            // Occupancy & extra-bed calculation
+            const roomsNeeded = Math.max(roomsCount, Math.ceil(travellers / room.max_occupancy));
+            const extraBeds   = Math.max(0, travellers - roomsNeeded * room.max_occupancy);
+
+            // Cost breakdown
+            const roomCost     = p.price_per_night * roomsNeeded * numNights;
+            const extraBedCost = (p.extra_bed_rate != null && extraBeds > 0)
+                ? p.extra_bed_rate * extraBeds * numNights : 0;
+            const mealCostPerPax = hotelMeals.reduce((s, m) => s + m.price_per_person, 0);
+            const mealTotal    = mealCostPerPax * travellers * numNights;
+            const grandTotal   = roomCost + extraBedCost + mealTotal;
+            const totalDiff    = grandTotal - snapshotTotal;
+            const diffLabel    = totalDiff === 0 ? null
+                : `${totalDiff > 0 ? "+" : "-"}${inr(Math.abs(totalDiff))}`;
 
             return (
                 <button
@@ -182,6 +205,8 @@ function ChangeHotelModal({
                     className={`cursor-pointer w-full rounded-lg border text-left flex gap-3 p-3 transition-colors ${
                         isSelected
                             ? "border-green-500 bg-green-50"
+                            : isCurrentBooking
+                            ? "border-green-600 bg-green-50 bg-dashboard-base-100 hover:bg-dashboard-base-200/50"
                             : "border-dashboard-base-300 bg-dashboard-base-100 hover:bg-dashboard-base-200/50"
                     }`}
                 >
@@ -200,7 +225,9 @@ function ChangeHotelModal({
                         </p>
                         <p className="text-xs text-dashboard-neutral mt-0.5 flex items-center gap-1 flex-wrap">
                             {hotel.name}
-                            {isBookedHotel && <span className="rounded bg-dashboard-primary/15 px-1 text-[9px] font-medium text-dashboard-primary">current</span>}
+                            {isCurrentHotel && p.id === defaultPricingId && (
+                                <span className="rounded bg-dashboard-primary/15 px-1 text-[9px] font-medium text-dashboard-primary">current</span>
+                            )}
                         </p>
                         {(hotelLocation || distLabel) && (
                             <p className="text-[11px] text-dashboard-neutral/80 mt-0.5">
@@ -228,22 +255,53 @@ function ChangeHotelModal({
                                 </span>
                             )}
                         </div>
+
+                        {/* Cost breakdown */}
+                        <div className="mt-2 pt-2 border-t border-dashboard-base-300/50 space-y-0.5 text-[10px] text-dashboard-neutral">
+                            <div className="flex justify-between gap-4">
+                                <span>{roomsNeeded} room{roomsNeeded > 1 ? "s" : ""} × {inr(p.price_per_night)}/night × {numNights}N</span>
+                                <span className="tabular-nums">{inr(roomCost)}</span>
+                            </div>
+                            {extraBeds > 0 && p.extra_bed_rate != null && (
+                                <div className="flex justify-between gap-4">
+                                    <span>{extraBeds} mattress{extraBeds > 1 ? "es" : ""} × {inr(p.extra_bed_rate)}/night × {numNights}N</span>
+                                    <span className="tabular-nums">{inr(extraBedCost)}</span>
+                                </div>
+                            )}
+                            {snapshotMealTypes.map((mealType) => {
+                                const m = hotelMeals.find((x) => x.meal_type === mealType);
+                                const label = mealType.charAt(0) + mealType.slice(1).toLowerCase().replace(/_/g, " ");
+                                return m ? (
+                                    <div key={mealType} className="flex justify-between gap-4">
+                                        <span>{m.label}: {inr(m.price_per_person)}/pax × {travellers} × {numNights}N</span>
+                                        <span className="tabular-nums">{inr(m.price_per_person * travellers * numNights)}</span>
+                                    </div>
+                                ) : (
+                                    <div key={mealType} className="flex justify-between gap-4 text-dashboard-warning/80">
+                                        <span>{label}: not configured at this hotel</span>
+                                        <span>—</span>
+                                    </div>
+                                );
+                            })}
+                            <div className={`flex justify-between gap-4 font-semibold pt-0.5 border-t border-dashboard-base-300/40 ${isSelected ? "text-green-700" : "text-dashboard-base-content"}`}>
+                                <span>Grand total ({numNights}N)</span>
+                                <span className="tabular-nums">{inr(grandTotal)}</span>
+                            </div>
+                        </div>
                     </div>
 
-                    {/* Price column */}
-                    <div className="shrink-0 flex flex-col items-end justify-center gap-0.5 min-w-[80px]">
+                    {/* Diff column */}
+                    <div className="shrink-0 flex flex-col items-end justify-start gap-1 min-w-[72px] pt-0.5">
                         {diffLabel && (
-                            <span className={`text-sm font-bold tabular-nums ${priceDiff > 0 ? "text-red-500" : "text-green-600"}`}>
+                            <span className={`text-sm font-bold tabular-nums ${totalDiff > 0 ? "text-red-500" : "text-green-600"}`}>
                                 {diffLabel}
                             </span>
                         )}
-                        <span className={`text-sm font-semibold tabular-nums ${isSelected ? "text-green-700" : "text-dashboard-base-content"}`}>
-                            {inr(p.price_per_night)}
-                            <span className="text-[10px] font-normal text-dashboard-neutral">/night</span>
-                        </span>
-                        <span className="text-[10px] text-dashboard-neutral tabular-nums">{inr(planTotal)} total</span>
+                        {diffLabel && (
+                            <span className="text-[10px] text-dashboard-neutral">vs current</span>
+                        )}
                         {isSelected && (
-                            <span className="text-[10px] font-semibold text-green-600 mt-0.5">✓ Selected</span>
+                            <span className="text-[10px] font-semibold text-green-600 mt-1">✓ Selected</span>
                         )}
                     </div>
                 </button>
@@ -353,14 +411,21 @@ function ChangeHotelModal({
 }
 
 // ── Main Panel ────────────────────────────────────────────────────────────────
+// Convert meal label (e.g. "Breakfast") → meal_type key (e.g. "BREAKFAST")
+function labelToMealType(label: string): string {
+    return label.trim().toUpperCase().replace(/\s+/g, "_");
+}
+
 export default function HotelConfirmPanel({
-    bookingId, dayNumber, defaultHotelId, cityName,
+    bookingId, dayNumber, defaultHotelId, defaultPricingId, cityName,
     checkInDate, checkOutDate, roomType, roomsCount, ratePerRoom, totalCost,
+    travellers, snapshotMealLabels,
     destinationHotels, allHotels,
 }: {
     bookingId: string;
     dayNumber: number;
     defaultHotelId: number;
+    defaultPricingId: number;
     cityName: string;
     checkInDate: string;
     checkOutDate: string;
@@ -368,6 +433,8 @@ export default function HotelConfirmPanel({
     roomsCount: number;
     ratePerRoom: number;
     totalCost: number;
+    travellers: number;
+    snapshotMealLabels: string[];
     destinationHotels: Hotel[];
     allHotels: Hotel[];
 }) {
@@ -375,6 +442,7 @@ export default function HotelConfirmPanel({
     const numNights = Math.max(1, Math.round(
         (new Date(checkOutDate).getTime() - new Date(checkInDate).getTime()) / 86_400_000,
     ));
+    const snapshotMealTypes = snapshotMealLabels.map(labelToMealType);
 
     const [showNotes, setShowNotes] = useState(false);
     const [notes, setNotes] = useState("");
@@ -443,12 +511,16 @@ export default function HotelConfirmPanel({
                     bookingId={bookingId}
                     dayNumber={dayNumber}
                     defaultHotelId={defaultHotelId}
+                    defaultPricingId={defaultPricingId}
                     cityName={cityName}
                     checkInDate={checkInDate}
                     checkOutDate={checkOutDate}
                     roomsCount={roomsCount}
                     numNights={numNights}
+                    travellers={travellers}
                     oldRatePerRoom={ratePerRoom}
+                    snapshotTotal={totalCost}
+                    snapshotMealTypes={snapshotMealTypes}
                     destinationHotels={destinationHotels}
                     allHotels={allHotels}
                     initialNotes={notes}

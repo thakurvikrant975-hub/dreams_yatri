@@ -297,6 +297,7 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                                                 bookingId={booking.id}
                                                 dayNumber={d.day}
                                                 defaultHotelId={snap.hotel_id}
+                                                defaultPricingId={snap.room_pricing_id}
                                                 cityName={snap.hotel_city ?? d.day_title}
                                                 checkInDate={checkIn ?? booking.startDate.toISOString().split("T")[0]}
                                                 checkOutDate={checkOut ?? booking.endDate.toISOString().split("T")[0]}
@@ -304,6 +305,8 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                                                 roomsCount={snap.rooms_count}
                                                 ratePerRoom={snap.price_per_room}
                                                 totalCost={snap.total}
+                                                travellers={booking.travellers}
+                                                snapshotMealLabels={d.meals.map((m) => m.label)}
                                                 destinationHotels={destinationHotels}
                                                 allHotels={allHotels}
                                             />

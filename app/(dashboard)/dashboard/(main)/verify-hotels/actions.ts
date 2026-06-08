@@ -5,6 +5,8 @@ import { db } from "@/app/lib/db";
 import { getCurrentMember } from "../lib/get-current-member";
 import { getThumbnailImage } from "@/app/lib/imageUrl";
 
+export type MealOption = { meal_type: string; label: string; price_per_person: number };
+
 export type RoomOption = {
     id: number;
     name: string;
@@ -14,7 +16,13 @@ export type RoomOption = {
     area_sqft: number | null;
     image_url: string | null;
     image_thumbnail: string | null;
-    pricing: { id: number; plan_name: string | null; price_per_night: number; season_name: string | null }[];
+    pricing: {
+        id: number;
+        plan_name: string | null;
+        price_per_night: number;
+        season_name: string | null;
+        extra_bed_rate: number | null;
+    }[];
 };
 
 export async function getRoomsForHotel(hotelId: number, checkInDate?: string): Promise<RoomOption[]> {
@@ -33,10 +41,10 @@ export async function getRoomsForHotel(hotelId: number, checkInDate?: string): P
             pricing: {
                 orderBy: { price_per_night: "asc" },
                 select: {
-                    id: true, plan_name: true, price_per_night: true,
+                    id: true, plan_name: true, price_per_night: true, extra_bed_rate: true,
                     seasons: {
                         where: { is_active: true },
-                        select: { season_name: true, valid_from: true, valid_to: true, price_per_night: true },
+                        select: { season_name: true, valid_from: true, valid_to: true, price_per_night: true, extra_bed_rate: true },
                     },
                 },
             },
@@ -51,6 +59,7 @@ export async function getRoomsForHotel(hotelId: number, checkInDate?: string): P
         pricing: r.pricing.map((p) => {
             let effectivePrice = Number(p.price_per_night);
             let seasonName: string | null = null;
+            let extraBedRate: number | null = p.extra_bed_rate != null ? Number(p.extra_bed_rate) : null;
             if (targetDate) {
                 const season = p.seasons.find(
                     (s) => targetDate >= new Date(s.valid_from) && targetDate <= new Date(s.valid_to),
@@ -58,9 +67,10 @@ export async function getRoomsForHotel(hotelId: number, checkInDate?: string): P
                 if (season) {
                     effectivePrice = Number(season.price_per_night);
                     seasonName = season.season_name;
+                    if (season.extra_bed_rate != null) extraBedRate = Number(season.extra_bed_rate);
                 }
             }
-            return { id: p.id, plan_name: p.plan_name, price_per_night: effectivePrice, season_name: seasonName };
+            return { id: p.id, plan_name: p.plan_name, price_per_night: effectivePrice, season_name: seasonName, extra_bed_rate: extraBedRate };
         }),
     }));
 }
@@ -112,10 +122,10 @@ export async function getRoomsForHotels(hotelIds: number[], checkInDate?: string
             pricing: {
                 orderBy: { price_per_night: "asc" },
                 select: {
-                    id: true, plan_name: true, price_per_night: true,
+                    id: true, plan_name: true, price_per_night: true, extra_bed_rate: true,
                     seasons: {
                         where: { is_active: true },
-                        select: { season_name: true, valid_from: true, valid_to: true, price_per_night: true },
+                        select: { season_name: true, valid_from: true, valid_to: true, price_per_night: true, extra_bed_rate: true },
                     },
                 },
             },
@@ -131,6 +141,7 @@ export async function getRoomsForHotels(hotelIds: number[], checkInDate?: string
         pricing: r.pricing.map((p) => {
             let effectivePrice = Number(p.price_per_night);
             let seasonName: string | null = null;
+            let extraBedRate: number | null = p.extra_bed_rate != null ? Number(p.extra_bed_rate) : null;
             if (targetDate) {
                 const season = p.seasons.find(
                     (s) => targetDate >= new Date(s.valid_from) && targetDate <= new Date(s.valid_to),
@@ -138,11 +149,48 @@ export async function getRoomsForHotels(hotelIds: number[], checkInDate?: string
                 if (season) {
                     effectivePrice = Number(season.price_per_night);
                     seasonName = season.season_name;
+                    if (season.extra_bed_rate != null) extraBedRate = Number(season.extra_bed_rate);
                 }
             }
-            return { id: p.id, plan_name: p.plan_name, price_per_night: effectivePrice, season_name: seasonName };
+            return { id: p.id, plan_name: p.plan_name, price_per_night: effectivePrice, season_name: seasonName, extra_bed_rate: extraBedRate };
         }),
     }));
+}
+
+export async function getMealsForHotels(
+    hotelIds: number[],
+    mealTypes: string[], // only fetch these meal types (derived from snapshot)
+    checkInDate?: string,
+): Promise<{ hotel_id: number; meals: MealOption[] }[]> {
+    if (hotelIds.length === 0 || mealTypes.length === 0) return [];
+    const targetDate = checkInDate ? new Date(`${checkInDate}T00:00:00`) : null;
+
+    const rows = await db.hotel_meal_pricing.findMany({
+        where: { hotel_id: { in: hotelIds }, is_active: true, meal_type: { in: mealTypes } },
+        orderBy: [{ hotel_id: "asc" }, { sort_order: "asc" }],
+        select: {
+            hotel_id: true, meal_type: true, label: true, price: true,
+            seasons: {
+                where: { is_active: true },
+                select: { valid_from: true, valid_to: true, price: true },
+            },
+        },
+    });
+
+    const byHotel = new Map<number, { meal_type: string; label: string; price_per_person: number }[]>();
+    for (const r of rows) {
+        let price = Number(r.price);
+        if (targetDate) {
+            const season = r.seasons.find(
+                (s) => targetDate >= new Date(s.valid_from) && targetDate <= new Date(s.valid_to),
+            );
+            if (season) price = Number(season.price);
+        }
+        if (!byHotel.has(r.hotel_id)) byHotel.set(r.hotel_id, []);
+        byHotel.get(r.hotel_id)!.push({ meal_type: r.meal_type, label: r.label, price_per_person: price });
+    }
+
+    return Array.from(byHotel.entries()).map(([hotel_id, meals]) => ({ hotel_id, meals }));
 }
 
 type Member = NonNullable<Awaited<ReturnType<typeof getCurrentMember>>>;
