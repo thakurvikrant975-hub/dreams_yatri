@@ -61,107 +61,230 @@ type Snapshot = { days?: SnapDay[]; cab_segments?: SnapCab[] };
 
 const ref = (label: string, id: number | null | undefined) => (id == null ? null : <span className="text-[11px] text-dashboard-neutral/80">{label} #{id}</span>);
 
+const installmentStatusStyle: Record<string, string> = {
+    PAID: "bg-green-100 text-green-700",
+    PENDING: "bg-amber-100 text-amber-700",
+    OVERDUE: "bg-red-100 text-red-700",
+    WAIVED: "bg-gray-100 text-gray-500",
+};
+function InstallmentPill({ status }: { status: string }) {
+    return (
+        <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${installmentStatusStyle[status] ?? "bg-gray-100 text-gray-500"}`}>
+            {titleCase(status)}
+        </span>
+    );
+}
+
+function PricingBreakdown({ snapshot, total_paise }: { snapshot: Snapshot; total_paise: number }) {
+    const days = snapshot.days ?? [];
+    const cabs = snapshot.cab_segments ?? [];
+
+    const hotelsTotal = days.reduce((s, d) => s + (d.hotel?.total ?? 0), 0);
+    const activitiesTotal = days.reduce((s, d) => s + d.activities.reduce((a, act) => a + (!act.is_optional && act.total != null ? act.total : 0), 0), 0);
+    const cabsTotal = cabs.reduce((s, c) => s + (c.total ?? 0), 0);
+    const hasBreakdown = hotelsTotal > 0 || activitiesTotal > 0 || cabsTotal > 0;
+
+    return (
+        <div>
+            {hasBreakdown && (
+                <div className="mb-3 rounded-lg border border-dashboard-base-300/70 divide-y divide-dashboard-base-300/50 overflow-hidden">
+                    {hotelsTotal > 0 && (
+                        <div className="flex items-center justify-between px-3 py-2.5 text-sm">
+                            <span className="flex items-center gap-1.5 text-dashboard-neutral"><span>🏨</span> Hotels</span>
+                            <span className="font-medium tabular-nums text-dashboard-base-content">{inr(hotelsTotal)}</span>
+                        </div>
+                    )}
+                    {activitiesTotal > 0 && (
+                        <div className="flex items-center justify-between px-3 py-2.5 text-sm">
+                            <span className="flex items-center gap-1.5 text-dashboard-neutral"><span>🎟</span> Activities</span>
+                            <span className="font-medium tabular-nums text-dashboard-base-content">{inr(activitiesTotal)}</span>
+                        </div>
+                    )}
+                    {cabsTotal > 0 && (
+                        <div className="flex items-center justify-between px-3 py-2.5 text-sm">
+                            <span className="flex items-center gap-1.5 text-dashboard-neutral"><span>🚗</span> Transportation</span>
+                            <span className="font-medium tabular-nums text-dashboard-base-content">{inr(cabsTotal)}</span>
+                        </div>
+                    )}
+                </div>
+            )}
+            <div className="flex items-center justify-between rounded-lg bg-dashboard-primary/10 px-4 py-3">
+                <span className="text-sm font-medium text-dashboard-base-content">Trip Total</span>
+                <span className="text-xl font-bold tabular-nums text-dashboard-primary">{formatPaise(total_paise)}</span>
+            </div>
+        </div>
+    );
+}
+
 function BookedItinerary({ snapshot }: { snapshot: Snapshot }) {
     const days = snapshot.days ?? [];
     const cabs = snapshot.cab_segments ?? [];
     if (days.length === 0) return <p className="text-sm text-dashboard-neutral">No itinerary snapshot stored for this booking.</p>;
 
     return (
-        <div className="flex flex-col gap-4">
-            <p className="text-xs text-dashboard-neutral">Exact selection captured at booking — hotels, room categories, activities (with chosen variant) and transfers, with their IDs for management.</p>
+        <div className="flex flex-col gap-3">
             {days.map((d) => (
-                <div key={d.day} className="rounded-lg border border-dashboard-base-300/70 p-3.5">
-                    <div className="flex items-baseline gap-2">
-                        <span className="rounded bg-dashboard-primary/10 px-1.5 py-0.5 text-[11px] font-semibold text-dashboard-primary">Day {d.day}</span>
-                        <span className="text-sm font-medium text-dashboard-base-content">{d.day_title}</span>
-                        {d.day_date && <span className="text-xs text-dashboard-neutral">· {fmtDate(new Date(`${d.day_date}T00:00:00`))}</span>}
+                <div key={d.day} className="rounded-lg border border-dashboard-base-300/70 overflow-hidden">
+                    {/* Day header */}
+                    <div className="flex items-center gap-2.5 border-b border-dashboard-base-300/60 bg-dashboard-base-200/50 px-4 py-2.5">
+                        <span className="rounded bg-dashboard-primary/10 px-2 py-0.5 text-[11px] font-bold text-dashboard-primary">Day {d.day}</span>
+                        <span className="text-sm font-semibold text-dashboard-base-content">{d.day_title}</span>
+                        {d.day_date && <span className="ml-auto text-xs text-dashboard-neutral">{fmtDate(new Date(`${d.day_date}T00:00:00`))}</span>}
                     </div>
 
-                    {d.hotel && (
-                        <div className="mt-2 text-sm leading-relaxed">
-                            <div>
-                                <span className="text-dashboard-neutral">🏨 </span>
-                                <span className="font-medium text-dashboard-base-content">{d.hotel.hotel_name}</span>
-                                {(d.hotel.hotel_city || d.hotel.hotel_state) && (
-                                    <span className="text-dashboard-neutral"> · {[d.hotel.hotel_city, d.hotel.hotel_state].filter(Boolean).join(", ")}</span>
-                                )}
-                                <span className="ml-2">{ref("hotel", d.hotel.hotel_id)} {ref("room_pricing", d.hotel.room_pricing_id)} {ref("room", d.hotel.room_id)}</span>
-                            </div>
-                            <div className="text-dashboard-neutral">
-                                {d.hotel.room_name}{d.hotel.plan_name ? ` · ${d.hotel.plan_name}` : ""} · {d.hotel.rooms_count} room{d.hotel.rooms_count !== 1 ? "s" : ""} · {d.hotel.num_nights} night{d.hotel.num_nights !== 1 ? "s" : ""}
-                            </div>
-                            <div className="text-dashboard-base-content">
-                                {inr(d.hotel.price_per_room)}/room/night × {d.hotel.rooms_count} × {d.hotel.num_nights} = <span className="font-medium">{inr(d.hotel.total)}</span>
-                            </div>
-                            {d.day_date && (
-                                <div className="text-dashboard-neutral">
-                                    Check-in {fmtDate(new Date(`${d.day_date}T00:00:00`))}{d.hotel.check_in_time ? ` · ${d.hotel.check_in_time}` : ""} → Check-out {fmtDate(new Date(`${addNightsISO(d.day_date, d.hotel.num_nights)}T00:00:00`))}{d.hotel.check_out_time ? ` · ${d.hotel.check_out_time}` : ""}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {d.activities.length > 0 && (
-                        <ul className="mt-1.5 flex flex-col gap-1">
-                            {d.activities.map((a) => (
-                                <li key={a.id} className="text-sm">
+                    <div className="px-4 py-3 flex flex-col gap-3">
+                        {/* Hotel */}
+                        {d.hotel && (
+                            <div className="rounded-md border border-dashboard-base-300/60 overflow-hidden">
+                                <div className="flex items-start justify-between gap-2 bg-blue-50/60 px-3 py-2">
                                     <div>
-                                        <span className="text-dashboard-neutral">🎟 </span>
-                                        <span className="text-dashboard-base-content">{a.name}</span>
-                                        {a.variant_label && <span className="text-dashboard-neutral"> · {a.variant_label}</span>}
-                                        <span className={`ml-1.5 text-[11px] ${a.is_optional ? "text-amber-600" : "text-green-600"}`}>{a.is_optional ? "optional" : "included"}</span>
-                                        <span className="ml-2">{ref("activity", a.id)} {ref("variant", a.variant_id)}</span>
-                                    </div>
-                                    {(a.total != null || a.adult_price != null) && (
-                                        <div className="ml-5 text-xs text-dashboard-neutral">
-                                            {a.adult_price != null && <>{inr(a.adult_price)}/adult{a.child_price ? ` · ${inr(a.child_price)}/child` : ""} </>}
-                                            {a.total != null && <span className="text-dashboard-base-content">{a.is_optional ? `(${inr(a.total || a.adult_price || 0)} on request)` : `= ${inr(a.total)}`}</span>}
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="text-sm">🏨</span>
+                                            <span className="text-sm font-semibold text-dashboard-base-content">{d.hotel.hotel_name}</span>
+                                            {(d.hotel.hotel_city || d.hotel.hotel_state) && (
+                                                <span className="text-xs text-dashboard-neutral">{[d.hotel.hotel_city, d.hotel.hotel_state].filter(Boolean).join(", ")}</span>
+                                            )}
                                         </div>
-                                    )}
-                                </li>
-                            ))}
-                        </ul>
-                    )}
+                                        <div className="mt-0.5 text-xs text-dashboard-neutral">
+                                            {d.hotel.room_name}{d.hotel.plan_name ? ` · ${d.hotel.plan_name}` : ""}
+                                        </div>
+                                    </div>
+                                    <span className="shrink-0 text-sm font-bold tabular-nums text-dashboard-base-content">{inr(d.hotel.total)}</span>
+                                </div>
+                                {/* Pricing calculation row */}
+                                <div className="grid grid-cols-4 divide-x divide-dashboard-base-300/50 border-t border-dashboard-base-300/50 text-center text-xs">
+                                    <div className="px-2 py-2">
+                                        <div className="text-dashboard-neutral">Rate/room/night</div>
+                                        <div className="mt-0.5 font-semibold tabular-nums text-dashboard-base-content">{inr(d.hotel.price_per_room)}</div>
+                                    </div>
+                                    <div className="px-2 py-2">
+                                        <div className="text-dashboard-neutral">Rooms</div>
+                                        <div className="mt-0.5 font-semibold text-dashboard-base-content">{d.hotel.rooms_count}</div>
+                                    </div>
+                                    <div className="px-2 py-2">
+                                        <div className="text-dashboard-neutral">Nights</div>
+                                        <div className="mt-0.5 font-semibold text-dashboard-base-content">{d.hotel.num_nights}</div>
+                                    </div>
+                                    <div className="px-2 py-2">
+                                        <div className="text-dashboard-neutral">Total</div>
+                                        <div className="mt-0.5 font-bold tabular-nums text-dashboard-base-content">{inr(d.hotel.total)}</div>
+                                    </div>
+                                </div>
+                                {/* Check-in / out */}
+                                {d.day_date && (
+                                    <div className="flex items-center gap-1.5 border-t border-dashboard-base-300/50 px-3 py-1.5 text-[11px] text-dashboard-neutral">
+                                        <span>Check-in {fmtDate(new Date(`${d.day_date}T00:00:00`))}{d.hotel.check_in_time ? ` · ${d.hotel.check_in_time}` : ""}</span>
+                                        <span className="text-dashboard-base-300">→</span>
+                                        <span>Check-out {fmtDate(new Date(`${addNightsISO(d.day_date, d.hotel.num_nights)}T00:00:00`))}{d.hotel.check_out_time ? ` · ${d.hotel.check_out_time}` : ""}</span>
+                                        <span className="ml-auto">{ref("hotel", d.hotel.hotel_id)} {ref("room_pricing", d.hotel.room_pricing_id)} {ref("room", d.hotel.room_id)}</span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
-                    {d.transfers.length > 0 && (
-                        <ul className="mt-1.5 flex flex-col gap-1">
-                            {d.transfers.map((t) => (
-                                <li key={t.id} className="text-sm">
-                                    <span className="text-dashboard-neutral">🚐 </span>
-                                    <span className="text-dashboard-base-content">{t.pickup_name ?? "—"} → {t.drop_name ?? "—"}</span>
-                                    {t.vehicle_name && <span className="text-dashboard-neutral"> · {t.vehicle_name}</span>}
-                                    <span className="ml-2">{ref("route", t.route_id)} {ref("vehicle", t.vehicle_id)}</span>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
+                        {/* Activities */}
+                        {d.activities.length > 0 && (
+                            <div className="flex flex-col gap-1.5">
+                                {d.activities.map((a) => {
+                                    const hasPricing = (a.adult_price ?? 0) > 0 || (a.total ?? 0) > 0;
+                                    return (
+                                        <div key={a.id} className="flex items-start justify-between gap-2 rounded-md border border-dashboard-base-300/50 px-3 py-2">
+                                            <div className="min-w-0">
+                                                <div className="flex flex-wrap items-center gap-1.5">
+                                                    <span className="text-sm">🎟</span>
+                                                    <span className="text-sm text-dashboard-base-content">{a.name}</span>
+                                                    {a.variant_label && <span className="text-xs text-dashboard-neutral">· {a.variant_label}</span>}
+                                                    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${a.is_optional ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+                                                        {a.is_optional ? "optional" : "included"}
+                                                    </span>
+                                                </div>
+                                                {hasPricing && (
+                                                    <div className="mt-1 flex items-center gap-2 text-xs text-dashboard-neutral">
+                                                        {a.adult_price != null && a.adult_price > 0 && <span>{inr(a.adult_price)}/adult{a.adult_count ? ` × ${a.adult_count}` : ""}</span>}
+                                                        {a.child_price != null && a.child_price > 0 && <span>{inr(a.child_price)}/child{a.child_count ? ` × ${a.child_count}` : ""}</span>}
+                                                        {a.infant_price != null && a.infant_price > 0 && <span>{inr(a.infant_price)}/infant{a.infant_count ? ` × ${a.infant_count}` : ""}</span>}
+                                                    </div>
+                                                )}
+                                                <div className="mt-0.5 text-[11px] text-dashboard-neutral/70">{ref("activity", a.id)} {ref("variant", a.variant_id)}</div>
+                                            </div>
+                                            {hasPricing && a.total != null && a.total > 0 && (
+                                                <span className="shrink-0 text-sm font-semibold tabular-nums text-dashboard-base-content">
+                                                    {a.is_optional ? <span className="text-amber-600">{inr(a.total)}</span> : inr(a.total)}
+                                                </span>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
 
-                    {d.meals.length > 0 && (
-                        <div className="mt-1.5 text-xs text-dashboard-neutral">Meals: {d.meals.map((m) => m.label).join(", ")}</div>
-                    )}
+                        {/* Transfers */}
+                        {d.transfers.length > 0 && (
+                            <div className="flex flex-col gap-1.5">
+                                {d.transfers.map((t) => (
+                                    <div key={t.id} className="flex items-center gap-2 rounded-md border border-dashboard-base-300/50 px-3 py-2 text-sm">
+                                        <span>🚐</span>
+                                        <span className="font-medium text-dashboard-base-content">{t.pickup_name ?? "—"}</span>
+                                        <span className="text-dashboard-neutral">→</span>
+                                        <span className="font-medium text-dashboard-base-content">{t.drop_name ?? "—"}</span>
+                                        {t.vehicle_name && <span className="text-xs text-dashboard-neutral">· {t.vehicle_name}</span>}
+                                        <span className="ml-auto text-[11px] text-dashboard-neutral/70">{ref("route", t.route_id)} {ref("vehicle", t.vehicle_id)}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Meals */}
+                        {d.meals.length > 0 && (
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-dashboard-neutral">Meals:</span>
+                                {d.meals.map((m) => (
+                                    <span key={m.label} className="rounded-full bg-dashboard-base-200 px-2 py-0.5 text-[11px] text-dashboard-neutral">{m.label}</span>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
             ))}
 
             {cabs.length > 0 && (
-                <div className="rounded-lg border border-dashboard-base-300/70 p-3.5">
-                    <div className="text-xs uppercase tracking-wide text-dashboard-neutral mb-2">Cabs</div>
-                    <ul className="flex flex-col gap-1">
+                <div className="rounded-lg border border-dashboard-base-300/70 overflow-hidden">
+                    <div className="border-b border-dashboard-base-300/60 bg-dashboard-base-200/50 px-4 py-2.5">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-dashboard-neutral">🚗 Cab segments</span>
+                    </div>
+                    <div className="px-4 py-3 flex flex-col gap-2">
                         {cabs.map((c, i) => (
-                            <li key={i} className="text-sm">
-                                <div className="text-dashboard-base-content">
-                                    Day {c.day_from}–{c.day_to}: {c.vehicle_name} ({c.vehicle_capacity}-seater){c.upgraded ? " · upgraded" : ""}
-                                    {c.destination_name ? <span className="text-dashboard-neutral"> · {c.destination_name}</span> : null}
-                                    <span className="ml-2">{ref("cabType", c.cab_type_id)} {ref("vehicle", c.vehicle_id)}</span>
+                            <div key={i} className="rounded-md border border-dashboard-base-300/50 overflow-hidden">
+                                <div className="flex items-start justify-between gap-2 px-3 py-2">
+                                    <div>
+                                        <div className="text-sm font-medium text-dashboard-base-content">
+                                            Day {c.day_from}–{c.day_to}: {c.vehicle_name}
+                                            <span className="ml-1 text-xs text-dashboard-neutral">({c.vehicle_capacity}-seater{c.upgraded ? " · upgraded" : ""})</span>
+                                        </div>
+                                        {c.destination_name && <div className="text-xs text-dashboard-neutral mt-0.5">{c.destination_name}</div>}
+                                        <div className="mt-0.5 text-[11px] text-dashboard-neutral/70">{ref("cabType", c.cab_type_id)} {ref("vehicle", c.vehicle_id)}</div>
+                                    </div>
+                                    {c.total != null && <span className="shrink-0 text-sm font-bold tabular-nums text-dashboard-base-content">{inr(c.total)}</span>}
                                 </div>
-                                {(c.total != null || c.price_used != null) && (
-                                    <div className="text-xs text-dashboard-neutral">
-                                        {c.price_used != null && <>{inr(c.price_used)}/{c.pricing_type === "PER_KM" ? "km" : "day"}{c.km ? ` · ${c.km} km` : ""} </>}
-                                        {c.total != null && <span className="text-dashboard-base-content">= {inr(c.total)}</span>}
+                                {(c.price_used != null || c.total != null) && (
+                                    <div className="grid grid-cols-3 divide-x divide-dashboard-base-300/50 border-t border-dashboard-base-300/50 text-center text-xs">
+                                        <div className="px-2 py-1.5">
+                                            <div className="text-dashboard-neutral">Rate/{c.pricing_type === "PER_KM" ? "km" : "day"}</div>
+                                            <div className="mt-0.5 font-semibold tabular-nums text-dashboard-base-content">{c.price_used != null ? inr(c.price_used) : "—"}</div>
+                                        </div>
+                                        <div className="px-2 py-1.5">
+                                            <div className="text-dashboard-neutral">{c.pricing_type === "PER_KM" ? "km" : "days"}</div>
+                                            <div className="mt-0.5 font-semibold text-dashboard-base-content">{c.pricing_type === "PER_KM" ? (c.km ?? "—") : (c.days ?? "—")}</div>
+                                        </div>
+                                        <div className="px-2 py-1.5">
+                                            <div className="text-dashboard-neutral">Total</div>
+                                            <div className="mt-0.5 font-bold tabular-nums text-dashboard-base-content">{c.total != null ? inr(c.total) : "—"}</div>
+                                        </div>
                                     </div>
                                 )}
-                            </li>
+                            </div>
                         ))}
-                    </ul>
+                    </div>
                 </div>
             )}
         </div>
@@ -330,6 +453,57 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                 </div>
 
                 <div className="flex flex-col gap-5">
+                    {/* Pricing — cost breakdown + payment plan at a glance */}
+                    <Section title="Pricing">
+                        <PricingBreakdown snapshot={snapshot} total_paise={booking.totalAmount_paise} />
+
+                        {booking.paymentPlan && (
+                            <div className="mt-4 border-t border-dashboard-base-300/60 pt-4">
+                                <div className="text-xs uppercase tracking-wide text-dashboard-neutral mb-2.5">
+                                    Payment plan · {isFull ? "Pay in full" : "Deposit + balance"}
+                                </div>
+                                {isFull ? (
+                                    <div className="flex items-center justify-between rounded-lg bg-dashboard-base-200 px-3 py-2.5">
+                                        <span className="text-sm text-dashboard-base-content">Full payment</span>
+                                        <PaymentPill status={booking.paymentStatus} />
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-100 p-3">
+                                            <div className="text-xs text-dashboard-neutral">Deposit</div>
+                                            <div className="mt-1 text-base font-semibold tabular-nums text-dashboard-base-content">{formatPaise(booking.advanceAmount_paise)}</div>
+                                        </div>
+                                        <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-100 p-3">
+                                            <div className="text-xs text-dashboard-neutral">Balance</div>
+                                            <div className="mt-1 text-base font-semibold tabular-nums text-dashboard-base-content">{formatPaise(booking.balanceAmount_paise)}</div>
+                                            {booking.balanceDueDate && <div className="mt-0.5 text-[11px] text-dashboard-neutral">Due {fmtDate(booking.balanceDueDate)}</div>}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {booking.installments.length > 0 && (
+                            <div className="mt-4 border-t border-dashboard-base-300/60 pt-4">
+                                <div className="text-xs uppercase tracking-wide text-dashboard-neutral mb-2.5">Installments</div>
+                                <ul className="flex flex-col gap-2">
+                                    {booking.installments.map((leg) => (
+                                        <li key={leg.id} className="flex items-start justify-between rounded-lg bg-dashboard-base-200 px-3 py-2.5">
+                                            <div>
+                                                <div className="text-sm font-medium text-dashboard-base-content">{titleCase(leg.type)}</div>
+                                                {leg.dueDate && <div className="text-xs text-dashboard-neutral mt-0.5">{fmtDate(leg.dueDate)}</div>}
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="text-sm font-semibold tabular-nums text-dashboard-base-content">{formatPaise(leg.amount_paise)}</div>
+                                                <div className="mt-1"><InstallmentPill status={leg.status} /></div>
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+                    </Section>
+
                     <Section title="Actions">
                         <BookingAdminActions
                             bookingId={booking.id}
@@ -346,34 +520,6 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                             <Field label="Contact phone" value={booking.contactPhone} />
                             <Field label="GST state" value={booking.gstStateCode} />
                         </dl>
-                    </Section>
-
-                    <Section title="Payment summary">
-                        <dl className="flex flex-col gap-3">
-                            <Field label="Plan" value={booking.paymentPlan ? (isFull ? "Pay in full" : "Deposit + balance") : "—"} />
-                            <Field label="Trip total" value={formatPaise(booking.totalAmount_paise)} />
-                            {!isFull && <Field label="Deposit" value={formatPaise(booking.advanceAmount_paise)} />}
-                            {!isFull && <Field label="Balance" value={`${formatPaise(booking.balanceAmount_paise)}${booking.balanceDueDate ? ` · due ${fmtDate(booking.balanceDueDate)}` : ""}`} />}
-                        </dl>
-
-                        {booking.installments.length > 0 && (
-                            <div className="mt-4 border-t border-dashboard-base-300/60 pt-3">
-                                <div className="text-xs uppercase tracking-wide text-dashboard-neutral mb-2">Installments</div>
-                                <ul className="flex flex-col gap-2">
-                                    {booking.installments.map((leg) => (
-                                        <li key={leg.id} className="flex items-center justify-between text-sm">
-                                            <span className="text-dashboard-base-content">
-                                                {titleCase(leg.type)}{leg.dueDate ? <span className="text-dashboard-neutral"> · {fmtDate(leg.dueDate)}</span> : ""}
-                                            </span>
-                                            <span className="flex items-center gap-2">
-                                                <span className="text-dashboard-base-content">{formatPaise(leg.amount_paise)}</span>
-                                                <span className="text-xs text-dashboard-neutral">{titleCase(leg.status)}</span>
-                                            </span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
                     </Section>
                 </div>
             </div>
