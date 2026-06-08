@@ -100,7 +100,7 @@ function ChangeHotelModal({
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
             onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
         >
-            <div className="relative flex flex-col w-full max-w-2xl max-h-[90vh] rounded-xl bg-dashboard-base-100 shadow-2xl overflow-hidden">
+            <div className="relative flex flex-col w-full max-w-2xl h-[90vh] rounded-xl bg-dashboard-base-100 shadow-2xl overflow-hidden">
 
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-dashboard-base-300 px-5 py-3.5 shrink-0">
@@ -200,7 +200,7 @@ function ChangeHotelModal({
 
                                 {/* Rooms — flat list: one selectable card per room+plan */}
                                 {isExpanded && (
-                                    <div className="border-t border-dashboard-base-300/60 bg-dashboard-base-200/30 px-4 py-3 flex flex-col gap-2">
+                                    <div className="border-t border-dashboard-base-300/60 bg-dashboard-base-200/30 px-4 py-3 flex flex-col gap-2 max-h-80 overflow-y-auto">
                                         {rooms === "loading" ? (
                                             <p className="py-3 text-center text-xs text-dashboard-neutral">Loading rooms…</p>
                                         ) : !rooms || rooms.length === 0 ? (
