@@ -46,6 +46,9 @@ export default async function BookingStatusPage({ params }: { params: Promise<{ 
             where: { id },
             select: {
                 id: true, userId: true, bookingNumber: true, startDate: true, endDate: true,
+                paymentStatus: true, paymentPlan: true, travellers: true,
+                totalAmount_paise: true, advanceAmount_paise: true, balanceAmount_paise: true, balanceDueDate: true,
+                priceSnapshot: true,
                 package: { select: { title: true, thumbnail: true } },
             },
         });
@@ -62,6 +65,16 @@ export default async function BookingStatusPage({ params }: { params: Promise<{ 
                     ? (booking.package.thumbnail.startsWith('http') ? booking.package.thumbnail : `${R2}/${booking.package.thumbnail}`)
                     : null;
 
+                const snap = (booking.priceSnapshot ?? {}) as {
+                    hotel_subtotal?: number; meal_subtotal?: number; cab_subtotal?: number;
+                    gst_amount?: number; gst_percentage?: number; final_price?: number;
+                };
+                const paidPaise = booking.paymentStatus === 'FULLY_PAID'
+                    ? booking.totalAmount_paise
+                    : booking.paymentStatus === 'ADVANCE_PAID'
+                    ? booking.advanceAmount_paise
+                    : BigInt(0);
+
                 content = (
                     <StatusView
                         packageTitle={booking.package?.title ?? 'Your package'}
@@ -70,6 +83,19 @@ export default async function BookingStatusPage({ params }: { params: Promise<{ 
                         bookingNumber={booking.bookingNumber}
                         payHref={`/bookings/${booking.id}/pay`}
                         fulfillment={fulfillment}
+                        payment={{
+                            status: booking.paymentStatus,
+                            totalPaise: Number(booking.totalAmount_paise),
+                            paidPaise: Number(paidPaise),
+                            balancePaise: Number(booking.balanceAmount_paise ?? BigInt(0)),
+                            balanceDueDate: booking.balanceDueDate ? formatDate(booking.balanceDueDate) : null,
+                            travellers: booking.travellers,
+                            hotelCost: snap.hotel_subtotal ?? null,
+                            mealCost: snap.meal_subtotal ?? null,
+                            cabCost: snap.cab_subtotal ?? null,
+                            gstAmount: snap.gst_amount ?? null,
+                            gstPct: snap.gst_percentage ?? null,
+                        }}
                     />
                 );
             }

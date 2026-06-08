@@ -37,6 +37,7 @@ function StatusChip({ status }: { status: FulfillmentState }) {
     );
 }
 
+
 function ItemRow({ item }: { item: FulfillmentItem }) {
     const KindI = KIND_ICON[item.kind];
     const confirmed = item.status === 'CONFIRMED' || item.status === 'REPLACED';
@@ -117,8 +118,112 @@ function OfferPicker({ offer }: { offer: ReplacementOfferView }) {
     );
 }
 
+const fmt = (paise: number) => `₹${Math.round(paise / 100).toLocaleString('en-IN')}`;
+const fmtRupees = (r: number) => `₹${Math.round(r).toLocaleString('en-IN')}`;
+
+export interface PaymentSummary {
+    status: string;
+    totalPaise: number;
+    paidPaise: number;
+    balancePaise: number;
+    balanceDueDate: string | null;
+    travellers: number;
+    hotelCost: number | null;
+    mealCost: number | null;
+    cabCost: number | null;
+    gstAmount: number | null;
+    gstPct: number | null;
+}
+
+function paymentBarColor(pct: number): string {
+    if (pct >= 100) return 'bg-success-500';
+    if (pct >= 60)  return 'bg-primary-500';
+    if (pct >= 30)  return 'bg-warning-500';
+    return 'bg-error-500';
+}
+
+function paymentLabelColor(pct: number): string {
+    if (pct >= 100) return 'text-success-600';
+    if (pct >= 60)  return 'text-primary-600';
+    if (pct >= 30)  return 'text-warning-600';
+    return 'text-error-600';
+}
+
+function PaymentCard({ payment, payHref }: { payment: PaymentSummary; payHref: string }) {
+    const fullyPaid = payment.status === 'FULLY_PAID';
+    const hasPaid = payment.paidPaise > 0;
+    const hasBalance = payment.balancePaise > 0;
+    const pct = payment.totalPaise > 0 ? Math.min(100, Math.round((payment.paidPaise / payment.totalPaise) * 100)) : 0;
+
+    return (
+        <Card className="overflow-hidden">
+            {/* Grand total */}
+            <div className="px-5 py-4 border-b border-(--border-muted)">
+                <Text size="xs" intent="secondary" weight="medium" className="uppercase tracking-wide block">
+                    Package Total · {payment.travellers} traveller{payment.travellers !== 1 ? 's' : ''}
+                </Text>
+                <div className="mt-1 flex items-baseline gap-2">
+                    <span className="text-2xl font-bold text-(--text-primary) font-heading">{fmt(payment.totalPaise)}</span>
+                    <span className="text-xs text-(--text-muted)">(incl. GST)</span>
+                </div>
+            </div>
+
+            {/* Payment status */}
+            <div className="px-5 py-4 flex flex-col gap-2.5">
+                <Text size="sm" weight="semibold" intent="primary" className="block">Payment Status</Text>
+
+                {/* Progress bar */}
+                <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                        <Text size="xs" intent="muted" weight="medium">
+                            {hasPaid ? fmt(payment.paidPaise) : '₹0'} paid
+                        </Text>
+                        <span className={`text-xs font-semibold ${paymentLabelColor(pct)}`}>{pct}%</span>
+                    </div>
+                    <div className="h-2.5 w-full overflow-hidden rounded-full bg-neutral-100">
+                        <div
+                            className={`h-full rounded-full transition-all duration-500 ${paymentBarColor(pct)}`}
+                            style={{ width: `${pct}%` }}
+                        />
+                    </div>
+                </div>
+
+                <div className="flex justify-between items-center">
+                    <Text size="sm" intent="secondary">Paid</Text>
+                    <span className={`text-sm font-semibold ${hasPaid ? 'text-success-600' : 'text-(--text-muted)'}`}>
+                        {hasPaid ? fmt(payment.paidPaise) : '₹0'}
+                    </span>
+                </div>
+
+                <div className="flex justify-between items-center">
+                    <Text size="sm" intent="secondary">Remaining</Text>
+                    <span className={`text-sm font-semibold ${hasBalance ? 'text-error-600' : 'text-success-600'}`}>
+                        {hasBalance ? fmt(payment.balancePaise) : '₹0 ✓'}
+                    </span>
+                </div>
+
+                {payment.balanceDueDate && hasBalance && (
+                    <Text size="xs" intent="muted" className="block">
+                        Due by {payment.balanceDueDate}
+                    </Text>
+                )}
+
+                {fullyPaid ? (
+                    <div className="mt-1 rounded-lg bg-success-50 border border-success-200 px-3 py-2 text-center">
+                        <Text size="sm" weight="semibold" className="text-success-700">✓ Fully Paid</Text>
+                    </div>
+                ) : hasBalance ? (
+                    <Link href={payHref} className="inline-block mt-1">
+                        <Button variant="premium" className="w-full">Pay {fmt(payment.balancePaise)} now</Button>
+                    </Link>
+                ) : null}
+            </div>
+        </Card>
+    );
+}
+
 export default function StatusView({
-    packageTitle, thumbnail, dateRange, bookingNumber, payHref, fulfillment,
+    packageTitle, thumbnail, dateRange, bookingNumber, payHref, fulfillment, payment,
 }: {
     packageTitle: string;
     thumbnail: string | null;
@@ -126,6 +231,7 @@ export default function StatusView({
     bookingNumber: string;
     payHref: string;
     fulfillment: BookingFulfillment;
+    payment: PaymentSummary;
 }) {
     const { overall, summary } = fulfillment;
     const pct = summary.total > 0 ? Math.round((summary.confirmed / summary.total) * 100) : 0;
@@ -142,72 +248,81 @@ export default function StatusView({
         : `Each item is being confirmed with our partners. ${summary.confirmed} of ${summary.total} done so far.`;
 
     return (
-        <div className="screen-space py-8 max-w-3xl">
+        <div className="screen-space py-8">
             {overall === 'IN_PROGRESS' && <StatusAutoRefresh />}
-            {/* Trip header */}
-            <Card className="overflow-hidden mb-5">
-                <div className="flex gap-4 p-5">
-                    {thumbnail && (
-                        <div className="relative h-24 w-36 shrink-0 overflow-hidden rounded-lg bg-neutral-100">
-                            <Image src={thumbnail} alt={packageTitle} fill className="object-cover" sizes="144px" />
+
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px] items-start">
+                {/* ── LEFT column ───────────────────────────────────────────── */}
+                <div className="flex flex-col gap-4">
+                    {/* Trip header */}
+                    <Card className="overflow-hidden">
+                        <div className="flex gap-4 p-5">
+                            {thumbnail && (
+                                <div className="relative h-24 w-36 shrink-0 overflow-hidden rounded-lg bg-neutral-100">
+                                    <Image src={thumbnail} alt={packageTitle} fill className="object-cover" sizes="144px" />
+                                </div>
+                            )}
+                            <div className="min-w-0 flex flex-col justify-center">
+                                <Heading level={3} weight="semibold" className="truncate">{packageTitle}</Heading>
+                                <Text size="sm" intent="secondary" className="block mt-1">{dateRange}</Text>
+                                <Text size="xs" intent="muted" className="block mt-0.5">Booking {bookingNumber}</Text>
+                            </div>
                         </div>
-                    )}
-                    <div className="min-w-0 flex flex-col justify-center">
-                        <Heading level={3} weight="semibold" className="truncate">{packageTitle}</Heading>
-                        <Text size="sm" intent="secondary" className="block mt-1">{dateRange}</Text>
-                        <Text size="xs" intent="muted" className="block mt-0.5">Booking {bookingNumber}</Text>
+                    </Card>
+
+                    {/* Overall progress */}
+                    <Card className="px-6 py-5">
+                        <Heading level={4} weight="semibold">{headline}</Heading>
+                        <Text size="sm" intent="secondary" className="block mt-1">{sub}</Text>
+
+                        {overall === 'AWAITING_PAYMENT' ? (
+                            <Link href={payHref} className="inline-block mt-4">
+                                <Button variant="premium">Complete payment</Button>
+                            </Link>
+                        ) : overall !== 'CANCELLED' && summary.total > 0 ? (
+                            <div className="mt-4">
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <Text size="xs" intent="muted" weight="medium">{summary.confirmed} of {summary.total} confirmed</Text>
+                                    <Text size="xs" intent="muted" weight="medium">{pct}%</Text>
+                                </div>
+                                <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-100">
+                                    <div className="h-full rounded-full bg-success-500 transition-all" style={{ width: `${pct}%` }} />
+                                </div>
+                                {summary.attention > 0 && (
+                                    <Text size="xs" className="mt-2 block text-error-600">
+                                        {summary.attention} item{summary.attention !== 1 ? 's' : ''} need a replacement — our team will reach out with options.
+                                    </Text>
+                                )}
+                            </div>
+                        ) : null}
+                    </Card>
+
+                    {/* Per-day checklist */}
+                    {fulfillment.days.map((d) => (
+                        d.items.length === 0 ? null : (
+                            <Card key={d.day} className="px-6 py-4">
+                                <div className="flex items-center gap-2.5 mb-1">
+                                    <span className="rounded-full bg-primary-500 px-2.5 py-0.5 text-xs font-semibold text-white">Day {d.day}</span>
+                                    <Text size="sm" weight="medium" intent="primary" className="truncate">{d.title}</Text>
+                                </div>
+                                <div className="divide-y divide-(--border-muted)">
+                                    {d.items.map((it) => <ItemRow key={it.key} item={it} />)}
+                                </div>
+                            </Card>
+                        )
+                    ))}
+
+                    <div className="text-center">
+                        <Link href={`/bookings/${fulfillment.bookingId}`} className="inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700">
+                            Back to booking <ArrowRightIcon weight="bold" className="size-4" />
+                        </Link>
                     </div>
                 </div>
-            </Card>
 
-            {/* Overall progress */}
-            <Card className="px-6 py-5 mb-5">
-                <Heading level={4} weight="semibold">{headline}</Heading>
-                <Text size="sm" intent="secondary" className="block mt-1">{sub}</Text>
-
-                {overall === 'AWAITING_PAYMENT' ? (
-                    <Link href={payHref} className="inline-block mt-4">
-                        <Button variant="premium">Complete payment</Button>
-                    </Link>
-                ) : overall !== 'CANCELLED' && summary.total > 0 ? (
-                    <div className="mt-4">
-                        <div className="flex items-center justify-between mb-1.5">
-                            <Text size="xs" intent="muted" weight="medium">{summary.confirmed} of {summary.total} confirmed</Text>
-                            <Text size="xs" intent="muted" weight="medium">{pct}%</Text>
-                        </div>
-                        <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-100">
-                            <div className="h-full rounded-full bg-success-500 transition-all" style={{ width: `${pct}%` }} />
-                        </div>
-                        {summary.attention > 0 && (
-                            <Text size="xs" className="mt-2 block text-error-600">
-                                {summary.attention} item{summary.attention !== 1 ? 's' : ''} need a replacement — our team will reach out with options.
-                            </Text>
-                        )}
-                    </div>
-                ) : null}
-            </Card>
-
-            {/* Per-day checklist */}
-            <div className="flex flex-col gap-4">
-                {fulfillment.days.map((d) => (
-                    d.items.length === 0 ? null : (
-                        <Card key={d.day} className="px-6 py-4">
-                            <div className="flex items-center gap-2.5 mb-1">
-                                <span className="rounded-full bg-primary-500 px-2.5 py-0.5 text-xs font-semibold text-white">Day {d.day}</span>
-                                <Text size="sm" weight="medium" intent="primary" className="truncate">{d.title}</Text>
-                            </div>
-                            <div className="divide-y divide-(--border-muted)">
-                                {d.items.map((it) => <ItemRow key={it.key} item={it} />)}
-                            </div>
-                        </Card>
-                    )
-                ))}
-            </div>
-
-            <div className="mt-6 text-center">
-                <Link href={`/bookings/${fulfillment.bookingId}`} className="inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700">
-                    Back to booking <ArrowRightIcon weight="bold" className="size-4" />
-                </Link>
+                {/* ── RIGHT column — payment summary ────────────────────────── */}
+                <aside className="lg:sticky lg:top-6">
+                    <PaymentCard payment={payment} payHref={payHref} />
+                </aside>
             </div>
         </div>
     );

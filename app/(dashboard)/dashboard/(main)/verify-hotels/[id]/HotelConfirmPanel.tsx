@@ -41,7 +41,7 @@ function RoomImage({ url, thumbnail, alt }: { url: string | null; thumbnail: str
 function ChangeHotelModal({
     bookingId, dayNumber, defaultHotelId, defaultPricingId, cityName,
     checkInDate, checkOutDate, roomsCount, numNights,
-    travellers, oldRatePerRoom, snapshotTotal, snapshotMealTypes,
+    travellers, oldRatePerRoom, snapshotTotal, snapshotMealTotal, snapshotMealTypes,
     destinationHotels, allHotels, initialNotes,
     onClose, onConfirmed,
 }: {
@@ -51,6 +51,7 @@ function ChangeHotelModal({
     travellers: number;
     oldRatePerRoom: number;
     snapshotTotal: number;
+    snapshotMealTotal: number;
     snapshotMealTypes: string[];
     destinationHotels: Hotel[]; allHotels: Hotel[];
     initialNotes: string;
@@ -64,8 +65,18 @@ function ChangeHotelModal({
     const [meals, setMeals] = useState<Map<number, MealOption[]>>(new Map());
     const [loading, setLoading] = useState(true);
     const [selected, setSelected] = useState<SelectedOption | null>(null);
+    const [expandedPricingKeys, setExpandedPricingKeys] = useState<Set<string>>(new Set());
     const [notes, setNotes] = useState(initialNotes);
     const [confirming, setConfirming] = useState(false);
+
+    function togglePricing(key: string, e: React.MouseEvent) {
+        e.stopPropagation();
+        setExpandedPricingKeys((prev) => {
+            const next = new Set(prev);
+            next.has(key) ? next.delete(key) : next.add(key);
+            return next;
+        });
+    }
 
     // Build a lookup map from hotel id → Hotel for the full allHotels list
     const hotelMap = new Map(allHotels.map((h) => [h.id, h]));
@@ -148,6 +159,10 @@ function ChangeHotelModal({
 
     const newTotal = selected ? selected.pricing.price_per_night * roomsCount * numNights : 0;
 
+    // Baseline = snapshot room+mattress total + snapshot meal total (both from the frozen quote).
+    // Using snapshot values avoids NaN from DB queries and ensures the diff is accurate.
+    const adjustedSnapshotTotal = Number(snapshotTotal) + Number(snapshotMealTotal);
+
     // Build flat list: one card per room+plan
     const cards = visibleRooms.flatMap((room) => {
         const hotel = hotelMap.get(room.hotel_id);
@@ -179,12 +194,21 @@ function ChangeHotelModal({
         const hotelMeals = meals.get(hotel.id) ?? [];
 
         return room.pricing.map((p) => {
+            const cardKey = `${room.id}-${p.id}`;
             const isSelected = selected?.room.id === room.id && selected?.pricing.id === p.id && selected?.hotel.id === hotel.id;
             const isCurrentBooking = isCurrentHotel && p.id === defaultPricingId;
+            const isPricingExpanded = expandedPricingKeys.has(cardKey);
 
-            // Occupancy & extra-bed calculation
-            const roomsNeeded = Math.max(roomsCount, Math.ceil(travellers / room.max_occupancy));
-            const extraBeds   = Math.max(0, travellers - roomsNeeded * room.max_occupancy);
+            // max_occupancy = beds only; extra_bed_capacity = mattress slots.
+            // Total capacity per room = beds + mattresses.
+            const totalCapacity = room.max_occupancy + room.extra_bed_capacity;
+            const roomsNeeded   = Math.ceil(travellers / totalCapacity);
+            // Extra beds = people beyond pure-bed capacity across all rooms.
+            // Capped at the actual mattress slots available (rooms × extra_bed_capacity).
+            const rawExtraBeds = Math.max(0, travellers - roomsNeeded * room.max_occupancy);
+            const extraBeds    = p.extra_bed_rate != null
+                ? Math.min(rawExtraBeds, roomsNeeded * room.extra_bed_capacity)
+                : 0;
 
             // Cost breakdown
             const roomCost     = p.price_per_night * roomsNeeded * numNights;
@@ -193,7 +217,7 @@ function ChangeHotelModal({
             const mealCostPerPax = hotelMeals.reduce((s, m) => s + m.price_per_person, 0);
             const mealTotal    = mealCostPerPax * travellers * numNights;
             const grandTotal   = roomCost + extraBedCost + mealTotal;
-            const totalDiff    = grandTotal - snapshotTotal;
+            const totalDiff    = isCurrentBooking ? 0 : grandTotal - adjustedSnapshotTotal;
             const diffLabel    = totalDiff === 0 ? null
                 : `${totalDiff > 0 ? "+" : "-"}${inr(Math.abs(totalDiff))}`;
 
@@ -256,8 +280,17 @@ function ChangeHotelModal({
                             )}
                         </div>
 
-                        {/* Cost breakdown */}
-                        <div className="mt-2 pt-2 border-t border-dashboard-base-300/50 space-y-0.5 text-[10px] text-dashboard-neutral">
+                        {/* Pricing toggle */}
+                        <button
+                            type="button"
+                            onClick={(e) => togglePricing(cardKey, e)}
+                            className="cursor-pointer mt-1.5 text-[10px] text-dashboard-primary hover:underline"
+                        >
+                            {isPricingExpanded ? "Hide pricing ▲" : "Show pricing ▼"}
+                        </button>
+
+                        {/* Cost breakdown — shown only when expanded */}
+                        {isPricingExpanded && <div className="mt-1.5 pt-2 border-t border-dashboard-base-300/50 space-y-0.5 text-[10px] text-dashboard-neutral">
                             <div className="flex justify-between gap-4">
                                 <span>{roomsNeeded} room{roomsNeeded > 1 ? "s" : ""} × {inr(p.price_per_night)}/night × {numNights}N</span>
                                 <span className="tabular-nums">{inr(roomCost)}</span>
@@ -287,7 +320,7 @@ function ChangeHotelModal({
                                 <span>Grand total ({numNights}N)</span>
                                 <span className="tabular-nums">{inr(grandTotal)}</span>
                             </div>
-                        </div>
+                        </div>}
                     </div>
 
                     {/* Diff column */}
@@ -419,7 +452,7 @@ function labelToMealType(label: string): string {
 export default function HotelConfirmPanel({
     bookingId, dayNumber, defaultHotelId, defaultPricingId, cityName,
     checkInDate, checkOutDate, roomType, roomsCount, ratePerRoom, totalCost,
-    travellers, snapshotMealLabels,
+    travellers, snapshotMealLabels, snapshotMealTotal,
     destinationHotels, allHotels,
 }: {
     bookingId: string;
@@ -435,6 +468,7 @@ export default function HotelConfirmPanel({
     totalCost: number;
     travellers: number;
     snapshotMealLabels: string[];
+    snapshotMealTotal: number;
     destinationHotels: Hotel[];
     allHotels: Hotel[];
 }) {
@@ -520,6 +554,7 @@ export default function HotelConfirmPanel({
                     travellers={travellers}
                     oldRatePerRoom={ratePerRoom}
                     snapshotTotal={totalCost}
+                    snapshotMealTotal={snapshotMealTotal}
                     snapshotMealTypes={snapshotMealTypes}
                     destinationHotels={destinationHotels}
                     allHotels={allHotels}

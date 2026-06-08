@@ -16,10 +16,19 @@ type SnapHotel = {
     hotel_name: string; hotel_city: string | null; hotel_state: string | null; hotel_address: string | null;
     check_in_time: string | null; check_out_time: string | null;
     room_name: string | null; plan_name: string | null;
-    occupancy_selected: number; rooms_count: number; num_nights: number;
-    price_per_room: number; total: number;
+    bed_capacity: number;         // beds only (max_occupancy on the room)
+    extra_bed_capacity: number;   // mattress slots per room
+    rooms_count: number;
+    mattresses_count: number;     // actual mattresses needed for this booking
+    extra_bed_rate: number;       // rate per mattress per night
+    num_nights: number;
+    price_per_room: number;
+    total: number;                // room + mattress cost (meals billed separately)
+    // legacy field — may be absent in older snapshots
+    occupancy_selected?: number;
 };
-type SnapDay = { day: number; day_title: string; day_date: string | null; hotel: SnapHotel | null; meals: { label: string }[] };
+type SnapMeal = { label: string; meal_type?: string; price_per_person?: number; persons?: number; total?: number };
+type SnapDay = { day: number; day_title: string; day_date: string | null; hotel: SnapHotel | null; meals: SnapMeal[] };
 type Snapshot = { days?: SnapDay[] };
 
 function fmtDate(d: Date | string | null): string {
@@ -261,6 +270,40 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                                             </div>
                                         </div>
 
+                                        {/* Meals */}
+                                        {d.meals.length > 0 && (
+                                            <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/60 px-3 py-2.5">
+                                                <p className="text-[10px] uppercase tracking-widest text-dashboard-neutral font-semibold mb-2">
+                                                    Meals Included
+                                                </p>
+                                                <div className="flex flex-col gap-1">
+                                                    {d.meals.map((m, i) => {
+                                                        const lc = (m.label ?? "").toLowerCase();
+                                                        const icon = lc.includes("breakfast") ? "🍳"
+                                                            : lc.includes("lunch") ? "🍽"
+                                                            : lc.includes("dinner") ? "🌙"
+                                                            : "🥘";
+                                                        return (
+                                                            <div key={i} className="flex items-center justify-between text-xs">
+                                                                <span className="text-dashboard-base-content">{icon} {m.label}</span>
+                                                                <span className="text-dashboard-neutral tabular-nums">
+                                                                    {m.price_per_person != null && m.price_per_person > 0
+                                                                        ? `₹${Number(m.price_per_person).toLocaleString("en-IN")}/pax`
+                                                                        : ""}
+                                                                    {m.persons != null ? ` × ${m.persons}` : ""}
+                                                                    {m.total != null && m.total > 0 && (
+                                                                        <span className="ml-2 font-semibold text-dashboard-base-content">
+                                                                            = ₹{Number(m.total).toLocaleString("en-IN")}
+                                                                        </span>
+                                                                    )}
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+
                                         {/* Dates + price */}
                                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg px-3 py-2.5 text-sm bg-dashboard-base-200/50">
                                             <div className="flex items-center gap-1.5">
@@ -307,6 +350,7 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                                                 totalCost={snap.total}
                                                 travellers={booking.travellers}
                                                 snapshotMealLabels={d.meals.map((m) => m.label)}
+                                                snapshotMealTotal={d.meals.reduce((s, m) => s + Number(m.total ?? 0), 0)}
                                                 destinationHotels={destinationHotels}
                                                 allHotels={allHotels}
                                             />

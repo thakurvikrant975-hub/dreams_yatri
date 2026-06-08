@@ -12,7 +12,8 @@ export type RoomOption = {
     name: string;
     bed_type: string | null;
     view_type: string | null;
-    max_occupancy: number;
+    max_occupancy: number;       // beds only (standard capacity)
+    extra_bed_capacity: number;  // additional mattress slots
     area_sqft: number | null;
     image_url: string | null;
     image_thumbnail: string | null;
@@ -32,7 +33,7 @@ export async function getRoomsForHotel(hotelId: number, checkInDate?: string): P
         where: { hotel_id: hotelId, is_active: true },
         orderBy: { sort_order: "asc" },
         select: {
-            id: true, name: true, bed_type: true, view_type: true, max_occupancy: true, area_sqft: true,
+            id: true, name: true, bed_type: true, view_type: true, max_occupancy: true, extra_bed_capacity: true, area_sqft: true,
             images: {
                 orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
                 select: { url: true, thumbnail: true },
@@ -53,7 +54,7 @@ export async function getRoomsForHotel(hotelId: number, checkInDate?: string): P
 
     return rows.map((r) => ({
         id: r.id, name: r.name, bed_type: r.bed_type, view_type: r.view_type,
-        max_occupancy: r.max_occupancy, area_sqft: r.area_sqft,
+        max_occupancy: r.max_occupancy, extra_bed_capacity: r.extra_bed_capacity, area_sqft: r.area_sqft,
         image_url: r.images[0]?.url ? getThumbnailImage(r.images[0].url) : null,
         image_thumbnail: r.images[0]?.thumbnail ? getThumbnailImage(r.images[0].thumbnail) : null,
         pricing: r.pricing.map((p) => {
@@ -113,7 +114,7 @@ export async function getRoomsForHotels(hotelIds: number[], checkInDate?: string
         orderBy: [{ hotel_id: "asc" }, { sort_order: "asc" }],
         select: {
             id: true, hotel_id: true, name: true, bed_type: true, view_type: true,
-            max_occupancy: true, area_sqft: true,
+            max_occupancy: true, extra_bed_capacity: true, area_sqft: true,
             images: {
                 orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
                 select: { url: true, thumbnail: true },
@@ -135,7 +136,7 @@ export async function getRoomsForHotels(hotelIds: number[], checkInDate?: string
     return rows.map((r) => ({
         hotel_id: r.hotel_id,
         id: r.id, name: r.name, bed_type: r.bed_type, view_type: r.view_type,
-        max_occupancy: r.max_occupancy, area_sqft: r.area_sqft,
+        max_occupancy: r.max_occupancy, extra_bed_capacity: r.extra_bed_capacity, area_sqft: r.area_sqft,
         image_url: r.images[0]?.url ? getThumbnailImage(r.images[0].url) : null,
         image_thumbnail: r.images[0]?.thumbnail ? getThumbnailImage(r.images[0].thumbnail) : null,
         pricing: r.pricing.map((p) => {
