@@ -241,9 +241,10 @@ function ChangeHotelModal({
                                                 </div>
 
                                                 {/* Pricing plans */}
-                                                {room.pricing.length > 0 && (
-                                                    <div className="border-t border-dashboard-base-300/50 divide-y divide-dashboard-base-300/40">
-                                                        {room.pricing.map((p) => {
+                                                <div className="border-t border-dashboard-base-300/50 divide-y divide-dashboard-base-300/40">
+                                                    {room.pricing.length === 0 ? (
+                                                        <p className="px-3 py-2.5 text-xs text-dashboard-neutral italic">No pricing configured for this room.</p>
+                                                    ) : room.pricing.map((p) => {
                                                             const isSelected = selected?.room.id === room.id && selected?.pricing.id === p.id && selected?.hotel.id === hotel.id;
                                                             const planTotal = p.price_per_night * roomsCount * numNights;
                                                             return (
@@ -276,8 +277,7 @@ function ChangeHotelModal({
                                                                 </button>
                                                             );
                                                         })}
-                                                    </div>
-                                                )}
+                                                </div>
                                             </div>
                                         ))}
                                     </div>

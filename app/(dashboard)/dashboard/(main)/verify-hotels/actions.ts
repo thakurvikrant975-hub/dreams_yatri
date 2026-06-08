@@ -31,7 +31,6 @@ export async function getRoomsForHotel(hotelId: number, checkInDate?: string): P
                 take: 1,
             },
             pricing: {
-                where: { is_active: true },
                 orderBy: { price_per_night: "asc" },
                 select: {
                     id: true, plan_name: true, price_per_night: true,
