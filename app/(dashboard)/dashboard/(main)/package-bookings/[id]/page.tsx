@@ -383,7 +383,17 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                         )}
                     </Section>
 
-                    <Section title="Itinerary (as booked)">
+                    <Section
+                        title="Itinerary (as booked)"
+                        action={
+                            <Link
+                                href={`/dashboard/verify-hotels/${booking.id}`}
+                                className="inline-flex items-center gap-1 rounded-md border border-dashboard-base-300 px-2.5 py-1 text-xs text-dashboard-base-content hover:bg-dashboard-base-200 transition-colors"
+                            >
+                                🏨 Manage Hotels →
+                            </Link>
+                        }
+                    >
                         <BookedItinerary snapshot={snapshot} />
                     </Section>
 
