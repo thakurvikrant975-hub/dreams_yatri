@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Settings, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound,
   MessageCircleQuestion, ClockCheck, Mails, Forward, BadgePercent, Banknote,
   ChartSpline, BanknoteArrowDown, BanknoteX, Car, Bed, ChartNoAxesCombined,
-  BellRing, PackagePlus, ChartNoAxesGantt, Star, IndianRupee,
+  BellRing, PackagePlus, ChartNoAxesGantt, Star, IndianRupee, 
   UserRound,
   X,
 } from "lucide-react";
