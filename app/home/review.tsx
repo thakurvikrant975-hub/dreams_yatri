@@ -139,9 +139,10 @@ export default function TestimonialsSection() {
           items={REVIEWS}
           renderItem={(review) => <ReviewCard review={review} />}
           perView={3}
-          gap={20}
+          gap={110}
           ariaLabel="Guest reviews"
           className="mt-6"
+          fadeColor="var(--color-neutral-100)"
         />
 
       </div>

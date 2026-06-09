@@ -1,8 +1,13 @@
 import { Skeleton } from "@/app/components/skeltons/rawShimmer"
 
 function IntroSkelton() {
+    // NOTE: returns a Fragment (no wrapping div) so the sticky info band's
+    // containing block is the page-spanning `screen-space` div in loading.tsx —
+    // mirroring the real <PackageHero/>, which is also a Fragment. A wrapping
+    // div here would confine the band's sticky range and make it un-stick as
+    // soon as the tab bar takes over.
     return (
-        <div className="w-full">
+        <>
             {/* Breadcrumb */}
             <Skeleton className="w-full h-5 rounded-lg max-w-sm" />
 
@@ -12,7 +17,7 @@ function IntroSkelton() {
             {/* Sticky info band — mirrors the real #package-info-band exactly */}
             <div
                 id="package-info-band"
-                className="sticky top-0 z-210 bg-white"
+                className="sticky top-0 z-205 bg-white"
                 style={{
                     marginLeft:  'calc(50% - 50vw)',
                     marginRight: 'calc(50% - 50vw)',
@@ -38,7 +43,7 @@ function IntroSkelton() {
                 <Skeleton />
                 <Skeleton />
             </div>
-        </div>
+        </>
     )
 }
 

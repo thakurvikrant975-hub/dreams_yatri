@@ -65,6 +65,16 @@ interface CarouselProps<T> {
   showCounter?: boolean;
   /** Accessible label for the carousel region */
   ariaLabel?: string;
+  /**
+   * Color the edge fades blend into — should match the section background.
+   * Accepts any CSS color (e.g. '#fff', 'var(--color-neutral-100)'). Default: white.
+   */
+  fadeColor?: string;
+  /**
+   * Edge fade hints at the left/right of the track. Disable for a clean
+   * hard-cut peek (no gradient wash over the peeking card). Default: true.
+   */
+  showFade?: boolean;
   /** Controlled mode — caller manages offset. Both props required together. */
   offset?: number;
   onOffsetChange?: (offset: number) => void;
@@ -82,9 +92,15 @@ export function Carousel<T,>({
   showArrows  = true,
   showCounter = true,
   ariaLabel   = 'Image carousel',
+  fadeColor   = '#ffffff',
+  showFade    = true,
   offset: controlledOffset,
   onOffsetChange,
 }: CarouselProps<T>) {
+  // Fade from the section bg color to a fully-transparent version of the *same*
+  // color, so the edge blends cleanly (fading to bare `transparent` can leave a
+  // grey tint on non-white backgrounds).
+  const fadeTransparent = `color-mix(in srgb, ${fadeColor} 0%, transparent)`;
   const pv  = usePerView(perView);
   const max = Math.max(0, items.length - pv);
 
@@ -120,6 +136,12 @@ export function Carousel<T,>({
 
   const hasOverflow = items.length > pv;
   const translatePct = -(offset * (100 / pv));
+
+  // Dot/counter math — robust to a fractional perView (e.g. 4.5 for a half-card
+  // peek). Pages step in whole cards; the final dot snaps to `max` so the last
+  // card can be fully revealed. For integer perView this is identical to max+1.
+  const pages       = Math.floor(max) + 1;
+  const activeDot   = Math.min(Math.round(offset), pages - 1);
 
   return (
     <div
@@ -168,16 +190,16 @@ export function Carousel<T,>({
         </div>
 
         {/* ── Edge fade hints — scoped to track, never overlap controls ── */}
-        {hasOverflow && offset > 0 && (
+        {showFade && hasOverflow && offset > 0 && (
           <div
-            className="absolute inset-y-0 left-0 w-8 pointer-events-none rounded-l-xl"
-            style={{ background: 'linear-gradient(to right, rgba(255,255,255,0.65), transparent)' }}
+            className="absolute inset-y-0 left-0 w-12 pointer-events-none z-10"
+            style={{ background: `linear-gradient(to right, ${fadeColor}, ${fadeTransparent})` }}
           />
         )}
-        {hasOverflow && offset < max && (
+        {showFade && hasOverflow && offset < max && (
           <div
-            className="absolute inset-y-0 right-0 w-8 pointer-events-none rounded-r-xl"
-            style={{ background: 'linear-gradient(to left, rgba(255,255,255,0.65), transparent)' }}
+            className="absolute inset-y-0 right-0 w-12 pointer-events-none z-10"
+            style={{ background: `linear-gradient(to left, ${fadeColor}, ${fadeTransparent})` }}
           />
         )}
       </div>
@@ -189,15 +211,15 @@ export function Carousel<T,>({
           {/* Dot indicators */}
           {showDots && (
             <div className="flex items-center gap-1.5">
-              {Array.from({ length: max + 1 }).map((_, i) => (
+              {Array.from({ length: pages }).map((_, i) => (
                 <button
                   key={i}
                   type="button"
-                  onClick={() => slideTo(i)}
+                  onClick={() => slideTo(i === pages - 1 ? max : i)}
                   aria-label={`Go to slide ${i + 1}`}
                   className={cn(
                     'h-1.5 rounded-full transition-all duration-300',
-                    i === offset ? 'w-5 bg-primary-500' : 'w-1.5 bg-neutral-300 hover:bg-neutral-400'
+                    i === activeDot ? 'w-5 bg-primary-500' : 'w-1.5 bg-neutral-300 hover:bg-neutral-400'
                   )}
                 />
               ))}
@@ -224,7 +246,7 @@ export function Carousel<T,>({
 
               {showCounter && (
                 <span className="text-[11px] text-neutral-400 font-medium tabular-nums w-10 text-center select-none">
-                  {offset + 1} / {max + 1}
+                  {activeDot + 1} / {pages}
                 </span>
               )}
 

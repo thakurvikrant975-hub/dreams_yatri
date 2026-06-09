@@ -29,6 +29,11 @@ const DOMESTIC: DestinationItem[] = [
     { slug: 'goa', name: 'Goa', packageCount: 15, image: 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'West India' },
     { slug: 'rajasthan', name: 'Rajasthan', packageCount: 28, image: 'https://images.unsplash.com/photo-1477587458883-47145ed94245?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'West India' },
     { slug: 'uttarakhand', name: 'Uttarakhand', packageCount: 19, image: 'https://images.unsplash.com/photo-1502786129293-79981df4e689?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'North India' },
+    { slug: 'ladakh', name: 'Ladakh', packageCount: 41, image: 'https://images.unsplash.com/photo-1581793745862-99fde7fa73d2?w=800&auto=format&fit=crop', icon: IslandIcon, badge: 'Trending', region: 'North India' },
+    { slug: 'andaman', name: 'Andaman', packageCount: 23, image: 'https://images.unsplash.com/photo-1589979481223-deb893043163?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'Islands' },
+    { slug: 'sikkim', name: 'Sikkim', packageCount: 17, image: 'https://images.unsplash.com/photo-1626714100695-3f0a8d49d8e1?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'North East' },
+    { slug: 'meghalaya', name: 'Meghalaya', packageCount: 12, image: 'https://images.unsplash.com/photo-1591019479261-1a103585c559?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'North East' },
+    { slug: 'tamil-nadu', name: 'Tamil Nadu', packageCount: 21, image: 'https://images.unsplash.com/photo-1582510003544-4d00b7f74220?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'South India' },
 ]
 
 const INTERNATIONAL: DestinationItem[] = [
@@ -38,6 +43,11 @@ const INTERNATIONAL: DestinationItem[] = [
     { slug: 'japan', name: 'Japan', packageCount: 55, image: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'East Asia' },
     { slug: 'thailand', name: 'Thailand', packageCount: 44, image: 'https://images.unsplash.com/photo-1528181304800-259b08848526?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'Southeast Asia' },
     { slug: 'maldives', name: 'Maldives', packageCount: 30, image: 'https://images.unsplash.com/photo-1514282401047-d79a71a590e8?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'Indian Ocean' },
+    { slug: 'bali', name: 'Bali', packageCount: 67, image: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=800&auto=format&fit=crop', icon: IslandIcon, badge: 'Most Popular', region: 'Southeast Asia' },
+    { slug: 'singapore', name: 'Singapore', packageCount: 48, image: 'https://images.unsplash.com/photo-1525625293386-3f8f99389edd?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'Southeast Asia' },
+    { slug: 'vietnam', name: 'Vietnam', packageCount: 33, image: 'https://images.unsplash.com/photo-1528127269322-539801943592?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'Southeast Asia' },
+    { slug: 'bhutan', name: 'Bhutan', packageCount: 26, image: 'https://images.unsplash.com/photo-1553856622-d1b352e9a211?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'South Asia' },
+    { slug: 'turkey', name: 'Turkey', packageCount: 39, image: 'https://images.unsplash.com/photo-1541432901042-2d8bd64b4a9b?w=800&auto=format&fit=crop', icon: IslandIcon, badge: 'Trending', region: 'Eurasia' },
 ]
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -105,9 +115,10 @@ function DestinationRow({
                         onClick={() => onItemClick?.(item.slug)}
                     />
                 )}
-                perView={4}
+                perView={4.5}
                 gap={24}
                 ariaLabel={`${label} destinations`}
+                fadeColor="var(--color-neutral-100)"
             />
         </motion.div>
     )
@@ -115,12 +126,18 @@ function DestinationRow({
 
 // ─── Main section ─────────────────────────────────────────────────────────────
 export default function ExploreDestinations({
-    domestic = DOMESTIC,
-    international = INTERNATIONAL,
+    domestic,
+    international,
     onDestinationClick,
     onViewAllDomestic,
     onViewAllInternational,
 }: ExploreDestinationsProps) {
+    // Merge real data with dummy testing cards so the slider always has enough
+    // items to overflow and scroll. (Remove the spread of DOMESTIC/INTERNATIONAL
+    // once enough real regions/destinations exist.)
+    const domesticData = [...(domestic ?? []), ...DOMESTIC]
+    const internationalData = [...(international ?? []), ...INTERNATIONAL]
+
     return (
         <section className="w-full py-section overflow-hidden bg-surface-muted relative z-10">
             <div className="absolute bottom-0 right-0 -z-20 size-36 sm:size-52">
@@ -178,7 +195,7 @@ export default function ExploreDestinations({
                 <DestinationRow
                     label="Domestic"
                     icon={MapPinIcon}
-                    items={domestic}
+                    items={domesticData}
                     onViewAll={onViewAllDomestic}
                     onItemClick={onDestinationClick}
                 />
@@ -186,7 +203,7 @@ export default function ExploreDestinations({
                 <DestinationRow
                     label="Beyond Borders"
                     icon={AirplaneTiltIcon}
-                    items={international}
+                    items={internationalData}
                     onViewAll={onViewAllInternational}
                     onItemClick={onDestinationClick}
                 />

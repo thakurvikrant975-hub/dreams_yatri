@@ -6,7 +6,7 @@ import { Heading, Text } from "@/app/components/ui/Typography";
 import Button from "@/app/components/ui/Button";
 import { ArrowRightIcon, PaperPlaneTiltIcon } from "@phosphor-icons/react";
 import { MicrophoneIcon } from "@heroicons/react/24/solid";
-import NeuralNetworkBackground from "@/app/home/decoration/Neuralnetworkbackground";
+import AvantiAuroraBackground from "@/app/home/decoration/AvantiAuroraBackground";
 import {
   fadeRight, fadeLeft, fadeUp, fadeIn,
   staggerContainer, staggerItem,
@@ -39,9 +39,7 @@ export default function AvantiAISection() {
 
   return (
     <section className="bg-surface-inverse py-section relative overflow-hidden">
-      <div className="opacity-65 sm:opacity-90">
-        <NeuralNetworkBackground />
-      </div>
+      <AvantiAuroraBackground />
 
       <div className="screen-space grid grid-cols-1 lg:grid-cols-2 gap-12 relative z-10">
 

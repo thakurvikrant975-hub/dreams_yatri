@@ -438,6 +438,49 @@ body {
     }
 }
 
+/* ── Avanti AI — lightweight animated background ── */
+@keyframes aurora-float {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+    50%      { transform: translate3d(4%, -6%, 0) scale(1.15); }
+}
+
+@keyframes aurora-float-alt {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1.1); }
+    50%      { transform: translate3d(-5%, 5%, 0) scale(0.92); }
+}
+
+@keyframes aurora-twinkle {
+    0%, 100% { opacity: 0.15; }
+    50%      { opacity: 0.95; }
+}
+
+@keyframes aurora-grid-pan {
+    from { background-position: 0 0; }
+    to   { background-position: 0 -64px; }
+}
+
+@keyframes aurora-dash-flow {
+    to { stroke-dashoffset: -130; }
+}
+
+@utility animate-aurora-1  { animation: aurora-float 19s ease-in-out infinite; }
+@utility animate-aurora-2  { animation: aurora-float-alt 24s ease-in-out infinite; }
+@utility animate-aurora-3  { animation: aurora-float 27s ease-in-out infinite reverse; }
+@utility animate-twinkle   { animation: aurora-twinkle 3.2s ease-in-out infinite; }
+@utility animate-grid-pan  { animation: aurora-grid-pan 9s linear infinite; }
+@utility animate-dash-flow { animation: aurora-dash-flow 2.8s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+    .animate-aurora-1,
+    .animate-aurora-2,
+    .animate-aurora-3,
+    .animate-twinkle,
+    .animate-grid-pan,
+    .animate-dash-flow {
+        animation: none !important;
+    }
+}
+
 .skeleton-box {
     @apply bg-neutral-300/80;
     position: relative;

@@ -8,7 +8,7 @@ import { CalendarDaysIcon } from "@heroicons/react/24/solid";
 
 export default function ReviewCard({ review }: ReviewCardProps) {
     return (
-        <Card className="px-6 py-5 aspect-video h-65.75">
+        <Card className="px-6 py-5 w-116.75 h-65.75">
             {/* Top row */}
             <div className="flex items-start justify-between gap-3 pb-3 border-b border-(--border-default)">
                 <div className="flex items-center gap-3 w-full">
