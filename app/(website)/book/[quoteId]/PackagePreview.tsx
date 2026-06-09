@@ -10,7 +10,7 @@ export type PreviewDay = {
         hotel_name: string;
         room_name: string | null;
         plan_name: string | null;
-        image?: string | null;       // display-safe image URL (R2)
+        image?: string | null;      
         room_image?: string | null;
     } | null;
     meals?: { label: string }[];

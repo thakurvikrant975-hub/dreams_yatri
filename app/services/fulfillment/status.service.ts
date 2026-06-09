@@ -23,6 +23,18 @@ export type FulfillmentState =
     | "REPLACED"
     | "CANCELLED";
 
+export interface HotelPricing {
+    roomType: string;
+    roomsCount: number;
+    ratePerRoom: number;
+    roomTotal: number;
+    mattressesCount: number;
+    extraBedRate: number;
+    mattressTotal: number;
+    meals: { mealType: string; label: string; ratePerPerson: number; travellers: number; total: number }[];
+    grandTotal: number;
+}
+
 export interface FulfillmentItem {
     kind: ItemKind;
     day: number;
@@ -35,6 +47,10 @@ export interface FulfillmentItem {
     paid: boolean; // activities: ticketed vs free; hotels/transfers: part of package
     driver?: { name: string | null; phone: string | null; vehicleNumber: string | null };
     offer?: ReplacementOfferView | null; // ops-proposed alternatives (when UNAVAILABLE)
+    hotelPricing?: HotelPricing | null;
+    hotelChanged?: boolean;           // confirmed hotel differs from snapshot
+    hotelPriceDiff?: number | null;   // rupees: confirmed room cost − snapshot room cost
+    originalHotelName?: string | null; // snapshot hotel name (before the change)
 }
 
 export interface ReplacementOfferView {
@@ -59,10 +75,16 @@ export interface BookingFulfillment {
 }
 
 // ── Snapshot (plan) shape — display-safe subset ─────────────────────────────────
-type SnapHotel = { hotel_id?: number; hotel_name?: string; hotel_city?: string | null; room_name?: string | null; plan_name?: string | null; num_nights?: number };
+type SnapHotel = {
+    hotel_id?: number; hotel_name?: string; hotel_city?: string | null;
+    room_name?: string | null; plan_name?: string | null; num_nights?: number;
+    rooms_count?: number; price_per_room?: number; total?: number;
+    mattresses_count?: number; extra_bed_rate?: number;
+};
+type SnapMeal = { label?: string; meal_type?: string; price_per_person?: number; persons?: number; total?: number };
 type SnapActivity = { id?: number; name?: string; variant_label?: string | null; is_optional?: boolean; total?: number };
 type SnapTransfer = { pickup_name?: string | null; drop_name?: string | null; vehicle_name?: string | null };
-type SnapDay = { day: number; day_title?: string; day_date?: string | null; hotel?: SnapHotel | null; activities?: SnapActivity[]; transfers?: SnapTransfer[] };
+type SnapDay = { day: number; day_title?: string; day_date?: string | null; hotel?: SnapHotel | null; meals?: SnapMeal[]; activities?: SnapActivity[]; transfers?: SnapTransfer[] };
 type Snapshot = { days?: SnapDay[] };
 
 const PAID_STATUSES = new Set(["ADVANCE_PAID", "FULLY_PAID"]);
@@ -98,7 +120,14 @@ export async function getBookingFulfillment(bookingId: string): Promise<BookingF
 
     // Fulfilment rows + open replacement offers
     const [hotels, cabs, activities, offers] = await Promise.all([
-        db.bookingHotel.findMany({ where: { bookingId }, select: { dayNumber: true, hotelId: true, status: true, isConfirmed: true, voucherUrl: true } }),
+        db.bookingHotel.findMany({
+            where: { bookingId },
+            select: {
+                dayNumber: true, hotelId: true, status: true, isConfirmed: true, voucherUrl: true,
+                roomType: true, roomsCount: true, ratePerRoom: true, totalCost: true,
+                meals: { select: { mealType: true, ratePerPerson: true, travellers: true, totalCost: true } },
+            },
+        }),
         db.bookingCab.findMany({ where: { bookingId }, select: { transferDate: true, status: true, isConfirmed: true, voucherUrl: true, driverName: true, driverPhone: true, vehicleNumber: true } }),
         db.bookingActivity.findMany({ where: { bookingId }, select: { dayNumber: true, activityId: true, name: true, status: true, voucherUrl: true } }),
         db.replacementOffer.findMany({ where: { bookingId, status: "PROPOSED" }, select: { id: true, kind: true, day: true, activityId: true, options: true } }),
@@ -139,12 +168,68 @@ export async function getBookingFulfillment(bookingId: string): Promise<BookingF
             const row = hotelByDay.get(d.day);
             const status = resolve(row?.status, row?.isConfirmed ?? false, paid, cancelled);
             const finalName = row ? (hotelNames.get(row.hotelId) ?? d.hotel.hotel_name ?? "Hotel") : (d.hotel.hotel_name ?? "Hotel");
+
+            const hotelChanged = row != null && d.hotel.hotel_id != null ? row.hotelId !== d.hotel.hotel_id : false;
+            const snapRoomTotal = Number(d.hotel.total ?? 0);
+            const hotelPriceDiff = row != null ? Number(row.totalCost) - snapRoomTotal : null;
+            const originalHotelName = hotelChanged ? (d.hotel.hotel_name ?? null) : null;
+
+            // Build pricing from confirmed BookingHotel row or fall back to snapshot
+            let hotelPricing: HotelPricing | null = null;
+            if (row) {
+                const roomTotal = Number(row.totalCost);
+                const mealRows = row.meals.map((m) => ({
+                    mealType: m.mealType,
+                    label: m.mealType.charAt(0) + m.mealType.slice(1).toLowerCase().replace(/_/g, " "),
+                    ratePerPerson: Number(m.ratePerPerson),
+                    travellers: m.travellers,
+                    total: Number(m.totalCost),
+                }));
+                const mealTotal = mealRows.reduce((s, m) => s + m.total, 0);
+                hotelPricing = {
+                    roomType: row.roomType,
+                    roomsCount: row.roomsCount,
+                    ratePerRoom: Number(row.ratePerRoom),
+                    roomTotal,
+                    mattressesCount: 0, extraBedRate: 0, mattressTotal: 0, // not stored in BookingHotel yet
+                    meals: mealRows,
+                    grandTotal: roomTotal + mealTotal,
+                };
+            } else if (d.hotel.rooms_count != null && d.hotel.price_per_room != null) {
+                // Snapshot pricing (unconfirmed)
+                const mattressesCount = d.hotel.mattresses_count ?? 0;
+                const extraBedRate = d.hotel.extra_bed_rate ?? 0;
+                const mattressTotal = mattressesCount * extraBedRate * (d.hotel.num_nights ?? 1);
+                const roomTotal = Number(d.hotel.total ?? 0);
+                const snapMeals = (d.meals ?? []).filter(m => m.price_per_person != null && (m.price_per_person ?? 0) > 0).map(m => ({
+                    mealType: m.meal_type ?? "",
+                    label: m.label ?? "",
+                    ratePerPerson: Number(m.price_per_person ?? 0),
+                    travellers: m.persons ?? 0,
+                    total: Number(m.total ?? 0),
+                }));
+                const mealTotal = snapMeals.reduce((s, m) => s + m.total, 0);
+                hotelPricing = {
+                    roomType: [d.hotel.room_name, d.hotel.plan_name].filter(Boolean).join(" · ") || "Standard",
+                    roomsCount: d.hotel.rooms_count,
+                    ratePerRoom: Number(d.hotel.price_per_room),
+                    roomTotal,
+                    mattressesCount, extraBedRate, mattressTotal,
+                    meals: snapMeals,
+                    grandTotal: roomTotal + mattressTotal + mealTotal,
+                };
+            }
+
             items.push({
                 kind: "HOTEL", day: d.day, key: `hotel:${d.day}`,
                 title: finalName,
                 subtitle: [d.hotel.room_name, d.hotel.plan_name, d.hotel.hotel_city].filter(Boolean).join(" · ") || null,
                 status, voucherUrl: row?.voucherUrl ?? null, paid: true,
                 offer: status === "UNAVAILABLE" ? offerFor(`HOTEL:${d.day}`) : null,
+                hotelPricing,
+                hotelChanged,
+                hotelPriceDiff,
+                originalHotelName,
             });
             total++; count(status);
         }

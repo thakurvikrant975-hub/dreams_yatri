@@ -1,17 +1,21 @@
 import type { Metadata } from "next";
 import type { Prisma } from "@/app/generated/prisma";
 import { db } from "@/app/lib/db";
-import { VerifyHotelsTable, type BookingRow, type HotelStats } from "./VerifyHotelsTable";
+import { VerifyCabsTable, type CabRow, type CabStats } from "./VerifyCabsTable";
 
 export const metadata: Metadata = {
-    title: "Verify Hotels - Dashboard",
+    title: "Verify Cabs - Dashboard",
     robots: { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false } },
 };
 
 const VALID_LIMITS  = [10, 20, 50] as const;
 const VALID_URGENCY = ["all", "urgent", "overdue", "confirmed", "pending"] as const;
 
-export default async function VerifyHotelsPage({
+// Snapshot type — only what we need for counting transfer days
+type SnapDay = { day: number; transfers?: { pickup_name?: string | null }[] };
+type Snapshot = { days?: SnapDay[] };
+
+export default async function VerifyCabsPage({
     searchParams,
 }: {
     searchParams: Promise<Record<string, string>>;
@@ -31,7 +35,6 @@ export default async function VerifyHotelsPage({
     const now        = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    // ── Search sub-clause ────────────────────────────────────────────────────
     const searchWhere: Prisma.BookingWhereInput = search
         ? {
             OR: [
@@ -43,57 +46,58 @@ export default async function VerifyHotelsPage({
         }
         : {};
 
-    // ── Base where ───────────────────────────────────────────────────────────
+    // Cabs come after hotel confirmation — show relevant statuses
     const baseWhere: Prisma.BookingWhereInput = {
         paymentStatus: { in: ["ADVANCE_PAID", "FULLY_PAID"] },
-        status: { notIn: ["CANCELLED", "COMPLETED", "REJECTED"] },
+        status: { notIn: ["CANCELLED", "COMPLETED", "REJECTED", "PENDING_REVIEW", "HOTEL_VERIFICATION"] },
         ...searchWhere,
     };
 
-    // ── Urgency filter ────────────────────────────────────────────────────────
     const urgencyFilter: Prisma.BookingWhereInput =
-        urgency === "urgent"    ? { startDate: { lte: in15Days }, hotelConfirmedAt: null } :
-        urgency === "overdue"   ? { createdAt:  { lte: ago48h },  hotelConfirmedAt: null } :
-        urgency === "confirmed" ? { hotelConfirmedAt: { not: null } } :
-        urgency === "pending"   ? { hotelConfirmedAt: null } :
+        urgency === "urgent"    ? { startDate: { lte: in15Days }, cabConfirmedAt: null } :
+        urgency === "overdue"   ? { createdAt:  { lte: ago48h  }, cabConfirmedAt: null } :
+        urgency === "confirmed" ? { cabConfirmedAt: { not: null } } :
+        urgency === "pending"   ? { cabConfirmedAt: null } :
         {};
 
     const where: Prisma.BookingWhereInput = { ...baseWhere, ...urgencyFilter };
 
-    // ── Parallel data fetch ──────────────────────────────────────────────────
     const [rawBookings, totalCount, pending, urgent, overdue, confirmedToday, total] =
         await Promise.all([
             db.booking.findMany({
                 where,
-                orderBy: [{ hotelConfirmedAt: "asc" }, { startDate: "asc" }, { createdAt: "asc" }],
+                orderBy: [{ cabConfirmedAt: "asc" }, { startDate: "asc" }, { createdAt: "asc" }],
                 skip:  (page - 1) * limit,
                 take:  limit,
                 select: {
                     id: true, bookingNumber: true, startDate: true, endDate: true,
                     travellers: true, totalAmount_paise: true, paymentStatus: true,
-                    createdAt: true, hotelConfirmedAt: true,
+                    createdAt: true, cabConfirmedAt: true, cabType: true,
                     user:        { select: { name: true, email: true } },
                     package:     { select: { title: true } },
                     destination: { select: { name: true } },
-                    _count:      { select: { hotelBookings: true } },
-                    hotelBookings: { where: { isConfirmed: false }, select: { id: true } },
+                    priceSnapshot: true,
+                    _count:    { select: { cabBookings: true } },
+                    cabBookings: { where: { isConfirmed: false }, select: { id: true } },
                 },
             }),
             db.booking.count({ where }),
-            db.booking.count({ where: { ...baseWhere, hotelConfirmedAt: null } }),
-            db.booking.count({ where: { ...baseWhere, startDate: { lte: in15Days }, hotelConfirmedAt: null } }),
-            db.booking.count({ where: { ...baseWhere, createdAt: { lte: ago48h },  hotelConfirmedAt: null } }),
-            db.booking.count({ where: { ...baseWhere, hotelConfirmedAt: { gte: todayStart } } }),
+            db.booking.count({ where: { ...baseWhere, cabConfirmedAt: null } }),
+            db.booking.count({ where: { ...baseWhere, startDate: { lte: in15Days }, cabConfirmedAt: null } }),
+            db.booking.count({ where: { ...baseWhere, createdAt: { lte: ago48h },  cabConfirmedAt: null } }),
+            db.booking.count({ where: { ...baseWhere, cabConfirmedAt: { gte: todayStart } } }),
             db.booking.count({ where: baseWhere }),
         ]);
 
-    const stats: HotelStats = { total, pending, urgent, overdue, confirmedToday };
+    const stats: CabStats = { total, pending, urgent, overdue, confirmedToday };
 
-    // ── Enrich with computed flags ───────────────────────────────────────────
-    const bookings: BookingRow[] = rawBookings.map((b) => {
-        const pendingCount     = b.hotelBookings.length;
-        const totalHotelCount  = b._count.hotelBookings;
-        const isFullyConfirmed = b.hotelConfirmedAt != null || (totalHotelCount > 0 && pendingCount === 0);
+    const bookings: CabRow[] = rawBookings.map((b) => {
+        const snap = (b.priceSnapshot ?? {}) as Snapshot;
+        // Total transfer days = days that have at least one transfer in snapshot
+        const totalCabCount  = (snap.days ?? []).filter((d) => (d.transfers ?? []).length > 0).length;
+        const pendingCabCount = b.cabBookings.length; // unconfirmed BookingCab rows
+
+        const isFullyConfirmed = b.cabConfirmedAt != null || (totalCabCount > 0 && pendingCabCount === 0 && b._count.cabBookings >= totalCabCount);
         const daysToTravel     = Math.ceil((b.startDate.getTime() - nowMs) / 86_400_000);
         const hoursOld         = (nowMs - b.createdAt.getTime()) / 3_600_000;
         const isUrgent         = !isFullyConfirmed && daysToTravel <= 15 && daysToTravel >= 0;
@@ -108,12 +112,13 @@ export default async function VerifyHotelsPage({
             totalAmount_paise: b.totalAmount_paise,
             paymentStatus:     b.paymentStatus,
             createdAt:         b.createdAt,
-            hotelConfirmedAt:  b.hotelConfirmedAt,
+            cabConfirmedAt:    b.cabConfirmedAt,
+            cabType:           b.cabType,
             user:              b.user,
             package:           b.package,
             destination:       b.destination,
-            pendingCount,
-            totalHotelCount,
+            pendingCabCount,
+            totalCabCount,
             isFullyConfirmed,
             daysToTravel,
             hoursOld,
@@ -123,7 +128,7 @@ export default async function VerifyHotelsPage({
     });
 
     return (
-        <VerifyHotelsTable
+        <VerifyCabsTable
             bookings={bookings}
             stats={stats}
             currentPage={page}
