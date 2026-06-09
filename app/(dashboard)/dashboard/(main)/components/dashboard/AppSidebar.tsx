@@ -13,7 +13,7 @@ import {
   X,
 } from "lucide-react";
 import {
-  GlobeHemisphereEastIcon, MapPinIcon, BuildingIcon, PlusIcon, TagIcon,
+  GlobeHemisphereEastIcon, MapPinIcon, BuildingIcon, TagIcon,
   ParachuteIcon, FileTextIcon, PackageIcon, SteeringWheelIcon,
 } from "@phosphor-icons/react";
 import Link from "next/link";
@@ -111,6 +111,7 @@ const navGroups = [
       { title: "Team Members", href: "/dashboard/team-members", icon: IdCardLanyard },
       { title: "Activity Logs", href: "/dashboard/activity-logs", icon: Activity },
       { title: "Roles and Permissions", href: "/dashboard/roles-and-permissions", icon: KeyRound },
+      { title: "Page Access", href: "/dashboard/roles-and-permissions/page-access", icon: LayoutDashboard },
     ],
   },
   {

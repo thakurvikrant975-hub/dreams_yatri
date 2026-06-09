@@ -129,6 +129,42 @@ export async function updateRolePermissions(
     }
 }
 
+// ── Page Access ───────────────────────────────────────────────────────────────
+
+export async function getRolesWithPageAccess() {
+    return db.teamRole.findMany({
+        orderBy: { createdAt: "asc" },
+        select: {
+            id: true,
+            name: true,
+            description: true,
+            pageAccess: true,
+            _count: { select: { members: true } },
+        },
+    });
+}
+
+export async function updateRolePageAccess(
+    id: string,
+    pageAccess: string[],
+): Promise<RoleFormState> {
+    try {
+        const role = await db.teamRole.findUnique({ where: { id } });
+        if (!role) return { success: false, message: "Role not found" };
+
+        await db.teamRole.update({
+            where: { id },
+            data: { pageAccess: pageAccess as unknown as never },
+        });
+
+        revalidatePath(REVALIDATE_PATH);
+        return { success: true, message: "Page access saved successfully" };
+    } catch (e) {
+        console.error("[updateRolePageAccess]", e);
+        return { success: false, message: `DB error: ${(e as Error).message}` };
+    }
+}
+
 // ── Delete ────────────────────────────────────────────────────────────────────
 
 export async function deleteRole(id: string): Promise<RoleFormState> {

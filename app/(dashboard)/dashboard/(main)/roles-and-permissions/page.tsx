@@ -1,5 +1,6 @@
 import { Suspense } from "react";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, LayoutGrid } from "lucide-react";
+import Link from "next/link";
 import { Skeleton } from "../components/ui/skeleton";
 import {
     Breadcrumb, BreadcrumbItem, BreadcrumbLink,
@@ -77,6 +78,24 @@ export default function RolesAndPermissionsPage() {
                 icon={ShieldCheck}
                 actions={<CreateRoleDialog />}
             />
+
+            {/* Tabs */}
+            <div className="flex gap-1 border-b">
+                <Link
+                    href="/dashboard/roles-and-permissions"
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 border-primary text-primary -mb-px"
+                >
+                    <ShieldCheck className="h-4 w-4" />
+                    Roles & Data Access
+                </Link>
+                <Link
+                    href="/dashboard/roles-and-permissions/page-access"
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/40 -mb-px transition-colors"
+                >
+                    <LayoutGrid className="h-4 w-4" />
+                    Page Access
+                </Link>
+            </div>
 
             {/* Data */}
             <Suspense fallback={
