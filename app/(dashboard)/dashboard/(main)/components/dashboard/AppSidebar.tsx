@@ -69,7 +69,8 @@ const navGroups = [
       { title: "Vehicle Types", href: "/dashboard/vehicles", icon: Car, phosphor: true },
       { title: "Cab Pricing", href: "/dashboard/cab-pricing", icon: IndianRupee },
       { title: "Cab Drivers", href: "/dashboard/cab-drivers", icon: SteeringWheelIcon, phosphor: true },
-      { title: "Assign Drivers", href: "/dashboard/assign-drivers", icon: SteeringWheelIcon, phosphor: true },
+      { title: "Verify Cabs", href: "/dashboard/verify-cabs", icon: Car },
+      { title: "Assign Drivers", href: "/dashboard/assign-driver", icon: SteeringWheelIcon, phosphor: true },
     ],
   },
   {
@@ -116,8 +117,6 @@ const navGroups = [
     items: [
       { title: "Package Bookings", href: "/dashboard/package-bookings", icon: BookOpen },
       { title: "Verify Hotels", href: "/dashboard/verify-hotels", icon: Bed },
-      { title: "Verify Cabs", href: "/dashboard/verify-cabs", icon: Car },
-      { title: "Assign Cab Driver", href: "/dashboard/assign-driver", icon: SteeringWheelIcon, phosphor: true },
     ],
   },
   {
