@@ -49,14 +49,18 @@ function HeaderSkeleton() {
   );
 }
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const session = await dashboardAuth();
+  const member = session ? await getCurrentMember(session) : null;
+  const pageAccess = (member?.teamRole?.pageAccess ?? null) as string[] | null;
+
   return (
     <SidebarProvider>
-      <AppSidebar />
+      <AppSidebar pageAccess={pageAccess} />
 
       <main
         className="flex-1 overflow-y-auto min-h-screen bg-dashboard-base-200"

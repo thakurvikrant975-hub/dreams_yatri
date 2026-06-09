@@ -68,6 +68,7 @@ async authorize(credentials) {
           select: {
             name:        true,
             permissions: true,
+            pageAccess:  true,
           },
         },
       },
@@ -114,6 +115,7 @@ async authorize(credentials) {
     email:        member.email,
     role:         member.teamRole?.name ?? "",
     permissions:  member.teamRole?.permissions ?? [],
+    pageAccess:   member.teamRole?.pageAccess ?? [],
     departmentId: member.departmentId ?? null,
   } as any;
 },
@@ -126,6 +128,7 @@ async authorize(credentials) {
         token.id = user.id;
         token.role = (user as any).role;
         token.permissions = (user as any).permissions;
+        token.pageAccess  = (user as any).pageAccess;
         token.departmentId = (user as any).departmentId;
       }
       return token;
@@ -135,6 +138,7 @@ async session({ session, token }) {
   session.user.id           = token.id as string;
   (session.user as any).role         = token.role         ?? null;
   (session.user as any).permissions  = token.permissions  ?? [];
+  (session.user as any).pageAccess   = token.pageAccess   ?? [];
   (session.user as any).departmentId = token.departmentId ?? null;
   return session;
 },

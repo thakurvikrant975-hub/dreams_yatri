@@ -20,6 +20,7 @@ declare module "next-auth" {
       // ── Dashboard employee auth ──
       dashboardRole?:     string | null;      // team role name (string)
       permissions?:       Prisma.JsonValue;
+      pageAccess?:        string[] | null;
       departmentId?:      string | null;
     };
   }
@@ -34,6 +35,7 @@ declare module "next-auth" {
     // ── Dashboard employee auth ──
     dashboardRole?:     string | null;
     permissions?:       Prisma.JsonValue;
+    pageAccess?:        string[] | null;
     departmentId?:      string | null;
   }
 }
@@ -51,6 +53,7 @@ declare module "next-auth/jwt" {
     // ── Dashboard employee auth ──
     dashboardRole?:     string | null;
     permissions?:       Prisma.JsonValue;
+    pageAccess?:        string[] | null;
     departmentId?:      string | null;
   }
 }
