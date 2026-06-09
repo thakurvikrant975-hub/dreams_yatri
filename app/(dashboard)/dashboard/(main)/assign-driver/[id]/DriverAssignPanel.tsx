@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronDown, ChevronUp, Star, UserMinus, UserPlus } from "lucide-react";
+import { Car, ChevronDown, ChevronUp, Phone, Star, UserMinus, UserPlus } from "lucide-react";
 import { assignDriverToSegment, unassignDriverFromSegment, type DriverOption, type SegmentLeg } from "../actions";
 
 export default function DriverAssignPanel({
@@ -67,7 +67,7 @@ export default function DriverAssignPanel({
                     }`}
                 >
                     <UserPlus className="size-3.5" />
-                    {isFullyAssigned ? "Change Driver" : "Assign Driver"}
+                    {isFullyAssigned ? "Change for all days" : "Set driver for all days"}
                     {open
                         ? <ChevronUp   className="size-3.5 ml-0.5" />
                         : <ChevronDown className="size-3.5 ml-0.5" />}
@@ -114,12 +114,16 @@ export default function DriverAssignPanel({
                                                 <span className="rounded-full bg-blue-100 px-1.5 text-[10px] font-bold text-blue-700 leading-4">✓</span>
                                             )}
                                         </div>
-                                        <p className="text-xs text-dashboard-neutral mt-0.5">📞 {d.mobile}</p>
+                                        <p className="flex items-center gap-1 text-xs text-dashboard-neutral mt-0.5">
+                                            <Phone className="size-3 shrink-0" />{d.mobile}
+                                        </p>
                                         {d.vehicle_reg_number && (
-                                            <p className="text-xs text-dashboard-neutral">{d.vehicle_reg_number}</p>
+                                            <p className="flex items-center gap-1 text-xs text-dashboard-neutral">
+                                                <Car className="size-3 shrink-0" />{d.vehicle_reg_number}
+                                            </p>
                                         )}
                                         {d.city && (
-                                            <p className="text-[11px] text-dashboard-neutral/60">📍 {d.city}{d.state ? `, ${d.state}` : ""}</p>
+                                            <p className="text-[11px] text-dashboard-neutral/60">{d.city}{d.state ? `, ${d.state}` : ""}</p>
                                         )}
                                         {d.avg_rating != null && (
                                             <div className="flex items-center gap-0.5 text-[11px] text-amber-600">

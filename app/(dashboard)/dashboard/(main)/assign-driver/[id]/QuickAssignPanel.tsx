@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronDown, ChevronUp, Star, Zap } from "lucide-react";
+import { Car, ChevronDown, ChevronUp, Phone, Star, Zap } from "lucide-react";
 import { assignDriverToAllLegs, type DriverOption } from "../actions";
 
 export default function QuickAssignPanel({
@@ -86,9 +86,13 @@ export default function QuickAssignPanel({
                                                 <span className="rounded-full bg-blue-100 px-1.5 py-0 text-[10px] font-bold text-blue-700 leading-4">✓</span>
                                             )}
                                         </div>
-                                        <p className="text-xs text-dashboard-neutral mt-0.5">📞 {d.mobile}</p>
+                                        <p className="flex items-center gap-1 text-xs text-dashboard-neutral mt-0.5">
+                                            <Phone className="size-3 shrink-0" />{d.mobile}
+                                        </p>
                                         {d.vehicle?.name && (
-                                            <p className="text-[11px] text-dashboard-neutral/70 mt-0.5">🚗 {d.vehicle.name}</p>
+                                            <p className="flex items-center gap-1 text-[11px] text-dashboard-neutral/70 mt-0.5">
+                                                <Car className="size-3 shrink-0" />{d.vehicle.name}
+                                            </p>
                                         )}
                                         {d.vehicle_reg_number && (
                                             <p className="text-[11px] text-dashboard-neutral/70">{d.vehicle_reg_number}</p>
