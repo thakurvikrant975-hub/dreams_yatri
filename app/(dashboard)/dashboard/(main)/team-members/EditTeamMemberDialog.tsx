@@ -67,11 +67,11 @@ export function EditTeamMemberDialog({ member, departments, roles, open, onClose
   });
 
  const handleSubmit = () => {
-  if (!form.name || !form.email || !form.password) {
-    toast.error("Name, email, and password are required");
+  if (!form.name || !form.email) {
+    toast.error("Name and email are required");
     return;
   }
-  if (form.password.length < 8) {
+  if (form.password && form.password.length < 8) {
     toast.error("Password must be at least 8 characters");
     return;
   }

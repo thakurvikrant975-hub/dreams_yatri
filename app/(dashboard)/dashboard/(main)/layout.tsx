@@ -33,7 +33,7 @@ async function HeaderUserSection() {
       <AvatarName
         name={session.user.name ?? "Employee"}
         email={session.user.email ?? "name@dreamsyatri.com"}
-        role={session.user.role ?? "unknown"}
+        role={member.teamRole?.name ?? ""}
         avatarSrc={member.profilePicUrl ?? undefined}
       />
     </>
