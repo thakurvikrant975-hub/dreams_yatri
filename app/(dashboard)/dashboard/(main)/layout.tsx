@@ -1,6 +1,6 @@
 // app/(dashboard)/layout.tsx
 import { Suspense } from "react";
-import { AppSidebar } from "./components/dashboard/AppSidebar";
+import { AppSidebarLoader } from "./components/dashboard/AppSidebarLoader";
 import { SidebarProvider, SidebarTrigger } from "./components/ui/sidebar";
 import AvatarName from "./components/dashboard/AvatarName";
 import { SalesTargetBadge } from "./components/dashboard/SalesTargetBadge";
@@ -10,6 +10,17 @@ import { redirect } from "next/navigation";
 import { Toaster } from "sonner";
 import { SalesStatusToggle } from "./components/dashboard/Salesstatustoggle";
 import { Skeleton } from "./components/ui/skeleton";
+
+function AppSidebarSkeleton() {
+  return (
+    <div className="w-[--sidebar-width] shrink-0 bg-dashboard-base-100 border-r border-dashboard-base-300 flex flex-col gap-3 p-4">
+      <Skeleton className="h-8 w-28 mb-2" />
+      {Array.from({ length: 8 }).map((_, i) => (
+        <Skeleton key={i} className="h-7 w-full rounded-md" />
+      ))}
+    </div>
+  );
+}
 
 // Async user section — wrapped in Suspense so the layout shell renders immediately
 async function HeaderUserSection() {
@@ -49,18 +60,16 @@ function HeaderSkeleton() {
   );
 }
 
-export default async function DashboardLayout({
+export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const session = await dashboardAuth();
-  const member = session ? await getCurrentMember(session) : null;
-  const pageAccess = (member?.teamRole?.pageAccess ?? null) as string[] | null;
-
   return (
     <SidebarProvider>
-      <AppSidebar pageAccess={pageAccess} />
+      <Suspense fallback={<AppSidebarSkeleton />}>
+        <AppSidebarLoader />
+      </Suspense>
 
       <main
         className="flex-1 overflow-y-auto min-h-screen bg-dashboard-base-200"
