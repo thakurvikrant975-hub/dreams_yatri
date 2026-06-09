@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { AlertTriangle, CalendarDays, Car, CheckCircle2, Clock, UserCheck, Truck } from "lucide-react";
+import { AlertTriangle, CalendarDays, Car, CheckCircle2, Truck, UserCheck } from "lucide-react";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { TableFilters } from "../components/dashboard/Tablefilters";
 import { TableEmptyState } from "../components/dashboard/TableEmptyState";
@@ -21,7 +21,6 @@ export type AssignRow = {
     totalAmount_paise: number;
     paymentStatus: string;
     createdAt: Date;
-    cabConfirmedAt: Date | null;
     cabType: string;
     user: { name: string | null; email: string | null } | null;
     package: { title: string | null } | null;
@@ -30,40 +29,20 @@ export type AssignRow = {
     assignedCount: number;
     isFullyAssigned: boolean;
     daysToTravel: number;
-    isUrgent: boolean;
+    isNearTravel: boolean; // ≤ 15 days away
 };
 
 export type AssignStats = {
     total: number;
     unassigned: number;
-    urgent: number;
-    assignedToday: number;
+    nearTravel: number;
+    fullyAssigned: number;
 };
 
 const fmt = (paise: number) => `₹${Math.round(paise / 100).toLocaleString("en-IN")}`;
 const fmtDate = (d: Date) =>
     new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(d);
 const titleCase = (s: string) => s.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
-
-function AssignBadge({ row }: { row: AssignRow }) {
-    if (row.isFullyAssigned)
-        return (
-            <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700">
-                <CheckCircle2 className="size-3" /> All Assigned
-            </span>
-        );
-    if (row.isUrgent)
-        return (
-            <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700">
-                <AlertTriangle className="size-3" /> {row.daysToTravel}d left
-            </span>
-        );
-    return (
-        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
-            <Clock className="size-3" /> Pending
-        </span>
-    );
-}
 
 export function AssignDriverTable({
     bookings, stats, currentPage, totalPages, totalCount, limit, search, filter,
@@ -122,7 +101,6 @@ export function AssignDriverTable({
                         {b.bookingNumber}
                     </Link>
                     <div className="mt-0.5 text-[11px] text-dashboard-neutral">{fmtDate(b.createdAt)}</div>
-                    <div className="mt-1"><AssignBadge row={b} /></div>
                 </div>
             ),
         },
@@ -131,7 +109,7 @@ export function AssignDriverTable({
             cell: (b) => (
                 <div>
                     <div className="text-sm font-medium text-dashboard-base-content">{b.user?.name ?? "—"}</div>
-                    <div className="text-xs text-dashboard-neutral truncate max-w-[160px]">{b.user?.email ?? ""}</div>
+                    <div className="text-xs text-dashboard-neutral truncate max-w-40">{b.user?.email ?? ""}</div>
                 </div>
             ),
         },
@@ -153,9 +131,9 @@ export function AssignDriverTable({
                         {fmtDate(b.startDate)}
                     </div>
                     <div className="text-xs text-dashboard-neutral mt-0.5 pl-5">→ {fmtDate(b.endDate)}</div>
-                    {!b.isFullyAssigned && b.daysToTravel >= 0 && (
-                        <div className={`mt-0.5 pl-5 text-[11px] font-medium ${b.daysToTravel <= 15 ? "text-red-600" : "text-dashboard-neutral"}`}>
-                            {b.daysToTravel === 0 ? "Today" : `${b.daysToTravel}d away`}
+                    {b.daysToTravel >= 0 && (
+                        <div className={`mt-0.5 pl-5 text-[11px] font-semibold ${b.isNearTravel && !b.isFullyAssigned ? "text-red-600" : "text-dashboard-neutral"}`}>
+                            {b.daysToTravel === 0 ? "Today!" : `${b.daysToTravel}d away`}
                         </div>
                     )}
                 </div>
@@ -192,7 +170,9 @@ export function AssignDriverTable({
                         </span>
                         <div className="w-16 h-1.5 rounded-full bg-dashboard-base-300/60 overflow-hidden">
                             <div
-                                className={`h-full rounded-full transition-all ${b.isFullyAssigned ? "bg-green-500" : pct > 50 ? "bg-amber-400" : "bg-red-400"}`}
+                                className={`h-full rounded-full transition-all ${
+                                    b.isFullyAssigned ? "bg-green-500" : pct > 50 ? "bg-amber-400" : "bg-red-400"
+                                }`}
                                 style={{ width: `${pct}%` }}
                             />
                         </div>
@@ -223,32 +203,32 @@ export function AssignDriverTable({
         <div className="space-y-6">
             <PageHeader
                 title="Assign Drivers"
-                description="Assign registered drivers to cab transfers for each booking"
+                description="Assign registered drivers to cab transfers. Driver details are shared with customers 4–5 days before travel."
                 icon={UserCheck}
             />
 
             <StatGrid cols={4}>
-                <StatCard label="Total Bookings"      value={stats.total}         icon={Car}          sub="With cab transfers" />
-                <StatCard label="Awaiting Assignment" value={stats.unassigned}    icon={Truck}
+                <StatCard label="Total Bookings"      value={stats.total}         icon={Car}         sub="With cab transfers" />
+                <StatCard label="Awaiting Driver"     value={stats.unassigned}    icon={Truck}
                     iconColor="bg-amber-100" iconText="text-amber-600"
                     sub="No driver assigned yet"
                     className={stats.unassigned > 0 ? "border-amber-200 bg-amber-50/40" : ""} />
-                <StatCard label="Urgent (≤ 15 days)"  value={stats.urgent}        icon={AlertTriangle}
+                <StatCard label="Near Travel (≤ 15d)" value={stats.nearTravel}    icon={AlertTriangle}
                     iconColor="bg-red-100" iconText="text-red-600"
-                    sub="Travel date approaching"
-                    className={stats.urgent > 0 ? "border-red-200 bg-red-50/40" : ""} />
-                <StatCard label="Assigned Today"      value={stats.assignedToday} icon={CheckCircle2}
+                    sub="Unassigned, travel soon"
+                    className={stats.nearTravel > 0 ? "border-red-200 bg-red-50/40" : ""} />
+                <StatCard label="Fully Assigned"      value={stats.fullyAssigned} icon={CheckCircle2}
                     iconColor="bg-green-100" iconText="text-green-600"
-                    sub="Drivers locked in"
-                    className={stats.assignedToday > 0 ? "border-green-200 bg-green-50/40" : ""} />
+                    sub="All legs have a driver"
+                    className={stats.fullyAssigned > 0 ? "border-green-200 bg-green-50/40" : ""} />
             </StatGrid>
 
             {/* Legend */}
             <div className="flex flex-wrap items-center gap-3 rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 px-4 py-2.5 text-xs text-dashboard-neutral">
                 <span className="font-medium text-dashboard-base-content">Row colours:</span>
                 <span className="flex items-center gap-1.5"><span className="size-3 rounded-sm bg-green-200 inline-block" /> All drivers assigned</span>
-                <span className="flex items-center gap-1.5"><span className="size-3 rounded-sm bg-red-200 inline-block" /> Travel ≤ 15 days, unassigned</span>
-                <span className="flex items-center gap-1.5"><span className="size-3 rounded-sm bg-amber-200 inline-block" /> Partially assigned</span>
+                <span className="flex items-center gap-1.5"><span className="size-3 rounded-sm bg-red-200 inline-block" /> Travel ≤ 15 days, no driver</span>
+                <span className="flex items-center gap-1.5"><span className="size-3 rounded-sm bg-white border border-dashboard-base-300 inline-block" /> Pending</span>
             </div>
 
             {/* Filters */}
@@ -265,9 +245,9 @@ export function AssignDriverTable({
                             placeholder: "All bookings",
                             width: "w-48",
                             options: [
-                                { label: "Unassigned only",    value: "unassigned" },
-                                { label: "Urgent (≤ 15 days)", value: "urgent"     },
-                                { label: "Fully assigned",     value: "assigned"   },
+                                { label: "No driver yet",      value: "unassigned" },
+                                { label: "Near travel (≤ 15d)", value: "near"       },
+                                { label: "Fully assigned",      value: "assigned"   },
                             ],
                         },
                     ]}
@@ -301,9 +281,8 @@ export function AssignDriverTable({
                 columns={columns}
                 rowKey={(b) => b.id}
                 rowClassName={(b) => {
-                    if (b.isFullyAssigned)              return "bg-green-50/60 hover:bg-green-50 border-green-100";
-                    if (b.isUrgent && b.assignedCount === 0) return "bg-red-50/50 hover:bg-red-50 border-red-100";
-                    if (b.assignedCount > 0)            return "bg-amber-50/50 hover:bg-amber-50 border-amber-100";
+                    if (b.isFullyAssigned) return "bg-green-50/70 hover:bg-green-50 border-green-100";
+                    if (b.isNearTravel)    return "bg-red-50/50 hover:bg-red-50 border-red-100";
                     return "hover:bg-dashboard-base-200";
                 }}
                 emptyState={

@@ -161,45 +161,6 @@ export async function assignDriverToLeg(
     return { success: true, allConfirmed };
 }
 
-// ── Quick-add a new driver and assign them ────────────────────────────────────
-
-export type QuickDriverInput = {
-    name: string;
-    mobile: string;
-    vehicle_reg_number?: string;
-    license_number?: string;
-    city?: string;
-    vehicle_id?: number | null;
-};
-
-export async function quickAddAndAssignDriver(
-    bookingId: string,
-    legNumber: number,
-    driverData: QuickDriverInput,
-    opts: { fromLocation: string; toLocation: string; notes?: string },
-): Promise<{ success: true; allConfirmed: boolean } | { success: false; error: string }> {
-    const gate = await requireMember();
-    if (!gate.ok) return { success: false, error: gate.error };
-
-    try {
-        const created = await db.cab_drivers.create({
-            data: {
-                name: driverData.name.trim(),
-                mobile: driverData.mobile.trim(),
-                vehicle_reg_number: driverData.vehicle_reg_number?.trim() || null,
-                license_number: driverData.license_number?.trim() || null,
-                city: driverData.city?.trim() || null,
-                vehicle_id: driverData.vehicle_id ?? null,
-                is_active: true,
-            },
-        });
-        return assignDriverToLeg(bookingId, legNumber, created.id, opts);
-    } catch (e) {
-        console.error("[quickAddAndAssignDriver]", e);
-        return { success: false, error: "Failed to create driver." };
-    }
-}
-
 // ── Unassign driver from a leg ──────────────────────────────────────────────
 
 export async function unassignDriverFromLeg(

@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 const VALID_LIMITS  = [10, 20, 50] as const;
-const VALID_FILTERS = ["all", "unassigned", "urgent", "assigned"] as const;
+const VALID_FILTERS = ["all", "unassigned", "near", "assigned"] as const;
 
 type SnapDay = { day: number; transfers?: { pickup_name?: string | null }[] };
 type Snapshot = { days?: SnapDay[] };
@@ -28,9 +28,8 @@ export default async function AssignDriverPage({
         ? (sp.filter as typeof VALID_FILTERS[number])
         : "all";
 
-    const nowMs      = Date.now();
-    const in15Days   = new Date(nowMs + 15 * 86_400_000);
-    const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
+    const nowMs    = Date.now();
+    const in15Days = new Date(nowMs + 15 * 86_400_000);
 
     const searchWhere: Prisma.BookingWhereInput = search
         ? {
@@ -43,7 +42,7 @@ export default async function AssignDriverPage({
         }
         : {};
 
-    // Show all paid bookings that have cab transfers (broad scope — driver assignment is separate from cab verification)
+    // All paid bookings with cab transfers
     const baseWhere: Prisma.BookingWhereInput = {
         paymentStatus: { in: ["ADVANCE_PAID", "FULLY_PAID"] },
         status: { notIn: ["CANCELLED", "REJECTED", "PENDING_REVIEW"] },
@@ -51,14 +50,14 @@ export default async function AssignDriverPage({
     };
 
     const filterWhere: Prisma.BookingWhereInput =
-        filter === "urgent"     ? { startDate: { lte: in15Days } } :
+        filter === "near"       ? { startDate: { lte: in15Days } } :
         filter === "assigned"   ? { cabConfirmedAt: { not: null } } :
         filter === "unassigned" ? { cabConfirmedAt: null } :
         {};
 
     const where: Prisma.BookingWhereInput = { ...baseWhere, ...filterWhere };
 
-    const [rawBookings, totalCount, unassigned, urgent, assignedToday, total] = await Promise.all([
+    const [rawBookings, totalCount, unassigned, nearTravel, fullyAssigned, total] = await Promise.all([
         db.booking.findMany({
             where,
             orderBy: [{ startDate: "asc" }, { createdAt: "asc" }],
@@ -67,13 +66,14 @@ export default async function AssignDriverPage({
             select: {
                 id: true, bookingNumber: true, startDate: true, endDate: true,
                 travellers: true, totalAmount_paise: true, paymentStatus: true,
-                createdAt: true, cabConfirmedAt: true, cabType: true,
+                createdAt: true, cabType: true,
                 user:        { select: { name: true, email: true } },
                 package:     { select: { title: true } },
                 destination: { select: { name: true } },
                 priceSnapshot: true,
+                // Cab rows where a driver name has been filled in
                 cabBookings: {
-                    where: { isConfirmed: true, driverName: { not: null } },
+                    where: { driverName: { not: null } },
                     select: { legNumber: true },
                 },
             },
@@ -81,11 +81,11 @@ export default async function AssignDriverPage({
         db.booking.count({ where }),
         db.booking.count({ where: { ...baseWhere, cabConfirmedAt: null } }),
         db.booking.count({ where: { ...baseWhere, startDate: { lte: in15Days }, cabConfirmedAt: null } }),
-        db.booking.count({ where: { ...baseWhere, cabConfirmedAt: { gte: todayStart } } }),
+        db.booking.count({ where: { ...baseWhere, cabConfirmedAt: { not: null } } }),
         db.booking.count({ where: baseWhere }),
     ]);
 
-    const stats: AssignStats = { total, unassigned, urgent, assignedToday };
+    const stats: AssignStats = { total, unassigned, nearTravel, fullyAssigned };
 
     const bookings: AssignRow[] = rawBookings.map((b) => {
         const snap = (b.priceSnapshot ?? {}) as Snapshot;
@@ -93,7 +93,7 @@ export default async function AssignDriverPage({
         const assignedCount  = b.cabBookings.length;
         const isFullyAssigned = totalCabCount > 0 && assignedCount >= totalCabCount;
         const daysToTravel   = Math.ceil((b.startDate.getTime() - nowMs) / 86_400_000);
-        const isUrgent       = !isFullyAssigned && daysToTravel <= 15 && daysToTravel >= 0;
+        const isNearTravel   = !isFullyAssigned && daysToTravel <= 15 && daysToTravel >= 0;
 
         return {
             id:                b.id,
@@ -104,7 +104,6 @@ export default async function AssignDriverPage({
             totalAmount_paise: b.totalAmount_paise,
             paymentStatus:     b.paymentStatus,
             createdAt:         b.createdAt,
-            cabConfirmedAt:    b.cabConfirmedAt,
             cabType:           b.cabType,
             user:              b.user,
             package:           b.package,
@@ -113,7 +112,7 @@ export default async function AssignDriverPage({
             assignedCount,
             isFullyAssigned,
             daysToTravel,
-            isUrgent,
+            isNearTravel,
         };
     });
 

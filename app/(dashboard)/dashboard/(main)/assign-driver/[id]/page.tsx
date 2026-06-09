@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarDays, Car, Mail, MapPin, Phone, UserCheck, Users } from "lucide-react";
+import { CalendarDays, Car, Mail, MapPin, Phone, Users } from "lucide-react";
 import { db } from "@/app/lib/db";
 import { formatPaise } from "@/app/lib/money";
 import { PaymentPill, StatusPill } from "../../package-bookings/pills";
@@ -14,12 +14,11 @@ export const metadata: Metadata = {
 };
 
 // ── Snapshot types ─────────────────────────────────────────────────────────────
-type SnapTransfer = { pickup_name?: string | null; drop_name?: string | null; vehicle_name?: string | null };
+type SnapTransfer = { pickup_name?: string | null; drop_name?: string | null };
 type SnapCab = {
     day_from: number; day_to: number;
     vehicle_name?: string; vehicle_capacity?: number;
     vehicle_id?: number;
-    total?: number;
 };
 type SnapDay = { day: number; day_title?: string; day_date?: string | null; transfers?: SnapTransfer[] };
 type Snapshot = { days?: SnapDay[]; cab_segments?: SnapCab[] };
@@ -97,49 +96,31 @@ export default async function AssignDriverDetailPage({ params }: { params: Promi
     const confirmedMap = new Map(booking.cabBookings.map((cb) => [cb.legNumber, cb]));
 
     const totalCount    = transferDays.length;
-    const assignedCount = transferDays.filter((d) => confirmedMap.get(d.day)?.driverName).length;
+    const assignedCount = transferDays.filter((d) => !!confirmedMap.get(d.day)?.driverName).length;
     const pct           = totalCount > 0 ? Math.round((assignedCount / totalCount) * 100) : 0;
-    const allAssigned   = pct === 100 && totalCount > 0;
+    const allAssigned   = assignedCount === totalCount && totalCount > 0;
 
-    // Collect unique vehicle IDs and names from snapshot segments
+    // Collect unique vehicle_ids from snapshot segments
     const vehicleIdSet = new Set<number>();
     for (const seg of cabSegs) {
         if (seg.vehicle_id) vehicleIdSet.add(seg.vehicle_id);
     }
     const vehicleIds = [...vehicleIdSet];
 
-    // Fetch drivers grouped by vehicle_id; also fetch all active drivers for segments without vehicle_id
-    const [driverRows, activeVehicles] = await Promise.all([
-        vehicleIds.length > 0
-            ? db.cab_drivers.findMany({
-                where: { is_active: true },
-                select: {
-                    id: true, name: true, mobile: true, vehicle_id: true,
-                    vehicle_reg_number: true, city: true, state: true,
-                    is_verified: true, avg_rating: true,
-                    vehicle: { select: { id: true, name: true } },
-                },
-                orderBy: [{ is_verified: "desc" }, { avg_rating: "desc" }, { name: "asc" }],
-            })
-            : db.cab_drivers.findMany({
-                where: { is_active: true },
-                select: {
-                    id: true, name: true, mobile: true, vehicle_id: true,
-                    vehicle_reg_number: true, city: true, state: true,
-                    is_verified: true, avg_rating: true,
-                    vehicle: { select: { id: true, name: true } },
-                },
-                orderBy: [{ is_verified: "desc" }, { avg_rating: "desc" }, { name: "asc" }],
-                take: 60,
-            }),
-        db.vehicles.findMany({
-            where: { is_active: true },
-            select: { id: true, name: true },
-            orderBy: { name: "asc" },
-        }),
-    ]);
+    // Fetch all active drivers (filtered by relevant vehicle_ids if available)
+    const driverRows = await db.cab_drivers.findMany({
+        where: vehicleIds.length > 0
+            ? { is_active: true }
+            : { is_active: true },
+        select: {
+            id: true, name: true, mobile: true, vehicle_id: true,
+            vehicle_reg_number: true, city: true, state: true,
+            is_verified: true, avg_rating: true,
+            vehicle: { select: { id: true, name: true } },
+        },
+        orderBy: [{ is_verified: "desc" }, { avg_rating: "desc" }, { name: "asc" }],
+    });
 
-    // Map driver rows into DriverOption (serialized)
     const allDriverOptions: (DriverOption & { vehicle_id: number | null })[] = driverRows.map((d) => ({
         id: d.id, name: d.name, mobile: d.mobile,
         vehicle_id: d.vehicle_id,
@@ -150,7 +131,6 @@ export default async function AssignDriverDetailPage({ params }: { params: Promi
         vehicle: d.vehicle,
     }));
 
-    // Helper: get vehicle_name for a given day
     function segForDay(day: number): SnapCab | undefined {
         return cabSegs.find((s) => day >= s.day_from && day <= s.day_to);
     }
@@ -184,16 +164,10 @@ export default async function AssignDriverDetailPage({ params }: { params: Promi
                     >
                         Full booking →
                     </Link>
-                    <Link
-                        href={`/dashboard/verify-cabs/${booking.id}`}
-                        className="cursor-pointer rounded-md border border-dashboard-base-300 px-3 py-1.5 text-sm text-dashboard-base-content hover:bg-dashboard-base-200 transition-colors"
-                    >
-                        Verify cabs →
-                    </Link>
                 </div>
             </div>
 
-            {/* Assignment progress */}
+            {/* Progress bar */}
             <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 px-5 py-3.5">
                 <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-dashboard-base-content">Driver Assignment Progress</span>
@@ -207,55 +181,54 @@ export default async function AssignDriverDetailPage({ params }: { params: Promi
                         style={{ width: `${pct}%` }}
                     />
                 </div>
-                <p className={`mt-1.5 text-xs font-medium ${allAssigned ? "text-dashboard-success" : "text-dashboard-error"}`}>
+                <p className={`mt-1.5 text-xs font-medium ${allAssigned ? "text-dashboard-success" : "text-dashboard-neutral"}`}>
                     {allAssigned
-                        ? "✓ All transfers have a driver assigned."
-                        : `${totalCount - assignedCount} transfer${totalCount - assignedCount !== 1 ? "s" : ""} still need a driver`}
+                        ? "✓ All drivers assigned."
+                        : `${totalCount - assignedCount} leg${totalCount - assignedCount !== 1 ? "s" : ""} still need a driver — driver details are shared with the customer 4–5 days before travel.`}
                 </p>
             </div>
 
             <div className="grid gap-5 lg:grid-cols-3 items-start">
-                {/* ── Per-day leg cards ─────────────────────────────────────── */}
+                {/* ── Per-day leg cards ──────────────────────────────────── */}
                 <div className="lg:col-span-2 flex flex-col gap-3">
                     {totalCount === 0 ? (
                         <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 px-5 py-10 text-center text-sm text-dashboard-neutral">
-                            No cab transfers found in the booking itinerary.
+                            No cab transfers found in this booking.
                         </div>
                     ) : (
                         transferDays.map((d) => {
-                            const transfers  = d.transfers ?? [];
-                            const seg        = segForDay(d.day);
-                            const confirmed  = confirmedMap.get(d.day);
-                            const hasDriver  = !!confirmed?.driverName;
-                            const date       = d.day_date ? new Date(`${d.day_date}T00:00:00`) : dayDate(d.day);
+                            const transfers = d.transfers ?? [];
+                            const seg       = segForDay(d.day);
+                            const confirmed = confirmedMap.get(d.day);
+                            const hasDriver = !!confirmed?.driverName;
+                            const date      = d.day_date ? new Date(`${d.day_date}T00:00:00`) : dayDate(d.day);
 
                             const from = confirmed?.fromLocation ?? transfers[0]?.pickup_name ?? "—";
                             const to   = confirmed?.toLocation   ?? transfers[transfers.length - 1]?.drop_name ?? "—";
 
-                            // Find matching drivers: prefer by vehicle_id, fallback to all
+                            // Filter drivers by vehicle_id from snapshot
                             const vehicleId = seg?.vehicle_id ?? null;
-                            const filteredDrivers = vehicleId != null
+                            const filteredDrivers: DriverOption[] = vehicleId != null
                                 ? allDriverOptions.filter((dr) => dr.vehicle_id === vehicleId)
                                 : allDriverOptions;
 
                             const vehicleName = seg?.vehicle_name ?? null;
-                            const currentAssignment = confirmed
-                                ? {
-                                    driverName:   confirmed.driverName,
-                                    driverPhone:  confirmed.driverPhone,
-                                    vehicleNumber: confirmed.vehicleNumber,
-                                    confirmedAt:  confirmed.confirmedAt,
-                                    confirmedBy:  confirmed.confirmedBy?.name ?? null,
-                                }
-                                : null;
 
                             return (
                                 <div
                                     key={d.day}
-                                    className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 overflow-hidden"
+                                    className={`rounded-xl border overflow-hidden ${
+                                        hasDriver
+                                            ? "border-green-200 bg-green-50/30"
+                                            : "border-dashboard-base-300 bg-dashboard-base-100"
+                                    }`}
                                 >
                                     {/* Top bar */}
-                                    <div className="flex items-center justify-between px-4 py-2 border-b bg-dashboard-base-200 border-dashboard-base-300">
+                                    <div className={`flex items-center justify-between px-4 py-2 border-b ${
+                                        hasDriver
+                                            ? "bg-green-50 border-green-200"
+                                            : "bg-dashboard-base-200 border-dashboard-base-300"
+                                    }`}>
                                         <div className="flex items-center gap-2 min-w-0">
                                             <span className="shrink-0 rounded bg-dashboard-primary px-2 py-0.5 text-[11px] font-bold text-dashboard-primary-content">
                                                 Day {d.day}
@@ -266,12 +239,12 @@ export default async function AssignDriverDetailPage({ params }: { params: Promi
                                             <span className="shrink-0 text-xs text-dashboard-neutral">· {fmtDate(date)}</span>
                                         </div>
                                         {hasDriver ? (
-                                            <span className="shrink-0 ml-2 rounded-full bg-dashboard-success/20 px-2.5 py-0.5 text-[11px] font-semibold text-dashboard-success">
+                                            <span className="shrink-0 ml-2 rounded-full bg-green-200 px-2.5 py-0.5 text-[11px] font-semibold text-green-800">
                                                 ✓ Driver Assigned
                                             </span>
                                         ) : (
-                                            <span className="shrink-0 ml-2 rounded-full bg-dashboard-warning/20 px-2.5 py-0.5 text-[11px] font-semibold text-dashboard-neutral">
-                                                Unassigned
+                                            <span className="shrink-0 ml-2 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700">
+                                                No Driver
                                             </span>
                                         )}
                                     </div>
@@ -292,59 +265,41 @@ export default async function AssignDriverDetailPage({ params }: { params: Promi
                                                 </div>
                                             </div>
                                             {vehicleName && (
-                                                <span className="shrink-0 rounded-md border border-dashboard-base-300 bg-dashboard-base-200/60 px-2.5 py-1 text-xs font-medium text-dashboard-base-content">
+                                                <span className="shrink-0 rounded-md border border-dashboard-base-300 bg-dashboard-base-100 px-2.5 py-1 text-xs font-medium text-dashboard-base-content">
                                                     {vehicleName}
                                                 </span>
                                             )}
                                         </div>
 
-                                        {/* Current driver banner */}
+                                        {/* Assigned driver banner */}
                                         {hasDriver && confirmed && (
-                                            <div className="rounded-lg border border-dashboard-success/25 bg-dashboard-success/8 px-3 py-2 text-xs text-dashboard-success">
-                                                <div className="flex items-center gap-1.5 font-semibold">
-                                                    <UserCheck className="size-3.5" />
-                                                    <span>Driver Assigned</span>
-                                                    {confirmed.confirmedAt && (
-                                                        <span className="font-normal opacity-70 ml-1">
-                                                            · {fmtDateTime(confirmed.confirmedAt)}
+                                            <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm">
+                                                <p className="font-semibold text-green-800">
+                                                    👤 {confirmed.driverName}
+                                                    {confirmed.confirmedBy?.name && (
+                                                        <span className="ml-2 text-xs font-normal text-green-600 opacity-70">
+                                                            · assigned by {confirmed.confirmedBy.name}
                                                         </span>
                                                     )}
-                                                </div>
-                                                <p className="mt-1 opacity-90">
-                                                    {[
-                                                        confirmed.driverName    ? `👤 ${confirmed.driverName}`         : null,
-                                                        confirmed.driverPhone   ? `📞 ${confirmed.driverPhone}`         : null,
-                                                        confirmed.vehicleNumber ? `🚗 ${confirmed.vehicleNumber}`       : null,
-                                                    ].filter(Boolean).join("  ·  ")}
                                                 </p>
-                                                {confirmed.confirmedBy?.name && (
-                                                    <p className="mt-0.5 opacity-60 text-[11px]">Assigned by {confirmed.confirmedBy.name}</p>
-                                                )}
-                                                {confirmed.notes && (
-                                                    <p className="mt-0.5 opacity-80">Note: {confirmed.notes}</p>
-                                                )}
+                                                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-green-700">
+                                                    {confirmed.driverPhone   && <span>📞 {confirmed.driverPhone}</span>}
+                                                    {confirmed.vehicleNumber && <span>🚗 {confirmed.vehicleNumber}</span>}
+                                                    {confirmed.notes         && <span>📝 {confirmed.notes}</span>}
+                                                </div>
                                             </div>
                                         )}
 
                                         {/* Driver assign panel */}
-                                        <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 px-3 py-3">
-                                            <p className="text-[10px] uppercase tracking-widest text-dashboard-neutral font-semibold mb-2.5">
-                                                {hasDriver ? "Reassign Driver" : "Assign Driver"}
-                                                {filteredDrivers.length > 0 && (
-                                                    <span className="ml-1 normal-case">· {filteredDrivers.length} driver{filteredDrivers.length !== 1 ? "s" : ""} available</span>
-                                                )}
-                                            </p>
-                                            <DriverAssignPanel
-                                                bookingId={booking.id}
-                                                legNumber={d.day}
-                                                fromLocation={from}
-                                                toLocation={to}
-                                                vehicleName={vehicleName}
-                                                drivers={filteredDrivers}
-                                                vehicles={activeVehicles}
-                                                currentAssignment={currentAssignment}
-                                            />
-                                        </div>
+                                        <DriverAssignPanel
+                                            bookingId={booking.id}
+                                            legNumber={d.day}
+                                            fromLocation={from}
+                                            toLocation={to}
+                                            vehicleName={vehicleName}
+                                            drivers={filteredDrivers}
+                                            isAssigned={hasDriver}
+                                        />
                                     </div>
                                 </div>
                             );
@@ -354,6 +309,7 @@ export default async function AssignDriverDetailPage({ params }: { params: Promi
 
                 {/* ── Sidebar ──────────────────────────────────────────────── */}
                 <div className="flex flex-col gap-4">
+
                     {/* Booking Details */}
                     <SideCard title="Booking Details">
                         <div className="flex flex-col gap-3">
@@ -372,7 +328,7 @@ export default async function AssignDriverDetailPage({ params }: { params: Promi
                         </div>
                     </SideCard>
 
-                    {/* Assignment Checklist */}
+                    {/* Driver Assignment Checklist */}
                     {totalCount > 0 && (
                         <SideCard title="Assignment Checklist">
                             <div className="flex flex-col gap-1">
@@ -404,7 +360,7 @@ export default async function AssignDriverDetailPage({ params }: { params: Promi
                                                     <p className="text-[10px] text-dashboard-neutral">{seg.vehicle_name}</p>
                                                 )}
                                                 {done && c?.driverName && (
-                                                    <p className="text-[10px] text-green-700 font-medium">{c.driverName}</p>
+                                                    <p className="text-[10px] font-semibold text-green-700">{c.driverName}</p>
                                                 )}
                                             </div>
                                             <span className={`shrink-0 text-[10px] font-semibold ${done ? "text-green-700" : "text-amber-600"}`}>
@@ -414,7 +370,6 @@ export default async function AssignDriverDetailPage({ params }: { params: Promi
                                     );
                                 })}
                             </div>
-                            {/* Mini progress */}
                             <div className="mt-3 pt-3 border-t border-dashboard-base-300/50">
                                 <div className="flex items-center justify-between mb-1.5 text-xs">
                                     <span className="text-dashboard-neutral">Progress</span>

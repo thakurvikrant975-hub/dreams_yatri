@@ -161,9 +161,9 @@ export default async function VerifyCabDetailPage({ params }: { params: Promise<
             {/* Progress */}
             <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 px-5 py-3.5">
                 <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-dashboard-base-content">Confirmation Progress</span>
+                    <span className="text-sm font-medium text-dashboard-base-content">Verification Progress</span>
                     <span className={`text-sm font-medium ${allDone ? "text-dashboard-success" : "text-dashboard-error"}`}>
-                        {confirmedCount} / {totalCount} confirmed
+                        {confirmedCount} / {totalCount} verified
                     </span>
                 </div>
                 <div className="h-2 rounded-full bg-dashboard-base-300 overflow-hidden">
@@ -174,8 +174,8 @@ export default async function VerifyCabDetailPage({ params }: { params: Promise<
                 </div>
                 <p className={`mt-1.5 text-xs font-medium ${allDone ? "text-dashboard-success" : "text-dashboard-error"}`}>
                     {allDone
-                        ? "✓ All transfers confirmed — booking will advance to Cab Confirmed."
-                        : `${totalCount - confirmedCount} transfer${totalCount - confirmedCount !== 1 ? "s" : ""} still need confirmation`}
+                        ? "✓ All cab types verified — booking will advance to Cab Confirmed."
+                        : `${totalCount - confirmedCount} transfer${totalCount - confirmedCount !== 1 ? "s" : ""} still need verification`}
                 </p>
             </div>
 
@@ -223,7 +223,7 @@ export default async function VerifyCabDetailPage({ params }: { params: Promise<
                                         </div>
                                         {isDone ? (
                                             <span className="shrink-0 ml-2 rounded-full bg-dashboard-success/20 px-2.5 py-0.5 text-[11px] font-semibold text-dashboard-success">
-                                                ✓ Confirmed
+                                                ✓ Cab Verified
                                             </span>
                                         ) : (
                                             <span className="shrink-0 ml-2 rounded-full bg-dashboard-warning/20 px-2.5 py-0.5 text-[11px] font-semibold text-dashboard-neutral">
@@ -307,7 +307,7 @@ export default async function VerifyCabDetailPage({ params }: { params: Promise<
                                         {/* Confirmed banner */}
                                         {isDone && confirmed && (
                                             <div className="rounded-lg border border-dashboard-success/25 bg-dashboard-success/8 px-3 py-2 text-xs text-dashboard-success">
-                                                <span className="font-semibold">Confirmed</span> by {confirmed.confirmedBy?.name ?? "—"} · {fmtDateTime(confirmed.confirmedAt)}
+                                                <span className="font-semibold">Cab Verified</span> by {confirmed.confirmedBy?.name ?? "—"} · {fmtDateTime(confirmed.confirmedAt)}
                                                 {(confirmed.driverName || confirmed.driverPhone || confirmed.vehicleNumber) && (
                                                     <p className="mt-1 opacity-90">
                                                         {[
