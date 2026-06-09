@@ -21,7 +21,7 @@ import { usePathname } from "next/navigation";
 import Image from "next/image";
 import { cn } from "@/app/lib/utils";
 
-const navGroups = [
+const navGroups = [ 
   {
     id: "overview", label: "Overview",
     items: [
