@@ -17,6 +17,7 @@ export type DriverOption = {
     id: number;
     name: string;
     mobile: string;
+    profile_image_key: string | null;
     vehicle_reg_number: string | null;
     city: string | null;
     state: string | null;

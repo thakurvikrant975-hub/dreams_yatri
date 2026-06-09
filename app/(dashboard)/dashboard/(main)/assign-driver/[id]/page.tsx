@@ -193,6 +193,7 @@ export default async function AssignDriverDetailPage({ params }: { params: Promi
         where:   { is_active: true },
         select: {
             id: true, name: true, mobile: true, vehicle_id: true,
+            profile_image_key: true,
             vehicle_reg_number: true, city: true, state: true,
             is_verified: true, avg_rating: true,
             vehicle: { select: { id: true, name: true } },
@@ -203,6 +204,7 @@ export default async function AssignDriverDetailPage({ params }: { params: Promi
     const allDriverOptions: (DriverOption & { vehicle_id: number | null })[] = allDriverRows.map((d) => ({
         id: d.id, name: d.name, mobile: d.mobile,
         vehicle_id:         d.vehicle_id,
+        profile_image_key:  d.profile_image_key,
         vehicle_reg_number: d.vehicle_reg_number,
         city: d.city, state: d.state,
         is_verified: d.is_verified,

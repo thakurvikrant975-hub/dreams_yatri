@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Car, ChevronDown, ChevronUp, Phone, Star, UserMinus, UserPlus, UserX } from "lucide-react";
 import { assignDriverToSegment, unassignDriverFromSegment, type DriverOption, type SegmentLeg } from "../actions";
+import { getImageUrl } from "@/app/lib/imageUrl";
 
 export default function LegDriverPicker({
     bookingId,
@@ -120,9 +121,17 @@ export default function LegDriverPicker({
                                     key={d.id}
                                     className="flex items-center gap-2.5 rounded-md border border-dashboard-base-300 bg-dashboard-base-200/40 px-2.5 py-2 hover:border-dashboard-primary/30 transition-colors"
                                 >
-                                    <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-dashboard-primary/10 text-xs font-bold text-dashboard-primary">
-                                        {d.name.charAt(0).toUpperCase()}
-                                    </div>
+                                    {d.profile_image_key ? (
+                                        <img
+                                            src={getImageUrl(d.profile_image_key, { width: 56, height: 56, quality: 80, fit: "cover" })}
+                                            alt={d.name}
+                                            className="size-7 shrink-0 rounded-full object-cover ring-1 ring-dashboard-base-300"
+                                        />
+                                    ) : (
+                                        <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-dashboard-primary/10 text-xs font-bold text-dashboard-primary">
+                                            {d.name.charAt(0).toUpperCase()}
+                                        </div>
+                                    )}
                                     <div className="min-w-0 flex-1">
                                         <div className="flex items-center gap-1 flex-wrap">
                                             <span className="text-xs font-semibold text-dashboard-base-content leading-tight">{d.name}</span>

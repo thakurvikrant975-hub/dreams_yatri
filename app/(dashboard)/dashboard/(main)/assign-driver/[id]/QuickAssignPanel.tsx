@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Car, ChevronDown, ChevronUp, Phone, Star, Zap } from "lucide-react";
 import { assignDriverToAllLegs, type DriverOption } from "../actions";
+import { getImageUrl } from "@/app/lib/imageUrl";
 
 export default function QuickAssignPanel({
     bookingId,
@@ -74,10 +75,17 @@ export default function QuickAssignPanel({
                                     key={d.id}
                                     className="flex items-start gap-3 rounded-xl border border-dashboard-base-300 bg-dashboard-base-200/40 px-3.5 py-3 hover:border-dashboard-primary/40 hover:bg-dashboard-primary/5 transition-all group"
                                 >
-                                    {/* Avatar placeholder */}
-                                    <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-dashboard-primary/10 text-sm font-bold text-dashboard-primary">
-                                        {d.name.charAt(0).toUpperCase()}
-                                    </div>
+                                    {d.profile_image_key ? (
+                                        <img
+                                            src={getImageUrl(d.profile_image_key, { width: 72, height: 72, quality: 80, fit: "cover" })}
+                                            alt={d.name}
+                                            className="size-9 shrink-0 rounded-full object-cover ring-1 ring-dashboard-base-300"
+                                        />
+                                    ) : (
+                                        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-dashboard-primary/10 text-sm font-bold text-dashboard-primary">
+                                            {d.name.charAt(0).toUpperCase()}
+                                        </div>
+                                    )}
 
                                     <div className="min-w-0 flex-1">
                                         <div className="flex items-center gap-1.5 flex-wrap">
