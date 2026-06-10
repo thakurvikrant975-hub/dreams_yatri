@@ -51,6 +51,9 @@ export interface FulfillmentItem {
     hotelChanged?: boolean;           // confirmed hotel differs from snapshot
     hotelPriceDiff?: number | null;   // rupees: confirmed room cost − snapshot room cost
     originalHotelName?: string | null; // snapshot hotel name (before the change)
+    roomChanged?: boolean;            // same hotel, but room/plan differs from snapshot (upgrade/downgrade)
+    originalRoomType?: string | null; // snapshot room/plan label (before the change)
+    newRoomType?: string | null;      // confirmed room/plan label (after the change)
 }
 
 export interface ReplacementOfferView {
@@ -174,6 +177,12 @@ export async function getBookingFulfillment(bookingId: string): Promise<BookingF
             const hotelPriceDiff = row != null ? Number(row.totalCost) - snapRoomTotal : null;
             const originalHotelName = hotelChanged ? (d.hotel.hotel_name ?? null) : null;
 
+            // Room/plan upgraded or downgraded at the same hotel (e.g. Deluxe → Suite)
+            const snapRoomLabel = [d.hotel.room_name, d.hotel.plan_name].filter(Boolean).join(" · ") || null;
+            const roomChanged = row != null && !hotelChanged && snapRoomLabel != null && row.roomType !== snapRoomLabel;
+            const originalRoomType = roomChanged ? snapRoomLabel : null;
+            const newRoomType = roomChanged ? row!.roomType : null;
+
             // Build pricing from confirmed BookingHotel row or fall back to snapshot
             let hotelPricing: HotelPricing | null = null;
             if (row) {
@@ -230,6 +239,9 @@ export async function getBookingFulfillment(bookingId: string): Promise<BookingF
                 hotelChanged,
                 hotelPriceDiff,
                 originalHotelName,
+                roomChanged,
+                originalRoomType,
+                newRoomType,
             });
             total++; count(status);
         }

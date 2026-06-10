@@ -38,7 +38,7 @@ function StatusChip({ status }: { status: FulfillmentState }) {
 }
 
 
-function ItemRow({ item }: { item: FulfillmentItem }) {
+function ItemRow({ item, payExtraHref }: { item: FulfillmentItem; payExtraHref: string | null }) {
     const KindI = KIND_ICON[item.kind];
     const confirmed = item.status === 'CONFIRMED' || item.status === 'REPLACED';
     return (
@@ -79,6 +79,52 @@ function ItemRow({ item }: { item: FulfillmentItem }) {
                                     ? 'Your package price has been adjusted upward for this change.'
                                     : 'Your package price has been adjusted downward for this change.'}
                             </div>
+                        )}
+                        <div className="mt-1.5 pt-1.5 border-t border-warning-200/70 text-warning-600">
+                            Note: Hotel changed due to Unavailability
+                        </div>
+                        {item.hotelPriceDiff != null && item.hotelPriceDiff > 0 && payExtraHref && (
+                            <Link
+                                href={payExtraHref}
+                                className="mt-2 inline-flex items-center gap-1 rounded-md bg-error-600 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-error-700 transition-colors"
+                            >
+                                Pay ₹{Math.round(item.hotelPriceDiff).toLocaleString('en-IN')} extra now
+                            </Link>
+                        )}
+                    </div>
+                )}
+
+                {/* Room upgraded/downgraded notice (same hotel, different room/plan) */}
+                {!item.hotelChanged && item.roomChanged && (
+                    <div className="mt-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-xs">
+                        <div className="flex items-center gap-1.5 font-semibold text-warning-700">
+                            <span>{item.hotelPriceDiff != null && item.hotelPriceDiff > 0 ? '⬆' : item.hotelPriceDiff != null && item.hotelPriceDiff < 0 ? '⬇' : '🔄'}</span>
+                            <span>
+                                {item.hotelPriceDiff != null && item.hotelPriceDiff > 0 ? 'Room upgraded'
+                                    : item.hotelPriceDiff != null && item.hotelPriceDiff < 0 ? 'Room downgraded'
+                                    : 'Room changed'}
+                            </span>
+                            {item.hotelPriceDiff != null && item.hotelPriceDiff !== 0 && (
+                                <span className={`ml-1 font-bold ${item.hotelPriceDiff > 0 ? 'text-error-600' : 'text-success-600'}`}>
+                                    · {item.hotelPriceDiff > 0 ? '+' : '−'}₹{Math.abs(Math.round(item.hotelPriceDiff)).toLocaleString('en-IN')}
+                                </span>
+                            )}
+                        </div>
+                        {item.originalRoomType && item.newRoomType && (
+                            <div className="mt-1 flex items-center gap-1.5 flex-wrap text-warning-600">
+                                <span className="text-warning-400">From:</span>
+                                <span className="line-through opacity-70">{item.originalRoomType}</span>
+                                <span className="text-warning-400">→</span>
+                                <span className="font-medium text-warning-800">{item.newRoomType}</span>
+                            </div>
+                        )}
+                        {item.hotelPriceDiff != null && item.hotelPriceDiff > 0 && payExtraHref && (
+                            <Link
+                                href={payExtraHref}
+                                className="mt-2 inline-flex items-center gap-1 rounded-md bg-error-600 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-error-700 transition-colors"
+                            >
+                                Pay ₹{Math.round(item.hotelPriceDiff).toLocaleString('en-IN')} extra now
+                            </Link>
                         )}
                     </div>
                 )}
@@ -180,9 +226,9 @@ function paymentLabelColor(pct: number): string {
 }
 
 function PaymentCard({ payment, payHref }: { payment: PaymentSummary; payHref: string }) {
-    const fullyPaid = payment.status === 'FULLY_PAID';
     const hasPaid = payment.paidPaise > 0;
     const hasBalance = payment.balancePaise > 0;
+    const fullyPaid = payment.status === 'FULLY_PAID' && !hasBalance;
     const pct = payment.totalPaise > 0 ? Math.min(100, Math.round((payment.paidPaise / payment.totalPaise) * 100)) : 0;
 
     return (
@@ -265,6 +311,7 @@ export default function StatusView({
 }) {
     const { overall, summary } = fulfillment;
     const pct = summary.total > 0 ? Math.round((summary.confirmed / summary.total) * 100) : 0;
+    const payExtraHref = payment.status !== 'PENDING' && payment.balancePaise > 0 ? payHref : null;
 
     const headline =
         overall === 'AWAITING_PAYMENT' ? 'Complete your payment to start arrangements'
@@ -336,7 +383,7 @@ export default function StatusView({
                                     <Text size="sm" weight="medium" intent="primary" className="truncate">{d.title}</Text>
                                 </div>
                                 <div className="divide-y divide-(--border-muted)">
-                                    {d.items.map((it) => <ItemRow key={it.key} item={it} />)}
+                                    {d.items.map((it) => <ItemRow key={it.key} item={it} payExtraHref={payExtraHref} />)}
                                 </div>
                             </Card>
                         )

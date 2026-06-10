@@ -92,6 +92,7 @@ export async function finalizeCapturedPayment(
             data: {
                 paidAmount: rupees(newPaidPaise),
                 balanceDueAmount: rupees(balancePaise),
+                balanceAmount_paise: balancePaise,
                 paymentStatus: newPaidPaise >= booking.totalAmount_paise ? "FULLY_PAID" : "ADVANCE_PAID",
             },
         });

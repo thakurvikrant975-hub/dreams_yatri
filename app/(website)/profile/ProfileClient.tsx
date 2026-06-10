@@ -5,7 +5,6 @@
 import { useCallback, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/app/lib/utils'
-
 import { Heading } from '@/app/components/ui/Typography'
 import { signOut } from "next-auth/react"
 import {
@@ -16,11 +15,7 @@ import {
   CalendarIcon
 } from '@heroicons/react/24/outline'
 
-import {
-  MapPinIcon,
-  StarIcon,
-  GlobeAltIcon,
-} from '@heroicons/react/24/solid'
+import {MapPinIcon,StarIcon,GlobeAltIcon} from '@heroicons/react/24/solid'
 
 import { SuitcaseRollingIcon } from '@phosphor-icons/react'
 
@@ -78,7 +73,7 @@ export default function Profile({ user, initialTab }: { user: any; initialTab?: 
   return (
     <div data-layout="website" className="min-h-screen">
 
-      {/* ── Hero Header ───────────────────────────────────────────────────── */}
+      {/* ── Hero Header ──────────────────────────────────────────── */}
       <Card>
         {/* Decorative blobs */}
         <div className="absolute -top-20 -right-20 size-72 rounded-full bg-primary-500/10 blur-3xl pointer-events-none" />
