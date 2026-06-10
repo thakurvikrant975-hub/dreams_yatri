@@ -57,47 +57,72 @@ export default async function BookingPaymentPage({ params }: { params: Promise<{
             content = <StatusScreen heading="Booking not found" body="This booking doesn't exist or isn't associated with your account." />;
         } else if (booking.status === 'CANCELLED') {
             content = <StatusScreen heading="Booking cancelled" body="This booking has been cancelled and can no longer be paid." />;
-        } else if (booking.paymentStatus !== 'PENDING') {
-            // Already paid/settled → straight to the confirmation page.
-            redirect(`/bookings/${booking.id}`);
         } else {
-            // The latest initial-leg attempt: gives us the amount due and whether the
-            // last try failed (so we can show a "try again" hint). A failed attempt
-            // still leaves the booking payable — startBookingPayment opens a fresh leg.
-            const lastInit = await db.payment.findFirst({
-                where: { bookingId: booking.id, purpose: 'INITIAL' },
-                orderBy: { createdAt: 'desc' },
-                select: { status: true, amount_paise: true },
-            });
-            const payNowPaise = lastInit?.amount_paise ?? booking.advanceAmount_paise;
-            const retry = lastInit?.status === 'FAILED';
-
             const R2 = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? '';
             const thumb = booking.package?.thumbnail
                 ? (booking.package.thumbnail.startsWith('http') ? booking.package.thumbnail : `${R2}/${booking.package.thumbnail}`)
                 : null;
 
-            const isFull = booking.paymentPlan === 'FULL';
+            if (booking.paymentStatus !== 'PENDING') {
+                // Already settled the initial leg — only payable now if a hotel/room
+                // change left an outstanding balance (pay-the-extra flow).
+                if (booking.balanceAmount_paise > 0) {
+                    content = (
+                        <PaymentStep
+                            bookingId={booking.id}
+                            bookingNumber={booking.bookingNumber}
+                            packageTitle={booking.package?.title ?? 'Your package'}
+                            thumbnail={thumb}
+                            dateRange={`${formatDate(booking.startDate)} – ${formatDate(booking.endDate)}`}
+                            travellers={booking.travellers}
+                            contactEmail={booking.contactEmail}
+                            contactPhone={booking.contactPhone}
+                            plan={booking.paymentPlan === 'FULL' ? 'FULL' : 'DEPOSIT'}
+                            mode="BALANCE"
+                            payNowPaise={booking.balanceAmount_paise}
+                            totalPaise={booking.totalAmount_paise}
+                            balancePaise={0}
+                            balanceDueDate={null}
+                            gateways={enabledGateways()}
+                        />
+                    );
+                } else {
+                    // Fully settled → straight to the confirmation page.
+                    redirect(`/bookings/${booking.id}`);
+                }
+            } else {
+                // The latest initial-leg attempt: gives us the amount due and whether the
+                // last try failed (so we can show a "try again" hint). A failed attempt
+                // still leaves the booking payable — startBookingPayment opens a fresh leg.
+                const lastInit = await db.payment.findFirst({
+                    where: { bookingId: booking.id, purpose: 'INITIAL' },
+                    orderBy: { createdAt: 'desc' },
+                    select: { status: true, amount_paise: true },
+                });
+                const payNowPaise = lastInit?.amount_paise ?? booking.advanceAmount_paise;
+                const retry = lastInit?.status === 'FAILED';
+                const isFull = booking.paymentPlan === 'FULL';
 
-            content = (
-                <PaymentStep
-                    bookingId={booking.id}
-                    bookingNumber={booking.bookingNumber}
-                    packageTitle={booking.package?.title ?? 'Your package'}
-                    thumbnail={thumb}
-                    dateRange={`${formatDate(booking.startDate)} – ${formatDate(booking.endDate)}`}
-                    travellers={booking.travellers}
-                    contactEmail={booking.contactEmail}
-                    contactPhone={booking.contactPhone}
-                    plan={isFull ? 'FULL' : 'DEPOSIT'}
-                    payNowPaise={payNowPaise}
-                    totalPaise={booking.totalAmount_paise}
-                    balancePaise={isFull ? 0 : booking.balanceAmount_paise}
-                    balanceDueDate={isFull ? null : formatDate(booking.balanceDueDate)}
-                    gateways={enabledGateways()}
-                    retry={retry}
-                />
-            );
+                content = (
+                    <PaymentStep
+                        bookingId={booking.id}
+                        bookingNumber={booking.bookingNumber}
+                        packageTitle={booking.package?.title ?? 'Your package'}
+                        thumbnail={thumb}
+                        dateRange={`${formatDate(booking.startDate)} – ${formatDate(booking.endDate)}`}
+                        travellers={booking.travellers}
+                        contactEmail={booking.contactEmail}
+                        contactPhone={booking.contactPhone}
+                        plan={isFull ? 'FULL' : 'DEPOSIT'}
+                        payNowPaise={payNowPaise}
+                        totalPaise={booking.totalAmount_paise}
+                        balancePaise={isFull ? 0 : booking.balanceAmount_paise}
+                        balanceDueDate={isFull ? null : formatDate(booking.balanceDueDate)}
+                        gateways={enabledGateways()}
+                        retry={retry}
+                    />
+                );
+            }
         }
     }
 

@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { ArrowLeftIcon, ShieldCheckIcon, LockSimpleIcon } from '@phosphor-icons/react';
 import { loadRazorpay, openRazorpay } from '../../../book/[quoteId]/razorpayCheckout';
 import { submitPayuForm } from '../../../book/[quoteId]/payuCheckout';
-import { startBookingPayment, verifyCheckoutPayment } from '@/app/actions/payment/booking.actions';
+import { startBookingPayment, startBalancePayment, verifyCheckoutPayment } from '@/app/actions/payment/booking.actions';
 import Button from '@/app/components/ui/Button';
 import { Heading, Text } from '@/app/components/ui/Typography';
 import { formatPaise } from '@/app/lib/money';
@@ -45,6 +45,7 @@ export default function PaymentStep({
     balanceDueDate,
     gateways,
     retry = false,
+    mode = 'INITIAL',
 }: {
     bookingId: string;
     bookingNumber: string;
@@ -61,6 +62,7 @@ export default function PaymentStep({
     balanceDueDate: string | null;
     gateways: GatewayId[];
     retry?: boolean;
+    mode?: 'INITIAL' | 'BALANCE';
 }) {
     const router = useRouter();
     const [gateway, setGateway] = useState<GatewayId>(gateways[0] ?? 'RAZORPAY');
@@ -74,7 +76,9 @@ export default function PaymentStep({
         setError(null);
         setPaying(true);
         try {
-            const res = await startBookingPayment(bookingId, gateway);
+            const res = mode === 'BALANCE'
+                ? await startBalancePayment(bookingId, gateway)
+                : await startBookingPayment(bookingId, gateway);
             if (!res.success) {
                 setPaying(false);
                 setError(
@@ -104,7 +108,7 @@ export default function PaymentStep({
                 amount: co.amountPaise,
                 currency: co.currency,
                 name: 'Dreams Yatri',
-                description: `${packageTitle} — ${plan === 'DEPOSIT' ? 'Deposit' : 'Full payment'}`,
+                description: `${packageTitle} — ${mode === 'BALANCE' ? 'Balance payment' : plan === 'DEPOSIT' ? 'Deposit' : 'Full payment'}`,
                 prefill: { email: contactEmail ?? undefined, contact: contactPhone ?? undefined },
                 notes: { bookingId },
                 theme: { color: '#0f766e' },
@@ -121,7 +125,7 @@ export default function PaymentStep({
                     } catch (err) {
                         console.error('[PaymentStep] verify failed', err);
                     }
-                    router.push(`/bookings/${bookingId}`);
+                    router.push(mode === 'BALANCE' ? `/bookings/${bookingId}/status` : `/bookings/${bookingId}`);
                 },
                 modal: { ondismiss: () => setPaying(false) },
             });
@@ -142,9 +146,9 @@ export default function PaymentStep({
                     </span>
                     <div className="flex items-center gap-5">
                         <button type="button" onClick={() => router.back()} className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-400 hover:text-white transition-colors">
-                            <ArrowLeftIcon weight="bold" className="size-3.5" /> Edit details
+                            <ArrowLeftIcon weight="bold" className="size-3.5" /> {mode === 'BALANCE' ? 'Back' : 'Edit details'}
                         </button>
-                        <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Step 2 of 2 · Payment</span>
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">{mode === 'BALANCE' ? 'Balance payment' : 'Step 2 of 2 · Payment'}</span>
                     </div>
                 </div>
             </div>
@@ -237,7 +241,7 @@ export default function PaymentStep({
                                     <Text size="sm" weight="medium" intent="primary">{formatPaise(totalPaise)}</Text>
                                 </div>
                                 <div className="flex items-center justify-between mt-2">
-                                    <Text size="sm" intent="secondary">{plan === 'FULL' ? 'Paying now (full)' : 'Paying now (deposit)'}</Text>
+                                    <Text size="sm" intent="secondary">{mode === 'BALANCE' ? 'Paying balance' : plan === 'FULL' ? 'Paying now (full)' : 'Paying now (deposit)'}</Text>
                                     <Text size="sm" weight="semibold" intent="primary">{formatPaise(payNowPaise)}</Text>
                                 </div>
                                 {plan === 'DEPOSIT' && balancePaise > 0 && (
