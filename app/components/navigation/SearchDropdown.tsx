@@ -258,6 +258,7 @@ export function SearchDropdown({ isSolid = true, autoFocus = false, onClose, cla
                   <Link
                     key={p.id}
                     href={`/packages/${p.slug}`}
+                    scroll={false}
                     onClick={closeDropdown}
                     className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-neutral-50 transition-colors group"
                   >

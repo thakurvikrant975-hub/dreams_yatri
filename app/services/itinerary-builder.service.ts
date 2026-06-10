@@ -547,6 +547,11 @@ export async function deleteItineraryNote(id: number) {
 
 // ── Stays ──────────────────────────────────────────────────────────────────
 
+/** "BREAKFAST" | "Morning Snacks" → "breakfast" | "morning_snacks" */
+function normalizeMealKey(s: string): string {
+  return s.trim().toLowerCase().replace(/\s+/g, "_");
+}
+
 export async function upsertItineraryStay(
   itineraryId: number,
   stayCategoryId: number,
@@ -564,8 +569,15 @@ export async function upsertItineraryStay(
       data: { room_pricing_id: roomPricingId, sort_order: sortOrder, num_nights: numNights },
     });
   }
+  // Seed active_meals from the room plan's covered meals so the meals editor
+  // opens already reflecting what the rate bundles (admin only adjusts exceptions).
+  const rp = await db.hotel_room_pricing.findUnique({
+    where: { id: roomPricingId },
+    select: { meal_type: { select: { covered_meals: true } } },
+  });
+  const seededMeals = (rp?.meal_type?.covered_meals ?? []).map(normalizeMealKey);
   return db.itinerary_stays.create({
-    data: { itinerary_id: itineraryId, stay_category_id: stayCategoryId, room_pricing_id: roomPricingId, sort_order: sortOrder, num_nights: numNights },
+    data: { itinerary_id: itineraryId, stay_category_id: stayCategoryId, room_pricing_id: roomPricingId, sort_order: sortOrder, num_nights: numNights, active_meals: seededMeals },
   });
 }
 

@@ -51,11 +51,17 @@ export type HotelDay = {
   check_in_time: string | null;
   check_out_time: string | null;
   address: string | null;
+  /** "City, State" derived from the hotel's stored location (falls back to address) */
+  location: string | null;
   plan_name: string | null;
   meal_type: string | null;
   active_meals: string[];
   room_name: string | null;
   room_capacity: number | null;
+  room_bed_type: string | null;
+  room_area_sqft: number | null;
+  room_view: string | null;
+  room_extra_beds: number;
   price_per_night: number;
   original_price: number | null;
   images: { url: string | null; thumbnail: string | null; alt: string | null }[];
@@ -71,6 +77,7 @@ export type ActivityDay = {
   difficulty: string | null;
   category: string | null;
   is_optional: boolean;
+  included_meals: string[];
   pricing_type: string;
   pricingTiers: { label: string; price: number }[];
   images: { url: string; thumbnail: string | null; alt: string | null; label: string | null }[];
@@ -109,6 +116,8 @@ export type ItineraryDayData = {
   transfers: TransferDay[];
   attractions: AttractionDayItem[];
   notes: { message: string; type: string; position: string }[];
+  meals: string[];          // manually-added meal keys
+  excluded_meals: string[]; // activity-provided meals turned off
 };
 
 // ── Cab type types ──────────────────────────────────────────────────────────
@@ -363,6 +372,8 @@ export async function fetchPackagePageData(
         day: true,
         title: true,
         description: true,
+        meals: true,
+        excluded_meals: true,
         itineraryStays: {
           where: { stay_category_id: selectedStay.id },
           take: 1,
@@ -385,6 +396,14 @@ export async function fetchPackagePageData(
                     check_in_time: true,
                     check_out_time: true,
                     address: true,
+                    location: {
+                      select: {
+                        name: true,
+                        type: true,
+                        city:  { select: { name: true } },
+                        state: { select: { name: true } },
+                      },
+                    },
                     images: {
                       where: { category: { room_pricing_id: null } },
                       orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
@@ -397,6 +416,10 @@ export async function fetchPackagePageData(
                   select: {
                     name: true,
                     max_occupancy: true,
+                    area_sqft: true,
+                    bed_type: true,
+                    view_type: true,
+                    extra_bed_capacity: true,
                     images: {
                       orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
                       take: 2,
@@ -421,6 +444,7 @@ export async function fetchPackagePageData(
                 description: true,
                 duration_hours: true,
                 difficulty: true,
+                included_meals: true,
                 category: { select: { name: true } },
                 images: {
                   orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
@@ -621,11 +645,24 @@ export async function fetchPackagePageData(
           check_in_time: rp.hotel.check_in_time,
           check_out_time: rp.hotel.check_out_time,
           address: rp.hotel.address,
+          location: (() => {
+            // Resolve "City, State" from the hotel's linked Location (set via the
+            // location search-select). The location may itself be a CITY/STATE, or
+            // carry city/state relations; fall back to its own name, then address.
+            const loc = rp.hotel.location;
+            const city  = loc?.city?.name  ?? (loc?.type === "CITY"  ? loc.name : null);
+            const state = loc?.state?.name ?? (loc?.type === "STATE" ? loc.name : null);
+            return [city, state].filter(Boolean).join(", ") || loc?.name || rp.hotel.address || null;
+          })(),
           plan_name: rp.plan_name,
           meal_type: rp.meal_type?.name ?? null,
           active_meals: stay?.active_meals ?? [],
           room_name: rp.room?.name ?? null,
           room_capacity: rp.room?.max_occupancy ?? null,
+          room_bed_type: rp.room?.bed_type ?? null,
+          room_area_sqft: rp.room?.area_sqft ?? null,
+          room_view: rp.room?.view_type ?? null,
+          room_extra_beds: rp.room?.extra_bed_capacity ?? 0,
           price_per_night: Number(rp.price_per_night),
           original_price: rp.original_price ? Number(rp.original_price) : null,
           images: rp.hotel.images,
@@ -644,6 +681,7 @@ export async function fetchPackagePageData(
       difficulty: ia.activity.difficulty,
       category: ia.activity.category?.name ?? null,
       is_optional: ia.is_optional,
+      included_meals: ia.activity.included_meals ?? [],
       pricing_type: ia.variant?.pricing_type ?? fallbackPricingMap.get(ia.activity.id)?.pricing_type ?? "PER_PERSON",
       pricingTiers: (() => {
         // Prefer variant's default pricing; fall back to first active season's pricing; then global fallback
@@ -682,6 +720,8 @@ export async function fetchPackagePageData(
       transfers,
       attractions: day.itinerary_attractions,
       notes: day.itinerary_notes,
+      meals: day.meals,
+      excluded_meals: day.excluded_meals,
       _numNights: stay?.num_nights ?? 1,
     };
   });

@@ -20,7 +20,6 @@ import { toast }  from "sonner";
 import { cn }     from "@/app/lib/utils";
 import { LocationSearchSelect } from "../../../components/location/LocationSearchSelect";
 import type { LocationValue } from "../../../components/location/location.types";
-import { ACTIVITY_TYPES }    from "../../../components/location/location.types";
 import { updateActivity } from "../../actions";
 
 // ── Constants ─────────────────────────────────────────────────────────────
@@ -331,11 +330,13 @@ export function OverviewTab({
                     Toggle the meals that are included as part of this activity (e.g. lunch during a village walk).
                     These will appear as "Included in &lt;Activity Name&gt;" in the package itinerary.
                 </p>
-                <div className="flex gap-3">
+                <div className="flex gap-3 flex-wrap">
                     {[
-                        { key: "breakfast", label: "Breakfast", Icon: Coffee,  activeClass: "bg-orange-100 border-orange-400 text-orange-600", inactiveClass: "bg-orange-50 border-orange-200 text-orange-400" },
-                        { key: "lunch",     label: "Lunch",     Icon: Sun,     activeClass: "bg-yellow-100 border-yellow-400 text-yellow-600", inactiveClass: "bg-yellow-50 border-yellow-200 text-yellow-400" },
-                        { key: "dinner",    label: "Dinner",    Icon: Moon,    activeClass: "bg-indigo-100 border-indigo-400 text-indigo-600", inactiveClass: "bg-indigo-50 border-indigo-200 text-indigo-400" },
+                        { key: "breakfast",      label: "Breakfast",      Icon: Coffee,    activeClass: "bg-orange-100 border-orange-400 text-orange-600", inactiveClass: "bg-orange-50 border-orange-200 text-orange-400" },
+                        { key: "morning_snacks", label: "Morning Snacks", Icon: Coffee,    activeClass: "bg-amber-100 border-amber-400 text-amber-600",    inactiveClass: "bg-amber-50 border-amber-200 text-amber-400"    },
+                        { key: "lunch",          label: "Lunch",          Icon: Sun,       activeClass: "bg-yellow-100 border-yellow-400 text-yellow-600", inactiveClass: "bg-yellow-50 border-yellow-200 text-yellow-400" },
+                        { key: "evening_snacks", label: "Evening Snacks", Icon: Utensils,  activeClass: "bg-violet-100 border-violet-400 text-violet-600", inactiveClass: "bg-violet-50 border-violet-200 text-violet-400" },
+                        { key: "dinner",         label: "Dinner",         Icon: Moon,      activeClass: "bg-indigo-100 border-indigo-400 text-indigo-600", inactiveClass: "bg-indigo-50 border-indigo-200 text-indigo-400" },
                     ].map(({ key, label, Icon, activeClass, inactiveClass }) => {
                         const active = includedMeals.includes(key);
                         return (
@@ -369,8 +370,9 @@ export function OverviewTab({
                     <LocationSearchSelect
                         value={location}
                         onChange={handleLocationChange}
-                        placeholder="Search activity location…"
-                        types={ACTIVITY_TYPES}
+                        placeholder="Search sightseeing location…"
+                        types={["ACTIVITY"]}
+                        lockedType="ACTIVITY"
                     />
                 </div>
 

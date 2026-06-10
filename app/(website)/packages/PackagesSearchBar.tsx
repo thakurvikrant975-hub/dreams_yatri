@@ -83,11 +83,11 @@ export default function PackagesSearchBar({
                     </div>
 
                     <div className="flex flex-col gap-1">
-                        <span className="hidden lg:block text-[10px] leading-[14px]">&nbsp;</span>
+                        <span className="hidden lg:block text-[10px] leading-3.5">&nbsp;</span>
                         <Button
                             variant="premium"
                             onClick={search}
-                            className="h-[42px] w-full lg:w-auto rounded-lg px-7 font-bold flex items-center justify-center gap-2"
+                            className="h-10.5 w-full lg:w-auto rounded-lg px-7 font-bold flex items-center justify-center gap-2"
                         >
                             <MagnifyingGlassIcon weight="bold" className="size-4" />
                             Search

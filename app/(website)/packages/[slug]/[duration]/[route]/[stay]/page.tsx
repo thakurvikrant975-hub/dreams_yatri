@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { fetchPackagePageData, getActivePackageParams } from "@/app/actions/packages/fetch-page-data";
 import PackageHero from "./components/hero";
 import PackageTab from "./components/PackageTab";
+import PackageScrollReset from "./components/PackageScrollReset";
 import TripDuration from "./components/inputs/TripDuration";
 import StayCategory from "./components/inputs/StayCategory";
 import PricingCard from "./components/SidebarCards/PricingCard";
@@ -28,6 +29,48 @@ function formatTime12(t: string | null | undefined): string {
     const hour12 = h % 12 || 12;
     return `${hour12}:${String(m).padStart(2, '0')} ${ampm}`;
 }
+
+/**
+ * Expands a hotel meal-plan code / descriptive name into individual meal names.
+ * Detects the meal keywords present in the string (so a descriptive name like
+ * "AP (Breakfast, Dinner)" or "CP (Breakfast Only)" resolves correctly) and
+ * only falls back to plan codes (AP/MAP/CP/EP) when no keyword is found.
+ * NOTE: never naively comma-splits — that mangled names like "AP (breakfast, Dinner)".
+ */
+function expandMealPlan(mealType: string | null | undefined, planName: string | null | undefined): string[] {
+    const raw = mealType ?? planName ?? '';
+    const s = raw.toLowerCase();
+    if (!s.trim()) return [];
+
+    // 1) Explicit meal mentions (returned in canonical time order)
+    const found: string[] = [];
+    if (s.includes('breakfast')) found.push('Breakfast');
+    if (/morning[\s_-]*snack/.test(s)) found.push('Morning Snacks');
+    if (s.includes('lunch')) found.push('Lunch');
+    if (/evening[\s_-]*snack/.test(s)) found.push('Evening Snacks');
+    if (s.includes('dinner')) found.push('Dinner');
+    if (found.length) return found;
+
+    // 2) Bare plan codes
+    const code = s.trim();
+    if (code === 'ap' || code === 'full board') return ['Breakfast', 'Lunch', 'Dinner'];
+    if (code === 'map' || code === 'half board') return ['Breakfast', 'Dinner'];
+    if (code === 'cp' || code === 'bb') return ['Breakfast'];
+    if (code === 'ep' || code === 'room only') return [];
+    return [];
+}
+
+/** "BREAKFAST" | "Morning Snacks" → "breakfast" | "morning_snacks" */
+function mealKey(s: string): string {
+    return s.trim().toLowerCase().replace(/\s+/g, "_");
+}
+
+/** "morning_snacks" → "Morning Snacks" */
+function mealLabel(key: string): string {
+    return key.split(/[_\s]+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+}
+
+const MEAL_ORDER = ["breakfast", "morning_snacks", "lunch", "evening_snacks", "dinner"];
 
 export async function generateStaticParams() {
     return getActivePackageParams();
@@ -290,7 +333,7 @@ export default async function PackagePage({
         hotelRunStart.set(d.day, nights);
     }
 
-    const itinerary: ItineraryDay[] = pageData.itinerary.map(d => {
+    const itinerary: ItineraryDay[] = pageData.itinerary.map((d, dayIdx) => {
         type SortableSection = DaySection & { _sort: number };
 
         // Default cab type for this day (from PricingTab cab options)
@@ -316,14 +359,20 @@ export default async function PackagePage({
             _sort: d.hotel.sort_order,
             type: "stay" as const,
             nights: runNights,
+            dayNumber: d.day,
             hotelName: d.hotel.name,
             stayType: d.hotel.stay_type ?? null,
             checkIn: formatTime12(d.hotel.check_in_time),
             checkOut: formatTime12(d.hotel.check_out_time),
             address: d.hotel.address,
+            location: d.hotel.location,
             inclusions: [],
             roomName: d.hotel.room_name,
             roomCapacity: d.hotel.room_capacity,
+            roomBedType: d.hotel.room_bed_type,
+            roomAreaSqft: d.hotel.room_area_sqft,
+            roomView: d.hotel.room_view,
+            roomExtraBeds: d.hotel.room_extra_beds,
             activeMeals: d.hotel.active_meals,
             mealType: d.hotel.meal_type,
             planName: d.hotel.plan_name,
@@ -366,6 +415,56 @@ export default async function PackagePage({
             // eslint-disable-next-line @typescript-eslint/no-unused-vars
             .map(({ _sort, ...s }) => s as DaySection);
 
+        // ── Meals — one resolved source per slot, matching the day builder:
+        //    breakfast is served by the PREVIOUS night's hotel; lunch/dinner/
+        //    snacks by tonight's hotel; activities fill remaining slots (unless
+        //    excluded); manual meals last. First source wins (hotel > activity
+        //    > manual) so a slot is never shown twice. ──
+        const chosen = new Map<string, string | null>(); // slot key → source name (null = manual)
+
+        // Breakfast from the previous night's hotel
+        const prevHotel = pageData.itinerary[dayIdx - 1]?.hotel ?? null;
+        if (prevHotel) {
+            const pm = prevHotel.active_meals.length > 0
+                ? prevHotel.active_meals
+                : expandMealPlan(prevHotel.meal_type, prevHotel.plan_name);
+            if (pm.some((m) => mealKey(m) === "breakfast")) chosen.set("breakfast", prevHotel.name);
+        }
+        // Non-breakfast meals from tonight's hotel
+        if (d.hotel) {
+            const hm = d.hotel.active_meals.length > 0
+                ? d.hotel.active_meals
+                : expandMealPlan(d.hotel.meal_type, d.hotel.plan_name);
+            for (const m of hm) {
+                const k = mealKey(m);
+                if (k === "breakfast") continue;
+                if (!chosen.has(k)) chosen.set(k, d.hotel.name);
+            }
+        }
+        // Activity-provided meals (respect excluded_meals); hotel wins ties
+        const excluded = new Set((d.excluded_meals ?? []).map(mealKey));
+        for (const a of d.activities) {
+            for (const m of (a.included_meals ?? [])) {
+                const k = mealKey(m);
+                if (excluded.has(k) || chosen.has(k)) continue;
+                chosen.set(k, a.name);
+            }
+        }
+        // Manually-added meals last
+        for (const m of (d.meals ?? [])) {
+            const k = mealKey(m);
+            if (!chosen.has(k)) chosen.set(k, null);
+        }
+
+        if (chosen.size > 0) {
+            const ordered = [...chosen.keys()].sort((a, b) => {
+                const ia = MEAL_ORDER.indexOf(a), ib = MEAL_ORDER.indexOf(b);
+                return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+            });
+            const mealItems = ordered.map((k) => ({ name: mealLabel(k), source: chosen.get(k) ?? null }));
+            sections.push({ type: "meal", items: mealItems } as DaySection);
+        }
+
         const attractions = d.attractions.map(a => ({
             imageUrl: imgUrl(a.image_key),
             caption: a.caption,
@@ -393,6 +492,7 @@ export default async function PackagePage({
                 initialLeavingFrom={initialLeavingFrom}
                 cabTypes={pageData.cabTypes}
             >
+                <PackageScrollReset slug={slug} />
                 <TravelerInputBar />
 
                 <div className="screen-space pt-6 pb-10">

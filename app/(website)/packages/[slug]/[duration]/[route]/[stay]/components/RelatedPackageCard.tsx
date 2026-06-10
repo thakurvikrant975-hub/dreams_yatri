@@ -7,5 +7,5 @@ type Props = Omit<PackageCardProps, 'onClick'> & { href: string }
 
 export default function RelatedPackageCard({ href, ...props }: Props) {
     const router = useRouter()
-    return <PackageCard {...props} onClick={() => router.push(href)} />
+    return <PackageCard {...props} onClick={() => router.push(href, { scroll: false })} />
 }

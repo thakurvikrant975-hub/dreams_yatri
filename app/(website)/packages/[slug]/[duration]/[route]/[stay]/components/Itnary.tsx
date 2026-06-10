@@ -1,18 +1,16 @@
 // ItinerarySection.tsx
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { useBooking } from './PackageBookingProvider';
 import ImageLightbox from './ImageLightbox';
 import { Dialog, VisuallyHidden } from 'radix-ui';
 import { cn } from '@/app/lib/utils';
 import Accordion from '@/app/components/ui/Accordian';
-import { Heading, Text } from '@/app/components/ui/Typography';
+import { Text } from '@/app/components/ui/Typography';
 import {
   CheckIcon,
-  MoonIcon,
-  ArrowRightEndOnRectangleIcon,
-  ArrowLeftStartOnRectangleIcon,
+  ClockIcon,
   BuildingOffice2Icon,
   CalendarDateRangeIcon,
   XMarkIcon,
@@ -20,7 +18,6 @@ import {
   InformationCircleIcon,
   CheckCircleIcon,
   XCircleIcon,
-  CameraIcon,
   StarIcon,
 } from '@heroicons/react/24/solid';
 import {
@@ -34,20 +31,14 @@ import {
   CoffeeIcon,
   BowlSteamIcon,
   CheersIcon,
-  SealWarningIcon,
   NotePencilIcon,
   RoadHorizonIcon,
-  BusIcon,
-  TrainSimpleIcon,
-  BankIcon,
-  WavesIcon,
-  TreeIcon,
-  BinocularsIcon,
-  BuildingsIcon,
 } from '@phosphor-icons/react';
 import { CheckInIcon, CheckOutIcon } from '@/app/components/icons/cusomIcon';
 import Image from 'next/image';
 import { Carousel } from '@/app/components/ui/Carousel';
+import { CheckCheck, CircleX } from 'lucide-react';
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -86,15 +77,21 @@ interface CabSection {
 interface StaySection {
   type: 'stay';
   nights: number;
+  dayNumber: number;
   hotelName: string;
   stayType: string | null;
   checkIn: string;
   checkOut: string;
   address: string | null;
+  location: string | null;
   inclusions: { label: string; status: InclusionStatus }[];
   images: string[];
   roomName: string | null;
   roomCapacity: number | null;
+  roomBedType: string | null;
+  roomAreaSqft: number | null;
+  roomView: string | null;
+  roomExtraBeds: number;
   activeMeals: string[];
   mealType: string | null;
   planName: string | null;
@@ -111,8 +108,9 @@ interface ActivitySection {
   images: { src: string; label: string }[];
 }
 interface FoodSection { type: 'food'; meals: { meal: MealType; restaurant: string; items: string }[] }
+interface MealSection { type: 'meal'; items: { name: string; source: string | null }[] }
 
-export type DaySection = FlightSection | CabSection | StaySection | ActivitySection | FoodSection;
+export type DaySection = FlightSection | CabSection | StaySection | ActivitySection | FoodSection | MealSection;
 
 export interface ItineraryNote {
   message: string;
@@ -139,6 +137,7 @@ export const TABS = [
   { id: 'Plan', label: 'Plan', icon: CalendarDateRangeIcon },
   { id: 'Transfer', label: 'Transfer', icon: CarIcon },
   { id: 'Hotels', label: 'Hotels', icon: BuildingOffice2Icon },
+  { id: 'Meals', label: 'Meals', icon: ForkKnifeIcon },
   { id: 'Activity', label: 'Activity', icon: ParachuteIcon },
 ] as const;
 
@@ -147,6 +146,7 @@ type Tab = typeof TABS[number]['id'];
 const TAB_SECTION_TYPE: Partial<Record<Tab, DaySection['type']>> = {
   Transfer: 'cab',
   Hotels: 'stay',
+  Meals: 'meal',
   Activity: 'activity',
 };
 
@@ -221,44 +221,17 @@ function NoteBlock({
   );
 }
 
-// ─── Location icon inference (uses DB LocationType enum) ─────────────────────
-// Returns null for generic/administrative types — no extra icon shown for those.
-
-function getLocationIcon(locationType: string | null | undefined): React.ElementType | null {
-  switch (locationType) {
-    case 'AIRPORT': return AirplaneTiltIcon;
-    case 'BUS_STATION': return BusIcon;
-    case 'TRAIN_STATION': return TrainSimpleIcon;
-    case 'HOTEL': return BedIcon;
-    case 'BEACH': return WavesIcon;
-    case 'MOUNTAIN': return BinocularsIcon;
-    case 'LANDMARK': return BankIcon;
-    case 'ACTIVITY': return ParachuteIcon;
-    case 'PORT': return WavesIcon;
-    case 'ISLAND': return WavesIcon;
-    case 'TOURISM_ZONE': return TreeIcon;
-    default: return BuildingsIcon; // CITY, AREA, ROUTE_STOP, VILLAGE, etc.
-  }
-}
-
 // ─── Cab Route Display ────────────────────────────────────────────────────────
 
 function CabRoute({
   from,
   to,
   distance_km,
-  fromLocationType,
-  toLocationType,
 }: {
   from: string;
   to: string;
   distance_km?: number | null;
-  fromLocationType?: string | null;
-  toLocationType?: string | null;
 }) {
-  const FromIcon = getLocationIcon(fromLocationType);
-  const ToIcon = getLocationIcon(toLocationType);
-
   return (
 
     <div className="w-full border-l-[0.2em] border-l-(--border-default) flex-1 flex flex-col gap-2 mb-3">
@@ -271,7 +244,6 @@ function CabRoute({
           <div className="flex gap-3 w-full mt-0.5">
             <Text size="sm" intent="primary" className="w-max mb-0.5 font-heading shrink-0">Pickup Point:</Text>
             <div className="flex items-center gap-1.5 ">
-              {FromIcon && <FromIcon weight="duotone" className="size-5 shrink-0" />}
               <Text size="sm" intent="primary" weight="semibold" className="font-heading">{from}</Text>
             </div>
           </div>
@@ -297,7 +269,6 @@ function CabRoute({
           <div className="flex items-center gap-3 w-full">
             <Text size="sm" intent="primary" className="w-max mb-0.5 font-heading shrink-0">Drop Point:</Text>
             <div className="flex items-center gap-1.5 ">
-              {ToIcon && <ToIcon weight="duotone" className="size-5 shrink-0" />}
               <Text size="sm" intent="primary" weight="semibold" className="font-heading">{to}</Text>
             </div>
           </div>
@@ -487,13 +458,13 @@ function CabContent({ section, day }: { section: CabSection; day?: number }) {
     ?? cabGroup?.cabs[0];
 
   const R2 = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? '';
-  const resolvedName     = selectedCab?.label ?? section.vehicle_name;
-  const resolvedType     = selectedCab?.vehicle.type ?? section.vehicle_type;
+  const resolvedName = selectedCab?.label ?? section.vehicle_name;
+  const resolvedType = selectedCab?.vehicle.type ?? section.vehicle_type;
   const resolvedCapacity = selectedCab?.vehicle.passenger_capacity ?? section.vehicle_capacity;
-  const resolvedImage    = selectedCab?.vehicle.image_key
+  const resolvedImage = selectedCab?.vehicle.image_key
     ? (selectedCab.vehicle.image_key.startsWith('http')
-        ? selectedCab.vehicle.image_key
-        : `${R2}/${selectedCab.vehicle.image_key}`)
+      ? selectedCab.vehicle.image_key
+      : `${R2}/${selectedCab.vehicle.image_key}`)
     : section.vehicle_image;
 
   const hasVehicleInfo = resolvedName || resolvedType || resolvedCapacity;
@@ -541,8 +512,6 @@ function CabContent({ section, day }: { section: CabSection; day?: number }) {
               from={section.from.value}
               to={section.to.value}
               distance_km={section.distance_km}
-              fromLocationType={section.from.locationType}
-              toLocationType={section.to.locationType}
             />
 
             {/* Vehicle image */}
@@ -584,34 +553,68 @@ function CabContent({ section, day }: { section: CabSection; day?: number }) {
   );
 }
 
-function MealBadge({ name }: { name: string }) {
-  const lower = name.toLowerCase();
-  const icon =
-    lower.includes('breakfast') ? <CoffeeIcon weight="duotone" className="size-3.5 shrink-0" />
-      : lower.includes('lunch') ? <BowlSteamIcon weight="duotone" className="size-3.5 shrink-0" />
-        : lower.includes('dinner') ? <CheersIcon weight="duotone" className="size-3.5 shrink-0" />
-          : <ForkKnifeIcon weight="duotone" className="size-3.5 shrink-0" />;
-  return (
-    <span className="inline-flex items-center gap-1 bg-success-50 text-success-700 ring-1 ring-inset ring-success-200 rounded-full px-2 py-0.5 text-[11px] font-semibold">
-      {icon}{name}
-    </span>
-  );
-}
-
 function parseMealTypes(mealType: string | null, planName: string | null): string[] {
   const source = mealType ?? planName ?? '';
   if (!source) return [];
   const lower = source.toLowerCase();
-  // Named plan codes → expand to individual meal names
+  // Detect explicit meal mentions first (canonical time order) so descriptive
+  // names like "AP (Breakfast, Dinner)" / "CP (Breakfast Only)" resolve correctly.
+  const found: string[] = [];
+  if (lower.includes('breakfast')) found.push('Breakfast');
+  if (/morning[\s_-]*snack/.test(lower)) found.push('Morning Snacks');
+  if (lower.includes('lunch')) found.push('Lunch');
+  if (/evening[\s_-]*snack/.test(lower)) found.push('Evening Snacks');
+  if (lower.includes('dinner')) found.push('Dinner');
+  if (found.length) return found;
+  // Bare plan codes
   if (lower === 'ap' || lower === 'full board') return ['Breakfast', 'Lunch', 'Dinner'];
   if (lower === 'map' || lower === 'half board') return ['Breakfast', 'Dinner'];
   if (lower === 'cp' || lower === 'bb' || lower === 'bed & breakfast') return ['Breakfast'];
   if (lower === 'ep' || lower === 'room only') return [];
-  // Free-text: split by comma/plus and trim
-  return source.split(/[,+&]/).map(s => s.trim()).filter(Boolean);
+  return [];
 }
 
 /** Parses "N Star" and renders N filled yellow stars (+ grey empties up to 5). */
+function ordinalDay(n: number): string {
+  const v = n % 100;
+  const suffix = v >= 11 && v <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th');
+  return `${n}${suffix}`;
+}
+function formatStayDate(d: Date): string {
+  return `${ordinalDay(d.getDate())} ${d.toLocaleString('en-US', { month: 'short' })}`;
+}
+function addDays(base: Date, days: number): Date {
+  const d = new Date(base);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+/** ["Breakfast"] → "Breakfast"; ["Breakfast","Dinner"] → "Breakfast & Dinner";
+ *  ["Breakfast","Lunch","Dinner"] → "Breakfast, Lunch & Dinner" */
+function formatList(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? '';
+  return `${items.slice(0, -1).join(', ')} & ${items[items.length - 1]}`;
+}
+
+const STANDARD_MEAL_KEYS = ['breakfast', 'lunch', 'dinner'] as const;
+const STANDARD_MEAL_LABELS: Record<string, string> = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner' };
+
+/** Builds a readable summary of included meals (respects parsed plans like MAP). */
+function mealSummaryText(meals: string[]): string {
+  const labels: string[] = [];
+  for (const key of STANDARD_MEAL_KEYS) {
+    if (meals.some(m => m.toLowerCase().includes(key))) labels.push(STANDARD_MEAL_LABELS[key]);
+  }
+  // Snacks / other plan meals not in the standard three
+  for (const m of meals) {
+    const k = m.toLowerCase();
+    if (STANDARD_MEAL_KEYS.some(s => k.includes(s))) continue;
+    const label = m.split(/[_\s]+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    if (label && !labels.includes(label)) labels.push(label);
+  }
+  return labels.length === 0 ? 'Room only · No meals included' : `${formatList(labels)} included`;
+}
+
 function HotelStars({ stayType }: { stayType: string }) {
   const count = parseInt(stayType) || 0;
   if (count < 1 || count > 5) return <span className="text-xs text-muted">{stayType}</span>;
@@ -641,18 +644,44 @@ function StayContent({ section }: { section: StaySection }) {
     label: i === 0 ? section.hotelName : (section.roomName ?? section.hotelName),
   }));
 
-  // All standard meals — shows tick or cross for each
-  const STANDARD_MEALS = [
-    { key: 'breakfast', label: 'Breakfast', icon: CoffeeIcon },
-    { key: 'lunch',     label: 'Lunch',     icon: BowlSteamIcon },
-    { key: 'dinner',    label: 'Dinner',    icon: CheersIcon },
-  ] as const;
   const hasMealInfo = meals.length > 0 || section.planName || section.mealType;
+
+  // ── Occupancy + stay dates (from the traveller's booking context) ──
+  const { adults, childCount, travelDate } = useBooking();
+  const totalPax = adults + childCount;
+  const rooms = section.roomCapacity && section.roomCapacity > 0
+    ? Math.max(1, Math.ceil(totalPax / section.roomCapacity))
+    : 1;
+  const occupancy =
+    `${rooms} Room${rooms !== 1 ? 's' : ''} | ${adults} Adult${adults !== 1 ? 's' : ''}` +
+    (childCount > 0 ? `, ${childCount} Child${childCount !== 1 ? 'ren' : ''}` : '');
+
+  // Dates only — the check-in/out times live in the infographic below.
+  const nightsLabel = `${section.nights} Night${section.nights !== 1 ? 's' : ''}`;
+  let stayDates: string | null = null;
+  if (travelDate) {
+    const start = new Date(`${travelDate}T00:00:00`);
+    const checkInDate = addDays(start, section.dayNumber - 1);
+    const checkOutDate = addDays(checkInDate, section.nights);
+    stayDates = `${formatStayDate(checkInDate)} - ${formatStayDate(checkOutDate)}, ${nightsLabel}`;
+  }
+
+  // ── Room type (from the room pricing variant) ──
+  const roomTitle = [section.roomName, section.planName].filter(Boolean).join(' - ');
+  const roomSpecs = [
+    section.roomAreaSqft ? `${section.roomAreaSqft} sq.ft` : null,
+    section.roomBedType,
+    section.roomView,
+  ].filter(Boolean).join(' | ');
+  const extraBedNote = section.roomExtraBeds > 0
+    ? `${section.roomExtraBeds} Extra bed${section.roomExtraBeds !== 1 ? 's' : ''}/mattress${section.roomExtraBeds !== 1 ? 'es' : ''} will be provided at no extra cost`
+    : null;
+  const hasRoomInfo = !!(roomTitle || roomSpecs || extraBedNote);
 
   return (
     <div className="mt-2 flex">
       <div className="w-10 shrink-0" />
-      <div className="flex-1 flex flex-col gap-3">
+      <div className="flex-1 flex flex-col">
 
         {/* ── Hotel name + stars + address ── */}
         <div>
@@ -662,10 +691,10 @@ function StayContent({ section }: { section: StaySection }) {
             </Text>
             {section.stayType && <HotelStars stayType={section.stayType} />}
           </div>
-          {section.address && (
-            <div className="flex items-start gap-1.5 mt-1">
-              <MapPinIcon weight="duotone" className="size-3.5 text-muted shrink-0 mt-0.5" />
-              <Text size="xs" intent="secondary" className="leading-snug">{section.address}</Text>
+          {section.location && (
+            <div className="flex items-center gap-1.5 mt-1">
+              <MapPinIcon weight="duotone" className="size-3.5 text-muted shrink-0" />
+              <Text size="xs" intent="secondary" className="leading-snug">{section.location}</Text>
             </div>
           )}
         </div>
@@ -674,36 +703,28 @@ function StayContent({ section }: { section: StaySection }) {
           {/* ── Left: details ── */}
           <div className="flex-1 flex flex-col gap-2.5 min-w-0">
 
-            {/* Info chips: nights · room · capacity */}
-            <div className="flex flex-wrap gap-1.5">
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-50 ring-1 ring-inset ring-neutral-200">
-                <StarAndCrescentIcon weight="duotone" className="size-3.5 text-muted" />
-                <Text size="xs" intent="secondary" weight="medium">
-                  {section.nights} night{section.nights !== 1 ? 's' : ''}
-                </Text>
+            {/* Occupancy + stay dates */}
+            <div className="flex flex-col gap-1 mt-1">
+              <div className="flex items-center gap-2">
+                <svg className="size-3.5 shrink-0 text-muted" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+                </svg>
+                <Text size="xs" intent="secondary">{occupancy}</Text>
               </div>
-              {section.roomName && (
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-50 ring-1 ring-inset ring-neutral-200">
-                  <BedIcon weight="duotone" className="size-3.5 text-muted" />
-                  <Text size="xs" intent="secondary" weight="medium">{section.roomName}</Text>
-                </div>
-              )}
-              {section.roomCapacity && (
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-50 ring-1 ring-inset ring-neutral-200">
-                  <svg className="size-3.5 shrink-0 text-muted" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
-                  </svg>
-                  <Text size="xs" intent="secondary" weight="medium">Up to {section.roomCapacity}</Text>
+              {stayDates && (
+                <div className="flex items-center gap-2">
+                  <ClockIcon className="size-3.5 shrink-0 text-muted" />
+                  <Text size="xs" intent="secondary">{stayDates}</Text>
                 </div>
               )}
             </div>
 
             {/* Check-in / Check-out timeline */}
-            <div className="w-full border-l-[0.2em] border-l-(--border-default) flex flex-row items-center gap-3.5">
+            <div className="w-full border-l-[0.2em] border-l-(--border-default) flex flex-row items-center gap-3.5 my-3">
               <div className="relative after:absolute after:w-[0.2em] after:h-full after:max-h-12 after:left-0 after:top-0 after:bg-primary-400 after:-translate-x-[0.2em]">
                 <div className="flex items-center gap-3">
                   <div className="size-9 flex items-center justify-center ml-3 shrink-0">
-                    <span className="text-muted size-7 scale-110"><CheckInIcon /></span>
+                    <span className="text-muted size-7 transform-[scaleX(-1.1)_scaleY(1.1)]"><CheckInIcon /></span>
                   </div>
                   <div className="flex flex-col items-center gap-1 w-full mt-0.5">
                     <Text size="xs" intent="primary" className="w-max font-heading shrink-0">Check In:</Text>
@@ -732,39 +753,36 @@ function StayContent({ section }: { section: StaySection }) {
               </div>
             </div>
 
-            {/* Meal inclusions: tick / cross per meal */}
+            {/* Room type — from the selected room pricing variant */}
+            {hasRoomInfo && (
+              <div className="flex flex-col gap-1 pt-2.5 border-t border-(--border-muted)">
+                {roomTitle && (
+                  <Text size="sm" weight="semibold" className="text-primary font-heading leading-snug">
+                    {roomTitle}
+                  </Text>
+                )}
+                {roomSpecs && (
+                  <Text size="xs" intent="muted">({roomSpecs})</Text>
+                )}
+                {extraBedNote && (
+                  <div className="flex items-start gap-1.5 mt-0.5">
+                    <CheckIcon className="size-3.5 text-success-600 shrink-0 mt-0.5" />
+                    <Text size="xs" intent="secondary" className="leading-snug">{extraBedNote}</Text>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Meal inclusion — concise summary (respects plans like MAP/CP) */}
             {hasMealInfo && (
-              <div className="flex flex-col gap-1.5">
-                <Text size="xs" intent="muted" weight="medium" className="uppercase tracking-wide">Meals</Text>
-                <div className="flex gap-2 flex-wrap">
-                  {STANDARD_MEALS.map(({ key, label, icon: Icon }) => {
-                    const included = meals.some(m => m.toLowerCase().includes(key));
-                    return (
-                      <div
-                        key={key}
-                        className={cn(
-                          'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium ring-1 ring-inset',
-                          included
-                            ? 'bg-success-50 text-success-700 ring-success-200'
-                            : 'bg-neutral-50 text-muted ring-neutral-200',
-                        )}
-                      >
-                        <Icon weight="duotone" className="size-3.5 shrink-0" />
-                        {label}
-                        {included
-                          ? <CheckIcon className="size-3 text-success-600 shrink-0" />
-                          : <XMarkIcon className="size-3 text-neutral-400 shrink-0" />
-                        }
-                      </div>
-                    );
-                  })}
-                </div>
+              <div className="flex items-center gap-2">
+                <ForkKnifeIcon weight="duotone" className="size-4 text-muted shrink-0" />
+                <Text size="sm" intent="secondary">{mealSummaryText(meals)}</Text>
               </div>
             )}
 
           </div>
 
-          {/* ── Right: image grid (restored) ── */}
           {section.images.length > 0 && (
             <div>
               <div className="grid grid-cols-4 grid-rows-4 gap-0.5 rounded-2xl overflow-hidden h-52 shrink-0 w-64">
@@ -810,8 +828,6 @@ function ActivityContent({ section }: { section: ActivitySection }) {
   const [descExpanded, setDescExpanded] = useState(false);
   const [descOverflows, setDescOverflows] = useState(false);
   const descRef = useRef<HTMLParagraphElement>(null);
-  const hasPricing = section.pricingTiers && section.pricingTiers.length > 0;
-
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const closeLightbox = useCallback(() => setLightboxIdx(null), []);
   const navigateLightbox = useCallback((i: number) => setLightboxIdx(i), []);
@@ -945,6 +961,88 @@ function FoodContent({ section }: { section: FoodSection }) {
   );
 }
 
+// ─── Meal Content ─────────────────────────────────────────────────────────────
+
+const STANDARD_MEAL_CHIPS = [
+  { key: 'breakfast', label: 'Breakfast', icon: CoffeeIcon },
+  { key: 'lunch', label: 'Lunch', icon: BowlSteamIcon },
+  { key: 'dinner', label: 'Dinner', icon: CheersIcon },
+] as const;
+
+function mealIconFor(name: string): React.ElementType {
+  const l = name.toLowerCase();
+  if (l.includes('breakfast')) return CoffeeIcon;
+  if (l.includes('lunch')) return BowlSteamIcon;
+  if (l.includes('dinner')) return CheersIcon;
+  return ForkKnifeIcon;
+}
+
+function MealContent({ section }: { section: MealSection }) {
+  return (
+    <div className="mt-2 flex">
+      <div className="w-10 shrink-0" />
+      <div className="flex-1 flex flex-col gap-3">
+
+        {/* Standard meals — segmented breakfast | lunch | dinner */}
+        <div className="flex items-center gap-1.5">
+          <Text size="xs" intent="secondary" weight="medium" className="uppercase tracking-wide">Meals:</Text>
+          <div className="flex items-stretch gap-2 flex-1">
+            {STANDARD_MEAL_CHIPS.map(({ key, label, icon: Icon }, i) => {
+              const included = section.items.some(it => it.name.toLowerCase().includes(key));
+              return (
+                <Fragment key={key}>
+                  {i > 0 && <span className="w-px self-stretch bg-(--border-default) shrink-0" />}
+                  <div
+                    className={cn(
+                      'flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium flex-1',
+                      included ? 'text-primary' : 'text-muted',
+                    )}
+                  >
+                    <span className="relative flex items-center gap-1 px-1">
+                      <Icon weight="duotone" className={cn('size-4 shrink-0', included ? 'text-success-500' : 'text-muted')} />
+                      {label}
+                      {!included && (
+                        <span className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 h-px rounded-full bg-error-600 z-10 " />
+                      )}
+                    </span>
+                    {included
+                      ? <CheckCheck className="size-4 text-success-500 shrink-0" />
+                      : <CircleX className="size-4 text-error-600 shrink-0" />}
+                  </div>
+                </Fragment>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Each included meal with where it's served */}
+        <div className="flex flex-col gap-2.5">
+          {section.items.map((it, i) => {
+            const Icon = mealIconFor(it.name);
+            return (
+              <div key={i} className="flex items-center gap-2.5">
+                <div className="size-7 rounded-full border-[1.5px] border-muted flex items-center justify-center shrink-0 shadow-sm shadow-neutral-200/80 bg-neutral-50">
+                  <Icon weight="fill" className="size-3.5 text-muted" />
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                  <Text size="sm" intent="primary" weight="semibold" className="font-heading shrink-0">{it.name}</Text>
+                  {it.source && (
+                    <>
+                      <span className="text-muted text-sm">·</span>
+                      <Text size="xs" intent="secondary" className="truncate min-w-0">{it.source}</Text>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
 // ─── Attraction Stories ───────────────────────────────────────────────────────
 
 function AttractionStories({
@@ -961,7 +1059,7 @@ function AttractionStories({
     if (activeIdx === null) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight') setActiveIdx(i => (i !== null && i < items.length - 1 ? i + 1 : i));
-      if (e.key === 'ArrowLeft')  setActiveIdx(i => (i !== null && i > 0 ? i - 1 : i));
+      if (e.key === 'ArrowLeft') setActiveIdx(i => (i !== null && i > 0 ? i - 1 : i));
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -1174,6 +1272,15 @@ const SECTION_CONFIG: {
     title: 'Food',
     content: (s) => <FoodContent section={s} />,
   },
+  meal: {
+    icon: ForkKnifeIcon,
+    title: 'Meals',
+    subtitle: (s) => {
+      const names = Array.from(new Set(s.items.map(it => it.name)));
+      return names.length ? `· ${names.join(', ')}` : undefined;
+    },
+    content: (s) => <MealContent section={s} />,
+  },
 };
 
 function DaySectionBlock({ section, id, day }: { section: DaySection; id: string; day?: number }) {
@@ -1224,9 +1331,9 @@ export default function ItinerarySection({ days }: ItineraryProps) {
   const handleTabKeyDown = (e: React.KeyboardEvent, currentIdx: number) => {
     let next: number | null = null;
     if (e.key === 'ArrowRight') next = (currentIdx + 1) % TABS.length;
-    if (e.key === 'ArrowLeft')  next = (currentIdx - 1 + TABS.length) % TABS.length;
-    if (e.key === 'Home')       next = 0;
-    if (e.key === 'End')        next = TABS.length - 1;
+    if (e.key === 'ArrowLeft') next = (currentIdx - 1 + TABS.length) % TABS.length;
+    if (e.key === 'Home') next = 0;
+    if (e.key === 'End') next = TABS.length - 1;
     if (next === null) return;
     e.preventDefault();
     setActiveTab(TABS[next].id);
@@ -1270,76 +1377,76 @@ export default function ItinerarySection({ days }: ItineraryProps) {
 
       {/* Day Accordions */}
       <div role="tabpanel" id={`itinerary-panel-${activeTab}`} aria-labelledby={`itinerary-tab-${activeTab}`}>
-      {visibleDays.length === 0 ? (
-        <div className="px-6 py-10 text-center">
-          <Text size="sm" intent="secondary">No {activeTab.toLowerCase()} details available for this package.</Text>
-        </div>
-      ) : (
-        <Accordion key={activeTab} variant="ghost" multiple defaultOpen={visibleDays.map(d => `day-${d.day}-${activeTab}`)}>
-          {visibleDays.map(({ day, title, description, sections, notes, attractions }) => (
-            <Accordion.Item key={`${day}-${activeTab}`} id={`day-${day}-${activeTab}`} className="mb-2">
+        {visibleDays.length === 0 ? (
+          <div className="px-6 py-10 text-center">
+            <Text size="sm" intent="secondary">No {activeTab.toLowerCase()} details available for this package.</Text>
+          </div>
+        ) : (
+          <Accordion key={activeTab} variant="ghost" multiple defaultOpen={visibleDays.map(d => `day-${d.day}-${activeTab}`)}>
+            {visibleDays.map(({ day, title, description, sections, notes, attractions }) => (
+              <Accordion.Item key={`${day}-${activeTab}`} id={`day-${day}-${activeTab}`} className="mb-2">
 
-              {/* Day Trigger */}
-              <div className="px-4">
-                <Accordion.Trigger className="py-3.5 border-b border-(--border-muted) rounded-none">
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <span className="shrink-0 bg-brand px-3 py-1 rounded-pill">
-                      <Text intent='inverse' size='xs' weight='semibold' className='font-heading'>
-                        Day {day}
+                {/* Day Trigger */}
+                <div className="px-4">
+                  <Accordion.Trigger className="py-3.5 border-b border-(--border-muted) rounded-none">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <span className="shrink-0 bg-brand px-3 py-1 rounded-pill">
+                        <Text intent='inverse' size='xs' weight='semibold' className='font-heading'>
+                          Day {day}
+                        </Text>
+                      </span>
+                      <Text as='span' intent='primary' weight='semibold' size='base' truncate={true} className='font-heading'>
+                        {title}
                       </Text>
-                    </span>
-                    <Text as='span' intent='primary' weight='semibold' size='base' truncate={true} className='font-heading'>
-                      {title}
-                    </Text>
-                  </div>
-                  <Accordion.Chevron className="size-5 text-neutral-400 shrink-0" />
-                </Accordion.Trigger>
-              </div>
-
-              {/* Day Content */}
-              <Accordion.Content className="px-4 pb-2 pt-0">
-
-                {/* Top notes */}
-                {notes && notes.length > 0 && (
-                  <div className="pt-3">
-                    <NoteBlock notes={notes} position="top" />
-                  </div>
-                )}
-
-                {activeTab === 'Plan' && description && (
-                  <Text size='sm' intent='secondary' className="py-3 border-b border-(--border-muted)">
-                    {description}
-                  </Text>
-                )}
-
-                {/* Attraction stories — below description */}
-                {activeTab === 'Plan' && attractions && attractions.length > 0 && (
-                  <AttractionStories
-                    items={attractions}
-                    className="pt-3 pb-3 border-b border-(--border-muted)"
-                  />
-                )}
-
-                <div className="flex flex-col divide-y divide-(--border-muted)">
-                  {sections.map((section, i) => (
-                    <div key={i} className="py-5">
-                      <DaySectionBlock section={section} id={`day-${day}-${activeTab}-sec-${i}`} day={day} />
                     </div>
-                  ))}
+                    <Accordion.Chevron className="size-5 text-neutral-400 shrink-0" />
+                  </Accordion.Trigger>
                 </div>
 
-                {/* Bottom notes */}
-                {notes && notes.length > 0 && (
-                  <div className="pb-2">
-                    <NoteBlock notes={notes} position="bottom" />
-                  </div>
-                )}
+                {/* Day Content */}
+                <Accordion.Content className="px-4 pb-2 pt-0">
 
-              </Accordion.Content>
-            </Accordion.Item>
-          ))}
-        </Accordion>
-      )}
+                  {/* Top notes */}
+                  {notes && notes.length > 0 && (
+                    <div className="pt-3">
+                      <NoteBlock notes={notes} position="top" />
+                    </div>
+                  )}
+
+                  {activeTab === 'Plan' && description && (
+                    <Text size='sm' intent='secondary' className="py-3 border-b border-(--border-muted)">
+                      {description}
+                    </Text>
+                  )}
+
+                  {/* Attraction stories — below description */}
+                  {activeTab === 'Plan' && attractions && attractions.length > 0 && (
+                    <AttractionStories
+                      items={attractions}
+                      className="pt-3 pb-3 border-b border-(--border-muted)"
+                    />
+                  )}
+
+                  <div className="flex flex-col divide-y divide-(--border-muted)">
+                    {sections.map((section, i) => (
+                      <div key={i} className="py-5">
+                        <DaySectionBlock section={section} id={`day-${day}-${activeTab}-sec-${i}`} day={day} />
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Bottom notes */}
+                  {notes && notes.length > 0 && (
+                    <div className="pb-2">
+                      <NoteBlock notes={notes} position="bottom" />
+                    </div>
+                  )}
+
+                </Accordion.Content>
+              </Accordion.Item>
+            ))}
+          </Accordion>
+        )}
       </div>
 
     </div>

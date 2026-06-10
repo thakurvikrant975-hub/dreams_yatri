@@ -38,7 +38,7 @@ export default function PackagesList({ items }: { items: SearchPackageItem[] }) 
                         originalPrice={pkg.originalPerPerson}
                         discountedPrice={pkg.perPerson}
                         inclusions={['hotel', 'meals', 'cab', 'activities']}
-                        onClick={() => router.push(packageHref(pkg))}
+                        onClick={() => router.push(packageHref(pkg), { scroll: false })}
                     />
                     {pkg.total > 0 && (
                         <Text size="xs" intent="muted" className="mt-1.5 pl-1">

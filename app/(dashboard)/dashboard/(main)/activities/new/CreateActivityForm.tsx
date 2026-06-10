@@ -21,7 +21,6 @@ import { toast }  from "sonner";
 import { cn }     from "@/app/lib/utils";
 import { LocationSearchSelect } from "../../components/location/LocationSearchSelect";
 import type { LocationValue } from "../../components/location/location.types";
-import { ACTIVITY_TYPES }    from "../../components/location/location.types";
 import { createActivity, checkActivitySlug } from "../actions";
 
 // ── Constants ─────────────────────────────────────────────────────────────
@@ -392,8 +391,9 @@ export function CreateActivityForm({ categories }: { categories: CategoryOption[
                     <LocationSearchSelect
                         value={location}
                         onChange={handleLocationChange}
-                        placeholder="Search activity location…"
-                        types={ACTIVITY_TYPES}
+                        placeholder="Search sightseeing location…"
+                        types={["ACTIVITY"]}
+                        lockedType="ACTIVITY"
                     />
                 </div>
 

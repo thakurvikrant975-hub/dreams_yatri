@@ -263,7 +263,8 @@ export default function TrendingPackages({ packages }: TrendingPackagesProps) {
                             discountedPrice={pkg.discountedPrice}
                             inclusions={['hotel', 'meals', 'cab']}
                             onClick={() => router.push(
-                                `/packages/${pkg.slug}/${pkg.durationSlug}/${pkg.routeSlug}/${pkg.staySlug}`
+                                `/packages/${pkg.slug}/${pkg.durationSlug}/${pkg.routeSlug}/${pkg.staySlug}`,
+                                { scroll: false }
                             )}
                         />
                     ))}

@@ -1,4 +1,5 @@
 import IntroSkelton from "./[duration]/[route]/[stay]/skelton/introSkelton"
+import LoadingScrollReset from "./[duration]/[route]/[stay]/components/LoadingScrollReset"
 import TravelerInputBarSkelton from "./[duration]/[route]/[stay]/skelton/travelerInputBarSkelton"
 import DurationOptionSkelton from "./[duration]/[route]/[stay]/skelton/durationOptionSkelton"
 import RootSkelton from "./[duration]/[route]/[stay]/skelton/rootSkelton"
@@ -12,6 +13,9 @@ import { Skeleton } from "@/app/components/skeltons/rawShimmer"
 function loading() {
   return (
     <>
+      {/* Jump to top when the package changed, the moment the skeleton appears */}
+      <LoadingScrollReset />
+
       {/* Inputs bar — mirrors <TravelerInputBar />, sits above the content */}
       <TravelerInputBarSkelton />
 

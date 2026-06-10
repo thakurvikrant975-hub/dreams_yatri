@@ -82,7 +82,7 @@ export default function RegionPackagesList({ regionId, initial }: Props) {
                         originalPrice={pkg.originalPrice}
                         discountedPrice={pkg.discountedPrice}
                         inclusions={['hotel', 'meals', 'cab', 'activities']}
-                        onClick={() => router.push(`/packages/${pkg.slug}/${pkg.durationSlug}/${pkg.routeSlug}/${pkg.staySlug}`)}
+                        onClick={() => router.push(`/packages/${pkg.slug}/${pkg.durationSlug}/${pkg.routeSlug}/${pkg.staySlug}`, { scroll: false })}
                     />
                 ))}
             </PackageGrid>
