@@ -15,7 +15,7 @@ import { SearchDropdown } from './SearchDropdown'
 import { useSession } from 'next-auth/react'
 import { useModal } from '@/app/hooks/useModals'
 import { useRouter } from 'next/navigation'
-
+ 
 interface HeaderProps {
   transparent?: boolean;
   sticky?: boolean;
