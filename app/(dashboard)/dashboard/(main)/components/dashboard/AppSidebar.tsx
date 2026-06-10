@@ -8,9 +8,9 @@ import {
   LayoutDashboard, Settings, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound,
   MessageCircleQuestion, ClockCheck, Mails, Forward, BadgePercent, Banknote,
   ChartSpline, BanknoteArrowDown, BanknoteX, Car, Bed, ChartNoAxesCombined,
-  BellRing, PackagePlus, ChartNoAxesGantt, Star, IndianRupee,
+  BellRing, PackagePlus, ChartNoAxesGantt, Star, IndianRupee, 
   UserRound,
-  X,
+  X, 
 } from "lucide-react";
 import {
   GlobeHemisphereEastIcon, MapPinIcon, BuildingIcon, PlusIcon, TagIcon,
@@ -128,8 +128,13 @@ const navGroups = [
   },
 ];
 
-export function AppSidebar() {
+export function AppSidebar({ pageAccess }: { pageAccess?: string[] | null }) {
   const pathname = usePathname();
+
+  function isPageAllowed(href: string) {
+    if (!pageAccess || pageAccess.length === 0) return true;
+    return pageAccess.includes(href);
+  }
 
   function isActive(href: string) {
     if (href === "/dashboard/packages/new") return pathname === href;
@@ -151,7 +156,10 @@ export function AppSidebar() {
 
         {/* Nav */}
         <Accordion type="multiple" defaultValue={navGroups.map(g => g.id)} className="py-3 px-2">
-          {navGroups.map(group => (
+          {navGroups.map(group => {
+            const visibleItems = group.items.filter(item => isPageAllowed(item.href));
+            if (visibleItems.length === 0) return null;
+            return (
             <AccordionItem key={group.id} value={group.id} className="border-none">
 
               <AccordionTrigger className="px-2 py-1.5 mb-0.5 text-[11px] font-semibold uppercase tracking-widest hover:no-underline hover:bg-transparent cursor-pointer text-dashboard-base-content">
@@ -161,7 +169,7 @@ export function AppSidebar() {
               <AccordionContent className="pb-2">
                 <SidebarGroup className="p-0">
                   <SidebarMenu className="gap-0.5">
-                    {group.items.map(item => {
+                    {visibleItems.map(item => {
                       const active = isActive(item.href);
                       const IconComponent = item.icon;
                       return (
@@ -192,7 +200,8 @@ export function AppSidebar() {
               </AccordionContent>
 
             </AccordionItem>
-          ))}
+            );
+          })}
         </Accordion>
       </SidebarContent>
     </Sidebar>

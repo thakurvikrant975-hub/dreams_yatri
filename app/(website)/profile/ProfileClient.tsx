@@ -2,7 +2,7 @@
 
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/app/lib/utils'
 
@@ -52,18 +52,19 @@ const NAV_ITEMS: NavItem[] = [
 
 const VALID_TABS = new Set<NavKey>(['personal', 'security', 'preferences', 'payments', 'notifications', 'travel-history']);
 
-export default function Profile({ user }: { user: any }) {
-  const router       = useRouter();
-  const searchParams = useSearchParams();
+export default function Profile({ user, initialTab }: { user: any; initialTab?: string }) {
 
-  const tabParam  = searchParams.get('tab') as NavKey | null;
-  const activeNav = tabParam && VALID_TABS.has(tabParam) ? tabParam : 'personal';
+  const router = useRouter();
 
-  const setActiveNav = useCallback((key: NavKey) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('tab', key);
-    router.replace(`/profile?${params.toString()}`, { scroll: false });
-  }, [router, searchParams]);
+  const [activeNav, setActiveNav] = useState<NavKey>(
+    NAV_ITEMS.some(item => item.key === initialTab) ? (initialTab as NavKey) : 'personal'
+  );
+
+  const handleNavChange = (key: NavKey) => {
+    setActiveNav(key);
+    router.replace(`/profile?tab=${key}`, { scroll: false });
+  };
+  console.log(user);
 
   const panels: Record<NavKey, React.ReactNode> = {
     personal:        <PersonalInfoPanel userBasicInfo={user} />,
@@ -135,8 +136,7 @@ export default function Profile({ user }: { user: any }) {
               {NAV_ITEMS.map(item => (
                 <button
                   key={item.key}
-                  type="button"
-                  onClick={() => setActiveNav(item.key)}
+                  onClick={() => handleNavChange(item.key)}
                   className={cn(
                     'flex items-center gap-1.5 whitespace-nowrap px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer',
                     activeNav === item.key
@@ -165,8 +165,7 @@ export default function Profile({ user }: { user: any }) {
                 {NAV_ITEMS.map(item => (
                   <button
                     key={item.key}
-                    type="button"
-                    onClick={() => setActiveNav(item.key)}
+                    onClick={() => handleNavChange(item.key)}
                     className={cn(
                       'w-full flex cursor-pointer items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left',
                       activeNav === item.key

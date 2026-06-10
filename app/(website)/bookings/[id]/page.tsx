@@ -1,5 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import {
+    CheckCircleIcon, MapTrifoldIcon, CalendarBlankIcon, UsersThreeIcon,
+    CompassIcon,
+} from '@phosphor-icons/react/dist/ssr';
+import type { Icon } from '@phosphor-icons/react';
 import Header from '@/app/components/navigation/Header';
 import Footer from '@/app/components/navigation/Footer';
 import Card from '@/app/components/ui/Card';
@@ -9,8 +14,8 @@ import { db } from '@/app/lib/db';
 import { getAuthenticatedUser } from '@/app/lib/functions/getAuthenticatedUser';
 import { formatPaise } from '@/app/lib/money';
 import StatusPoller from './StatusPoller';
-import CancelBookingPanel from './CancelBookingPanel';
-import ChangeDatePanel from './ChangeDatePanel';
+import RedirectTimer from './RedirectTimer';
+import DownloadReceiptButton from './DownloadReceiptButton';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
@@ -88,6 +93,9 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
                                     Booking <span className="font-medium text-primary">{booking.bookingNumber}</span> has been cancelled.
                                     Any eligible refund is being processed back to your original payment method.
                                 </Text>
+                                <Link href="/packages" className="inline-block mt-5">
+                                    <Button variant="outline">Explore more packages</Button>
+                                </Link>
                             </div>
                         ) : paymentFailed ? (
                             <div className="text-center">
@@ -102,59 +110,69 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
                                 </Link>
                             </div>
                         ) : confirming ? (
-                            <>
-                                <div className="text-center">
-                                    <Heading level={3} weight="semibold">Confirming your payment…</Heading>
-                                    <Text intent="secondary" className="mt-2 block">
-                                        We're confirming your payment with the bank. This page updates automatically —
-                                        it usually takes only a few moments.
-                                    </Text>
-                                </div>
-                            </>
+                            <div className="text-center">
+                                <Heading level={3} weight="semibold">Confirming your payment…</Heading>
+                                <Text intent="secondary" className="mt-2 block">
+                                    We're confirming your payment with the bank. This page updates automatically —
+                                    it usually takes only a few moments.
+                                </Text>
+                            </div>
                         ) : (
                             <>
                                 <div className="text-center">
-                                    <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-success-100 text-success-700 text-2xl">✓</div>
-                                    <Heading level={3} weight="semibold">Booking confirmed!</Heading>
-                                    <Text intent="secondary" className="mt-1 block">
-                                        Booking <span className="font-medium text-primary">{booking.bookingNumber}</span>
+                                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-success-100 text-success-600">
+                                        <CheckCircleIcon weight="fill" className="size-9" />
+                                    </div>
+                                    <Heading level={2} weight="bold">Booking confirmed!</Heading>
+                                    <Text intent="secondary" className="mt-2 block">
+                                        Booking <span className="font-semibold text-primary">{booking.bookingNumber}</span> is confirmed —
+                                        we've sent the details to your email.
                                     </Text>
                                 </div>
 
-                                <div className="mt-6 rounded-lg border border-neutral-200 divide-y divide-neutral-100">
-                                    <Row label="Package" value={booking.package?.title ?? 'Your package'} />
-                                    <Row label="Travel dates" value={`${formatDate(booking.startDate)} – ${formatDate(booking.endDate)}`} />
-                                    <Row label="Travellers" value={String(booking.travellers)} />
-                                    <Row label={isFull ? 'Paid in full' : 'Deposit paid'} value={formatPaise(paidPaise)} />
-                                    {!isFull && (
-                                        <Row
-                                            label="Balance due"
-                                            value={`${formatPaise(booking.balanceAmount_paise)}${booking.balanceDueDate ? ` by ${formatDate(booking.balanceDueDate)}` : ''}`}
-                                        />
-                                    )}
+                                <div className="mt-7 overflow-hidden rounded-xl border border-(--border-muted)">
+                                    <div className="border-b border-(--border-muted) bg-neutral-50 px-4 py-2.5">
+                                        <Text size="xs" weight="semibold" intent="secondary" className="uppercase tracking-wide">Trip details</Text>
+                                    </div>
+                                    <div className="divide-y divide-(--border-muted)">
+                                        <DetailRow icon={MapTrifoldIcon} label="Package" value={booking.package?.title ?? 'Your package'} />
+                                        <DetailRow icon={CalendarBlankIcon} label="Travel dates" value={`${formatDate(booking.startDate)} – ${formatDate(booking.endDate)}`} />
+                                        <DetailRow icon={UsersThreeIcon} label="Travellers" value={String(booking.travellers)} />
+                                    </div>
                                 </div>
 
-                                <Text size="sm" intent="secondary" className="mt-5 block text-center">
-                                    A confirmation has been recorded. Track each hotel, transfer and activity as our team confirms it.
-                                </Text>
-
-                                <Link href={`/bookings/${booking.id}/status`} className="mt-4 block">
-                                    <Button variant="premium" className="w-full">Track your trip status</Button>
-                                </Link>
+                                <div className="mt-4 overflow-hidden rounded-xl border border-(--border-muted)">
+                                    <div className="border-b border-(--border-muted) bg-neutral-50 px-4 py-2.5">
+                                        <Text size="xs" weight="semibold" intent="secondary" className="uppercase tracking-wide">Payment summary</Text>
+                                    </div>
+                                    <div className="divide-y divide-(--border-muted)">
+                                        <Row label={isFull ? 'Paid in full' : 'Deposit paid'} value={formatPaise(paidPaise)} />
+                                        {!isFull && (
+                                            <Row
+                                                label="Balance due"
+                                                value={`${formatPaise(booking.balanceAmount_paise)}${booking.balanceDueDate ? ` by ${formatDate(booking.balanceDueDate)}` : ''}`}
+                                            />
+                                        )}
+                                    </div>
+                                </div>
 
                                 <div className="mt-4 flex justify-center gap-4 text-sm">
-                                    <Link href={`/bookings/${booking.id}/invoice`} className="text-primary font-medium underline">Invoice</Link>
                                     <Link href={`/bookings/${booking.id}/voucher`} className="text-primary font-medium underline">Trip voucher</Link>
                                 </div>
 
-                                <ChangeDatePanel bookingId={booking.id} />
-                                <CancelBookingPanel bookingId={booking.id} />
+                                <div className="mt-7 flex flex-col gap-3">
+                                    <Link href={`/bookings/${booking.id}/status`} className="block">
+                                        <Button variant="premium" size="lg" className="w-full">
+                                            <CompassIcon weight="bold" className="size-4" />
+                                            View package status
+                                        </Button>
+                                    </Link>
+                                    <DownloadReceiptButton bookingId={booking.id} />
+                                </div>
+
+                                <RedirectTimer href={`/bookings/${booking.id}/status`} seconds={10} />
                             </>
                         )}
-
-                        <div className="mt-6 text-center">
-                            <Link href="/packages"><Button variant="outline">Explore more packages</Button></Link>
-                        </div>
                     </Card>
                 </div>
             );
@@ -175,6 +193,20 @@ function Row({ label, value }: { label: string; value: string }) {
         <div className="flex items-center justify-between px-4 py-3">
             <Text size="sm" intent="secondary">{label}</Text>
             <Text size="sm" weight="medium" intent="primary">{value}</Text>
+        </div>
+    );
+}
+
+function DetailRow({ icon: IconCmp, label, value }: { icon: Icon; label: string; value: string }) {
+    return (
+        <div className="flex items-center gap-3 px-4 py-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary-50 text-primary-600">
+                <IconCmp weight="duotone" className="size-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+                <Text size="xs" intent="muted">{label}</Text>
+                <Text size="sm" weight="semibold" intent="primary" className="block truncate">{value}</Text>
+            </div>
         </div>
     );
 }

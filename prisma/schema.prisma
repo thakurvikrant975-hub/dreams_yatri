@@ -570,6 +570,7 @@ model TeamRole {
   name        String       @unique @db.VarChar(100)
   description String?      @db.VarChar(500)
   permissions Json         @default("[]")
+  pageAccess  Json         @default("[]")
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   members     TeamMember[]

@@ -1,6 +1,6 @@
 // app/(dashboard)/layout.tsx
 import { Suspense } from "react";
-import { AppSidebar } from "./components/dashboard/AppSidebar";
+import { AppSidebarLoader } from "./components/dashboard/AppSidebarLoader";
 import { SidebarProvider, SidebarTrigger } from "./components/ui/sidebar";
 import AvatarName from "./components/dashboard/AvatarName";
 import { SalesTargetBadge } from "./components/dashboard/SalesTargetBadge";
@@ -33,7 +33,7 @@ async function HeaderUserSection() {
       <AvatarName
         name={session.user.name ?? "Employee"}
         email={session.user.email ?? "name@dreamsyatri.com"}
-        role={session.user.role ?? "unknown"}
+        role={member.teamRole?.name ?? ""}
         avatarSrc={member.profilePicUrl ?? undefined}
       />
     </>
@@ -56,7 +56,9 @@ export default function DashboardLayout({
 }) {
   return (
     <SidebarProvider>
-      <AppSidebar />
+      <Suspense fallback={null}>
+        <AppSidebarLoader />
+      </Suspense>
 
       <main
         className="flex-1 overflow-y-auto min-h-screen bg-dashboard-base-200"

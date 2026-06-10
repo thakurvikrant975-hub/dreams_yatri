@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronDown, ChevronUp, Star, UserMinus, UserPlus } from "lucide-react";
+import { Car, ChevronDown, ChevronUp, Phone, Star, UserMinus, UserPlus } from "lucide-react";
 import { assignDriverToSegment, unassignDriverFromSegment, type DriverOption, type SegmentLeg } from "../actions";
+import { getImageUrl } from "@/app/lib/imageUrl";
 
 export default function DriverAssignPanel({
     bookingId,
@@ -67,7 +68,7 @@ export default function DriverAssignPanel({
                     }`}
                 >
                     <UserPlus className="size-3.5" />
-                    {isFullyAssigned ? "Change Driver" : "Assign Driver"}
+                    {isFullyAssigned ? "Change for all days" : "Set driver for all days"}
                     {open
                         ? <ChevronUp   className="size-3.5 ml-0.5" />
                         : <ChevronDown className="size-3.5 ml-0.5" />}
@@ -104,9 +105,17 @@ export default function DriverAssignPanel({
                                     key={d.id}
                                     className="flex items-start gap-2.5 rounded-lg border border-dashboard-base-300 bg-dashboard-base-100 px-3 py-2.5 hover:border-dashboard-primary/30 transition-colors"
                                 >
-                                    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-dashboard-primary/10 text-xs font-bold text-dashboard-primary">
-                                        {d.name.charAt(0).toUpperCase()}
-                                    </div>
+                                    {d.profile_image_key ? (
+                                        <img
+                                            src={getImageUrl(d.profile_image_key, { width: 64, height: 64, quality: 80, fit: "cover" })}
+                                            alt={d.name}
+                                            className="size-8 shrink-0 rounded-full object-cover ring-1 ring-dashboard-base-300"
+                                        />
+                                    ) : (
+                                        <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-dashboard-primary/10 text-xs font-bold text-dashboard-primary">
+                                            {d.name.charAt(0).toUpperCase()}
+                                        </div>
+                                    )}
                                     <div className="min-w-0 flex-1">
                                         <div className="flex items-center gap-1.5 flex-wrap">
                                             <span className="text-sm font-semibold text-dashboard-base-content leading-tight">{d.name}</span>
@@ -114,12 +123,16 @@ export default function DriverAssignPanel({
                                                 <span className="rounded-full bg-blue-100 px-1.5 text-[10px] font-bold text-blue-700 leading-4">✓</span>
                                             )}
                                         </div>
-                                        <p className="text-xs text-dashboard-neutral mt-0.5">📞 {d.mobile}</p>
+                                        <p className="flex items-center gap-1 text-xs text-dashboard-neutral mt-0.5">
+                                            <Phone className="size-3 shrink-0" />{d.mobile}
+                                        </p>
                                         {d.vehicle_reg_number && (
-                                            <p className="text-xs text-dashboard-neutral">{d.vehicle_reg_number}</p>
+                                            <p className="flex items-center gap-1 text-xs text-dashboard-neutral">
+                                                <Car className="size-3 shrink-0" />{d.vehicle_reg_number}
+                                            </p>
                                         )}
                                         {d.city && (
-                                            <p className="text-[11px] text-dashboard-neutral/60">📍 {d.city}{d.state ? `, ${d.state}` : ""}</p>
+                                            <p className="text-[11px] text-dashboard-neutral/60">{d.city}{d.state ? `, ${d.state}` : ""}</p>
                                         )}
                                         {d.avg_rating != null && (
                                             <div className="flex items-center gap-0.5 text-[11px] text-amber-600">

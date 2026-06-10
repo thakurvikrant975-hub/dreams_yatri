@@ -296,7 +296,7 @@ export default function BookReview({
                                 <div className="px-5 py-4 border-b border-(--border-muted) flex flex-col gap-2.5">
                                     <PayOption
                                         selected={payChoice === 'DEPOSIT'} onSelect={() => setPayChoice('DEPOSIT')}
-                                        title="Book Now, Pay Later" amount={formatPaise(schedule.depositPaise)}
+                                        title="Pay Advance to Book" amount={formatPaise(schedule.depositPaise)}
                                         sub={`Balance ${formatPaise(schedule.balancePaise)}${schedule.balanceDueDate ? ` by ${formatDate(schedule.balanceDueDate)}` : ''}`}
                                     />
                                     <PayOption

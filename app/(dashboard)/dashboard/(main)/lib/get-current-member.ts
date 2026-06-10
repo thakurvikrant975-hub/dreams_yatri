@@ -23,7 +23,7 @@ export async function getCurrentMember(session?: Session | null) {
         select: { id: true, name: true },
       },
       teamRole: {
-        select: { id: true, name: true, permissions: true },
+        select: { id: true, name: true, permissions: true, pageAccess: true },
       },
     },
   });

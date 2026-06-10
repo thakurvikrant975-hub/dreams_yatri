@@ -3,13 +3,16 @@
 import { useState, useEffect } from "react";
 import { Section } from "./Section";
 import Tabs from "@/app/components/ui/Tabs";
+import Button from "@/app/components/ui/Button";
 import { cn } from "@/app/lib/utils";
 import { EmptyState } from "./EmptyState";
-import { ReceiptIcon } from "@phosphor-icons/react";
+import { ReceiptIcon, InfoIcon } from "@phosphor-icons/react";
+import { BookingStatusModal, type BookingStatusSummary } from "./BookingStatusModal";
+import { BOOKING_STATUS_INFO } from "@/app/lib/booking-display-status";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type PaymentStatus = "SUCCESS" | "FAILED" | "REFUNDED";
+type PaymentStatus = "PENDING" | "ADVANCE_PAID" | "FULLY_PAID" | "REFUNDED" | "PARTIALLY_REFUNDED" | "TESTING" | "FAILED";
 
 interface Payment {
   id: string;
@@ -17,7 +20,7 @@ interface Payment {
   currency: string;
   status: PaymentStatus;
   gateway: string;
-  method: string;
+  method: string | null;
   failureReason: string | null;
   refundAmount: string | null;
   refundedAt: string | null;
@@ -26,9 +29,14 @@ interface Payment {
   booking: {
     bookingNumber: string;
     startDate: string;
+    status: keyof typeof BOOKING_STATUS_INFO;
+    cancelReason: string | null;
     destination: {
       name: string;
     };
+    package: {
+      title: string;
+    } | null;
   };
 }
 
@@ -42,9 +50,13 @@ interface Counts {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<PaymentStatus, { label: string; bg: string; text: string }> = {
-  SUCCESS:  { label: "Paid",     bg: "bg-green-50", text: "text-green-700" },
-  FAILED:   { label: "Failed",   bg: "bg-red-50",   text: "text-red-600"   },
-  REFUNDED: { label: "Refunded", bg: "bg-yellow-50", text: "text-yellow-700" },
+  PENDING:            { label: "Processing",        bg: "bg-blue-50",     text: "text-blue-600"   },
+  ADVANCE_PAID:       { label: "Partially Paid",     bg: "bg-amber-50",    text: "text-amber-700"  },
+  FULLY_PAID:         { label: "Paid",               bg: "bg-green-50",    text: "text-green-700"  },
+  REFUNDED:           { label: "Refunded",           bg: "bg-yellow-50",   text: "text-yellow-700" },
+  PARTIALLY_REFUNDED: { label: "Partially Refunded", bg: "bg-yellow-50",   text: "text-yellow-700" },
+  TESTING:            { label: "Test",               bg: "bg-neutral-100", text: "text-neutral-500" },
+  FAILED:             { label: "Failed",             bg: "bg-red-50",      text: "text-red-600"    },
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -67,23 +79,40 @@ function formatAmount(amount: string, currency: string) {
 // ─── Payment Card ─────────────────────────────────────────────────────────────
 
 function PaymentCard({ payment }: { payment: Payment }) {
-  const status = STATUS_CONFIG[payment.status];
+  const status   = STATUS_CONFIG[payment.status];
+  const title    = payment.booking.package?.title ?? payment.booking.destination.name;
+  const subtitle = payment.booking.package ? payment.booking.destination.name : null;
+
+  const [statusOpen, setStatusOpen] = useState(false);
+
+  const statusSummary: BookingStatusSummary = {
+    bookingNumber: payment.booking.bookingNumber,
+    rawStatus:     payment.booking.status,
+    cancelReason:  payment.booking.cancelReason,
+    destination:   payment.booking.destination,
+    package:       payment.booking.package,
+  };
 
   return (
     <div className="bg-white border border-neutral-200 rounded-xl p-4 space-y-3 hover:border-neutral-300 transition-colors">
 
       {/* Header */}
       <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm font-semibold text-neutral-900">
-            {payment.booking.destination.name}
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-neutral-900 truncate">
+            {title}
           </p>
+          {subtitle && (
+            <p className="text-[11px] text-neutral-400 truncate">
+              {subtitle}
+            </p>
+          )}
           <p className="text-[11px] text-neutral-400">
             {payment.booking.bookingNumber}
           </p>
         </div>
 
-        <span className={cn("text-[11px] font-semibold px-2.5 py-0.5 rounded-full", status.bg, status.text)}>
+        <span className={cn("shrink-0 text-[11px] font-semibold px-2.5 py-0.5 rounded-full", status.bg, status.text)}>
           {status.label}
         </span>
       </div>
@@ -94,7 +123,7 @@ function PaymentCard({ payment }: { payment: Payment }) {
           {formatAmount(payment.amount, payment.currency)}
         </p>
         <p className="text-xs text-neutral-400">
-          {payment.method.replace("_", " ")}
+          {payment.method?.replace(/_/g, " ") ?? "-"}
         </p>
       </div>
 
@@ -111,7 +140,7 @@ function PaymentCard({ payment }: { payment: Payment }) {
         </p>
       )}
 
-      {payment.status === "REFUNDED" && (
+      {(payment.status === "REFUNDED" || payment.status === "PARTIALLY_REFUNDED") && (
         <p className="text-[11px] text-yellow-600">
           Refunded {formatAmount(payment.refundAmount || "0", payment.currency)} on{" "}
           {formatDate(payment.refundedAt)}
@@ -122,11 +151,19 @@ function PaymentCard({ payment }: { payment: Payment }) {
       <div className="flex items-center justify-between border-t border-neutral-100 pt-2 text-xs text-neutral-400">
         <span>{payment.gateway}</span>
 
-        <button className="flex items-center gap-1 hover:text-neutral-600">
-          <ReceiptIcon size={14} />
-          Receipt
-        </button>
+        <div className="flex items-center gap-3">
+          <button className="flex items-center gap-1 hover:text-neutral-600">
+            <ReceiptIcon size={14} />
+            Receipt
+          </button>
+          <Button variant="outline" size="sm" onClick={() => setStatusOpen(true)}>
+            <InfoIcon weight="bold" className="size-3.5" />
+            View status
+          </Button>
+        </div>
       </div>
+
+      <BookingStatusModal booking={statusSummary} open={statusOpen} onClose={setStatusOpen} />
     </div>
   );
 }

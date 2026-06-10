@@ -4,6 +4,7 @@ import { db } from '@/app/lib/db';
 import { getAuthenticatedUser } from '@/app/lib/functions/getAuthenticatedUser';
 import { formatPaise } from '@/app/lib/money';
 import PrintButton from '../PrintButton';
+import AutoPrint from './AutoPrint';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Invoice | Dreams Yatri', robots: { index: false, follow: false } };
@@ -13,8 +14,10 @@ function fmtDate(d: Date | null): string {
     return new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }).format(d);
 }
 
-export default async function InvoicePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function InvoicePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
     const { id } = await params;
+    const sp = await searchParams;
+    const autoPrint = sp.download === '1';
     const user = await getAuthenticatedUser();
     if (!user?.id) notFound();
 
@@ -39,6 +42,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
 
     return (
         <main className="mx-auto max-w-2xl px-6 py-10 print:py-0 text-neutral-900">
+            {autoPrint && <AutoPrint />}
             <style>{`@media print { .no-print { display:none !important } @page { margin: 16mm } }`}</style>
 
             <div className="flex items-start justify-between border-b border-neutral-200 pb-5">

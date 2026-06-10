@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronDown, ChevronUp, Star, Zap } from "lucide-react";
+import { Car, ChevronDown, ChevronUp, Phone, Star, Zap } from "lucide-react";
 import { assignDriverToAllLegs, type DriverOption } from "../actions";
+import { getImageUrl } from "@/app/lib/imageUrl";
 
 export default function QuickAssignPanel({
     bookingId,
@@ -74,10 +75,17 @@ export default function QuickAssignPanel({
                                     key={d.id}
                                     className="flex items-start gap-3 rounded-xl border border-dashboard-base-300 bg-dashboard-base-200/40 px-3.5 py-3 hover:border-dashboard-primary/40 hover:bg-dashboard-primary/5 transition-all group"
                                 >
-                                    {/* Avatar placeholder */}
-                                    <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-dashboard-primary/10 text-sm font-bold text-dashboard-primary">
-                                        {d.name.charAt(0).toUpperCase()}
-                                    </div>
+                                    {d.profile_image_key ? (
+                                        <img
+                                            src={getImageUrl(d.profile_image_key, { width: 72, height: 72, quality: 80, fit: "cover" })}
+                                            alt={d.name}
+                                            className="size-9 shrink-0 rounded-full object-cover ring-1 ring-dashboard-base-300"
+                                        />
+                                    ) : (
+                                        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-dashboard-primary/10 text-sm font-bold text-dashboard-primary">
+                                            {d.name.charAt(0).toUpperCase()}
+                                        </div>
+                                    )}
 
                                     <div className="min-w-0 flex-1">
                                         <div className="flex items-center gap-1.5 flex-wrap">
@@ -86,9 +94,13 @@ export default function QuickAssignPanel({
                                                 <span className="rounded-full bg-blue-100 px-1.5 py-0 text-[10px] font-bold text-blue-700 leading-4">✓</span>
                                             )}
                                         </div>
-                                        <p className="text-xs text-dashboard-neutral mt-0.5">📞 {d.mobile}</p>
+                                        <p className="flex items-center gap-1 text-xs text-dashboard-neutral mt-0.5">
+                                            <Phone className="size-3 shrink-0" />{d.mobile}
+                                        </p>
                                         {d.vehicle?.name && (
-                                            <p className="text-[11px] text-dashboard-neutral/70 mt-0.5">🚗 {d.vehicle.name}</p>
+                                            <p className="flex items-center gap-1 text-[11px] text-dashboard-neutral/70 mt-0.5">
+                                                <Car className="size-3 shrink-0" />{d.vehicle.name}
+                                            </p>
                                         )}
                                         {d.vehicle_reg_number && (
                                             <p className="text-[11px] text-dashboard-neutral/70">{d.vehicle_reg_number}</p>

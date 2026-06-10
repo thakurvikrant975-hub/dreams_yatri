@@ -1,12 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarDays, Car, CheckCircle2, Mail, MapPin, Phone, Users } from "lucide-react";
+import {
+    ArrowRight, CalendarDays, Car, CheckCircle2,
+    Mail, MapPin, Phone, User, Users,
+} from "lucide-react";
 import { db } from "@/app/lib/db";
 import { formatPaise } from "@/app/lib/money";
 import { PaymentPill, StatusPill } from "../../package-bookings/pills";
 import QuickAssignPanel from "./QuickAssignPanel";
 import DriverAssignPanel from "./DriverAssignPanel";
+import LegDriverPicker from "./LegDriverPicker";
 import type { DriverOption, SegmentLeg } from "../actions";
 
 export const metadata: Metadata = {
@@ -14,7 +18,6 @@ export const metadata: Metadata = {
     robots: { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false } },
 };
 
-// ── Snapshot types ──────────────────────────────────────────────────────────────
 type SnapTransfer = { pickup_name?: string | null; drop_name?: string | null };
 type SnapCab = {
     day_from: number; day_to: number;
@@ -26,7 +29,6 @@ type SnapDay = {
 };
 type Snapshot = { days?: SnapDay[]; cab_segments?: SnapCab[] };
 
-// ── Helpers ─────────────────────────────────────────────────────────────────────
 function fmtDate(d: Date | string | null): string {
     if (!d) return "—";
     const date = typeof d === "string" ? new Date(`${d}T00:00:00`) : d;
@@ -65,7 +67,6 @@ function InfoItem({ icon: Icon, label, value }: { icon: React.ElementType; label
     );
 }
 
-// ── Page ─────────────────────────────────────────────────────────────────────────
 export default async function AssignDriverDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
 
@@ -105,79 +106,70 @@ export default async function AssignDriverDetailPage({ params }: { params: Promi
         return new Date(startMs + (day - 1) * 86_400_000);
     }
 
-    // ── Build segment view ────────────────────────────────────────────────────
+    type LegDetail = {
+        legNumber: number; from: string; to: string; date: Date;
+        driverName: string | null; driverPhone: string | null;
+        vehicleNumber: string | null; confirmedBy: string | null;
+    };
     type PageSegment = {
-        idx:             number;
-        vehicle_name:    string | null;
-        vehicle_id:      number | null;
-        day_from:        number;
-        day_to:          number;
-        legs:            SegmentLeg[];
-        legDetails: {
-            legNumber: number; from: string; to: string; date: Date;
-            driverName: string | null; driverPhone: string | null;
-            vehicleNumber: string | null; confirmedBy: string | null;
-        }[];
-        assignedDriver: { name: string; phone: string | null; vehicleNumber: string | null; confirmedBy: string | null } | null;
+        idx: number;
+        vehicle_name: string | null;
+        vehicle_id: number | null;
+        day_from: number;
+        day_to: number;
+        legs: SegmentLeg[];
+        legDetails: LegDetail[];
         isFullyAssigned: boolean;
+        assignedDriverName: string | null;
     };
 
     const coveredDays = new Set<number>();
     const segments: PageSegment[] = [];
 
+    function buildLegDetails(days: typeof transferDays): LegDetail[] {
+        return days.map((d) => {
+            const c = confirmedMap.get(d.day);
+            return {
+                legNumber:     d.day,
+                from:          c?.fromLocation ?? d.transfers?.[0]?.pickup_name ?? "—",
+                to:            c?.toLocation   ?? d.transfers?.[d.transfers.length - 1]?.drop_name ?? "—",
+                date:          d.day_date ? new Date(`${d.day_date}T00:00:00`) : dayDate(d.day),
+                driverName:    c?.driverName    ?? null,
+                driverPhone:   c?.driverPhone   ?? null,
+                vehicleNumber: c?.vehicleNumber ?? null,
+                confirmedBy:   c?.confirmedBy?.name ?? null,
+            };
+        });
+    }
+
     for (let si = 0; si < cabSegs.length; si++) {
-        const seg      = cabSegs[si];
-        const segDays  = transferDays.filter((d) => d.day >= seg.day_from && d.day <= seg.day_to);
+        const seg     = cabSegs[si];
+        const segDays = transferDays.filter((d) => d.day >= seg.day_from && d.day <= seg.day_to);
         if (segDays.length === 0) continue;
         segDays.forEach((d) => coveredDays.add(d.day));
 
-        const legDetails = segDays.map((d) => {
-            const c = confirmedMap.get(d.day);
-            return {
-                legNumber:    d.day,
-                from:         c?.fromLocation ?? d.transfers?.[0]?.pickup_name ?? "—",
-                to:           c?.toLocation   ?? d.transfers?.[d.transfers.length - 1]?.drop_name ?? "—",
-                date:         d.day_date ? new Date(`${d.day_date}T00:00:00`) : dayDate(d.day),
-                driverName:   c?.driverName   ?? null,
-                driverPhone:  c?.driverPhone  ?? null,
-                vehicleNumber: c?.vehicleNumber ?? null,
-                confirmedBy:  c?.confirmedBy?.name ?? null,
-            };
-        });
+        const legDetails       = buildLegDetails(segDays);
+        const isFullyAssigned  = segDays.length > 0 && segDays.every((d) => !!confirmedMap.get(d.day)?.driverName);
+        const assignedDriverName = legDetails.find((l) => l.driverName)?.driverName ?? null;
 
-        const firstAssigned = legDetails.find((l) => l.driverName);
         segments.push({
-            idx:          si,
+            idx: si,
             vehicle_name: seg.vehicle_name ?? null,
             vehicle_id:   seg.vehicle_id   ?? null,
             day_from:     seg.day_from,
             day_to:       seg.day_to,
             legs:         legDetails.map((l) => ({ legNumber: l.legNumber, fromLocation: l.from, toLocation: l.to })),
             legDetails,
-            assignedDriver: firstAssigned
-                ? { name: firstAssigned.driverName!, phone: firstAssigned.driverPhone, vehicleNumber: firstAssigned.vehicleNumber, confirmedBy: firstAssigned.confirmedBy }
-                : null,
-            isFullyAssigned: segDays.length > 0 && segDays.every((d) => !!confirmedMap.get(d.day)?.driverName),
+            isFullyAssigned,
+            assignedDriverName,
         });
     }
 
-    // Orphaned transfer days not covered by any segment → put in one fallback segment
+    // Orphaned days not in any cab_segment
     const orphaned = transferDays.filter((d) => !coveredDays.has(d.day));
     if (orphaned.length > 0) {
-        const legDetails = orphaned.map((d) => {
-            const c = confirmedMap.get(d.day);
-            return {
-                legNumber:    d.day,
-                from:         c?.fromLocation ?? d.transfers?.[0]?.pickup_name ?? "—",
-                to:           c?.toLocation   ?? d.transfers?.[d.transfers.length - 1]?.drop_name ?? "—",
-                date:         d.day_date ? new Date(`${d.day_date}T00:00:00`) : dayDate(d.day),
-                driverName:   c?.driverName   ?? null,
-                driverPhone:  c?.driverPhone  ?? null,
-                vehicleNumber: c?.vehicleNumber ?? null,
-                confirmedBy:  c?.confirmedBy?.name ?? null,
-            };
-        });
-        const firstAssigned = legDetails.find((l) => l.driverName);
+        const legDetails      = buildLegDetails(orphaned);
+        const isFullyAssigned = orphaned.every((d) => !!confirmedMap.get(d.day)?.driverName);
         segments.push({
             idx:          segments.length,
             vehicle_name: null,
@@ -186,23 +178,22 @@ export default async function AssignDriverDetailPage({ params }: { params: Promi
             day_to:       orphaned[orphaned.length - 1].day,
             legs:         legDetails.map((l) => ({ legNumber: l.legNumber, fromLocation: l.from, toLocation: l.to })),
             legDetails,
-            assignedDriver: firstAssigned
-                ? { name: firstAssigned.driverName!, phone: firstAssigned.driverPhone, vehicleNumber: firstAssigned.vehicleNumber, confirmedBy: firstAssigned.confirmedBy }
-                : null,
-            isFullyAssigned: orphaned.every((d) => !!confirmedMap.get(d.day)?.driverName),
+            isFullyAssigned,
+            assignedDriverName: legDetails.find((l) => l.driverName)?.driverName ?? null,
         });
     }
 
-    const totalLegs      = transferDays.length;
-    const assignedLegs   = transferDays.filter((d) => !!confirmedMap.get(d.day)?.driverName).length;
-    const pct            = totalLegs > 0 ? Math.round((assignedLegs / totalLegs) * 100) : 0;
-    const allAssigned    = assignedLegs === totalLegs && totalLegs > 0;
+    const totalLegs    = transferDays.length;
+    const assignedLegs = transferDays.filter((d) => !!confirmedMap.get(d.day)?.driverName).length;
+    const pct          = totalLegs > 0 ? Math.round((assignedLegs / totalLegs) * 100) : 0;
+    const allAssigned  = assignedLegs === totalLegs && totalLegs > 0;
 
-    // ── Fetch drivers ─────────────────────────────────────────────────────────
+    // Fetch all active drivers
     const allDriverRows = await db.cab_drivers.findMany({
         where:   { is_active: true },
         select: {
             id: true, name: true, mobile: true, vehicle_id: true,
+            profile_image_key: true,
             vehicle_reg_number: true, city: true, state: true,
             is_verified: true, avg_rating: true,
             vehicle: { select: { id: true, name: true } },
@@ -212,7 +203,8 @@ export default async function AssignDriverDetailPage({ params }: { params: Promi
 
     const allDriverOptions: (DriverOption & { vehicle_id: number | null })[] = allDriverRows.map((d) => ({
         id: d.id, name: d.name, mobile: d.mobile,
-        vehicle_id:        d.vehicle_id,
+        vehicle_id:         d.vehicle_id,
+        profile_image_key:  d.profile_image_key,
         vehicle_reg_number: d.vehicle_reg_number,
         city: d.city, state: d.state,
         is_verified: d.is_verified,
@@ -220,23 +212,20 @@ export default async function AssignDriverDetailPage({ params }: { params: Promi
         vehicle:     d.vehicle,
     }));
 
-    // Per-segment filtered drivers
-    for (const seg of segments) {
-        (seg as PageSegment & { filteredDrivers: DriverOption[] }).filteredDrivers =
-            seg.vehicle_id != null
-                ? allDriverOptions.filter((d) => d.vehicle_id === seg.vehicle_id)
-                : allDriverOptions;
+    function driversForSegment(seg: PageSegment): DriverOption[] {
+        return seg.vehicle_id != null
+            ? allDriverOptions.filter((d) => d.vehicle_id === seg.vehicle_id)
+            : allDriverOptions;
     }
 
-    // Quick-assign: determine vehicle label + driver pool
-    const uniqueVehicleIds  = [...new Set(segments.map((s) => s.vehicle_id).filter(Boolean) as number[])];
+    // Quick-assign pool
+    const uniqueVehicleIds   = [...new Set(segments.map((s) => s.vehicle_id).filter(Boolean) as number[])];
     const uniqueVehicleNames = [...new Set(segments.map((s) => s.vehicle_name).filter(Boolean) as string[])];
     const quickVehicleLabel  =
         uniqueVehicleNames.length === 1 ? uniqueVehicleNames[0]
         : uniqueVehicleNames.length > 1 ? uniqueVehicleNames.join(" + ")
         : "all vehicle types";
 
-    // For quick assign: if all segments same vehicle type, filter; otherwise all drivers
     const quickDrivers: DriverOption[] =
         uniqueVehicleIds.length === 1
             ? allDriverOptions.filter((d) => d.vehicle_id === uniqueVehicleIds[0])
@@ -248,7 +237,7 @@ export default async function AssignDriverDetailPage({ params }: { params: Promi
                 href="/dashboard/assign-driver"
                 className="text-sm text-dashboard-neutral hover:text-dashboard-primary transition-colors"
             >
-                ← Back to assign drivers
+                &larr; Back to assign drivers
             </Link>
 
             {/* Header */}
@@ -264,7 +253,7 @@ export default async function AssignDriverDetailPage({ params }: { params: Promi
                         href={`/dashboard/package-bookings/${booking.id}`}
                         className="rounded-md border border-dashboard-base-300 px-3 py-1.5 text-sm text-dashboard-base-content hover:bg-dashboard-base-200 transition-colors"
                     >
-                        Full booking →
+                        Full booking &rarr;
                     </Link>
                 </div>
             </div>
@@ -285,7 +274,7 @@ export default async function AssignDriverDetailPage({ params }: { params: Promi
                 </div>
                 <p className={`mt-1.5 text-xs ${allAssigned ? "text-green-600 font-medium" : "text-dashboard-neutral"}`}>
                     {allAssigned
-                        ? "✓ All drivers assigned. Customer will receive driver details 4–5 days before travel."
+                        ? "All drivers assigned. Customer will receive driver details 4–5 days before travel."
                         : `${totalLegs - assignedLegs} leg${totalLegs - assignedLegs !== 1 ? "s" : ""} still need a driver — details shared with customer 4–5 days before travel.`}
                 </p>
             </div>
@@ -295,7 +284,7 @@ export default async function AssignDriverDetailPage({ params }: { params: Promi
                 {/* ── Left: Quick assign + segments ──────────────────────── */}
                 <div className="lg:col-span-2 flex flex-col gap-4">
 
-                    {/* Quick assign — always at top */}
+                    {/* Quick assign panel — top of page, open by default */}
                     {!allAssigned && (
                         <QuickAssignPanel
                             bookingId={booking.id}
@@ -305,13 +294,14 @@ export default async function AssignDriverDetailPage({ params }: { params: Promi
                         />
                     )}
 
-                    {/* "All done" banner when everything is assigned */}
                     {allAssigned && (
                         <div className="flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 px-5 py-3.5">
                             <CheckCircle2 className="size-5 text-green-600 shrink-0" />
                             <div>
                                 <p className="text-sm font-semibold text-green-800">All drivers assigned</p>
-                                <p className="text-xs text-green-600 mt-0.5">Use the segment cards below to change or remove any assignment.</p>
+                                <p className="text-xs text-green-600 mt-0.5">
+                                    Use the day rows below to change or remove any individual assignment.
+                                </p>
                             </div>
                         </div>
                     )}
@@ -323,8 +313,7 @@ export default async function AssignDriverDetailPage({ params }: { params: Promi
                         </div>
                     ) : (
                         segments.map((seg) => {
-                            const segDrivers = (seg as PageSegment & { filteredDrivers: DriverOption[] }).filteredDrivers ?? allDriverOptions;
-
+                            const segDrivers = driversForSegment(seg);
                             return (
                                 <div
                                     key={seg.idx}
@@ -356,8 +345,16 @@ export default async function AssignDriverDetailPage({ params }: { params: Promi
                                                     )}
                                                 </p>
                                                 <p className="text-[11px] text-dashboard-neutral">
-                                                    Day{seg.day_from !== seg.day_to ? `s ${seg.day_from}–${seg.day_to}` : ` ${seg.day_from}`}
+                                                    {seg.day_from !== seg.day_to
+                                                        ? `Days ${seg.day_from}–${seg.day_to}`
+                                                        : `Day ${seg.day_from}`}
                                                     {" · "}{seg.legs.length} transfer{seg.legs.length !== 1 ? "s" : ""}
+                                                    {seg.assignedDriverName && (
+                                                        <span className="ml-1.5 inline-flex items-center gap-1 text-green-700">
+                                                            <User className="size-2.5" />
+                                                            {seg.assignedDriverName}
+                                                        </span>
+                                                    )}
                                                 </p>
                                             </div>
                                         </div>
@@ -367,57 +364,56 @@ export default async function AssignDriverDetailPage({ params }: { params: Promi
                                             </span>
                                         ) : (
                                             <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700">
-                                                No driver
+                                                Pending
                                             </span>
                                         )}
                                     </div>
 
-                                    <div className="px-4 py-3.5 flex flex-col gap-3.5">
-                                        {/* Transfer stops list */}
-                                        <div className="flex flex-col gap-1.5">
-                                            {seg.legDetails.map((leg, li) => (
-                                                <div key={leg.legNumber} className="flex items-center gap-2.5 text-sm">
-                                                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-dashboard-primary/10 text-[10px] font-bold text-dashboard-primary">
+                                    <div className="px-4 py-3.5 flex flex-col gap-4">
+                                        {/* Per-day leg rows */}
+                                        <div className="flex flex-col gap-3">
+                                            {seg.legDetails.map((leg) => (
+                                                <div key={leg.legNumber} className="flex items-start gap-2.5">
+                                                    {/* Day badge */}
+                                                    <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-dashboard-primary/10 text-[10px] font-bold text-dashboard-primary">
                                                         {leg.legNumber}
                                                     </span>
-                                                    <div className="min-w-0 flex-1 flex items-center gap-1.5 flex-wrap">
-                                                        <span className="font-medium text-dashboard-base-content truncate max-w-35">{leg.from}</span>
-                                                        <span className="text-dashboard-neutral text-xs">→</span>
-                                                        <span className="text-dashboard-base-content truncate max-w-35">{leg.to}</span>
-                                                        <span className="text-dashboard-neutral text-[11px] ml-auto shrink-0">{fmtDate(leg.date)}</span>
+                                                    <div className="min-w-0 flex-1">
+                                                        {/* Route row */}
+                                                        <div className="flex items-center gap-1.5 text-sm flex-wrap">
+                                                            <span className="font-medium text-dashboard-base-content">{leg.from}</span>
+                                                            <ArrowRight className="size-3.5 text-dashboard-neutral shrink-0" />
+                                                            <span className="text-dashboard-base-content">{leg.to}</span>
+                                                            <span className="ml-auto shrink-0 text-[11px] text-dashboard-neutral">{fmtDate(leg.date)}</span>
+                                                        </div>
+                                                        {/* Per-day driver picker */}
+                                                        <LegDriverPicker
+                                                            bookingId={booking.id}
+                                                            leg={{ legNumber: leg.legNumber, fromLocation: leg.from, toLocation: leg.to }}
+                                                            driverName={leg.driverName}
+                                                            driverPhone={leg.driverPhone}
+                                                            vehicleNumber={leg.vehicleNumber}
+                                                            confirmedBy={leg.confirmedBy}
+                                                            drivers={segDrivers}
+                                                        />
                                                     </div>
-                                                    {li < seg.legDetails.length - 1 && (
-                                                        <div className="absolute left-4.75 h-2 w-px bg-dashboard-base-300" />
-                                                    )}
                                                 </div>
                                             ))}
                                         </div>
 
-                                        {/* Assigned driver banner */}
-                                        {seg.assignedDriver && (
-                                            <div className="flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 px-3.5 py-2.5">
-                                                <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-green-200 text-sm font-bold text-green-800">
-                                                    {seg.assignedDriver.name.charAt(0).toUpperCase()}
-                                                </div>
-                                                <div className="min-w-0 flex-1">
-                                                    <p className="text-sm font-semibold text-green-800">{seg.assignedDriver.name}</p>
-                                                    <div className="flex flex-wrap gap-x-3 gap-y-0 text-xs text-green-700 mt-0.5">
-                                                        {seg.assignedDriver.phone        && <span>📞 {seg.assignedDriver.phone}</span>}
-                                                        {seg.assignedDriver.vehicleNumber && <span>🚗 {seg.assignedDriver.vehicleNumber}</span>}
-                                                        {seg.assignedDriver.confirmedBy   && <span className="opacity-60">by {seg.assignedDriver.confirmedBy}</span>}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* Driver assign / change panel */}
-                                        <DriverAssignPanel
-                                            bookingId={booking.id}
-                                            legs={seg.legs}
-                                            vehicleName={seg.vehicle_name}
-                                            drivers={segDrivers}
-                                            isFullyAssigned={seg.isFullyAssigned}
-                                        />
+                                        {/* Divider + bulk action */}
+                                        <div className="border-t border-dashboard-base-300/60 pt-3">
+                                            <p className="mb-2 text-[10px] uppercase tracking-wide font-semibold text-dashboard-neutral">
+                                                Or assign same driver to all {seg.legs.length > 1 ? `${seg.legs.length} days` : "day"} in this segment
+                                            </p>
+                                            <DriverAssignPanel
+                                                bookingId={booking.id}
+                                                legs={seg.legs}
+                                                vehicleName={seg.vehicle_name}
+                                                drivers={segDrivers}
+                                                isFullyAssigned={seg.isFullyAssigned}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             );
@@ -445,46 +441,53 @@ export default async function AssignDriverDetailPage({ params }: { params: Promi
                         </div>
                     </SideCard>
 
-                    {/* Segment checklist */}
+                    {/* Segment / Transfer checklist */}
                     {segments.length > 0 && (
                         <SideCard title={segments.length > 1 ? "Segment Checklist" : "Transfer Checklist"}>
                             <div className="flex flex-col gap-2">
                                 {segments.map((seg) => (
                                     <div
                                         key={seg.idx}
-                                        className={`rounded-lg px-3 py-2.5 border ${
+                                        className={`rounded-lg border px-3 py-2.5 ${
                                             seg.isFullyAssigned
-                                                ? "bg-green-50 border-green-100"
-                                                : "bg-dashboard-base-200/50 border-dashboard-base-300/40"
+                                                ? "border-green-100 bg-green-50"
+                                                : "border-dashboard-base-300/40 bg-dashboard-base-200/50"
                                         }`}
                                     >
-                                        <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-start justify-between gap-2">
                                             <div className="min-w-0 flex-1">
                                                 <p className="text-xs font-semibold text-dashboard-base-content truncate">
                                                     {seg.vehicle_name ?? "Segment"}
                                                 </p>
                                                 <p className="text-[10px] text-dashboard-neutral">
-                                                    Day{seg.day_from !== seg.day_to ? `s ${seg.day_from}–${seg.day_to}` : ` ${seg.day_from}`} · {seg.legs.length} transfer{seg.legs.length !== 1 ? "s" : ""}
+                                                    {seg.day_from !== seg.day_to
+                                                        ? `Days ${seg.day_from}–${seg.day_to}`
+                                                        : `Day ${seg.day_from}`}
+                                                    {" · "}{seg.legs.length} transfer{seg.legs.length !== 1 ? "s" : ""}
                                                 </p>
-                                                {seg.assignedDriver && (
-                                                    <p className="text-[10px] font-semibold text-green-700 mt-0.5 truncate">
-                                                        👤 {seg.assignedDriver.name}
+                                                {seg.assignedDriverName && (
+                                                    <p className="mt-0.5 flex items-center gap-1 text-[10px] font-semibold text-green-700 truncate">
+                                                        <User className="size-2.5 shrink-0" />
+                                                        {seg.assignedDriverName}
                                                     </p>
                                                 )}
                                             </div>
-                                            <span className={`shrink-0 text-[10px] font-bold ${seg.isFullyAssigned ? "text-green-700" : "text-amber-600"}`}>
-                                                {seg.isFullyAssigned ? "✓ Done" : "Pending"}
+                                            <span className={`shrink-0 inline-flex items-center gap-1 text-[10px] font-bold ${
+                                                seg.isFullyAssigned ? "text-green-700" : "text-amber-600"
+                                            }`}>
+                                                {seg.isFullyAssigned && <CheckCircle2 className="size-3" />}
+                                                {seg.isFullyAssigned ? "Done" : "Pending"}
                                             </span>
                                         </div>
                                     </div>
                                 ))}
                             </div>
-                            <div className="mt-3 pt-3 border-t border-dashboard-base-300/50">
-                                <div className="flex items-center justify-between mb-1.5 text-xs">
+                            <div className="mt-3 border-t border-dashboard-base-300/50 pt-3">
+                                <div className="mb-1.5 flex items-center justify-between text-xs">
                                     <span className="text-dashboard-neutral">Overall progress</span>
                                     <span className={`font-bold ${allAssigned ? "text-green-700" : "text-dashboard-neutral"}`}>{pct}%</span>
                                 </div>
-                                <div className="h-2 rounded-full bg-dashboard-base-300/60 overflow-hidden">
+                                <div className="h-2 overflow-hidden rounded-full bg-dashboard-base-300/60">
                                     <div
                                         className={`h-full rounded-full transition-all ${allAssigned ? "bg-green-500" : pct > 50 ? "bg-amber-400" : "bg-red-400"}`}
                                         style={{ width: `${Math.max(pct, 2)}%` }}
