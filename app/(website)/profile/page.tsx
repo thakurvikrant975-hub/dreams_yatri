@@ -7,11 +7,18 @@ import Profile from './ProfileClient';
 import { auth } from '@/app/lib/auth';
 import { db } from '@/app/lib/db';
 import { redirect } from 'next/navigation';
+import { travelHistoryStatusWhere } from '@/app/lib/booking-display-status';
 
-export default async function ProfilePage() {
-  try { 
+export default async function ProfilePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  try {
     const session = await auth();
     if (!session?.user) redirect("/");
+
+    const { tab } = await searchParams;
 
     const [user, totalTrips, upcomingTrips] = await Promise.all([
       db.user.findUnique({
@@ -26,27 +33,25 @@ export default async function ProfilePage() {
         },
       }),
       db.booking.count({
-        where: { userId: session.user.id, status: "COMPLETED" },
+        where: { userId: session.user.id, ...travelHistoryStatusWhere('COMPLETED') },
       }),
       db.booking.count({
-        where: { userId: session.user.id, status: "UPCOMING" },
+        where: { userId: session.user.id, ...travelHistoryStatusWhere('UPCOMING') },
       }),
     ]);
 
     if (!user) redirect("/");
 
     return (
-      <Suspense>
-        <Profile
-          key={user.updatedAt.toISOString()}
-          user={{
-            ...user,
-            totalTrips,
-            upcomingTrips,
-            wishlistCount: 0,
-          }}
-        />
-      </Suspense>
+      <Profile
+        user={{
+          ...user,
+          totalTrips,
+          upcomingTrips,
+          wishlistCount: 0,   // ← placeholder until wishlist feature is built
+        }}
+        initialTab={tab}
+      />
     );
 
   } catch (err) {

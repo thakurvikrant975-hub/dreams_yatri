@@ -7,11 +7,12 @@ import { ApiResponse } from "@/app/lib/api-response";
 import { handleApiError } from "@/app/lib/api-error";
 import { getAuthenticatedUser } from "@/app/lib/functions/getAuthenticatedUser";
 import { PaymentStatus } from "@/app/generated/prisma";
+import { PAYMENT_HISTORY_STATUSES, paymentHistoryStatusWhere, PAYMENT_HISTORY_BASE_WHERE } from "@/app/lib/payment-display-status";
 
 // ─── Zod Schema ───────────────────────────────────────────────────────────────
 
 const querySchema = z.object({
-  status: z.enum(Object.values(PaymentStatus) as [string, ...string[]]).optional(),
+  status: z.enum(PAYMENT_HISTORY_STATUSES).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(10),
 });
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest) {
 
     const where = {
       userId: sessionUser.id,
-      ...(status ? { status: status as PaymentStatus } : {}),
+      ...(status ? paymentHistoryStatusWhere(status) : PAYMENT_HISTORY_BASE_WHERE),
     };
 
     // ── Query ────────────────────────────────────────────────────────────────
@@ -70,8 +71,13 @@ export async function GET(req: NextRequest) {
               id: true,
               bookingNumber: true,
               startDate: true,
+              status: true,
+              cancelReason: true,
               destination: {
                 select: { name: true },
+              },
+              package: {
+                select: { title: true },
               },
             },
           },

@@ -6,12 +6,12 @@ import { db }                   from "@/app/lib/db";
 import { ApiResponse }          from "@/app/lib/api-response";
 import { handleApiError }       from "@/app/lib/api-error";
 import { getAuthenticatedUser } from "@/app/lib/functions/getAuthenticatedUser";
-import { BookingStatus }        from "@/app/generated/prisma";
+import { TRAVEL_HISTORY_STATUSES, travelHistoryStatus, travelHistoryStatusWhere } from "@/app/lib/booking-display-status";
 
 // ─── Zod Schema ───────────────────────────────────────────────────────────────
 
 const querySchema = z.object({
-  status: z.enum(Object.values(BookingStatus) as [string, ...string[]]).optional(),
+  status: z.enum(TRAVEL_HISTORY_STATUSES).optional(),
   page:   z.coerce.number().int().min(1).default(1),
   limit:  z.coerce.number().int().min(1).max(100).default(10),
 });
@@ -38,10 +38,11 @@ export async function GET(req: NextRequest) {
 
     const { status, page, limit } = parsed.data;
     const skip = (page - 1) * limit;
+    const now = new Date();
 
     const where = {
       userId: sessionUser.id,
-      ...(status ? { status: status as BookingStatus } : {}),
+      ...(status ? travelHistoryStatusWhere(status, now) : {}),
     };
 
     // ── Query ────────────────────────────────────────────────────────────────
@@ -74,6 +75,12 @@ export async function GET(req: NextRequest) {
               country:   true,
             },
           },
+          package: {
+            select: {
+              title:     true,
+              thumbnail: true,
+            },
+          },
           payments: {
             select: {
               id:     true,
@@ -90,7 +97,13 @@ export async function GET(req: NextRequest) {
       db.booking.count({ where }),
     ]);
 
-    return ApiResponse.ok(bookings, {
+    const data = bookings.map((b) => ({
+      ...b,
+      rawStatus: b.status,
+      status: travelHistoryStatus(b.status, b.endDate, now),
+    }));
+
+    return ApiResponse.ok(data, {
       pagination: {
         total,
         page,
