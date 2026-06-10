@@ -75,6 +75,12 @@ export async function GET(req: NextRequest) {
               country:   true,
             },
           },
+          package: {
+            select: {
+              title:     true,
+              thumbnail: true,
+            },
+          },
           payments: {
             select: {
               id:     true,
@@ -93,6 +99,7 @@ export async function GET(req: NextRequest) {
 
     const data = bookings.map((b) => ({
       ...b,
+      rawStatus: b.status,
       status: travelHistoryStatus(b.status, b.endDate, now),
     }));
 

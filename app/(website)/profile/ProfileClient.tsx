@@ -3,6 +3,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { cn } from '@/app/lib/utils'
 
 import { Heading } from '@/app/components/ui/Typography'
@@ -57,10 +58,18 @@ const NAV_ITEMS: NavItem[] = [
 
 // ─── Profile Page ─────────────────────────────────────────────────────────────
 
-export default function Profile({ user }: { user: any }) {
+export default function Profile({ user, initialTab }: { user: any; initialTab?: string }) {
 
+  const router = useRouter();
 
-  const [activeNav, setActiveNav] = useState<NavKey>('personal');
+  const [activeNav, setActiveNav] = useState<NavKey>(
+    NAV_ITEMS.some(item => item.key === initialTab) ? (initialTab as NavKey) : 'personal'
+  );
+
+  const handleNavChange = (key: NavKey) => {
+    setActiveNav(key);
+    router.replace(`/profile?tab=${key}`, { scroll: false });
+  };
   console.log(user);
 
 const panels: Record<NavKey, React.ReactNode> = {
@@ -144,7 +153,7 @@ const panels: Record<NavKey, React.ReactNode> = {
               {NAV_ITEMS.map(item => (
                 <button
                   key={item.key}
-                  onClick={() => setActiveNav(item.key)}
+                  onClick={() => handleNavChange(item.key)}
                   className={cn(
                     'flex items-center gap-1.5 whitespace-nowrap px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ',
                     activeNav === item.key
@@ -173,7 +182,7 @@ const panels: Record<NavKey, React.ReactNode> = {
                 {NAV_ITEMS.map(item => (
                   <button
                     key={item.key}
-                    onClick={() => setActiveNav(item.key)}
+                    onClick={() => handleNavChange(item.key)}
                     className={cn(
                       'w-full flex cursor-pointer items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left',
                       activeNav === item.key

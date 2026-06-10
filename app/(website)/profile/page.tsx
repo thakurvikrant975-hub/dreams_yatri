@@ -8,10 +8,16 @@ import { db } from '@/app/lib/db';
 import { redirect } from 'next/navigation';
 import { travelHistoryStatusWhere } from '@/app/lib/booking-display-status';
 
-export default async function ProfilePage() {
+export default async function ProfilePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
   try {
     const session = await auth();
     if (!session?.user) redirect("/");
+
+    const { tab } = await searchParams;
 
     const [user, totalTrips, upcomingTrips] = await Promise.all([
       db.user.findUnique({
@@ -42,6 +48,7 @@ export default async function ProfilePage() {
           upcomingTrips,
           wishlistCount: 0,   // ← placeholder until wishlist feature is built
         }}
+        initialTab={tab}
       />
     );
 
