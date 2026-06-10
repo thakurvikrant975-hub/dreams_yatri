@@ -3,6 +3,7 @@ import { getCurrentMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-cur
 import { SalesDashboard } from "./components/dashboard/Salesdashboard";
 import { MarketingDashboard } from "./components/dashboard/Marketingdashboard";
 import { DefaultDashboard } from "./components/dashboard/Defaultdashboard";
+import { DataEntryDashboard } from "./components/dashboard/DataEntryDashboard";
 import DashboardHeader from "./components/dashboard/DashboardHeader";
 import { CurrentMember } from "@/app/types/members";
 
@@ -12,6 +13,8 @@ type DashboardComponent = React.ComponentType<{ member: CurrentMember }>;
 const ROLE_DASHBOARD_MAP: Record<string, DashboardComponent> = {
   sales: SalesDashboard,
   marketing: MarketingDashboard,
+  "data entry executive": DataEntryDashboard,
+  "data entry operator": DataEntryDashboard,
 };
 
 export default async function DashboardPage() {
