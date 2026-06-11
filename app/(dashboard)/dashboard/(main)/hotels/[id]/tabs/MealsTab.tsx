@@ -519,12 +519,12 @@ function MealCard({
 
   return (
     <div className="border border-dashboard-base-content/20 rounded-xl overflow-hidden bg-dashboard-base-100 shadow-sm">
-      <button
-        type="button"
-        onClick={() => setOpen((p) => !p)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-dashboard-base-200 transition-colors text-left cursor-pointer"
-      >
-        <div className="flex items-center gap-3 min-w-0">
+      <div className="flex items-center justify-between px-4 py-3 hover:bg-dashboard-base-200 transition-colors">
+        <button
+          type="button"
+          onClick={() => setOpen((p) => !p)}
+          className="flex items-center gap-3 min-w-0 flex-1 text-left cursor-pointer"
+        >
           {open
             ? <ChevronDown className="h-4 w-4 text-dashboard-base-content/40 shrink-0" />
             : <ChevronRight className="h-4 w-4 text-dashboard-base-content/40 shrink-0" />}
@@ -544,8 +544,8 @@ function MealCard({
                 : ""}
             </p>
           </div>
-        </div>
-        <div className="flex items-center gap-1 shrink-0 ml-3" onClick={(e) => e.stopPropagation()}>
+        </button>
+        <div className="flex items-center gap-1 shrink-0 ml-3">
           <Button
             size="sm" variant="ghost"
             className="h-7 w-7 p-0 text-dashboard-base-content/50 hover:text-dashboard-primary hover:bg-dashboard-primary/10 cursor-pointer"
@@ -582,7 +582,7 @@ function MealCard({
             </AlertDialogContent>
           </AlertDialog>
         </div>
-      </button>
+      </div>
 
       {open && meal.seasons.length > 0 && (
         <div className="px-4 pb-4 pt-2 border-t border-dashboard-base-content/10 space-y-2">

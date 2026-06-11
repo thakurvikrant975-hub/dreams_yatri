@@ -204,7 +204,7 @@ function toFormState(p: PricingPlan): PricingFormState {
   return {
     room_id:              String(p.room_id),
     plan_name:            p.plan_name         ?? "",
-    meal_type_id:         p.meal_type_id      ? String(p.meal_type_id)  : "",
+    meal_type_id:         p.meal_type_id      ? String(p.meal_type_id)  : "none",
     diet_type_id:         p.diet_type_id      ? String(p.diet_type_id)  : "",
     base_price_per_night: p.price_per_night   ? String(p.price_per_night)  : "",
     base_extra_bed_rate:  p.extra_bed_rate    ? String(p.extra_bed_rate)   : "",
@@ -483,6 +483,7 @@ function PricingForm({
     setForm(prev => ({
       ...prev,
       meal_type_id: mealId,
+      diet_type_id: mealId === "none" ? "" : prev.diet_type_id,
       plan_name: autoNameRef.current ? buildAutoName(roomName, mealType) : prev.plan_name,
     }));
   }
@@ -497,7 +498,7 @@ function PricingForm({
 
   const isValid =
     !!form.room_id &&
-    !!form.meal_type_id && form.meal_type_id !== "none" &&
+    !!form.meal_type_id &&
     !!form.base_price_per_night && Number(form.base_price_per_night) > 0 &&
     seasonOverlaps.size === 0 &&
     form.seasons.every(
@@ -520,7 +521,7 @@ function PricingForm({
         <div className="space-y-1.5">
           <Label className="text-sm text-dashboard-base-content">Meal Type <span className="text-dashboard-error">*</span></Label>
           <Select value={form.meal_type_id} onValueChange={handleMealChange}>
-            <SelectTrigger className={cn("bg-dashboard-base-100 border-dashboard-base-content/20 cursor-pointer", (!form.meal_type_id || form.meal_type_id === "none") && "border-dashboard-error/40")}>
+            <SelectTrigger className={cn("bg-dashboard-base-100 border-dashboard-base-content/20 cursor-pointer", !form.meal_type_id && "border-dashboard-error/40")}>
               <SelectValue placeholder="Select meal plan…" />
             </SelectTrigger>
             <SelectContent>
@@ -542,9 +543,14 @@ function PricingForm({
             className="bg-dashboard-base-100 border-dashboard-base-content/20" />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-sm text-dashboard-base-content">Diet Type</Label>
-          <Select value={form.diet_type_id} onValueChange={v => upd("diet_type_id", v)}>
-            <SelectTrigger className="bg-dashboard-base-100 border-dashboard-base-content/20 cursor-pointer"><SelectValue placeholder="Any" /></SelectTrigger>
+          <Label className={cn("text-sm", form.meal_type_id === "none" ? "text-dashboard-base-content/40" : "text-dashboard-base-content")}>
+            Diet Type
+            {form.meal_type_id === "none" && <span className="ml-1.5 text-xs font-normal text-dashboard-base-content/40">(N/A for Room Only)</span>}
+          </Label>
+          <Select value={form.diet_type_id} onValueChange={v => upd("diet_type_id", v)} disabled={form.meal_type_id === "none"}>
+            <SelectTrigger className={cn("bg-dashboard-base-100 border-dashboard-base-content/20", form.meal_type_id === "none" ? "opacity-50 cursor-not-allowed" : "cursor-pointer")}>
+              <SelectValue placeholder="Any" />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="none" className="cursor-pointer">Any</SelectItem>
               {dietTypes.map(d => <SelectItem key={d.id} value={String(d.id)} className="cursor-pointer">{d.name}</SelectItem>)}

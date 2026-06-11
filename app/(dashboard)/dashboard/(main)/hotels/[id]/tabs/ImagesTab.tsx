@@ -4,6 +4,7 @@ import { useState, useTransition }  from "react";
 import { Button }                   from "../../../components/ui/button";
 import { Input }                    from "../../../components/ui/input";
 import { Badge }                    from "../../../components/ui/badge";
+import { OPTIONAL_HOTEL_CATEGORIES } from "@/app/lib/hotelImageCategories";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../../components/ui/card";
 import { ImagePicker, type PickedImage } from "../../../components/dashboard/ImagePicker";
 import {
@@ -320,14 +321,24 @@ export function ImagesTab({
     setCategories(prev => prev.filter(cat => cat.id !== categoryId));
   }
 
-  function handleAddCategory() {
-    if (!newCatName.trim()) return;
+  function handleAddCategory(name = newCatName) {
+    const trimmed = name.trim();
+    if (!trimmed) return;
     startTransition(async () => {
-      const result = await createImageCategory(hotel_id, newCatName.trim());
+      const result = await createImageCategory(hotel_id, trimmed);
       if (result.success) {
         toast.success(result.message);
         setNewCatName("");
         setShowNewCat(false);
+        setCategories(prev => [...prev, {
+          id:              result.id!,
+          name:            trimmed,
+          is_required:     false,
+          is_system:       false,
+          room_pricing_id: null,
+          room_pricing:    null,
+          images:          [],
+        }]);
       } else {
         toast.error(result.message);
       }
@@ -335,8 +346,13 @@ export function ImagesTab({
   }
 
   const requiredCategories = categories.filter(c => c.is_required);
-  const hotelCategories    = categories.filter(c => !c.is_required && !c.room_pricing_id);
+  const hotelCategories    = categories.filter(c => !c.is_required && !c.room_pricing_id && !c.is_system);
   const roomCategories     = categories.filter(c => c.room_pricing_id !== null);
+
+  const existingCustomNames = new Set(hotelCategories.map(c => c.name));
+  const categorySuggestions = OPTIONAL_HOTEL_CATEGORIES
+    .map(c => c.name)
+    .filter(name => !existingCustomNames.has(name));
   const missingRequired    = requiredCategories.filter(c => c.images.length === 0);
 
   return (
@@ -359,16 +375,6 @@ export function ImagesTab({
         </div>
       )}
 
-      {hotelCategories.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="text-xs font-bold text-dashboard-base-content/50 uppercase tracking-widest">Hotel Areas</h3>
-          {hotelCategories.map(cat => (
-            <CategoryBlock key={cat.id} category={cat} hotel_id={hotel_id}
-              onUpdate={handleCategoryUpdate} onRemove={handleCategoryRemove} />
-          ))}
-        </div>
-      )}
-
       {roomCategories.length > 0 && (
         <div className="space-y-3">
           <h3 className="text-xs font-bold text-dashboard-base-content/50 uppercase tracking-widest">Room Photos</h3>
@@ -381,23 +387,47 @@ export function ImagesTab({
 
       <div className="space-y-3">
         <h3 className="text-xs font-bold text-dashboard-base-content/50 uppercase tracking-widest">Custom Categories</h3>
+
+        {hotelCategories.map(cat => (
+          <CategoryBlock key={cat.id} category={cat} hotel_id={hotel_id}
+            onUpdate={handleCategoryUpdate} onRemove={handleCategoryRemove} />
+        ))}
+
         {showNewCat ? (
-          <div className="flex items-center gap-2">
-            <Input placeholder="e.g. Rooftop, Game Room, Conference Hall"
-              value={newCatName} onChange={e => setNewCatName(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleAddCategory()}
-              autoFocus maxLength={60}
-              className="max-w-xs bg-dashboard-base-100 border-dashboard-base-content/20" />
-            <Button type="button" size="sm" onClick={handleAddCategory}
-              disabled={!newCatName.trim() || isPending}
-              className="bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90 cursor-pointer">
-              {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Add"}
-            </Button>
-            <Button type="button" size="sm" variant="ghost"
-              className="text-dashboard-base-content/60 hover:bg-dashboard-base-300 cursor-pointer"
-              onClick={() => { setShowNewCat(false); setNewCatName(""); }}>
-              <X className="h-3.5 w-3.5" />
-            </Button>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Input placeholder="e.g. Rooftop, Game Room, Conference Hall"
+                value={newCatName} onChange={e => setNewCatName(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && handleAddCategory()}
+                autoFocus maxLength={60}
+                className="max-w-xs bg-dashboard-base-100 border-dashboard-base-content/20" />
+              <Button type="button" size="sm" onClick={() => handleAddCategory()}
+                disabled={!newCatName.trim() || isPending}
+                className="bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90 cursor-pointer">
+                {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Add"}
+              </Button>
+              <Button type="button" size="sm" variant="ghost"
+                className="text-dashboard-base-content/60 hover:bg-dashboard-base-300 cursor-pointer"
+                onClick={() => { setShowNewCat(false); setNewCatName(""); }}>
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+            {categorySuggestions.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                <span className="text-[10px] text-dashboard-base-content/40 self-center">Suggestions:</span>
+                {categorySuggestions.map(name => (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => handleAddCategory(name)}
+                    disabled={isPending}
+                    className="text-[11px] px-2 py-0.5 rounded-full border border-dashboard-base-content/20 bg-dashboard-base-200 text-dashboard-base-content/60 hover:bg-dashboard-primary/10 hover:text-dashboard-primary hover:border-dashboard-primary/30 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           <Button type="button" variant="outline" size="sm"

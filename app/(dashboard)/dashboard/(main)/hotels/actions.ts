@@ -1148,11 +1148,11 @@ export async function createImageCategory(
 ): Promise<HotelFormState> {
   try {
     const count = await db.hotel_image_categories.count({ where: { hotel_id } });
-    await db.hotel_image_categories.create({
+    const created = await db.hotel_image_categories.create({
       data: { hotel_id, name, is_required: false, is_system: false, sort_order: count },
     });
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
-    return { success: true, message: "Category added" };
+    return { success: true, message: "Category added", id: created.id };
   } catch (e) {
     console.error(e);
     return actionError(e);
