@@ -14,7 +14,7 @@ import {
 } from "../../../components/ui/select";
 import {
   Popover, PopoverContent, PopoverTrigger,
-} from "../../../components/ui/popover";
+} from "@/app/components/ui/popover";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription,
