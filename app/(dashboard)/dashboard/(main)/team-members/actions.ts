@@ -4,12 +4,22 @@ import { db } from "@/app/lib/db";
 import { revalidatePath } from "next/cache";
 import { hash } from "bcryptjs";
 import { z } from "zod";
-import { getAuthenticatedUser } from "@/app/lib/functions/getAuthenticatedUser";
+import { dashboardAuth } from "@/app/lib/auth-dashboard";
 import { createLog } from "../lib/logger";
 import { uploadToR2 } from "@/app/lib/r2/r2upload";
 import { deleteFromR2 } from "@/app/lib/r2/r2delete";
 
 const PAGE_SIZE = 10;
+
+// ── Auth helper ───────────────────────────────────────────────────────────────
+// These actions run inside the dashboard, so the current actor is the
+// logged-in TeamMember (dashboardAuth), not the public-site User session.
+
+async function getAuthenticatedUser() {
+  const session = await dashboardAuth();
+  if (!session?.user?.id) return null;
+  return session.user;
+}
 
 // ── Validation helpers ────────────────────────────────────────────────────────
 
