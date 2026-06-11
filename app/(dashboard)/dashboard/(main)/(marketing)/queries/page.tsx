@@ -14,6 +14,8 @@ import { AddQueryDialog } from "./Addquerydialog";
 import type { Metadata } from "next";
 import { PageHeader } from "../../components/dashboard/PageHeader";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
     title: "All Queries - Dashboard",
     description: "Admin dashboard for managing all queries",
