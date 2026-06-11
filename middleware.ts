@@ -24,7 +24,10 @@ export default async function middleware(req: NextRequest) {
       return NextResponse.redirect(new URL("/dashboard/login", req.url));
     }
 
-    return NextResponse.next();
+    // Forward the requested path so the layout can enforce per-role page access
+    const requestHeaders = new Headers(req.headers);
+    requestHeaders.set("x-pathname", pathname);
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
   return NextResponse.next();

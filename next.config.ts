@@ -2,6 +2,13 @@ import type { NextConfig } from "next";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Keep the dashboard layout's RSC payload (sidebar + header) cached on the
+  // client across navigations so it doesn't re-fetch/flicker on every route change.
+  experimental: {
+    staleTimes: {
+      dynamic: 30,
+    },
+  },
   images: {
     remotePatterns: [
       {

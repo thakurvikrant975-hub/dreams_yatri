@@ -115,3 +115,8 @@ export const NAV_GROUPS = [
     ],
   },
 ];
+
+// Re-exported for the Sidebar Access editor — kept in a separate, icon-free
+// module so server code (the dashboard layout) can import resolveNavHref
+// without pulling icon libraries into the server bundle.
+export { ALL_HREFS, resolveNavHref } from "./nav-hrefs";

@@ -3,9 +3,7 @@
 import { Eye, EyeOff } from "lucide-react";
 import { Checkbox } from "../components/ui/checkbox";
 import { Switch } from "../components/ui/switch";
-import { NAV_GROUPS } from "../lib/rbac/nav-items";
-
-const ALL_HREFS = NAV_GROUPS.flatMap(g => g.items.map(i => i.href));
+import { NAV_GROUPS, ALL_HREFS } from "../lib/rbac/nav-items";
 
 // ── Main Editor ───────────────────────────────────────────────────────────────
 // `value` = list of sidebar hrefs visible to this role.
