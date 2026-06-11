@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/app/lib/utils'
 import { Heading } from '@/app/components/ui/Typography'
 import { signOut } from "next-auth/react"
-import {. 
+import {
   UserCircleIcon,
   HeartIcon,
   CreditCardIcon,
