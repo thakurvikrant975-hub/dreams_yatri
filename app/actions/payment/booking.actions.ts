@@ -4,6 +4,7 @@ import { getAuthenticatedUser } from "@/app/lib/functions/getAuthenticatedUser";
 import { db } from "@/app/lib/db";
 import { verifyCheckoutSignature } from "@/app/lib/razorpay";
 import { createBooking, createOrderForBooking, createBookingAndOrder } from "./create-booking.service";
+import { createBalanceOrderForBooking } from "./balance-payment.service";
 import { cancelBooking, previewCancellation } from "./cancel-booking.service";
 import { changeTravelDate, previewDateChange } from "./change-date.service";
 import type { CheckoutInput } from "@/app/actions/quote/checkout-schema";
@@ -45,6 +46,25 @@ export async function startBookingPayment(
         return await createOrderForBooking({ bookingId, userId: user.id, gateway });
     } catch (err) {
         console.error("[startBookingPayment] failed", err);
+        return { success: false, reason: "error", message: "Could not start payment. Please try again." };
+    }
+}
+
+/**
+ * Pay an outstanding balance on an already-active booking — e.g. the extra
+ * amount added when ops swap a hotel/room for a costlier one. Owner-scoped.
+ */
+export async function startBalancePayment(
+    bookingId: string,
+    gateway?: GatewayId,
+): Promise<CreateBookingOrderResult> {
+    const user = await getAuthenticatedUser();
+    if (!user?.id) return { success: false, reason: "unauthenticated" };
+
+    try {
+        return await createBalanceOrderForBooking({ bookingId, userId: user.id, gateway });
+    } catch (err) {
+        console.error("[startBalancePayment] failed", err);
         return { success: false, reason: "error", message: "Could not start payment. Please try again." };
     }
 }

@@ -42,7 +42,7 @@ function isoDate(d: Date): string {
 }
 
 /** Absolute return URL for redirect-based gateways (PayU surl/furl). */
-function payuReturnUrl(bookingId: string, kind: "success" | "failure"): string {
+export function payuReturnUrl(bookingId: string, kind: "success" | "failure"): string {
     const base = process.env.NEXT_PUBLIC_BASE_URL ?? "";
     return `${base}/api/payments/payu/callback?b=${bookingId}&k=${kind}`;
 }
