@@ -23,8 +23,8 @@ import {
 } from "../../../components/ui/alert-dialog";
 import { ImagePicker, type PickedImage } from "../../../components/dashboard/ImagePicker";
 import {
-  Plus, Pencil, Trash2, Star, Loader2, ChevronDown, ChevronUp, Images,
-  Check, ChevronsUpDown, Search,
+  Plus, Pencil, Trash2, Star, Loader2, ChevronDown, ChevronUp, ChevronRight, Images,
+  Check, ChevronsUpDown, Search, X as XIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/app/lib/utils";
@@ -81,8 +81,48 @@ const VIEW_TYPES = [
   "City View", "Landmark View", "Monument View", "Temple View",
   "Palace View", "Desert View", "Countryside View", "Airport View",
 ];
-const AMENITY_OPTIONS = ["AC", "WiFi", "TV", "Hot Water", "Heater", "Balcony", "Geyser", "Safe", "Mini Bar", "Room Service"];
-const FEATURE_OPTIONS = ["Work Desk", "Reading Chair", "Sofa", "Extra Bed Available", "Wardrobe", "Attached Bathroom"];
+const AMENITY_GROUPS: { group: string; items: string[] }[] = [
+  {
+    group: "Popular Amenities",
+    items: ["Wi-Fi", "Air Conditioning", "TV", "Hot Water", "Housekeeping", "Room Service", "Laundry Service", "Iron / Ironing Board", "In-room Dining"],
+  },
+  {
+    group: "Room Features",
+    items: ["Work Desk", "Sofa", "Sitting Area", "Wardrobe / Closet", "Reading Chair", "Telephone", "Charging Points", "Minibar", "Intercom"],
+  },
+  {
+    group: "Bathroom",
+    items: ["Bathtub", "Shower", "Rain Shower", "Hairdryer", "Geyser / Water Heater", "Shaving Mirror", "Dental Kit", "Slippers", "Toiletries", "Towels"],
+  },
+  {
+    group: "Kitchen & Appliances",
+    items: ["Electric Kettle", "Coffee / Tea Maker", "Refrigerator", "Microwave", "Water Purifier"],
+  },
+  {
+    group: "Media & Entertainment",
+    items: ["Cable TV", "Smart TV", "Streaming Services", "Music System"],
+  },
+  {
+    group: "Climate Control",
+    items: ["Heater", "Ceiling Fan", "Blackout Curtains", "Humidifier"],
+  },
+  {
+    group: "Safety & Security",
+    items: ["Electronic Safe", "CCTV", "Smoke Detector", "Fire Extinguisher", "First Aid Kit", "Peep Hole"],
+  },
+  {
+    group: "Outdoor & Space",
+    items: ["Balcony", "Private Terrace", "Private Pool", "Jacuzzi", "Garden Access"],
+  },
+  {
+    group: "Comfort & Extras",
+    items: ["Mineral Water", "Extra Pillows / Blankets", "Newspaper", "Luggage Storage", "Connecting Rooms Available"],
+  },
+  {
+    group: "Accessibility & Childcare",
+    items: ["Wheelchair Accessible", "Child Safety Socket Covers", "Baby Cot / Crib", "High Chair"],
+  },
+];
 
 type RoomFormState = {
   name: string;
@@ -96,7 +136,6 @@ type RoomFormState = {
   extra_bed_capacity: number;
   description: string;
   amenities: string[];
-  features: string[];
   is_active: boolean;
   images: PickedImage[];
 };
@@ -113,7 +152,6 @@ const EMPTY_FORM: RoomFormState = {
   extra_bed_capacity: 1,
   description: "",
   amenities: [],
-  features: [],
   is_active: true,
   images: [],
 };
@@ -128,12 +166,14 @@ function toFormState(room: DBRoom): RoomFormState {
     view_type:          room.view_type ?? "",
     area_sqft:          room.area_sqft ? String(room.area_sqft) : "",
     max_occupancy:      room.max_occupancy      ?? 2,
-    max_adults:         room.max_adults         ?? (room.max_occupancy + room.extra_bed_capacity) ?? 3,
+    max_adults:         room.max_adults         ?? ((room.max_occupancy + room.extra_bed_capacity) || 3),
     max_children:       room.max_children       ?? 2,
     extra_bed_capacity: room.extra_bed_capacity ?? 1,
     description:        room.description ?? "",
-    amenities: Array.isArray(room.amenities) ? (room.amenities as string[]) : [],
-    features:  Array.isArray(room.features)  ? (room.features  as string[]) : [],
+    amenities: [
+      ...(Array.isArray(room.amenities) ? (room.amenities as string[]) : []),
+      ...(Array.isArray(room.features)  ? (room.features  as string[]) : []),
+    ],
     is_active:          room.is_active,
     images:             [],
   };
@@ -152,7 +192,7 @@ function buildFormData(form: RoomFormState): FormData {
   fd.append("extra_bed_capacity", String(form.extra_bed_capacity));
   fd.append("description",        form.description);
   fd.append("amenities",          JSON.stringify(form.amenities));
-  fd.append("features",           JSON.stringify(form.features));
+  fd.append("features",           JSON.stringify([]));
   fd.append("is_active",          String(form.is_active));
   return fd;
 }
@@ -216,7 +256,7 @@ function SearchableSelect({
           {query && (
             <button type="button" onClick={() => setQuery("")}
               className="text-dashboard-base-content/30 hover:text-dashboard-base-content cursor-pointer">
-              <X className="h-3 w-3" />
+              <XIcon className="h-3 w-3" />
             </button>
           )}
         </div>
@@ -244,6 +284,138 @@ function SearchableSelect({
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+// ── Grouped Amenities Picker ──────────────────────────────────────────────
+
+function GroupedAmenitiesPicker({
+  selected,
+  onChange,
+}: {
+  selected: string[];
+  onChange: (v: string[]) => void;
+}) {
+  const [query, setQuery]           = useState("");
+  const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
+    const open = new Set<string>();
+    for (const g of AMENITY_GROUPS) {
+      if (g.items.some(i => selected.includes(i))) open.add(g.group);
+    }
+    return open;
+  });
+
+  const selSet   = new Set(selected);
+  const searching = query.trim().length > 0;
+  const filtered = AMENITY_GROUPS
+    .map(g => ({ ...g, items: searching ? g.items.filter(i => i.toLowerCase().includes(query.toLowerCase())) : g.items }))
+    .filter(g => g.items.length > 0);
+
+  function toggle(item: string) {
+    onChange(selSet.has(item) ? selected.filter(x => x !== item) : [...selected, item]);
+  }
+
+  function toggleGroupAll(items: string[]) {
+    const allSel = items.every(i => selSet.has(i));
+    onChange(allSel
+      ? selected.filter(x => !items.includes(x))
+      : [...selected, ...items.filter(i => !selSet.has(i))],
+    );
+  }
+
+  function toggleGroupOpen(group: string) {
+    setOpenGroups(prev => {
+      const next = new Set(prev);
+      next.has(group) ? next.delete(group) : next.add(group);
+      return next;
+    });
+  }
+
+  return (
+    <div className="border border-dashboard-base-content/15 rounded-xl overflow-hidden">
+      {/* Search + total count */}
+      <div className="flex items-center gap-2 px-3 py-2 bg-dashboard-base-200/50 border-b border-dashboard-base-content/10">
+        <Search className="h-3.5 w-3.5 shrink-0 text-dashboard-base-content/40" />
+        <input
+          placeholder="Search amenities…"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          className="flex-1 bg-transparent text-sm outline-none placeholder:text-dashboard-base-content/30 text-dashboard-base-content"
+        />
+        {query && (
+          <button type="button" onClick={() => setQuery("")}
+            className="text-dashboard-base-content/30 hover:text-dashboard-base-content cursor-pointer">
+            <XIcon className="h-3 w-3" />
+          </button>
+        )}
+        {selected.length > 0 && (
+          <span className="shrink-0 text-[10px] font-medium text-dashboard-primary bg-dashboard-primary/10 px-1.5 py-0.5 rounded-full">
+            {selected.length} selected
+          </span>
+        )}
+      </div>
+
+      {/* Groups */}
+      <div className="max-h-80 overflow-y-auto divide-y divide-dashboard-base-content/8">
+        {filtered.length === 0 ? (
+          <p className="py-6 text-center text-xs text-dashboard-base-content/40">No amenities match</p>
+        ) : filtered.map(({ group, items }) => {
+          const inGroup  = items.filter(i => selSet.has(i)).length;
+          const allSel   = inGroup === items.length;
+          const isOpen   = searching || openGroups.has(group);
+
+          return (
+            <div key={group}>
+              {/* Group header */}
+              <div className="flex items-center justify-between px-3 py-2 bg-dashboard-base-200/30">
+                <button
+                  type="button"
+                  onClick={() => !searching && toggleGroupOpen(group)}
+                  className="flex items-center gap-1.5 flex-1 text-left cursor-pointer"
+                >
+                  {!searching && (isOpen
+                    ? <ChevronDown  className="h-3.5 w-3.5 text-dashboard-base-content/40 shrink-0" />
+                    : <ChevronRight className="h-3.5 w-3.5 text-dashboard-base-content/40 shrink-0" />
+                  )}
+                  <span className="text-xs font-semibold text-dashboard-base-content/70">{group}</span>
+                  {inGroup > 0 && (
+                    <span className="text-[10px] font-medium text-dashboard-primary bg-dashboard-primary/10 px-1.5 py-0.5 rounded-full">
+                      {inGroup}/{items.length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleGroupAll(items)}
+                  className="text-[10px] font-medium text-dashboard-primary/70 hover:text-dashboard-primary cursor-pointer ml-2 shrink-0"
+                >
+                  {allSel ? "Clear" : "All"}
+                </button>
+              </div>
+
+              {/* Items grid */}
+              {isOpen && (
+                <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 px-4 py-2">
+                  {items.map(item => (
+                    <label key={item} className="flex items-center gap-2 py-1 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={selSet.has(item)}
+                        onChange={() => toggle(item)}
+                        className="h-3.5 w-3.5 accent-primary shrink-0 cursor-pointer"
+                      />
+                      <span className="text-xs text-dashboard-base-content/70 group-hover:text-dashboard-base-content transition-colors leading-tight">
+                        {item}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -506,12 +678,7 @@ function RoomForm({
 
       <div className="space-y-1.5">
         <Label className="text-sm text-dashboard-base-content">Amenities</Label>
-        <TagPills options={AMENITY_OPTIONS} selected={form.amenities} onChange={(v) => update("amenities", v)} />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label className="text-sm text-dashboard-base-content">Features</Label>
-        <TagPills options={FEATURE_OPTIONS} selected={form.features} onChange={(v) => update("features", v)} />
+        <GroupedAmenitiesPicker selected={form.amenities} onChange={(v) => update("amenities", v)} />
       </div>
 
       {isNew && (
@@ -880,7 +1047,7 @@ export function RoomsTab({
             extra_bed_capacity: form.extra_bed_capacity,
             description: form.description || null,
             amenities: form.amenities,
-            features: form.features,
+            features: [],
             bathroom: null,
             facilities: null,
             is_active: form.is_active,
@@ -923,7 +1090,7 @@ export function RoomsTab({
                   extra_bed_capacity: form.extra_bed_capacity,
                   description: form.description || null,
                   amenities: form.amenities,
-                  features: form.features,
+                  features: [],
                   is_active: form.is_active,
                 }
               : r
