@@ -909,6 +909,8 @@ model hotel_rooms {
   bed_type           String?
   view_type          String?
   max_occupancy      Int                  @default(2)
+  max_adults         Int                  @default(3)
+  max_children       Int                  @default(2)
   extra_bed_capacity Int                  @default(1)
   amenities          Json?
   features           Json?
