@@ -84,19 +84,33 @@ const VIEW_TYPES = [
 const AMENITY_GROUPS: { group: string; items: string[] }[] = [
   {
     group: "Popular Amenities",
-    items: ["Wi-Fi", "Air Conditioning", "TV", "Hot Water", "Housekeeping", "Room Service", "Laundry Service", "Iron / Ironing Board", "In-room Dining"],
+    items: [
+      "Wi-Fi", "Air Conditioning", "TV", "Hot Water", "Housekeeping",
+      "Room Service", "Laundry Service", "Iron / Ironing Board", "In-room Dining",
+      "Swimming Pool", "Gym / Fitness Centre", "Restaurant", "Bar", "Parking",
+      "Elevator / Lift", "Reception", "Power Backup",
+    ],
   },
   {
     group: "Room Features",
-    items: ["Work Desk", "Sofa", "Sitting Area", "Wardrobe / Closet", "Reading Chair", "Telephone", "Charging Points", "Minibar", "Intercom"],
+    items: [
+      "Work Desk", "Sofa", "Sitting Area", "Wardrobe / Closet", "Reading Chair",
+      "Telephone", "Charging Points", "Minibar", "Intercom",
+    ],
   },
   {
     group: "Bathroom",
-    items: ["Bathtub", "Shower", "Rain Shower", "Hairdryer", "Geyser / Water Heater", "Shaving Mirror", "Dental Kit", "Slippers", "Toiletries", "Towels"],
+    items: [
+      "Bathtub", "Shower", "Rain Shower", "Hairdryer", "Geyser / Water Heater",
+      "Shaving Mirror", "Dental Kit", "Slippers", "Toiletries", "Towels",
+    ],
   },
   {
     group: "Kitchen & Appliances",
-    items: ["Electric Kettle", "Coffee / Tea Maker", "Refrigerator", "Microwave", "Water Purifier"],
+    items: [
+      "Electric Kettle", "Coffee / Tea Maker", "Refrigerator", "Microwave",
+      "Water Purifier", "Kitchen / Kitchenette", "Washing Machine", "Laundromat",
+    ],
   },
   {
     group: "Media & Entertainment",
@@ -108,19 +122,92 @@ const AMENITY_GROUPS: { group: string; items: string[] }[] = [
   },
   {
     group: "Safety & Security",
-    items: ["Electronic Safe", "CCTV", "Smoke Detector", "Fire Extinguisher", "First Aid Kit", "Peep Hole"],
+    items: [
+      "Electronic Safe", "CCTV", "Smoke Detector", "Fire Extinguisher",
+      "First Aid Kit", "Peep Hole", "Security Alarms", "Security Guard",
+    ],
   },
   {
     group: "Outdoor & Space",
-    items: ["Balcony", "Private Terrace", "Private Pool", "Jacuzzi", "Garden Access"],
+    items: [
+      "Balcony / Terrace", "Private Pool", "Jacuzzi", "Garden Access",
+      "Outdoor Furniture", "Prayer Room",
+    ],
   },
   {
     group: "Comfort & Extras",
-    items: ["Mineral Water", "Extra Pillows / Blankets", "Newspaper", "Luggage Storage", "Connecting Rooms Available"],
+    items: [
+      "Mineral Water", "Extra Pillows / Blankets", "Newspaper", "Luggage Storage",
+      "Connecting Rooms Available", "Pool / Beach Towels", "Luggage Assistance",
+    ],
   },
   {
     group: "Accessibility & Childcare",
-    items: ["Wheelchair Accessible", "Child Safety Socket Covers", "Baby Cot / Crib", "High Chair"],
+    items: [
+      "Wheelchair Accessible", "Child Safety Socket Covers", "Baby Cot / Crib",
+      "High Chair", "Kids' Club",
+    ],
+  },
+  {
+    group: "General Services",
+    items: [
+      "Concierge", "Doctor on Call", "First-Aid Services", "Lounge",
+      "Smoking Rooms", "Multilingual Staff", "Caretaker", "24-Hour Reception",
+    ],
+  },
+  {
+    group: "Food & Drink",
+    items: ["Dining Area", "Barbeque", "Poolside Bar", "Cafe / Coffee Shop"],
+  },
+  {
+    group: "Spa & Wellness",
+    items: [
+      "Spa", "Sauna", "Steam Room", "Massage", "Hammam",
+      "Hot Spring Bath (Within Premise)",
+    ],
+  },
+  {
+    group: "Sports & Activities",
+    items: [
+      "Beach", "Outdoor Sports", "Skiing", "Cycling", "Golf Course",
+      "Kayaking", "Snorkelling", "Water Sports", "Canoeing",
+      "Indoor Games Room", "Indoor Games", "Library",
+    ],
+  },
+  {
+    group: "Business & Conferences",
+    items: [
+      "Business Center", "Conference Room", "Printer", "Photocopier", "Projector",
+    ],
+  },
+  {
+    group: "Transfers",
+    items: [
+      "Airport Transfers", "Pickup / Drop", "Railway Station Transfers",
+      "Bus Station Transfers", "Metro Station Transfers",
+    ],
+  },
+  {
+    group: "Entertainment",
+    items: [
+      "Professional Photography", "Night Club", "Beach Club",
+      "DJ", "Live Music", "Casino", "Bonfire",
+    ],
+  },
+  {
+    group: "Shopping & Payment",
+    items: [
+      "Grocery / Supermarket (Within Premise)", "Souvenir Shop", "Pharmacy",
+      "ATM", "Currency Exchange",
+    ],
+  },
+  {
+    group: "Pet Essentials",
+    items: ["Pet Bowls", "Pet Baskets"],
+  },
+  {
+    group: "Wildlife & Safari",
+    items: ["Jungle Safari"],
   },
 ];
 

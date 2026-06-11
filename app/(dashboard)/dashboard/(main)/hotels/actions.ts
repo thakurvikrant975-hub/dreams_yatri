@@ -432,23 +432,6 @@ export async function toggleHotelActive(id: number, is_active: boolean) {
   revalidatePath("/dashboard/hotels");
 }
 
-// ── Property Amenities ────────────────────────────────────────────────────
-
-export async function updatePropertyAmenities(
-  hotel_id: number,
-  amenities: string[]
-): Promise<HotelFormState> {
-  try {
-    await db.hotels.update({
-      where: { id: hotel_id },
-      data: { property_amenities: amenities },
-    });
-    revalidatePath(`/dashboard/hotels/${hotel_id}`);
-    return { success: true, message: "Property amenities saved" };
-  } catch {
-    return { success: false, message: "Failed to save amenities" };
-  }
-}
 
 // ── Delete Hotel ──────────────────────────────────────────────────────────
 

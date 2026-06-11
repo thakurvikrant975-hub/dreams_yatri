@@ -21,7 +21,6 @@ import { PricingTab } from "./tabs/PricingTab";
 import { ChildPoliciesTab } from "./tabs/ChildPoliciesTab";
 import { ImagesTab } from "./tabs/ImagesTab";
 import { MealsTab } from "./tabs/MealsTab";
-import { AmenitiesTab } from "./tabs/AmenitiesTab";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
     const { id: idStr } = await params;
@@ -64,7 +63,6 @@ export default async function HotelEditPage({
 
     const serializedHotel = {
         ...hotel,
-        property_amenities: hotel.property_amenities as string[] | null,
         location: serializedLocation,
         childPolicies: hotel.childPolicies.map((p) => ({
             ...p,
@@ -177,7 +175,7 @@ const serializedCategories = hotel.image_categories.map((cat) => ({
 
             {/* Tabs */}
             <Tabs defaultValue="details">
-                <TabsList className="grid w-full grid-cols-7">
+                <TabsList className="grid w-full grid-cols-6">
                     <TabsTrigger value="details">Details</TabsTrigger>
                     <TabsTrigger value="rooms">
                         Rooms
@@ -216,15 +214,6 @@ const serializedCategories = hotel.image_categories.map((cat) => ({
                         {totalImages > 0 && (
                             <Badge variant="secondary" className="ml-2 text-xs px-1.5 py-0">
                                 {totalImages}
-                            </Badge>
-                        )}
-                    </TabsTrigger>
-                    <TabsTrigger value="amenities">
-                        Amenities
-                        {Array.isArray(serializedHotel.property_amenities) &&
-                            (serializedHotel.property_amenities as string[]).length > 0 && (
-                            <Badge variant="secondary" className="ml-2 text-xs px-1.5 py-0">
-                                {(serializedHotel.property_amenities as string[]).length}
                             </Badge>
                         )}
                     </TabsTrigger>
@@ -269,16 +258,6 @@ const serializedCategories = hotel.image_categories.map((cat) => ({
                     <ImagesTab hotel_id={id} categories={serializedCategories} />
                 </TabsContent>
 
-                <TabsContent value="amenities" className="mt-6">
-                    <AmenitiesTab
-                        hotel_id={id}
-                        initialAmenities={
-                            Array.isArray(serializedHotel.property_amenities)
-                                ? (serializedHotel.property_amenities as string[])
-                                : []
-                        }
-                    />
-                </TabsContent>
             </Tabs>
         </div>
     );

@@ -840,9 +840,8 @@ model hotels {
   stay_type        String?
   check_in_time    String?
   check_out_time   String?
-  is_active            Boolean                  @default(true)
-  property_amenities   Json?
-  created_at           DateTime                 @default(now())
+  is_active        Boolean                  @default(true)
+  created_at       DateTime                 @default(now())
   updated_at           DateTime                 @updatedAt
   thumbnail            String?
   city             String?
