@@ -67,7 +67,7 @@ function TabsTrigger({
       data-slot="tabs-trigger"
       className={cn(
         // Base layout
-        "relative inline-flex flex-1 flex-col items-center justify-center",
+        "relative inline-flex flex-1  items-center justify-center",
         "gap-0.5 rounded-xl border border-transparent px-4 py-2.5",
         "text-xs font-semibold whitespace-nowrap transition-all duration-150 cursor-pointer",
 

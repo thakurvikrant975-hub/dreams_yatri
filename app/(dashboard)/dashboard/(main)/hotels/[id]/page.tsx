@@ -257,6 +257,7 @@ const serializedCategories = hotel.image_categories.map((cat) => ({
                 <TabsContent value="images" className="mt-6">
                     <ImagesTab hotel_id={id} categories={serializedCategories} />
                 </TabsContent>
+
             </Tabs>
         </div>
     );

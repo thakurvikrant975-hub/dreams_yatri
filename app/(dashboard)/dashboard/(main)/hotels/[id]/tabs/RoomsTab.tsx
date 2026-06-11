@@ -13,6 +13,9 @@ import {
   SelectTrigger, SelectValue,
 } from "../../../components/ui/select";
 import {
+  Popover, PopoverContent, PopoverTrigger,
+} from "@/app/components/ui/popover";
+import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -20,7 +23,8 @@ import {
 } from "../../../components/ui/alert-dialog";
 import { ImagePicker, type PickedImage } from "../../../components/dashboard/ImagePicker";
 import {
-  Plus, Pencil, Trash2, Star, Loader2, ChevronDown, ChevronUp, Images,
+  Plus, Pencil, Trash2, Star, Loader2, ChevronDown, ChevronUp, ChevronRight, Images,
+  Check, ChevronsUpDown, Search, X as XIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/app/lib/utils";
@@ -50,6 +54,8 @@ type DBRoom = {
   bed_type: string | null;
   view_type: string | null;
   max_occupancy: number;
+  max_adults: number;
+  max_children: number;
   extra_bed_capacity: number;
   amenities: unknown;
   features: unknown;
@@ -64,9 +70,146 @@ type DBRoom = {
 // ── Constants ─────────────────────────────────────────────────────────────
 
 const BED_TYPES = ["Single", "Twin", "Double", "Queen", "King", "Suite", "Dormitory"];
-const VIEW_TYPES = ["City View", "Mountain View", "Lake View", "Garden View", "Pool View", "Sea View", "No View"];
-const AMENITY_OPTIONS = ["AC", "WiFi", "TV", "Hot Water", "Heater", "Balcony", "Geyser", "Safe", "Mini Bar", "Room Service"];
-const FEATURE_OPTIONS = ["Work Desk", "Reading Chair", "Sofa", "Extra Bed Available", "Wardrobe", "Attached Bathroom"];
+const VIEW_TYPES = [
+  "No View",
+  "Sea View", "Ocean View", "Beach View", "Bay View", "Harbor View",
+  "Backwater View", "Lake View", "River View", "Lagoon View", "Marina View",
+  "Inter-coastal View",
+  "Mountain View", "Hill View", "Valley View", "Forest View", "Jungle View",
+  "Garden View", "Pool View", "Courtyard View", "Terrace View", "Park View",
+  "Resort View", "Golf Course View",
+  "City View", "Landmark View", "Monument View", "Temple View",
+  "Palace View", "Desert View", "Countryside View", "Airport View",
+];
+const AMENITY_GROUPS: { group: string; items: string[] }[] = [
+  {
+    group: "Popular Amenities",
+    items: [
+      "Wi-Fi", "Air Conditioning", "TV", "Hot Water", "Housekeeping",
+      "Room Service", "Laundry Service", "Iron / Ironing Board", "In-room Dining",
+      "Swimming Pool", "Gym / Fitness Centre", "Restaurant", "Bar", "Parking",
+      "Elevator / Lift", "Reception", "Power Backup",
+    ],
+  },
+  {
+    group: "Room Features",
+    items: [
+      "Work Desk", "Sofa", "Sitting Area", "Wardrobe / Closet", "Reading Chair",
+      "Telephone", "Charging Points", "Minibar", "Intercom",
+    ],
+  },
+  {
+    group: "Bathroom",
+    items: [
+      "Bathtub", "Shower", "Rain Shower", "Hairdryer", "Geyser / Water Heater",
+      "Shaving Mirror", "Dental Kit", "Slippers", "Toiletries", "Towels",
+    ],
+  },
+  {
+    group: "Kitchen & Appliances",
+    items: [
+      "Electric Kettle", "Coffee / Tea Maker", "Refrigerator", "Microwave",
+      "Water Purifier", "Kitchen / Kitchenette", "Washing Machine", "Laundromat",
+    ],
+  },
+  {
+    group: "Media & Entertainment",
+    items: ["Cable TV", "Smart TV", "Streaming Services", "Music System"],
+  },
+  {
+    group: "Climate Control",
+    items: ["Heater", "Ceiling Fan", "Blackout Curtains", "Humidifier"],
+  },
+  {
+    group: "Safety & Security",
+    items: [
+      "Electronic Safe", "CCTV", "Smoke Detector", "Fire Extinguisher",
+      "First Aid Kit", "Peep Hole", "Security Alarms", "Security Guard",
+    ],
+  },
+  {
+    group: "Outdoor & Space",
+    items: [
+      "Balcony / Terrace", "Private Pool", "Jacuzzi", "Garden Access",
+      "Outdoor Furniture", "Prayer Room",
+    ],
+  },
+  {
+    group: "Comfort & Extras",
+    items: [
+      "Mineral Water", "Extra Pillows / Blankets", "Newspaper", "Luggage Storage",
+      "Connecting Rooms Available", "Pool / Beach Towels", "Luggage Assistance",
+    ],
+  },
+  {
+    group: "Accessibility & Childcare",
+    items: [
+      "Wheelchair Accessible", "Child Safety Socket Covers", "Baby Cot / Crib",
+      "High Chair", "Kids' Club",
+    ],
+  },
+  {
+    group: "General Services",
+    items: [
+      "Concierge", "Doctor on Call", "First-Aid Services", "Lounge",
+      "Smoking Rooms", "Multilingual Staff", "Caretaker", "24-Hour Reception",
+    ],
+  },
+  {
+    group: "Food & Drink",
+    items: ["Dining Area", "Barbeque", "Poolside Bar", "Cafe / Coffee Shop"],
+  },
+  {
+    group: "Spa & Wellness",
+    items: [
+      "Spa", "Sauna", "Steam Room", "Massage", "Hammam",
+      "Hot Spring Bath (Within Premise)",
+    ],
+  },
+  {
+    group: "Sports & Activities",
+    items: [
+      "Beach", "Outdoor Sports", "Skiing", "Cycling", "Golf Course",
+      "Kayaking", "Snorkelling", "Water Sports", "Canoeing",
+      "Indoor Games Room", "Indoor Games", "Library",
+    ],
+  },
+  {
+    group: "Business & Conferences",
+    items: [
+      "Business Center", "Conference Room", "Printer", "Photocopier", "Projector",
+    ],
+  },
+  {
+    group: "Transfers",
+    items: [
+      "Airport Transfers", "Pickup / Drop", "Railway Station Transfers",
+      "Bus Station Transfers", "Metro Station Transfers",
+    ],
+  },
+  {
+    group: "Entertainment",
+    items: [
+      "Professional Photography", "Night Club", "Beach Club",
+      "DJ", "Live Music", "Casino", "Bonfire",
+    ],
+  },
+  {
+    group: "Shopping & Payment",
+    items: [
+      "Grocery / Supermarket (Within Premise)", "Souvenir Shop", "Pharmacy",
+      "ATM", "Currency Exchange",
+    ],
+  },
+  {
+    group: "Pet Essentials",
+    items: ["Pet Bowls", "Pet Baskets"],
+  },
+  {
+    group: "Wildlife & Safari",
+    items: ["Jungle Safari"],
+  },
+];
 
 type RoomFormState = {
   name: string;
@@ -75,10 +218,11 @@ type RoomFormState = {
   view_type: string;
   area_sqft: string;
   max_occupancy: number;
+  max_adults: number;
+  max_children: number;
   extra_bed_capacity: number;
   description: string;
   amenities: string[];
-  features: string[];
   is_active: boolean;
   images: PickedImage[];
 };
@@ -90,10 +234,11 @@ const EMPTY_FORM: RoomFormState = {
   view_type: "",
   area_sqft: "",
   max_occupancy: 2,
+  max_adults: 3,
+  max_children: 2,
   extra_bed_capacity: 1,
   description: "",
   amenities: [],
-  features: [],
   is_active: true,
   images: [],
 };
@@ -102,39 +247,263 @@ const EMPTY_FORM: RoomFormState = {
 
 function toFormState(room: DBRoom): RoomFormState {
   return {
-    name: room.name,
-    slug: room.slug,
-    bed_type: room.bed_type ?? "",
-    view_type: room.view_type ?? "",
-    area_sqft: room.area_sqft ? String(room.area_sqft) : "",
-    max_occupancy: room.max_occupancy,
-    extra_bed_capacity: room.extra_bed_capacity,
-    description: room.description ?? "",
-    amenities: Array.isArray(room.amenities) ? (room.amenities as string[]) : [],
-    features: Array.isArray(room.features) ? (room.features as string[]) : [],
-    is_active: room.is_active,
-    images: [],
+    name:               room.name,
+    slug:               room.slug,
+    bed_type:           room.bed_type ?? "",
+    view_type:          room.view_type ?? "",
+    area_sqft:          room.area_sqft ? String(room.area_sqft) : "",
+    max_occupancy:      room.max_occupancy      ?? 2,
+    max_adults:         room.max_adults         ?? ((room.max_occupancy + room.extra_bed_capacity) || 3),
+    max_children:       room.max_children       ?? 2,
+    extra_bed_capacity: room.extra_bed_capacity ?? 1,
+    description:        room.description ?? "",
+    amenities: [
+      ...(Array.isArray(room.amenities) ? (room.amenities as string[]) : []),
+      ...(Array.isArray(room.features)  ? (room.features  as string[]) : []),
+    ],
+    is_active:          room.is_active,
+    images:             [],
   };
 }
 
 function buildFormData(form: RoomFormState): FormData {
   const fd = new FormData();
-  fd.append("name", form.name);
-  fd.append("slug", form.slug);
-  fd.append("bed_type", form.bed_type);
-  fd.append("view_type", form.view_type);
-  fd.append("area_sqft", form.area_sqft);
-  fd.append("max_occupancy", String(form.max_occupancy));
+  fd.append("name",               form.name);
+  fd.append("slug",               form.slug);
+  fd.append("bed_type",           form.bed_type);
+  fd.append("view_type",          form.view_type);
+  fd.append("area_sqft",          form.area_sqft);
+  fd.append("max_occupancy",      String(form.max_occupancy));
+  fd.append("max_adults",         String(form.max_adults));
+  fd.append("max_children",       String(form.max_children));
   fd.append("extra_bed_capacity", String(form.extra_bed_capacity));
-  fd.append("description", form.description);
-  fd.append("amenities", JSON.stringify(form.amenities));
-  fd.append("features", JSON.stringify(form.features));
-  fd.append("is_active", String(form.is_active));
+  fd.append("description",        form.description);
+  fd.append("amenities",          JSON.stringify(form.amenities));
+  fd.append("features",           JSON.stringify([]));
+  fd.append("is_active",          String(form.is_active));
   return fd;
 }
 
 function toSlug(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-").trim();
+}
+
+// ── Searchable Select ─────────────────────────────────────────────────────
+
+function SearchableSelect({
+  options,
+  value,
+  onChange,
+  placeholder = "Select…",
+}: {
+  options:     string[];
+  value:       string;
+  onChange:    (v: string) => void;
+  placeholder?: string;
+}) {
+  const [open,   setOpen]   = useState(false);
+  const [query,  setQuery]  = useState("");
+
+  const filtered = query.trim()
+    ? options.filter(o => o.toLowerCase().includes(query.toLowerCase()))
+    : options;
+
+  return (
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQuery(""); }}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          role="combobox"
+          aria-expanded={open}
+          className={cn(
+            "flex h-9 w-full items-center justify-between rounded-md border border-dashboard-base-content/20 bg-dashboard-base-100 px-3 py-2 text-sm cursor-pointer",
+            "hover:bg-dashboard-base-200 transition-colors",
+            !value && "text-dashboard-base-content/40",
+          )}
+        >
+          <span className="truncate">{value || placeholder}</span>
+          <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-dashboard-base-content/40 ml-1" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        style={{ width: "var(--radix-popover-trigger-width)" }}
+        className="p-0 rounded-xl border border-dashboard-base-content/20 bg-dashboard-base-100 shadow-lg"
+      >
+        {/* Search input */}
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-dashboard-base-content/10">
+          <Search className="h-3.5 w-3.5 shrink-0 text-dashboard-base-content/40" />
+          <input
+            autoFocus
+            placeholder="Search view…"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            className="flex-1 bg-transparent text-sm outline-none placeholder:text-dashboard-base-content/30 text-dashboard-base-content"
+          />
+          {query && (
+            <button type="button" onClick={() => setQuery("")}
+              className="text-dashboard-base-content/30 hover:text-dashboard-base-content cursor-pointer">
+              <XIcon className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+
+        {/* Scrollable list */}
+        <div className="max-h-56 overflow-y-auto py-1">
+          {filtered.length === 0 ? (
+            <p className="px-3 py-4 text-center text-xs text-dashboard-base-content/40">No match</p>
+          ) : filtered.map(opt => (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => { onChange(opt === value ? "" : opt); setOpen(false); setQuery(""); }}
+              className={cn(
+                "w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left cursor-pointer transition-colors",
+                opt === value
+                  ? "bg-dashboard-primary/10 text-dashboard-primary"
+                  : "hover:bg-dashboard-base-200 text-dashboard-base-content",
+              )}
+            >
+              <Check className={cn("h-3.5 w-3.5 shrink-0", opt === value ? "opacity-100" : "opacity-0")} />
+              {opt}
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ── Grouped Amenities Picker ──────────────────────────────────────────────
+
+function GroupedAmenitiesPicker({
+  selected,
+  onChange,
+}: {
+  selected: string[];
+  onChange: (v: string[]) => void;
+}) {
+  const [query, setQuery]           = useState("");
+  const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
+    const open = new Set<string>();
+    for (const g of AMENITY_GROUPS) {
+      if (g.items.some(i => selected.includes(i))) open.add(g.group);
+    }
+    return open;
+  });
+
+  const selSet   = new Set(selected);
+  const searching = query.trim().length > 0;
+  const filtered = AMENITY_GROUPS
+    .map(g => ({ ...g, items: searching ? g.items.filter(i => i.toLowerCase().includes(query.toLowerCase())) : g.items }))
+    .filter(g => g.items.length > 0);
+
+  function toggle(item: string) {
+    onChange(selSet.has(item) ? selected.filter(x => x !== item) : [...selected, item]);
+  }
+
+  function toggleGroupAll(items: string[]) {
+    const allSel = items.every(i => selSet.has(i));
+    onChange(allSel
+      ? selected.filter(x => !items.includes(x))
+      : [...selected, ...items.filter(i => !selSet.has(i))],
+    );
+  }
+
+  function toggleGroupOpen(group: string) {
+    setOpenGroups(prev => {
+      const next = new Set(prev);
+      next.has(group) ? next.delete(group) : next.add(group);
+      return next;
+    });
+  }
+
+  return (
+    <div className="border border-dashboard-base-content/15 rounded-xl overflow-hidden">
+      {/* Search + total count */}
+      <div className="flex items-center gap-2 px-3 py-2 bg-dashboard-base-200/50 border-b border-dashboard-base-content/10">
+        <Search className="h-3.5 w-3.5 shrink-0 text-dashboard-base-content/40" />
+        <input
+          placeholder="Search amenities…"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          className="flex-1 bg-transparent text-sm outline-none placeholder:text-dashboard-base-content/30 text-dashboard-base-content"
+        />
+        {query && (
+          <button type="button" onClick={() => setQuery("")}
+            className="text-dashboard-base-content/30 hover:text-dashboard-base-content cursor-pointer">
+            <XIcon className="h-3 w-3" />
+          </button>
+        )}
+        {selected.length > 0 && (
+          <span className="shrink-0 text-[10px] font-medium text-dashboard-primary bg-dashboard-primary/10 px-1.5 py-0.5 rounded-full">
+            {selected.length} selected
+          </span>
+        )}
+      </div>
+
+      {/* Groups */}
+      <div className="max-h-80 overflow-y-auto divide-y divide-dashboard-base-content/8">
+        {filtered.length === 0 ? (
+          <p className="py-6 text-center text-xs text-dashboard-base-content/40">No amenities match</p>
+        ) : filtered.map(({ group, items }) => {
+          const inGroup  = items.filter(i => selSet.has(i)).length;
+          const allSel   = inGroup === items.length;
+          const isOpen   = searching || openGroups.has(group);
+
+          return (
+            <div key={group}>
+              {/* Group header */}
+              <div className="flex items-center justify-between px-3 py-2 bg-dashboard-base-200/30">
+                <button
+                  type="button"
+                  onClick={() => !searching && toggleGroupOpen(group)}
+                  className="flex items-center gap-1.5 flex-1 text-left cursor-pointer"
+                >
+                  {!searching && (isOpen
+                    ? <ChevronDown  className="h-3.5 w-3.5 text-dashboard-base-content/40 shrink-0" />
+                    : <ChevronRight className="h-3.5 w-3.5 text-dashboard-base-content/40 shrink-0" />
+                  )}
+                  <span className="text-xs font-semibold text-dashboard-base-content/70">{group}</span>
+                  {inGroup > 0 && (
+                    <span className="text-[10px] font-medium text-dashboard-primary bg-dashboard-primary/10 px-1.5 py-0.5 rounded-full">
+                      {inGroup}/{items.length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleGroupAll(items)}
+                  className="text-[10px] font-medium text-dashboard-primary/70 hover:text-dashboard-primary cursor-pointer ml-2 shrink-0"
+                >
+                  {allSel ? "Clear" : "All"}
+                </button>
+              </div>
+
+              {/* Items grid */}
+              {isOpen && (
+                <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 px-4 py-2">
+                  {items.map(item => (
+                    <label key={item} className="flex items-center gap-2 py-1 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={selSet.has(item)}
+                        onChange={() => toggle(item)}
+                        className="h-3.5 w-3.5 accent-primary shrink-0 cursor-pointer"
+                      />
+                      <span className="text-xs text-dashboard-base-content/70 group-hover:text-dashboard-base-content transition-colors leading-tight">
+                        {item}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 // ── Tag Pill ──────────────────────────────────────────────────────────────
@@ -177,6 +546,73 @@ function TagPills({
   );
 }
 
+// ── Stepper ───────────────────────────────────────────────────────────────
+
+function Stepper({
+  value,
+  onChange,
+  min = 0,
+  max = 20,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  min?: number;
+  max?: number;
+}) {
+  return (
+    <div className="flex items-center border border-dashboard-base-content/20 rounded-lg overflow-hidden bg-dashboard-base-100 h-9">
+      <button
+        type="button"
+        onClick={() => onChange(Math.max(min, value - 1))}
+        disabled={value <= min}
+        className="w-9 h-full flex items-center justify-center text-lg text-dashboard-base-content/50 hover:bg-dashboard-base-200 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+      >
+        −
+      </button>
+      <span className="w-10 text-center text-sm font-bold text-dashboard-base-content tabular-nums">
+        {String(value).padStart(2, "0")}
+      </span>
+      <button
+        type="button"
+        onClick={() => onChange(Math.min(max, value + 1))}
+        disabled={value >= max}
+        className="w-9 h-full flex items-center justify-center text-lg text-dashboard-base-content/50 hover:bg-dashboard-base-200 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
+function OccupancyRow({
+  label,
+  description,
+  value,
+  onChange,
+  min,
+  max,
+  hint,
+}: {
+  label:       string;
+  description: string;
+  value:       number;
+  onChange:    (v: number) => void;
+  min?:        number;
+  max?:        number;
+  hint?:       string;
+}) {
+  return (
+    <div className="flex items-center justify-between py-3 border-b border-dashboard-base-content/10 last:border-0">
+      <div className="flex-1 pr-4">
+        <p className="text-sm font-semibold text-dashboard-base-content">{label}</p>
+        <p className="text-xs text-dashboard-base-content/50 mt-0.5">{description}</p>
+        {hint && <p className="text-[10px] text-dashboard-primary/60 mt-0.5">{hint}</p>}
+      </div>
+      <Stepper value={value} onChange={onChange} min={min} max={max} />
+    </div>
+  );
+}
+
 // ── Room Form ─────────────────────────────────────────────────────────────
 
 function RoomForm({
@@ -205,6 +641,28 @@ function RoomForm({
     if (!initial.slug) update("slug", toSlug(capped));
   }
 
+  function handleBaseAdultsChange(v: number) {
+    setForm(prev => {
+      const autoMaxAdults = v + (prev.extra_bed_capacity ?? 1);
+      return {
+        ...prev,
+        max_occupancy: v,
+        max_adults: Math.max(prev.max_adults ?? autoMaxAdults, autoMaxAdults),
+      };
+    });
+  }
+
+  function handleExtraBedsChange(v: number) {
+    setForm(prev => {
+      const autoMaxAdults = (prev.max_occupancy ?? 2) + v;
+      return {
+        ...prev,
+        extra_bed_capacity: v,
+        max_adults: Math.max(prev.max_adults ?? autoMaxAdults, autoMaxAdults),
+      };
+    });
+  }
+
   return (
     <div className="border border-dashboard-base-content/20 rounded-xl p-4 space-y-4 bg-dashboard-base-200/60">
       <div className="grid grid-cols-2 gap-3">
@@ -221,7 +679,7 @@ function RoomForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <div className="space-y-1.5">
           <Label className="text-sm text-dashboard-base-content">Bed Type</Label>
           <Select value={form.bed_type} onValueChange={(v) => update("bed_type", v)}>
@@ -231,10 +689,12 @@ function RoomForm({
         </div>
         <div className="space-y-1.5">
           <Label className="text-sm text-dashboard-base-content">View Type</Label>
-          <Select value={form.view_type} onValueChange={(v) => update("view_type", v)}>
-            <SelectTrigger className="bg-dashboard-base-100 border-dashboard-base-content/20 cursor-pointer"><SelectValue placeholder="Select" /></SelectTrigger>
-            <SelectContent>{VIEW_TYPES.map((v) => <SelectItem key={v} value={v} className="cursor-pointer">{v}</SelectItem>)}</SelectContent>
-          </Select>
+          <SearchableSelect
+            options={VIEW_TYPES}
+            value={form.view_type}
+            onChange={(v) => update("view_type", v)}
+            placeholder="Select view…"
+          />
         </div>
         <div className="space-y-1.5">
           <Label className="text-sm text-dashboard-base-content">Area (sq ft)</Label>
@@ -242,19 +702,57 @@ function RoomForm({
             onChange={(e) => update("area_sqft", e.target.value)}
             className="bg-dashboard-base-100 border-dashboard-base-content/20" />
         </div>
-        <div className="space-y-1.5">
-          <Label className="text-sm text-dashboard-base-content">Bed Capacity (on beds)</Label>
-          <Input type="number" min={1} max={20} value={form.max_occupancy}
-            onChange={(e) => update("max_occupancy", Number(e.target.value))}
-            className="bg-dashboard-base-100 border-dashboard-base-content/20" />
-          <p className="text-[10px] text-dashboard-base-content/50">People who sleep on standard beds</p>
+      </div>
+
+      {/* ── Guest Occupancy ─────────────────────────────── */}
+      <div className="border border-dashboard-base-content/15 rounded-xl overflow-hidden">
+        <div className="px-4 py-2.5 bg-dashboard-base-200/60 border-b border-dashboard-base-content/10">
+          <p className="text-xs font-bold uppercase tracking-widest text-dashboard-base-content/50">Guest Occupancy</p>
+          <p className="text-[11px] text-dashboard-base-content/40 mt-0.5">
+            Base occupancy is from standard beds. Max occupancy includes extra beds.
+          </p>
         </div>
-        <div className="space-y-1.5">
-          <Label className="text-sm text-dashboard-base-content">Extra Mattresses</Label>
-          <Input type="number" min={0} max={10} value={form.extra_bed_capacity}
-            onChange={(e) => update("extra_bed_capacity", Number(e.target.value))}
-            className="bg-dashboard-base-100 border-dashboard-base-content/20" />
-          <p className="text-[10px] text-dashboard-base-content/50">Additional people on mattresses per room</p>
+        <div className="px-4 divide-y divide-dashboard-base-content/8 bg-dashboard-base-100">
+          <OccupancyRow
+            label="Base Adults"
+            description="Adults accommodated on standard beds (no surcharge)"
+            value={form.max_occupancy}
+            onChange={handleBaseAdultsChange}
+            min={1} max={10}
+          />
+          <OccupancyRow
+            label="Extra Beds"
+            description="Additional mattresses/rollaway beds available per room"
+            value={form.extra_bed_capacity}
+            onChange={handleExtraBedsChange}
+            min={0} max={5}
+          />
+          <OccupancyRow
+            label="Max Adults"
+            description="Hard cap on total adults in this room (including extra beds)"
+            value={form.max_adults}
+            onChange={(v) => update("max_adults", v)}
+            min={form.max_occupancy} max={15}
+            hint={`Suggested: ${form.max_occupancy} base + ${form.extra_bed_capacity} extra = ${form.max_occupancy + form.extra_bed_capacity}`}
+          />
+          <OccupancyRow
+            label="Max Children"
+            description="Maximum children that can be accommodated (may share adult beds)"
+            value={form.max_children}
+            onChange={(v) => update("max_children", v)}
+            min={0} max={6}
+          />
+          <div className="flex items-center justify-between py-3">
+            <div className="flex-1 pr-4">
+              <p className="text-sm font-semibold text-dashboard-base-content/60">Max Occupancy</p>
+              <p className="text-xs text-dashboard-base-content/40 mt-0.5">Total hard cap (adults + children) — computed</p>
+            </div>
+            <div className="flex items-center justify-center w-28 h-9 rounded-lg bg-dashboard-base-200/60 border border-dashboard-base-content/15">
+              <span className="text-sm font-bold text-dashboard-base-content tabular-nums">
+                {String((form.max_adults ?? 3) + (form.max_children ?? 2)).padStart(2, "0")}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -267,12 +765,7 @@ function RoomForm({
 
       <div className="space-y-1.5">
         <Label className="text-sm text-dashboard-base-content">Amenities</Label>
-        <TagPills options={AMENITY_OPTIONS} selected={form.amenities} onChange={(v) => update("amenities", v)} />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label className="text-sm text-dashboard-base-content">Features</Label>
-        <TagPills options={FEATURE_OPTIONS} selected={form.features} onChange={(v) => update("features", v)} />
+        <GroupedAmenitiesPicker selected={form.amenities} onChange={(v) => update("amenities", v)} />
       </div>
 
       {isNew && (
@@ -535,7 +1028,9 @@ function RoomRow({
             {room.bed_type && <span className="text-xs text-dashboard-base-content/50">{room.bed_type}</span>}
             {room.view_type && <span className="text-xs text-dashboard-base-content/50">· {room.view_type}</span>}
             {room.area_sqft && <span className="text-xs text-dashboard-base-content/50">· {room.area_sqft} sq ft</span>}
-            <span className="text-xs text-dashboard-base-content/50">· {room.max_occupancy} on bed{room.extra_bed_capacity > 0 ? ` +${room.extra_bed_capacity} mattress` : ""}</span>
+            <span className="text-xs text-dashboard-base-content/50">
+              · {room.max_occupancy ?? 2} base{(room.extra_bed_capacity ?? 0) > 0 ? ` +${room.extra_bed_capacity} extra` : ""} · max {room.max_adults ?? "—"}A/{room.max_children ?? "—"}C
+            </span>
             {amenities.slice(0, 3).map((a) => (
               <Badge key={a} className="text-[10px] px-1.5 py-0 bg-dashboard-primary/10 text-dashboard-primary border border-dashboard-primary/20">{a}</Badge>
             ))}
@@ -633,11 +1128,13 @@ export function RoomsTab({
             bed_type: form.bed_type || null,
             view_type: form.view_type || null,
             area_sqft: form.area_sqft ? Number(form.area_sqft) : null,
-            max_occupancy: form.max_occupancy,
+            max_occupancy:      form.max_occupancy,
+            max_adults:         form.max_adults,
+            max_children:       form.max_children,
             extra_bed_capacity: form.extra_bed_capacity,
             description: form.description || null,
             amenities: form.amenities,
-            features: form.features,
+            features: [],
             bathroom: null,
             facilities: null,
             is_active: form.is_active,
@@ -674,11 +1171,13 @@ export function RoomsTab({
                   bed_type: form.bed_type || null,
                   view_type: form.view_type || null,
                   area_sqft: form.area_sqft ? Number(form.area_sqft) : null,
-                  max_occupancy: form.max_occupancy,
+                  max_occupancy:      form.max_occupancy,
+                  max_adults:         form.max_adults,
+                  max_children:       form.max_children,
                   extra_bed_capacity: form.extra_bed_capacity,
                   description: form.description || null,
                   amenities: form.amenities,
-                  features: form.features,
+                  features: [],
                   is_active: form.is_active,
                 }
               : r

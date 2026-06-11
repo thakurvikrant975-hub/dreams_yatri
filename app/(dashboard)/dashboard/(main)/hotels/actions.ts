@@ -432,6 +432,7 @@ export async function toggleHotelActive(id: number, is_active: boolean) {
   revalidatePath("/dashboard/hotels");
 }
 
+
 // ── Delete Hotel ──────────────────────────────────────────────────────────
 
 export async function deleteHotel(id: number): Promise<HotelFormState> {
@@ -523,8 +524,10 @@ export async function createRoom(hotel_id: number, formData: FormData): Promise<
         area_sqft: formData.get("area_sqft") ? Number(formData.get("area_sqft")) : null,
         bed_type: (formData.get("bed_type") as string) || null,
         view_type: (formData.get("view_type") as string) || null,
-        max_occupancy: Number(formData.get("max_occupancy")) || 2,
-        extra_bed_capacity: Number(formData.get("extra_bed_capacity")) ?? 1,
+        max_occupancy:      Number(formData.get("max_occupancy"))      || 2,
+        max_adults:         Number(formData.get("max_adults"))          || 3,
+        max_children:       Number(formData.get("max_children"))        ?? 2,
+        extra_bed_capacity: Number(formData.get("extra_bed_capacity"))  ?? 1,
         description: (formData.get("description") as string) || null,
         amenities: parseJson(formData.get("amenities")),
         features: parseJson(formData.get("features")),
@@ -560,8 +563,10 @@ export async function updateRoom(
         area_sqft: formData.get("area_sqft") ? Number(formData.get("area_sqft")) : null,
         bed_type: (formData.get("bed_type") as string) || null,
         view_type: (formData.get("view_type") as string) || null,
-        max_occupancy: Number(formData.get("max_occupancy")) || 2,
-        extra_bed_capacity: Number(formData.get("extra_bed_capacity")) ?? 1,
+        max_occupancy:      Number(formData.get("max_occupancy"))      || 2,
+        max_adults:         Number(formData.get("max_adults"))          || 3,
+        max_children:       Number(formData.get("max_children"))        ?? 2,
+        extra_bed_capacity: Number(formData.get("extra_bed_capacity"))  ?? 1,
         description: (formData.get("description") as string) || null,
         amenities: parseJson(formData.get("amenities")),
         features: parseJson(formData.get("features")),
