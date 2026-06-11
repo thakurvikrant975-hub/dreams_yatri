@@ -129,6 +129,34 @@ export async function updateRolePermissions(
     }
 }
 
+// ── Update Permissions + Sidebar Access ──────────────────────────────────────
+// pageAccess: list of sidebar hrefs visible to this role. Empty = no
+// restriction (full sidebar, subject to data permissions).
+
+export async function updateRoleAccess(
+    id: string,
+    data: { permissions: PermissionSet; pageAccess: string[] },
+): Promise<RoleFormState> {
+    try {
+        const role = await db.teamRole.findUnique({ where: { id } });
+        if (!role) return { success: false, message: "Role not found" };
+
+        await db.teamRole.update({
+            where: { id },
+            data: {
+                permissions: data.permissions as unknown as never,
+                pageAccess:  data.pageAccess as unknown as never,
+            },
+        });
+
+        revalidatePath(REVALIDATE_PATH);
+        return { success: true, message: "Role access saved successfully" };
+    } catch (e) {
+        console.error("[updateRoleAccess]", e);
+        return { success: false, message: `DB error: ${(e as Error).message}` };
+    }
+}
+
 // ── Delete ────────────────────────────────────────────────────────────────────
 
 export async function deleteRole(id: string): Promise<RoleFormState> {

@@ -4,13 +4,16 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
     ArrowLeft, Check, ChevronDown, ChevronUp,
-    ShieldCheck, ShieldOff, Save, Users,
+    ShieldCheck, Save, Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
-import { updateRolePermissions } from "./actions";
+import { Checkbox } from "../components/ui/checkbox";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
+import { updateRoleAccess } from "./actions";
 import { FIELD_REGISTRY } from "../lib/rbac/field-registry";
+import { SidebarAccessEditor } from "./SidebarAccessEditor";
 import type { PermissionSet, Action, ResourcePermission } from "@/app/types/rbac";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -20,10 +23,11 @@ type Role = {
     name: string;
     description: string | null;
     permissions: unknown;
+    pageAccess: unknown;
     _count: { members: number };
 };
 
-// ── Safe parser ───────────────────────────────────────────────────────────────
+// ── Safe parsers ──────────────────────────────────────────────────────────────
 
 function parsePermissions(raw: unknown): PermissionSet {
     if (!Array.isArray(raw)) return [];
@@ -33,6 +37,11 @@ function parsePermissions(raw: unknown): PermissionSet {
         typeof (p as ResourcePermission).resource === "string" &&
         Array.isArray((p as ResourcePermission).actions)
     );
+}
+
+function parsePageAccess(raw: unknown): string[] {
+    if (!Array.isArray(raw)) return [];
+    return raw.filter((href): href is string => typeof href === "string");
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -57,39 +66,6 @@ const ACTIONS: { key: Action; label: string; shortLabel: string; activeClass: st
     { key: "update", label: "Update", shortLabel: "U", activeClass: "bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-800 dark:text-amber-400" },
     { key: "delete", label: "Delete", shortLabel: "D", activeClass: "bg-destructive/10 text-destructive border-destructive/20" },
 ];
-
-// ── Checkbox ──────────────────────────────────────────────────────────────────
-
-function Checkbox({
-    checked, indeterminate = false, onChange, disabled = false, label,
-}: {
-    checked: boolean; indeterminate?: boolean; onChange: () => void;
-    disabled?: boolean; label?: string;
-}) {
-    return (
-        <label className={["flex items-center gap-2 cursor-pointer select-none", disabled ? "opacity-40 pointer-events-none" : ""].join(" ")}>
-            <button
-                type="button"
-                role="checkbox"
-                aria-checked={indeterminate ? "mixed" : checked}
-                onClick={onChange}
-                className={[
-                    "h-4 w-4 rounded border flex items-center justify-center shrink-0 transition-all",
-                    checked || indeterminate
-                        ? "bg-primary border-primary text-primary-foreground"
-                        : "border-input bg-background hover:border-primary/60",
-                ].join(" ")}
-            >
-                {indeterminate && !checked
-                    ? <span className="block h-0.5 w-2 bg-current rounded" />
-                    : checked
-                        ? <Check className="h-2.5 w-2.5" strokeWidth={3} />
-                        : null}
-            </button>
-            {label && <span className="text-sm">{label}</span>}
-        </label>
-    );
-}
 
 // ── Resource Block ────────────────────────────────────────────────────────────
 
@@ -321,6 +297,9 @@ export function PermissionPage({ role }: { role: Role }) {
     const [localPerms, setLocalPerms] = useState<PermissionSet>(
         parsePermissions(role.permissions)
     );
+    const [localPageAccess, setLocalPageAccess] = useState<string[]>(
+        parsePageAccess(role.pageAccess)
+    );
 
     // Select-all resources
     const allEnabled = RESOURCES.every(r => localPerms.some(p => p.resource === r && p.actions.includes("read")));
@@ -354,7 +333,10 @@ export function PermissionPage({ role }: { role: Role }) {
 
     function handleSave() {
         startTransition(async () => {
-            const result = await updateRolePermissions(role.id, localPerms);
+            const result = await updateRoleAccess(role.id, {
+                permissions: localPerms,
+                pageAccess: localPageAccess,
+            });
             if (result.success) toast.success(result.message);
             else toast.error(result.message);
         });
@@ -399,55 +381,72 @@ export function PermissionPage({ role }: { role: Role }) {
                     </Badge>
                     <Button size="sm" onClick={handleSave} disabled={isPending} className="gap-2 bg-dashboard-primary rounded-md">
                         <Save className="h-3.5 w-3.5" />
-                        {isPending ? "Saving..." : "Save Permissions"}
+                        {isPending ? "Saving..." : "Save Changes"}
                     </Button>
                 </div>
             </div>
 
-            {/* ── Select-all header ─────────────────────────────────────────── */}
-            <div className="flex items-center justify-between rounded-xl border bg-dashboard-base-100 px-4 py-3">
-                <div className="flex items-center gap-3">
-                    <Checkbox
-                        checked={allEnabled}
-                        indeterminate={someEnabled && !allEnabled}
-                        onChange={toggleAllResources}
-                    />
-                    <div>
-                        <p className="text-sm font-medium">All Resources</p>
-                        <p className="text-xs text-muted-foreground">
-                            Toggle full access across every module
-                        </p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-1.5">
-                    {ACTIONS.map(act => (
-                        <span key={act.key} className={[
-                            "px-2 py-0.5 rounded text-xs font-medium border",
-                            act.activeClass,
-                        ].join(" ")}>
-                            {act.label}
-                        </span>
-                    ))}
-                </div>
-            </div>
+            {/* ── Tabs ─────────────────────────────────────────────────────── */}
+            <Tabs defaultValue="permissions">
+                <TabsList variant="line">
+                    <TabsTrigger value="permissions">Data Permissions</TabsTrigger>
+                    <TabsTrigger value="sidebar">Sidebar Access</TabsTrigger>
+                </TabsList>
 
-            {/* ── Per-resource rows ─────────────────────────────────────────── */}
-            <div className="space-y-3">
-                {RESOURCES.map(resource => (
-                    <ResourceBlock
-                        key={resource}
-                        resource={resource}
-                        permission={getPermission(resource)}
-                        onChange={(perm) => handleResourceChange(resource, perm)}
-                    />
-                ))}
-            </div>
+                {/* ── Data Permissions tab ────────────────────────────────── */}
+                <TabsContent value="permissions" className="space-y-3 pt-4">
+
+                    {/* Select-all header */}
+                    <div className="flex items-center justify-between rounded-xl border bg-dashboard-base-100 px-4 py-3">
+                        <div className="flex items-center gap-3">
+                            <Checkbox
+                                checked={allEnabled}
+                                indeterminate={someEnabled && !allEnabled}
+                                onChange={toggleAllResources}
+                            />
+                            <div>
+                                <p className="text-sm font-medium">All Resources</p>
+                                <p className="text-xs text-muted-foreground">
+                                    Toggle full access across every module
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            {ACTIONS.map(act => (
+                                <span key={act.key} className={[
+                                    "px-2 py-0.5 rounded text-xs font-medium border",
+                                    act.activeClass,
+                                ].join(" ")}>
+                                    {act.label}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Per-resource rows */}
+                    <div className="space-y-3">
+                        {RESOURCES.map(resource => (
+                            <ResourceBlock
+                                key={resource}
+                                resource={resource}
+                                permission={getPermission(resource)}
+                                onChange={(perm) => handleResourceChange(resource, perm)}
+                            />
+                        ))}
+                    </div>
+                </TabsContent>
+
+                {/* ── Sidebar Access tab ───────────────────────────────────── */}
+                <TabsContent value="sidebar" className="pt-4">
+                    <SidebarAccessEditor value={localPageAccess} onChange={setLocalPageAccess} />
+                </TabsContent>
+            </Tabs>
 
             {/* ── Bottom save ───────────────────────────────────────────────── */}
             <div className="flex justify-end pt-2 border-t">
                 <Button onClick={handleSave} disabled={isPending} className="gap-2 bg-dashboard-primary rounded-md">
                     <Save className="h-3.5 w-3.5" />
-                    {isPending ? "Saving..." : "Save Permissions"}
+                    {isPending ? "Saving..." : "Save Changes"}
                 </Button>
             </div>
         </div>
