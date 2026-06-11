@@ -200,7 +200,8 @@ function SearchableSelect({
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className="p-0 w-56 rounded-xl border border-dashboard-base-content/20 bg-dashboard-base-100 shadow-lg"
+        style={{ width: "var(--radix-popover-trigger-width)" }}
+        className="p-0 rounded-xl border border-dashboard-base-content/20 bg-dashboard-base-100 shadow-lg"
       >
         {/* Search input */}
         <div className="flex items-center gap-2 px-3 py-2 border-b border-dashboard-base-content/10">
