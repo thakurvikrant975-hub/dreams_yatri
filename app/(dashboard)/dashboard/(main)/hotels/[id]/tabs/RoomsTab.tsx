@@ -13,6 +13,9 @@ import {
   SelectTrigger, SelectValue,
 } from "../../../components/ui/select";
 import {
+  Popover, PopoverContent, PopoverTrigger,
+} from "../../../components/ui/popover";
+import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -21,6 +24,7 @@ import {
 import { ImagePicker, type PickedImage } from "../../../components/dashboard/ImagePicker";
 import {
   Plus, Pencil, Trash2, Star, Loader2, ChevronDown, ChevronUp, Images,
+  Check, ChevronsUpDown, Search,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/app/lib/utils";
@@ -66,7 +70,17 @@ type DBRoom = {
 // ── Constants ─────────────────────────────────────────────────────────────
 
 const BED_TYPES = ["Single", "Twin", "Double", "Queen", "King", "Suite", "Dormitory"];
-const VIEW_TYPES = ["City View", "Mountain View", "Lake View", "Garden View", "Pool View", "Sea View", "No View"];
+const VIEW_TYPES = [
+  "No View",
+  "Sea View", "Ocean View", "Beach View", "Bay View", "Harbor View",
+  "Backwater View", "Lake View", "River View", "Lagoon View", "Marina View",
+  "Inter-coastal View",
+  "Mountain View", "Hill View", "Valley View", "Forest View", "Jungle View",
+  "Garden View", "Pool View", "Courtyard View", "Terrace View", "Park View",
+  "Resort View", "Golf Course View",
+  "City View", "Landmark View", "Monument View", "Temple View",
+  "Palace View", "Desert View", "Countryside View", "Airport View",
+];
 const AMENITY_OPTIONS = ["AC", "WiFi", "TV", "Hot Water", "Heater", "Balcony", "Geyser", "Safe", "Mini Bar", "Room Service"];
 const FEATURE_OPTIONS = ["Work Desk", "Reading Chair", "Sofa", "Extra Bed Available", "Wardrobe", "Attached Bathroom"];
 
@@ -145,6 +159,91 @@ function buildFormData(form: RoomFormState): FormData {
 
 function toSlug(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-").trim();
+}
+
+// ── Searchable Select ─────────────────────────────────────────────────────
+
+function SearchableSelect({
+  options,
+  value,
+  onChange,
+  placeholder = "Select…",
+}: {
+  options:     string[];
+  value:       string;
+  onChange:    (v: string) => void;
+  placeholder?: string;
+}) {
+  const [open,   setOpen]   = useState(false);
+  const [query,  setQuery]  = useState("");
+
+  const filtered = query.trim()
+    ? options.filter(o => o.toLowerCase().includes(query.toLowerCase()))
+    : options;
+
+  return (
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQuery(""); }}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          role="combobox"
+          aria-expanded={open}
+          className={cn(
+            "flex h-9 w-full items-center justify-between rounded-md border border-dashboard-base-content/20 bg-dashboard-base-100 px-3 py-2 text-sm cursor-pointer",
+            "hover:bg-dashboard-base-200 transition-colors",
+            !value && "text-dashboard-base-content/40",
+          )}
+        >
+          <span className="truncate">{value || placeholder}</span>
+          <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-dashboard-base-content/40 ml-1" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="p-0 w-56 rounded-xl border border-dashboard-base-content/20 bg-dashboard-base-100 shadow-lg"
+      >
+        {/* Search input */}
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-dashboard-base-content/10">
+          <Search className="h-3.5 w-3.5 shrink-0 text-dashboard-base-content/40" />
+          <input
+            autoFocus
+            placeholder="Search view…"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            className="flex-1 bg-transparent text-sm outline-none placeholder:text-dashboard-base-content/30 text-dashboard-base-content"
+          />
+          {query && (
+            <button type="button" onClick={() => setQuery("")}
+              className="text-dashboard-base-content/30 hover:text-dashboard-base-content cursor-pointer">
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+
+        {/* Scrollable list */}
+        <div className="max-h-56 overflow-y-auto py-1">
+          {filtered.length === 0 ? (
+            <p className="px-3 py-4 text-center text-xs text-dashboard-base-content/40">No match</p>
+          ) : filtered.map(opt => (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => { onChange(opt === value ? "" : opt); setOpen(false); setQuery(""); }}
+              className={cn(
+                "w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left cursor-pointer transition-colors",
+                opt === value
+                  ? "bg-dashboard-primary/10 text-dashboard-primary"
+                  : "hover:bg-dashboard-base-200 text-dashboard-base-content",
+              )}
+            >
+              <Check className={cn("h-3.5 w-3.5 shrink-0", opt === value ? "opacity-100" : "opacity-0")} />
+              {opt}
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 // ── Tag Pill ──────────────────────────────────────────────────────────────
@@ -330,10 +429,12 @@ function RoomForm({
         </div>
         <div className="space-y-1.5">
           <Label className="text-sm text-dashboard-base-content">View Type</Label>
-          <Select value={form.view_type} onValueChange={(v) => update("view_type", v)}>
-            <SelectTrigger className="bg-dashboard-base-100 border-dashboard-base-content/20 cursor-pointer"><SelectValue placeholder="Select" /></SelectTrigger>
-            <SelectContent>{VIEW_TYPES.map((v) => <SelectItem key={v} value={v} className="cursor-pointer">{v}</SelectItem>)}</SelectContent>
-          </Select>
+          <SearchableSelect
+            options={VIEW_TYPES}
+            value={form.view_type}
+            onChange={(v) => update("view_type", v)}
+            placeholder="Select view…"
+          />
         </div>
         <div className="space-y-1.5">
           <Label className="text-sm text-dashboard-base-content">Area (sq ft)</Label>
