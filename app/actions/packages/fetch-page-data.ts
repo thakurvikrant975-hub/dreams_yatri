@@ -1,5 +1,6 @@
 import { db } from "@/app/lib/db";
 import type { Prisma } from "@/app/generated/prisma/client";
+import { computePackagePrice } from "@/app/services/package-pricing.service";
 
 // ── Output types ───────────────────────────────────────────────────────────
 
@@ -1175,4 +1176,49 @@ export async function fetchRecentPackages(limit = 6): Promise<RelatedPackageItem
       };
     })
     .filter((p): p is RelatedPackageItem => p !== null);
+}
+
+export type DurationPriceInfo = { routeId: number; pricePerAdult: number };
+
+/**
+ * Per-duration default route + per-adult price (default route + given stay,
+ * at the supplied occupancy). The routeId is always returned when the duration
+ * has a route — so the client can recompute the price as travellers change —
+ * while pricePerAdult is 0 when pricing can't be resolved.
+ */
+export async function getDurationStartingPrices(
+  packageId: number,
+  durationIds: number[],
+  stayCategoryId: number,
+  occupancy: { adults: number; children: number; childAges: number[]; travelDate: string | null },
+): Promise<Map<number, DurationPriceInfo>> {
+  const entries = await Promise.all(
+    durationIds.map(async (durationId): Promise<readonly [number, DurationPriceInfo] | null> => {
+      const route = await db.package_routes.findFirst({
+        where: { duration_id: durationId, is_active: true },
+        orderBy: { sort_order: "asc" },
+        select: { id: true },
+      });
+      if (!route) return null;
+      let pricePerAdult = 0;
+      try {
+        const b = await computePackagePrice({
+          package_id: packageId,
+          duration_id: durationId,
+          route_id: route.id,
+          stay_category_id: stayCategoryId,
+          adults: Math.max(1, occupancy.adults),
+          children: occupancy.children,
+          infants: 0,
+          child_ages: occupancy.childAges,
+          travel_date: occupancy.travelDate,
+        });
+        if (!b.missing_pricing_config) pricePerAdult = Math.round(b.price_per_adult);
+      } catch {
+        // leave pricePerAdult = 0
+      }
+      return [durationId, { routeId: route.id, pricePerAdult }] as const;
+    }),
+  );
+  return new Map(entries.filter((e): e is readonly [number, DurationPriceInfo] => e !== null));
 }

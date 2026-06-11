@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { fetchPackagePageData, getActivePackageParams } from "@/app/actions/packages/fetch-page-data";
+import { fetchPackagePageData, getActivePackageParams, getDurationStartingPrices } from "@/app/actions/packages/fetch-page-data";
 import PackageHero from "./components/hero";
 import PackageTab from "./components/PackageTab";
 import PackageScrollReset from "./components/PackageScrollReset";
@@ -283,14 +283,37 @@ export default async function PackagePage({
     }
     if (actGalleryImgs.length > 0) fullGallery.push({ label: 'Activities', images: actGalleryImgs });
 
-    // ── Duration options ───────────────────────────────────────────────────────
-    const durationOptions = pageData.durations.map((d, i) => ({
-        slug: d.slug,
-        label: d.label || `${d.days}D/${d.nights}N`,
-        price: "",
-        image_url: imgUrl(d.thumbnail_url) || imgUrl(pageData.images[i]?.url) || coverImage,
-        isDefault: d.is_default,
-    }));
+    // ── Duration options (with "starting from" per-adult price) ─────────────────
+    // Use the DEFAULT stay category (matching the pricing card's default config),
+    // not the cheapest — otherwise the duration price reads ~half the card.
+    const startingStayId =
+        pageData.stay_categories.find(s => s.is_default)?.id
+        ?? pageData.selectedStay?.id
+        ?? pageData.stay_categories[0]?.id;
+    // Initial price uses the occupancy carried from search (falls back to 2 adults);
+    // the client recomputes per duration as the traveller count changes.
+    const initialPriceOccupancy = {
+        adults: initialAdults ?? 2,
+        children: (initialChildAges ?? []).length,
+        childAges: initialChildAges ?? [],
+        travelDate: initialTravelDate ?? null,
+    };
+    const durationPrices = startingStayId
+        ? await getDurationStartingPrices(pageData.id, pageData.durations.map(d => d.id), startingStayId, initialPriceOccupancy)
+        : new Map();
+
+    const durationOptions = pageData.durations.map((d, i) => {
+        const info = durationPrices.get(d.id);
+        return {
+            slug: d.slug,
+            label: d.label || `${d.days}D/${d.nights}N`,
+            price: info?.pricePerAdult ? `₹${info.pricePerAdult.toLocaleString("en-IN")}` : "",
+            image_url: imgUrl(d.thumbnail_url) || imgUrl(pageData.images[i]?.url) || coverImage,
+            isDefault: d.is_default,
+            durationId: d.id,
+            routeId: info?.routeId ?? null,
+        };
+    });
 
     // ── Route options ──────────────────────────────────────────────────────────
     const routesOption = pageData.currentDuration.routes.map(r => ({
@@ -523,6 +546,8 @@ export default async function PackagePage({
                                     durationSlug={duration}
                                     routeSlug={route}
                                     staySlug={stay}
+                                    packageId={pageData.id}
+                                    stayCategoryId={startingStayId ?? pageData.selectedStay!.id}
                                 />
                                 <DestinationRoutes
                                     routeSlug={route}
