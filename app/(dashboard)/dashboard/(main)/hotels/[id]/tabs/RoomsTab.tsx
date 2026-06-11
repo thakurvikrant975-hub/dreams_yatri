@@ -113,10 +113,10 @@ function toFormState(room: DBRoom): RoomFormState {
     bed_type:           room.bed_type ?? "",
     view_type:          room.view_type ?? "",
     area_sqft:          room.area_sqft ? String(room.area_sqft) : "",
-    max_occupancy:      room.max_occupancy,
-    max_adults:         room.max_adults,
-    max_children:       room.max_children,
-    extra_bed_capacity: room.extra_bed_capacity,
+    max_occupancy:      room.max_occupancy      ?? 2,
+    max_adults:         room.max_adults         ?? (room.max_occupancy + room.extra_bed_capacity) ?? 3,
+    max_children:       room.max_children       ?? 2,
+    extra_bed_capacity: room.extra_bed_capacity ?? 1,
     description:        room.description ?? "",
     amenities: Array.isArray(room.amenities) ? (room.amenities as string[]) : [],
     features:  Array.isArray(room.features)  ? (room.features  as string[]) : [],
@@ -284,22 +284,22 @@ function RoomForm({
 
   function handleBaseAdultsChange(v: number) {
     setForm(prev => {
-      const autoMaxAdults = v + prev.extra_bed_capacity;
+      const autoMaxAdults = v + (prev.extra_bed_capacity ?? 1);
       return {
         ...prev,
         max_occupancy: v,
-        max_adults: Math.max(prev.max_adults, autoMaxAdults),
+        max_adults: Math.max(prev.max_adults ?? autoMaxAdults, autoMaxAdults),
       };
     });
   }
 
   function handleExtraBedsChange(v: number) {
     setForm(prev => {
-      const autoMaxAdults = prev.max_occupancy + v;
+      const autoMaxAdults = (prev.max_occupancy ?? 2) + v;
       return {
         ...prev,
         extra_bed_capacity: v,
-        max_adults: Math.max(prev.max_adults, autoMaxAdults),
+        max_adults: Math.max(prev.max_adults ?? autoMaxAdults, autoMaxAdults),
       };
     });
   }
@@ -388,7 +388,7 @@ function RoomForm({
             </div>
             <div className="flex items-center justify-center w-28 h-9 rounded-lg bg-dashboard-base-200/60 border border-dashboard-base-content/15">
               <span className="text-sm font-bold text-dashboard-base-content tabular-nums">
-                {String(form.max_adults + form.max_children).padStart(2, "0")}
+                {String((form.max_adults ?? 3) + (form.max_children ?? 2)).padStart(2, "0")}
               </span>
             </div>
           </div>
@@ -673,7 +673,7 @@ function RoomRow({
             {room.view_type && <span className="text-xs text-dashboard-base-content/50">· {room.view_type}</span>}
             {room.area_sqft && <span className="text-xs text-dashboard-base-content/50">· {room.area_sqft} sq ft</span>}
             <span className="text-xs text-dashboard-base-content/50">
-              · {room.max_occupancy} base{room.extra_bed_capacity > 0 ? ` +${room.extra_bed_capacity} extra` : ""} · max {room.max_adults}A/{room.max_children}C
+              · {room.max_occupancy ?? 2} base{(room.extra_bed_capacity ?? 0) > 0 ? ` +${room.extra_bed_capacity} extra` : ""} · max {room.max_adults ?? "—"}A/{room.max_children ?? "—"}C
             </span>
             {amenities.slice(0, 3).map((a) => (
               <Badge key={a} className="text-[10px] px-1.5 py-0 bg-dashboard-primary/10 text-dashboard-primary border border-dashboard-primary/20">{a}</Badge>
