@@ -48,13 +48,13 @@ export const metadata: Metadata = {
     creator: SITE_CONFIG.seo.twitterHandle,
   },
   robots: {
-    index: true,
-    follow: true,
+    index: false,
+    follow: false,
+    nocache: true,
     googleBot: {
-      index: true,
-      follow: true,
-      "max-image-preview": "large",
-      "max-snippet": -1,
+      index: false,
+      follow: false,
+      noimageindex: true,
     },
   },
   icons: {

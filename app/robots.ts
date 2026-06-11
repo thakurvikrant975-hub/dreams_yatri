@@ -1,24 +1,14 @@
 // app/robots.ts
 import { MetadataRoute } from "next";
-import { SITE_CONFIG } from "./lib/seo/site-config";
 
+// Site is in testing — block all crawlers from everything until launch.
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
       {
         userAgent: "*",
-        allow: "/",
-        disallow: [
-          "/dashboard/",
-          "/admin/",
-          "/api/",
-          "/_next/",
-          "/checkout/",
-          "/*?*",          // blocks ?page=2 style duplicate URLs
-        ],
+        disallow: "/",
       },
     ],
-    sitemap: `${SITE_CONFIG.url}/sitemap.xml`,
-    host: SITE_CONFIG.url,
   };
 }
