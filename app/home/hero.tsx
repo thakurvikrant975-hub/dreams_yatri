@@ -38,7 +38,7 @@ const DEFAULT_IMAGES = [
 
 // ─── Default titles — map index-for-index with DEFAULT_IMAGES ────────────────
 const DEFAULT_TITLES = [
-    'Discover the Beauty of Greece',
+    'Discover the Beauty of Greece 3333',
     'Fall in Love with Paris',
     'Explore the Wonders of Peru',
     'Experience the Magic of Bali',
