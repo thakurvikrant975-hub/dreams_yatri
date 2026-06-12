@@ -4,7 +4,10 @@ This is the top-level reference for the Dreams Yatri codebase: what it is, how i
 structured, how auth/RBAC work, the data model, and how to run it locally. For the
 booking & payment flow specifically, see [`docs/booking/booking-system.md`](./booking/booking-system.md)
 (and the per-phase logs alongside it) — that subsystem is documented in depth there
-and is only summarized here.
+and is only summarized here. For a full endpoint-by-endpoint and
+action-by-action reference (every `app/api/**/route.ts` handler and every
+`app/actions/**` Server Action/service function — auth requirements, request/response
+shapes, side effects), see [`docs/API_REFERENCE.md`](./API_REFERENCE.md).
 
 ---
 

@@ -11,6 +11,7 @@ import {
     Trash2, Tag, Package, GitBranch, ChevronDown, ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
+import { formatDistanceToNow } from "date-fns";
 import {
     AlertDialog, AlertDialogAction, AlertDialogCancel,
     AlertDialogContent, AlertDialogDescription,
@@ -18,6 +19,7 @@ import {
     AlertDialogTitle, AlertDialogTrigger,
 } from "../components/ui/alert-dialog";
 import { EditCategoryDialog } from "./Categorydialog";
+import { CategoryHistorySheet } from "./CategoryHistory";
 import {
     deleteCategory, toggleCategoryActive,
     type CategoryWithRelations, type CategoryForSelect,
@@ -164,10 +166,23 @@ function SubcategoryRow({
                 />
             </TableCell>
             <TableCell className="text-xs text-muted-foreground">—</TableCell>
+            <TableCell>
+                {full && (
+                    <div className="space-y-0.5">
+                        <p className="text-xs font-medium text-foreground/80 truncate max-w-28">
+                            {full.created_by ?? "—"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                            {formatDistanceToNow(new Date(full.created_at), { addSuffix: true })}
+                        </p>
+                    </div>
+                )}
+            </TableCell>
             <TableCell className="text-right">
                 <div className="flex items-center justify-end gap-1">
                     {full && (
                         <>
+                            <CategoryHistorySheet id={full.id} name={full.name} />
                             <EditCategoryDialog category={full} parentCategories={parentCategories} />
                             <DeleteCategoryDialog
                                 id={full.id}
@@ -367,11 +382,25 @@ export function CategoriesTable({
             ),
         },
         {
+            header: "Created By",
+            cell: (cat) => (
+                <div className="space-y-0.5">
+                    <p className="text-xs font-medium text-foreground/80 truncate max-w-28">
+                        {cat.created_by ?? "—"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(new Date(cat.created_at), { addSuffix: true })}
+                    </p>
+                </div>
+            ),
+        },
+        {
             header: "Actions",
             align:  "right",
-            width:  "w-[100px]",
+            width:  "w-[120px]",
             cell: (cat) => (
                 <div className="flex items-center justify-end gap-1">
+                    <CategoryHistorySheet id={cat.id} name={cat.name} />
                     <EditCategoryDialog category={cat} parentCategories={parentCategories} />
                     <DeleteCategoryDialog
                         id={cat.id}
