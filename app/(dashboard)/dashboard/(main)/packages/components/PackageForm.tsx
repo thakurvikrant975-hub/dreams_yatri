@@ -31,7 +31,7 @@ import {
   Save,
   Info,
 } from "lucide-react";
-import { cn, toTitleCase } from "@/app/lib/utils";
+import { cn, toTitleCase, capitalizeWords } from "@/app/lib/utils";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -204,7 +204,8 @@ export function PackageForm({
     });
   }
 
-  function handleTitleChange(title: string) {
+  function handleTitleChange(rawTitle: string) {
+    const title = capitalizeWords(rawTitle);
     setErrors((prev) => ({ ...prev, title: undefined, slug: undefined }));
     setData((prev) => {
       const next: PackageFormData = {

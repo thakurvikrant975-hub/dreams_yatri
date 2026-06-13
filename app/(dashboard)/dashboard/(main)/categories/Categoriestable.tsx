@@ -19,9 +19,9 @@ import {
     AlertDialogTitle, AlertDialogTrigger,
 } from "../components/ui/alert-dialog";
 import { EditCategoryDialog } from "./Categorydialog";
-import { CategoryHistorySheet } from "./CategoryHistory";
+import { HistorySheet } from "../components/dashboard/HistorySheet";
 import {
-    deleteCategory, toggleCategoryActive,
+    deleteCategory, toggleCategoryActive, getCategoryHistory,
     type CategoryWithRelations, type CategoryForSelect,
 } from "./actions";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
@@ -182,7 +182,16 @@ function SubcategoryRow({
                 <div className="flex items-center justify-end gap-1">
                     {full && (
                         <>
-                            <CategoryHistorySheet id={full.id} name={full.name} />
+                            <HistorySheet
+                                id={full.id}
+                                title={full.name}
+                                entityLabel="category"
+                                fetchHistory={getCategoryHistory}
+                                createdBy={full.created_by}
+                                createdAt={full.created_at}
+                                updatedBy={full.updated_by}
+                                updatedAt={full.updated_at}
+                            />
                             <EditCategoryDialog category={full} parentCategories={parentCategories} />
                             <DeleteCategoryDialog
                                 id={full.id}
@@ -400,7 +409,16 @@ export function CategoriesTable({
             width:  "w-[120px]",
             cell: (cat) => (
                 <div className="flex items-center justify-end gap-1">
-                    <CategoryHistorySheet id={cat.id} name={cat.name} />
+                    <HistorySheet
+                        id={cat.id}
+                        title={cat.name}
+                        entityLabel="category"
+                        fetchHistory={getCategoryHistory}
+                        createdBy={cat.created_by}
+                        createdAt={cat.created_at}
+                        updatedBy={cat.updated_by}
+                        updatedAt={cat.updated_at}
+                    />
                     <EditCategoryDialog category={cat} parentCategories={parentCategories} />
                     <DeleteCategoryDialog
                         id={cat.id}

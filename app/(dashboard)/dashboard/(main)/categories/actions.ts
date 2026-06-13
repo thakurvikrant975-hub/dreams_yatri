@@ -37,6 +37,8 @@ export type CategoryWithRelations = {
     is_active: boolean;
     created_at: Date;
     created_by: string | null;
+    updated_at: Date;
+    updated_by: string | null;
     parent: { id: number; name: string; slug: string } | null;
     children: { id: number; name: string; slug: string; is_active: boolean }[];
     _count: { packages: number; children: number };

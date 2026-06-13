@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
-  ExternalLink, ImageIcon, MapPin, Package, Pencil, Route, Timer, Trash2,
+  ImageIcon, MapPin, Package, Pencil, Route, Timer, Trash2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Badge }  from "../../components/ui/badge";
@@ -20,11 +20,11 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "../../components/ui/alert-dialog";
 import { toast } from "sonner";
-import { togglePackageActive, deletePackage } from "../actions";
+import { togglePackageActive, deletePackage, getPackageHistory } from "../actions";
 import { TableFilters } from "../../components/dashboard/Tablefilters";
 import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable";
 import { TableEmptyState } from "../../components/dashboard/TableEmptyState";
-import { PackageHistorySheet } from "./PackageHistory";
+import { HistorySheet } from "../../components/dashboard/HistorySheet";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -38,6 +38,8 @@ type PackageItem = {
     is_active:  boolean;
     created_at: Date;
     created_by: string | null;
+    updated_at: Date;
+    updated_by: string | null;
     destination: {
         id:     number;
         name:   string;
@@ -168,25 +170,38 @@ export function PackagesTableClient({
     {
       header: "Package",
       width:  "w-[280px]",
-      cell: (pkg) => (
-        <div className="flex items-center gap-3">
-          {pkg.thumbnail ? (
-            <img
-              src={`${base}/${pkg.thumbnail}`}
-              alt={pkg.title}
-              className="h-12 w-16 rounded-lg object-cover shrink-0 border"
-            />
-          ) : (
-            <div className="h-12 w-16 rounded-lg bg-dashboard-base-200 border border-dashboard-base-content/15 flex items-center justify-center shrink-0">
-              <Package className="h-4 w-4 text-dashboard-base-content/30" />
+      cell: (pkg) => {
+        const url = getWebsiteUrl(pkg);
+        return (
+          <div className="flex items-center gap-3">
+            {pkg.thumbnail ? (
+              <img
+                src={`${base}/${pkg.thumbnail}`}
+                alt={pkg.title}
+                className="h-12 w-16 rounded-lg object-cover shrink-0 border"
+              />
+            ) : (
+              <div className="h-12 w-16 rounded-lg bg-dashboard-base-200 border border-dashboard-base-content/15 flex items-center justify-center shrink-0">
+                <Package className="h-4 w-4 text-dashboard-base-content/30" />
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="font-semibold text-sm truncate text-dashboard-base-content">{pkg.title}</p>
+              {pkg.is_active && url ? (
+                <Link
+                  href={url}
+                  target="_blank"
+                  className="text-xs text-dashboard-base-content/50 hover:text-dashboard-primary hover:underline truncate block"
+                >
+                  {pkg.slug}
+                </Link>
+              ) : (
+                <p className="text-xs text-dashboard-base-content/50 truncate">{pkg.slug}</p>
+              )}
             </div>
-          )}
-          <div className="min-w-0">
-            <p className="font-semibold text-sm truncate text-dashboard-base-content">{pkg.title}</p>
-            <p className="text-xs text-dashboard-base-content/50 truncate">{pkg.slug}</p>
           </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       header: "Destination",
@@ -246,24 +261,6 @@ export function PackagesTableClient({
       ),
     },
     {
-      header: "Website",
-      cell: (pkg) => {
-        const url = getWebsiteUrl(pkg);
-        return pkg.is_active && url ? (
-          <Link
-            href={url}
-            target="_blank"
-            className="flex text-dashboard-primary items-center gap-1 text-xs hover:underline truncate max-w-40"
-          >
-            <ExternalLink className="h-3 w-3 shrink-0" />
-            <span className="truncate">{url}</span>
-          </Link>
-        ) : (
-          <span className="text-xs text-dashboard-base-content/40">—</span>
-        );
-      },
-    },
-    {
       header: "Created By",
       cell: (pkg) => (
         <div className="space-y-0.5">
@@ -282,7 +279,16 @@ export function PackagesTableClient({
       width:   "w-[120px]",
       cell: (pkg) => (
         <div className="flex items-center justify-end gap-1">
-          <PackageHistorySheet id={pkg.id} name={pkg.title} />
+          <HistorySheet
+            id={pkg.id}
+            title={pkg.title}
+            entityLabel="package"
+            fetchHistory={getPackageHistory}
+            createdBy={pkg.created_by}
+            createdAt={pkg.created_at}
+            updatedBy={pkg.updated_by}
+            updatedAt={pkg.updated_at}
+          />
           <Button variant="ghost" size="icon" className="h-8 w-8 text-dashboard-base-content/50 hover:text-dashboard-primary hover:bg-dashboard-primary/10 cursor-pointer" asChild>
             <Link href={`/dashboard/packages/${pkg.id}`}>
               <Pencil className="h-3.5 w-3.5" />

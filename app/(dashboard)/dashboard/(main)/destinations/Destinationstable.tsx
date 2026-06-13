@@ -20,8 +20,8 @@ import {
     AlertDialogTrigger,
 } from "../components/ui/alert-dialog";
 import { EditDestinationDialog } from "./Destinationdialog";
-import { DestinationHistorySheet } from "./DestinationHistory";
-import { deleteDestination, toggleDestinationActive } from "./actions";
+import { HistorySheet } from "../components/dashboard/HistorySheet";
+import { deleteDestination, toggleDestinationActive, getDestinationHistory } from "./actions";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { TableFilters }    from "../components/dashboard/Tablefilters";
 import { TableEmptyState } from "../components/dashboard/TableEmptyState";
@@ -46,6 +46,8 @@ type Destination = {
     created_at: Date;
     location_id: string | null;
     created_by: string | null;
+    updated_at: Date;
+    updated_by: string | null;
     region: { id: number; name: string; slug: string };
     _count: { packages: number; hotels: number };
 };
@@ -292,7 +294,16 @@ export function DestinationsTable({
                 const linkedCount = dest._count.packages + dest._count.hotels;
                 return (
                     <div className="flex items-center justify-end gap-1">
-                        <DestinationHistorySheet id={dest.id} name={dest.name} />
+                        <HistorySheet
+                            id={dest.id}
+                            title={dest.name}
+                            entityLabel="destination"
+                            fetchHistory={getDestinationHistory}
+                            createdBy={dest.created_by}
+                            createdAt={dest.created_at}
+                            updatedBy={dest.updated_by}
+                            updatedAt={dest.updated_at}
+                        />
                         <EditDestinationDialog destination={dest} regions={regions} />
                         <DeleteDestinationDialog
                             id={dest.id}
