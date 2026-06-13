@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import { fetchPackagePageData, getActivePackageParams, getDurationStartingPrices } from "@/app/actions/packages/fetch-page-data";
+import { imgUrl as toImgUrl } from "@/app/lib/packages/cardShaper";
+import { SITE_URL, SITE_CONFIG } from "@/app/lib/seo/site-config";
 import PackageHero from "./components/hero";
 import PackageTab from "./components/PackageTab";
 import PackageScrollReset from "./components/PackageScrollReset";
@@ -15,8 +17,7 @@ import { CheckIcon, XMarkIcon, StarIcon } from "@heroicons/react/24/solid";
 import { Card, CardBody } from "@/app/components/ui/Card";
 import RelatedPackages from "./components/RelatedPackages";
 
-// export const revalidate = 3600; // TODO: re-enable ISR for production
-export const dynamic = 'force-dynamic';
+export const revalidate = 3600;
 
 /** Converts a stored "HH:MM" (24-h) string to "h:MM AM/PM". Returns "" for null/empty. */
 function formatTime12(t: string | null | undefined): string {
@@ -83,10 +84,30 @@ export async function generateMetadata({
 }) {
     const { slug, duration, route, stay } = await params;
     const data = await fetchPackagePageData(slug, duration, route, stay);
-    if (!data) return {};
+    if (!data) return { title: "Package not found | Dreams Yatri" };
+
+    const title = data.selectedRoute?.meta_title ?? `${data.title} | Dreams Yatri`;
+    const description = data.selectedRoute?.meta_desc ?? data.description ?? SITE_CONFIG.seo.defaultDescription;
+    const ogImage = toImgUrl(data.thumbnail) || SITE_CONFIG.defaultOgImage;
+    const canonical = `${SITE_URL}/packages/${slug}/${duration}/${route}/${stay}`;
+
     return {
-        title: data.selectedRoute?.meta_title ?? `${data.title} | Dreams Yatri`,
-        description: data.selectedRoute?.meta_desc ?? data.description,
+        title,
+        description,
+        alternates: { canonical },
+        openGraph: {
+            title,
+            description,
+            url: canonical,
+            type: "website",
+            images: [{ url: ogImage, width: 1200, height: 630, alt: data.title }],
+        },
+        twitter: {
+            card: "summary_large_image",
+            title,
+            description,
+            images: [ogImage],
+        },
     };
 }
 

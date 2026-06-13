@@ -8,8 +8,6 @@ import { Heading, Text } from "@/app/components/ui/Typography";
 import PackagesList from "./PackagesList";
 import PackagesSearchBar from "./PackagesSearchBar";
 
-export const dynamic = "force-dynamic";
-
 export const metadata: Metadata = {
     title: "Holiday Packages | Dreams Yatri",
     description: "Browse and search curated holiday packages across India and beyond.",
