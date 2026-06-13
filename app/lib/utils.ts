@@ -18,3 +18,36 @@ export function toTitleCase(str: string): string {
 export function capitalizeWords(str: string): string {
   return str.replace(/(^|\s)(\S)/g, (_, sep, ch) => sep + ch.toUpperCase());
 }
+
+// Capitalizes only the first character, leaving the rest untouched.
+// Safe to apply on every keystroke.
+export function capitalizeFirst(str: string): string {
+  return str.replace(/^\s*\S/, (ch) => ch.toUpperCase());
+}
+
+// Capitalizes the first letter and the first letter of every sentence
+// (i.e. after ". ", "! " or "? "), without trimming or collapsing
+// whitespace, so it's safe to apply on every keystroke — including
+// multi-line text in a textarea.
+export function capitalizeSentences(str: string): string {
+  return str.replace(/(^\s*|[.!?]\s+)([a-z])/g, (_, sep, ch) => sep + ch.toUpperCase());
+}
+
+// Ensures the text ends with a full stop, without duplicating one if it
+// already ends with ".", "!" or "?". Trailing whitespace is dropped.
+// Intended for use on blur/paste/save, not on every keystroke.
+export function ensureTrailingPeriod(str: string): string {
+  const trimmed = str.trimEnd();
+  if (!trimmed) return trimmed;
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
+// Capitalizes the first letter of each sentence and ensures the text ends
+// with a full stop (without duplicating one), e.g. for inclusion/exclusion
+// list items: "breakfast included" -> "Breakfast included."
+export function formatListItem(str: string): string {
+  const trimmed = str.trim().replace(/\s+/g, " ");
+  if (!trimmed) return trimmed;
+
+  return ensureTrailingPeriod(capitalizeSentences(trimmed));
+}

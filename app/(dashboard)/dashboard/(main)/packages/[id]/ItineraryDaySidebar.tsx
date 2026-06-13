@@ -115,7 +115,7 @@ import {
   Moon,
   UtensilsCrossed,
 } from "lucide-react";
-import { cn } from "@/app/lib/utils";
+import { cn, capitalizeFirst, capitalizeSentences, ensureTrailingPeriod } from "@/app/lib/utils";
 import type { OccupiedBy } from "./ItineraryBuilderTab";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -833,10 +833,11 @@ type ActivityListItem = {
 };
 
 function AddActivityForm({
-  destinationId, stopPlaceName, pending, onSave, onCancel,
+  destinationId, stopPlaceName, existingActivityIds, pending, onSave, onCancel,
 }: {
   destinationId: number;
   stopPlaceName?: string;
+  existingActivityIds: number[];
   pending: boolean;
   onSave: (activityId: number, isOptional: boolean, variantId: number | null) => void;
   onCancel: () => void;
@@ -867,6 +868,9 @@ function AddActivityForm({
     }, delay);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [searchQuery, destinationId]);
+
+  // Hide activities already added to this day — prevents duplicates
+  const visibleActivities = allActivities.filter((item) => !existingActivityIds.includes(item.id));
 
   async function handleActivitySelect(item: ActivityListItem) {
     setActivityId(item.id);
@@ -933,13 +937,13 @@ function AddActivityForm({
             <div className="flex items-center justify-center py-6 gap-2 text-xs text-muted-foreground">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading activities…
             </div>
-          ) : allActivities.length === 0 ? (
+          ) : visibleActivities.length === 0 ? (
             <div className="py-6 text-center text-xs text-muted-foreground">
-              No activities found
+              {allActivities.length === 0 ? "No activities found" : "All matching activities are already added"}
             </div>
           ) : (
             <div className="max-h-56 overflow-y-auto divide-y">
-              {allActivities.map((item) => {
+              {visibleActivities.map((item) => {
                 const isSelected = activityId === item.id;
                 return (
                   <button
@@ -1627,7 +1631,7 @@ function AttractionsModal({
                           type="text"
                           value={editCaptions[a.id] ?? ""}
                           onChange={(e) =>
-                            setEditCaptions((prev) => ({ ...prev, [a.id]: e.target.value.slice(0, 50) }))
+                            setEditCaptions((prev) => ({ ...prev, [a.id]: capitalizeFirst(e.target.value.slice(0, 50)) }))
                           }
                           placeholder="Add caption…"
                           maxLength={50}
@@ -1866,9 +1870,11 @@ export function ItineraryDaySidebar({
   async function saveMeta() {
     if (!title.trim()) return;
     setSavingMeta(true);
+    const formattedDescription = ensureTrailingPeriod(description.trim()) || null;
+    setDescription(formattedDescription ?? "");
     const res = await handleUpsertDayMeta(packageId, durationId, routeId, initialDay.day, {
       title: title.trim(),
-      description: description.trim() || null,
+      description: formattedDescription,
       meals,
       excluded_meals: excludedMeals,
     });
@@ -1876,7 +1882,7 @@ export function ItineraryDaySidebar({
     if (!res.success) { toast.error(res.message); return; }
     if (res.data) setItineraryId(res.data.id);
     toast.success("Day saved");
-    onSaved(currentDayData());
+    onSaved({ ...currentDayData(), description: formattedDescription });
   }
 
   // ── DnD ───────────────────────────────────────────────────────────────
@@ -2170,13 +2176,24 @@ export function ItineraryDaySidebar({
                       <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Description</Label>
                       <button
                         type="button"
-                        onClick={async () => { try { setDescription(await navigator.clipboard.readText()); } catch {} }}
+                        onClick={async () => {
+                          try {
+                            const text = await navigator.clipboard.readText();
+                            setDescription(ensureTrailingPeriod(capitalizeSentences(text)));
+                          } catch {}
+                        }}
                         className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors"
                       >
                         <ClipboardPaste className="h-3 w-3" /> Paste
                       </button>
                     </div>
-                    <Textarea value={description} onChange={(e) => setDescription(e.target.value)} className="text-sm min-h-18 resize-none" placeholder="Brief description of this day…" />
+                    <Textarea
+                      value={description}
+                      onChange={(e) => setDescription(capitalizeSentences(e.target.value))}
+                      onBlur={(e) => setDescription(ensureTrailingPeriod(e.target.value))}
+                      className="text-sm min-h-18 resize-none"
+                      placeholder="Brief description of this day…"
+                    />
                   </div>
 
                   {/* Attractions row */}
@@ -2411,7 +2428,14 @@ export function ItineraryDaySidebar({
                   <AddTransferForm pending={pending} onSave={addTransfer} onCancel={() => setEditPanel(null)} stopCoords={stopCoords} />
                 )}
                 {editPanel?.mode === "add" && editPanel.kind === "activity" && (
-                  <AddActivityForm destinationId={destinationId} stopPlaceName={stopLabel?.split(" in ").pop()} pending={pending} onSave={addActivity} onCancel={() => setEditPanel(null)} />
+                  <AddActivityForm
+                    destinationId={destinationId}
+                    stopPlaceName={stopLabel?.split(" in ").pop()}
+                    existingActivityIds={activities.map((a) => a.activity.id)}
+                    pending={pending}
+                    onSave={addActivity}
+                    onCancel={() => setEditPanel(null)}
+                  />
                 )}
                 {editPanel?.mode === "add" && editPanel.kind === "note" && (
                   <AddNoteForm pending={pending} onSave={addNote} onCancel={() => setEditPanel(null)} />
