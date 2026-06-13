@@ -969,7 +969,7 @@ function CabGroupCard({
         router.refresh();
       }
     });
-  }
+  } 
 
   function cancelRangeEdit() {
     setEditingRange(false);
