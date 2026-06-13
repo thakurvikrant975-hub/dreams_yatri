@@ -181,6 +181,15 @@ const mealLabel: Record<MealType, string> = {
   dinner: 'Dinner',
 };
 
+const PILL_CLASSES: Record<string, { wrapper: string; link: string }> = {
+  brand:   { wrapper: 'bg-primary-50 text-primary',     link: 'text-brand' },
+  error:   { wrapper: 'bg-error-50 text-error-600',     link: 'text-error-600' },
+  success: { wrapper: 'bg-success-50 text-success-600', link: 'text-success-600' },
+  warning: { wrapper: 'bg-warning-50 text-warning-600', link: 'text-warning-600' },
+  info:    { wrapper: 'bg-info-50 text-info-600',       link: 'text-info-600' },
+  neutral: { wrapper: 'bg-neutral-50 text-secondary',   link: 'text-primary' },
+};
+
 // ─── Note Block ───────────────────────────────────────────────────────────────
 
 function NoteBlock({
@@ -298,44 +307,19 @@ function TravelStop({ stop }: { stop: RouteStop }) {
                 dangerouslySetInnerHTML={{ __html: stop.note }}
               />
             )}
-            {stop.notePill && (
-              <div className={cn(
-                'mt-1.5 rounded-b-2xl px-3.5 py-2.5 text-[12.5px] ',
-                stop.notePill.linkVariant === 'brand'
-                  ? 'bg-primary-50 text-primary' :
-                  stop.notePill.linkVariant === 'error'
-                    ? 'bg-error-50 text-error-600' :
-                    stop.notePill.linkVariant === 'success'
-                      ? 'bg-success-50 text-success-600' :
-                      stop.notePill.linkVariant === 'warning'
-                        ? 'bg-warning-50 text-warning-600' :
-                        stop.notePill.linkVariant === 'info'
-                          ? 'bg-info-50 text-info-600'
-                          : 'bg-neutral-50  text-secondary'
-              )}>
-                {stop.notePill.text}{' '}
-                {stop.notePill.linkText && (
-                  <span className={cn(
-                    'font-semibold cursor-pointer',
-                    stop.notePill.linkVariant === 'brand'
-                      ? 'text-brand' :
-                      stop.notePill.linkVariant === 'error'
-                        ? 'text-error-600' :
-                        stop.notePill.linkVariant === 'success'
-                          ? 'text-success-600' :
-                          stop.notePill.linkVariant === 'warning'
-                            ? 'text-warning-600' :
-                            stop.notePill.linkVariant === 'info'
-                              ? 'text-info-600' :
-                              stop.notePill.linkVariant === 'neutral'
-                                ? 'text-primary'
-                                : 'text-brand'
-                  )}>
-                    {stop.notePill.linkText}
-                  </span>
-                )}
-              </div>
-            )}
+            {stop.notePill && (() => {
+              const pill = PILL_CLASSES[stop.notePill.linkVariant ?? 'neutral'] ?? PILL_CLASSES.neutral;
+              return (
+                <div className={cn('mt-1.5 rounded-b-2xl px-3.5 py-2.5 text-[12.5px]', pill.wrapper)}>
+                  {stop.notePill.text}{' '}
+                  {stop.notePill.linkText && (
+                    <span className={cn('font-semibold cursor-pointer', pill.link)}>
+                      {stop.notePill.linkText}
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>
@@ -382,26 +366,19 @@ function RouteStop({
             {stop.note}
           </Text>
         )}
-        {stop.notePill && (
-          <div className={cn(
-            'mt-1.5 rounded-lg px-3 py-2 text-[12.5px] border ',
-            stop.notePill.linkVariant === 'brand'
-              ? 'bg-primary-50 border-primary-100 text-primary'
-              : 'bg-error-50 border-error-100 text-primary'
-          )}>
-            {stop.notePill.text}{' '}
-            {stop.notePill.linkText && (
-              <span className={cn(
-                'font-semibold cursor-pointer',
-                stop.notePill.linkVariant === 'brand'
-                  ? 'text-brand'
-                  : 'text-error-500'
-              )}>
-                {stop.notePill.linkText}
-              </span>
-            )}
-          </div>
-        )}
+        {stop.notePill && (() => {
+          const pill = PILL_CLASSES[stop.notePill.linkVariant ?? 'neutral'] ?? PILL_CLASSES.neutral;
+          return (
+            <div className={cn('mt-1.5 rounded-lg px-3 py-2 text-[12.5px]', pill.wrapper)}>
+              {stop.notePill.text}{' '}
+              {stop.notePill.linkText && (
+                <span className={cn('font-semibold cursor-pointer', pill.link)}>
+                  {stop.notePill.linkText}
+                </span>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
