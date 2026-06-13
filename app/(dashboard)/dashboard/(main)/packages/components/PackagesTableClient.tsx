@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   ExternalLink, ImageIcon, MapPin, Package, Pencil, Route, Timer, Trash2,
 } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 import { Badge }  from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Switch } from "../../components/ui/switch";
@@ -23,17 +24,20 @@ import { togglePackageActive, deletePackage } from "../actions";
 import { TableFilters } from "../../components/dashboard/Tablefilters";
 import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable";
 import { TableEmptyState } from "../../components/dashboard/TableEmptyState";
+import { PackageHistorySheet } from "./PackageHistory";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
 type Destination = { id: number; name: string };
 
 type PackageItem = {
-    id:        number;
-    title:     string;
-    slug:      string;
-    thumbnail: string | null;
-    is_active: boolean;
+    id:         number;
+    title:      string;
+    slug:       string;
+    thumbnail:  string | null;
+    is_active:  boolean;
+    created_at: Date;
+    created_by: string | null;
     destination: {
         id:     number;
         name:   string;
@@ -260,11 +264,25 @@ export function PackagesTableClient({
       },
     },
     {
+      header: "Created By",
+      cell: (pkg) => (
+        <div className="space-y-0.5">
+          <p className="text-xs font-medium text-dashboard-base-content/80 truncate max-w-28">
+            {pkg.created_by ?? "—"}
+          </p>
+          <p className="text-xs text-dashboard-base-content/50">
+            {formatDistanceToNow(new Date(pkg.created_at), { addSuffix: true })}
+          </p>
+        </div>
+      ),
+    },
+    {
       header:  "Actions",
       align:   "right",
-      width:   "w-[90px]",
+      width:   "w-[120px]",
       cell: (pkg) => (
         <div className="flex items-center justify-end gap-1">
+          <PackageHistorySheet id={pkg.id} name={pkg.title} />
           <Button variant="ghost" size="icon" className="h-8 w-8 text-dashboard-base-content/50 hover:text-dashboard-primary hover:bg-dashboard-primary/10 cursor-pointer" asChild>
             <Link href={`/dashboard/packages/${pkg.id}`}>
               <Pencil className="h-3.5 w-3.5" />

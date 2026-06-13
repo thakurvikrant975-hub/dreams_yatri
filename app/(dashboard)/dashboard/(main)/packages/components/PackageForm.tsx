@@ -31,7 +31,7 @@ import {
   Save,
   Info,
 } from "lucide-react";
-import { cn } from "@/app/lib/utils";
+import { cn, toTitleCase } from "@/app/lib/utils";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -309,6 +309,7 @@ export function PackageForm({
             className={`${inputCls(!!errors.title)} border border-dashboard-base-content/40`}
             value={data.title}
             onChange={(e) => handleTitleChange(e.target.value)}
+            onBlur={(e) => update("title", toTitleCase(e.target.value))}
             placeholder="e.g. Kerala Backwaters Tour"
           />
         </Field>
