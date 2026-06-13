@@ -817,6 +817,21 @@ model tags {
   @@index([slug])
 }
 
+// Reusable library of package inclusion/exclusion phrases. Tracks how often
+// each phrase is used so the package form can suggest the most popular ones.
+model inclusion_exclusion_options {
+  id          Int      @id @default(autoincrement())
+  type        String // "inclusion" | "exclusion"
+  text        String
+  usage_count Int      @default(1)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+  created_by  String?
+
+  @@unique([type, text])
+  @@index([type, usage_count])
+}
+
 model policies {
   id         Int                  @id @default(autoincrement())
   type       PolicyType

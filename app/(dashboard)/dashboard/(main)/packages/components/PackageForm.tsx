@@ -17,7 +17,6 @@ import { createPackageSchema } from "@/app/validators/package.validator";
 import {
   Loader2,
   Plus,
-  X,
   Package,
   Link2,
   AlignLeft,
@@ -31,7 +30,8 @@ import {
   Save,
   Info,
 } from "lucide-react";
-import { cn, toTitleCase, capitalizeWords, formatListItem } from "@/app/lib/utils";
+import { cn, toTitleCase, capitalizeWords } from "@/app/lib/utils";
+import { InclusionExclusionField } from "./InclusionExclusionField";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -81,7 +81,7 @@ function slugify(str: string) {
     .replace(/^-|-$/g, "");
 }
 
-function inputCls(hasError = false) {
+export function inputCls(hasError = false) {
   return cn(
     "w-full rounded-lg border px-3 py-2.5 text-[13.5px] outline-none",
     "transition-[border-color,box-shadow] duration-150",
@@ -133,7 +133,7 @@ function Field({
   );
 }
 
-function FieldError({ message }: { message?: string }) {
+export function FieldError({ message }: { message?: string }) {
   if (!message) return null;
   return (
     <p className="mt-0.5 flex items-center gap-1.5 text-xs text-dashboard-error">
@@ -143,7 +143,7 @@ function FieldError({ message }: { message?: string }) {
   );
 }
 
-function AddButton({ onClick, variant }: { onClick: () => void; variant: "success" | "error" }) {
+export function AddButton({ onClick, variant }: { onClick: () => void; variant: "success" | "error" }) {
   return (
     <button
       type="button"
@@ -188,8 +188,6 @@ export function PackageForm({
     return null;
   });
 
-  const [newInclusion, setNewInclusion] = useState("");
-  const [newExclusion, setNewExclusion] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -221,17 +219,6 @@ export function PackageForm({
   function handleSlugChange(slug: string) {
     setSlugEdited(true);
     update("slug", slug);
-  }
-
-  function addItem(field: "inclusions" | "exclusions", rawValue: string, clear: () => void) {
-    const val = formatListItem(rawValue);
-    if (!val) return;
-    update(field, [...data[field], val]);
-    clear();
-  }
-
-  function removeItem(field: "inclusions" | "exclusions", index: number) {
-    update(field, data[field].filter((_, i) => i !== index));
   }
 
   function mapZodErrors(issues: { path: readonly PropertyKey[]; message: string }[]) {
@@ -400,66 +387,26 @@ export function PackageForm({
         What&apos;s included &amp; excluded
       </SectionLabel>
       <div className="grid grid-cols-2 gap-4">
-        <div className="flex flex-col gap-3">
-          <span className="flex items-center gap-1.5 text-[12px] font-medium text-dashboard-base-content/75">
-            <CheckCircle2 className="h-3.5 w-3.5 text-dashboard-success" />
-            Inclusions
-          </span>
-          <div className="flex gap-2">
-            <input
-              className={`${inputCls(!!errors.inclusions)} border border-dashboard-base-content/40`}
-              value={newInclusion}
-              onChange={(e) => setNewInclusion(e.target.value)}
-              placeholder="e.g. Breakfast included"
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addItem("inclusions", newInclusion, () => setNewInclusion("")); } }}
-            />
-            <AddButton variant="success" onClick={() => addItem("inclusions", newInclusion, () => setNewInclusion(""))} />
-          </div>
-          <FieldError message={errors.inclusions} />
-          {data.inclusions.length > 0 && (
-            <ul className="flex flex-col gap-1.5">
-              {data.inclusions.map((item, i) => (
-                <li key={i} className="flex items-center gap-2 rounded-lg border border-dashboard-success/20 bg-dashboard-success/8 px-3 py-2 text-dashboard-success">
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                  <span className="flex-1 min-w-0 truncate text-xs font-medium">{item}</span>
-                  <button type="button" onClick={() => removeItem("inclusions", i)} className="shrink-0 rounded p-0.5 transition-colors hover:bg-dashboard-success/20" aria-label="Remove">
-                    <X className="h-3 w-3 text-dashboard-base-content" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-        <div className="flex flex-col gap-3">
-          <span className="flex items-center gap-1.5 text-[12px] font-medium text-dashboard-base-content/75">
-            <XCircle className="h-3.5 w-3.5 text-dashboard-error" />
-            Exclusions
-          </span>
-          <div className="flex gap-2">
-            <input
-              className={`${inputCls(!!errors.exclusions)} border border-dashboard-base-content/40`}
-              value={newExclusion}
-              onChange={(e) => setNewExclusion(e.target.value)}
-              placeholder="e.g. Flight tickets"
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addItem("exclusions", newExclusion, () => setNewExclusion("")); } }}
-            />
-            <AddButton variant="error" onClick={() => addItem("exclusions", newExclusion, () => setNewExclusion(""))} />
-          </div>
-          <FieldError message={errors.exclusions} />
-          {data.exclusions.length > 0 && (
-            <ul className="flex flex-col gap-1.5">
-              {data.exclusions.map((item, i) => (
-                <li key={i} className="flex items-center gap-2 rounded-lg border border-dashboard-error/20 bg-dashboard-error/8 px-3 py-2 text-dashboard-error">
-                  <XCircle className="h-3.5 w-3.5 shrink-0" />
-                  <span className="flex-1 min-w-0 truncate text-xs font-medium">{item}</span>
-                  <button type="button" onClick={() => removeItem("exclusions", i)} className="shrink-0 rounded p-0.5 transition-colors hover:bg-dashboard-error/20" aria-label="Remove">
-                    <X className="h-3 w-3 text-dashboard-base-content" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <InclusionExclusionField
+          type="inclusion"
+          label="Inclusions"
+          Icon={CheckCircle2}
+          variant="success"
+          items={data.inclusions}
+          onItemsChange={(val) => update("inclusions", val)}
+          error={errors.inclusions}
+          placeholder="e.g. Breakfast included"
+        />
+        <InclusionExclusionField
+          type="exclusion"
+          label="Exclusions"
+          Icon={XCircle}
+          variant="error"
+          items={data.exclusions}
+          onItemsChange={(val) => update("exclusions", val)}
+          error={errors.exclusions}
+          placeholder="e.g. Flight tickets"
+        />
       </div>
     </div>
   );

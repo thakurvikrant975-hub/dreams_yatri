@@ -115,7 +115,7 @@ import {
   Moon,
   UtensilsCrossed,
 } from "lucide-react";
-import { cn, capitalizeFirst } from "@/app/lib/utils";
+import { cn, capitalizeFirst, capitalizeSentences, ensureTrailingPeriod } from "@/app/lib/utils";
 import type { OccupiedBy } from "./ItineraryBuilderTab";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -1870,9 +1870,11 @@ export function ItineraryDaySidebar({
   async function saveMeta() {
     if (!title.trim()) return;
     setSavingMeta(true);
+    const formattedDescription = ensureTrailingPeriod(description.trim()) || null;
+    setDescription(formattedDescription ?? "");
     const res = await handleUpsertDayMeta(packageId, durationId, routeId, initialDay.day, {
       title: title.trim(),
-      description: description.trim() || null,
+      description: formattedDescription,
       meals,
       excluded_meals: excludedMeals,
     });
@@ -1880,7 +1882,7 @@ export function ItineraryDaySidebar({
     if (!res.success) { toast.error(res.message); return; }
     if (res.data) setItineraryId(res.data.id);
     toast.success("Day saved");
-    onSaved(currentDayData());
+    onSaved({ ...currentDayData(), description: formattedDescription });
   }
 
   // ── DnD ───────────────────────────────────────────────────────────────
@@ -2174,13 +2176,24 @@ export function ItineraryDaySidebar({
                       <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Description</Label>
                       <button
                         type="button"
-                        onClick={async () => { try { setDescription(await navigator.clipboard.readText()); } catch {} }}
+                        onClick={async () => {
+                          try {
+                            const text = await navigator.clipboard.readText();
+                            setDescription(ensureTrailingPeriod(capitalizeSentences(text)));
+                          } catch {}
+                        }}
                         className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors"
                       >
                         <ClipboardPaste className="h-3 w-3" /> Paste
                       </button>
                     </div>
-                    <Textarea value={description} onChange={(e) => setDescription(e.target.value)} className="text-sm min-h-18 resize-none" placeholder="Brief description of this day…" />
+                    <Textarea
+                      value={description}
+                      onChange={(e) => setDescription(capitalizeSentences(e.target.value))}
+                      onBlur={(e) => setDescription(ensureTrailingPeriod(e.target.value))}
+                      className="text-sm min-h-18 resize-none"
+                      placeholder="Brief description of this day…"
+                    />
                   </div>
 
                   {/* Attractions row */}
