@@ -15,9 +15,9 @@ export interface PackagesSearchBarProps {
     initialTravellers: TravellersValue
 }
 
-function Label({ children }: { children: React.ReactNode }) {
+function Label({ id, children }: { id: string; children: React.ReactNode }) {
     return (
-        <span className="pl-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/55">
+        <span id={id} className="pl-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/55">
             {children}
         </span>
     )
@@ -60,40 +60,46 @@ export default function PackagesSearchBar({
     return (
         <div className="bg-neutral-900">
             <div className="screen-space py-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1fr_auto] gap-2.5 items-end">
+                <form
+                    role="search"
+                    aria-label="Search holiday packages"
+                    onSubmit={(e) => { e.preventDefault(); search() }}
+                >
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1fr_auto] gap-2.5 items-end">
 
-                    <div className="flex flex-col gap-1">
-                        <Label>Leaving From</Label>
-                        <LocationSearchSelect value={fromLoc} onChange={setFromLoc} placeholder="Origin city" showCurrentLocation />
-                    </div>
+                        <div className="flex flex-col gap-1" role="group" aria-labelledby="label-from">
+                            <Label id="label-from">Leaving From</Label>
+                            <LocationSearchSelect value={fromLoc} onChange={setFromLoc} placeholder="Origin city" showCurrentLocation />
+                        </div>
 
-                    <div className="flex flex-col gap-1">
-                        <Label>Going To</Label>
-                        <LocationSearchSelect value={toLoc} onChange={setToLoc} placeholder="All destinations" />
-                    </div>
+                        <div className="flex flex-col gap-1" role="group" aria-labelledby="label-to">
+                            <Label id="label-to">Going To</Label>
+                            <LocationSearchSelect value={toLoc} onChange={setToLoc} placeholder="All destinations" />
+                        </div>
 
-                    <div className="flex flex-col gap-1">
-                        <Label>Departure Date</Label>
-                        <DatePickerField value={departDate} onChange={setDepartDate} placeholder="Pick a date" />
-                    </div>
+                        <div className="flex flex-col gap-1" role="group" aria-labelledby="label-date">
+                            <Label id="label-date">Departure Date</Label>
+                            <DatePickerField value={departDate} onChange={setDepartDate} placeholder="Pick a date" />
+                        </div>
 
-                    <div className="flex flex-col gap-1">
-                        <Label>Travellers</Label>
-                        <TravellersField value={travellers} onChange={setTravellers} />
-                    </div>
+                        <div className="flex flex-col gap-1" role="group" aria-labelledby="label-travellers">
+                            <Label id="label-travellers">Travellers</Label>
+                            <TravellersField value={travellers} onChange={setTravellers} />
+                        </div>
 
-                    <div className="flex flex-col gap-1">
-                        <span className="hidden lg:block text-[10px] leading-3.5">&nbsp;</span>
-                        <Button
-                            variant="premium"
-                            onClick={search}
-                            className="h-10.5 w-full lg:w-auto rounded-lg px-7 font-bold flex items-center justify-center gap-2"
-                        >
-                            <MagnifyingGlassIcon weight="bold" className="size-4" />
-                            Search
-                        </Button>
+                        <div className="flex flex-col gap-1">
+                            <span className="hidden lg:block text-[10px] leading-3.5" aria-hidden="true">&nbsp;</span>
+                            <Button
+                                type="submit"
+                                variant="premium"
+                                className="h-10.5 w-full lg:w-auto rounded-lg px-7 font-bold flex items-center justify-center gap-2"
+                            >
+                                <MagnifyingGlassIcon weight="bold" className="size-4" aria-hidden="true" />
+                                Search
+                            </Button>
+                        </div>
                     </div>
-                </div>
+                </form>
             </div>
         </div>
     )

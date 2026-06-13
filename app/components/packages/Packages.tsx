@@ -56,6 +56,13 @@ const INCLUSION_ICONS: Record<string, React.ElementType> = {
     activities: StarIcon,
 }
 
+const INCLUSION_LABELS: Record<string, string> = {
+    hotel: 'Hotel',
+    meals: 'Meals',
+    cab: 'Transfer',
+    activities: 'Activities',
+}
+
 // ─── Itinerary tag list ───────────────────────────────────────────────────────
 function ItineraryRow({ items }: { items: Itinerary[] }) {
     const outerRef = useRef<HTMLDivElement>(null)
@@ -142,11 +149,14 @@ function ItineraryRow({ items }: { items: Itinerary[] }) {
 // ─── Dots ─────────────────────────────────────────────────────────────────────
 function ImageDots({ total, active, onSelect }: { total: number; active: number; onSelect: (i: number) => void }) {
     return (
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-20 pointer-events-auto">
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-20 pointer-events-auto" role="tablist" aria-label="Package images">
             {Array.from({ length: total }).map((_, i) => (
                 <button
                     key={i}
                     type="button"
+                    role="tab"
+                    aria-label={`Image ${i + 1}`}
+                    aria-selected={i === active}
                     onClick={e => { e.stopPropagation(); onSelect(i) }}
                     className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
                         i === active ? 'w-5 bg-white' : 'w-1.5 bg-white/50 hover:bg-white/80'
@@ -342,19 +352,19 @@ export default function PackageCard({
 
 
                         {/* Inclusions */}
-                        <div className="flex items-center gap-2">
-                            {inclusions.map((key) => {
-                                const Icon = INCLUSION_ICONS[key]
-                                return Icon ? (
-                                    <Icon
-                                        key={key}
-                                        weight="fill"
-                                        className="size-4.5 text-(--text-muted)"
-                                        title={key}
-                                    />
-                                ) : null
-                            })}
-                        </div>
+                        {inclusions.length > 0 && (
+                            <div className="flex items-center gap-2" aria-label="Inclusions">
+                                {inclusions.map((key) => {
+                                    const Icon = INCLUSION_ICONS[key]
+                                    const label = INCLUSION_LABELS[key] ?? key
+                                    return Icon ? (
+                                        <span key={key} title={label} aria-label={label}>
+                                            <Icon weight="fill" aria-hidden="true" className="size-4.5 text-(--text-muted)" />
+                                        </span>
+                                    ) : null
+                                })}
+                            </div>
+                        )}
                     </div>
                 </CardBody>
 
