@@ -912,15 +912,17 @@ function ActivityContent({ section }: { section: ActivitySection }) {
               perView={3}
               gap={6}
               renderItem={({ src, label }, idx) => (
-                <div
-                  className="relative rounded-xl overflow-hidden cursor-pointer"
+                <button
+                  type="button"
+                  aria-label={`View ${label} photo ${idx + 1}`}
                   onClick={() => setLightboxIdx(idx)}
+                  className="relative rounded-xl overflow-hidden w-full focus-visible:outline-2 focus-visible:outline-primary-400 focus-visible:-outline-offset-2"
                 >
                   <Image src={src} alt={label} width={1000} height={600} className="w-full aspect-5/3 object-cover hover:scale-[1.03] transition-transform duration-300" />
                   <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-neutral-900/80 via-neutral-900/60 to-transparent px-2 py-1.5 pt-3">
                     <p className="text-sm text-white font-medium truncate">{label}</p>
                   </div>
-                </div>
+                </button>
               )}
             />
             {lightboxIdx !== null && (
