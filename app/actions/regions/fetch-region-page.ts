@@ -66,6 +66,119 @@ export async function fetchRegionBySlug(slug: string): Promise<RegionMeta | null
   };
 }
 
+// ── All regions listing page ──────────────────────────────────────────────────
+
+export type RegionListItem = {
+  id: number;
+  name: string;
+  slug: string;
+  image: string;
+  packageCount: number;
+  country: string;
+};
+
+export type RegionFilters = { countries: string[] };
+
+export type RegionListPage = {
+  items: RegionListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+};
+
+export type RegionSidebarData = {
+  countries: { name: string; count: number }[];
+  total: number;
+};
+
+export async function fetchRegionsPage(
+  filters: RegionFilters = { countries: [] },
+  page = 1,
+  pageSize = 12,
+): Promise<RegionListPage> {
+  const safePage = Math.max(1, Math.floor(page));
+  const safeSize = Math.min(48, Math.max(1, Math.floor(pageSize)));
+  const skip = (safePage - 1) * safeSize;
+
+  const where: Prisma.custom_regionsWhereInput = {
+    is_active: true,
+    is_deleted: false,
+    destinations: { some: { is_deleted: false, packages: { some: { is_active: true } } } },
+    ...(filters.countries.length > 0 && { country: { in: filters.countries } }),
+  };
+
+  const [total, regions] = await Promise.all([
+    db.custom_regions.count({ where }),
+    db.custom_regions.findMany({
+      where,
+      skip,
+      take: safeSize,
+      select: { id: true, name: true, slug: true, thumbnail: true, country: true },
+      orderBy: [{ country: "asc" }, { name: "asc" }],
+    }),
+  ]);
+
+  if (regions.length === 0) {
+    return { items: [], total, page: safePage, pageSize: safeSize, hasMore: false };
+  }
+
+  const regionIds = regions.map((r) => r.id);
+
+  const dests = await db.destinations.findMany({
+    where: { region_id: { in: regionIds }, is_deleted: false },
+    select: {
+      region_id: true,
+      _count: { select: { packages: { where: { is_active: true } } } },
+    },
+  });
+
+  const countMap: Record<number, number> = {};
+  for (const d of dests) {
+    countMap[d.region_id] = (countMap[d.region_id] ?? 0) + d._count.packages;
+  }
+
+  const items = regions
+    .map((r) => ({
+      id: r.id,
+      name: r.name,
+      slug: r.slug,
+      image: imgUrl(r.thumbnail),
+      packageCount: countMap[r.id] ?? 0,
+      country: r.country,
+    }))
+    .filter((r) => r.image);
+
+  return {
+    items,
+    total,
+    page: safePage,
+    pageSize: safeSize,
+    hasMore: skip + regions.length < total,
+  };
+}
+
+export async function fetchRegionSidebarData(): Promise<RegionSidebarData> {
+  const rows = await db.custom_regions.findMany({
+    where: {
+      is_active: true,
+      is_deleted: false,
+      destinations: { some: { is_deleted: false, packages: { some: { is_active: true } } } },
+    },
+    select: { country: true },
+  });
+
+  const map = new Map<string, number>();
+  for (const r of rows) map.set(r.country, (map.get(r.country) ?? 0) + 1);
+
+  return {
+    countries: Array.from(map.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    total: rows.length,
+  };
+}
+
 // ── Active regions for the home page ─────────────────────────────────────────
 
 export type ActiveRegionItem = {
@@ -81,7 +194,12 @@ export async function fetchActiveRegions(
   limit = 12,
 ): Promise<ActiveRegionItem[]> {
   const regions = await db.custom_regions.findMany({
-    where: { is_active: true, is_deleted: false, country },
+    where: {
+      is_active: true,
+      is_deleted: false,
+      country,
+      destinations: { some: { is_deleted: false, packages: { some: { is_active: true } } } },
+    },
     select: { id: true, name: true, slug: true, thumbnail: true },
     take: limit,
     orderBy: { created_at: "asc" },
@@ -121,6 +239,14 @@ const DEFAULT_PAGE_SIZE = 9;
  * Fetch one page of active packages within a region (offset pagination, used by
  * the region page's infinite-scroll list). Page is 1-based.
  */
+export async function getAllRegionSlugs(): Promise<string[]> {
+  const rows = await db.custom_regions.findMany({
+    where: { is_active: true, is_deleted: false },
+    select: { slug: true },
+  });
+  return rows.map((r) => r.slug);
+}
+
 export async function fetchRegionPackages(
   regionId: number,
   page = 1,

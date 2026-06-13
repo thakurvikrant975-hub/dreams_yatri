@@ -1,12 +1,18 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Image from "next/image";
-import { fetchRegionBySlug, fetchRegionPackages } from "@/app/actions/regions/fetch-region-page";
+import { fetchRegionBySlug, fetchRegionPackages, getAllRegionSlugs } from "@/app/actions/regions/fetch-region-page";
 import Breadcrumps from "@/app/components/ui/Breadcrumps";
 import { Heading, Text } from "@/app/components/ui/Typography";
 import RegionPackagesList from "./RegionPackagesList";
+import { SITE_CONFIG, SITE_URL } from "@/app/lib/seo/site-config";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600;
+
+export async function generateStaticParams() {
+    const slugs = await getAllRegionSlugs();
+    return slugs.map((slug) => ({ slug }));
+}
 
 export async function generateMetadata({
     params,
@@ -16,9 +22,28 @@ export async function generateMetadata({
     const { slug } = await params;
     const region = await fetchRegionBySlug(slug);
     if (!region) return { title: "Region not found | Dreams Yatri" };
+    const title = region.metaTitle ?? `${region.name} Tour Packages | Dreams Yatri`;
+    const description = region.metaDesc ?? region.description ?? `Explore curated tour packages across ${region.name}.`;
+    const canonical = `${SITE_URL}/region/${slug}`;
+    const ogImage = region.coverImage ?? SITE_CONFIG.defaultOgImage;
     return {
-        title: region.metaTitle ?? `${region.name} Tour Packages | Dreams Yatri`,
-        description: region.metaDesc ?? region.description ?? `Explore curated tour packages across ${region.name}.`,
+        title,
+        description,
+        alternates: { canonical },
+        openGraph: {
+            title,
+            description,
+            url: canonical,
+            siteName: SITE_CONFIG.name,
+            type: "website",
+            images: [{ url: ogImage, width: 1200, height: 630, alt: region.name }],
+        },
+        twitter: {
+            card: "summary_large_image",
+            title,
+            description,
+            images: [ogImage],
+        },
     };
 }
 
