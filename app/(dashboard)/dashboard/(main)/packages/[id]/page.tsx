@@ -258,6 +258,7 @@ export default async function PackageBuilderPage({
               }))
             )}
             cabTypes={pkg.cabTypes}
+            permits={pkg.permits}
             stopCoords={
               pkg.durations
                 .flatMap((d) => d.routes.flatMap((r) => r.stops))
