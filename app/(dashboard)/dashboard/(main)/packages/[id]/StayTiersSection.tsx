@@ -27,7 +27,7 @@ import {
   Star,
   Hotel,
 } from "lucide-react";
-import { cn } from "@/app/lib/utils";
+import { cn, capitalizeWords } from "@/app/lib/utils";
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -67,7 +67,7 @@ function CategoryForm({
           </Label>
           <Input
             value={label}
-            onChange={(e) => setLabel(e.target.value)}
+            onChange={(e) => setLabel(capitalizeWords(e.target.value))}
             className="h-8 text-xs mt-0.5"
             placeholder="e.g. Budget, Deluxe, Luxury"
             autoFocus

@@ -191,7 +191,7 @@ export function PackagesTableClient({
                 <Link
                   href={url}
                   target="_blank"
-                  className="text-xs text-dashboard-base-content/50 hover:text-dashboard-primary hover:underline truncate block"
+                  className="text-xs text-blue-600 hover:text-blue-700 hover:underline truncate block"
                 >
                   {pkg.slug}
                 </Link>

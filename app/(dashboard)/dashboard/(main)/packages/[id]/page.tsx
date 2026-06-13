@@ -169,6 +169,7 @@ export default async function PackageBuilderPage({
         <TabsContent value="route-builder" className="pt-6">
           <RouteBuilderTab
             packageId={pkg.id}
+            packageTitle={pkg.title}
             initialData={pkg.durations as never}
             packageImages={pkg.images.map(img => ({ id: img.id, url: img.url, is_primary: img.is_primary }))}
             destinationCoords={
