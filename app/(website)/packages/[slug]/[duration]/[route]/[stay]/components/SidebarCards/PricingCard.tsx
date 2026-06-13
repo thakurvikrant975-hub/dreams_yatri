@@ -2,9 +2,10 @@
 
 import { useBooking } from '../PackageBookingProvider';
 import { useBookQuote } from '../useBookQuote';
-import Button from '@/app/components/ui/Button';
+import Button, { buttonVariants } from '@/app/components/ui/Button';
 import Card from '@/app/components/ui/Card';
 import { Text } from '@/app/components/ui/Typography';
+import { SITE_CONFIG } from '@/app/lib/seo/site-config';
 
 const fmt = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 
@@ -69,9 +70,14 @@ export default function PricingCard() {
                 </Text>
             )}
 
-            <Button variant="outline" className="lg:hidden w-full mt-3">
+            <a
+                href={SITE_CONFIG.contact.whatsapp.phoneUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={buttonVariants({ variant: 'outline', className: 'lg:hidden w-full mt-3' })}
+            >
                 Book a call
-            </Button>
+            </a>
         </Card>
     );
 }

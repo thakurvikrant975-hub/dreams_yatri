@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { MagnifyingGlassIcon } from '@phosphor-icons/react'
 import LocationSearchSelect, { type LocationValue } from '@/app/components/ui/LocationSearchSelect'
@@ -27,6 +27,7 @@ export default function PackagesSearchBar({
     initialFrom, initialTo, initialDate, initialTravellers,
 }: PackagesSearchBarProps) {
     const router = useRouter()
+    const [isPending, startTransition] = useTransition()
     const [fromLoc, setFromLoc] = useState<LocationValue | null>(initialFrom)
     const [toLoc, setToLoc] = useState<LocationValue | null>(initialTo)
     const [departDate, setDepartDate] = useState<Date | null>(initialDate)
@@ -54,7 +55,9 @@ export default function PackagesSearchBar({
         p.set('adults', String(travellers.adults))
         if (travellers.childrenAges.length) p.set('children', travellers.childrenAges.join(','))
         const qs = p.toString()
-        router.push(qs ? `/packages?${qs}` : '/packages')
+        startTransition(() => {
+            router.push(qs ? `/packages?${qs}` : '/packages')
+        })
     }
 
     return (
@@ -63,7 +66,7 @@ export default function PackagesSearchBar({
                 <form
                     role="search"
                     aria-label="Search holiday packages"
-                    onSubmit={(e) => { e.preventDefault(); search() }}
+                    onSubmit={(e) => { e.preventDefault(); if (!isPending) search() }}
                 >
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1fr_auto] gap-2.5 items-end">
 
@@ -92,10 +95,12 @@ export default function PackagesSearchBar({
                             <Button
                                 type="submit"
                                 variant="premium"
+                                loading={isPending}
+                                disabled={isPending}
                                 className="h-10.5 w-full lg:w-auto rounded-lg px-7 font-bold flex items-center justify-center gap-2"
                             >
                                 <MagnifyingGlassIcon weight="bold" className="size-4" aria-hidden="true" />
-                                Search
+                                {isPending ? 'Searching…' : 'Search'}
                             </Button>
                         </div>
                     </div>

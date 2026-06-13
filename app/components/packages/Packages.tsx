@@ -213,7 +213,6 @@ export default function PackageCard({
             clearInterval(intervalRef.current)
             intervalRef.current = null
         }
-        setActiveImage(0)
     }
 
     function prev(e: React.MouseEvent) {
