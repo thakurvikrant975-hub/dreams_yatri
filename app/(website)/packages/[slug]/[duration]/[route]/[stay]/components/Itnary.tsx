@@ -517,10 +517,12 @@ function CabContent({ section, day }: { section: CabSection; day?: number }) {
             {/* Vehicle image */}
             {(resolvedImage || resolvedName) && (
               <div className="relative h-36 aspect-video shrink-0 rounded-2xl overflow-hidden bg-neutral-100">
-                <img
+                <Image
                   src={resolvedImage || CAB_PLACEHOLDER}
                   alt={resolvedName ?? "Vehicle"}
-                  className="w-full h-full object-cover"
+                  fill
+                  sizes="256px"
+                  className="object-cover"
                 />
                 <div className="absolute inset-0 bg-linear-to-t from-black/55 via-black/10 to-transparent" />
                 {!resolvedImage && (
@@ -797,10 +799,13 @@ function StayContent({ section }: { section: StaySection }) {
                       i === 0 && 'row-span-3 col-span-4',
                     )}
                   >
-                    <img
+                    <Image
                       src={src}
                       alt={i === 0 ? section.hotelName : `${section.hotelName} photo ${i + 1}`}
-                      className="w-full h-full object-cover transition-opacity hover:opacity-90"
+                      fill
+                      sizes={i === 0 ? '256px' : '64px'}
+                      className="object-cover transition-opacity hover:opacity-90"
+                      priority={i === 0}
                     />
                   </button>
                 ))}
