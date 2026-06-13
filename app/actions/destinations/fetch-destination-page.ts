@@ -54,6 +54,7 @@ export async function fetchActiveDestinations(
       is_active: true,
       is_deleted: false,
       country: { not: excludeCountry },
+      packages: { some: { is_active: true } },
     },
     select: {
       id: true,
@@ -162,6 +163,7 @@ export async function fetchDestinationsPage(
   const where: Prisma.destinationsWhereInput = {
     is_active: true,
     is_deleted: false,
+    packages: { some: { is_active: true } },
     ...(filters.type === "domestic" && { country: "India" }),
     ...(filters.type === "international" && { country: { not: "India" } }),
     ...subFilter,
@@ -196,12 +198,18 @@ export async function fetchDestinationSidebarData(): Promise<DestinationSidebarD
       select: {
         id: true,
         name: true,
-        _count: { select: { destinations: { where: { is_active: true, is_deleted: false } } } },
+        _count: {
+          select: {
+            destinations: {
+              where: { is_active: true, is_deleted: false, packages: { some: { is_active: true } } },
+            },
+          },
+        },
       },
       orderBy: { name: "asc" },
     }),
     db.destinations.findMany({
-      where: { is_active: true, is_deleted: false },
+      where: { is_active: true, is_deleted: false, packages: { some: { is_active: true } } },
       select: { country: true },
     }),
   ]);
@@ -275,6 +283,14 @@ const DEFAULT_PAGE_SIZE = 9;
  * Fetch one page of active packages for a destination (offset pagination, used
  * by the destination page's infinite-scroll list). Page is 1-based.
  */
+export async function getAllDestinationSlugs(): Promise<string[]> {
+  const rows = await db.destinations.findMany({
+    where: { is_active: true, is_deleted: false },
+    select: { slug: true },
+  });
+  return rows.map((r) => r.slug);
+}
+
 export async function fetchDestinationPackages(
   destinationId: number,
   page = 1,
