@@ -971,8 +971,8 @@ function CabGroupCard({
     });
   } 
 
-  
 
+ 
   function cancelRangeEdit() {
     setEditingRange(false);
     setPendingRange({ from: group.dayFrom, to: group.dayTo });
