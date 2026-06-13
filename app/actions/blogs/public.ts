@@ -142,3 +142,11 @@ export async function getPublicBlogCategories(): Promise<PublicBlogCategory[]> {
     select:  { id: true, name: true, slug: true },
   });
 }
+
+export async function getAllPublishedBlogSlugs(): Promise<string[]> {
+  const rows = await db.blog_posts.findMany({
+    where: { status: "PUBLISHED" },
+    select: { slug: true },
+  });
+  return rows.map((r) => r.slug);
+}
