@@ -2,6 +2,8 @@
 
 import React from 'react'
 import { motion } from 'framer-motion'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Heading } from '@/app/components/ui/Typography'
 import DestinationCard, { type DestinationCardProps } from '@/app/components/destinations/Destination'
 import Button from '@/app/components/ui/Button'
@@ -15,48 +17,17 @@ import {
 import SectionHeader from '@/app/components/ui/SectionHeader'
 import { fadeIn, fadeUp, fadeRight, fadeLeft } from '@/app/lib/motionPresets'
 
-// ─── Data ─────────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 export type DestinationItem = Omit<DestinationCardProps, 'onClick'> & {
     slug: string
     badge?: string
     region?: string
 }
 
-const DOMESTIC: DestinationItem[] = [
-    { slug: 'himachal-pradesh', name: 'Himachal Pradesh', packageCount: 32, image: 'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=800&auto=format&fit=crop', icon: IslandIcon, badge: 'Most Popular', region: 'North India' },
-    { slug: 'kashmir', name: 'Kashmir', packageCount: 102, image: 'https://images.unsplash.com/photo-1614591276564-7b3e69347a48?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'North India' },
-    { slug: 'kerala', name: 'Kerala', packageCount: 25, image: 'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'South India' },
-    { slug: 'goa', name: 'Goa', packageCount: 15, image: 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'West India' },
-    { slug: 'rajasthan', name: 'Rajasthan', packageCount: 28, image: 'https://images.unsplash.com/photo-1477587458883-47145ed94245?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'West India' },
-    { slug: 'uttarakhand', name: 'Uttarakhand', packageCount: 19, image: 'https://images.unsplash.com/photo-1502786129293-79981df4e689?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'North India' },
-    { slug: 'ladakh', name: 'Ladakh', packageCount: 41, image: 'https://images.unsplash.com/photo-1581793745862-99fde7fa73d2?w=800&auto=format&fit=crop', icon: IslandIcon, badge: 'Trending', region: 'North India' },
-    { slug: 'andaman', name: 'Andaman', packageCount: 23, image: 'https://images.unsplash.com/photo-1589979481223-deb893043163?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'Islands' },
-    { slug: 'sikkim', name: 'Sikkim', packageCount: 17, image: 'https://images.unsplash.com/photo-1626714100695-3f0a8d49d8e1?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'North East' },
-    { slug: 'meghalaya', name: 'Meghalaya', packageCount: 12, image: 'https://images.unsplash.com/photo-1591019479261-1a103585c559?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'North East' },
-    { slug: 'tamil-nadu', name: 'Tamil Nadu', packageCount: 21, image: 'https://images.unsplash.com/photo-1582510003544-4d00b7f74220?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'South India' },
-]
-
-const INTERNATIONAL: DestinationItem[] = [
-    { slug: 'dubai', name: 'Dubai', packageCount: 50, image: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'Middle East' },
-    { slug: 'switzerland', name: 'Switzerland', packageCount: 99, image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'Europe' },
-    { slug: 'france', name: 'France', packageCount: 102, image: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'Europe' },
-    { slug: 'japan', name: 'Japan', packageCount: 55, image: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'East Asia' },
-    { slug: 'thailand', name: 'Thailand', packageCount: 44, image: 'https://images.unsplash.com/photo-1528181304800-259b08848526?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'Southeast Asia' },
-    { slug: 'maldives', name: 'Maldives', packageCount: 30, image: 'https://images.unsplash.com/photo-1514282401047-d79a71a590e8?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'Indian Ocean' },
-    { slug: 'bali', name: 'Bali', packageCount: 67, image: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=800&auto=format&fit=crop', icon: IslandIcon, badge: 'Most Popular', region: 'Southeast Asia' },
-    { slug: 'singapore', name: 'Singapore', packageCount: 48, image: 'https://images.unsplash.com/photo-1525625293386-3f8f99389edd?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'Southeast Asia' },
-    { slug: 'vietnam', name: 'Vietnam', packageCount: 33, image: 'https://images.unsplash.com/photo-1528127269322-539801943592?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'Southeast Asia' },
-    { slug: 'bhutan', name: 'Bhutan', packageCount: 26, image: 'https://images.unsplash.com/photo-1553856622-d1b352e9a211?w=800&auto=format&fit=crop', icon: IslandIcon, region: 'South Asia' },
-    { slug: 'turkey', name: 'Turkey', packageCount: 39, image: 'https://images.unsplash.com/photo-1541432901042-2d8bd64b4a9b?w=800&auto=format&fit=crop', icon: IslandIcon, badge: 'Trending', region: 'Eurasia' },
-]
-
 // ─── Props ────────────────────────────────────────────────────────────────────
 interface ExploreDestinationsProps {
     domestic?: DestinationItem[]
     international?: DestinationItem[]
-    onDestinationClick?: (slug: string) => void
-    onViewAllDomestic?: () => void
-    onViewAllInternational?: () => void
 }
 
 // ─── Row ──────────────────────────────────────────────────────────────────────
@@ -64,21 +35,25 @@ function DestinationRow({
     label,
     icon: RowIcon,
     items,
-    onViewAll,
-    onItemClick,
+    viewAllHref,
+    itemBasePath,
 }: {
     label: string
     icon: React.ElementType
     items: DestinationItem[]
-    onViewAll?: () => void
-    onItemClick?: (slug: string) => void
+    viewAllHref: string
+    itemBasePath: string
 }) {
+    const router = useRouter()
+
+    if (items.length === 0) return null
+
     return (
         <motion.div
             className="mb-10"
             variants={fadeUp}
         >
-            {/* Row header — label slides from left, View All slides from right */}
+            {/* Row header */}
             <div className="flex items-center justify-between mb-4">
                 <motion.div
                     className="flex items-center gap-2.5"
@@ -89,10 +64,12 @@ function DestinationRow({
                 </motion.div>
 
                 <motion.div variants={fadeLeft}>
-                    <Button variant="outline" size="sm" className="flex items-center gap-1.5 font-heading font-medium text-sm sm:gap-2" onClick={onViewAll}>
-                        View All
-                        <ArrowRightIcon weight="bold" className="size-3.5 text-(--text-muted)" />
-                    </Button>
+                    <Link href={viewAllHref}>
+                        <Button variant="outline" size="sm" className="flex items-center gap-1.5 font-heading font-medium text-sm sm:gap-2">
+                            View All
+                            <ArrowRightIcon weight="bold" className="size-3.5 text-(--text-muted)" />
+                        </Button>
+                    </Link>
                 </motion.div>
             </div>
 
@@ -112,7 +89,7 @@ function DestinationRow({
                         image={item.image}
                         icon={item.icon}
                         region={item.region}
-                        onClick={() => onItemClick?.(item.slug)}
+                        onClick={() => router.push(`${itemBasePath}/${item.slug}`)}
                     />
                 )}
                 perView={4.5}
@@ -128,15 +105,11 @@ function DestinationRow({
 export default function ExploreDestinations({
     domestic,
     international,
-    onDestinationClick,
-    onViewAllDomestic,
-    onViewAllInternational,
 }: ExploreDestinationsProps) {
-    // Merge real data with dummy testing cards so the slider always has enough
-    // items to overflow and scroll. (Remove the spread of DOMESTIC/INTERNATIONAL
-    // once enough real regions/destinations exist.)
-    const domesticData = [...(domestic ?? []), ...DOMESTIC]
-    const internationalData = [...(international ?? []), ...INTERNATIONAL]
+    const domesticData = domestic ?? []
+    const internationalData = international ?? []
+
+    if (domesticData.length === 0 && internationalData.length === 0) return null
 
     return (
         <section className="w-full py-section overflow-hidden bg-surface-muted relative z-10">
@@ -172,7 +145,6 @@ export default function ExploreDestinations({
                 </svg>
             </div>
 
-
             <div className="screen-space">
 
                 <SectionHeader
@@ -188,7 +160,6 @@ export default function ExploreDestinations({
                             <path d="M254.43 259.754L134.005 414.245L58.5533 261.167L254.43 259.754Z" fill="#CBFBF1" />
                             <circle cx="498.5" cy="109.874" r="90.5" fill="#CBFBF1" />
                         </svg>
-
                     </div>
                 </SectionHeader>
 
@@ -196,16 +167,16 @@ export default function ExploreDestinations({
                     label="Domestic"
                     icon={MapPinIcon}
                     items={domesticData}
-                    onViewAll={onViewAllDomestic}
-                    onItemClick={onDestinationClick}
+                    viewAllHref="/destination?type=domestic"
+                    itemBasePath="/region"
                 />
 
                 <DestinationRow
                     label="Beyond Borders"
                     icon={AirplaneTiltIcon}
                     items={internationalData}
-                    onViewAll={onViewAllInternational}
-                    onItemClick={onDestinationClick}
+                    viewAllHref="/destination?type=international"
+                    itemBasePath="/destination"
                 />
 
             </div>

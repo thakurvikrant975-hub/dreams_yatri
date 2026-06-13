@@ -1,10 +1,9 @@
 import "dotenv/config";
-import { Pool } from "pg";
+import { createIPv4Pool } from "./pg-ipv4";
 import { hash } from "bcryptjs";
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-
 async function main() {
+  const pool = await createIPv4Pool(process.env.DATABASE_URL!);
   console.log("Seeding TeamMember...");
 
   const { rows: roles } = await pool.query(
@@ -23,8 +22,8 @@ async function main() {
       password:          await hash("Devs@123", 12),
       roleId:            roleMap["sales"],
       designation:       "Sales Executive",
-      joiningDate:       "2022-01-01",  
-      personalEmail:     "vikrant@gmail.com",
+      joiningDate:       "2022-01-01",
+      personalEmail:     "devs@dreamsyatri.com",
       personalMobile:    "8799678450",
       alternativeMobile: "9876678970",
       fatherName:        "Rajesh Thakur",
@@ -80,13 +79,11 @@ async function main() {
         m.aadhaarNumber, m.panNumber,
       ]
     );
-
     console.log(`  -> ${m.employeeId} — ${m.name}`);
   }
 
   console.log("✅ TeamMember seeded");
+  await pool.end();
 }
 
-main()
-  .catch(console.error)
-  .finally(() => pool.end());
+main().catch(console.error);

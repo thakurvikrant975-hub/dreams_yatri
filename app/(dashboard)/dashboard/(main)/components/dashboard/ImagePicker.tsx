@@ -35,6 +35,7 @@ type Props = {
     hint?: string;
     autoUpload?: boolean;   // upload immediately on drop/select (default: true)
     className?: string;
+    previewAspect?: string; // Tailwind aspect-* class for the thumbnail previews, e.g. "aspect-3/4"
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -80,6 +81,7 @@ function ImageThumb({
     onMoveRight,
     isDragging,
     dragHandleProps,
+    previewAspect = "aspect-square",
 }: {
     image: PickedImage;
     index: number;
@@ -90,12 +92,13 @@ function ImageThumb({
     onMoveRight: () => void;
     isDragging?: boolean;
     dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
+    previewAspect?: string;
 }) {
     return (
         <div
             className={cn(
                 "group relative rounded-xl overflow-hidden border-2 bg-muted transition-all",
-                "aspect-square",
+                previewAspect,
                 image.is_primary && "border-primary",
                 !image.is_primary && "border-border hover:border-muted-foreground/50",
                 isDragging && "opacity-50 scale-95",
@@ -219,6 +222,7 @@ export function ImagePicker({
     hint,
     autoUpload = true,
     className,
+    previewAspect = "aspect-square",
 }: Props) {
     const [isDragOver, setIsDragOver] = useState(false);
     const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -477,7 +481,8 @@ export function ImagePicker({
                             type="button"
                             onClick={() => inputRef.current?.click()}
                             className={cn(
-                                "aspect-square rounded-xl border-2 border-dashed border-border",
+                                previewAspect,
+                                "rounded-xl border-2 border-dashed border-border",
                                 "flex flex-col items-center justify-center gap-1",
                                 "hover:border-primary/50 hover:bg-muted/50 transition-colors",
                             )}
@@ -505,6 +510,7 @@ export function ImagePicker({
                                 onMoveLeft={() => moveImage(index, index - 1)}
                                 onMoveRight={() => moveImage(index, index + 1)}
                                 dragHandleProps={{}}
+                                previewAspect={previewAspect}
                             />
                         </div>
                     ))}

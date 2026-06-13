@@ -1,8 +1,9 @@
+import "dotenv/config";
 import { PrismaClient } from "../app/generated/prisma";
 import { PrismaPg } from "@prisma/adapter-pg";
-import pg from "pg";
+import { createIPv4Pool } from "./seed/pg-ipv4";
 
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+const pool = await createIPv4Pool(process.env.DATABASE_URL!);
 const adapter = new PrismaPg(pool);
 const db = new PrismaClient({ adapter });
 

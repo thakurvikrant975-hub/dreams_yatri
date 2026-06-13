@@ -846,15 +846,17 @@ model hotels {
   check_out_time   String?
   is_active        Boolean                  @default(true)
   created_at       DateTime                 @default(now())
-  updated_at           DateTime                 @updatedAt
-  thumbnail            String?
+  updated_at       DateTime                 @updatedAt
+  thumbnail        String?
   city             String?
   state            String?
   country          String?
   pincode          String?
-  business_phone   String?
-  business_email   String?
-  location_id      BigInt?
+  business_phone            String?
+  business_email            String?
+  whatsapp_number String?
+  b2b_email       String?
+  location_id               BigInt?
   bookingHotels    BookingHotel[]
   childPolicies    hotel_child_policies[]
   image_categories hotel_image_categories[]

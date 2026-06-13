@@ -15,14 +15,18 @@ import {
   AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "../components/ui/alert-dialog";
-import { Hotel, BedDouble, ImageIcon, ExternalLink, Trash2, Pencil } from "lucide-react";
+import { Hotel, BedDouble, ImageIcon, Trash2, Pencil, SearchIcon, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
-import { toggleHotelActive, deleteHotel } from "./actions";
+import { toggleHotelActive, deleteHotel, updateHotelSeo } from "./actions";
 import { TableFilters } from "../components/dashboard/Tablefilters";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { CATEGORIES } from "./constants";
 import { TableEmptyState } from "../components/dashboard/TableEmptyState";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../components/ui/sheet";
+import { Label } from "../components/ui/label";
+import { Input } from "../components/ui/input";
+import { Textarea } from "../components/ui/textarea";
 // ── Constants ─────────────────────────────────────────────────────────────
 
 const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
@@ -44,6 +48,8 @@ type HotelItem = {
   stay_type: string | null;
   city: string | null;
   state: string | null;
+  meta_title: string | null;
+  meta_desc: string | null;
   location: { name: string; city: { name: string } | null; state: { name: string } | null; country: { name: string } | null } | null;
   is_active: boolean;
   created_at: Date;
@@ -91,6 +97,11 @@ export function HotelsTableClient({
 
   const [deleteTarget, setDeleteTarget] = useState<HotelItem | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const [seoTarget,    setSeoTarget]    = useState<HotelItem | null>(null);
+  const [seoTitle,     setSeoTitle]     = useState("");
+  const [seoDesc,      setSeoDesc]      = useState("");
+  const [seoSaving,    setSeoSaving]    = useState(false);
 
   // ── URL helpers ───────────────────────────────────────────────────────
 
@@ -141,6 +152,29 @@ export function HotelsTableClient({
         setDeleteError(result.message);
       }
     });
+  }
+
+  function openSeo(hotel: HotelItem) {
+    setSeoTarget(hotel);
+    setSeoTitle(hotel.meta_title ?? "");
+    setSeoDesc(hotel.meta_desc ?? "");
+  }
+
+  async function handleSeoSave() {
+    if (!seoTarget) return;
+    setSeoSaving(true);
+    const fd = new FormData();
+    fd.append("meta_title", seoTitle);
+    fd.append("meta_desc",  seoDesc);
+    const result = await updateHotelSeo(seoTarget.id, { success: false, message: "" }, fd);
+    setSeoSaving(false);
+    if (result.success) {
+      setHotels(prev => prev.map(h => h.id === seoTarget.id ? { ...h, meta_title: seoTitle || null, meta_desc: seoDesc || null } : h));
+      toast.success("SEO updated");
+      setSeoTarget(null);
+    } else {
+      toast.error(result.message);
+    }
   }
 
   // ── Pagination ────────────────────────────────────────────────────────
@@ -229,9 +263,18 @@ export function HotelsTableClient({
     {
       header: "Actions",
       align: "right",
-      width: "w-[100px]",
+      width: "w-[130px]",
       cell: (h) => (
         <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            title="Edit SEO"
+            onClick={() => openSeo(h)}
+          >
+            <SearchIcon className="h-3.5 w-3.5" />
+          </Button>
           <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
             <Link href={`/dashboard/hotels/${h.id}`}>
               <Pencil className="h-3.5 w-3.5" />
@@ -319,6 +362,56 @@ export function HotelsTableClient({
           pagination={{ currentPage, totalPages, buildHref, label }}
         />
       )}
+
+      {/* SEO sidebar */}
+      <Sheet open={!!seoTarget} onOpenChange={open => !open && setSeoTarget(null)}>
+        <SheetContent className="w-[420px] sm:w-[480px] flex flex-col gap-0 p-0">
+          <SheetHeader className="px-6 py-5 border-b">
+            <SheetTitle className="text-base">SEO — {seoTarget?.name}</SheetTitle>
+          </SheetHeader>
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label>Meta Title</Label>
+                <span className={`text-xs ${seoTitle.length > 60 ? "text-destructive" : "text-muted-foreground"}`}>
+                  {seoTitle.length}/60
+                </span>
+              </div>
+              <Input
+                value={seoTitle}
+                onChange={e => setSeoTitle(e.target.value)}
+                placeholder={`${seoTarget?.name ?? ""} | Dreams Yatri`}
+                maxLength={70}
+              />
+              <p className="text-xs text-muted-foreground">Keep under 60 characters for Google</p>
+            </div>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label>Meta Description</Label>
+                <span className={`text-xs ${seoDesc.length > 160 ? "text-destructive" : "text-muted-foreground"}`}>
+                  {seoDesc.length}/160
+                </span>
+              </div>
+              <Textarea
+                value={seoDesc}
+                onChange={e => setSeoDesc(e.target.value)}
+                placeholder="A brief description shown in Google search results..."
+                rows={5}
+                maxLength={200}
+              />
+              <p className="text-xs text-muted-foreground">Keep under 160 characters for Google</p>
+            </div>
+          </div>
+          <div className="px-6 py-4 border-t flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setSeoTarget(null)} disabled={seoSaving}>
+              Cancel
+            </Button>
+            <Button onClick={handleSeoSave} disabled={seoSaving} className="min-w-24 bg-dashboard-primary">
+              {seoSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving…</> : "Save SEO"}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Delete dialog — controlled, stays open on error */}
       <AlertDialog open={!!deleteTarget} onOpenChange={open => !open && setDeleteTarget(null)}>

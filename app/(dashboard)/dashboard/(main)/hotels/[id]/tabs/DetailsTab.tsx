@@ -11,7 +11,8 @@ import {
   Select, SelectContent, SelectItem,
   SelectTrigger, SelectValue,
 } from "../../../components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Loader2, MessageCircle } from "lucide-react";
+
 import { ImagePicker, type PickedImage } from "../../../components/dashboard/ImagePicker";
 import { LocationSearchSelect } from "../../../components/location/LocationSearchSelect";
 import type { LocationValue } from "../../../components/location/location.types";
@@ -33,11 +34,11 @@ type Hotel = {
   state:          string | null;
   country:        string | null;
   pincode:        string | null;
-  business_phone: string | null;
-  business_email: string | null;
-  description:    string | null;
-  meta_title:     string | null;
-  meta_desc:      string | null;
+  business_phone:            string | null;
+  business_email:            string | null;
+  whatsapp_number: string | null;
+  b2b_email:       string | null;
+  description:               string | null;
   is_active:      boolean;
   location:       LocationValue | null;
   destination:    { id: number; name: string };
@@ -62,19 +63,13 @@ export function DetailsTab({
 
   const [location, setLocation] = useState<LocationValue | null>(hotel.location);
   const [address,   setAddress]   = useState(hotel.address ?? "");
-  const [metaTitle, setMetaTitle] = useState(hotel.meta_title ?? "");
-  const [metaDesc,  setMetaDesc]  = useState(hotel.meta_desc  ?? "");
   const [destinationId, setDestinationId] = useState<number | null>(hotel.destination.id);
+  const [categoryId, setCategoryId] = useState<number | null>(
+    CATEGORIES.find(c => c.value === hotel.category)?.id ?? null
+  );
 
   const nameRef = useRef<HTMLInputElement>(null);
   const descRef = useRef<HTMLTextAreaElement>(null);
-
-  function handleAutofillSEO() {
-    const name = nameRef.current?.value ?? hotel.name;
-    const desc = descRef.current?.value ?? hotel.description ?? "";
-    if (!metaTitle) setMetaTitle(`${name} | Dreams Yatri`.slice(0, 60));
-    if (!metaDesc)  setMetaDesc(desc.slice(0, 160));
-  }
 
   // Thumbnail state — managed separately so we can preview and pass key via hidden input
   const [thumbnail, setThumbnail] = useState<PickedImage[]>(
@@ -149,14 +144,23 @@ export function DetailsTab({
             </div>
             <div className="space-y-1.5">
               <Label className="text-sm text-dashboard-base-content">Category</Label>
-              <Select name="category" defaultValue={hotel.category ?? ""}>
-                <SelectTrigger className="bg-dashboard-base-100 border-dashboard-base-content/20 cursor-pointer"><SelectValue placeholder="Select type" /></SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map(c => (
-                    <SelectItem key={c.value} value={c.value} className="cursor-pointer">{c.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchSelect
+                value={categoryId}
+                onChange={(id) => setCategoryId(id)}
+                fetchOptions={async (q) => {
+                  const lower = q.toLowerCase();
+                  return CATEGORIES
+                    .filter(c => c.label.toLowerCase().includes(lower))
+                    .map(c => ({ id: c.id, label: c.label }));
+                }}
+                placeholder="Search category…"
+                initialLabel={CATEGORIES.find(c => c.value === hotel.category)?.label ?? ""}
+              />
+              <input
+                type="hidden"
+                name="category"
+                value={CATEGORIES.find(c => c.id === categoryId)?.value ?? ""}
+              />
             </div>
             <div className="space-y-1.5">
               <Label className="text-sm text-dashboard-base-content">Stay Type</Label>
@@ -206,6 +210,44 @@ export function DetailsTab({
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-sm text-dashboard-base-content">WhatsApp Number</Label>
+              <div className="flex gap-2">
+                <Input
+                  name="whatsapp_number"
+                  type="tel"
+                  defaultValue={hotel.whatsapp_number ?? ""}
+                  placeholder="+919876543210"
+                  className="bg-dashboard-base-100 border-dashboard-base-content/20"
+                />
+                {hotel.whatsapp_number && (
+                  <a
+                    href={`https://wa.me/${hotel.whatsapp_number.replace(/\D/g, "")}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 shrink-0 rounded-md px-3 py-2 text-xs font-medium bg-[#25D366] text-white hover:bg-[#1ebe5d] transition-colors"
+                  >
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    Open Chat
+                  </a>
+                )}
+              </div>
+              <p className="text-xs text-dashboard-base-content/40">International format: +919876543210</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm text-dashboard-base-content">B2B / Reservations Email</Label>
+              <Input
+                name="b2b_email"
+                type="email"
+                defaultValue={hotel.b2b_email ?? ""}
+                placeholder="reservations@hotel.com"
+                className="bg-dashboard-base-100 border-dashboard-base-content/20"
+              />
+              <p className="text-xs text-dashboard-base-content/40">Used for booking vouchers &amp; amendments</p>
+            </div>
+          </div>
+
           <input type="hidden" name="location_id" value={location?.id ?? ""} />
 
           <div className="space-y-1.5">
@@ -233,41 +275,6 @@ export function DetailsTab({
               <p className="text-xs text-dashboard-base-content/50">Visible on Dreams Yatri</p>
             </div>
             <Switch name="is_active" value="true" defaultChecked={hotel.is_active} />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* ── SEO ───────────────────────────────────────────────────── */}
-      <Card className="bg-dashboard-base-100 rounded-xl shadow-lg border border-dashboard-base-content/20">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base text-dashboard-base-content">SEO</CardTitle>
-            <Button type="button" variant="outline" size="sm" onClick={handleAutofillSEO}
-              className="border-dashboard-base-content/20 text-dashboard-base-content/70 hover:bg-dashboard-base-200 cursor-pointer">
-              Autofill from title &amp; description
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm text-dashboard-base-content">Meta Title</Label>
-              <span className={`text-xs ${metaTitle.length > 60 ? "text-dashboard-error" : "text-dashboard-base-content/50"}`}>
-                {metaTitle.length}/60
-              </span>
-            </div>
-            <Input name="meta_title" value={metaTitle} onChange={e => setMetaTitle(e.target.value)}
-              className="bg-dashboard-base-100 border-dashboard-base-content/20" />
-          </div>
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm text-dashboard-base-content">Meta Description</Label>
-              <span className={`text-xs ${metaDesc.length > 160 ? "text-dashboard-error" : "text-dashboard-base-content/50"}`}>
-                {metaDesc.length}/160
-              </span>
-            </div>
-            <Textarea name="meta_desc" value={metaDesc} onChange={e => setMetaDesc(e.target.value)} rows={3}
-              className="bg-dashboard-base-100 border-dashboard-base-content/20" />
           </div>
         </CardContent>
       </Card>
