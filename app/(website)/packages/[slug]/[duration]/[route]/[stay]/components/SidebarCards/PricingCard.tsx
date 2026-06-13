@@ -10,7 +10,7 @@ import { SITE_CONFIG } from '@/app/lib/seo/site-config';
 const fmt = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 
 export default function PricingCard() {
-    const { pricing, isPricingLoading, adults, childCount, infants } = useBooking();
+    const { pricing, isPricingLoading, adults, childCount, infants, recentEnquiryCount } = useBooking();
     const { book, booking, error } = useBookQuote();
 
     const totalPax = adults + childCount + infants;
@@ -68,6 +68,15 @@ export default function PricingCard() {
                 <Text size="xs" intent="error" className="mt-2 block text-center" role="alert">
                     {error}
                 </Text>
+            )}
+
+            {recentEnquiryCount > 3 && (
+                <div className="mt-3 flex items-center gap-1.5 justify-center">
+                    <span className="size-2 rounded-full bg-green-500 animate-pulse" aria-hidden="true" />
+                    <Text size="xs" intent="muted">
+                        {recentEnquiryCount} people enquired this week
+                    </Text>
+                </div>
             )}
 
             <a
