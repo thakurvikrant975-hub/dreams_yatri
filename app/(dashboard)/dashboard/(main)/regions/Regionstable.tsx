@@ -9,7 +9,7 @@ import {
 } from "../components/ui/select";
 import { EditRegionSheet }    from "./RegionSheet";
 import { DeleteRegionDialog } from "./Deleteregiondialog";
-import { toggleRegionActive } from "./actions";
+import { toggleRegionActive, getRegionHistory } from "./actions";
 import { toast }              from "sonner";
 import { MapPin }             from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -18,6 +18,7 @@ import Image                  from "next/image";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { TableFilters }       from "../components/dashboard/Tablefilters";
 import { TableEmptyState }   from "../components/dashboard/TableEmptyState";
+import { HistorySheet }       from "../components/dashboard/HistorySheet";
 
 // ── Type ──────────────────────────────────────────────────────────────────────
 type Region = {
@@ -33,6 +34,8 @@ type Region = {
   is_active:   boolean;
   created_at:  Date;
   created_by:  string | null;
+  updated_at:  Date;
+  updated_by:  string | null;
   _count: { destinations: number };
 };
 
@@ -208,9 +211,19 @@ export function RegionsTable({
     {
       header: "Actions",
       align:  "right",
-      width:  "w-[100px]",
+      width:  "w-[120px]",
       cell: (region) => (
         <div className="flex items-center justify-end gap-1">
+          <HistorySheet
+            id={region.id}
+            title={region.name}
+            entityLabel="region"
+            fetchHistory={getRegionHistory}
+            createdBy={region.created_by}
+            createdAt={region.created_at}
+            updatedBy={region.updated_by}
+            updatedAt={region.updated_at}
+          />
           <EditRegionSheet region={region} />
           <DeleteRegionDialog
             id={region.id}

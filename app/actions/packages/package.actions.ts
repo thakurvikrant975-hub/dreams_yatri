@@ -35,7 +35,13 @@ export async function createPackage(data: createPackagesTypes) {
       entity:     "package",
       entityId:   String(res.id),
       entitySlug: res.slug,
-      newData:    { title: res.title, slug: res.slug, destination_id: res.destination_id },
+      newData:    {
+        title: res.title,
+        slug: res.slug,
+        destination_id: res.destination_id,
+        inclusions: res.inclusions,
+        exclusions: res.exclusions,
+      },
     });
 
     return {
@@ -93,7 +99,7 @@ export async function updatePackageBasicInfo(id: number, data: createPackagesTyp
 
     const current = await db.packages.findUnique({
       where:  { id },
-      select: { title: true, slug: true, destination_id: true, is_active: true },
+      select: { title: true, slug: true, destination_id: true, is_active: true, inclusions: true, exclusions: true },
     });
 
     // Upsert tags and categories so new names auto-create records
@@ -155,8 +161,22 @@ export async function updatePackageBasicInfo(id: number, data: createPackagesTyp
       entity:       "package",
       entityId:     String(id),
       entitySlug:   parsed.data.slug,
-      previousData: current ? { title: current.title, slug: current.slug, destination_id: current.destination_id } : undefined,
-      newData:      { title: parsed.data.title, slug: parsed.data.slug, destination_id: parsed.data.destination_id },
+      previousData: current
+        ? {
+            title: current.title,
+            slug: current.slug,
+            destination_id: current.destination_id,
+            inclusions: current.inclusions,
+            exclusions: current.exclusions,
+          }
+        : undefined,
+      newData: {
+        title: parsed.data.title,
+        slug: parsed.data.slug,
+        destination_id: parsed.data.destination_id,
+        inclusions: parsed.data.inclusions,
+        exclusions: parsed.data.exclusions,
+      },
     });
 
     revalidatePath("/dashboard/packages");

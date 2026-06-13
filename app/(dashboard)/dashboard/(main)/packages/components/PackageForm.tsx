@@ -31,7 +31,7 @@ import {
   Save,
   Info,
 } from "lucide-react";
-import { cn, toTitleCase, capitalizeWords } from "@/app/lib/utils";
+import { cn, toTitleCase, capitalizeWords, formatListItem } from "@/app/lib/utils";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -224,7 +224,7 @@ export function PackageForm({
   }
 
   function addItem(field: "inclusions" | "exclusions", rawValue: string, clear: () => void) {
-    const val = rawValue.trim();
+    const val = formatListItem(rawValue);
     if (!val) return;
     update(field, [...data[field], val]);
     clear();

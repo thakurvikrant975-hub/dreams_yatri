@@ -18,3 +18,18 @@ export function toTitleCase(str: string): string {
 export function capitalizeWords(str: string): string {
   return str.replace(/(^|\s)(\S)/g, (_, sep, ch) => sep + ch.toUpperCase());
 }
+
+// Capitalizes the first letter of each sentence and ensures the text ends
+// with a full stop (without duplicating one), e.g. for inclusion/exclusion
+// list items: "breakfast included" -> "Breakfast included."
+export function formatListItem(str: string): string {
+  const trimmed = str.trim().replace(/\s+/g, " ");
+  if (!trimmed) return trimmed;
+
+  const capitalized = trimmed.replace(
+    /(^|[.!?]\s+)([a-z])/g,
+    (_, sep, ch) => sep + ch.toUpperCase()
+  );
+
+  return /[.!?]$/.test(capitalized) ? capitalized : `${capitalized}.`;
+}
