@@ -29,6 +29,7 @@ import {
   Rocket,
   Save,
   Info,
+  Lock,
 } from "lucide-react";
 import { cn, toTitleCase, capitalizeWords } from "@/app/lib/utils";
 import { InclusionExclusionField } from "./InclusionExclusionField";
@@ -307,12 +308,24 @@ export function PackageForm({
               packages/
             </span>
             <input
-              className={cn(inputCls(!!errors.slug), "rounded-l-none border-r border-y border-dashboard-base-content/40")}
+              className={cn(
+                inputCls(!!errors.slug),
+                "rounded-l-none border-r border-y border-dashboard-base-content/40",
+                mode === "update" && "cursor-not-allowed bg-dashboard-base-200/60 opacity-70",
+              )}
               value={data.slug}
               onChange={(e) => handleSlugChange(e.target.value)}
               placeholder="kerala-backwaters-tour"
+              disabled={mode === "update"}
+              readOnly={mode === "update"}
             />
           </div>
+          {mode === "update" && (
+            <p className="flex items-center gap-1.5 text-[11px] text-dashboard-base-content/50">
+              <Lock className="h-3 w-3" />
+              Slug can&apos;t be changed after creation to avoid breaking SEO.
+            </p>
+          )}
         </Field>
       </div>
       <Field label="Description" icon={<AlignLeft className="h-3 w-3 text-dashboard-base-content" />} error={errors.description}>
