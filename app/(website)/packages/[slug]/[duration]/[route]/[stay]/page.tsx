@@ -122,8 +122,6 @@ export default async function PackagePage({
           }
         : null;
 
-    console.log(pageData);
-
     const R2 = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? "";
     const imgUrl = (key: string | null | undefined): string =>
         !key ? "" : key.startsWith("http") ? key : `${R2}/${key}`;

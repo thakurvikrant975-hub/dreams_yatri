@@ -23,8 +23,8 @@ export interface PackageCardProps {
     title: string
     images: string[]
     duration: string
-    rating: number
-    reviewCount: number
+    rating?: number
+    reviewCount?: number
     itinerary: Itinerary[]
     originalPrice: number
     discountedPrice: number
@@ -177,7 +177,7 @@ export default function PackageCard({
     itinerary,
     originalPrice,
     discountedPrice,
-    inclusions = ['hotel', 'meals', 'cab', 'activities'],
+    inclusions = [],
     badge,
     onRequestCallback,
     onClick,
@@ -304,11 +304,15 @@ export default function PackageCard({
                             </Text>
 
                         </div>
-                        <div className="flex items-center gap-1 text-xs font-medium text-neutral-700">
-                            <StarIcon weight="fill" className="size-3.5 text-warning-500" />
-                            <Text as='span' size='sm' weight='semibold' className='font-heading text-warning-500'>{rating.toFixed(1)}</Text>
-                            <Text as='span' size='sm' intent='secondary'>({reviewCount})</Text>
-                        </div>
+                        {rating != null && (
+                            <div className="flex items-center gap-1 text-xs font-medium text-neutral-700">
+                                <StarIcon weight="fill" className="size-3.5 text-warning-500" />
+                                <Text as='span' size='sm' weight='semibold' className='font-heading text-warning-500'>{rating.toFixed(1)}</Text>
+                                {reviewCount != null && reviewCount > 0 && (
+                                    <Text as='span' size='sm' intent='secondary'>({reviewCount})</Text>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* Itinerary */}
@@ -320,15 +324,14 @@ export default function PackageCard({
                     <div className="flex items-center justify-between">
 
                         <div className='flex flex-col gap-0.5'>
-                            <div className="flex items-center gap-5">
-                                <Text as='span' weight='medium' intent='secondary' className='relative w-max px-1 after:absolute after:top-1/2 after:left-0 after:h-[0.1em] after:w-full after:bg-error-500 after:z-10 after:-translate-y-1/2'>
-                                    {formatINR(originalPrice)}
-                                </Text>
-
-                                {savings > 0 && (
-                                    <SavingsBadge amount="₹16,000" />
-                                )}
-                            </div>
+                            {originalPrice > 0 && savings > 0 && (
+                                <div className="flex items-center gap-5">
+                                    <Text as='span' weight='medium' intent='secondary' className='relative w-max px-1 after:absolute after:top-1/2 after:left-0 after:h-[0.1em] after:w-full after:bg-error-500 after:z-10 after:-translate-y-1/2'>
+                                        {formatINR(originalPrice)}
+                                    </Text>
+                                    <SavingsBadge amount={formatINR(savings)} />
+                                </div>
+                            )}
 
                             <Text as='span' weight='bold' size='xl' className='font-heading px-1 relative z-10 after:absolute after:bottom-0 after:left-0 after:h-1.5  after:w-full after:bg-success-200/80 after:-z-10 w-max'>
                                 {formatINR(discountedPrice)} 

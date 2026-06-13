@@ -32,12 +32,9 @@ export default function PackagesList({ items }: { items: SearchPackageItem[] }) 
                         title={pkg.title}
                         images={pkg.images}
                         duration={pkg.duration}
-                        rating={4.5}
-                        reviewCount={0}
                         itinerary={pkg.itinerary}
                         originalPrice={pkg.originalPerPerson}
                         discountedPrice={pkg.perPerson}
-                        inclusions={['hotel', 'meals', 'cab', 'activities']}
                         onClick={() => router.push(packageHref(pkg), { scroll: false })}
                     />
                     {pkg.total > 0 && (
