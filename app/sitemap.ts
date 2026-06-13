@@ -8,7 +8,6 @@ const STATIC_PAGES: MetadataRoute.Sitemap = [
   { url: SITE_URL,                      changeFrequency: "weekly",  priority: 1.0 },
   { url: `${SITE_URL}/blogs`,           changeFrequency: "daily",   priority: 0.9 },
   { url: `${SITE_URL}/packages`,        changeFrequency: "daily",   priority: 0.9 },
-  { url: `${SITE_URL}/hotels`,          changeFrequency: "weekly",  priority: 0.8 },
   { url: `${SITE_URL}/about`,           changeFrequency: "monthly", priority: 0.6 },
   { url: `${SITE_URL}/contact`,         changeFrequency: "monthly", priority: 0.7 },
   { url: `${SITE_URL}/faqs`,            changeFrequency: "monthly", priority: 0.5 },
