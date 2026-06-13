@@ -115,7 +115,7 @@ import {
   Moon,
   UtensilsCrossed,
 } from "lucide-react";
-import { cn } from "@/app/lib/utils";
+import { cn, capitalizeFirst } from "@/app/lib/utils";
 import type { OccupiedBy } from "./ItineraryBuilderTab";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -1627,7 +1627,7 @@ function AttractionsModal({
                           type="text"
                           value={editCaptions[a.id] ?? ""}
                           onChange={(e) =>
-                            setEditCaptions((prev) => ({ ...prev, [a.id]: e.target.value.slice(0, 50) }))
+                            setEditCaptions((prev) => ({ ...prev, [a.id]: capitalizeFirst(e.target.value.slice(0, 50)) }))
                           }
                           placeholder="Add caption…"
                           maxLength={50}
