@@ -833,10 +833,11 @@ type ActivityListItem = {
 };
 
 function AddActivityForm({
-  destinationId, stopPlaceName, pending, onSave, onCancel,
+  destinationId, stopPlaceName, existingActivityIds, pending, onSave, onCancel,
 }: {
   destinationId: number;
   stopPlaceName?: string;
+  existingActivityIds: number[];
   pending: boolean;
   onSave: (activityId: number, isOptional: boolean, variantId: number | null) => void;
   onCancel: () => void;
@@ -867,6 +868,9 @@ function AddActivityForm({
     }, delay);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [searchQuery, destinationId]);
+
+  // Hide activities already added to this day — prevents duplicates
+  const visibleActivities = allActivities.filter((item) => !existingActivityIds.includes(item.id));
 
   async function handleActivitySelect(item: ActivityListItem) {
     setActivityId(item.id);
@@ -933,13 +937,13 @@ function AddActivityForm({
             <div className="flex items-center justify-center py-6 gap-2 text-xs text-muted-foreground">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading activities…
             </div>
-          ) : allActivities.length === 0 ? (
+          ) : visibleActivities.length === 0 ? (
             <div className="py-6 text-center text-xs text-muted-foreground">
-              No activities found
+              {allActivities.length === 0 ? "No activities found" : "All matching activities are already added"}
             </div>
           ) : (
             <div className="max-h-56 overflow-y-auto divide-y">
-              {allActivities.map((item) => {
+              {visibleActivities.map((item) => {
                 const isSelected = activityId === item.id;
                 return (
                   <button
@@ -2411,7 +2415,14 @@ export function ItineraryDaySidebar({
                   <AddTransferForm pending={pending} onSave={addTransfer} onCancel={() => setEditPanel(null)} stopCoords={stopCoords} />
                 )}
                 {editPanel?.mode === "add" && editPanel.kind === "activity" && (
-                  <AddActivityForm destinationId={destinationId} stopPlaceName={stopLabel?.split(" in ").pop()} pending={pending} onSave={addActivity} onCancel={() => setEditPanel(null)} />
+                  <AddActivityForm
+                    destinationId={destinationId}
+                    stopPlaceName={stopLabel?.split(" in ").pop()}
+                    existingActivityIds={activities.map((a) => a.activity.id)}
+                    pending={pending}
+                    onSave={addActivity}
+                    onCancel={() => setEditPanel(null)}
+                  />
                 )}
                 {editPanel?.mode === "add" && editPanel.kind === "note" && (
                   <AddNoteForm pending={pending} onSave={addNote} onCancel={() => setEditPanel(null)} />
