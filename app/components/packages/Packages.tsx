@@ -35,6 +35,8 @@ export interface PackageCardProps {
     badgeColor?: 'teal' | 'blue' | 'orange' | 'green' | 'purple' | 'red'
     /** Secondary offer tag shown below badge e.g. "Best Offer" */
     offerTag?: string
+    /** Set true only for cards above the fold (first ~3) so their image gets LCP priority */
+    isPriority?: boolean
     onRequestCallback?: () => void
     onClick?: () => void
     className?: string
@@ -188,6 +190,7 @@ export default function PackageCard({
     originalPrice,
     discountedPrice,
     inclusions = [],
+    isPriority = false,
     badge,
     onRequestCallback,
     onClick,
@@ -260,7 +263,7 @@ export default function PackageCard({
                                 fill
                                 className="object-cover"
                                 sizes="(max-width: 768px) 100vw, 384px"
-                                priority={i === 0}
+                                priority={i === 0 && isPriority}
                             />
                         </div>
                     ))}

@@ -26,7 +26,7 @@ export default function PackagesList({ items }: { items: SearchPackageItem[] }) 
 
     return (
         <PackageGrid>
-            {items.map((pkg) => (
+            {items.map((pkg, index) => (
                 <div key={pkg.id} className="flex flex-col">
                     <Link href={packageHref(pkg)} className="block">
                         <PackageCard
@@ -36,6 +36,7 @@ export default function PackagesList({ items }: { items: SearchPackageItem[] }) 
                             itinerary={pkg.itinerary}
                             originalPrice={pkg.originalPerPerson}
                             discountedPrice={pkg.perPerson}
+                            isPriority={index < 3}
                         />
                     </Link>
                     {pkg.total > 0 && (
