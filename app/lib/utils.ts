@@ -12,3 +12,9 @@ export function toTitleCase(str: string): string {
     .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
     .join(" ");
 }
+
+// Capitalizes the first letter of each word without trimming or collapsing
+// whitespace, so it's safe to apply on every keystroke.
+export function capitalizeWords(str: string): string {
+  return str.replace(/(^|\s)(\S)/g, (_, sep, ch) => sep + ch.toUpperCase());
+}

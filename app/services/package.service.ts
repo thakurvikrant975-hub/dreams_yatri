@@ -5,7 +5,7 @@ import { createPackagesTypes } from "@/app/types/package";
 
 
 
-  export async function createPackages(data: createPackagesTypes) {
+  export async function createPackages(data: createPackagesTypes, actor?: string) {
   // 1. Ensure tags exist
   const tagRecords = await Promise.all(
     data.tags.map(async (tag) => {
@@ -44,6 +44,7 @@ import { createPackagesTypes } from "@/app/types/package";
       destination_id: data.destination_id,
       inclusions: data.inclusions,
       exclusions: data.exclusions,
+      created_by: actor,
 
       tags: {
         create: tagRecords.map((tag) => ({

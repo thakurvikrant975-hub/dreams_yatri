@@ -11,6 +11,7 @@ import {
     Trash2, Tag, Package, GitBranch, ChevronDown, ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
+import { formatDistanceToNow } from "date-fns";
 import {
     AlertDialog, AlertDialogAction, AlertDialogCancel,
     AlertDialogContent, AlertDialogDescription,
@@ -18,8 +19,9 @@ import {
     AlertDialogTitle, AlertDialogTrigger,
 } from "../components/ui/alert-dialog";
 import { EditCategoryDialog } from "./Categorydialog";
+import { HistorySheet } from "../components/dashboard/HistorySheet";
 import {
-    deleteCategory, toggleCategoryActive,
+    deleteCategory, toggleCategoryActive, getCategoryHistory,
     type CategoryWithRelations, type CategoryForSelect,
 } from "./actions";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
@@ -164,10 +166,32 @@ function SubcategoryRow({
                 />
             </TableCell>
             <TableCell className="text-xs text-muted-foreground">—</TableCell>
+            <TableCell>
+                {full && (
+                    <div className="space-y-0.5">
+                        <p className="text-xs font-medium text-foreground/80 truncate max-w-28">
+                            {full.created_by ?? "—"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                            {formatDistanceToNow(new Date(full.created_at), { addSuffix: true })}
+                        </p>
+                    </div>
+                )}
+            </TableCell>
             <TableCell className="text-right">
                 <div className="flex items-center justify-end gap-1">
                     {full && (
                         <>
+                            <HistorySheet
+                                id={full.id}
+                                title={full.name}
+                                entityLabel="category"
+                                fetchHistory={getCategoryHistory}
+                                createdBy={full.created_by}
+                                createdAt={full.created_at}
+                                updatedBy={full.updated_by}
+                                updatedAt={full.updated_at}
+                            />
                             <EditCategoryDialog category={full} parentCategories={parentCategories} />
                             <DeleteCategoryDialog
                                 id={full.id}
@@ -367,11 +391,34 @@ export function CategoriesTable({
             ),
         },
         {
+            header: "Created By",
+            cell: (cat) => (
+                <div className="space-y-0.5">
+                    <p className="text-xs font-medium text-foreground/80 truncate max-w-28">
+                        {cat.created_by ?? "—"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(new Date(cat.created_at), { addSuffix: true })}
+                    </p>
+                </div>
+            ),
+        },
+        {
             header: "Actions",
             align:  "right",
-            width:  "w-[100px]",
+            width:  "w-[120px]",
             cell: (cat) => (
                 <div className="flex items-center justify-end gap-1">
+                    <HistorySheet
+                        id={cat.id}
+                        title={cat.name}
+                        entityLabel="category"
+                        fetchHistory={getCategoryHistory}
+                        createdBy={cat.created_by}
+                        createdAt={cat.created_at}
+                        updatedBy={cat.updated_by}
+                        updatedAt={cat.updated_at}
+                    />
                     <EditCategoryDialog category={cat} parentCategories={parentCategories} />
                     <DeleteCategoryDialog
                         id={cat.id}

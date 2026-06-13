@@ -5,6 +5,14 @@ import { createPackages } from "@/app/services/package.service";
 import { createPackagesTypes } from "@/app/types/package";
 import { db } from "@/app/lib/db";
 import { revalidatePath } from "next/cache";
+import { dashboardAuth } from "@/app/lib/auth-dashboard";
+import { createLog } from "@/app/(dashboard)/dashboard/(main)/lib/logger";
+
+async function getActorName(): Promise<string | undefined> {
+  const session = await dashboardAuth();
+  if (!session?.user?.email) return undefined;
+  return session.user.name ?? session.user.email;
+}
 
 export async function createPackage(data: createPackagesTypes) {
   // 1. Validate input
@@ -19,7 +27,16 @@ export async function createPackage(data: createPackagesTypes) {
   }
 
   try {
-    const res = await createPackages(parsed.data);
+    const actor = await getActorName();
+    const res = await createPackages(parsed.data, actor);
+
+    await createLog({
+      action:     "CREATE",
+      entity:     "package",
+      entityId:   String(res.id),
+      entitySlug: res.slug,
+      newData:    { title: res.title, slug: res.slug, destination_id: res.destination_id },
+    });
 
     return {
       success: true,
@@ -72,6 +89,13 @@ export async function updatePackageBasicInfo(id: number, data: createPackagesTyp
   }
 
   try {
+    const actor = await getActorName();
+
+    const current = await db.packages.findUnique({
+      where:  { id },
+      select: { title: true, slug: true, destination_id: true, is_active: true },
+    });
+
     // Upsert tags and categories so new names auto-create records
     const tagRecords = await Promise.all(
       parsed.data.tags.map(name =>
@@ -121,8 +145,18 @@ export async function updatePackageBasicInfo(id: number, data: createPackagesTyp
           destination_id: parsed.data.destination_id,
           inclusions: parsed.data.inclusions,
           exclusions: parsed.data.exclusions,
+          updated_by: actor,
         },
       });
+    });
+
+    await createLog({
+      action:       "UPDATE",
+      entity:       "package",
+      entityId:     String(id),
+      entitySlug:   parsed.data.slug,
+      previousData: current ? { title: current.title, slug: current.slug, destination_id: current.destination_id } : undefined,
+      newData:      { title: parsed.data.title, slug: parsed.data.slug, destination_id: parsed.data.destination_id },
     });
 
     revalidatePath("/dashboard/packages");

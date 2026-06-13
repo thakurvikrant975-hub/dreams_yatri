@@ -5,6 +5,7 @@ import { revalidatePath }  from "next/cache";
 import { dashboardAuth }   from "@/app/lib/auth-dashboard";
 import { CategorySchema }  from "@/app/lib/validators/categories";
 import { actionError }     from "@/app/lib/action-error";
+import { createLog }       from "../lib/logger";
 
 // ── Auth helper ───────────────────────────────────────────────────────────────
 
@@ -34,6 +35,10 @@ export type CategoryWithRelations = {
     parent_id: number | null;
     sort_order: number;
     is_active: boolean;
+    created_at: Date;
+    created_by: string | null;
+    updated_at: Date;
+    updated_by: string | null;
     parent: { id: number; name: string; slug: string } | null;
     children: { id: number; name: string; slug: string; is_active: boolean }[];
     _count: { packages: number; children: number };
@@ -175,7 +180,17 @@ export async function createCategory(
             };
         }
 
-        await db.categories.create({ data: parsed.data });
+        const created = await db.categories.create({
+            data: { ...parsed.data, created_by: actor },
+        });
+
+        await createLog({
+            action:     "CREATE",
+            entity:     "category",
+            entityId:   String(created.id),
+            entitySlug: created.slug,
+            newData:    { name: created.name, slug: created.slug, parent_id: created.parent_id },
+        });
 
         revalidatePath("/dashboard/categories");
         return { success: true, message: "Category created successfully" };
@@ -234,7 +249,19 @@ export async function updateCategory(
         const current = await db.categories.findUnique({ where: { id } });
         if (!current) return { success: false, message: "Category not found" };
 
-        await db.categories.update({ where: { id }, data: parsed.data });
+        await db.categories.update({
+            where: { id },
+            data: { ...parsed.data, updated_by: actor },
+        });
+
+        await createLog({
+            action:       "UPDATE",
+            entity:       "category",
+            entityId:     String(id),
+            entitySlug:   parsed.data.slug,
+            previousData: { name: current.name, parent_id: current.parent_id, is_active: current.is_active },
+            newData:      { name: parsed.data.name, parent_id: parsed.data.parent_id, is_active: parsed.data.is_active },
+        });
 
         revalidatePath("/dashboard/categories");
         return { success: true, message: "Category updated successfully" };
@@ -273,12 +300,43 @@ export async function deleteCategory(id: number): Promise<CategoryFormState> {
         }
 
         await db.categories.delete({ where: { id } });
+
+        await createLog({
+            action:       "DELETE",
+            entity:       "category",
+            entityId:     String(id),
+            entitySlug:   category.slug,
+            previousData: { name: category.name, slug: category.slug, parent_id: category.parent_id },
+        });
+
         revalidatePath("/dashboard/categories");
         return { success: true, message: "Category deleted successfully" };
     } catch (e) {
         console.error(e);
         return actionError(e);
     }
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+
+export async function getCategoryHistory(id: number) {
+    return db.activityLog.findMany({
+        where:   { entity: "category", entityId: String(id) },
+        orderBy: { actionAt: "desc" },
+        select: {
+            id:           true,
+            action:       true,
+            description:  true,
+            userName:     true,
+            userEmail:    true,
+            previousData: true,
+            newData:      true,
+            metadata:     true,
+            status:       true,
+            actionAt:     true,
+        },
+        take: 50,
+    });
 }
 
 // ── Toggle Active ─────────────────────────────────────────────────────────────
@@ -291,7 +349,20 @@ export async function toggleCategoryActive(
     if (!actor) return { success: false, message: "Unauthorized" };
 
     try {
-        await db.categories.update({ where: { id }, data: { is_active } });
+        const row = await db.categories.update({
+            where: { id },
+            data:  { is_active, updated_by: actor },
+        });
+
+        await createLog({
+            action:     "UPDATE",
+            entity:     "category",
+            entityId:   String(id),
+            entitySlug: row.slug,
+            newData:    { is_active },
+            metadata:   { operation: "toggle_active" },
+        });
+
         revalidatePath("/dashboard/categories");
         return {
             success: true,

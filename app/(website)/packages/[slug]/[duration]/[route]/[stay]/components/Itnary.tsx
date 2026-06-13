@@ -1128,7 +1128,7 @@ function AttractionStories({
                 <img
                   src={active.imageUrl}
                   alt={active.caption || `Attraction photo ${activeIdx + 1}`}
-                  className="max-w-[90vw] max-h-[78vh] rounded-2xl object-contain shadow-2xl ring-1 ring-white/10"
+                  className="w-[90vw] h-[78vh] rounded-2xl object-contain shadow-2xl ring-1 ring-white/10"
                 />
                 {active.caption && (
                   <p className="mt-3 text-sm text-white/80 text-center max-w-[80vw] leading-snug">

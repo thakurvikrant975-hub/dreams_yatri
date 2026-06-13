@@ -10,7 +10,7 @@ import {
   ToggleRightIcon, ArrowLeftIcon, Maximize2Icon, Minimize2Icon,
   XIcon, LocateFixedIcon, Link2Icon, CheckCircle2Icon,
 } from "lucide-react";
-import { cn } from "@/app/lib/utils";
+import { cn, capitalizeWords } from "@/app/lib/utils";
 import type { LocationType, LocationValue } from "./location.types";
 import { LOCATION_LABELS } from "./location.types";
 import { Sheet, SheetContent, SheetTitle } from "../ui/sheet";
@@ -400,7 +400,14 @@ export function LocationManualSheet({ open, onOpenChange, onCreated, initialName
                 className="flex flex-col gap-4 px-5 py-5"
               >
                 <Field label="Location Name" error={errors.name?.message} required>
-                  <Input {...register("name")} placeholder="e.g. Shimla Bus Stand" />
+                  <Input
+                    {...register("name")}
+                    placeholder="e.g. Shimla Bus Stand"
+                    onChange={(e) => {
+                      e.target.value = capitalizeWords(e.target.value);
+                      register("name").onChange(e);
+                    }}
+                  />
                 </Field>
 
                 <Field label="Location Type" error={errors.type?.message} required>

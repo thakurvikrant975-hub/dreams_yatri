@@ -2,6 +2,16 @@
 
 import { db } from "@/app/lib/db";
 import { revalidatePath } from "next/cache";
+import { dashboardAuth } from "@/app/lib/auth-dashboard";
+import { createLog } from "../lib/logger";
+
+// ── Auth helper ───────────────────────────────────────────────────────────
+
+async function requireActor(): Promise<string | null> {
+  const session = await dashboardAuth();
+  if (!session?.user?.email) return null;
+  return session.user.name ?? session.user.email;
+}
 
 // ── Read ──────────────────────────────────────────────────────────────────
 
@@ -307,9 +317,45 @@ export async function togglePackageActive(
     }
   }
 
-  await db.packages.update({ where: { id }, data: { is_active } });
+  const actor = await requireActor();
+  const row = await db.packages.update({
+    where: { id },
+    data:  { is_active, updated_by: actor },
+  });
+
+  await createLog({
+    action:     "UPDATE",
+    entity:     "package",
+    entityId:   String(id),
+    entitySlug: row.slug,
+    newData:    { is_active },
+    metadata:   { operation: "toggle_active" },
+  });
+
   revalidatePath("/dashboard/packages");
   return { success: true };
+}
+
+// ── History ───────────────────────────────────────────────────────────────
+
+export async function getPackageHistory(id: number) {
+  return db.activityLog.findMany({
+    where:   { entity: "package", entityId: String(id) },
+    orderBy: { actionAt: "desc" },
+    select: {
+      id:           true,
+      action:       true,
+      description:  true,
+      userName:     true,
+      userEmail:    true,
+      previousData: true,
+      newData:      true,
+      metadata:     true,
+      status:       true,
+      actionAt:     true,
+    },
+    take: 50,
+  });
 }
 
 // ── Delete Package ────────────────────────────────────────────────────────
@@ -346,6 +392,14 @@ export async function deletePackage(id: number): Promise<{ success: boolean; mes
       db.package_images.deleteMany({ where: { package_id: id } }),
       db.packages.delete({ where: { id } }),
     ]);
+
+    await createLog({
+      action:       "DELETE",
+      entity:       "package",
+      entityId:     String(id),
+      entitySlug:   pkg.slug,
+      previousData: { title: pkg.title, slug: pkg.slug, destination_id: pkg.destination_id },
+    });
 
     revalidatePath("/dashboard/packages");
     return { success: true, message: "Package deleted" };

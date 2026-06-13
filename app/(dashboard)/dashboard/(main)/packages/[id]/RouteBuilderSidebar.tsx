@@ -229,8 +229,10 @@ function StopsStep({
 
 // ── Step 2: Route Meta ─────────────────────────────────────────────────────
 
-function RouteMetaStep({ autoName, init }: {
+function RouteMetaStep({ autoName, packageTitle, autoNights, init }: {
   autoName: string;
+  packageTitle: string;
+  autoNights: number;
   init: { name: string; meta_title: string; meta_desc: string };
 }) {
   const { setStepData, stepData } = useMultiStepSheet();
@@ -246,12 +248,23 @@ function RouteMetaStep({ autoName, init }: {
 
   const defaultName = init.name || autoName;
 
+  // SEO title should reflect the package name + duration, not the stop sequence
+  // (e.g. "Shimla Manali Family Tour Package 5D / 4N", not "Shimla → Manali → Shimla").
+  const defaultMetaTitle = `${packageTitle} ${autoNights + 1}D / ${autoNights}N`;
+
+  // Treat a stored meta title that just mirrors the auto-generated route name
+  // (the old, incorrect default) the same as "never set" so it gets corrected.
+  function resolveMetaTitle(stored: string | null): string {
+    if (stored === null || stored === autoName) return defaultMetaTitle;
+    return stored;
+  }
+
   // Lazy init so it only runs once per mount
   const [name, setName] = useState<string>(() => saved?.name ?? defaultName);
   const [metaTitle, setMetaTitle] = useState<string>(() =>
     saved !== undefined
-      ? (saved.meta_title ?? defaultName)   // null from DB → auto-fill; "" user cleared → stay empty
-      : (init.meta_title || defaultName)    // first create visit → auto-fill from route name
+      ? resolveMetaTitle(saved.meta_title ?? null)
+      : (init.meta_title ? resolveMetaTitle(init.meta_title) : defaultMetaTitle)
   );
   const [metaDesc, setMetaDesc] = useState<string>(() =>
     saved !== undefined
@@ -475,6 +488,7 @@ const STEPS: SheetStep[] = [
 
 type Props = {
   packageId: number;
+  packageTitle: string;
   editing: EditingRoute | null;
   open: boolean;
   onClose: () => void;
@@ -484,7 +498,7 @@ type Props = {
   isFirstRoute?: boolean;
 };
 
-export function RouteBuilderSidebar({ packageId, editing, open, onClose, onSaved, packageImages, destinationCoords, isFirstRoute }: Props) {
+export function RouteBuilderSidebar({ packageId, packageTitle, editing, open, onClose, onSaved, packageImages, destinationCoords, isFirstRoute }: Props) {
   const [isSaving, setIsSaving] = useState(false);
   const [stops, setStops] = useState<StopRow[]>([{ id: uid(), location: null, stay_nights: 1 }]);
 
@@ -634,6 +648,8 @@ export function RouteBuilderSidebar({ packageId, editing, open, onClose, onSaved
       {/* Step 2: Route Meta */}
       <RouteMetaStep
         autoName={autoName}
+        packageTitle={packageTitle}
+        autoNights={autoNights}
         init={{
           name: editing?.name ?? "",
           meta_title: editing?.meta_title ?? "",

@@ -77,6 +77,7 @@ type Duration = {
 
 type Props = {
   packageId: number;
+  packageTitle: string;
   initialData: Duration[];
   packageImages: SelectableImage[];
   destinationCoords?: { lat: number; lng: number };
@@ -220,7 +221,7 @@ function DurationCard({
 
 // ── Main Tab ───────────────────────────────────────────────────────────────
 
-export function RouteBuilderTab({ packageId, initialData, packageImages, destinationCoords }: Props) {
+export function RouteBuilderTab({ packageId, packageTitle, initialData, packageImages, destinationCoords }: Props) {
   const [data, setData] = useState<Duration[]>(initialData);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [editingRoute, setEditingRoute] = useState<EditingRoute | null>(null);
@@ -332,6 +333,7 @@ export function RouteBuilderTab({ packageId, initialData, packageImages, destina
       {/* Sidebar */}
       <RouteBuilderSidebar
         packageId={packageId}
+        packageTitle={packageTitle}
         editing={editingRoute}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
