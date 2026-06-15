@@ -47,7 +47,6 @@ const FOOTER_COLUMNS: FooterColumn[] = [
     links: [
       { label: "Holiday Packages", href: "/services/holiday-packages" },
       { label: "Flight Booking", href: "/services/flight-booking" },
-      { label: "Hotel Booking", href: "/services/hotel-booking" },
       { label: "Cab & Transport", href: "/services/cab-transport" },
       { label: "Honeymoon Packages", href: "/services/honeymoon-packages" },
       { label: "Adventure Tours", href: "/services/adventure-tours" },

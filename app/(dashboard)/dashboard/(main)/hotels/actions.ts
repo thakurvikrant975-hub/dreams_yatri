@@ -26,6 +26,8 @@ const HotelSchema = z.object({
   pincode: z.string().nullable().optional(),
   business_phone: z.string().nullable().optional(),
   business_email: z.string().email("Invalid email").or(z.literal("")).transform(v => v === "" ? null : v).nullable().optional(),
+  whatsapp_number: z.string().regex(/^\+[1-9]\d{6,14}$/, "Use international format: +919876543210").or(z.literal("")).transform(v => v === "" ? null : v).nullable().optional(),
+  b2b_email: z.string().email("Invalid B2B email").or(z.literal("")).transform(v => v === "" ? null : v).nullable().optional(),
   description: z.string().optional(),
   meta_title: z.string().max(60, "Meta title must be 60 characters or less").nullable().optional(),
   meta_desc: z.string().max(160, "Meta description must be 160 characters or less").nullable().optional(),
@@ -319,6 +321,8 @@ export async function createHotel(
     pincode: formData.get("pincode") || null,
     business_phone: formData.get("business_phone") || null,
     business_email: formData.get("business_email") || null,
+    whatsapp_number: formData.get("whatsapp_number") || null,
+    b2b_email: formData.get("b2b_email") || null,
     description: formData.get("description") || undefined,
     meta_title: formData.get("meta_title") || null,
     meta_desc: formData.get("meta_desc") || null,
@@ -390,6 +394,8 @@ export async function updateHotelDetails(
     pincode: formData.get("pincode") || null,
     business_phone: formData.get("business_phone") || null,
     business_email: formData.get("business_email") || null,
+    whatsapp_number: formData.get("whatsapp_number") || null,
+    b2b_email: formData.get("b2b_email") || null,
     description: formData.get("description") || undefined,
     meta_title: formData.get("meta_title") || null,
     meta_desc: formData.get("meta_desc") || null,
@@ -421,6 +427,35 @@ export async function updateHotelDetails(
     return { success: true, message: "Hotel details updated" };
   } catch (e) {
     console.error(e);
+    return actionError(e);
+  }
+}
+
+// ── Update Hotel SEO ──────────────────────────────────────────────────────
+
+const SeoSchema = z.object({
+  meta_title: z.string().max(60, "Max 60 characters").nullable().optional(),
+  meta_desc:  z.string().max(160, "Max 160 characters").nullable().optional(),
+});
+
+export async function updateHotelSeo(
+  id: number,
+  _prev: HotelFormState,
+  formData: FormData,
+): Promise<HotelFormState> {
+  const parsed = SeoSchema.safeParse({
+    meta_title: formData.get("meta_title") || null,
+    meta_desc:  formData.get("meta_desc")  || null,
+  });
+  if (!parsed.success) {
+    return { success: false, message: "Validation failed", errors: parsed.error.flatten().fieldErrors };
+  }
+  try {
+    await db.hotels.update({ where: { id }, data: parsed.data });
+    revalidatePath("/dashboard/hotels");
+    revalidatePath(`/dashboard/hotels/${id}`);
+    return { success: true, message: "SEO updated" };
+  } catch (e) {
     return actionError(e);
   }
 }

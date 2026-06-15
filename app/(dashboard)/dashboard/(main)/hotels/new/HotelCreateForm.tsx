@@ -19,7 +19,7 @@ import { SearchSelect } from "../../components/dashboard/SearchSelect";
 import { createHotel } from "../actions";
 import { CATEGORIES, STAY_TYPES } from "../constants";
 import { toast }    from "sonner";
-import { Hotel, Search, Loader2 } from "lucide-react";
+import { Hotel, Search, Loader2, MessageCircle } from "lucide-react";
 
 type Destination = {
   id:     number;
@@ -34,7 +34,7 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
   const [name,          setName]          = useState("");
   const [slug,          setSlug]          = useState("");
   const [destinationId, setDestinationId] = useState<number | null>(null);
-  const [category,      setCategory]      = useState("");
+  const [categoryId,    setCategoryId]    = useState<number | null>(null);
   const [stayType,      setStayType]      = useState("");
   const [checkIn,       setCheckIn]       = useState("14:00");
   const [checkOut,      setCheckOut]      = useState("11:00");
@@ -45,6 +45,8 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
   const [pincode,        setPincode]        = useState("");
   const [businessPhone,  setBusinessPhone]  = useState("");
   const [businessEmail,  setBusinessEmail]  = useState("");
+  const [whatsappNumber, setWhatsappNumber] = useState("");
+  const [b2bEmail,       setB2bEmail]       = useState("");
   const [location,       setLocation]       = useState<LocationValue | null>(null);
   const [description,    setDescription]    = useState("");
   const [isActive,      setIsActive]      = useState(true);
@@ -93,7 +95,7 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
       formData.append("slug",           slug);
       formData.append("destination_id", destinationId ? String(destinationId) : "");
       formData.append("thumbnail",      thumbnail[0]?.key ?? "");
-      formData.append("category",       category);
+      formData.append("category",       CATEGORIES.find(c => c.id === categoryId)?.value ?? "");
       formData.append("stay_type",      stayType);
       formData.append("check_in_time",  checkIn);
       formData.append("check_out_time", checkOut);
@@ -102,9 +104,11 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
       formData.append("state",          state);
       formData.append("country",        country);
       formData.append("pincode",        pincode);
-      formData.append("business_phone", businessPhone);
-      formData.append("business_email", businessEmail);
-      formData.append("location_id",    location?.id ?? "");
+      formData.append("business_phone",            businessPhone);
+      formData.append("business_email",            businessEmail);
+      formData.append("whatsapp_number", whatsappNumber);
+      formData.append("b2b_email",       b2bEmail);
+      formData.append("location_id",               location?.id ?? "");
       formData.append("description",    description);
       formData.append("is_active",      String(isActive));
       formData.append("meta_title",     metaTitle);
@@ -175,14 +179,17 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
 
             <div className="space-y-1.5">
               <Label>Category</Label>
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map(c => (
-                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchSelect
+                value={categoryId}
+                onChange={(id) => setCategoryId(id)}
+                fetchOptions={async (q) => {
+                  const lower = q.toLowerCase();
+                  return CATEGORIES
+                    .filter(c => c.label.toLowerCase().includes(lower))
+                    .map(c => ({ id: c.id, label: c.label }));
+                }}
+                placeholder="Search category…"
+              />
             </div>
 
             <div className="space-y-1.5">
@@ -266,6 +273,30 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
               <Input type="email" placeholder="hotel@example.com" value={businessEmail} onChange={e => setBusinessEmail(e.target.value)} />
             </div>
           </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>WhatsApp Number</Label>
+              <Input
+                type="tel"
+                placeholder="+919876543210"
+                value={whatsappNumber}
+                onChange={e => setWhatsappNumber(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">International format with country code</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>B2B / Reservations Email</Label>
+              <Input
+                type="email"
+                placeholder="reservations@hotel.com"
+                value={b2bEmail}
+                onChange={e => setB2bEmail(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Used for booking vouchers &amp; amendments</p>
+            </div>
+          </div>
+
 
           <div className="space-y-1.5">
             <Label>Description</Label>

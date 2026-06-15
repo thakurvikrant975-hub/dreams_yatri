@@ -7,6 +7,8 @@ import Label from "@/app/components/forms/Label";
 import { Heading, Text } from "@/app/components/ui/Typography";
 import Button from "@/app/components/ui/Button";
 import { fadeRight, fadeLeft, staggerContainer, staggerItem } from "@/app/lib/motionPresets";
+import { saveLead } from "@/app/actions/leads/save-lead";
+import { SITE_CONFIG } from "@/app/lib/seo/site-config";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -67,11 +69,15 @@ function EmailCard() {
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.email.trim()) return;
+    if (!form.name.trim() || !form.phone.trim()) return;
     setStatus({ type: "loading", message: "" });
-    await new Promise((res) => setTimeout(res, 1000));
-    setStatus({ type: "success", message: "You're subscribed! Watch your inbox for exclusive deals." });
-    setForm({ name: "", phone: "", email: "" });
+    const result = await saveLead(form);
+    if (result.ok) {
+      setStatus({ type: "success", message: "You're on the list! Watch your inbox for exclusive deals." });
+      setForm({ name: "", phone: "", email: "" });
+    } else {
+      setStatus({ type: "error", message: result.message ?? "Something went wrong. Please try again." });
+    }
   };
 
   return (
@@ -108,6 +114,10 @@ function EmailCard() {
               </svg>
               {status.message}
             </div>
+          ) : status.type === "error" ? (
+            <div className="flex items-center gap-2 text-red-600 font-medium text-sm bg-red-50 border border-red-200 px-4 py-3 rounded-xl" role="alert">
+              {status.message}
+            </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -124,7 +134,7 @@ function EmailCard() {
                 <Label required>Email Address</Label>
                 <div className="flex gap-2">
                   <Input type="email" name="email" value={form.email} onChange={handleChange} placeholder="eg. rahul@gmail.com" required wrapperClassName="flex-1" />
-                  <Button type="submit" variant="premium">Subscribe <ArrowRightIcon /></Button>
+                  <Button type="submit" variant="premium" loading={status.type === "loading"} disabled={status.type === "loading"}>Subscribe <ArrowRightIcon /></Button>
                 </div>
               </div>
             </form>
@@ -136,8 +146,6 @@ function EmailCard() {
 }
 
 // ─── WhatsApp Card ────────────────────────────────────────────────────────────
-
-const WHATSAPP_LINK = "https://chat.whatsapp.com/your-group-link";
 
 function WhatsAppCard() {
   return (
@@ -169,7 +177,7 @@ function WhatsAppCard() {
 
         <motion.div variants={staggerItem}>
           <a
-            href={WHATSAPP_LINK}
+            href={SITE_CONFIG.contact.whatsapp.phoneUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2.5 px-6 py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 text-white text-sm font-semibold shadow-md shadow-green-200 hover:shadow-green-300 hover:-translate-y-0.5 active:scale-95 transition-all mt-5"

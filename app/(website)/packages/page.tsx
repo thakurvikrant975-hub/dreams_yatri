@@ -1,14 +1,32 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import Header from "@/app/components/navigation/Header";
 import Footer from "@/app/components/navigation/Footer";
-import { searchPackages } from "@/app/actions/search/search-packages";
 import type { LocationValue } from "@/app/components/ui/LocationSearchSelect";
 import type { LocationType } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";
-import { Heading, Text } from "@/app/components/ui/Typography";
-import PackagesList from "./PackagesList";
+import { Text } from "@/app/components/ui/Typography";
 import PackagesSearchBar from "./PackagesSearchBar";
+import PackagesResults from "./PackagesResults";
 
-export const dynamic = "force-dynamic";
+function ResultsSkeleton() {
+    return (
+        <>
+            <div className="skeleton-box h-8 w-72 rounded-lg mb-7" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
+                {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="rounded-2xl overflow-hidden border border-neutral-100">
+                        <div className="skeleton-box aspect-3/2 w-full" />
+                        <div className="p-4 space-y-3">
+                            <div className="skeleton-box h-5 w-3/4 rounded" />
+                            <div className="skeleton-box h-4 w-1/2 rounded" />
+                            <div className="skeleton-box h-8 w-full rounded" />
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </>
+    );
+}
 
 export const metadata: Metadata = {
     title: "Holiday Packages | Dreams Yatri",
@@ -68,21 +86,6 @@ export default async function PackagesIndexPage({
     const parsedDate = date ? new Date(`${date}T00:00:00`) : null;
     const initialDate = parsedDate && !isNaN(parsedDate.getTime()) ? parsedDate : null;
 
-    // No `to` → list all active packages; with `to` → location-matched results.
-    const { items } = await searchPackages({
-        toLocationId: to || undefined,
-        adults,
-        childAges,
-        travelDate: date || null,
-    });
-
-    const isSearch = Boolean(to);
-    const heading = isSearch
-        ? (items.length > 0
-            ? `${items.length} package${items.length !== 1 ? "s" : ""} near ${toName || "you"}`
-            : `Packages near ${toName || "you"}`)
-        : "All Holiday Packages";
-
     return (
         <>
             <Header />
@@ -95,25 +98,19 @@ export default async function PackagesIndexPage({
             />
 
             <div className="screen-space py-8">
-                <Heading level={2} weight="semibold">{heading}</Heading>
-                <Text size="sm" intent="secondary" className="mt-1 mb-7 block">
+                <Text size="sm" intent="secondary" className="mb-7 block">
                     Prices shown for {travellers}{dateLabel ? ` · ${dateLabel}` : ""}
                 </Text>
 
-                {items.length === 0 ? (
-                    <div className="py-16 text-center">
-                        <p className="text-base font-semibold text-primary">
-                            {isSearch ? `No packages found near ${toName || "this location"}` : "No packages available yet"}
-                        </p>
-                        <p className="text-sm text-secondary mt-1 max-w-md mx-auto">
-                            {isSearch
-                                ? "Try a nearby city or clear the destination above to see all packages."
-                                : "Please check back soon — new trips are added regularly."}
-                        </p>
-                    </div>
-                ) : (
-                    <PackagesList items={items} />
-                )}
+                <Suspense fallback={<ResultsSkeleton />}>
+                    <PackagesResults
+                        to={to}
+                        toName={toName}
+                        adults={adults}
+                        childAges={childAges}
+                        travelDate={date || null}
+                    />
+                </Suspense>
             </div>
 
             <Footer />

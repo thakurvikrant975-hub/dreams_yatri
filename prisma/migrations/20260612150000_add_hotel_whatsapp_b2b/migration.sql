@@ -1,0 +1,2 @@
+ALTER TABLE "hotels" ADD COLUMN IF NOT EXISTS "whatsapp_number" TEXT;
+ALTER TABLE "hotels" ADD COLUMN IF NOT EXISTS "b2b_email" TEXT;

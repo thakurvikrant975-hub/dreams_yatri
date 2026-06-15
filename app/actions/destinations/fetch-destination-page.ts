@@ -54,6 +54,7 @@ export async function fetchActiveDestinations(
       is_active: true,
       is_deleted: false,
       country: { not: excludeCountry },
+      packages: { some: { is_active: true } },
     },
     select: {
       id: true,
@@ -77,6 +78,161 @@ export async function fetchActiveDestinations(
       country: d.country,
     }))
     .filter((d) => d.image);
+}
+
+// ── All active destinations for the /destination listing page ────────────────
+
+export type DestinationListItem = {
+  id: number;
+  name: string;
+  slug: string;
+  image: string;
+  packageCount: number;
+  country: string;
+  region: string | null;
+};
+
+export type DestinationFilters = {
+  type: "all" | "domestic" | "international";
+  regionIds: number[];
+  countries: string[];
+};
+
+export type DestinationListPage = {
+  items: DestinationListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+};
+
+export type DestinationSidebarData = {
+  regions: { id: number; name: string; count: number }[];
+  countries: { name: string; count: number }[];
+  totalDomestic: number;
+  totalInternational: number;
+  total: number;
+};
+
+const DEST_SELECT = {
+  id: true,
+  name: true,
+  slug: true,
+  thumbnail: true,
+  cover_image: true,
+  country: true,
+  region: { select: { name: true } },
+  _count: { select: { packages: { where: { is_active: true } } } },
+} as const;
+
+function shapeDestination(d: {
+  id: number; name: string; slug: string;
+  thumbnail: string | null; cover_image: string | null;
+  country: string; region: { name: string } | null;
+  _count: { packages: number };
+}): DestinationListItem {
+  return {
+    id: d.id,
+    name: d.name,
+    slug: d.slug,
+    image: imgUrl(d.thumbnail ?? d.cover_image),
+    packageCount: d._count.packages,
+    country: d.country,
+    region: d.region?.name ?? null,
+  };
+}
+
+export async function fetchDestinationsPage(
+  filters: DestinationFilters = { type: "all", regionIds: [], countries: [] },
+  page = 1,
+  pageSize = 12,
+): Promise<DestinationListPage> {
+  const safePage = Math.max(1, Math.floor(page));
+  const safeSize = Math.min(48, Math.max(1, Math.floor(pageSize)));
+  const skip = (safePage - 1) * safeSize;
+
+  let subFilter: Prisma.destinationsWhereInput = {};
+  if (filters.regionIds.length > 0 && filters.countries.length > 0) {
+    subFilter = { OR: [{ region_id: { in: filters.regionIds } }, { country: { in: filters.countries } }] };
+  } else if (filters.regionIds.length > 0) {
+    subFilter = { region_id: { in: filters.regionIds } };
+  } else if (filters.countries.length > 0) {
+    subFilter = { country: { in: filters.countries } };
+  }
+
+  const where: Prisma.destinationsWhereInput = {
+    is_active: true,
+    is_deleted: false,
+    packages: { some: { is_active: true } },
+    ...(filters.type === "domestic" && { country: "India" }),
+    ...(filters.type === "international" && { country: { not: "India" } }),
+    ...subFilter,
+  };
+
+  const [total, rows] = await Promise.all([
+    db.destinations.count({ where }),
+    db.destinations.findMany({
+      where,
+      skip,
+      take: safeSize,
+      orderBy: [{ country: "asc" }, { name: "asc" }],
+      select: DEST_SELECT,
+    }),
+  ]);
+
+  const items = rows.map(shapeDestination).filter((d) => d.image);
+
+  return {
+    items,
+    total,
+    page: safePage,
+    pageSize: safeSize,
+    hasMore: skip + rows.length < total,
+  };
+}
+
+export async function fetchDestinationSidebarData(): Promise<DestinationSidebarData> {
+  const [regions, allDests] = await Promise.all([
+    db.custom_regions.findMany({
+      where: { is_active: true, is_deleted: false },
+      select: {
+        id: true,
+        name: true,
+        _count: {
+          select: {
+            destinations: {
+              where: { is_active: true, is_deleted: false, packages: { some: { is_active: true } } },
+            },
+          },
+        },
+      },
+      orderBy: { name: "asc" },
+    }),
+    db.destinations.findMany({
+      where: { is_active: true, is_deleted: false, packages: { some: { is_active: true } } },
+      select: { country: true },
+    }),
+  ]);
+
+  const domestic = allDests.filter((d) => d.country === "India");
+  const international = allDests.filter((d) => d.country !== "India");
+
+  const countryCounts = new Map<string, number>();
+  for (const d of international) {
+    countryCounts.set(d.country, (countryCounts.get(d.country) ?? 0) + 1);
+  }
+
+  return {
+    regions: regions
+      .filter((r) => r._count.destinations > 0)
+      .map((r) => ({ id: r.id, name: r.name, count: r._count.destinations })),
+    countries: Array.from(countryCounts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    totalDomestic: domestic.length,
+    totalInternational: international.length,
+    total: allDests.length,
+  };
 }
 
 // ── Destination meta ─────────────────────────────────────────────────────────
@@ -127,6 +283,14 @@ const DEFAULT_PAGE_SIZE = 9;
  * Fetch one page of active packages for a destination (offset pagination, used
  * by the destination page's infinite-scroll list). Page is 1-based.
  */
+export async function getAllDestinationSlugs(): Promise<string[]> {
+  const rows = await db.destinations.findMany({
+    where: { is_active: true, is_deleted: false },
+    select: { slug: true },
+  });
+  return rows.map((r) => r.slug);
+}
+
 export async function fetchDestinationPackages(
   destinationId: number,
   page = 1,

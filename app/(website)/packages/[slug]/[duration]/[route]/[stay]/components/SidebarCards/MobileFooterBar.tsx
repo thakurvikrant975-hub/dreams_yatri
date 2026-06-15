@@ -8,12 +8,6 @@ import { Text } from '@/app/components/ui/Typography';
 
 const fmt = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 
-function fakeOriginalPrice(price: number): number {
-    const seed = (price % 97) / 97;
-    const markup = 1.18 + seed * 0.26;
-    return Math.ceil((price * markup) / 100) * 100 - 1;
-}
-
 export default function MobileFooterBar() {
     const ctx = useContext(BookingContext);
     const { book, booking, error } = useBookQuote();
@@ -37,14 +31,7 @@ export default function MobileFooterBar() {
                         </Text>
                         <Text as="span" size="xs" intent="muted">/ adult</Text>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                        <Text as="span" size="xs" intent="muted" className="line-through">
-                            {fmt(fakeOriginalPrice(pricing.pricePerAdult))}
-                        </Text>
-                        <span className="text-[10px] font-semibold text-success-600 bg-success-50 px-1.5 py-0.5 rounded-full">
-                            {Math.round((1 - pricing.pricePerAdult / fakeOriginalPrice(pricing.pricePerAdult)) * 100)}% off
-                        </span>
-                    </div>
+                    <Text as="span" size="xs" intent="muted">incl. GST {fmt(pricing.gstAmount)}</Text>
                 </div>
             )}
 

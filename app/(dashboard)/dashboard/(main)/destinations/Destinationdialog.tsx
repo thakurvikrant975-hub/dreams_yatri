@@ -428,6 +428,7 @@ function ImagesStep() {
           maxFiles={1}
           label="Upload Thumbnail"
           hint="JPG, PNG, WebP"
+          previewAspect="aspect-3/4"
         />
         {thumbMissing && (
           <p className="flex items-center gap-1.5 text-xs text-destructive">

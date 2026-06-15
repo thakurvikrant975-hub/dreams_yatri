@@ -23,8 +23,8 @@ export interface PackageCardProps {
     title: string
     images: string[]
     duration: string
-    rating: number
-    reviewCount: number
+    rating?: number
+    reviewCount?: number
     itinerary: Itinerary[]
     originalPrice: number
     discountedPrice: number
@@ -35,6 +35,8 @@ export interface PackageCardProps {
     badgeColor?: 'teal' | 'blue' | 'orange' | 'green' | 'purple' | 'red'
     /** Secondary offer tag shown below badge e.g. "Best Offer" */
     offerTag?: string
+    /** Set true only for cards above the fold (first ~3) so their image gets LCP priority */
+    isPriority?: boolean
     onRequestCallback?: () => void
     onClick?: () => void
     className?: string
@@ -54,6 +56,13 @@ const INCLUSION_ICONS: Record<string, React.ElementType> = {
     meals: ForkKnifeIcon,
     cab: CarIcon,
     activities: StarIcon,
+}
+
+const INCLUSION_LABELS: Record<string, string> = {
+    hotel: 'Hotel',
+    meals: 'Meals',
+    cab: 'Transfer',
+    activities: 'Activities',
 }
 
 // ─── Itinerary tag list ───────────────────────────────────────────────────────
@@ -142,11 +151,14 @@ function ItineraryRow({ items }: { items: Itinerary[] }) {
 // ─── Dots ─────────────────────────────────────────────────────────────────────
 function ImageDots({ total, active, onSelect }: { total: number; active: number; onSelect: (i: number) => void }) {
     return (
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-20 pointer-events-auto">
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-20 pointer-events-auto" role="tablist" aria-label="Package images">
             {Array.from({ length: total }).map((_, i) => (
                 <button
                     key={i}
                     type="button"
+                    role="tab"
+                    aria-label={`Image ${i + 1}`}
+                    aria-selected={i === active}
                     onClick={e => { e.stopPropagation(); onSelect(i) }}
                     className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
                         i === active ? 'w-5 bg-white' : 'w-1.5 bg-white/50 hover:bg-white/80'
@@ -177,7 +189,8 @@ export default function PackageCard({
     itinerary,
     originalPrice,
     discountedPrice,
-    inclusions = ['hotel', 'meals', 'cab', 'activities'],
+    inclusions = [],
+    isPriority = false,
     badge,
     onRequestCallback,
     onClick,
@@ -200,7 +213,6 @@ export default function PackageCard({
             clearInterval(intervalRef.current)
             intervalRef.current = null
         }
-        setActiveImage(0)
     }
 
     function prev(e: React.MouseEvent) {
@@ -250,7 +262,7 @@ export default function PackageCard({
                                 fill
                                 className="object-cover"
                                 sizes="(max-width: 768px) 100vw, 384px"
-                                priority={i === 0}
+                                priority={i === 0 && isPriority}
                             />
                         </div>
                     ))}
@@ -304,11 +316,15 @@ export default function PackageCard({
                             </Text>
 
                         </div>
-                        <div className="flex items-center gap-1 text-xs font-medium text-neutral-700">
-                            <StarIcon weight="fill" className="size-3.5 text-warning-500" />
-                            <Text as='span' size='sm' weight='semibold' className='font-heading text-warning-500'>{rating.toFixed(1)}</Text>
-                            <Text as='span' size='sm' intent='secondary'>({reviewCount})</Text>
-                        </div>
+                        {rating != null && (
+                            <div className="flex items-center gap-1 text-xs font-medium text-neutral-700">
+                                <StarIcon weight="fill" className="size-3.5 text-warning-500" />
+                                <Text as='span' size='sm' weight='semibold' className='font-heading text-warning-500'>{rating.toFixed(1)}</Text>
+                                {reviewCount != null && reviewCount > 0 && (
+                                    <Text as='span' size='sm' intent='secondary'>({reviewCount})</Text>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* Itinerary */}
@@ -320,15 +336,14 @@ export default function PackageCard({
                     <div className="flex items-center justify-between">
 
                         <div className='flex flex-col gap-0.5'>
-                            <div className="flex items-center gap-5">
-                                <Text as='span' weight='medium' intent='secondary' className='relative w-max px-1 after:absolute after:top-1/2 after:left-0 after:h-[0.1em] after:w-full after:bg-error-500 after:z-10 after:-translate-y-1/2'>
-                                    {formatINR(originalPrice)}
-                                </Text>
-
-                                {savings > 0 && (
-                                    <SavingsBadge amount="₹16,000" />
-                                )}
-                            </div>
+                            {originalPrice > 0 && savings > 0 && (
+                                <div className="flex items-center gap-5">
+                                    <Text as='span' weight='medium' intent='secondary' className='relative w-max px-1 after:absolute after:top-1/2 after:left-0 after:h-[0.1em] after:w-full after:bg-error-500 after:z-10 after:-translate-y-1/2'>
+                                        {formatINR(originalPrice)}
+                                    </Text>
+                                    <SavingsBadge amount={formatINR(savings)} />
+                                </div>
+                            )}
 
                             <Text as='span' weight='bold' size='xl' className='font-heading px-1 relative z-10 after:absolute after:bottom-0 after:left-0 after:h-1.5  after:w-full after:bg-success-200/80 after:-z-10 w-max'>
                                 {formatINR(discountedPrice)} 
@@ -339,19 +354,19 @@ export default function PackageCard({
 
 
                         {/* Inclusions */}
-                        <div className="flex items-center gap-2">
-                            {inclusions.map((key) => {
-                                const Icon = INCLUSION_ICONS[key]
-                                return Icon ? (
-                                    <Icon
-                                        key={key}
-                                        weight="fill"
-                                        className="size-4.5 text-(--text-muted)"
-                                        title={key}
-                                    />
-                                ) : null
-                            })}
-                        </div>
+                        {inclusions.length > 0 && (
+                            <div className="flex items-center gap-2" aria-label="Inclusions">
+                                {inclusions.map((key) => {
+                                    const Icon = INCLUSION_ICONS[key]
+                                    const label = INCLUSION_LABELS[key] ?? key
+                                    return Icon ? (
+                                        <span key={key} title={label} aria-label={label}>
+                                            <Icon weight="fill" aria-hidden="true" className="size-4.5 text-(--text-muted)" />
+                                        </span>
+                                    ) : null
+                                })}
+                            </div>
+                        )}
                     </div>
                 </CardBody>
 

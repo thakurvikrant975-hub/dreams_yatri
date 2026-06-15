@@ -66,6 +66,7 @@ export interface BookingContextValue {
 
     // Package metadata
     packageName: string;
+    recentEnquiryCount: number;
 
     // Selectors — needed to build a quote on "Book"
     packageId:      number;
@@ -116,12 +117,13 @@ function initialCabSelections(groups: CabGroup[], passengers: number): Map<strin
 // ── Provider ───────────────────────────────────────────────────────────────
 
 interface ProviderProps {
-    packageId:      number;
-    durationId:     number;
-    routeId:        number;
-    stayCategoryId: number;
-    packageName:    string;
-    cabTypes:       CabTypeOption[];
+    packageId:          number;
+    durationId:         number;
+    routeId:            number;
+    stayCategoryId:     number;
+    packageName:        string;
+    recentEnquiryCount: number;
+    cabTypes:           CabTypeOption[];
     children:       ReactNode;
     // Initial values carried from the search page (all optional)
     initialAdults?:      number;
@@ -131,7 +133,7 @@ interface ProviderProps {
 }
 
 export function PackageBookingProvider({
-    packageId, durationId, routeId, stayCategoryId, packageName,
+    packageId, durationId, routeId, stayCategoryId, packageName, recentEnquiryCount,
     cabTypes,
     children,
     initialAdults, initialChildAges, initialTravelDate, initialLeavingFrom,
@@ -251,7 +253,7 @@ export function PackageBookingProvider({
             adults, childCount, infants, childAges, travelDate, leavingFrom,
             setAdults, setChildCount, setInfants, setChildAge, setTravelDate, setLeavingFrom, setTravellers,
             cabGroups, cabSelections, setCabForGroup,
-            pricing, isPricingLoading, packageName,
+            pricing, isPricingLoading, packageName, recentEnquiryCount,
             packageId, durationId, routeId, stayCategoryId,
             dateHighlight, setDateHighlight,
         }}>

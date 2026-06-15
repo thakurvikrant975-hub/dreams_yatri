@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import PackageCard from '@/app/components/packages/Packages'
 import PackageGrid from '@/app/components/packages/PackageGrid'
 import Button from '@/app/components/ui/Button'
@@ -13,8 +13,6 @@ interface Props {
 }
 
 export default function DestinationPackagesList({ destinationId, initial }: Props) {
-    const router = useRouter()
-
     const [items, setItems]     = useState<DestinationPackageItem[]>(initial.items)
     const [page, setPage]       = useState(initial.page)
     const [hasMore, setHasMore] = useState(initial.hasMore)
@@ -68,20 +66,18 @@ export default function DestinationPackagesList({ destinationId, initial }: Prop
     return (
         <div>
             <PackageGrid>
-                {items.map((pkg) => (
-                    <PackageCard
-                        key={pkg.id}
-                        title={pkg.title}
-                        images={pkg.images}
-                        duration={pkg.duration}
-                        rating={4.5}
-                        reviewCount={0}
-                        itinerary={pkg.itinerary}
-                        originalPrice={pkg.originalPrice}
-                        discountedPrice={pkg.discountedPrice}
-                        inclusions={['hotel', 'meals', 'cab', 'activities']}
-                        onClick={() => router.push(`/packages/${pkg.slug}/${pkg.durationSlug}/${pkg.routeSlug}/${pkg.staySlug}`, { scroll: false })}
-                    />
+                {items.map((pkg, index) => (
+                    <Link key={pkg.id} href={`/packages/${pkg.slug}/${pkg.durationSlug}/${pkg.routeSlug}/${pkg.staySlug}`} className="block">
+                        <PackageCard
+                            title={pkg.title}
+                            images={pkg.images}
+                            duration={pkg.duration}
+                            itinerary={pkg.itinerary}
+                            originalPrice={pkg.originalPrice}
+                            discountedPrice={pkg.discountedPrice}
+                            isPriority={index < 3}
+                        />
+                    </Link>
                 ))}
             </PackageGrid>
 

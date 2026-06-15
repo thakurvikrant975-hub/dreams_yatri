@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, Map, Heart, Users, Briefcase, FileText, Hotel, Plane } from 'lucide-react';
+import { ChevronDown, Map, Heart, Users, Briefcase, FileText, Plane } from 'lucide-react';
 import Link from 'next/link';
 
 interface ServiceItem {
@@ -18,7 +18,6 @@ const SERVICES: ServiceItem[] = [
   { label: 'Group Tours',      description: 'Fun trips with family & friends',          href: '/group-tours', icon: Users },
   { label: 'Corporate Travel', description: 'Seamless business travel solutions',       href: '/corporate',   icon: Briefcase },
   { label: 'Visa Assistance',  description: 'Hassle-free visa processing support',      href: '/visa',        icon: FileText },
-  { label: 'Hotel Booking',    description: 'Handpicked stays at the best prices',      href: '/hotels',      icon: Hotel },
 ];
 
 interface ServiceDropdownProps {
