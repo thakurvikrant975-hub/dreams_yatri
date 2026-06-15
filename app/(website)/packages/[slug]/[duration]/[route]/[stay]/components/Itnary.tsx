@@ -484,7 +484,7 @@ function CabContent({ section, day }: { section: CabSection; day?: number }) {
           )}
 
           {/* Route: pickup → drop */}
-          <div className="flex items-stretch gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
             <CabRoute
               from={section.from.value}
               to={section.to.value}
@@ -493,12 +493,12 @@ function CabContent({ section, day }: { section: CabSection; day?: number }) {
 
             {/* Vehicle image */}
             {(resolvedImage || resolvedName) && (
-              <div className="relative h-36 aspect-video shrink-0 rounded-2xl overflow-hidden bg-neutral-100">
+              <div className="relative h-36 w-full sm:w-auto sm:aspect-video sm:shrink-0 rounded-2xl overflow-hidden bg-neutral-100">
                 <Image
                   src={resolvedImage || CAB_PLACEHOLDER}
                   alt={resolvedName ?? "Vehicle"}
                   fill
-                  sizes="256px"
+                  sizes="(min-width: 640px) 256px, 100vw"
                   className="object-cover"
                 />
                 <div className="absolute inset-0 bg-linear-to-t from-black/55 via-black/10 to-transparent" />
@@ -678,7 +678,7 @@ function StayContent({ section }: { section: StaySection }) {
           )}
         </div>
 
-        <div className="flex gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
           {/* ── Left: details ── */}
           <div className="flex-1 flex flex-col gap-2.5 min-w-0">
 
@@ -763,8 +763,8 @@ function StayContent({ section }: { section: StaySection }) {
           </div>
 
           {section.images.length > 0 && (
-            <div>
-              <div className="grid grid-cols-4 grid-rows-4 gap-0.5 rounded-2xl overflow-hidden h-52 shrink-0 w-64">
+            <div className="sm:shrink-0 sm:w-64">
+              <div className="grid grid-cols-4 grid-rows-4 gap-0.5 rounded-2xl overflow-hidden h-44 sm:h-52 w-full">
                 {section.images.slice(0, 5).map((src, i) => (
                   <button
                     key={i}
@@ -780,7 +780,7 @@ function StayContent({ section }: { section: StaySection }) {
                       src={src}
                       alt={i === 0 ? section.hotelName : `${section.hotelName} photo ${i + 1}`}
                       fill
-                      sizes={i === 0 ? '256px' : '64px'}
+                      sizes="(min-width: 640px) 256px, 100vw"
                       className="object-cover transition-opacity hover:opacity-90"
                       priority={i === 0}
                     />
