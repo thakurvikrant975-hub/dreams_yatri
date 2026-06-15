@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState, useTransition } from "react";
+import { useActionState, useRef, useState } from "react";
 import { Input }    from "../../../components/ui/input";
 import { Label }    from "../../../components/ui/label";
 import { Textarea } from "../../../components/ui/textarea";
@@ -11,13 +11,13 @@ import {
   Select, SelectContent, SelectItem,
   SelectTrigger, SelectValue,
 } from "../../../components/ui/select";
-import { Loader2, MessageCircle, Percent } from "lucide-react";
+import { Loader2, MessageCircle } from "lucide-react";
 
 import { ImagePicker, type PickedImage } from "../../../components/dashboard/ImagePicker";
 import { LocationSearchSelect } from "../../../components/location/LocationSearchSelect";
 import type { LocationValue } from "../../../components/location/location.types";
 import { SearchSelect } from "../../../components/dashboard/SearchSelect";
-import { updateHotelDetails, updateHotelMarginGst } from "../../actions";
+import { updateHotelDetails } from "../../actions";
 import { CATEGORIES, STAY_TYPES } from "../../constants";
 
 type Hotel = {
@@ -39,11 +39,9 @@ type Hotel = {
   whatsapp_number: string | null;
   b2b_email:       string | null;
   description:               string | null;
-  is_active:          boolean;
-  margin_percentage:  number;
-  gst_percentage:     number;
-  location:           LocationValue | null;
-  destination:        { id: number; name: string };
+  is_active:      boolean;
+  location:       LocationValue | null;
+  destination:    { id: number; name: string };
 };
 
 type Destination = { id: number; name: string; region: { name: string } };
@@ -53,11 +51,9 @@ const base = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
 export function DetailsTab({
   hotel,
   destinations,
-  hotel_id,
 }: {
   hotel:        Hotel;
   destinations: Destination[];
-  hotel_id:     number;
 }) {
   const boundAction = updateHotelDetails.bind(null, hotel.id);
   const [state, formAction, isPending] = useActionState(
@@ -75,11 +71,6 @@ export function DetailsTab({
   const nameRef = useRef<HTMLInputElement>(null);
   const descRef = useRef<HTMLTextAreaElement>(null);
 
-  const [margin, setMargin]   = useState(String(hotel.margin_percentage));
-  const [gst, setGst]         = useState(String(hotel.gst_percentage));
-  const [marginGstMsg, setMarginGstMsg] = useState<{ success: boolean; text: string } | null>(null);
-  const [isPricingPending, startPricingTransition] = useTransition();
-
   // Thumbnail state — managed separately so we can preview and pass key via hidden input
   const [thumbnail, setThumbnail] = useState<PickedImage[]>(
     hotel.thumbnail
@@ -96,7 +87,6 @@ export function DetailsTab({
   );
 
   return (
-    <>
     <form action={formAction} className="space-y-6">
 
       {/* Status message */}
@@ -298,81 +288,5 @@ export function DetailsTab({
         </Button>
       </div>
     </form>
-
-    {/* ── Margin & GST — separate card/form ─────────────────────────────── */}
-    <Card className="bg-dashboard-base-100 rounded-xl shadow-lg border border-dashboard-base-content/20">
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <Percent className="h-4 w-4 text-dashboard-primary" />
-          <CardTitle className="text-base text-dashboard-base-content">Pricing Settings</CardTitle>
-        </div>
-        <p className="text-xs text-dashboard-base-content/50 mt-0.5">
-          Applied hotel-wide to all pricing variants during package calculation.
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {marginGstMsg && (
-          <div className={`text-sm px-3 py-2 rounded-xl border ${
-            marginGstMsg.success
-              ? "bg-dashboard-success/10 text-dashboard-success border-dashboard-success/30"
-              : "bg-dashboard-error/10 text-dashboard-error border-dashboard-error/20"
-          }`}>
-            {marginGstMsg.text}
-          </div>
-        )}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <Label className="text-sm text-dashboard-base-content">
-              Margin % <span className="text-dashboard-error">*</span>
-            </Label>
-            <Input
-              type="number" min={0} max={100} step={0.01}
-              value={margin}
-              onChange={(e) => setMargin(e.target.value)}
-              className="bg-dashboard-base-100 border-dashboard-base-content/20"
-              placeholder="10"
-            />
-            <p className="text-xs text-dashboard-base-content/40">Your profit margin on top of base cost</p>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-sm text-dashboard-base-content">
-              GST % <span className="text-dashboard-error">*</span>
-            </Label>
-            <Input
-              type="number" min={0} max={100} step={0.01}
-              value={gst}
-              onChange={(e) => setGst(e.target.value)}
-              className="bg-dashboard-base-100 border-dashboard-base-content/20"
-              placeholder="18"
-            />
-            <p className="text-xs text-dashboard-base-content/40">Tax applied on final selling price</p>
-          </div>
-        </div>
-        <div className="flex justify-end">
-          <Button
-            type="button"
-            disabled={isPricingPending}
-            onClick={() => {
-              const m = Number(margin);
-              const g = Number(gst);
-              if (isNaN(m) || isNaN(g)) {
-                setMarginGstMsg({ success: false, text: "Enter valid numbers." });
-                return;
-              }
-              startPricingTransition(async () => {
-                const res = await updateHotelMarginGst(hotel_id, m, g);
-                setMarginGstMsg({ success: res.success, text: res.message });
-              });
-            }}
-            className="bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90 cursor-pointer"
-          >
-            {isPricingPending
-              ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving…</>
-              : "Save Pricing Settings"}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-    </>
   );
 }
