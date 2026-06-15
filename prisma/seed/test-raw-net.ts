@@ -9,4 +9,4 @@ const s = net.connect({ host, port: 5432, family: 4 });
 s.setTimeout(10000);
 s.on("connect", () => { console.log(`✅ TCP connected (family:4) in ${Date.now()-t}ms`); s.destroy(); });
 s.on("timeout", () => { console.log(`⏱ timeout (family:4) after ${Date.now()-t}ms`); s.destroy(); });
-s.on("error", e => { console.log(`❌ (family:4) ${Date.now()-t}ms: ${e.code} ${e.message}`); });
+s.on("error", (e: NodeJS.ErrnoException) => { console.log(`❌ (family:4) ${Date.now()-t}ms: ${e.code} ${e.message}`); });
