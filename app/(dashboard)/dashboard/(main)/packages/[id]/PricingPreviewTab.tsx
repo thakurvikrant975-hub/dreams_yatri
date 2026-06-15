@@ -14,7 +14,7 @@ import { Separator } from "../../components/ui/separator";
 import {
   Loader2, Bed, Car, Zap, ChevronDown, ChevronRight, ChevronUp,
   Calculator, IndianRupee, Users, MapPin, CalendarDays, Sparkles,
-  UtensilsCrossed, Hotel, Moon, TrendingUp, Percent, Receipt,
+  UtensilsCrossed, Hotel, Moon, TrendingUp, Percent, Receipt, FileCheck2,
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { toast } from "sonner";
@@ -442,6 +442,36 @@ function CabBreakdown({ segments }: { segments: CabSegmentBreakdown[] }) {
   );
 }
 
+// ── Permit breakdown ──────────────────────────────────────────────────────
+
+function PermitBreakdown({ permits }: { permits: { name: string; price: number }[] }) {
+  const [open, setOpen] = useState(false);
+  if (permits.length === 0) return null;
+
+  return (
+    <div>
+      <button
+        type="button"
+        className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors mt-2"
+        onClick={() => setOpen((p) => !p)}
+      >
+        {open ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+        {open ? "Hide" : "Show"} permit breakdown
+      </button>
+      {open && (
+        <div className="mt-2 space-y-1.5 pl-2 border-l-2 border-teal-200">
+          {permits.map((p, i) => (
+            <div key={i} className="flex items-center justify-between">
+              <span className="text-[11px] text-foreground/80">{p.name}</span>
+              <span className="text-xs font-semibold text-teal-700">₹{fmt(p.price)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Summary card ─────────────────────────────────────────────────────────
 
 function SummaryCard({ breakdown }: { breakdown: FullPricingBreakdown }) {
@@ -457,6 +487,7 @@ function SummaryCard({ breakdown }: { breakdown: FullPricingBreakdown }) {
     { icon: <UtensilsCrossed className="h-3.5 w-3.5" />, label: "Meals",    value: breakdown.meal_subtotal,     color: "text-amber-600"  },
     { icon: <Zap className="h-3.5 w-3.5" />,           label: "Activities", value: breakdown.activity_subtotal, color: "text-green-600"  },
     { icon: <Car className="h-3.5 w-3.5" />,           label: "Cab",        value: breakdown.cab_subtotal,      color: "text-orange-600" },
+    { icon: <FileCheck2 className="h-3.5 w-3.5" />,    label: "Permits",    value: breakdown.permit_subtotal,   color: "text-teal-600"   },
   ].filter((r) => r.value > 0);
 
   return (
@@ -494,6 +525,13 @@ function SummaryCard({ breakdown }: { breakdown: FullPricingBreakdown }) {
         {breakdown.cab_segments.length > 0 && (
           <div className="px-2">
             <CabBreakdown segments={breakdown.cab_segments} />
+          </div>
+        )}
+
+        {/* Permit breakdown */}
+        {breakdown.permits.length > 0 && (
+          <div className="px-2">
+            <PermitBreakdown permits={breakdown.permits} />
           </div>
         )}
 

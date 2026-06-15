@@ -21,7 +21,7 @@ import {
 import {
   Loader2, Check, Percent, Settings2, Car, Plus, Trash2,
   Wind, AlertTriangle, Pencil,
-  CalendarDays, X, Star,
+  CalendarDays, X, Star, FileCheck2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/app/lib/utils";
@@ -33,6 +33,10 @@ import {
   getAllCabPricingOptions,
   type FullCabPricingOption,
 } from "@/app/actions/packages/cab-pricing.actions";
+import {
+  createPackagePermit, updatePackagePermit, deletePackagePermit,
+  type PackagePermit,
+} from "@/app/actions/packages/permit.actions";
 import { SearchSelect, type Option } from "../../components/dashboard/SearchSelect";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -100,6 +104,7 @@ type PricingTabProps = {
   initialPricings: SavedPricing[];
   routes: { id: number; name: string; durationLabel: string }[];
   cabTypes: CabType[];
+  permits: PackagePermit[];
   stopCoords: Array<{ lat: number; lng: number }>;
 };
 
@@ -964,8 +969,10 @@ function CabGroupCard({
         router.refresh();
       }
     });
-  }
+  } 
 
+
+ 
   function cancelRangeEdit() {
     setEditingRange(false);
     setPendingRange({ from: group.dayFrom, to: group.dayTo });
@@ -1477,6 +1484,348 @@ function CabTypesSection({
   );
 }
 
+// ── PermitRow ──────────────────────────────────────────────────────────────
+
+function PermitRow({
+  permit,
+  packageId,
+  onUpdated,
+  onDeleted,
+}: {
+  permit: PackagePermit;
+  packageId: number;
+  onUpdated: (updated: PackagePermit) => void;
+  onDeleted: (id: number) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(permit.name);
+  const [price, setPrice] = useState(String(permit.price));
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
+
+  function handleToggleIncluded(val: boolean) {
+    startTransition(async () => {
+      const res = await updatePackagePermit(permit.id, packageId, { is_included: val });
+      if (res.success) {
+        onUpdated({ ...permit, is_included: val });
+        router.refresh();
+      } else {
+        toast.error(res.error);
+      }
+    });
+  }
+
+  function startEdit() {
+    setName(permit.name);
+    setPrice(String(permit.price));
+    setEditing(true);
+  }
+
+  function cancelEdit() {
+    setEditing(false);
+    setName(permit.name);
+    setPrice(String(permit.price));
+  }
+
+  function handleSaveEdit() {
+    const p = parseFloat(price);
+    if (!name.trim()) { toast.error("Enter a permit name"); return; }
+    if (isNaN(p) || p < 0) { toast.error("Enter a valid non-negative price"); return; }
+    startTransition(async () => {
+      const res = await updatePackagePermit(permit.id, packageId, { name: name.trim(), price: p });
+      if (res.success) {
+        toast.success("Permit updated");
+        onUpdated({ ...permit, name: name.trim(), price: p });
+        setEditing(false);
+        router.refresh();
+      } else {
+        toast.error(res.error);
+      }
+    });
+  }
+
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-2 px-4 py-3 transition-colors border-t first:border-t-0",
+        !permit.is_included && "opacity-60",
+      )}
+    >
+      <FileCheck2 className="h-4 w-4 text-primary shrink-0" />
+
+      <div className="flex-1 min-w-0">
+        {editing ? (
+          <div className="flex items-center gap-1.5">
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="h-7 text-xs flex-1"
+              placeholder="Permit name"
+              disabled={isPending}
+            />
+            <div className="relative w-28 shrink-0">
+              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₹</span>
+              <Input
+                type="number" min="0" step="1"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                className="h-7 text-xs pl-5"
+                placeholder="0"
+                disabled={isPending}
+              />
+            </div>
+            <Button
+              type="button" size="sm"
+              className="h-7 px-2.5 text-xs shrink-0 gap-1"
+              onClick={handleSaveEdit}
+              disabled={isPending}
+            >
+              {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Check className="h-3 w-3" />Save</>}
+            </Button>
+            <Button
+              type="button" variant="ghost" size="sm"
+              className="h-7 px-2 shrink-0"
+              onClick={cancelEdit}
+              disabled={isPending}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-sm font-medium leading-tight">{permit.name}</span>
+            <span className="text-[11px] text-muted-foreground">₹{fmt(permit.price)}</span>
+            {!permit.is_included && (
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Not included</Badge>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Included toggle */}
+      {!editing && (
+        <div className="flex items-center gap-1.5 shrink-0">
+          <Label className="text-[10px] text-muted-foreground hidden sm:block">Included</Label>
+          <Switch
+            checked={permit.is_included}
+            onCheckedChange={handleToggleIncluded}
+            disabled={isPending}
+          />
+        </div>
+      )}
+
+      {/* Edit button */}
+      {!editing && (
+        <button
+          type="button"
+          onClick={startEdit}
+          disabled={isPending}
+          title="Edit permit"
+          className="shrink-0 rounded-md p-1.5 text-muted-foreground/40 hover:bg-muted hover:text-foreground transition-colors disabled:cursor-not-allowed"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+      )}
+
+      {/* Delete */}
+      {!editing && (
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <button
+              type="button"
+              disabled={isPending}
+              className="shrink-0 rounded-md p-1.5 text-muted-foreground/40 hover:bg-destructive/10 hover:text-destructive transition-colors disabled:cursor-not-allowed disabled:opacity-30"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remove Permit</AlertDialogTitle>
+              <AlertDialogDescription>
+                Remove <span className="font-semibold">{permit.name}</span> from this duration?
+                This cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  startTransition(async () => {
+                    const res = await deletePackagePermit(permit.id, packageId);
+                    if (res.success) { onDeleted(permit.id); router.refresh(); }
+                    else toast.error(res.error);
+                  });
+                }}
+                className="bg-destructive text-white hover:bg-destructive/90"
+              >
+                Remove
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+    </div>
+  );
+}
+
+// ── AddPermitForm ──────────────────────────────────────────────────────────
+
+function AddPermitForm({
+  packageId,
+  duration,
+  onAdded,
+  onCancel,
+}: {
+  packageId: number;
+  duration: { id: number };
+  onAdded: (permit: PackagePermit) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [price, setPrice] = useState("");
+  const [included, setIncluded] = useState(true);
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
+
+  const parsedPrice = parseFloat(price);
+  const isValid = name.trim().length > 0 && price.trim().length > 0 && !isNaN(parsedPrice) && parsedPrice >= 0;
+
+  function handleCreate() {
+    if (!isValid) return;
+    startTransition(async () => {
+      const res = await createPackagePermit({
+        package_id: packageId,
+        duration_id: duration.id,
+        name: name.trim(),
+        price: parsedPrice,
+        is_included: included,
+      });
+      if (res.success) {
+        toast.success("Permit added");
+        router.refresh();
+        onAdded(res.data);
+      } else {
+        toast.error(res.error);
+      }
+    });
+  }
+
+  return (
+    <div className="px-4 py-3 border-t bg-muted/10">
+      <div className="flex items-start gap-2">
+        <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Permit name e.g. Wildlife Sanctuary Entry"
+            className="h-8 text-sm"
+            disabled={isPending}
+          />
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₹</span>
+            <Input
+              type="number" min="0" step="1"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              placeholder="0"
+              className="h-8 text-sm pl-6"
+              disabled={isPending}
+            />
+          </div>
+          <div className="flex items-center gap-2 sm:col-span-2">
+            <Switch checked={included} onCheckedChange={setIncluded} disabled={isPending} />
+            <Label className="text-xs text-muted-foreground">
+              Include permit price in package cost calculation
+            </Label>
+          </div>
+        </div>
+        <div className="flex gap-1.5 pt-0.5 shrink-0">
+          <Button type="button" variant="ghost" size="sm" className="h-8" onClick={onCancel} disabled={isPending}>
+            Cancel
+          </Button>
+          <Button type="button" size="sm" className="h-8 gap-1" onClick={handleCreate} disabled={!isValid || isPending}>
+            {isPending
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              : <><Check className="h-3 w-3" />Add</>}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── PermitsSection ─────────────────────────────────────────────────────────
+
+function PermitsSection({
+  packageId,
+  duration,
+  initialPermits,
+}: {
+  packageId: number;
+  duration: Duration;
+  initialPermits: PackagePermit[];
+}) {
+  const [permits, setPermits] = useState(initialPermits);
+  const [adding, setAdding] = useState(false);
+
+  const includedTotal = permits.filter((p) => p.is_included).reduce((sum, p) => sum + p.price, 0);
+
+  return (
+    <Card className="mb-3">
+      <CardHeader className="py-3 px-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <FileCheck2 className="h-4 w-4 text-primary" />
+            <CardTitle className="text-sm font-semibold">Permits — {duration.label}</CardTitle>
+            <Badge variant="outline" className="text-xs">{duration.nights}N / {duration.days}D</Badge>
+            {permits.length > 0 && (
+              <Badge variant="secondary" className="text-xs">
+                {permits.length} permit{permits.length !== 1 ? "s" : ""}
+                {includedTotal > 0 ? ` · ₹${fmt(includedTotal)} included` : ""}
+              </Badge>
+            )}
+          </div>
+          {!adding && (
+            <Button
+              size="sm" variant="outline" className="h-6 text-xs gap-1"
+              onClick={() => setAdding(true)}
+            >
+              <Plus className="h-3 w-3" />Add Permit
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="px-4 pt-0 pb-3">
+        {permits.length === 0 && !adding ? (
+          <p className="text-xs text-muted-foreground py-3 text-center">
+            No permits configured for this duration.
+          </p>
+        ) : (
+          permits.map((permit) => (
+            <PermitRow
+              key={permit.id}
+              permit={permit}
+              packageId={packageId}
+              onUpdated={(updated) => setPermits((prev) => prev.map((p) => p.id === updated.id ? updated : p))}
+              onDeleted={(id) => setPermits((prev) => prev.filter((p) => p.id !== id))}
+            />
+          ))
+        )}
+
+        {adding && (
+          <AddPermitForm
+            packageId={packageId}
+            duration={duration}
+            onAdded={(p) => { setPermits((prev) => [...prev, p]); setAdding(false); }}
+            onCancel={() => setAdding(false)}
+          />
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 export function PricingTab({
@@ -1485,6 +1834,7 @@ export function PricingTab({
   stayCategories,
   initialPricings,
   cabTypes,
+  permits,
   stopCoords,
 }: PricingTabProps) {
   if (durations.length === 0) {
@@ -1581,6 +1931,30 @@ export function PricingTab({
             duration={duration}
             initialCabTypes={cabTypes.filter((ct) => ct.duration_id === duration.id)}
             stopCoords={stopCoords}
+          />
+        ))}
+      </div>
+
+      {/* ── Permits ── */}
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-base font-semibold flex items-center gap-2">
+            <FileCheck2 className="h-4 w-4" /> Permits
+          </h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Add permits required for a duration&apos;s itinerary (e.g. wildlife sanctuary entry).
+            When a permit is marked as included, its price is added to the package&apos;s base cost —
+            margin and GST apply on top, and the total flows into the live price without a
+            separate line item.
+          </p>
+        </div>
+
+        {durations.map((duration) => (
+          <PermitsSection
+            key={duration.id}
+            packageId={packageId}
+            duration={duration}
+            initialPermits={permits.filter((p) => p.duration_id === duration.id)}
           />
         ))}
       </div>

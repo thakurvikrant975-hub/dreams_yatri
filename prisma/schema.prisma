@@ -817,6 +817,21 @@ model tags {
   @@index([slug])
 }
 
+// Reusable library of package inclusion/exclusion phrases. Tracks how often
+// each phrase is used so the package form can suggest the most popular ones.
+model inclusion_exclusion_options {
+  id          Int      @id @default(autoincrement())
+  type        String // "inclusion" | "exclusion"
+  text        String
+  usage_count Int      @default(1)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+  created_by  String?
+
+  @@unique([type, text])
+  @@index([type, usage_count])
+}
+
 model policies {
   id         Int                  @id @default(autoincrement())
   type       PolicyType
@@ -1267,6 +1282,7 @@ model packages {
   gallery         package_gallery[]
   images          package_images[]
   itineraries     package_itineraries[]
+  permits         package_permits[]
   policies        package_policy_map[]
   packagePricings package_pricing[]
   packageRoutes   package_routes[]
@@ -1308,6 +1324,7 @@ model package_durations {
   cabTypes      package_cab_types[]
   package       packages              @relation(fields: [package_id], references: [id])
   itineraries   package_itineraries[]
+  permits       package_permits[]
   pricing       package_pricing[]
   routes        package_routes[]
 
@@ -1714,6 +1731,24 @@ model package_cab_types {
   @@unique([package_id, duration_id, vehicle_id])
   @@index([package_id, duration_id])
   @@map("package_cab_types")
+}
+
+// Permits required for a duration's itinerary (e.g. wildlife sanctuary entry).
+// When is_included is true, the price is folded into the package's base cost.
+model package_permits {
+  id          Int               @id @default(autoincrement())
+  package_id  Int
+  duration_id Int
+  name        String
+  price       Decimal           @default(0) @db.Decimal(10, 2)
+  is_included Boolean           @default(true)
+  sort_order  Int               @default(0)
+  created_at  DateTime          @default(now())
+  updated_at  DateTime          @updatedAt
+  duration    package_durations @relation(fields: [duration_id], references: [id], onDelete: Cascade)
+  package     packages          @relation(fields: [package_id], references: [id], onDelete: Cascade)
+
+  @@index([package_id, duration_id])
 }
 
 model package_cab_segments {

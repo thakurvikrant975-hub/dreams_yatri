@@ -150,6 +150,28 @@ export async function getRegions(params: GetRegionsParams = {}) {
   };
 }
 
+// ── History ───────────────────────────────────────────────────────────────────
+
+export async function getRegionHistory(id: number) {
+  return db.activityLog.findMany({
+    where:   { entity: "Region", entityId: String(id) },
+    orderBy: { actionAt: "desc" },
+    select: {
+      id:           true,
+      action:       true,
+      description:  true,
+      userName:     true,
+      userEmail:    true,
+      previousData: true,
+      newData:      true,
+      metadata:     true,
+      status:       true,
+      actionAt:     true,
+    },
+    take: 50,
+  });
+}
+
 // ── Create ────────────────────────────────────────────────────────────────────
 export async function createRegion(
   _prev: RegionFormState,
