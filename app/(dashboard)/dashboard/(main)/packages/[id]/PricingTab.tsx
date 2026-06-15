@@ -22,7 +22,7 @@ import {
   Loader2, Check, Percent, Settings2, Car, Plus, Trash2,
   Wind, AlertTriangle, Pencil,
   CalendarDays, X, Star, FileCheck2,
-} from "lucide-react";
+} from "lucide-react"; 
 import { toast } from "sonner";
 import { cn } from "@/app/lib/utils";
 import { handleUpsertPackagePricing } from "@/app/actions/packages/pricing.actions";

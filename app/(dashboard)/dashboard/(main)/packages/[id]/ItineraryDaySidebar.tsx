@@ -1830,6 +1830,7 @@ export function ItineraryDaySidebar({
   const [activities, setActivities] = useState<ActivityItem[]>(initialDay.activities);
   const [notes, setNotes] = useState<NoteItem[]>(initialDay.notes);
   const [stays, setStays] = useState<StayItem[]>(initialDay.stays);
+  const [savingMealStayId, setSavingMealStayId] = useState<number | null>(null);
   const [attractions, setAttractions] = useState<AttractionItem[]>(initialDay.attractions);
   const [stayBlockOrder, setStayBlockOrder] = useState(initialDay.stays[0]?.sort_order ?? 100);
   const [savingMeta, setSavingMeta] = useState(false);
@@ -1863,6 +1864,20 @@ export function ItineraryDaySidebar({
 
   function currentDayData(): DayData {
     return { id: itineraryId, day: initialDay.day, title, description: description || null, meals, excluded_meals: excludedMeals, activities, transfers, notes, stays, attractions };
+  }
+
+  // Shared toggle for this day's stays — used by both the Hotel Stay panel and the
+  // Meals editor, so concurrent edits from either widget never overwrite each other.
+  async function toggleStayMeal(stay: StayItem, mealKey: string, forceOff = false) {
+    const has = stay.active_meals.includes(mealKey);
+    if (forceOff && !has) return;
+    const next = forceOff || has ? stay.active_meals.filter((m) => m !== mealKey) : [...stay.active_meals, mealKey];
+    const updated = stays.map((s) => (s.id === stay.id ? { ...s, active_meals: next } : s));
+    setStays(updated);
+    onSaved({ ...currentDayData(), stays: updated });
+    setSavingMealStayId(stay.id);
+    await handleUpdateStayActiveMeals(stay.id, next, packageId);
+    setSavingMealStayId(null);
   }
 
   // ── Day meta save ──────────────────────────────────────────────────────
@@ -2269,7 +2284,7 @@ export function ItineraryDaySidebar({
               </div>
 
               {/* Meals — per-slot source picker (hotel / activity / none) */}
-              <MealsEditor sectionRef={mealsRef} meals={meals} onChange={setMeals} excludedMeals={excludedMeals} onExcludedChange={setExcludedMeals} stays={stays} onStaysChange={setStays} previousDayStays={previousDayStays} packageId={packageId} activities={activities} />
+              <MealsEditor sectionRef={mealsRef} meals={meals} onChange={setMeals} excludedMeals={excludedMeals} onExcludedChange={setExcludedMeals} stays={stays} onStaysChange={setStays} previousDayStays={previousDayStays} packageId={packageId} activities={activities} savingMealStayId={savingMealStayId} onToggleStayMeal={toggleStayMeal} />
 
               {/* Timeline */}
               <div className="flex flex-col px-5 pt-4 pb-4">
