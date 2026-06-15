@@ -1459,3 +1459,198 @@ export async function deleteMealPricing(id: number, hotel_id: number): Promise<H
     return actionError(e);
   }
 }
+
+// ── Hotel Margin & GST (hotel-level, applied to all variants) ─────────────
+
+export async function updateHotelMarginGst(
+  hotel_id: number,
+  margin_percentage: number,
+  gst_percentage: number,
+): Promise<HotelFormState> {
+  try {
+    if (margin_percentage < 0 || margin_percentage > 100)
+      return { success: false, message: "Margin must be between 0 and 100." };
+    if (gst_percentage < 0 || gst_percentage > 100)
+      return { success: false, message: "GST must be between 0 and 100." };
+
+    await db.hotels.update({
+      where: { id: hotel_id },
+      data: { margin_percentage, gst_percentage },
+    });
+    revalidatePath(`/dashboard/hotels/${hotel_id}`);
+    return { success: true, message: "Margin & GST updated" };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
+  }
+}
+
+// ── Add-ons (hotel_addons) ────────────────────────────────────────────────
+
+export type HotelAddonSeason = {
+  id:            number;
+  addon_id:      number;
+  season_name:   string;
+  valid_from:    Date | string;
+  valid_to:      Date | string;
+  price:         number;
+  weekend_price: number | null;
+  is_active:     boolean;
+  sort_order:    number;
+};
+
+export type HotelAddon = {
+  id:            number;
+  hotel_id:      number;
+  label:         string;
+  description:   string | null;
+  charge_type:   string; // PER_PERSON | PER_ROOM | PER_BOOKING
+  price:         number;
+  weekend_price: number | null;
+  is_active:     boolean;
+  sort_order:    number;
+  seasons:       HotelAddonSeason[];
+};
+
+export type AddonSeasonInput = {
+  season_name:    string;
+  valid_from:     string; // YYYY-MM-DD
+  valid_to:       string;
+  price:          number;
+  weekend_price?: number | null;
+  is_active:      boolean;
+};
+
+export type AddonInput = {
+  label:          string;
+  description?:   string | null;
+  charge_type:    string;
+  price:          number;
+  weekend_price?: number | null;
+  is_active:      boolean;
+  seasons:        AddonSeasonInput[];
+};
+
+export async function getHotelAddons(hotel_id: number): Promise<HotelAddon[]> {
+  const rows = await db.hotel_addons.findMany({
+    where: { hotel_id },
+    orderBy: { sort_order: "asc" },
+    include: { seasons: { orderBy: { sort_order: "asc" } } },
+  });
+  return rows.map((a) => ({
+    ...a,
+    price:         Number(a.price),
+    weekend_price: a.weekend_price ? Number(a.weekend_price) : null,
+    seasons: a.seasons.map((s) => ({
+      ...s,
+      price:         Number(s.price),
+      weekend_price: s.weekend_price ? Number(s.weekend_price) : null,
+    })),
+  }));
+}
+
+export async function createAddon(
+  hotel_id: number,
+  data: AddonInput,
+): Promise<HotelFormState & { id?: number }> {
+  try {
+    if (!data.label?.trim()) return { success: false, message: "Label is required." };
+    if (!data.price || data.price <= 0) return { success: false, message: "Valid price is required." };
+    if (!["PER_PERSON", "PER_ROOM", "PER_BOOKING"].includes(data.charge_type))
+      return { success: false, message: "Invalid charge type." };
+
+    const count = await db.hotel_addons.count({ where: { hotel_id } });
+    const addon = await db.$transaction(async (tx) => {
+      const a = await tx.hotel_addons.create({
+        data: {
+          hotel_id,
+          label:         data.label.trim(),
+          description:   data.description?.trim() || null,
+          charge_type:   data.charge_type,
+          price:         data.price,
+          weekend_price: data.weekend_price ?? null,
+          is_active:     data.is_active,
+          sort_order:    count,
+        },
+      });
+      for (const [i, s] of data.seasons.entries()) {
+        await tx.hotel_addon_seasons.create({
+          data: {
+            addon_id:      a.id,
+            season_name:   s.season_name.trim(),
+            valid_from:    new Date(s.valid_from),
+            valid_to:      new Date(s.valid_to),
+            price:         s.price,
+            weekend_price: s.weekend_price ?? null,
+            is_active:     s.is_active,
+            sort_order:    i,
+          },
+        });
+      }
+      return a;
+    });
+    revalidatePath(`/dashboard/hotels/${hotel_id}`);
+    return { success: true, message: "Add-on created", id: addon.id };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
+  }
+}
+
+export async function updateAddon(
+  id: number,
+  hotel_id: number,
+  data: AddonInput,
+): Promise<HotelFormState> {
+  try {
+    if (!data.label?.trim()) return { success: false, message: "Label is required." };
+    if (!data.price || data.price <= 0) return { success: false, message: "Valid price is required." };
+    if (!["PER_PERSON", "PER_ROOM", "PER_BOOKING"].includes(data.charge_type))
+      return { success: false, message: "Invalid charge type." };
+
+    await db.$transaction(async (tx) => {
+      await tx.hotel_addons.update({
+        where: { id },
+        data: {
+          label:         data.label.trim(),
+          description:   data.description?.trim() || null,
+          charge_type:   data.charge_type,
+          price:         data.price,
+          weekend_price: data.weekend_price ?? null,
+          is_active:     data.is_active,
+        },
+      });
+      await tx.hotel_addon_seasons.deleteMany({ where: { addon_id: id } });
+      for (const [i, s] of data.seasons.entries()) {
+        await tx.hotel_addon_seasons.create({
+          data: {
+            addon_id:      id,
+            season_name:   s.season_name.trim(),
+            valid_from:    new Date(s.valid_from),
+            valid_to:      new Date(s.valid_to),
+            price:         s.price,
+            weekend_price: s.weekend_price ?? null,
+            is_active:     s.is_active,
+            sort_order:    i,
+          },
+        });
+      }
+    });
+    revalidatePath(`/dashboard/hotels/${hotel_id}`);
+    return { success: true, message: "Add-on updated" };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
+  }
+}
+
+export async function deleteAddon(id: number, hotel_id: number): Promise<HotelFormState> {
+  try {
+    await db.hotel_addons.delete({ where: { id } });
+    revalidatePath(`/dashboard/hotels/${hotel_id}`);
+    return { success: true, message: "Add-on deleted" };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
+  }
+}
