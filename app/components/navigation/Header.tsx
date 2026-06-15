@@ -145,7 +145,7 @@ export default function Header({ transparent = false, sticky = true }: HeaderPro
 
         {/* MobileMenu */}
         <div className="lg:hidden">
-          <MobileMenu />
+          <MobileMenu isSolid={isSolid} />
         </div>
       </motion.header>
 
