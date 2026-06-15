@@ -63,6 +63,8 @@ export default async function HotelEditPage({
 
     const serializedHotel = {
         ...hotel,
+        margin_percentage: Number(hotel.margin_percentage),
+        gst_percentage:    Number(hotel.gst_percentage),
         location: serializedLocation,
         childPolicies: hotel.childPolicies.map((p) => ({
             ...p,
