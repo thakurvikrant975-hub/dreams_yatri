@@ -146,57 +146,81 @@ export async function getHotelById(id: number) {
     });
   }
 
-  const hotel = await db.hotels.findUnique({
-    where: { id },
-    include: {
-      destination: { select: { id: true, name: true } },
-      location: {
-        select: {
-          id: true, name: true, type: true, slug: true,
-          latitude: true, longitude: true,
-          state:   { select: { name: true } },
-          country: { select: { name: true } },
-        },
+  const baseInclude = {
+    destination: { select: { id: true, name: true } },
+    location: {
+      select: {
+        id: true, name: true, type: true, slug: true,
+        latitude: true, longitude: true,
+        state:   { select: { name: true } },
+        country: { select: { name: true } },
       },
-      hotelRooms: {
-        orderBy: { sort_order: "asc" },
-        include: {
-          images: { orderBy: { sort_order: "asc" } },
-          pricing: {
-            orderBy: { sort_order: "asc" },
-            include: {
-              meal_type: { select: { id: true, name: true } },
-              diet_type: { select: { id: true, name: true } },
-              occupancy_prices: { orderBy: { occupancy: "asc" } },
-            },
+    },
+    hotelRooms: {
+      orderBy: { sort_order: "asc" } as const,
+      include: {
+        images: { orderBy: { sort_order: "asc" } as const },
+        pricing: {
+          orderBy: { sort_order: "asc" } as const,
+          include: {
+            meal_type: { select: { id: true, name: true } },
+            diet_type: { select: { id: true, name: true } },
+            occupancy_prices: { orderBy: { occupancy: "asc" } as const },
           },
-        },
-      },
-      room_pricing: {
-        orderBy: { sort_order: "asc" },
-        include: {
-          room:             { select: { id: true, name: true } },
-          meal_type:        { select: { id: true, name: true } },
-          diet_type:        { select: { id: true, name: true } },
-          occupancy_prices: { orderBy: { occupancy: "asc" } },
-          seasons: {
-            orderBy: { sort_order: "asc" },
-            include: { occupancy_prices: { orderBy: { occupancy: "asc" } } },
-          },
-        },
-      },
-      childPolicies: {
-        orderBy: { sort_order: "asc" },
-      },
-      image_categories: {
-        orderBy: { sort_order: "asc" },
-        include: {
-          images: { orderBy: { sort_order: "asc" } },
-          room_pricing: { select: { id: true } },
         },
       },
     },
-  });
+    childPolicies:    { orderBy: { sort_order: "asc" } as const },
+    image_categories: {
+      orderBy: { sort_order: "asc" } as const,
+      include: {
+        images:       { orderBy: { sort_order: "asc" } as const },
+        room_pricing: { select: { id: true } },
+      },
+    },
+  };
+
+  const roomPricingWithSeasons = {
+    orderBy: { sort_order: "asc" } as const,
+    include: {
+      room:             { select: { id: true, name: true } },
+      meal_type:        { select: { id: true, name: true } },
+      diet_type:        { select: { id: true, name: true } },
+      occupancy_prices: { orderBy: { occupancy: "asc" } as const },
+      seasons: {
+        orderBy: { sort_order: "asc" } as const,
+        include: { occupancy_prices: { orderBy: { occupancy: "asc" } as const } },
+      },
+    },
+  };
+
+  const roomPricingNoSeasons = {
+    orderBy: { sort_order: "asc" } as const,
+    include: {
+      room:             { select: { id: true, name: true } },
+      meal_type:        { select: { id: true, name: true } },
+      diet_type:        { select: { id: true, name: true } },
+      occupancy_prices: { orderBy: { occupancy: "asc" } as const },
+    },
+  };
+
+  // Try with seasons; fall back gracefully if the seasons table doesn't exist yet.
+  let hotel;
+  try {
+    hotel = await db.hotels.findUnique({
+      where: { id },
+      include: { ...baseInclude, room_pricing: roomPricingWithSeasons },
+    });
+  } catch (e: any) {
+    if (e?.code !== "P2021") throw e;
+    const partial = await db.hotels.findUnique({
+      where: { id },
+      include: { ...baseInclude, room_pricing: roomPricingNoSeasons },
+    });
+    hotel = partial
+      ? { ...partial, room_pricing: partial.room_pricing.map((p) => ({ ...p, seasons: [] })) }
+      : null;
+  }
   if (!hotel) return null;
   return hotel;
 }
@@ -1340,23 +1364,25 @@ export type MealPricingInput = {
 };
 
 export async function getMealPricings(hotel_id: number): Promise<HotelMealPricing[]> {
-  const rows = await db.hotel_meal_pricing.findMany({
-    where: { hotel_id },
-    orderBy: { sort_order: "asc" },
-    include: {
-      seasons: { orderBy: { sort_order: "asc" } },
-    },
-  });
-  return rows.map((m) => ({
-    ...m,
-    price:         Number(m.price),
-    weekend_price: m.weekend_price ? Number(m.weekend_price) : null,
-    seasons: m.seasons.map((s) => ({
-      ...s,
-      price:         Number(s.price),
-      weekend_price: s.weekend_price ? Number(s.weekend_price) : null,
-    })),
-  }));
+  try {
+    const rows = await db.hotel_meal_pricing.findMany({
+      where: { hotel_id },
+      orderBy: { sort_order: "asc" },
+      include: { seasons: { orderBy: { sort_order: "asc" } } },
+    });
+    return rows.map((m) => ({
+      ...m,
+      price:         Number(m.price),
+      weekend_price: m.weekend_price ? Number(m.weekend_price) : null,
+      seasons: m.seasons.map((s) => ({
+        ...s,
+        price:         Number(s.price),
+        weekend_price: s.weekend_price ? Number(s.weekend_price) : null,
+      })),
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export async function createMealPricing(
@@ -1532,21 +1558,25 @@ export type AddonInput = {
 };
 
 export async function getHotelAddons(hotel_id: number): Promise<HotelAddon[]> {
-  const rows = await db.hotel_addons.findMany({
-    where: { hotel_id },
-    orderBy: { sort_order: "asc" },
-    include: { seasons: { orderBy: { sort_order: "asc" } } },
-  });
-  return rows.map((a) => ({
-    ...a,
-    price:         Number(a.price),
-    weekend_price: a.weekend_price ? Number(a.weekend_price) : null,
-    seasons: a.seasons.map((s) => ({
-      ...s,
-      price:         Number(s.price),
-      weekend_price: s.weekend_price ? Number(s.weekend_price) : null,
-    })),
-  }));
+  try {
+    const rows = await db.hotel_addons.findMany({
+      where: { hotel_id },
+      orderBy: { sort_order: "asc" },
+      include: { seasons: { orderBy: { sort_order: "asc" } } },
+    });
+    return rows.map((a) => ({
+      ...a,
+      price:         Number(a.price),
+      weekend_price: a.weekend_price ? Number(a.weekend_price) : null,
+      seasons: a.seasons.map((s) => ({
+        ...s,
+        price:         Number(s.price),
+        weekend_price: s.weekend_price ? Number(s.weekend_price) : null,
+      })),
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export async function createAddon(
