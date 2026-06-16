@@ -759,8 +759,8 @@ function RoomForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <div className="space-y-1.5">
+      <div className="flex gap-3">
+        <div className="flex-1 space-y-1.5">
           <Label className="text-sm text-dashboard-base-content">Bed Type</Label>
           <SearchableSelect
             options={BED_TYPES}
@@ -772,11 +772,9 @@ function RoomForm({
         </div>
         <div className="space-y-1.5">
           <Label className="text-sm text-dashboard-base-content">Bed Count</Label>
-          <div className="w-fit">
-            <Stepper value={form.bed_count} onChange={(v) => update("bed_count", v)} min={1} max={10} />
-          </div>
+          <Stepper value={form.bed_count} onChange={(v) => update("bed_count", v)} min={1} max={10} />
         </div>
-        <div className="space-y-1.5">
+        <div className="flex-1 space-y-1.5">
           <Label className="text-sm text-dashboard-base-content">View Type</Label>
           <SearchableSelect
             options={VIEW_TYPES}
@@ -786,9 +784,7 @@ function RoomForm({
             searchPlaceholder="Search view…"
           />
         </div>
-      </div>
-      <div className="grid grid-cols-3 gap-3">
-        <div className="space-y-1.5">
+        <div className="w-32 space-y-1.5">
           <Label className="text-sm text-dashboard-base-content">Area (sq ft)</Label>
           <Input type="number" placeholder="350" value={form.area_sqft}
             onChange={(e) => update("area_sqft", e.target.value)}
