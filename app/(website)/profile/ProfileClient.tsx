@@ -14,7 +14,7 @@ import {
   ArrowRightOnRectangleIcon,
   CalendarIcon
 } from '@heroicons/react/24/outline'
-
+  
 import {MapPinIcon,StarIcon,GlobeAltIcon} from '@heroicons/react/24/solid'
 
 import { SuitcaseRollingIcon } from '@phosphor-icons/react'

@@ -847,41 +847,44 @@ model policies {
 }
 
 model hotels {
-  id               Int                      @id @default(autoincrement())
-  name             String
-  slug             String                   @unique
-  description      String?
-  meta_title       String?
-  meta_desc        String?
-  destination_id   Int
-  address          String?
-  category         String?
-  stay_type        String?
-  check_in_time    String?
-  check_out_time   String?
-  is_active        Boolean                  @default(true)
-  created_at       DateTime                 @default(now())
-  updated_at       DateTime                 @updatedAt
-  thumbnail        String?
-  city             String?
-  state            String?
-  country          String?
-  pincode          String?
-  business_phone            String?
-  business_email            String?
-  whatsapp_number String?
-  b2b_email       String?
-  location_id               BigInt?
-  bookingHotels    BookingHotel[]
-  childPolicies    hotel_child_policies[]
-  image_categories hotel_image_categories[]
-  images           hotel_images[]
-  room_pricing     hotel_room_pricing[]
-  meal_pricing     hotel_meal_pricing[]
-  hotelRooms       hotel_rooms[]
-  destination      destinations             @relation(fields: [destination_id], references: [id])
-  location         Location?                @relation(fields: [location_id], references: [id])
-  packageBookings  PackageBookingHotel[]
+  id                Int                      @id @default(autoincrement())
+  name              String
+  slug              String                   @unique
+  description       String?
+  meta_title        String?
+  meta_desc         String?
+  destination_id    Int
+  address           String?
+  category          String?
+  stay_type         String?
+  check_in_time     String?
+  check_out_time    String?
+  is_active         Boolean                  @default(true)
+  created_at        DateTime                 @default(now())
+  updated_at        DateTime                 @updatedAt
+  thumbnail         String?
+  city              String?
+  state             String?
+  country           String?
+  pincode           String?
+  business_phone    String?
+  business_email    String?
+  whatsapp_number   String?
+  b2b_email         String?
+  location_id       BigInt?
+  margin_percentage Decimal                  @default(10) @db.Decimal(5, 2)
+  gst_percentage    Decimal                  @default(18) @db.Decimal(5, 2)
+  bookingHotels     BookingHotel[]
+  childPolicies     hotel_child_policies[]
+  image_categories  hotel_image_categories[]
+  images            hotel_images[]
+  room_pricing      hotel_room_pricing[]
+  meal_pricing      hotel_meal_pricing[]
+  addons            hotel_addons[]
+  hotelRooms        hotel_rooms[]
+  destination       destinations             @relation(fields: [destination_id], references: [id])
+  location          Location?                @relation(fields: [location_id], references: [id])
+  packageBookings   PackageBookingHotel[]
 
   @@index([destination_id, is_active])
   @@index([location_id])
@@ -1062,6 +1065,43 @@ model hotel_meal_pricing_season {
 
   @@index([meal_pricing_id])
   @@map("hotel_meal_pricing_seasons")
+}
+
+model hotel_addons {
+  id            Int                   @id @default(autoincrement())
+  hotel_id      Int
+  label         String
+  description   String?
+  charge_type   String // PER_PERSON | PER_ROOM | PER_BOOKING
+  price         Decimal               @db.Decimal(10, 2)
+  weekend_price Decimal?              @db.Decimal(10, 2)
+  is_active     Boolean               @default(true)
+  sort_order    Int                   @default(0)
+  created_at    DateTime              @default(now())
+  updated_at    DateTime              @updatedAt
+  hotel         hotels                @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
+  seasons       hotel_addon_seasons[]
+
+  @@index([hotel_id])
+  @@map("hotel_addons")
+}
+
+model hotel_addon_seasons {
+  id            Int          @id @default(autoincrement())
+  addon_id      Int
+  season_name   String
+  valid_from    DateTime
+  valid_to      DateTime
+  price         Decimal      @db.Decimal(10, 2)
+  weekend_price Decimal?     @db.Decimal(10, 2)
+  is_active     Boolean      @default(true)
+  sort_order    Int          @default(0)
+  created_at    DateTime     @default(now())
+  updated_at    DateTime     @updatedAt
+  addon         hotel_addons @relation(fields: [addon_id], references: [id], onDelete: Cascade)
+
+  @@index([addon_id])
+  @@map("hotel_addon_seasons")
 }
 
 model hotel_room_occupancy_prices {
@@ -1282,6 +1322,7 @@ model packages {
   gallery         package_gallery[]
   images          package_images[]
   itineraries     package_itineraries[]
+  permits         package_permits[]
   policies        package_policy_map[]
   packagePricings package_pricing[]
   packageRoutes   package_routes[]
@@ -1323,6 +1364,7 @@ model package_durations {
   cabTypes      package_cab_types[]
   package       packages              @relation(fields: [package_id], references: [id])
   itineraries   package_itineraries[]
+  permits       package_permits[]
   pricing       package_pricing[]
   routes        package_routes[]
 
@@ -1729,6 +1771,24 @@ model package_cab_types {
   @@unique([package_id, duration_id, vehicle_id])
   @@index([package_id, duration_id])
   @@map("package_cab_types")
+}
+
+// Permits required for a duration's itinerary (e.g. wildlife sanctuary entry).
+// When is_included is true, the price is folded into the package's base cost.
+model package_permits {
+  id          Int               @id @default(autoincrement())
+  package_id  Int
+  duration_id Int
+  name        String
+  price       Decimal           @default(0) @db.Decimal(10, 2)
+  is_included Boolean           @default(true)
+  sort_order  Int               @default(0)
+  created_at  DateTime          @default(now())
+  updated_at  DateTime          @updatedAt
+  duration    package_durations @relation(fields: [duration_id], references: [id], onDelete: Cascade)
+  package     packages          @relation(fields: [package_id], references: [id], onDelete: Cascade)
+
+  @@index([package_id, duration_id])
 }
 
 model package_cab_segments {

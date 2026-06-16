@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion'
 import Button from '@/app/components/ui/Button';
@@ -128,6 +128,7 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
 
     ShowLogin();
     const router = useRouter()
+    const [isPending, startTransition] = useTransition()
 
     const [currentIndex, setCurrentIndex] = useState(0)
     const [prevIndex, setPrevIndex] = useState<number | null>(null)
@@ -154,7 +155,7 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
         }
         params.set('adults', String(travellers.adults))
         if (travellers.childrenAges.length) params.set('children', travellers.childrenAges.join(','))
-        router.push(`/packages?${params.toString()}`)
+        startTransition(() => { router.push(`/packages?${params.toString()}`) })
     }
 
     const bgImages = images && images.length > 0 ? images : DEFAULT_IMAGES
@@ -263,14 +264,15 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
 
                             {/* Tabs — Holidays is live; Hotels & Cabs are coming soon. Floats above the card. */}
                             <div className="flex justify-center -mt-12 mb-6">
-                                <div className="inline-flex items-stretch gap-1 rounded-2xl bg-white p-1.5 shadow-xl shadow-black/15">
+                                <div role="tablist" aria-label="Search type" className="inline-flex items-stretch gap-1 rounded-2xl bg-white p-1.5 shadow-xl shadow-black/15">
                                     {HERO_TABS.map(({ key, label, Icon, soon }) => {
                                         const active = key === 'holidays'
                                         return (
                                             <button
                                                 key={key}
                                                 type="button"
-                                                aria-current={active ? 'page' : undefined}
+                                                role="tab"
+                                                aria-selected={active}
                                                 onClick={() => { if (soon) comingSoonToast(label) }}
                                                 className={`flex flex-col items-center justify-center gap-1 rounded-xl px-5 sm:px-7 py-2 transition-colors cursor-pointer ${active
                                                     ? 'bg-primary-500 text-white'
@@ -285,6 +287,11 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
                                 </div>
                             </div>
 
+                            <form
+                                role="search"
+                                aria-label="Search holiday packages"
+                                onSubmit={(e) => { e.preventDefault(); if (!isPending) handleSearch() }}
+                            >
                             {/* Fields */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
 
@@ -331,15 +338,18 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
                             {/* Search */}
                             <div className="flex flex-col items-center mt-7 translate-y-1/2">
                                 <Button
+                                    type="submit"
                                     variant="premium"
                                     size="lg"
-                                    onClick={handleSearch}
+                                    loading={isPending}
+                                    disabled={isPending}
                                     className="rounded-pill  font-bold text-base shadow-lg shadow-red-400/40 hover:shadow-red-400/60 hover:scale-105 flex items-center gap-2"
                                 >
                                     <MagnifyingGlassIcon weight="bold" className="size-5" />
-                                    Search Packages
+                                    {isPending ? 'Searching…' : 'Search Packages'}
                                 </Button>
                             </div>
+                            </form>
                         </div>
                     </div>
                 </div>

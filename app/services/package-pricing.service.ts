@@ -121,6 +121,8 @@ export type FullPricingBreakdown = {
   cab_type_label: string | null;
   cab_subtotal: number;
   cab_segments: CabSegmentBreakdown[];
+  permit_subtotal: number;
+  permits: { name: string; price: number }[];
   base_cost: number;
   margin_percentage: number;
   margin_amount: number;
@@ -336,7 +338,7 @@ export async function computePackagePrice(
 
   const travelDateObj = travel_date ? new Date(travel_date) : null;
 
-  const [itineraries, pricingConfig, duration, stayCategory, loadedCabTypes] = await Promise.all([
+  const [itineraries, pricingConfig, duration, stayCategory, loadedCabTypes, includedPermits] = await Promise.all([
     db.package_itineraries.findMany({
       where: { package_id, duration_id, route_id },
       orderBy: { day: "asc" },
@@ -455,6 +457,12 @@ export async function computePackagePrice(
           },
         },
       },
+    }),
+    // Permits included in the package price for this duration
+    db.package_permits.findMany({
+      where: { package_id, duration_id, is_included: true },
+      orderBy: { sort_order: "asc" },
+      select: { name: true, price: true },
     }),
   ]);
 
@@ -958,7 +966,10 @@ export async function computePackagePrice(
     }
   }
 
-  const base_cost = hotel_subtotal + meal_subtotal + activity_subtotal + cab_subtotal;
+  const permits = includedPermits.map((p) => ({ name: p.name, price: Number(p.price) }));
+  const permit_subtotal = permits.reduce((sum, p) => sum + p.price, 0);
+
+  const base_cost = hotel_subtotal + meal_subtotal + activity_subtotal + cab_subtotal + permit_subtotal;
   const margin_amount = Math.round((base_cost * margin_percentage) / 100 * 100) / 100;
   const taxable = base_cost + margin_amount;
   const gst_amount = Math.round((taxable * gst_percentage) / 100 * 100) / 100;
@@ -977,6 +988,8 @@ export async function computePackagePrice(
     cab_type_label,
     cab_subtotal,
     cab_segments,
+    permit_subtotal,
+    permits,
     base_cost,
     margin_percentage,
     margin_amount,

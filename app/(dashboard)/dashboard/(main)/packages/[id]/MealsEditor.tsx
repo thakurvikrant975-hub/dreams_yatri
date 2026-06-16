@@ -79,24 +79,26 @@ export default function MealsEditor({
   excludedMeals,
   onExcludedChange,
   stays,
-  onStaysChange,
   previousDayStays,
   packageId,
   activities,
   disabled,
   sectionRef,
+  savingMealStayId,
+  onToggleStayMeal,
 }: {
   meals: string[];
   onChange: (meals: string[]) => void;
   excludedMeals: string[];
   onExcludedChange: (excluded: string[]) => void;
   stays: StayItem[];
-  onStaysChange: (stays: StayItem[]) => void;
   previousDayStays: StayItem[];
   packageId: number;
   activities: ActivityItem[];
   disabled?: boolean;
   sectionRef?: React.Ref<HTMLDivElement>;
+  savingMealStayId: number | null;
+  onToggleStayMeal: (stay: StayItem, slot: string, forceOff?: boolean) => Promise<void>;
 }) {
   const [savingStayId, setSavingStayId] = useState<number | null>(null);
   // Local copy so optimistic toggles on the previous day's breakfast work
@@ -148,12 +150,12 @@ export default function MealsEditor({
   }
 
   async function toggleHotelMeal(stay: StayItem, slot: string, forceOff = false) {
+    const isPrev = localPrevStays.some((s) => s.id === stay.id);
+    if (!isPrev) { await onToggleStayMeal(stay, slot, forceOff); return; }
     const has = stay.active_meals.includes(slot);
     if (forceOff && !has) return;
     const next = forceOff || has ? stay.active_meals.filter((m) => m !== slot) : [...stay.active_meals, slot];
-    const isPrev = localPrevStays.some((s) => s.id === stay.id);
-    if (isPrev) setLocalPrevStays((prev) => prev.map((s) => (s.id === stay.id ? { ...s, active_meals: next } : s)));
-    else onStaysChange(stays.map((s) => (s.id === stay.id ? { ...s, active_meals: next } : s)));
+    setLocalPrevStays((prev) => prev.map((s) => (s.id === stay.id ? { ...s, active_meals: next } : s)));
     setSavingStayId(stay.id);
     await handleUpdateStayActiveMeals(stay.id, next, packageId);
     setSavingStayId(null);
@@ -214,7 +216,7 @@ export default function MealsEditor({
           // Snacks: only show when a source can actually provide them.
           if (!STANDARD_SLOTS.has(slot) && !hasSource) return null;
 
-          const isSaving = rStays.some((s) => savingStayId === s.id);
+          const isSaving = rStays.some((s) => savingStayId === s.id || savingMealStayId === s.id);
           const none = !anyOn(slot);
 
           return (

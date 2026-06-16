@@ -1,6 +1,9 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { ChevronLeft, Utensils } from "lucide-react";
+import { Skeleton } from "../../components/ui/skeleton";
 import { Button } from "../../components/ui/button";
+import { Card, CardContent, CardHeader } from "../../components/ui/card";
 import {
     Breadcrumb, BreadcrumbItem, BreadcrumbLink,
     BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
@@ -8,9 +11,53 @@ import {
 import { getMealTypes, createMealType, updateMealType, deleteMealType } from "../actions";
 import { MealTypeManagerClient } from "./MealTypeManagerClient";
 
-export default async function MealTypesPage() {
+// Async sub-component — isolated so Suspense can stream just this part
+async function MealTypeData() {
     const mealTypes = await getMealTypes();
+    return (
+        <MealTypeManagerClient
+            items={mealTypes}
+            onCreate={createMealType}
+            onUpdate={updateMealType}
+            onDelete={deleteMealType}
+        />
+    );
+}
 
+export function MealTypesLoadingSkeleton() {
+    return (
+        <Card className="rounded-2xl">
+            <CardHeader>
+                <div className="flex items-center justify-between">
+                    <div className="space-y-1.5">
+                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-3 w-64" />
+                    </div>
+                    <Skeleton className="h-6 w-8 rounded-full" />
+                </div>
+            </CardHeader>
+            <CardContent className="space-y-2">
+                {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="flex items-center justify-between rounded-lg px-3 py-2 bg-muted/30">
+                        <div className="space-y-1.5">
+                            <Skeleton className="h-4 w-32" />
+                            <div className="flex gap-1">
+                                <Skeleton className="h-5 w-20 rounded" />
+                                <Skeleton className="h-5 w-16 rounded" />
+                            </div>
+                        </div>
+                        <div className="flex gap-1">
+                            <Skeleton className="h-7 w-7 rounded-md" />
+                            <Skeleton className="h-7 w-7 rounded-md" />
+                        </div>
+                    </div>
+                ))}
+            </CardContent>
+        </Card>
+    );
+}
+
+export default function MealTypesPage() {
     return (
         <div className="space-y-6">
             <Breadcrumb>
@@ -38,14 +85,9 @@ export default async function MealTypesPage() {
                 </div>
             </div>
 
-            <div>
-                <MealTypeManagerClient
-                    items={mealTypes}
-                    onCreate={createMealType}
-                    onUpdate={updateMealType}
-                    onDelete={deleteMealType}
-                />
-            </div>
+            <Suspense fallback={<MealTypesLoadingSkeleton />}>
+                <MealTypeData />
+            </Suspense>
         </div>
     );
 }

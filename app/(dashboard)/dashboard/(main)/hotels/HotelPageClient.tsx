@@ -47,10 +47,16 @@ function TableSkeleton() {
 // ── Async data component ──────────────────────────────────────────────────
 
 async function HotelsData({ params }: { params: GetHotelsParams }) {
-    const [{ hotels, totalCount, stats }, destinations] = await Promise.all([
+    const [{ hotels: rawHotels, totalCount, stats }, destinations] = await Promise.all([
         getHotels(params),
         getDestinationsForHotelFilter(),
     ]);
+
+    const hotels = rawHotels.map((h) => ({
+        ...h,
+        margin_percentage: Number(h.margin_percentage),
+        gst_percentage:    Number(h.gst_percentage),
+    }));
 
     return (
         <>

@@ -57,6 +57,10 @@ export async function getPackageForBuilder(id: number) {
           gst_percentage: true,
         },
       },
+      permits: {
+        orderBy: [{ duration_id: "asc" }, { sort_order: "asc" }],
+        select: { id: true, duration_id: true, name: true, price: true, is_included: true, sort_order: true },
+      },
       cabTypes: {
         orderBy: [{ duration_id: "asc" }, { sort_order: "asc" }],
         include: {
@@ -129,6 +133,14 @@ export async function getPackageForBuilder(id: number) {
       stay_category_id: p.stay_category_id,
       margin_percentage: Number(p.margin_percentage),
       gst_percentage: Number(p.gst_percentage),
+    })),
+    permits: pkg.permits.map((p) => ({
+      id: p.id,
+      duration_id: p.duration_id,
+      name: p.name,
+      price: Number(p.price),
+      is_included: p.is_included,
+      sort_order: p.sort_order,
     })),
     cabTypes: pkg.cabTypes.map((ct) => ({
       id: ct.id,

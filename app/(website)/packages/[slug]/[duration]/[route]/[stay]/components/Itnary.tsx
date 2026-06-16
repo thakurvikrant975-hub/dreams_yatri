@@ -181,6 +181,15 @@ const mealLabel: Record<MealType, string> = {
   dinner: 'Dinner',
 };
 
+const PILL_CLASSES: Record<string, { wrapper: string; link: string }> = {
+  brand:   { wrapper: 'bg-primary-50 text-primary',     link: 'text-brand' },
+  error:   { wrapper: 'bg-error-50 text-error-600',     link: 'text-error-600' },
+  success: { wrapper: 'bg-success-50 text-success-600', link: 'text-success-600' },
+  warning: { wrapper: 'bg-warning-50 text-warning-600', link: 'text-warning-600' },
+  info:    { wrapper: 'bg-info-50 text-info-600',       link: 'text-info-600' },
+  neutral: { wrapper: 'bg-neutral-50 text-secondary',   link: 'text-primary' },
+};
+
 // ─── Note Block ───────────────────────────────────────────────────────────────
 
 function NoteBlock({
@@ -298,44 +307,19 @@ function TravelStop({ stop }: { stop: RouteStop }) {
                 dangerouslySetInnerHTML={{ __html: stop.note }}
               />
             )}
-            {stop.notePill && (
-              <div className={cn(
-                'mt-1.5 rounded-b-2xl px-3.5 py-2.5 text-[12.5px] ',
-                stop.notePill.linkVariant === 'brand'
-                  ? 'bg-primary-50 text-primary' :
-                  stop.notePill.linkVariant === 'error'
-                    ? 'bg-error-50 text-error-600' :
-                    stop.notePill.linkVariant === 'success'
-                      ? 'bg-success-50 text-success-600' :
-                      stop.notePill.linkVariant === 'warning'
-                        ? 'bg-warning-50 text-warning-600' :
-                        stop.notePill.linkVariant === 'info'
-                          ? 'bg-info-50 text-info-600'
-                          : 'bg-neutral-50  text-secondary'
-              )}>
-                {stop.notePill.text}{' '}
-                {stop.notePill.linkText && (
-                  <span className={cn(
-                    'font-semibold cursor-pointer',
-                    stop.notePill.linkVariant === 'brand'
-                      ? 'text-brand' :
-                      stop.notePill.linkVariant === 'error'
-                        ? 'text-error-600' :
-                        stop.notePill.linkVariant === 'success'
-                          ? 'text-success-600' :
-                          stop.notePill.linkVariant === 'warning'
-                            ? 'text-warning-600' :
-                            stop.notePill.linkVariant === 'info'
-                              ? 'text-info-600' :
-                              stop.notePill.linkVariant === 'neutral'
-                                ? 'text-primary'
-                                : 'text-brand'
-                  )}>
-                    {stop.notePill.linkText}
-                  </span>
-                )}
-              </div>
-            )}
+            {stop.notePill && (() => {
+              const pill = PILL_CLASSES[stop.notePill.linkVariant ?? 'neutral'] ?? PILL_CLASSES.neutral;
+              return (
+                <div className={cn('mt-1.5 rounded-b-2xl px-3.5 py-2.5 text-[12.5px]', pill.wrapper)}>
+                  {stop.notePill.text}{' '}
+                  {stop.notePill.linkText && (
+                    <span className={cn('font-semibold cursor-pointer', pill.link)}>
+                      {stop.notePill.linkText}
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>
@@ -382,26 +366,19 @@ function RouteStop({
             {stop.note}
           </Text>
         )}
-        {stop.notePill && (
-          <div className={cn(
-            'mt-1.5 rounded-lg px-3 py-2 text-[12.5px] border ',
-            stop.notePill.linkVariant === 'brand'
-              ? 'bg-primary-50 border-primary-100 text-primary'
-              : 'bg-error-50 border-error-100 text-primary'
-          )}>
-            {stop.notePill.text}{' '}
-            {stop.notePill.linkText && (
-              <span className={cn(
-                'font-semibold cursor-pointer',
-                stop.notePill.linkVariant === 'brand'
-                  ? 'text-brand'
-                  : 'text-error-500'
-              )}>
-                {stop.notePill.linkText}
-              </span>
-            )}
-          </div>
-        )}
+        {stop.notePill && (() => {
+          const pill = PILL_CLASSES[stop.notePill.linkVariant ?? 'neutral'] ?? PILL_CLASSES.neutral;
+          return (
+            <div className={cn('mt-1.5 rounded-lg px-3 py-2 text-[12.5px]', pill.wrapper)}>
+              {stop.notePill.text}{' '}
+              {stop.notePill.linkText && (
+                <span className={cn('font-semibold cursor-pointer', pill.link)}>
+                  {stop.notePill.linkText}
+                </span>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
@@ -507,7 +484,7 @@ function CabContent({ section, day }: { section: CabSection; day?: number }) {
           )}
 
           {/* Route: pickup → drop */}
-          <div className="flex items-stretch gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
             <CabRoute
               from={section.from.value}
               to={section.to.value}
@@ -516,11 +493,13 @@ function CabContent({ section, day }: { section: CabSection; day?: number }) {
 
             {/* Vehicle image */}
             {(resolvedImage || resolvedName) && (
-              <div className="relative h-36 aspect-video shrink-0 rounded-2xl overflow-hidden bg-neutral-100">
-                <img
+              <div className="relative h-36 w-full sm:w-auto sm:aspect-video sm:shrink-0 rounded-2xl overflow-hidden bg-neutral-100">
+                <Image
                   src={resolvedImage || CAB_PLACEHOLDER}
                   alt={resolvedName ?? "Vehicle"}
-                  className="w-full h-full object-cover"
+                  fill
+                  sizes="(min-width: 640px) 256px, 100vw"
+                  className="object-cover"
                 />
                 <div className="absolute inset-0 bg-linear-to-t from-black/55 via-black/10 to-transparent" />
                 {!resolvedImage && (
@@ -699,7 +678,7 @@ function StayContent({ section }: { section: StaySection }) {
           )}
         </div>
 
-        <div className="flex gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
           {/* ── Left: details ── */}
           <div className="flex-1 flex flex-col gap-2.5 min-w-0">
 
@@ -784,8 +763,8 @@ function StayContent({ section }: { section: StaySection }) {
           </div>
 
           {section.images.length > 0 && (
-            <div>
-              <div className="grid grid-cols-4 grid-rows-4 gap-0.5 rounded-2xl overflow-hidden h-52 shrink-0 w-64">
+            <div className="sm:shrink-0 sm:w-64">
+              <div className="grid grid-cols-4 grid-rows-4 gap-0.5 rounded-2xl overflow-hidden h-44 sm:h-52 w-full">
                 {section.images.slice(0, 5).map((src, i) => (
                   <button
                     key={i}
@@ -797,10 +776,13 @@ function StayContent({ section }: { section: StaySection }) {
                       i === 0 && 'row-span-3 col-span-4',
                     )}
                   >
-                    <img
+                    <Image
                       src={src}
                       alt={i === 0 ? section.hotelName : `${section.hotelName} photo ${i + 1}`}
-                      className="w-full h-full object-cover transition-opacity hover:opacity-90"
+                      fill
+                      sizes="(min-width: 640px) 256px, 100vw"
+                      className="object-cover transition-opacity hover:opacity-90"
+                      priority={i === 0}
                     />
                   </button>
                 ))}
@@ -907,15 +889,17 @@ function ActivityContent({ section }: { section: ActivitySection }) {
               perView={3}
               gap={6}
               renderItem={({ src, label }, idx) => (
-                <div
-                  className="relative rounded-xl overflow-hidden cursor-pointer"
+                <button
+                  type="button"
+                  aria-label={`View ${label} photo ${idx + 1}`}
                   onClick={() => setLightboxIdx(idx)}
+                  className="relative rounded-xl overflow-hidden w-full focus-visible:outline-2 focus-visible:outline-primary-400 focus-visible:-outline-offset-2"
                 >
                   <Image src={src} alt={label} width={1000} height={600} className="w-full aspect-5/3 object-cover hover:scale-[1.03] transition-transform duration-300" />
                   <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-neutral-900/80 via-neutral-900/60 to-transparent px-2 py-1.5 pt-3">
                     <p className="text-sm text-white font-medium truncate">{label}</p>
                   </div>
-                </div>
+                </button>
               )}
             />
             {lightboxIdx !== null && (

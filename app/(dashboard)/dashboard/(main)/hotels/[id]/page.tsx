@@ -14,13 +14,14 @@ import {
     getMealTypes,
     getDietTypes,
     getMealPricings,
+    getHotelAddons,
 } from "../actions";
 import { DetailsTab } from "./tabs/DetailsTab";
 import { RoomsTab } from "./tabs/RoomsTab";
 import { PricingTab } from "./tabs/PricingTab";
 import { ChildPoliciesTab } from "./tabs/ChildPoliciesTab";
 import { ImagesTab } from "./tabs/ImagesTab";
-import { MealsTab } from "./tabs/MealsTab";
+import { MealsAndAddonsTab } from "./tabs/MealsAndAddonsTab";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
     const { id: idStr } = await params;
@@ -36,12 +37,13 @@ export default async function HotelEditPage({
     const { id: idStr } = await params;
     const id = Number(idStr);
 
-    const [hotel, destinations, mealTypes, dietTypes, mealPricings] = await Promise.all([
+    const [hotel, destinations, mealTypes, dietTypes, mealPricings, addons] = await Promise.all([
         getHotelById(id),
         getDestinationsForSelect(),
         getMealTypes(),
         getDietTypes(),
         getMealPricings(id),
+        getHotelAddons(id),
     ]);
 
     if (!hotel) notFound();
@@ -63,6 +65,8 @@ export default async function HotelEditPage({
 
     const serializedHotel = {
         ...hotel,
+        margin_percentage: Number(hotel.margin_percentage),
+        gst_percentage:    Number(hotel.gst_percentage),
         location: serializedLocation,
         childPolicies: hotel.childPolicies.map((p) => ({
             ...p,
@@ -186,10 +190,10 @@ const serializedCategories = hotel.image_categories.map((cat) => ({
                         )}
                     </TabsTrigger>
                     <TabsTrigger value="meals">
-                        Meals
-                        {mealPricings.length > 0 && (
+                        Meals &amp; Add-ons
+                        {(mealPricings.length + addons.length) > 0 && (
                             <Badge variant="secondary" className="ml-2 text-xs px-1.5 py-0">
-                                {mealPricings.length}
+                                {mealPricings.length + addons.length}
                             </Badge>
                         )}
                     </TabsTrigger>
@@ -251,7 +255,7 @@ const serializedCategories = hotel.image_categories.map((cat) => ({
                 </TabsContent>
 
                 <TabsContent value="meals" className="mt-6">
-                    <MealsTab hotel_id={id} initialMeals={mealPricings} />
+                    <MealsAndAddonsTab hotel_id={id} initialMeals={mealPricings} initialAddons={addons} />
                 </TabsContent>
 
                 <TabsContent value="images" className="mt-6">

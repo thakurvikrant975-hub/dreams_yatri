@@ -10,14 +10,33 @@ import { Heading, Text } from "@/app/components/ui/Typography";
 import DestinationsListClient from "./DestinationsListClient";
 import Header from "@/app/components/navigation/Header";
 import Footer from "@/app/components/navigation/Footer";
+import { SITE_CONFIG, SITE_URL } from "@/app/lib/seo/site-config";
+
+const TITLE = "All Destinations | Dreams Yatri";
+const DESCRIPTION = "Explore our handpicked travel destinations across India and the world. Find the perfect place for your next holiday.";
+const CANONICAL = `${SITE_URL}/destination`;
 
 export const metadata: Metadata = {
-  title: "All Destinations | Dreams Yatri",
-  description:
-    "Explore our handpicked travel destinations across India and the world. Find the perfect place for your next holiday.",
+  title: TITLE,
+  description: DESCRIPTION,
+  alternates: { canonical: CANONICAL },
+  openGraph: {
+    title: TITLE,
+    description: DESCRIPTION,
+    url: CANONICAL,
+    siteName: SITE_CONFIG.name,
+    type: "website",
+    images: [{ url: SITE_CONFIG.defaultOgImage, width: 1200, height: 630, alt: TITLE }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: TITLE,
+    description: DESCRIPTION,
+    images: [SITE_CONFIG.defaultOgImage],
+  },
 };
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600;
 
 function parseFilters(sp: {
   type?: string;

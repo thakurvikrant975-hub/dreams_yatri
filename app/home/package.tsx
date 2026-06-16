@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import PackageCard from '@/app/components/packages/Packages'
 import Button from '@/app/components/ui/Button'
 import Tabs from '@/app/components/ui/Tabs'
@@ -27,7 +27,6 @@ const CATEGORY_TABS = [
 ]
 
 export default function TrendingPackages({ packages }: TrendingPackagesProps) {
-    const router = useRouter()
     const [activeTab, setActiveTab] = useState('trending')
 
     return (
@@ -235,52 +234,44 @@ export default function TrendingPackages({ packages }: TrendingPackagesProps) {
                         onTabChange={setActiveTab}
                         idPrefix="home-pkg"
                         trailing={
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="flex items-center gap-1.5 text-primary-500 hover:text-primary-600 font-semibold"
-                                onClick={() => router.push('/packages')}
-                            >
+                            <Link href="/packages" className="flex items-center gap-1.5 text-sm font-semibold text-primary-500 hover:text-primary-600 transition-colors">
                                 View All
                                 <ArrowRightIcon className="size-4" weight="bold" />
-                            </Button>
+                            </Link>
                         }
                     />
                 </div>
 
                 {/* ── Package grid ── */}
                 <PackageGrid>
-                    {packages.map((pkg) => (
-                        <PackageCard
+                    {packages.map((pkg, index) => (
+                        <Link
                             key={pkg.id}
-                            title={pkg.title}
-                            images={pkg.images}
-                            duration={pkg.duration}
-                            rating={4.8}
-                            reviewCount={0}
-                            itinerary={pkg.itinerary}
-                            originalPrice={pkg.originalPrice}
-                            discountedPrice={pkg.discountedPrice}
-                            inclusions={['hotel', 'meals', 'cab']}
-                            onClick={() => router.push(
-                                `/packages/${pkg.slug}/${pkg.durationSlug}/${pkg.routeSlug}/${pkg.staySlug}`,
-                                { scroll: false }
-                            )}
-                        />
+                            href={`/packages/${pkg.slug}/${pkg.durationSlug}/${pkg.routeSlug}/${pkg.staySlug}`}
+                            className="block"
+                        >
+                            <PackageCard
+                                title={pkg.title}
+                                images={pkg.images}
+                                duration={pkg.duration}
+                                itinerary={pkg.itinerary}
+                                originalPrice={pkg.originalPrice}
+                                discountedPrice={pkg.discountedPrice}
+                                isPriority={index < 3}
+                            />
+                        </Link>
                     ))}
                 </PackageGrid>
 
                 {/* ── View All — mobile ── */}
                 <div className="flex justify-center mt-8 sm:hidden">
-                    <Button
-                        variant="outline"
-                        size="md"
-                        className="gap-2"
-                        onClick={() => router.push('/packages')}
+                    <Link
+                        href="/packages"
+                        className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-button ring-1 ring-inset ring-(--border-default) bg-white text-(--text-secondary) shadow-md shadow-neutral-200 hover:bg-neutral-50"
                     >
                         View All Packages
                         <ArrowRightIcon className="size-4" weight="bold" />
-                    </Button>
+                    </Link>
                 </div>
 
             </div>

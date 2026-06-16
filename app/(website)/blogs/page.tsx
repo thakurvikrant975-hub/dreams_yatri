@@ -1,5 +1,3 @@
-export const dynamic = "force-dynamic";
-
 import type { Metadata } from "next";
 import { PenLine } from "lucide-react";
 import { Heading, Text } from "@/app/components/ui/Typography";
@@ -7,16 +5,31 @@ import Breadcrumbs from "@/app/components/ui/Breadcrumps";
 import { getPublishedBlogs, getPublicBlogCategories } from "@/app/actions/blogs/public";
 import BlogListingClient from "./BlogListingClient";
 import WriteButton from "./WriteButton";
+import { SITE_CONFIG, SITE_URL } from "@/app/lib/seo/site-config";
+
+export const revalidate = 300;
+
+const TITLE = "Travel Stories & Blogs | DreamsYatri";
+const DESCRIPTION = "Real travel stories from real travellers. Discover tips, destinations, and experiences shared by the DreamsYatri community.";
+const CANONICAL = `${SITE_URL}/blogs`;
 
 export const metadata: Metadata = {
-  title: "Travel Stories & Blogs | DreamsYatri",
-  description:
-    "Real travel stories from real travellers. Discover tips, destinations, and experiences shared by the DreamsYatri community.",
-  alternates: { canonical: "/blogs" },
+  title: TITLE,
+  description: DESCRIPTION,
+  alternates: { canonical: CANONICAL },
   openGraph: {
-    title: "Travel Stories & Blogs | DreamsYatri",
-    description: "Real travel stories from real travellers.",
-    url: "/blogs",
+    title: TITLE,
+    description: DESCRIPTION,
+    url: CANONICAL,
+    siteName: SITE_CONFIG.name,
+    type: "website",
+    images: [{ url: SITE_CONFIG.defaultOgImage, width: 1200, height: 630, alt: TITLE }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: TITLE,
+    description: DESCRIPTION,
+    images: [SITE_CONFIG.defaultOgImage],
   },
 };
 

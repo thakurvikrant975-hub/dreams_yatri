@@ -215,6 +215,7 @@ export type PackagePageData = {
   tags: { name: string; slug: string }[];
   categories: { name: string; slug: string }[];
   policies: { type: string; title: string; points: string[] }[];
+  recentEnquiryCount: number;
 };
 
 // ── Main fetch ─────────────────────────────────────────────────────────────
@@ -360,7 +361,7 @@ export async function fetchPackagePageData(
   if (!selectedRoute || !selectedStay) return null;
 
   // ── Step 3: parallel fetch — itinerary + pricing config + cab types ────────
-  const [itineraries, pricingConfig, rawCabTypes] = await Promise.all([
+  const [itineraries, pricingConfig, rawCabTypes, recentEnquiryCount] = await Promise.all([
     db.package_itineraries.findMany({
       where: {
         package_id: pkg.id,
@@ -578,6 +579,13 @@ export async function fetchPackagePageData(
             },
           },
         },
+      },
+    }),
+
+    db.package_queries.count({
+      where: {
+        packageName: pkg.title,
+        createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
       },
     }),
   ]);
@@ -817,6 +825,7 @@ export async function fetchPackagePageData(
     tags: pkg.tags.map((t) => t.tag),
     categories: pkg.categories.map((c) => c.category),
     policies: pkg.policies.map((p) => ({ type: p.policy.type, title: p.policy.title, points: p.policy.points })),
+    recentEnquiryCount,
   };
 }
 

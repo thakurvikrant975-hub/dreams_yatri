@@ -3,7 +3,6 @@
 import React from 'react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { Heading } from '@/app/components/ui/Typography'
 import DestinationCard, { type DestinationCardProps } from '@/app/components/destinations/Destination'
 import Button from '@/app/components/ui/Button'
@@ -44,8 +43,6 @@ function DestinationRow({
     viewAllHref: string
     itemBasePath: string
 }) {
-    const router = useRouter()
-
     if (items.length === 0) return null
 
     return (
@@ -83,14 +80,15 @@ function DestinationRow({
             <Carousel
                 items={items}
                 renderItem={(item) => (
-                    <DestinationCard
-                        name={item.name}
-                        packageCount={item.packageCount}
-                        image={item.image}
-                        icon={item.icon}
-                        region={item.region}
-                        onClick={() => router.push(`${itemBasePath}/${item.slug}`)}
-                    />
+                    <Link href={`${itemBasePath}/${item.slug}`} className="block">
+                        <DestinationCard
+                            name={item.name}
+                            packageCount={item.packageCount}
+                            image={item.image}
+                            icon={item.icon}
+                            region={item.region}
+                        />
+                    </Link>
                 )}
                 perView={4.5}
                 gap={24}

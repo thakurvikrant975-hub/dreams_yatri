@@ -18,8 +18,8 @@ async function main() {
     {
       employeeId:        "DY100001",
       name:              "Devs",
-      email:             "devs@dreamsyatri.com",
-      password:          await hash("Devs@123", 12),
+      email:             "dev@dreamsyatri.com",
+      password:          await hash("Devs@#123", 12),
       roleId:            roleMap["sales"],
       designation:       "Sales Executive",
       joiningDate:       "2022-01-01",

@@ -1,12 +1,18 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Image from "next/image";
-import { fetchDestinationBySlug, fetchDestinationPackages } from "@/app/actions/destinations/fetch-destination-page";
+import { fetchDestinationBySlug, fetchDestinationPackages, getAllDestinationSlugs } from "@/app/actions/destinations/fetch-destination-page";
 import Breadcrumps from "@/app/components/ui/Breadcrumps";
 import { Heading, Text } from "@/app/components/ui/Typography";
 import DestinationPackagesList from "./DestinationPackagesList";
+import { SITE_CONFIG, SITE_URL } from "@/app/lib/seo/site-config";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600;
+
+export async function generateStaticParams() {
+    const slugs = await getAllDestinationSlugs();
+    return slugs.map((slug) => ({ slug }));
+}
 
 export async function generateMetadata({
     params,
@@ -16,9 +22,28 @@ export async function generateMetadata({
     const { slug } = await params;
     const dest = await fetchDestinationBySlug(slug);
     if (!dest) return { title: "Destination not found | Dreams Yatri" };
+    const title = dest.metaTitle ?? `${dest.name} Tour Packages | Dreams Yatri`;
+    const description = dest.metaDesc ?? dest.description ?? `Explore curated tour packages for ${dest.name}.`;
+    const canonical = `${SITE_URL}/destination/${slug}`;
+    const ogImage = dest.coverImage ?? SITE_CONFIG.defaultOgImage;
     return {
-        title: dest.metaTitle ?? `${dest.name} Tour Packages | Dreams Yatri`,
-        description: dest.metaDesc ?? dest.description ?? `Explore curated tour packages for ${dest.name}.`,
+        title,
+        description,
+        alternates: { canonical },
+        openGraph: {
+            title,
+            description,
+            url: canonical,
+            siteName: SITE_CONFIG.name,
+            type: "website",
+            images: [{ url: ogImage, width: 1200, height: 630, alt: dest.name }],
+        },
+        twitter: {
+            card: "summary_large_image",
+            title,
+            description,
+            images: [ogImage],
+        },
     };
 }
 

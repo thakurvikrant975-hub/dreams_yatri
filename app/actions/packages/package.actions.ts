@@ -80,27 +80,22 @@ export async function updatePackageBasicInfo(id: number, data: createPackagesTyp
     };
   }
 
-  // Slug uniqueness check — exclude the current package
-  const slugConflict = await db.packages.findFirst({
-    where: { slug: parsed.data.slug, NOT: { id } },
-    select: { id: true },
+  // Slug is immutable after creation (SEO) — load the existing one and ignore any submitted value
+  const current = await db.packages.findUnique({
+    where:  { id },
+    select: { title: true, slug: true, destination_id: true, is_active: true, inclusions: true, exclusions: true },
   });
 
-  if (slugConflict) {
+  if (!current) {
     return {
       success: false as const,
-      type: "conflict" as const,
-      message: "Slug already exists",
+      type: "server" as const,
+      message: "Package not found",
     };
   }
 
   try {
     const actor = await getActorName();
-
-    const current = await db.packages.findUnique({
-      where:  { id },
-      select: { title: true, slug: true, destination_id: true, is_active: true, inclusions: true, exclusions: true },
-    });
 
     // Upsert tags and categories so new names auto-create records
     const tagRecords = await Promise.all(
@@ -145,7 +140,7 @@ export async function updatePackageBasicInfo(id: number, data: createPackagesTyp
         where: { id },
         data: {
           title: parsed.data.title,
-          slug: parsed.data.slug,
+          // slug intentionally omitted — immutable after creation to preserve SEO
           thumbnail: parsed.data.thumbnail ?? null,
           description: parsed.data.description ?? null,
           destination_id: parsed.data.destination_id,
@@ -160,19 +155,17 @@ export async function updatePackageBasicInfo(id: number, data: createPackagesTyp
       action:       "UPDATE",
       entity:       "package",
       entityId:     String(id),
-      entitySlug:   parsed.data.slug,
-      previousData: current
-        ? {
-            title: current.title,
-            slug: current.slug,
-            destination_id: current.destination_id,
-            inclusions: current.inclusions,
-            exclusions: current.exclusions,
-          }
-        : undefined,
+      entitySlug:   current.slug,
+      previousData: {
+        title: current.title,
+        slug: current.slug,
+        destination_id: current.destination_id,
+        inclusions: current.inclusions,
+        exclusions: current.exclusions,
+      },
       newData: {
         title: parsed.data.title,
-        slug: parsed.data.slug,
+        slug: current.slug,
         destination_id: parsed.data.destination_id,
         inclusions: parsed.data.inclusions,
         exclusions: parsed.data.exclusions,

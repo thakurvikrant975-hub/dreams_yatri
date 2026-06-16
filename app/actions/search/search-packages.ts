@@ -40,13 +40,6 @@ export type SearchResult = {
   total: number;
 };
 
-// Deterministic fake MRP — mirrors PricingCard so the struck price is consistent.
-function fakeOriginalPrice(price: number): number {
-  if (price <= 0) return 0;
-  const seed = (price % 97) / 97;
-  const markup = 1.18 + seed * 0.26;
-  return Math.ceil((price * markup) / 100) * 100 - 1;
-}
 
 // ── Destination matching ──────────────────────────────────────────────────
 // Matches a destination to the selected location by intersecting their
@@ -163,7 +156,7 @@ export async function searchPackages(params: SearchParams): Promise<SearchResult
         staySlug: stay.slug,
         itinerary: route.stops.map((s) => ({ days: s.stay_days, place: s.place_name })),
         perPerson,
-        originalPerPerson: fakeOriginalPrice(perPerson),
+        originalPerPerson: 0,
         total,
         missingPricing,
       };
