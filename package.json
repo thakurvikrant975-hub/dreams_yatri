@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
+    "prod:local": "npm run build && next start -p 4000",
     "lint": "eslint",
     "seed:locations": "tsx --env-file=.env prisma/seed-locations.ts",
     "seed:blogs": "tsx --env-file=.env prisma/seeds/blogs.ts",
