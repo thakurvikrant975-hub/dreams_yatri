@@ -4,6 +4,7 @@ import { SalesDashboard } from "./components/dashboard/Salesdashboard";
 import { MarketingDashboard } from "./components/dashboard/Marketingdashboard";
 import { DefaultDashboard } from "./components/dashboard/Defaultdashboard";
 import { DataEntryDashboard } from "./components/dashboard/DataEntryDashboard";
+import { TravelExpertDashboard } from "./components/dashboard/TravelExpertDashboard";
 import DashboardHeader from "./components/dashboard/DashboardHeader";
 import { CurrentMember } from "@/app/types/members";
 
@@ -15,6 +16,7 @@ const ROLE_DASHBOARD_MAP: Record<string, DashboardComponent> = {
   marketing: MarketingDashboard,
   "data entry executive": DataEntryDashboard,
   "data entry operator": DataEntryDashboard,
+  "travel expert": TravelExpertDashboard,
 };
 
 export default async function DashboardPage() {
