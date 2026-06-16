@@ -7,6 +7,16 @@ import { z } from "zod";
 import { Prisma } from "@/app/generated/prisma";
 import { ALL_SYSTEM_HOTEL_CATEGORIES, REQUIRED_HOTEL_CATEGORIES } from "@/app/lib/hotelImageCategories";
 import { actionError } from "@/app/lib/action-error";
+import { dashboardAuth } from "@/app/lib/auth-dashboard";
+import { createLog } from "../lib/logger";
+
+// ── Auth helper ───────────────────────────────────────────────────────────
+
+async function requireSession() {
+  const session = await dashboardAuth();
+  const actorName = session?.user?.name ?? session?.user?.email ?? null;
+  return { session, actorName };
+}
 
 // ── Schemas ───────────────────────────────────────────────────────────────
 
@@ -66,6 +76,14 @@ const HOTEL_INCLUDE = {
   },
 } as const;
 
+// Extra scalar fields fetched alongside HOTEL_INCLUDE
+const HOTEL_SCALAR_SELECT = {
+  created_by: true,
+  updated_by: true,
+  created_at: true,
+  updated_at: true,
+} as const;
+
 export async function getHotels(params: GetHotelsParams = {}) {
   const {
     page        = 1,
@@ -103,6 +121,7 @@ export async function getHotels(params: GetHotelsParams = {}) {
       skip,
       take: limit,
       include: HOTEL_INCLUDE,
+      // created_by / updated_by are scalar fields — Prisma returns them by default
     }),
     db.hotels.count({ where }),
     db.hotels.count(),
@@ -123,6 +142,26 @@ export async function getDestinationsForHotelFilter() {
   return db.destinations.findMany({
     orderBy: { name: "asc" },
     select: { id: true, name: true },
+  });
+}
+
+export async function getHotelHistory(id: number) {
+  return db.activityLog.findMany({
+    where:   { entity: "Hotel", entityId: String(id) },
+    orderBy: { actionAt: "desc" },
+    select: {
+      id:           true,
+      action:       true,
+      description:  true,
+      userName:     true,
+      userEmail:    true,
+      previousData: true,
+      newData:      true,
+      metadata:     true,
+      status:       true,
+      actionAt:     true,
+    },
+    take: 50,
   });
 }
 
@@ -329,6 +368,8 @@ export async function createHotel(
   _prev: HotelFormState,
   formData: FormData,
 ): Promise<HotelFormState> {
+  const { session, actorName } = await requireSession();
+
   const raw = {
     name: formData.get("name"),
     slug: formData.get("slug"),
@@ -371,8 +412,8 @@ export async function createHotel(
 
     const newHotel = await db.$transaction(async (tx) => {
       const hotel = await tx.hotels.create({
-        data: { ...parsed.data },
-        select: { id: true },
+        data: { ...parsed.data, created_by: actorName, updated_by: actorName },
+        select: { id: true, name: true, slug: true },
       });
       await tx.hotel_image_categories.createMany({
         data: ALL_SYSTEM_HOTEL_CATEGORIES.map((cat) => ({
@@ -385,6 +426,16 @@ export async function createHotel(
         })),
       });
       return hotel;
+    });
+
+    await createLog({
+      action:    "CREATE",
+      entity:    "Hotel",
+      entityId:  String(newHotel.id),
+      entitySlug: newHotel.slug,
+      newData:   { name: newHotel.name, created_by: actorName },
+      userName:  actorName ?? undefined,
+      userEmail: session?.user?.email ?? undefined,
     });
 
     revalidatePath("/dashboard/hotels");
@@ -402,6 +453,8 @@ export async function updateHotelDetails(
   _prev: HotelFormState,
   formData: FormData,
 ): Promise<HotelFormState> {
+  const { session, actorName } = await requireSession();
+
   const raw = {
     name: formData.get("name"),
     slug: formData.get("slug"),
@@ -437,15 +490,30 @@ export async function updateHotelDetails(
   }
 
   try {
-    const current = await db.hotels.findUnique({ where: { id }, select: { thumbnail: true } });
+    const current = await db.hotels.findUnique({
+      where: { id },
+      select: { thumbnail: true, name: true, slug: true },
+    });
     if (current?.thumbnail && current.thumbnail !== (parsed.data.thumbnail ?? "")) {
       await deleteFromR2(current.thumbnail).catch(console.error);
     }
 
     await db.hotels.update({
       where: { id },
-      data: { ...parsed.data },
+      data: { ...parsed.data, updated_by: actorName },
     });
+
+    await createLog({
+      action:    "UPDATE",
+      entity:    "Hotel",
+      entityId:  String(id),
+      entitySlug: current?.slug,
+      previousData: { name: current?.name },
+      newData:   { name: parsed.data.name, updated_by: actorName },
+      userName:  actorName ?? undefined,
+      userEmail: session?.user?.email ?? undefined,
+    });
+
     revalidatePath("/dashboard/hotels");
     revalidatePath(`/dashboard/hotels/${id}`);
     return { success: true, message: "Hotel details updated" };
@@ -487,7 +555,17 @@ export async function updateHotelSeo(
 // ── Toggle Active ─────────────────────────────────────────────────────────
 
 export async function toggleHotelActive(id: number, is_active: boolean) {
-  await db.hotels.update({ where: { id }, data: { is_active } });
+  const { session, actorName } = await requireSession();
+  await db.hotels.update({ where: { id }, data: { is_active, updated_by: actorName } });
+  await createLog({
+    action:   "UPDATE",
+    entity:   "Hotel",
+    entityId: String(id),
+    newData:  { is_active },
+    metadata: { operation: "toggle_active" },
+    userName:  actorName ?? undefined,
+    userEmail: session?.user?.email ?? undefined,
+  });
   revalidatePath("/dashboard/hotels");
 }
 

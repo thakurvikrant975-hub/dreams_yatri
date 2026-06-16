@@ -874,6 +874,8 @@ model hotels {
   location_id       BigInt?
   margin_percentage Decimal                  @default(10) @db.Decimal(5, 2)
   gst_percentage    Decimal                  @default(18) @db.Decimal(5, 2)
+  created_by        String?
+  updated_by        String?
   bookingHotels     BookingHotel[]
   childPolicies     hotel_child_policies[]
   image_categories  hotel_image_categories[]

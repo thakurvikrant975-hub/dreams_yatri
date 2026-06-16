@@ -18,7 +18,8 @@ import {
 import { Hotel, BedDouble, ImageIcon, Trash2, Pencil, SearchIcon, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
-import { toggleHotelActive, deleteHotel, updateHotelSeo } from "./actions";
+import { formatDistanceToNow } from "date-fns";
+import { toggleHotelActive, deleteHotel, updateHotelSeo, getHotelHistory } from "./actions";
 import { TableFilters } from "../components/dashboard/Tablefilters";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { CATEGORIES } from "./constants";
@@ -27,6 +28,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../components/ui/s
 import { Label } from "../components/ui/label";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
+import { HistorySheet } from "../components/dashboard/HistorySheet";
 // ── Constants ─────────────────────────────────────────────────────────────
 
 const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
@@ -53,6 +55,9 @@ type HotelItem = {
   location: { name: string; city: { name: string } | null; state: { name: string } | null; country: { name: string } | null } | null;
   is_active: boolean;
   created_at: Date;
+  updated_at: Date;
+  created_by: string | null;
+  updated_by: string | null;
   destination: { id: number; name: string };
   _count: {
     hotelRooms: number;
@@ -261,11 +266,34 @@ export function HotelsTableClient({
       ),
     },
     {
+      header: "Created By",
+      cell: (h) => (
+        <div className="space-y-0.5">
+          <p className="text-xs font-medium text-foreground/80 truncate max-w-30">
+            {h.created_by ?? "—"}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {formatDistanceToNow(new Date(h.created_at), { addSuffix: true })}
+          </p>
+        </div>
+      ),
+    },
+    {
       header: "Actions",
       align: "right",
-      width: "w-[130px]",
+      width: "w-[150px]",
       cell: (h) => (
         <div className="flex items-center justify-end gap-1">
+          <HistorySheet
+            id={h.id}
+            title={h.name}
+            entityLabel="hotel"
+            fetchHistory={getHotelHistory}
+            createdBy={h.created_by}
+            createdAt={h.created_at}
+            updatedBy={h.updated_by}
+            updatedAt={h.updated_at}
+          />
           <Button
             variant="ghost"
             size="icon"
