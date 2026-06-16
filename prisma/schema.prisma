@@ -1510,6 +1510,7 @@ model vehicles {
   has_ac             Boolean               @default(false)
   image_key          String?
   fuel_type          FuelType?
+  created_by         String?
   drivers            cab_drivers[]
   cabDestPricings    cab_pricing[]
   transfers          itinerary_transfers[]
@@ -1546,6 +1547,7 @@ model cab_drivers {
   avg_rating          Decimal?    @db.Decimal(3, 2)
   is_verified         Boolean     @default(false)
   rating_count        Int         @default(0)
+  created_by          String?
   vehicle             vehicles?   @relation(fields: [vehicle_id], references: [id])
 
   @@index([vehicle_id])
