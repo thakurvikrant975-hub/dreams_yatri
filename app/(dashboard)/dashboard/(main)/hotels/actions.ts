@@ -36,7 +36,10 @@ const HotelSchema = z.object({
   pincode: z.string().nullable().optional(),
   business_phone: z.string().nullable().optional(),
   business_email: z.string().email("Invalid email").or(z.literal("")).transform(v => v === "" ? null : v).nullable().optional(),
-  whatsapp_number: z.string().regex(/^\+[1-9]\d{6,14}$/, "Use international format: +919876543210").or(z.literal("")).transform(v => v === "" ? null : v).nullable().optional(),
+  whatsapp_number: z.preprocess(
+    v => typeof v === "string" ? v.replace(/\s+/g, "") : v,
+    z.string().regex(/^\+[1-9]\d{6,14}$/, "Use international format: +919876543210").or(z.literal("")).transform(v => v === "" ? null : v).nullable().optional()
+  ),
   b2b_email: z.string().email("Invalid B2B email").or(z.literal("")).transform(v => v === "" ? null : v).nullable().optional(),
   description: z.string().optional(),
   meta_title: z.string().max(60, "Meta title must be 60 characters or less").nullable().optional(),

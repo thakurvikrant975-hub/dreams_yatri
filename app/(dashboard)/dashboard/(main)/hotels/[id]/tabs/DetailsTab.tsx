@@ -17,6 +17,7 @@ import { ImagePicker, type PickedImage } from "../../../components/dashboard/Ima
 import { LocationSearchSelect } from "../../../components/location/LocationSearchSelect";
 import type { LocationValue } from "../../../components/location/location.types";
 import { SearchSelect } from "../../../components/dashboard/SearchSelect";
+import { PhoneInput } from "@/app/(dashboard)/dashboard/(main)/(marketing)/queries/PhoneInput";
 import { updateHotelDetails } from "../../actions";
 import { CATEGORIES, STAY_TYPES } from "../../constants";
 
@@ -67,9 +68,9 @@ export function DetailsTab({
   const [categoryId, setCategoryId] = useState<number | null>(
     CATEGORIES.find(c => c.value === hotel.category)?.id ?? null
   );
+  const [description, setDescription] = useState(hotel.description ?? "");
 
   const nameRef = useRef<HTMLInputElement>(null);
-  const descRef = useRef<HTMLTextAreaElement>(null);
 
   // Thumbnail state — managed separately so we can preview and pass key via hidden input
   const [thumbnail, setThumbnail] = useState<PickedImage[]>(
@@ -200,8 +201,7 @@ export function DetailsTab({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-sm text-dashboard-base-content">Business Phone</Label>
-              <Input name="business_phone" type="tel" defaultValue={hotel.business_phone ?? ""} placeholder="+91 9876543210"
-                className="bg-dashboard-base-100 border-dashboard-base-content/20" />
+              <PhoneInput name="business_phone" defaultValue={hotel.business_phone ?? ""} placeholder="98765 43210" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-sm text-dashboard-base-content">Business Email</Label>
@@ -213,14 +213,10 @@ export function DetailsTab({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-sm text-dashboard-base-content">WhatsApp Number</Label>
-              <div className="flex gap-2">
-                <Input
-                  name="whatsapp_number"
-                  type="tel"
-                  defaultValue={hotel.whatsapp_number ?? ""}
-                  placeholder="+919876543210"
-                  className="bg-dashboard-base-100 border-dashboard-base-content/20"
-                />
+              <div className="flex gap-2 items-center">
+                <div className="flex-1">
+                  <PhoneInput name="whatsapp_number" defaultValue={hotel.whatsapp_number ?? ""} placeholder="98765 43210" />
+                </div>
                 {hotel.whatsapp_number && (
                   <a
                     href={`https://wa.me/${hotel.whatsapp_number.replace(/\D/g, "")}`}
@@ -233,7 +229,6 @@ export function DetailsTab({
                   </a>
                 )}
               </div>
-              <p className="text-xs text-dashboard-base-content/40">International format: +919876543210</p>
             </div>
             <div className="space-y-1.5">
               <Label className="text-sm text-dashboard-base-content">B2B / Reservations Email</Label>
@@ -252,8 +247,14 @@ export function DetailsTab({
 
           <div className="space-y-1.5">
             <Label className="text-sm text-dashboard-base-content">Description</Label>
-            <Textarea ref={descRef} name="description" defaultValue={hotel.description ?? ""} rows={4}
-              className="bg-dashboard-base-100 border-dashboard-base-content/20" />
+            <Textarea
+              name="description"
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="Write a brief description of this hotel…"
+              rows={4}
+              className="bg-dashboard-base-100 border-dashboard-base-content/20"
+            />
           </div>
 
           {/* ── Thumbnail ─────────────────────────────────────────── */}
