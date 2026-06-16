@@ -39,8 +39,17 @@ export interface InventoryManagerDashboardData {
   }[];
 }
 
-function isP2022(e: unknown) {
-  return (e as { code?: string })?.code === "P2022";
+function isColumnMissingError(e: unknown): boolean {
+  if (!e || typeof e !== "object") return false;
+  const err = e as Record<string, unknown>;
+  // PrismaClientKnownRequestError — column exists in schema but not in the DB
+  if (err.code === "P2022") return true;
+  // PrismaClientValidationError — column not in the deployed Prisma client schema
+  // (happens when prisma generate hasn't been re-run in production after schema change)
+  if (err.name === "PrismaClientValidationError") {
+    return String(err.message ?? "").includes("created_by");
+  }
+  return false;
 }
 
 export async function getInventoryManagerDashboardData(
@@ -53,13 +62,14 @@ export async function getInventoryManagerDashboardData(
   const byMe         = { created_by: actorName };
   const byMeThisWeek = { created_by: actorName, created_at: { gte: weekStart } };
 
-  // ── 1. Always-safe queries: global stats + hotel personalisation ──────────
-  // hotels.created_by exists on all DBs (migrated earlier and deployed).
-  // global counts never touch created_by so they're always safe.
+  // ── 1. Always-safe queries: hotel personalisation + global hotel/cab-pricing ──
+  // vehicles and cab_drivers are intentionally excluded here because their schema
+  // has created_by which may be absent in production, causing P2022 on ANY query
+  // against those tables (not just queries that reference created_by).
   const [
     myTotalHotels, myActiveHotels, myInactiveHotels, myHotelsNoRooms, myHotelsWeek,
     recentHotelsRaw,
-    globalHotels, globalVehicles, globalDrivers, globalCabRoutes,
+    globalHotels, globalCabRoutes,
   ] = await Promise.all([
     db.hotels.count({ where: byMe }),
     db.hotels.count({ where: { ...byMe, is_active: true } }),
@@ -75,13 +85,14 @@ export async function getInventoryManagerDashboardData(
       },
     }),
     db.hotels.count({ where: { is_active: true } }),
-    db.vehicles.count({ where: { is_active: true } }),
-    db.cab_drivers.count({ where: { is_active: true } }),
     db.cab_pricing.count({ where: { is_active: true } }),
   ]);
 
-  // ── 2. Vehicle personalisation — graceful fallback on P2022 ──────────────
-  // vehicles.created_by column may be absent on production until migration runs.
+  // ── 2. Vehicle queries — ALL wrapped in P2022 guard ─────────────────────
+  // In production, created_by may be absent on vehicles, which causes Prisma to
+  // reject ANY query on the table (not just those referencing the column).
+  // Both global and personalised counts live here so nothing escapes the guard.
+  let globalVehicles = 0;
   let myTotalVehicles = 0, myActiveVehicles = 0, myVehiclesWeek = 0;
   let recentVehiclesRaw: Awaited<ReturnType<typeof db.vehicles.findMany<{
     where: typeof byMe; orderBy: { created_at: "desc" }; take: 5;
@@ -93,24 +104,29 @@ export async function getInventoryManagerDashboardData(
   }>>> = [];
 
   try {
-    [myTotalVehicles, myActiveVehicles, myVehiclesWeek, recentVehiclesRaw] = await Promise.all([
-      db.vehicles.count({ where: byMe }),
-      db.vehicles.count({ where: { ...byMe, is_active: true } }),
-      db.vehicles.count({ where: byMeThisWeek }),
-      db.vehicles.findMany({
-        where: byMe, orderBy: { created_at: "desc" }, take: 5,
-        select: {
-          id: true, name: true, type: true, passenger_capacity: true,
-          has_ac: true, is_active: true, created_at: true,
-          _count: { select: { rates: true } },
-        },
-      }),
-    ]);
+    [globalVehicles, myTotalVehicles, myActiveVehicles, myVehiclesWeek, recentVehiclesRaw] =
+      await Promise.all([
+        db.vehicles.count({ where: { is_active: true } }),
+        db.vehicles.count({ where: byMe }),
+        db.vehicles.count({ where: { ...byMe, is_active: true } }),
+        db.vehicles.count({ where: byMeThisWeek }),
+        db.vehicles.findMany({
+          where: byMe, orderBy: { created_at: "desc" }, take: 5,
+          select: {
+            id: true, name: true, type: true, passenger_capacity: true,
+            has_ac: true, is_active: true, created_at: true,
+            _count: { select: { rates: true } },
+          },
+        }),
+      ]);
   } catch (e) {
-    if (!isP2022(e)) throw e;
+    if (!isColumnMissingError(e)) throw e;
   }
 
-  // ── 3. Driver personalisation — graceful fallback on P2022 ───────────────
+  // ── 3. Driver queries — ALL wrapped in P2022 guard ──────────────────────
+  // Same reason as vehicles: created_by may be absent in production, breaking
+  // every query on cab_drivers regardless of whether created_by is referenced.
+  let globalDrivers = 0;
   let myTotalDrivers = 0, myActiveDrivers = 0, myVerifiedDrivers = 0;
   let myDriversNoLicense = 0, myDriversWeek = 0;
   let recentDriversRaw: Awaited<ReturnType<typeof db.cab_drivers.findMany<{
@@ -123,8 +139,9 @@ export async function getInventoryManagerDashboardData(
   }>>> = [];
 
   try {
-    [myTotalDrivers, myActiveDrivers, myVerifiedDrivers, myDriversNoLicense, myDriversWeek, recentDriversRaw] =
+    [globalDrivers, myTotalDrivers, myActiveDrivers, myVerifiedDrivers, myDriversNoLicense, myDriversWeek, recentDriversRaw] =
       await Promise.all([
+        db.cab_drivers.count({ where: { is_active: true } }),
         db.cab_drivers.count({ where: byMe }),
         db.cab_drivers.count({ where: { ...byMe, is_active: true } }),
         db.cab_drivers.count({ where: { ...byMe, is_verified: true } }),
@@ -140,7 +157,7 @@ export async function getInventoryManagerDashboardData(
         }),
       ]);
   } catch (e) {
-    if (!isP2022(e)) throw e;
+    if (!isColumnMissingError(e)) throw e;
   }
 
   return {
