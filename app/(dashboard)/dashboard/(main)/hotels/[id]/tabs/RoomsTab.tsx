@@ -772,7 +772,9 @@ function RoomForm({
         </div>
         <div className="space-y-1.5">
           <Label className="text-sm text-dashboard-base-content">Bed Count</Label>
-          <Stepper value={form.bed_count} onChange={(v) => update("bed_count", v)} min={1} max={10} />
+          <div className="w-fit">
+            <Stepper value={form.bed_count} onChange={(v) => update("bed_count", v)} min={1} max={10} />
+          </div>
         </div>
         <div className="space-y-1.5">
           <Label className="text-sm text-dashboard-base-content">View Type</Label>
