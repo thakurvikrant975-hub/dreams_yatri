@@ -316,26 +316,26 @@ function BaseRatesSection({
   );
 }
 
-// ── Date helpers (year-agnostic: all seasons stored as 2000-MM-DD) ────────
+// ── Date helpers ──────────────────────────────────────────────────────────
 
 function toDateObj(str: string): Date | undefined {
   if (!str) return undefined;
-  const normalized = "2000" + str.slice(4);
-  const d = new Date(normalized + "T00:00:00");
+  const d = new Date(str + "T00:00:00");
   return isNaN(d.getTime()) ? undefined : d;
 }
 
 function fromDateObj(d: Date | undefined): string {
   if (!d) return "";
+  const y   = d.getFullYear();
   const m   = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
-  return `2000-${m}-${day}`;
+  return `${y}-${m}-${day}`;
 }
 
 function fmtMonthDay(dateStr: string): string {
   const d = toDateObj(dateStr);
   if (!d) return dateStr;
-  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
 // ── Calendar Rates section ────────────────────────────────────────────────
@@ -485,8 +485,8 @@ function CalendarRatesSection({
               const calendarSeasons: SeasonRange[] = seasons
                 .filter((x) => x.valid_from && x.valid_to && x.weekday_price)
                 .map((x) => ({
-                  from:           x.valid_from.slice(5),
-                  to:             x.valid_to.slice(5),
+                  from:           x.valid_from,
+                  to:             x.valid_to,
                   weekdayPrice:   Number(x.weekday_price),
                   weekendPrice:   x.weekend_enabled && x.weekend_price ? Number(x.weekend_price) : null,
                   weekendEnabled: x.weekend_enabled,
@@ -844,15 +844,14 @@ export function EditCabPricingSheet({ row, vehicles }: { row: CabPricingGroup; v
   }
 
   function buildInitialSeasons(): Record<string, SeasonEntry[]> {
-    const toYear2000 = (d: string) => (d ? "2000" + d.slice(4) : "");
     const map: Record<string, SeasonEntry[]> = {};
     for (const p of row.pricings) {
       if (p.seasons.length > 0) {
         map[String(p.vehicle_id)] = p.seasons.map((s) => ({
           tempId:          uid(),
           pricing_type:    s.pricing_type,
-          valid_from:      toYear2000(s.valid_from),
-          valid_to:        toYear2000(s.valid_to),
+          valid_from:      s.valid_from,
+          valid_to:        s.valid_to,
           weekday_price:   String(s.weekday_price),
           weekend_enabled: s.weekend_price != null,
           weekend_price:   s.weekend_price != null ? String(s.weekend_price) : "",
