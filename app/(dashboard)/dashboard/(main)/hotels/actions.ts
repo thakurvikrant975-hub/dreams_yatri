@@ -24,10 +24,22 @@ const HotelSchema = z.object({
   state: z.string().nullable().optional(),
   country: z.string().nullable().optional(),
   pincode: z.string().nullable().optional(),
-  business_phone: z.string().nullable().optional(),
+  business_phone: z.preprocess(
+    v => {
+      if (typeof v !== "string") return v;
+      const s = v.replace(/\s+/g, "");
+      return /^\+\d{1,4}$/.test(s) ? "" : s;
+    },
+    z.string().or(z.literal("")).transform(v => v === "" ? null : v).nullable().optional()
+  ),
   business_email: z.string().email("Invalid email").or(z.literal("")).transform(v => v === "" ? null : v).nullable().optional(),
   whatsapp_number: z.preprocess(
-    v => typeof v === "string" ? v.replace(/\s+/g, "") : v,
+    v => {
+      if (typeof v !== "string") return v;
+      const s = v.replace(/\s+/g, "");
+      // bare dial code with no subscriber number (e.g. "+91") → treat as empty
+      return /^\+\d{1,4}$/.test(s) ? "" : s;
+    },
     z.string().regex(/^\+[1-9]\d{6,14}$/, "Use international format: +919876543210").or(z.literal("")).transform(v => v === "" ? null : v).nullable().optional()
   ),
   b2b_email: z.string().email("Invalid B2B email").or(z.literal("")).transform(v => v === "" ? null : v).nullable().optional(),
