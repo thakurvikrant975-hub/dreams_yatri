@@ -53,10 +53,12 @@ type DBRoom = {
   area_sqft: number | null;
   bed_type: string | null;
   view_type: string | null;
+  bed_count: number;
   max_occupancy: number;
   max_adults: number;
   max_children: number;
   extra_bed_capacity: number;
+  child_cot_available: boolean;
   amenities: unknown;
   features: unknown;
   bathroom: unknown;
@@ -69,7 +71,19 @@ type DBRoom = {
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
-const BED_TYPES = ["Single", "Twin", "Double", "Queen", "King", "Suite", "Dormitory"];
+const BED_TYPES = [
+  "1 Single Bed", "2 Single Beds",
+  "1 Double Bed", "2 Double Beds",
+  "1 Queen Bed",  "2 Queen Beds",
+  "1 King Bed",   "2 King Beds",
+  "1 California King Bed",
+  "Twin Beds", "Twin + Extra Bed",
+  "Queen + Sofa Bed", "King + Sofa Bed",
+  "Bunk Bed", "Family Bed",
+  "Sofa Bed", "Rollaway Bed",
+  "Crib / Cot", "Murphy Bed", "Futon Bed",
+  "Multiple Beds", "Mixed Bed Configuration",
+];
 const VIEW_TYPES = [
   "No View",
   "Sea View", "Ocean View", "Beach View", "Bay View", "Harbor View",
@@ -215,12 +229,14 @@ type RoomFormState = {
   name: string;
   slug: string;
   bed_type: string;
+  bed_count: number;
   view_type: string;
   area_sqft: string;
   max_occupancy: number;
   max_adults: number;
   max_children: number;
   extra_bed_capacity: number;
+  child_cot_available: boolean;
   description: string;
   amenities: string[];
   is_active: boolean;
@@ -231,12 +247,14 @@ const EMPTY_FORM: RoomFormState = {
   name: "",
   slug: "",
   bed_type: "",
+  bed_count: 1,
   view_type: "",
   area_sqft: "",
   max_occupancy: 2,
-  max_adults: 3,
-  max_children: 2,
-  extra_bed_capacity: 1,
+  max_adults: 2,
+  max_children: 1,
+  extra_bed_capacity: 0,
+  child_cot_available: false,
   description: "",
   amenities: [],
   is_active: true,
@@ -247,40 +265,44 @@ const EMPTY_FORM: RoomFormState = {
 
 function toFormState(room: DBRoom): RoomFormState {
   return {
-    name:               room.name,
-    slug:               room.slug,
-    bed_type:           room.bed_type ?? "",
-    view_type:          room.view_type ?? "",
-    area_sqft:          room.area_sqft ? String(room.area_sqft) : "",
-    max_occupancy:      room.max_occupancy      ?? 2,
-    max_adults:         room.max_adults         ?? ((room.max_occupancy + room.extra_bed_capacity) || 3),
-    max_children:       room.max_children       ?? 2,
-    extra_bed_capacity: room.extra_bed_capacity ?? 1,
-    description:        room.description ?? "",
+    name:                room.name,
+    slug:                room.slug,
+    bed_type:            room.bed_type ?? "",
+    bed_count:           room.bed_count ?? 1,
+    view_type:           room.view_type ?? "",
+    area_sqft:           room.area_sqft ? String(room.area_sqft) : "",
+    max_occupancy:       room.max_occupancy      ?? 2,
+    max_adults:          room.max_adults         ?? room.max_occupancy ?? 2,
+    max_children:        room.max_children       ?? 1,
+    extra_bed_capacity:  room.extra_bed_capacity ?? 0,
+    child_cot_available: room.child_cot_available ?? false,
+    description:         room.description ?? "",
     amenities: [
       ...(Array.isArray(room.amenities) ? (room.amenities as string[]) : []),
       ...(Array.isArray(room.features)  ? (room.features  as string[]) : []),
     ],
-    is_active:          room.is_active,
-    images:             [],
+    is_active:  room.is_active,
+    images:     [],
   };
 }
 
 function buildFormData(form: RoomFormState): FormData {
   const fd = new FormData();
-  fd.append("name",               form.name);
-  fd.append("slug",               form.slug);
-  fd.append("bed_type",           form.bed_type);
-  fd.append("view_type",          form.view_type);
-  fd.append("area_sqft",          form.area_sqft);
-  fd.append("max_occupancy",      String(form.max_occupancy));
-  fd.append("max_adults",         String(form.max_adults));
-  fd.append("max_children",       String(form.max_children));
-  fd.append("extra_bed_capacity", String(form.extra_bed_capacity));
-  fd.append("description",        form.description);
-  fd.append("amenities",          JSON.stringify(form.amenities));
-  fd.append("features",           JSON.stringify([]));
-  fd.append("is_active",          String(form.is_active));
+  fd.append("name",                form.name);
+  fd.append("slug",                form.slug);
+  fd.append("bed_type",            form.bed_type);
+  fd.append("bed_count",           String(form.bed_count));
+  fd.append("view_type",           form.view_type);
+  fd.append("area_sqft",           form.area_sqft);
+  fd.append("max_occupancy",       String(form.max_occupancy));
+  fd.append("max_adults",          String(form.max_adults));
+  fd.append("max_children",        String(form.max_children));
+  fd.append("extra_bed_capacity",  String(form.extra_bed_capacity));
+  fd.append("child_cot_available", String(form.child_cot_available));
+  fd.append("description",         form.description);
+  fd.append("amenities",           JSON.stringify(form.amenities));
+  fd.append("features",            JSON.stringify([]));
+  fd.append("is_active",           String(form.is_active));
   return fd;
 }
 
@@ -295,11 +317,13 @@ function SearchableSelect({
   value,
   onChange,
   placeholder = "Select…",
+  searchPlaceholder = "Search…",
 }: {
-  options:     string[];
-  value:       string;
-  onChange:    (v: string) => void;
-  placeholder?: string;
+  options:           string[];
+  value:             string;
+  onChange:          (v: string) => void;
+  placeholder?:      string;
+  searchPlaceholder?: string;
 }) {
   const [open,   setOpen]   = useState(false);
   const [query,  setQuery]  = useState("");
@@ -335,7 +359,7 @@ function SearchableSelect({
           <Search className="h-3.5 w-3.5 shrink-0 text-dashboard-base-content/40" />
           <input
             autoFocus
-            placeholder="Search view…"
+            placeholder={searchPlaceholder}
             value={query}
             onChange={e => setQuery(e.target.value)}
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-dashboard-base-content/30 text-dashboard-base-content"
@@ -613,6 +637,61 @@ function OccupancyRow({
   );
 }
 
+function OccupancyToggleRow({
+  label,
+  description,
+  enabled,
+  count,
+  onToggle,
+  onCount,
+  min = 1,
+  max = 5,
+}: {
+  label:       string;
+  description: string;
+  enabled:     boolean;
+  count:       number;
+  onToggle:    (on: boolean) => void;
+  onCount:     (v: number) => void;
+  min?:        number;
+  max?:        number;
+}) {
+  return (
+    <div className="flex items-center justify-between py-3 border-b border-dashboard-base-content/10">
+      <div className="flex-1 pr-4">
+        <p className="text-sm font-semibold text-dashboard-base-content">{label}</p>
+        <p className="text-xs text-dashboard-base-content/50 mt-0.5">{description}</p>
+      </div>
+      <div className="flex items-center gap-3">
+        <Switch checked={enabled} onCheckedChange={onToggle} />
+        {enabled && <Stepper value={count} onChange={onCount} min={min} max={max} />}
+      </div>
+    </div>
+  );
+}
+
+function OccupancySwitchRow({
+  label,
+  description,
+  value,
+  onChange,
+}: {
+  label:       string;
+  description: string;
+  value:       boolean;
+  onChange:    (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between py-3 border-b border-dashboard-base-content/10">
+      <div className="flex-1 pr-4">
+        <p className="text-sm font-semibold text-dashboard-base-content">{label}</p>
+        <p className="text-xs text-dashboard-base-content/50 mt-0.5">{description}</p>
+      </div>
+      <Switch checked={value} onCheckedChange={onChange} />
+    </div>
+  );
+}
+
 // ── Room Form ─────────────────────────────────────────────────────────────
 
 function RoomForm({
@@ -654,6 +733,7 @@ function RoomForm({
 
   function handleExtraBedsChange(v: number) {
     setForm(prev => {
+      if (v === 0) return { ...prev, extra_bed_capacity: 0 };
       const autoMaxAdults = (prev.max_occupancy ?? 2) + v;
       return {
         ...prev,
@@ -682,10 +762,17 @@ function RoomForm({
       <div className="grid grid-cols-3 gap-3">
         <div className="space-y-1.5">
           <Label className="text-sm text-dashboard-base-content">Bed Type</Label>
-          <Select value={form.bed_type} onValueChange={(v) => update("bed_type", v)}>
-            <SelectTrigger className="bg-dashboard-base-100 border-dashboard-base-content/20 cursor-pointer"><SelectValue placeholder="Select" /></SelectTrigger>
-            <SelectContent>{BED_TYPES.map((b) => <SelectItem key={b} value={b} className="cursor-pointer">{b}</SelectItem>)}</SelectContent>
-          </Select>
+          <SearchableSelect
+            options={BED_TYPES}
+            value={form.bed_type}
+            onChange={(v) => update("bed_type", v)}
+            placeholder="Select bed type…"
+            searchPlaceholder="Search bed type…"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-sm text-dashboard-base-content">Bed Count</Label>
+          <Stepper value={form.bed_count} onChange={(v) => update("bed_count", v)} min={1} max={10} />
         </div>
         <div className="space-y-1.5">
           <Label className="text-sm text-dashboard-base-content">View Type</Label>
@@ -694,8 +781,11 @@ function RoomForm({
             value={form.view_type}
             onChange={(v) => update("view_type", v)}
             placeholder="Select view…"
+            searchPlaceholder="Search view…"
           />
         </div>
+      </div>
+      <div className="grid grid-cols-3 gap-3">
         <div className="space-y-1.5">
           <Label className="text-sm text-dashboard-base-content">Area (sq ft)</Label>
           <Input type="number" placeholder="350" value={form.area_sqft}
@@ -720,12 +810,14 @@ function RoomForm({
             onChange={handleBaseAdultsChange}
             min={1} max={10}
           />
-          <OccupancyRow
-            label="Extra Beds"
-            description="Additional mattresses/rollaway beds available per room"
-            value={form.extra_bed_capacity}
-            onChange={handleExtraBedsChange}
-            min={0} max={5}
+          <OccupancyToggleRow
+            label="Extra Bed Available"
+            description="Additional mattresses / rollaway beds available per room"
+            enabled={form.extra_bed_capacity > 0}
+            count={form.extra_bed_capacity || 1}
+            onToggle={(on) => handleExtraBedsChange(on ? 1 : 0)}
+            onCount={handleExtraBedsChange}
+            min={1} max={5}
           />
           <OccupancyRow
             label="Max Adults"
@@ -742,6 +834,12 @@ function RoomForm({
             onChange={(v) => update("max_children", v)}
             min={0} max={6}
           />
+          <OccupancySwitchRow
+            label="Child Cot / Crib Available"
+            description="Baby cot or crib available on request (no extra charge)"
+            value={form.child_cot_available}
+            onChange={(v) => update("child_cot_available", v)}
+          />
           <div className="flex items-center justify-between py-3">
             <div className="flex-1 pr-4">
               <p className="text-sm font-semibold text-dashboard-base-content/60">Max Occupancy</p>
@@ -749,7 +847,7 @@ function RoomForm({
             </div>
             <div className="flex items-center justify-center w-28 h-9 rounded-lg bg-dashboard-base-200/60 border border-dashboard-base-content/15">
               <span className="text-sm font-bold text-dashboard-base-content tabular-nums">
-                {String((form.max_adults ?? 3) + (form.max_children ?? 2)).padStart(2, "0")}
+                {String((form.max_adults ?? 2) + (form.max_children ?? 1)).padStart(2, "0")}
               </span>
             </div>
           </div>
@@ -1125,13 +1223,15 @@ export function RoomsTab({
             hotel_id,
             name: form.name,
             slug: form.slug,
-            bed_type: form.bed_type || null,
-            view_type: form.view_type || null,
-            area_sqft: form.area_sqft ? Number(form.area_sqft) : null,
-            max_occupancy:      form.max_occupancy,
-            max_adults:         form.max_adults,
-            max_children:       form.max_children,
-            extra_bed_capacity: form.extra_bed_capacity,
+            bed_type:            form.bed_type || null,
+            bed_count:           form.bed_count,
+            view_type:           form.view_type || null,
+            area_sqft:           form.area_sqft ? Number(form.area_sqft) : null,
+            max_occupancy:       form.max_occupancy,
+            max_adults:          form.max_adults,
+            max_children:        form.max_children,
+            extra_bed_capacity:  form.extra_bed_capacity,
+            child_cot_available: form.child_cot_available,
             description: form.description || null,
             amenities: form.amenities,
             features: [],
@@ -1167,18 +1267,20 @@ export function RoomsTab({
             r.id === id
               ? {
                   ...r,
-                  name: form.name,
-                  bed_type: form.bed_type || null,
-                  view_type: form.view_type || null,
-                  area_sqft: form.area_sqft ? Number(form.area_sqft) : null,
-                  max_occupancy:      form.max_occupancy,
-                  max_adults:         form.max_adults,
-                  max_children:       form.max_children,
-                  extra_bed_capacity: form.extra_bed_capacity,
-                  description: form.description || null,
-                  amenities: form.amenities,
-                  features: [],
-                  is_active: form.is_active,
+                  name:                form.name,
+                  bed_type:            form.bed_type || null,
+                  bed_count:           form.bed_count,
+                  view_type:           form.view_type || null,
+                  area_sqft:           form.area_sqft ? Number(form.area_sqft) : null,
+                  max_occupancy:       form.max_occupancy,
+                  max_adults:          form.max_adults,
+                  max_children:        form.max_children,
+                  extra_bed_capacity:  form.extra_bed_capacity,
+                  child_cot_available: form.child_cot_available,
+                  description:         form.description || null,
+                  amenities:           form.amenities,
+                  features:            [],
+                  is_active:           form.is_active,
                 }
               : r
           )

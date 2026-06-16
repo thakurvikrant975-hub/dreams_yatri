@@ -935,8 +935,10 @@ model hotel_rooms {
   max_occupancy      Int                  @default(2)
   max_adults         Int                  @default(3)
   max_children       Int                  @default(2)
-  extra_bed_capacity Int                  @default(1)
-  amenities          Json?
+  extra_bed_capacity  Int                  @default(0)
+  bed_count           Int                  @default(1)
+  child_cot_available Boolean              @default(false)
+  amenities           Json?
   features           Json?
   bathroom           Json?
   facilities         Json?
