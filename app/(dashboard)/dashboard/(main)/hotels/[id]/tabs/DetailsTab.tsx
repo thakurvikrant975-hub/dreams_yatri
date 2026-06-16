@@ -17,7 +17,7 @@ import { ImagePicker, type PickedImage } from "../../../components/dashboard/Ima
 import { LocationSearchSelect } from "../../../components/location/LocationSearchSelect";
 import type { LocationValue } from "../../../components/location/location.types";
 import { SearchSelect } from "../../../components/dashboard/SearchSelect";
-import { PhoneInput } from "../../(marketing)/queries/PhoneInput";
+import { PhoneInput } from "@/app/(dashboard)/dashboard/(main)/(marketing)/queries/PhoneInput";
 import { updateHotelDetails } from "../../actions";
 import { CATEGORIES, STAY_TYPES } from "../../constants";
 
