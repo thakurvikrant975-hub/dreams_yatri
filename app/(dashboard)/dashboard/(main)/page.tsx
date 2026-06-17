@@ -1,9 +1,11 @@
 // app/dashboard/page.tsx
-import { getCurrentMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
+import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
 import { SalesDashboard } from "./components/dashboard/Salesdashboard";
 import { MarketingDashboard } from "./components/dashboard/Marketingdashboard";
 import { DefaultDashboard } from "./components/dashboard/Defaultdashboard";
 import { DataEntryDashboard } from "./components/dashboard/DataEntryDashboard";
+import { TravelExpertDashboard } from "./components/dashboard/TravelExpertDashboard";
+import { InventoryManagerDashboard } from "./components/dashboard/InventoryManagerDashboard";
 import DashboardHeader from "./components/dashboard/DashboardHeader";
 import { CurrentMember } from "@/app/types/members";
 
@@ -15,12 +17,14 @@ const ROLE_DASHBOARD_MAP: Record<string, DashboardComponent> = {
   marketing: MarketingDashboard,
   "data entry executive": DataEntryDashboard,
   "data entry operator": DataEntryDashboard,
+  "travel expert": TravelExpertDashboard,
+  "inventory manager": InventoryManagerDashboard,
 };
 
 export default async function DashboardPage() {
-  const member = await getCurrentMember();
+  const ctx = await getEffectiveMember();
 
-  if (!member) {
+  if (!ctx) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
         <p className="text-lg font-semibold">Account not found</p>
@@ -31,6 +35,9 @@ export default async function DashboardPage() {
       </div>
     );
   }
+
+  // Use the effective member (impersonated target for FSD, or real member otherwise)
+  const { member } = ctx;
 
   const identifier =
     member.teamRole?.name?.toLowerCase() ||

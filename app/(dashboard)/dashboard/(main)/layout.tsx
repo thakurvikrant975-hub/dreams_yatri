@@ -6,7 +6,7 @@ import { SidebarProvider, SidebarTrigger } from "./components/ui/sidebar";
 import AvatarName from "./components/dashboard/AvatarName";
 import { SalesTargetBadge } from "./components/dashboard/SalesTargetBadge";
 import { dashboardAuth } from "@/app/lib/auth-dashboard";
-import { getCurrentMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
+import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
 import { resolveNavHref } from "./lib/rbac/nav-hrefs";
 import { Toaster } from "sonner";
 import { SalesStatusToggle } from "./components/dashboard/Salesstatustoggle";
@@ -23,14 +23,20 @@ export default async function DashboardLayout({
   const session = await dashboardAuth();
   if (!session) redirect("/dashboard/login");
 
-  const member = await getCurrentMember(session);
-  if (!member) redirect("/dashboard/login");
+  const ctx = await getEffectiveMember(session);
+  if (!ctx) redirect("/dashboard/login");
 
+  const { realMember, member, isImpersonating } = ctx;
+
+  // Sidebar and page-access enforcement use the EFFECTIVE member's permissions,
+  // so when FSD views as another member they see that member's restricted nav.
   const pageAccess = parsePageAccess(member.teamRole?.pageAccess);
 
   // Server-side enforcement — sidebar visibility alone doesn't stop direct
   // URL access, so re-check the requested page against the role's pageAccess.
-  if (pageAccess.length > 0) {
+  // Skip enforcement for FSD (they have full access regardless of viewAs).
+  const isFullStackDev = realMember.teamRole?.name?.toLowerCase() === "full stack developer";
+  if (pageAccess.length > 0 && !isFullStackDev) {
     const pathname = (await headers()).get("x-pathname") ?? "/dashboard";
     const matched = resolveNavHref(pathname);
     if (matched && !pageAccess.includes(matched)) {
@@ -39,10 +45,17 @@ export default async function DashboardLayout({
     }
   }
 
-  const isSales = member.teamRole?.name?.toLowerCase() === "sales";
+  // Sales badge / toggle always belong to the real logged-in member.
+  const isSales = realMember.teamRole?.name?.toLowerCase() === "sales";
+
+  // "Viewing as" banner info: derive from the effective member when impersonating.
+  const viewingAs = isImpersonating
+    ? { id: member.id, name: member.name, roleName: member.teamRole?.name ?? undefined }
+    : null;
 
   return (
     <SidebarProvider>
+      {/* Sidebar reflects the effective member's page access */}
       <AppSidebar pageAccess={pageAccess} />
 
       <main
@@ -53,18 +66,21 @@ export default async function DashboardLayout({
           <SidebarTrigger />
 
           <div className="flex items-center gap-3 ml-auto">
-            {isSales && <SalesTargetBadge memberId={member.id} />}
+            {isSales && <SalesTargetBadge memberId={realMember.id} />}
 
             <SalesStatusToggle
-              memberId={member.id}
-              initialActive={member.isActive}
+              memberId={realMember.id}
+              initialActive={realMember.isActive}
             />
 
+            {/* Header always shows the real logged-in user's identity */}
             <AvatarName
               name={session.user.name ?? "Employee"}
               email={session.user.email ?? "name@dreamsyatri.com"}
-              role={member.teamRole?.name ?? ""}
-              avatarSrc={member.profilePicUrl ?? undefined}
+              role={realMember.teamRole?.name ?? ""}
+              avatarSrc={realMember.profilePicUrl ?? undefined}
+              isFullStackDev={isFullStackDev}
+              viewingAs={viewingAs}
             />
           </div>
         </div>

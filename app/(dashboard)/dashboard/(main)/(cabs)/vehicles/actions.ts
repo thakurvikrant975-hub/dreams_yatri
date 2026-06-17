@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/app/lib/db";
+import { dashboardAuth } from "@/app/lib/auth-dashboard";
 
 const PATH = "/dashboard/vehicles";
 
@@ -74,6 +75,9 @@ export async function createVehicle(data: {
   fuel_type?: string | null;
   description?: string | null;
 }) {
+  const session = await dashboardAuth();
+  const actorName = session?.user?.name ?? session?.user?.email ?? null;
+
   try {
     const created = await db.vehicles.create({
       data: {
@@ -85,6 +89,7 @@ export async function createVehicle(data: {
         image_key: data.image_key ?? null,
         fuel_type: (data.fuel_type as never) ?? null,
         description: data.description ?? null,
+        created_by: actorName,
       },
     });
     revalidatePath(PATH);

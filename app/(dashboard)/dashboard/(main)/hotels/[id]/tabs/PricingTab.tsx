@@ -165,25 +165,24 @@ function toISODate(val: Date | string | null | undefined): string {
   return isNaN(d.getTime()) ? "" : d.toISOString().split("T")[0];
 }
 
-// Normalize any YYYY-MM-DD to year 2000 so the fixed-year calendar works
 function toDateObj(str: string): Date | undefined {
   if (!str) return undefined;
-  const normalized = "2000" + str.slice(4);
-  const d = new Date(normalized + "T00:00:00");
+  const d = new Date(str + "T00:00:00");
   return isNaN(d.getTime()) ? undefined : d;
 }
 
 function fromDateObj(d: Date | undefined): string {
   if (!d) return "";
+  const y   = d.getFullYear();
   const m   = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
-  return `2000-${m}-${day}`;
+  return `${y}-${m}-${day}`;
 }
 
 function fmtMonthDay(dateStr: string): string {
   const d = toDateObj(dateStr);
   if (!d) return dateStr;
-  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
 function overlappingIds(seasons: SeasonEntry[]): Set<string> {
@@ -239,8 +238,8 @@ function SeasonsInlineList({
   const calendarSeasons: SeasonRange[] = seasons
     .filter(x => x.valid_from && x.valid_to && Number(x.price_per_night) > 0)
     .map(x => ({
-      from:           x.valid_from.slice(5),
-      to:             x.valid_to.slice(5),
+      from:           x.valid_from,
+      to:             x.valid_to,
       weekdayPrice:   Number(x.price_per_night),
       weekendPrice:   x.weekend_price_per_night ? Number(x.weekend_price_per_night) : null,
       weekendEnabled: !!x.weekend_price_per_night,

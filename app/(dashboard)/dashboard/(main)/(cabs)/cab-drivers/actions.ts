@@ -171,6 +171,7 @@ export async function getActiveVehiclesForDriver() {
 export async function createCabDriver(data: CabDriverInput) {
   const session = await dashboardAuth();
   if (!session?.user) return { success: false as const, message: "Unauthorized" };
+  const actorName = session.user.name ?? session.user.email ?? null;
 
   try {
     const created = await db.cab_drivers.create({
@@ -197,6 +198,7 @@ export async function createCabDriver(data: CabDriverInput) {
         salary_type: (data.salary_type as never) ?? null,
         salary_amount: data.salary_amount ?? null,
         is_active: data.is_active ?? true,
+        created_by: actorName,
       },
       include: { vehicle: { select: { id: true, name: true, type: true, image_key: true } } },
     });

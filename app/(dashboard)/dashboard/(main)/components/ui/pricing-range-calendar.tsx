@@ -16,10 +16,10 @@ import {
 
 export type { DateRange };
 
-/** A single season's date range + prices. `from`/`to` are "MM-DD" strings. */
+/** A single season's date range + prices. `from`/`to` are "YYYY-MM-DD" strings. */
 export type SeasonRange = {
-  from: string;            // "MM-DD"  e.g. "01-01"
-  to:   string;            // "MM-DD"  e.g. "03-31"
+  from: string;            // "YYYY-MM-DD"  e.g. "2025-04-01"
+  to:   string;            // "YYYY-MM-DD"  e.g. "2025-09-30"
   weekdayPrice:   number;
   weekendPrice?:  number | null;
   weekendEnabled?: boolean;
@@ -50,49 +50,42 @@ function formatPrice(n?: number): string {
   return `₹${n.toLocaleString("en-IN")}`;
 }
 
-/** True when mmdd (e.g. "05-21") falls within [from, to] (handles year-wrap). */
-function inMonthDayRange(mmdd: string, from: string, to: string): boolean {
-  if (from <= to) return from <= mmdd && mmdd <= to;
-  return mmdd >= from || mmdd <= to; // cross-year: e.g. "11-01" – "02-28"
-}
-
 function getPriceForDate(
   date:      Date,
   seasons:   SeasonRange[],
   basePrice: number,
 ): number {
+  const y    = date.getFullYear();
   const mm   = String(date.getMonth() + 1).padStart(2, "0");
   const dd   = String(date.getDate()).padStart(2, "0");
-  const mmdd = `${mm}-${dd}`;
+  const iso  = `${y}-${mm}-${dd}`;
   const isWeekend = date.getDay() === 0 || date.getDay() === 6;
 
   for (const s of seasons) {
-    if (inMonthDayRange(mmdd, s.from, s.to)) {
-      const p =
-        isWeekend && s.weekendEnabled && s.weekendPrice != null
-          ? s.weekendPrice
-          : s.weekdayPrice;
-      return p;
+    if (s.from <= iso && iso <= s.to) {
+      return isWeekend && s.weekendEnabled && s.weekendPrice != null
+        ? s.weekendPrice
+        : s.weekdayPrice;
     }
   }
   return basePrice;
 }
 
-// ── Trigger label (no year) ───────────────────────────────────────────────
+// ── Trigger label ────────────────────────────────────────────────────────
 
 function formatRangeLabel(range?: DateRange): string {
   if (!range?.from) return "";
   const fmt = (d: Date) =>
-    d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+    d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
   if (!range.to) return `From ${fmt(range.from)}`;
   return `${fmt(range.from)}  →  ${fmt(range.to)}`;
 }
 
-// ── Fixed-year constants (all seasons use year 2000) ─────────────────────
+// ── Calendar year bounds ─────────────────────────────────────────────────
 
-const REF_YEAR   = 2000;
-const START_MONTH = new Date(REF_YEAR, 0, 1);   // Jan 2000
-const END_MONTH   = new Date(REF_YEAR, 11, 31);  // Dec 2000
+const _now        = new Date();
+const START_MONTH = new Date(_now.getFullYear() - 1, 0, 1);
+const END_MONTH   = new Date(_now.getFullYear() + 5, 11, 31);
 
 // ── Popover picker ────────────────────────────────────────────────────────
 
@@ -193,7 +186,7 @@ export function PricingRangeCalendar({
       disabled={disabled}
       showOutsideDays
       captionLayout="label"
-      defaultMonth={value?.from ?? START_MONTH}
+      defaultMonth={value?.from ?? new Date()}
       startMonth={START_MONTH}
       endMonth={END_MONTH}
       className={cn(
@@ -214,9 +207,8 @@ export function PricingRangeCalendar({
         today:        "",
       }}
       formatters={{
-        // Show only month name — no year
         formatCaption: (date) =>
-          date.toLocaleString("default", { month: "long" }),
+          date.toLocaleString("default", { month: "long", year: "numeric" }),
       }}
       components={{
         DayButton: ({ children, modifiers, day, className: dayBtnCn, ...props }) => {

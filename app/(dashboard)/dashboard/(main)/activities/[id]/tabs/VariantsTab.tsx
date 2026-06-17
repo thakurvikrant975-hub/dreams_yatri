@@ -111,26 +111,26 @@ function toISODate(val: Date | string | null | undefined): string {
     return isNaN(d.getTime()) ? "" : d.toISOString().split("T")[0];
 }
 
-// ── Date helpers (year-agnostic: all seasons stored as 2000-MM-DD) ────────
+// ── Date helpers ──────────────────────────────────────────────────────────
 
 function toDateObj(str: string): Date | undefined {
     if (!str) return undefined;
-    const normalized = "2000" + str.slice(4);
-    const d = new Date(normalized + "T00:00:00");
+    const d = new Date(str + "T00:00:00");
     return isNaN(d.getTime()) ? undefined : d;
 }
 
 function fromDateObj(d: Date | undefined): string {
     if (!d) return "";
+    const y   = d.getFullYear();
     const m   = String(d.getMonth() + 1).padStart(2, "0");
     const day = String(d.getDate()).padStart(2, "0");
-    return `2000-${m}-${day}`;
+    return `${y}-${m}-${day}`;
 }
 
 function fmtMonthDay(dateStr: string): string {
     const d = toDateObj(dateStr);
     if (!d) return dateStr;
-    return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+    return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
 function overlappingIds(seasons: ActivitySeasonEntry[]): Set<string> {
@@ -316,8 +316,8 @@ function SeasonsInlineList({
                 const calendarSeasons: SeasonRange[] = seasons
                     .filter(x => x.valid_from && x.valid_to && Number(x.price) > 0)
                     .map(x => ({
-                        from:           x.valid_from.slice(5),
-                        to:             x.valid_to.slice(5),
+                        from:           x.valid_from,
+                        to:             x.valid_to,
                         weekdayPrice:   Number(x.price),
                         weekendPrice:   x.weekend_price ? Number(x.weekend_price) : null,
                         weekendEnabled: !!x.weekend_price,
