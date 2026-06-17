@@ -299,9 +299,12 @@ export function QueriesTable({ queries, reasons }: Props) {
             header: "Ticket booked or not",
             cell: (q) => (
                 <div className="space-y-1.5">
-                    Booked
+                    {q.status === "CONVERTED" || q.status === "PAYMENT_INITIATED"
+                        ? <span className="text-xs font-medium text-success-700">Booked</span>
+                        : <span className="text-xs text-dashboard-base-content/25 italic">—</span>
+                    }
                 </div>
-            ), 
+            ),
         },
         { 
             header: "Status",

@@ -5,7 +5,7 @@ import { Dialog, DialogBackdrop, DialogPanel } from '@headlessui/react';
 import { X } from 'lucide-react';
 import { MapPinIcon } from '@heroicons/react/24/outline';
 import { useBooking } from '../PackageBookingProvider';
-import EnquiryForm from './EnquiryForm';
+import PopupEnquiryForm from './PopupEnquiryForm';
 
 interface Props {
     packageName: string;
@@ -104,10 +104,10 @@ export default function EnquiryAutoPopup({ packageName, destination, packageSlug
                         />
 
                         <div className="bg-white px-6 py-5 overflow-y-auto max-h-[60vh] sm:max-h-[70vh]">
-                            <EnquiryForm
+                            <PopupEnquiryForm
                                 packageName={packageName}
                                 destination={destination}
-                                bare
+                                onSuccess={() => setOpen(false)}
                             />
                         </div>
                     </div>

@@ -90,7 +90,7 @@ export async function submitPackageEnquiry(raw: EnquiryInput): Promise<SubmitRes
                 travelDate:    travelDate   ? new Date(travelDate) : null,
                 groupSize:     travellers   ?? null,
                 message:       message      || null,
-                source:        'WEBSITE_FORM',
+                source:        'PACKAGE_FORM',
                 status:        'SUBMITTED',
                 leadProfileId: profile.id,
             },
