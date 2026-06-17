@@ -26,7 +26,7 @@ export const NAV_GROUPS = [
     items: [
       { title: "Regions", href: "/dashboard/regions", icon: GlobeHemisphereEastIcon, phosphor: true },
       { title: "Destinations", href: "/dashboard/destinations", icon: MapPinIcon, phosphor: true },
-      { title: "Categories", href: "/dashboard/categories", icon: TagIcon, phosphor: true },
+      { title: "Package Categories", href: "/dashboard/categories", icon: TagIcon, phosphor: true },
       { title: "Policies", href: "/dashboard/policies", icon: FileTextIcon, phosphor: true },
       { title: "Blog Reviews", href: "/dashboard/blogs", icon: BookOpen },
     ],
@@ -35,7 +35,7 @@ export const NAV_GROUPS = [
     id: "activities", label: "Activities",
     items: [
       { title: "Activities", href: "/dashboard/activities", icon: ParachuteIcon, phosphor: true },
-      { title: "Categories", href: "/dashboard/activities/categories", icon: TagIcon, phosphor: true },
+      { title: "Activity Categories", href: "/dashboard/activities/categories", icon: TagIcon, phosphor: true },
     ],
   },
   {

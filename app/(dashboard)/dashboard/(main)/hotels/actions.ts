@@ -18,6 +18,28 @@ async function requireSession() {
   return { session, actorName };
 }
 
+// Explicit scalar selects — omit columns that are in the Prisma schema but not yet
+// migrated to the production DB. Spread alongside relation configs in every query.
+
+const SAFE_HOTEL_SCALARS = {
+  id: true, name: true, slug: true, description: true, meta_title: true, meta_desc: true,
+  destination_id: true, address: true, category: true, stay_type: true,
+  check_in_time: true, check_out_time: true, is_active: true, created_at: true, updated_at: true,
+  thumbnail: true, city: true, state: true, country: true, pincode: true,
+  business_phone: true, business_email: true, whatsapp_number: true, b2b_email: true,
+  location_id: true, margin_percentage: true, gst_percentage: true,
+} as const;
+
+// hotel_rooms: omits bed_count and child_cot_available (added in schema, not yet in production DB).
+const SAFE_HOTEL_ROOM_SCALARS = {
+  id: true, hotel_id: true, name: true, slug: true,
+  area_sqft: true, bed_type: true, view_type: true,
+  max_occupancy: true, max_adults: true, max_children: true,
+  extra_bed_capacity: true, amenities: true, features: true,
+  bathroom: true, facilities: true, description: true,
+  is_active: true, sort_order: true, created_at: true, updated_at: true,
+} as const;
+
 // ── Schemas ───────────────────────────────────────────────────────────────
 
 const HotelSchema = z.object({
@@ -91,14 +113,6 @@ const HOTEL_INCLUDE = {
   },
 } as const;
 
-// Extra scalar fields fetched alongside HOTEL_INCLUDE
-const HOTEL_SCALAR_SELECT = {
-  created_by: true,
-  updated_by: true,
-  created_at: true,
-  updated_at: true,
-} as const;
-
 export async function getHotels(params: GetHotelsParams = {}) {
   const {
     page        = 1,
@@ -129,22 +143,27 @@ export async function getHotels(params: GetHotelsParams = {}) {
     ...(status === "inactive" ? { is_active: false }                       : {}),
   };
 
-  const [rows, totalCount, statsTotal, statsActive, totalRooms] = await Promise.all([
-    db.hotels.findMany({
-      where,
-      orderBy: { created_at: "desc" },
-      skip,
-      take: limit,
-      include: HOTEL_INCLUDE,
-      // created_by / updated_by are scalar fields — Prisma returns them by default
-    }),
+  type HotelRow = Awaited<ReturnType<typeof db.hotels.findMany<{ include: typeof HOTEL_INCLUDE }>>>[number];
+
+  // Use explicit safe scalars to avoid P2022 from created_by/updated_by not yet in production DB.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const partial: any[] = await (db.hotels.findMany as any)({
+    where,
+    orderBy: { created_at: "desc" },
+    skip,
+    take: limit,
+    select: { ...SAFE_HOTEL_SCALARS, ...HOTEL_INCLUDE },
+  });
+  const rows = partial.map((h) => ({ ...h, created_by: null, updated_by: null })) as HotelRow[];
+
+  const [totalCount, statsTotal, statsActive, totalRooms] = await Promise.all([
     db.hotels.count({ where }),
     db.hotels.count(),
     db.hotels.count({ where: { is_active: true } }),
     db.hotel_rooms.count(),
   ]);
 
-  const hotels = rows.map(h => ({ ...h }));
+  const hotels = rows.map((h) => ({ ...h }));
 
   return {
     hotels,
@@ -258,21 +277,71 @@ export async function getHotelById(id: number) {
     },
   };
 
-  // Try with seasons; fall back gracefully if the seasons table doesn't exist yet.
-  let hotel;
+  // Use explicit safe scalars to avoid P2022 from columns in the Prisma schema but not yet
+  // migrated to production (hotels.created_by/updated_by, hotel_rooms.bed_count/child_cot_available).
+  // hotelRooms is overridden with a select that excludes the missing columns; missing fields are
+  // patched back with their schema defaults after the query.
+  // HotelFull is derived from the original baseInclude (which uses include) so the TypeScript type
+  // still knows about bed_count / child_cot_available — they're just filled in at runtime below.
+  type HotelFull = Prisma.hotelsGetPayload<{
+    include: typeof baseInclude & { room_pricing: typeof roomPricingWithSeasons };
+  }> | null;
+
+  // Safe hotelRooms query: selects only columns known to exist in production.
+  const safeHotelRooms = {
+    orderBy: { sort_order: "asc" } as const,
+    select: {
+      ...SAFE_HOTEL_ROOM_SCALARS,
+      images: { orderBy: { sort_order: "asc" } as const },
+      pricing: {
+        orderBy: { sort_order: "asc" } as const,
+        include: {
+          meal_type: { select: { id: true, name: true } },
+          diet_type: { select: { id: true, name: true } },
+          occupancy_prices: { orderBy: { occupancy: "asc" } as const },
+        },
+      },
+    },
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function patchRooms(rooms: any[]): any[] {
+    return rooms.map((room: any) => ({
+      ...room,
+      bed_count:           room.bed_count           ?? 1,
+      child_cot_available: room.child_cot_available ?? false,
+    }));
+  }
+
+  let hotel: HotelFull = null;
+
   try {
-    hotel = await db.hotels.findUnique({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const partial = await (db.hotels.findUnique as any)({
       where: { id },
-      include: { ...baseInclude, room_pricing: roomPricingWithSeasons },
-    });
-  } catch (e: any) {
-    if (e?.code !== "P2021") throw e;
-    const partial = await db.hotels.findUnique({
-      where: { id },
-      include: { ...baseInclude, room_pricing: roomPricingNoSeasons },
+      select: { ...SAFE_HOTEL_SCALARS, ...baseInclude, hotelRooms: safeHotelRooms, room_pricing: roomPricingWithSeasons },
     });
     hotel = partial
-      ? { ...partial, room_pricing: partial.room_pricing.map((p) => ({ ...p, seasons: [] })) }
+      ? ({ ...partial, created_by: null, updated_by: null, hotelRooms: patchRooms(partial.hotelRooms ?? []) } as HotelFull)
+      : null;
+  } catch (e: unknown) {
+    const err = e as Record<string, unknown>;
+    if (err?.code !== "P2021") throw e;
+    // seasons table missing — fetch without seasons
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const partial = await (db.hotels.findUnique as any)({
+      where: { id },
+      select: { ...SAFE_HOTEL_SCALARS, ...baseInclude, hotelRooms: safeHotelRooms, room_pricing: roomPricingNoSeasons },
+    });
+    hotel = partial
+      ? ({
+          ...partial,
+          created_by: null,
+          updated_by: null,
+          hotelRooms: patchRooms(partial.hotelRooms ?? []),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          room_pricing: partial.room_pricing.map((p: any) => ({ ...p, seasons: [] })),
+        } as HotelFull)
       : null;
   }
   if (!hotel) return null;
