@@ -737,6 +737,7 @@ export async function createRoom(hotel_id: number, formData: FormData): Promise<
 
     const exists = await db.hotel_rooms.findUnique({
       where: { hotel_id_slug: { hotel_id, slug } },
+      select: { id: true },
     });
     if (exists) return { success: false, message: "A room with this slug already exists." };
 
