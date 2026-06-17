@@ -30,6 +30,7 @@ export type QueryStatus =
 
 export type QuerySource =
     | "WEBSITE_FORM"
+    | "PACKAGE_FORM"
     | "LANDING_PAGE"
     | "WHATSAPP"
     | "PHONE_CALL"
