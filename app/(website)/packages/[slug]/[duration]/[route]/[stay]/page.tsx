@@ -9,6 +9,7 @@ import TripDuration from "./components/inputs/TripDuration";
 import StayCategory from "./components/inputs/StayCategory";
 import PricingCard from "./components/SidebarCards/PricingCard";
 import EnquiryForm from "./components/SidebarCards/EnquiryForm";
+import EnquiryAutoPopup from "./components/SidebarCards/EnquiryAutoPopup";
 import ItinerarySection, { ItineraryDay, DaySection } from "./components/Itnary";
 import DestinationRoutes from "./components/inputs/DestinationRoutes";
 import { PackageBookingProvider } from "./components/PackageBookingProvider";
@@ -557,7 +558,7 @@ export default async function PackagePage({
                     <PackageTab
                         pricing={<PricingCard />}
                         coupon={null}
-                        enquiry={<EnquiryForm packageName={pageData.title} />}
+                        enquiry={<EnquiryForm packageName={pageData.title} destination={pageData.destination.name} />}
                         itinerary={
                             <div className="flex flex-col gap-8">
                                 <TripDuration
@@ -722,6 +723,12 @@ export default async function PackagePage({
                 <RelatedPackages
                     currentPackageId={pageData.id}
                     destinationId={pageData.destination_id}
+                />
+
+                <EnquiryAutoPopup
+                    packageName={pageData.title}
+                    destination={pageData.destination.name}
+                    packageSlug={slug}
                 />
             </PackageBookingProvider>
 
