@@ -737,30 +737,34 @@ export async function createRoom(hotel_id: number, formData: FormData): Promise<
     if (exists) return { success: false, message: "A room with this slug already exists." };
 
     const count = await db.hotel_rooms.count({ where: { hotel_id } });
-    const room = await db.hotel_rooms.create({
-      data: {
-        hotel_id,
-        name,
-        slug,
-        area_sqft: formData.get("area_sqft") ? Number(formData.get("area_sqft")) : null,
-        bed_type: (formData.get("bed_type") as string) || null,
-        view_type: (formData.get("view_type") as string) || null,
-        max_occupancy:      Number(formData.get("max_occupancy"))      || 2,
-        max_adults:         Number(formData.get("max_adults"))          || 3,
-        max_children:       Number(formData.get("max_children"))        ?? 2,
-        extra_bed_capacity: Number(formData.get("extra_bed_capacity"))  ?? 0,
-        bed_count:           Number(formData.get("bed_count"))           || 1,
-        child_cot_available: formData.get("child_cot_available") === "true",
-        description: (formData.get("description") as string) || null,
-        amenities: parseJson(formData.get("amenities")),
-        features: parseJson(formData.get("features")),
-        bathroom: parseJson(formData.get("bathroom")),
-        facilities: parseJson(formData.get("facilities")),
-        is_active: formData.get("is_active") === "true",
-        sort_order: count,
-      },
-      select: { id: true },
-    });
+    const baseData = {
+      hotel_id, name, slug,
+      area_sqft:          formData.get("area_sqft") ? Number(formData.get("area_sqft")) : null,
+      bed_type:           (formData.get("bed_type")    as string) || null,
+      view_type:          (formData.get("view_type")   as string) || null,
+      max_occupancy:      Number(formData.get("max_occupancy"))     || 2,
+      max_adults:         Number(formData.get("max_adults"))         || 3,
+      max_children:       Number(formData.get("max_children"))       || 2,
+      extra_bed_capacity: Number(formData.get("extra_bed_capacity")) || 0,
+      description:        (formData.get("description") as string) || null,
+      amenities:   parseJson(formData.get("amenities")),
+      features:    parseJson(formData.get("features")),
+      bathroom:    parseJson(formData.get("bathroom")),
+      facilities:  parseJson(formData.get("facilities")),
+      is_active:   formData.get("is_active") === "true",
+      sort_order:  count,
+    };
+    let room: { id: number };
+    try {
+      room = await db.hotel_rooms.create({
+        data: { ...baseData, bed_count: Number(formData.get("bed_count")) || 1, child_cot_available: formData.get("child_cot_available") === "true" },
+        select: { id: true },
+      });
+    } catch (e2) {
+      if ((e2 as Record<string, unknown>).code !== "P2022") throw e2;
+      // bed_count / child_cot_available not yet in production DB — omit them
+      room = await db.hotel_rooms.create({ data: baseData, select: { id: true } });
+    }
 
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Room added", id: room.id };
@@ -779,27 +783,33 @@ export async function updateRoom(
     const name = (formData.get("name") as string).trim();
     if (!name) return { success: false, message: "Name is required." };
 
-    await db.hotel_rooms.update({
-      where: { id },
-      data: {
-        name,
-        area_sqft: formData.get("area_sqft") ? Number(formData.get("area_sqft")) : null,
-        bed_type: (formData.get("bed_type") as string) || null,
-        view_type: (formData.get("view_type") as string) || null,
-        max_occupancy:      Number(formData.get("max_occupancy"))      || 2,
-        max_adults:         Number(formData.get("max_adults"))          || 3,
-        max_children:       Number(formData.get("max_children"))        ?? 2,
-        extra_bed_capacity: Number(formData.get("extra_bed_capacity"))  ?? 0,
-        bed_count:           Number(formData.get("bed_count"))           || 1,
-        child_cot_available: formData.get("child_cot_available") === "true",
-        description: (formData.get("description") as string) || null,
-        amenities: parseJson(formData.get("amenities")),
-        features: parseJson(formData.get("features")),
-        bathroom: parseJson(formData.get("bathroom")),
-        facilities: parseJson(formData.get("facilities")),
-        is_active: formData.get("is_active") === "true",
-      },
-    });
+    const baseUpdateData = {
+      name,
+      area_sqft:          formData.get("area_sqft") ? Number(formData.get("area_sqft")) : null,
+      bed_type:           (formData.get("bed_type")    as string) || null,
+      view_type:          (formData.get("view_type")   as string) || null,
+      max_occupancy:      Number(formData.get("max_occupancy"))     || 2,
+      max_adults:         Number(formData.get("max_adults"))         || 3,
+      max_children:       Number(formData.get("max_children"))       || 2,
+      extra_bed_capacity: Number(formData.get("extra_bed_capacity")) || 0,
+      description:        (formData.get("description") as string) || null,
+      amenities:   parseJson(formData.get("amenities")),
+      features:    parseJson(formData.get("features")),
+      bathroom:    parseJson(formData.get("bathroom")),
+      facilities:  parseJson(formData.get("facilities")),
+      is_active:   formData.get("is_active") === "true",
+    };
+    try {
+      await db.hotel_rooms.update({
+        where: { id },
+        data: { ...baseUpdateData, bed_count: Number(formData.get("bed_count")) || 1, child_cot_available: formData.get("child_cot_available") === "true" },
+        select: { id: true },
+      });
+    } catch (e2) {
+      if ((e2 as Record<string, unknown>).code !== "P2022") throw e2;
+      // bed_count / child_cot_available not yet in production DB — omit them
+      await db.hotel_rooms.update({ where: { id }, data: baseUpdateData, select: { id: true } });
+    }
 
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Room updated" };
