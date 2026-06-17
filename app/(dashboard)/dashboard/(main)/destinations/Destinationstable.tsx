@@ -45,6 +45,7 @@ type Destination = {
     is_active: boolean;
     created_at: Date;
     location_id: string | null;
+    location_type: string | null;
     created_by: string | null;
     updated_at: Date;
     updated_by: string | null;

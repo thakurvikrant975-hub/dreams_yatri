@@ -23,7 +23,7 @@ import {
 } from "../components/dashboard/ImagePicker";
 
 import { LocationSearchSelect } from "../components/location/LocationSearchSelect";
-import type { LocationValue }   from "../components/location/location.types";
+import type { LocationType, LocationValue } from "../components/location/location.types";
 import { DESTINATION_TYPES }   from "../components/location/location.types";
 import { createDestination, updateDestination, checkDestinationSlug } from "./actions";
 
@@ -32,18 +32,19 @@ import { createDestination, updateDestination, checkDestinationSlug } from "./ac
 type Region = { id: number; name: string; slug: string };
 
 type Destination = {
-  id:          number;
-  name:        string;
-  slug:        string;
-  country:     string;
-  region_id:   number;
-  description: string | null;
-  meta_title:  string | null;
-  meta_desc:   string | null;
-  thumbnail:   string | null;
-  cover_image: string | null;
-  is_active:   boolean;
-  location_id: string | null;
+  id:            number;
+  name:          string;
+  slug:          string;
+  country:       string;
+  region_id:     number;
+  description:   string | null;
+  meta_title:    string | null;
+  meta_desc:     string | null;
+  thumbnail:     string | null;
+  cover_image:   string | null;
+  is_active:     boolean;
+  location_id:   string | null;
+  location_type: string | null;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -75,7 +76,7 @@ function buildInitialData(dest: Destination): Record<string, Record<string, unkn
         ? ({
             id:         dest.location_id,
             name:       dest.name,
-            type:       "CITY",
+            type:       (dest.location_type as LocationType | null) ?? "CITY",
             breadcrumb: dest.name,
             slug:       dest.slug,
           } satisfies LocationValue)

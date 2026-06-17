@@ -71,9 +71,23 @@ export async function getDestinations(params: GetDestinationsParams = {}) {
     ? totalCount
     : await db.destinations.count({ where: baseWhere });
 
+  // Batch-fetch location type so the edit dialog can display the correct badge.
+  const locationIds = rows
+    .filter((d) => d.location_id)
+    .map((d) => BigInt(d.location_id!));
+  const locationMeta: Record<string, string> = {};
+  if (locationIds.length > 0) {
+    const locs = await db.location.findMany({
+      where:  { id: { in: locationIds } },
+      select: { id: true, type: true },
+    });
+    for (const loc of locs) locationMeta[loc.id.toString()] = loc.type;
+  }
+
   return {
     destinations: rows.map((d) => ({
       ...d,
+      location_type: d.location_id ? (locationMeta[d.location_id] ?? null) : null,
       latitude:  d.latitude  != null ? Number(d.latitude)  : null,
       longitude: d.longitude != null ? Number(d.longitude) : null,
     })),
