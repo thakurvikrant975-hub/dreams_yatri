@@ -144,7 +144,11 @@ export async function getHotels(params: GetHotelsParams = {}) {
     db.hotel_rooms.count(),
   ]);
 
-  const hotels = rows.map(h => ({ ...h }));
+  const hotels = rows.map((h) => ({
+    ...h,
+    margin_percentage: Number(h.margin_percentage),
+    gst_percentage:    Number(h.gst_percentage),
+  }));
 
   return {
     hotels,
@@ -664,6 +668,7 @@ export async function createRoom(hotel_id: number, formData: FormData): Promise<
 
     const exists = await db.hotel_rooms.findUnique({
       where: { hotel_id_slug: { hotel_id, slug } },
+      select: { id: true },
     });
     if (exists) return { success: false, message: "A room with this slug already exists." };
 
