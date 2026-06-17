@@ -30,10 +30,10 @@ const SAFE_HOTEL_SCALARS = {
   location_id: true, margin_percentage: true, gst_percentage: true,
 } as const;
 
-// hotel_rooms: omits bed_count and child_cot_available (added in schema, not yet in production DB).
 const SAFE_HOTEL_ROOM_SCALARS = {
   id: true, hotel_id: true, name: true, slug: true,
   area_sqft: true, bed_type: true, view_type: true,
+  bed_count: true, child_cot_available: true,
   max_occupancy: true, max_adults: true, max_children: true,
   extra_bed_capacity: true, amenities: true, features: true,
   bathroom: true, facilities: true, description: true,
