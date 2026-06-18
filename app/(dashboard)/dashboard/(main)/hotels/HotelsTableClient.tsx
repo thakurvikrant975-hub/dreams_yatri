@@ -270,7 +270,7 @@ export function HotelsTableClient({
       cell: (h) => (
         <div className="space-y-0.5">
           <p className="text-xs font-medium text-foreground/80 truncate max-w-30">
-            {h.created_by ?? "—"}
+            {h.created_by || "—"}
           </p>
           <p className="text-xs text-muted-foreground">
             {formatDistanceToNow(new Date(h.created_at), { addSuffix: true })}
