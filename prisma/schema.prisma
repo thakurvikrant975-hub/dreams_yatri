@@ -846,6 +846,26 @@ model policies {
   @@index([type, is_active])
 }
 
+model HotelOwner {
+  id           String           @id @default(cuid())
+  email        String           @unique
+  password     String
+  name         String
+  phone        String?
+  whatsapp     String?
+  businessName String?
+  status       HotelOwnerStatus @default(PENDING_VERIFICATION)
+  verifiedAt   DateTime?
+  verifiedById String?
+  lastLoginAt  DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  hotels       hotels[]
+
+  @@index([email])
+  @@map("hotel_owners")
+}
+
 model hotels {
   id                Int                      @id @default(autoincrement())
   name              String
@@ -876,6 +896,12 @@ model hotels {
   gst_percentage    Decimal                  @default(18) @db.Decimal(5, 2)
   created_by        String?
   updated_by        String?
+  owner_id          String?
+  listing_status    HotelListingStatus       @default(DRAFT)
+  submitted_at      DateTime?
+  approved_at       DateTime?
+  approved_by_id    String?
+  rejection_reason  String?
   bookingHotels     BookingHotel[]
   childPolicies     hotel_child_policies[]
   image_categories  hotel_image_categories[]
@@ -887,10 +913,12 @@ model hotels {
   destination       destinations             @relation(fields: [destination_id], references: [id])
   location          Location?                @relation(fields: [location_id], references: [id])
   packageBookings   PackageBookingHotel[]
+  owner             HotelOwner?              @relation(fields: [owner_id], references: [id])
 
   @@index([destination_id, is_active])
   @@index([location_id])
   @@index([slug])
+  @@index([owner_id])
 }
 
 model hotel_image_categories {
@@ -2320,6 +2348,22 @@ enum SalaryType {
   PER_TRIP
   PER_DAY
   COMMISSION
+}
+
+enum HotelOwnerStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  SUSPENDED
+  REJECTED
+}
+
+enum HotelListingStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  LIVE
 }
 
 // ── Blog ─────────────────────────────────────────────────────────────────────
