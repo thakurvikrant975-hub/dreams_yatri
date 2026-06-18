@@ -10,8 +10,8 @@ import { actionError } from "@/app/lib/action-error";
 import { dashboardAuth } from "@/app/lib/auth-dashboard";
 import { createLog } from "../lib/logger";
 
-// ── Auth helper ───────────────────────────────────────────────────────────
- 
+// ── Auth helper ────────────────────────────────────────────────
+
 async function requireSession() {
   const session = await dashboardAuth();
   const actorName = session?.user?.name ?? session?.user?.email ?? null;

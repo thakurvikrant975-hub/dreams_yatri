@@ -13,9 +13,10 @@ import { COUNTRY_CODES, DEFAULT_COUNTRY } from '@/app/lib/assets/country-codes';
 
 type EnquiryFormProps = {
   packageName: string;
+  destination?: string;
 };
 
-const EnquiryForm: React.FC<EnquiryFormProps> = ({ packageName }) => {
+const EnquiryForm: React.FC<EnquiryFormProps> = ({ packageName, destination }) => {
   const { pricing, adults, childCount, infants } = useBooking();
 
   const [formData, setFormData] = useState({ name: '', email: '', countryCode: DEFAULT_COUNTRY.code, mobileNumber: '' });
@@ -60,13 +61,14 @@ const EnquiryForm: React.FC<EnquiryFormProps> = ({ packageName }) => {
       email: formData.email,
       phone,
       packageName,
+      destination,
       packageUrl: typeof window !== 'undefined' ? window.location.pathname : undefined,
       pageUrl:    typeof window !== 'undefined' ? window.location.href     : undefined,
     });
 
     if (result.ok) {
       setStatus('success');
-      setFormData({ name: '', email: '', countryCode: '+91', mobileNumber: '' });
+      setFormData({ name: '', email: '', countryCode: DEFAULT_COUNTRY.code, mobileNumber: '' });
       setErrors({});
     } else if ('fieldErrors' in result && result.fieldErrors) {
       setErrors(result.fieldErrors);
