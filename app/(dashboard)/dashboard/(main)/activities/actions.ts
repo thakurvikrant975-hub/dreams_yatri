@@ -215,39 +215,69 @@ export async function getActivities(params: GetActivitiesParams = {}) {
 }
 
 export async function getActivityWithVariants(id: number) {
-    const activity = await db.activities.findUnique({
-        where: { id },
-        include: {
-            category: { select: { id: true, name: true, slug: true } },
-            images: {
-                orderBy: { sort_order: "asc" },
-                select:  { id: true, url: true, thumbnail: true, is_primary: true, sort_order: true, label: true },
-            },
-            variants: {
-                orderBy: { sort_order: "asc" },
-                include: {
-                    pricing: { orderBy: { sort_order: "asc" } },
-                    seasons:  {
-                        orderBy: { sort_order: "asc" },
-                        include: { pricing: { orderBy: { sort_order: "asc" } } },
-                    },
-                },
-            },
-            addons: { orderBy: { sort_order: "asc" } },
-            location: {
-                select: {
-                    id:        true,
-                    name:      true,
-                    type:      true,
-                    slug:      true,
-                    latitude:  true,
-                    longitude: true,
-                    state:   { select: { name: true } },
-                    country: { select: { name: true } },
-                },
+    const baseInclude = {
+        category: { select: { id: true, name: true, slug: true } },
+        images: {
+            orderBy: { sort_order: "asc" } as const,
+            select:  { id: true, url: true, thumbnail: true, is_primary: true, sort_order: true, label: true },
+        },
+        addons: { orderBy: { sort_order: "asc" } as const },
+        location: {
+            select: {
+                id:        true,
+                name:      true,
+                type:      true,
+                slug:      true,
+                latitude:  true,
+                longitude: true,
+                state:   { select: { name: true } },
+                country: { select: { name: true } },
             },
         },
-    });
+    } as const;
+
+    const variantsWithSeasons = {
+        orderBy: { sort_order: "asc" } as const,
+        include: {
+            pricing: { orderBy: { sort_order: "asc" } as const },
+            seasons: {
+                orderBy: { sort_order: "asc" } as const,
+                include: { pricing: { orderBy: { sort_order: "asc" } as const } },
+            },
+        },
+    } as const;
+
+    const variantsNoSeasons = {
+        orderBy: { sort_order: "asc" } as const,
+        include: { pricing: { orderBy: { sort_order: "asc" } as const } },
+    } as const;
+
+    type ActivityFull = Awaited<ReturnType<typeof db.activities.findUnique<{
+        where: { id: number };
+        include: typeof baseInclude & { variants: typeof variantsWithSeasons };
+    }>>>;
+
+    let activity: ActivityFull = null;
+
+    try {
+        activity = await db.activities.findUnique({
+            where: { id },
+            include: { ...baseInclude, variants: variantsWithSeasons },
+        });
+    } catch (e: unknown) {
+        const err = e as Record<string, unknown>;
+        if (err?.code !== "P2021") throw e;
+        // activity_variant_seasons table not yet in production — fetch without seasons
+        const partial = await db.activities.findUnique({
+            where: { id },
+            include: { ...baseInclude, variants: variantsNoSeasons },
+        });
+        activity = partial
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            ? ({ ...partial, variants: partial.variants.map((v: any) => ({ ...v, seasons: [] })) } as ActivityFull)
+            : null;
+    }
+
     if (!activity) return null;
     return {
         ...activity,

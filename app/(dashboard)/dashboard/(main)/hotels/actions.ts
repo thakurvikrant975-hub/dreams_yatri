@@ -18,6 +18,28 @@ async function requireSession() {
   return { session, actorName };
 }
 
+// Explicit scalar selects — omit columns that are in the Prisma schema but not yet
+// migrated to the production DB. Spread alongside relation configs in every query.
+
+const SAFE_HOTEL_SCALARS = {
+  id: true, name: true, slug: true, description: true, meta_title: true, meta_desc: true,
+  destination_id: true, address: true, category: true, stay_type: true,
+  check_in_time: true, check_out_time: true, is_active: true, created_at: true, updated_at: true,
+  thumbnail: true, city: true, state: true, country: true, pincode: true,
+  business_phone: true, business_email: true, whatsapp_number: true, b2b_email: true,
+  location_id: true, margin_percentage: true, gst_percentage: true,
+} as const;
+
+const SAFE_HOTEL_ROOM_SCALARS = {
+  id: true, hotel_id: true, name: true, slug: true,
+  area_sqft: true, bed_type: true, view_type: true,
+  bed_count: true, child_cot_available: true,
+  max_occupancy: true, max_adults: true, max_children: true,
+  extra_bed_capacity: true, amenities: true, features: true,
+  bathroom: true, facilities: true, description: true,
+  is_active: true, sort_order: true, created_at: true, updated_at: true,
+} as const;
+
 // ── Schemas ───────────────────────────────────────────────────────────────
 
 const HotelSchema = z.object({
@@ -91,14 +113,6 @@ const HOTEL_INCLUDE = {
   },
 } as const;
 
-// Extra scalar fields fetched alongside HOTEL_INCLUDE
-const HOTEL_SCALAR_SELECT = {
-  created_by: true,
-  updated_by: true,
-  created_at: true,
-  updated_at: true,
-} as const;
-
 export async function getHotels(params: GetHotelsParams = {}) {
   const {
     page        = 1,
@@ -129,15 +143,20 @@ export async function getHotels(params: GetHotelsParams = {}) {
     ...(status === "inactive" ? { is_active: false }                       : {}),
   };
 
-  const [rows, totalCount, statsTotal, statsActive, totalRooms] = await Promise.all([
-    db.hotels.findMany({
-      where,
-      orderBy: { created_at: "desc" },
-      skip,
-      take: limit,
-      include: HOTEL_INCLUDE,
-      // created_by / updated_by are scalar fields — Prisma returns them by default
-    }),
+  type HotelRow = Awaited<ReturnType<typeof db.hotels.findMany<{ include: typeof HOTEL_INCLUDE }>>>[number];
+
+  // Use explicit safe scalars to avoid P2022 from created_by/updated_by not yet in production DB.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const partial: any[] = await (db.hotels.findMany as any)({
+    where,
+    orderBy: { created_at: "desc" },
+    skip,
+    take: limit,
+    select: { ...SAFE_HOTEL_SCALARS, ...HOTEL_INCLUDE },
+  });
+  const rows = partial.map((h) => ({ ...h, created_by: null, updated_by: null })) as HotelRow[];
+
+  const [totalCount, statsTotal, statsActive, totalRooms] = await Promise.all([
     db.hotels.count({ where }),
     db.hotels.count(),
     db.hotels.count({ where: { is_active: true } }),
@@ -262,21 +281,71 @@ export async function getHotelById(id: number) {
     },
   };
 
-  // Try with seasons; fall back gracefully if the seasons table doesn't exist yet.
-  let hotel;
+  // Use explicit safe scalars to avoid P2022 from columns in the Prisma schema but not yet
+  // migrated to production (hotels.created_by/updated_by, hotel_rooms.bed_count/child_cot_available).
+  // hotelRooms is overridden with a select that excludes the missing columns; missing fields are
+  // patched back with their schema defaults after the query.
+  // HotelFull is derived from the original baseInclude (which uses include) so the TypeScript type
+  // still knows about bed_count / child_cot_available — they're just filled in at runtime below.
+  type HotelFull = Prisma.hotelsGetPayload<{
+    include: typeof baseInclude & { room_pricing: typeof roomPricingWithSeasons };
+  }> | null;
+
+  // Safe hotelRooms query: selects only columns known to exist in production.
+  const safeHotelRooms = {
+    orderBy: { sort_order: "asc" } as const,
+    select: {
+      ...SAFE_HOTEL_ROOM_SCALARS,
+      images: { orderBy: { sort_order: "asc" } as const },
+      pricing: {
+        orderBy: { sort_order: "asc" } as const,
+        include: {
+          meal_type: { select: { id: true, name: true } },
+          diet_type: { select: { id: true, name: true } },
+          occupancy_prices: { orderBy: { occupancy: "asc" } as const },
+        },
+      },
+    },
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function patchRooms(rooms: any[]): any[] {
+    return rooms.map((room: any) => ({
+      ...room,
+      bed_count:           room.bed_count           ?? 1,
+      child_cot_available: room.child_cot_available ?? false,
+    }));
+  }
+
+  let hotel: HotelFull = null;
+
   try {
-    hotel = await db.hotels.findUnique({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const partial = await (db.hotels.findUnique as any)({
       where: { id },
-      include: { ...baseInclude, room_pricing: roomPricingWithSeasons },
-    });
-  } catch (e: any) {
-    if (e?.code !== "P2021") throw e;
-    const partial = await db.hotels.findUnique({
-      where: { id },
-      include: { ...baseInclude, room_pricing: roomPricingNoSeasons },
+      select: { ...SAFE_HOTEL_SCALARS, ...baseInclude, hotelRooms: safeHotelRooms, room_pricing: roomPricingWithSeasons },
     });
     hotel = partial
-      ? { ...partial, room_pricing: partial.room_pricing.map((p) => ({ ...p, seasons: [] })) }
+      ? ({ ...partial, created_by: null, updated_by: null, hotelRooms: patchRooms(partial.hotelRooms ?? []) } as HotelFull)
+      : null;
+  } catch (e: unknown) {
+    const err = e as Record<string, unknown>;
+    if (err?.code !== "P2021") throw e;
+    // seasons table missing — fetch without seasons
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const partial = await (db.hotels.findUnique as any)({
+      where: { id },
+      select: { ...SAFE_HOTEL_SCALARS, ...baseInclude, hotelRooms: safeHotelRooms, room_pricing: roomPricingNoSeasons },
+    });
+    hotel = partial
+      ? ({
+          ...partial,
+          created_by: null,
+          updated_by: null,
+          hotelRooms: patchRooms(partial.hotelRooms ?? []),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          room_pricing: partial.room_pricing.map((p: any) => ({ ...p, seasons: [] })),
+        } as HotelFull)
       : null;
   }
   if (!hotel) return null;
@@ -673,30 +742,34 @@ export async function createRoom(hotel_id: number, formData: FormData): Promise<
     if (exists) return { success: false, message: "A room with this slug already exists." };
 
     const count = await db.hotel_rooms.count({ where: { hotel_id } });
-    const room = await db.hotel_rooms.create({
-      data: {
-        hotel_id,
-        name,
-        slug,
-        area_sqft: formData.get("area_sqft") ? Number(formData.get("area_sqft")) : null,
-        bed_type: (formData.get("bed_type") as string) || null,
-        view_type: (formData.get("view_type") as string) || null,
-        max_occupancy:      Number(formData.get("max_occupancy"))      || 2,
-        max_adults:         Number(formData.get("max_adults"))          || 3,
-        max_children:       Number(formData.get("max_children"))        ?? 2,
-        extra_bed_capacity: Number(formData.get("extra_bed_capacity"))  ?? 0,
-        bed_count:           Number(formData.get("bed_count"))           || 1,
-        child_cot_available: formData.get("child_cot_available") === "true",
-        description: (formData.get("description") as string) || null,
-        amenities: parseJson(formData.get("amenities")),
-        features: parseJson(formData.get("features")),
-        bathroom: parseJson(formData.get("bathroom")),
-        facilities: parseJson(formData.get("facilities")),
-        is_active: formData.get("is_active") === "true",
-        sort_order: count,
-      },
-      select: { id: true },
-    });
+    const baseData = {
+      hotel_id, name, slug,
+      area_sqft:          formData.get("area_sqft") ? Number(formData.get("area_sqft")) : null,
+      bed_type:           (formData.get("bed_type")    as string) || null,
+      view_type:          (formData.get("view_type")   as string) || null,
+      max_occupancy:      Number(formData.get("max_occupancy"))     || 2,
+      max_adults:         Number(formData.get("max_adults"))         || 3,
+      max_children:       Number(formData.get("max_children"))       || 2,
+      extra_bed_capacity: Number(formData.get("extra_bed_capacity")) || 0,
+      description:        (formData.get("description") as string) || null,
+      amenities:   parseJson(formData.get("amenities")),
+      features:    parseJson(formData.get("features")),
+      bathroom:    parseJson(formData.get("bathroom")),
+      facilities:  parseJson(formData.get("facilities")),
+      is_active:   formData.get("is_active") === "true",
+      sort_order:  count,
+    };
+    let room: { id: number };
+    try {
+      room = await db.hotel_rooms.create({
+        data: { ...baseData, bed_count: Number(formData.get("bed_count")) || 1, child_cot_available: formData.get("child_cot_available") === "true" },
+        select: { id: true },
+      });
+    } catch (e2) {
+      if ((e2 as Record<string, unknown>).code !== "P2022") throw e2;
+      // bed_count / child_cot_available not yet in production DB — omit them
+      room = await db.hotel_rooms.create({ data: baseData, select: { id: true } });
+    }
 
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Room added", id: room.id };
@@ -715,27 +788,33 @@ export async function updateRoom(
     const name = (formData.get("name") as string).trim();
     if (!name) return { success: false, message: "Name is required." };
 
-    await db.hotel_rooms.update({
-      where: { id },
-      data: {
-        name,
-        area_sqft: formData.get("area_sqft") ? Number(formData.get("area_sqft")) : null,
-        bed_type: (formData.get("bed_type") as string) || null,
-        view_type: (formData.get("view_type") as string) || null,
-        max_occupancy:      Number(formData.get("max_occupancy"))      || 2,
-        max_adults:         Number(formData.get("max_adults"))          || 3,
-        max_children:       Number(formData.get("max_children"))        ?? 2,
-        extra_bed_capacity: Number(formData.get("extra_bed_capacity"))  ?? 0,
-        bed_count:           Number(formData.get("bed_count"))           || 1,
-        child_cot_available: formData.get("child_cot_available") === "true",
-        description: (formData.get("description") as string) || null,
-        amenities: parseJson(formData.get("amenities")),
-        features: parseJson(formData.get("features")),
-        bathroom: parseJson(formData.get("bathroom")),
-        facilities: parseJson(formData.get("facilities")),
-        is_active: formData.get("is_active") === "true",
-      },
-    });
+    const baseUpdateData = {
+      name,
+      area_sqft:          formData.get("area_sqft") ? Number(formData.get("area_sqft")) : null,
+      bed_type:           (formData.get("bed_type")    as string) || null,
+      view_type:          (formData.get("view_type")   as string) || null,
+      max_occupancy:      Number(formData.get("max_occupancy"))     || 2,
+      max_adults:         Number(formData.get("max_adults"))         || 3,
+      max_children:       Number(formData.get("max_children"))       || 2,
+      extra_bed_capacity: Number(formData.get("extra_bed_capacity")) || 0,
+      description:        (formData.get("description") as string) || null,
+      amenities:   parseJson(formData.get("amenities")),
+      features:    parseJson(formData.get("features")),
+      bathroom:    parseJson(formData.get("bathroom")),
+      facilities:  parseJson(formData.get("facilities")),
+      is_active:   formData.get("is_active") === "true",
+    };
+    try {
+      await db.hotel_rooms.update({
+        where: { id },
+        data: { ...baseUpdateData, bed_count: Number(formData.get("bed_count")) || 1, child_cot_available: formData.get("child_cot_available") === "true" },
+        select: { id: true },
+      });
+    } catch (e2) {
+      if ((e2 as Record<string, unknown>).code !== "P2022") throw e2;
+      // bed_count / child_cot_available not yet in production DB — omit them
+      await db.hotel_rooms.update({ where: { id }, data: baseUpdateData, select: { id: true } });
+    }
 
     revalidatePath(`/dashboard/hotels/${hotel_id}`);
     return { success: true, message: "Room updated" };

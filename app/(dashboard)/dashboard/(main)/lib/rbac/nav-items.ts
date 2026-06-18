@@ -22,16 +22,22 @@ export const NAV_GROUPS = [
     items: [
       { title: "Regions", href: "/dashboard/regions", icon: GlobeHemisphereEastIcon, phosphor: true },
       { title: "Destinations", href: "/dashboard/destinations", icon: MapPinIcon, phosphor: true },
-      { title: "Categories", href: "/dashboard/categories", icon: TagIcon, phosphor: true },
       { title: "Policies", href: "/dashboard/policies", icon: FileTextIcon, phosphor: true },
-      { title: "Blog Reviews", href: "/dashboard/blogs", icon: BookOpen },
     ],
   },
   {
     id: "activities", label: "Activities",
     items: [
+      { title: "Activity Categories", href: "/dashboard/activities/categories", icon: TagIcon, phosphor: true },
       { title: "Activities", href: "/dashboard/activities", icon: ParachuteIcon, phosphor: true },
-      { title: "Categories", href: "/dashboard/activities/categories", icon: TagIcon, phosphor: true },
+    ],
+  },
+  {
+    id: "packages", label: "Packages",
+    items: [
+      { title: "Package Categories", href: "/dashboard/categories", icon: TagIcon, phosphor: true },
+      { title: "Travel Packages", href: "/dashboard/packages", icon: PackageIcon, phosphor: true },
+      { title: "Package Bookings", href: "/dashboard/package-bookings", icon: BookOpen },
     ],
   },
   {
@@ -41,15 +47,6 @@ export const NAV_GROUPS = [
       { title: "Meal Types", href: "/dashboard/hotels/meal-types", icon: KeyRound },
       { title: "Diet Types", href: "/dashboard/hotels/diet-types", icon: IdCardLanyard },
       { title: "Verify Hotels", href: "/dashboard/verify-hotels", icon: Bed },
-
-    ],
-  },
-  {
-    id: "packages", label: "Packages",
-    items: [
-      { title: "Travel Packages", href: "/dashboard/packages", icon: PackageIcon, phosphor: true },
-      { title: "Package Bookings", href: "/dashboard/package-bookings", icon: BookOpen },
-
     ],
   },
   {
@@ -72,6 +69,7 @@ export const NAV_GROUPS = [
       { title: "Coupons and offers", href: "/dashboard/coupons", icon: BadgePercent },
       { title: "Reviews", href: "/dashboard/reviews", icon: Star },
       { title: "Not Found", href: "/dashboard/not-found", icon: X },
+      { title: "Blog Reviews", href: "/dashboard/blogs", icon: BookOpen },
     ],
   },
   {
@@ -99,6 +97,11 @@ export const NAV_GROUPS = [
       { title: "Team Members", href: "/dashboard/team-members", icon: IdCardLanyard },
       { title: "Activity Logs", href: "/dashboard/activity-logs", icon: Activity },
       { title: "Roles and Permissions", href: "/dashboard/roles-and-permissions", icon: KeyRound },
+    ],
+  },
+  {
+    id: "bookings", label: "Booking Management",
+    items: [
     ],
   },
   {

@@ -1640,6 +1640,7 @@ model itinerary_transfers {
   route_id     Int?
   vehicle_id   Int?
   num_vehicles Int                 @default(1)
+  km_override  Float?
   itinerary    package_itineraries @relation(fields: [itinerary_id], references: [id], onDelete: Cascade)
   route        transfer_routes?    @relation(fields: [route_id], references: [id])
   vehicle      vehicles?           @relation(fields: [vehicle_id], references: [id])

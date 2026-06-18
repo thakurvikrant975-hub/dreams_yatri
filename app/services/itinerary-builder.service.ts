@@ -16,6 +16,7 @@ export type TransferInput = {
   vehicle_id?: number | null;
   num_vehicles?: number;
   notes?: string | null;
+  km_override?: number | null;
 };
 
 export type NoteInput = {
@@ -53,6 +54,7 @@ export type TransferItem = {
   num_vehicles: number;
   notes: string | null;
   sort_order: number;
+  km_override: number | null;
   route: {
     id: number;
     pickup_name: string;
@@ -172,7 +174,9 @@ export async function getItineraryData(
       },
       itinerary_transfers: {
           orderBy: { sort_order: "asc" },
-          include: {
+          select: {
+            id: true, itinerary_id: true, route_id: true, vehicle_id: true,
+            num_vehicles: true, notes: true, sort_order: true, km_override: true,
             route: {
               select: {
                 id: true,
@@ -245,6 +249,7 @@ export async function getItineraryData(
           num_vehicles: t.num_vehicles,
           notes: t.notes,
           sort_order: t.sort_order,
+          km_override: t.km_override,
           route: t.route ? {
             id: t.route.id,
             pickup_name: t.route.pickup_name,
@@ -482,6 +487,7 @@ export async function addItineraryTransfer(itineraryId: number, data: TransferIn
       num_vehicles: data.num_vehicles ?? 1,
       notes: data.notes ?? null,
       sort_order: order,
+      km_override: data.km_override ?? null,
     },
   });
 }
@@ -495,6 +501,7 @@ export async function updateItineraryTransfer(id: number, data: TransferInput) {
       vehicle_id: data.vehicle_id ?? null,
       num_vehicles: data.num_vehicles ?? 1,
       notes: data.notes ?? null,
+      km_override: data.km_override ?? null,
     },
   });
 }

@@ -142,7 +142,7 @@ export function PackageBookingProvider({
     const [childCount, setChildRaw]     = useState(initialChildAges?.length ?? 0);
     const [infants,    setInfantsRaw]   = useState(0);
     const [childAges,  setChildAges]    = useState<number[]>(initialChildAges ?? []);
-    const [travelDate, setTravelDateRaw] = useState(initialTravelDate ?? '');
+    const [travelDate, setTravelDateRaw] = useState(initialTravelDate ?? new Date().toISOString().slice(0, 10));
     const [leavingFrom, setLeavingFrom]  = useState<LocationValue | null>(initialLeavingFrom ?? null);
     const [dateHighlight, setDateHighlight] = useState(false);
 

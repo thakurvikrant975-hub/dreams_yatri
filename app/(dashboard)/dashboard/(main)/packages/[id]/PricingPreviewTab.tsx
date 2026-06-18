@@ -169,9 +169,18 @@ function Chip({ children, color = "default" }: { children: React.ReactNode; colo
 // ── Transfer row ────────────────────────────────────────────────────────────
 
 function TransferRow({ transfer, cabCost }: {
-  transfer: { id: number; pickup_name: string | null; drop_name: string | null; vehicle_name: string | null; distance_km: number | null };
+  transfer: {
+    id: number;
+    pickup_name: string | null;
+    drop_name: string | null;
+    vehicle_name: string | null;
+    distance_km: number | null;
+    km_override?: number | null;
+    km_used?: number | null;
+  };
   cabCost?: number;
 }) {
+  const hasOverride = transfer.km_override != null && transfer.km_override > 0;
   return (
     <div className="flex items-center gap-2 py-1.5">
       <div className="h-6 w-6 rounded-lg flex items-center justify-center shrink-0 bg-orange-50 text-orange-600">
@@ -183,12 +192,32 @@ function TransferRow({ transfer, cabCost }: {
             ? `${transfer.pickup_name} → ${transfer.drop_name}`
             : transfer.vehicle_name ?? "Transfer"}
         </p>
-        {transfer.distance_km != null && (
-          <p className="text-[10px] text-muted-foreground mt-0.5">{transfer.distance_km} km by road</p>
-        )}
+        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+          {hasOverride ? (
+            <>
+              <span className="text-[10px] font-semibold bg-blue-100 text-blue-700 border border-blue-200 rounded px-1.5 py-0.5 leading-none">
+                {transfer.km_override} km (manual)
+              </span>
+              {transfer.distance_km != null && (
+                <span className="text-[10px] text-muted-foreground/50 line-through">
+                  auto {transfer.distance_km} km
+                </span>
+              )}
+            </>
+          ) : transfer.km_used != null ? (
+            <span className="text-[10px] text-muted-foreground">{transfer.km_used} km by road</span>
+          ) : transfer.distance_km != null ? (
+            <span className="text-[10px] text-muted-foreground">{transfer.distance_km} km by road</span>
+          ) : null}
+        </div>
       </div>
       {cabCost != null && cabCost > 0 && (
-        <span className="text-sm font-semibold text-orange-700 shrink-0">₹{fmt(cabCost)}</span>
+        <div className="shrink-0 text-right">
+          <span className="text-sm font-semibold text-orange-700">₹{fmt(cabCost)}</span>
+          {transfer.km_used != null && (
+            <p className="text-[10px] text-orange-600/70">{transfer.km_used} km used</p>
+          )}
+        </div>
       )}
     </div>
   );
