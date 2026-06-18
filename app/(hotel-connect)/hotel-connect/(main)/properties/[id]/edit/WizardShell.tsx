@@ -8,10 +8,8 @@ import {
   CheckCircle,
   FloppyDisk,
 } from "@phosphor-icons/react";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/app/lib/utils";
 import { HotelListingStatus, PropertySubType } from "@/app/generated/prisma";
-import TabPlaceholder from "./tabs/TabPlaceholder";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -118,9 +116,13 @@ function TabItem({
 export default function WizardShell({
   hotel,
   currentTab,
+  tabFormId,
+  children,
 }: {
   hotel: HotelSummary;
   currentTab: number;
+  tabFormId?: string;
+  children: React.ReactNode;
 }) {
   const router = useRouter();
   const status = STATUS_CONFIG[hotel.listing_status] ?? STATUS_CONFIG.DRAFT;
@@ -192,10 +194,7 @@ export default function WizardShell({
       {/* ── Scrollable content ────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-2xl mx-auto w-full p-6">
-          <TabPlaceholder
-            tabIndex={currentTab}
-            tabLabel={WIZARD_TABS[currentTab - 1]?.label ?? ""}
-          />
+          {children}
         </div>
       </div>
 
@@ -220,20 +219,31 @@ export default function WizardShell({
           Step {currentTab} of {WIZARD_TABS.length}
         </p>
 
-        <button
-          type="button"
-          onClick={() => goTo(currentTab + 1)}
-          disabled={isLastTab}
-          className={cn(
-            "flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-colors",
-            isLastTab
-              ? "bg-neutral-100 text-neutral-400 cursor-not-allowed"
-              : "bg-primary-600 hover:bg-primary-700 text-white"
-          )}
-        >
-          Save & Continue
-          <ArrowRight size={14} weight="bold" />
-        </button>
+        {tabFormId ? (
+          <button
+            type="submit"
+            form={tabFormId}
+            className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold bg-primary-600 hover:bg-primary-700 text-white transition-colors"
+          >
+            Save & Continue
+            <ArrowRight size={14} weight="bold" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => goTo(currentTab + 1)}
+            disabled={isLastTab}
+            className={cn(
+              "flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-colors",
+              isLastTab
+                ? "bg-neutral-100 text-neutral-400 cursor-not-allowed"
+                : "bg-primary-600 hover:bg-primary-700 text-white"
+            )}
+          >
+            Save & Continue
+            <ArrowRight size={14} weight="bold" />
+          </button>
+        )}
       </footer>
 
     </div>
