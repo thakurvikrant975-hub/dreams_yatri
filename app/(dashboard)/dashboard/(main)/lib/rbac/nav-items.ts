@@ -28,7 +28,8 @@ export const NAV_GROUPS = [
       { title: "Destinations", href: "/dashboard/destinations", icon: MapPinIcon, phosphor: true },
       { title: "Package Categories", href: "/dashboard/categories", icon: TagIcon, phosphor: true },
       { title: "Policies", href: "/dashboard/policies", icon: FileTextIcon, phosphor: true },
-      { title: "Blog Reviews", href: "/dashboard/blogs", icon: BookOpen },
+      { title: "Travel Packages", href: "/dashboard/packages", icon: PackageIcon, phosphor: true },
+      { title: "Package Bookings", href: "/dashboard/package-bookings", icon: BookOpen },
     ],
   },
   {
@@ -44,12 +45,12 @@ export const NAV_GROUPS = [
       { title: "Hotels", href: "/dashboard/hotels", icon: BuildingIcon, phosphor: true },
       { title: "Meal Types", href: "/dashboard/hotels/meal-types", icon: KeyRound },
       { title: "Diet Types", href: "/dashboard/hotels/diet-types", icon: IdCardLanyard },
+      { title: "Verify Hotels", href: "/dashboard/verify-hotels", icon: Bed },
     ],
   },
   {
     id: "packages", label: "Packages",
     items: [
-      { title: "Travel Packages", href: "/dashboard/packages", icon: PackageIcon, phosphor: true },
     ],
   },
   {
@@ -72,6 +73,7 @@ export const NAV_GROUPS = [
       { title: "Coupons and offers", href: "/dashboard/coupons", icon: BadgePercent },
       { title: "Reviews", href: "/dashboard/reviews", icon: Star },
       { title: "Not Found", href: "/dashboard/not-found", icon: X },
+      { title: "Blog Reviews", href: "/dashboard/blogs", icon: BookOpen },
     ],
   },
   {
@@ -104,8 +106,6 @@ export const NAV_GROUPS = [
   {
     id: "bookings", label: "Booking Management",
     items: [
-      { title: "Package Bookings", href: "/dashboard/package-bookings", icon: BookOpen },
-      { title: "Verify Hotels", href: "/dashboard/verify-hotels", icon: Bed },
     ],
   },
   {
