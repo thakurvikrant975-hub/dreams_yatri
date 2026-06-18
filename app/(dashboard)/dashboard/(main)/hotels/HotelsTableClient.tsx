@@ -58,7 +58,7 @@ type HotelItem = {
   updated_at: Date;
   created_by: string | null;
   updated_by: string | null;
-  destination: { id: number; name: string };
+  destination: { id: number; name: string } | null;
   _count: {
     hotelRooms: number;
     images: number;
@@ -224,7 +224,7 @@ export function HotelsTableClient({
     },
     {
       header: "Destination",
-      cell: (h) => <Badge variant="secondary" className="text-xs bg-dashboard-primary/10 text-dashboard-primary">{h.destination.name}</Badge>,
+      cell: (h) => <Badge variant="secondary" className="text-xs bg-dashboard-primary/10 text-dashboard-primary">{h.destination?.name ?? "—"}</Badge>,
     },
     {
       header: "Category",

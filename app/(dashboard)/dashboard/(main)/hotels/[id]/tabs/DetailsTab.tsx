@@ -42,7 +42,7 @@ type Hotel = {
   description:               string | null;
   is_active:      boolean;
   location:       LocationValue | null;
-  destination:    { id: number; name: string };
+  destination:    { id: number; name: string } | null;
 };
 
 type Destination = { id: number; name: string; region: { name: string } };
@@ -64,7 +64,7 @@ export function DetailsTab({
 
   const [location, setLocation] = useState<LocationValue | null>(hotel.location);
   const [address,   setAddress]   = useState(hotel.address ?? "");
-  const [destinationId, setDestinationId] = useState<number | null>(hotel.destination.id);
+  const [destinationId, setDestinationId] = useState<number | null>(hotel.destination?.id ?? null);
   const [categoryId, setCategoryId] = useState<number | null>(
     CATEGORIES.find(c => c.value === hotel.category)?.id ?? null
   );
@@ -139,7 +139,7 @@ export function DetailsTab({
                     .map(d => ({ id: d.id, label: d.name, description: d.region.name }));
                 }}
                 placeholder="Search destination…"
-                initialLabel={hotel.destination.name}
+                initialLabel={hotel.destination?.name ?? ""}
               />
               <input type="hidden" name="destination_id" value={destinationId ?? ""} />
             </div>

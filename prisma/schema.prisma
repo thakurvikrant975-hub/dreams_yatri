@@ -873,7 +873,7 @@ model hotels {
   description       String?
   meta_title        String?
   meta_desc         String?
-  destination_id    Int
+  destination_id    Int?
   address           String?
   category          String?
   stay_type         String?
@@ -925,7 +925,7 @@ model hotels {
   meal_pricing      hotel_meal_pricing[]
   addons            hotel_addons[]
   hotelRooms        hotel_rooms[]
-  destination       destinations             @relation(fields: [destination_id], references: [id])
+  destination       destinations?            @relation(fields: [destination_id], references: [id])
   location          Location?                @relation(fields: [location_id], references: [id])
   packageBookings   PackageBookingHotel[]
   owner             HotelOwner?              @relation(fields: [owner_id], references: [id])

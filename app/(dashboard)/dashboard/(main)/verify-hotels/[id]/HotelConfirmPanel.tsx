@@ -8,7 +8,7 @@ import { confirmHotelStay, getRoomsForHotels, getRoadDistances, getMealsForHotel
 type Hotel = {
     id: number; name: string; category: string | null;
     city: string | null; state: string | null; address: string | null;
-    destination_id: number;
+    destination_id: number | null;
     business_phone: string | null;
     business_email: string | null;
     latitude: number | null;

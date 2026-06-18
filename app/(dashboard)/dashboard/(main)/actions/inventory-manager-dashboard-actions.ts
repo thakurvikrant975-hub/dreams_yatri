@@ -185,7 +185,7 @@ export async function getInventoryManagerDashboardData(
       drivers:  myDriversWeek,
     },
     recentHotels: recentHotelsRaw.map((h) => ({
-      id: h.id, name: h.name, destination: h.destination.name,
+      id: h.id, name: h.name, destination: h.destination?.name ?? "",
       category: h.category, roomCount: h._count.hotelRooms,
       is_active: h.is_active, created_at: h.created_at,
     })),
