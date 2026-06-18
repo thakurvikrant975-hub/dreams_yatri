@@ -22,8 +22,10 @@ export const ALL_HREFS = [
   "/dashboard/hotels",
   "/dashboard/hotels/meal-types",
   "/dashboard/hotels/diet-types",
+  "/dashboard/verify-hotels",
   // Packages
   "/dashboard/packages",
+  "/dashboard/package-bookings",
   // Cab Management
   "/dashboard/vehicles",
   "/dashboard/cab-pricing",
@@ -51,9 +53,6 @@ export const ALL_HREFS = [
   "/dashboard/team-members",
   "/dashboard/activity-logs",
   "/dashboard/roles-and-permissions",
-  // Booking Management
-  "/dashboard/package-bookings",
-  "/dashboard/verify-hotels",
   // Settings
   "/dashboard/settings",
 ];

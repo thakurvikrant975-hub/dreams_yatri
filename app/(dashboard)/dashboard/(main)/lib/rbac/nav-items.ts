@@ -102,11 +102,6 @@ export const NAV_GROUPS = [
     ],
   },
   {
-    id: "bookings", label: "Booking Management",
-    items: [
-    ],
-  },
-  {
     id: "settings", label: "Settings",
     items: [
       { title: "General", href: "/dashboard/settings", icon: Settings },
