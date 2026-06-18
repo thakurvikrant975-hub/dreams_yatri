@@ -386,9 +386,11 @@ type TransferFormData = {
   pickup: LocationValue | null;
   drop: LocationValue | null;
   notes: string;
+  km_override: string; // empty string = not set
 };
 
 function transferFormToInput(data: TransferFormData) {
+  const parsed = parseFloat(data.km_override);
   return {
     pickup_name: data.pickup?.name ?? "",
     pickup_location_id: data.pickup?.id ?? null,
@@ -401,6 +403,7 @@ function transferFormToInput(data: TransferFormData) {
     vehicle_id: null,
     num_vehicles: 1,
     notes: data.notes || null,
+    km_override: data.km_override.trim() !== "" && !isNaN(parsed) && parsed > 0 ? parsed : null,
   };
 }
 
@@ -445,13 +448,17 @@ function TransferEditForm({
         }
       : null,
     notes: item.notes ?? "",
+    km_override: item.km_override != null ? String(item.km_override) : "",
   });
 
   const isValid = !!form.pickup && !!form.drop;
 
   const { roadKm: distKm, roadMin: distMin, loading: distLoading } = useRoadDistance(form.pickup, form.drop);
-  const displayKm = distKm ?? (distLoading ? (item.route?.distance_km ?? null) : null);
+  const autoKm = distKm ?? (distLoading ? (item.route?.distance_km ?? null) : null);
   const displayMin = distMin ?? (distLoading ? (item.route?.duration_min ?? null) : null);
+  const overrideParsed = parseFloat(form.km_override);
+  const hasOverride = form.km_override.trim() !== "" && !isNaN(overrideParsed) && overrideParsed > 0;
+  const effectiveKm = hasOverride ? overrideParsed : autoKm;
 
   return (
     <div className="space-y-4">
@@ -463,14 +470,14 @@ function TransferEditForm({
         <Label className="text-xs">Drop Location <span className="text-destructive">*</span></Label>
         <LocationSearchSelect value={form.drop} onChange={(v) => setForm(f => ({ ...f, drop: v }))} placeholder="Search drop point…" mapCenter={stopCoords} />
       </div>
-      {(displayKm != null || distLoading) && (
+      {(autoKm != null || distLoading) && (
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
-          {distLoading && displayKm == null
+          {distLoading && autoKm == null
             ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
             : <Car className="h-3.5 w-3.5 shrink-0" />}
-          {displayKm != null && (
+          {autoKm != null && (
             <>
-              <span>{displayKm} km by road</span>
+              <span>Auto: {autoKm} km by road</span>
               {displayMin != null && (
                 <span className="text-muted-foreground/60">
                   · ~{Math.floor(displayMin / 60)}h{displayMin % 60 > 0 ? ` ${displayMin % 60}m` : ""}
@@ -480,6 +487,32 @@ function TransferEditForm({
           )}
         </div>
       )}
+      <div className="space-y-1.5">
+        <Label className="text-xs">Km to cover today (override)</Label>
+        <div className="relative">
+          <Input
+            type="number"
+            min="1"
+            step="1"
+            value={form.km_override}
+            onChange={(e) => setForm(f => ({ ...f, km_override: e.target.value }))}
+            className="h-9 text-xs pr-8"
+            placeholder={autoKm != null ? `Auto: ${autoKm} km` : "e.g. 30"}
+          />
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">km</span>
+        </div>
+        {hasOverride && autoKm != null && (
+          <p className="text-[10px] text-blue-600">
+            Using {overrideParsed} km (overrides auto {autoKm} km) · pricing based on {overrideParsed} km
+          </p>
+        )}
+        {hasOverride && autoKm == null && (
+          <p className="text-[10px] text-blue-600">Using {overrideParsed} km for pricing</p>
+        )}
+        {!hasOverride && autoKm != null && (
+          <p className="text-[10px] text-muted-foreground/60">Leave blank to use auto distance ({autoKm} km)</p>
+        )}
+      </div>
       <div className="space-y-1.5">
         <Label className="text-xs">Notes</Label>
         <Input value={form.notes} onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))} className="h-9 text-xs" placeholder="Optional note…" />
@@ -776,11 +809,13 @@ function AddTransferForm({
   stopCoords?: { lat: number; lng: number };
 }) {
   const [form, setForm] = useState<TransferFormData>({
-    pickup: null, drop: null, notes: "",
+    pickup: null, drop: null, notes: "", km_override: "",
   });
   const isValid = !!form.pickup && !!form.drop;
 
   const { roadKm, roadMin, loading: distLoading } = useRoadDistance(form.pickup, form.drop);
+  const overrideParsed = parseFloat(form.km_override);
+  const hasOverride = form.km_override.trim() !== "" && !isNaN(overrideParsed) && overrideParsed > 0;
 
   return (
     <div className="space-y-4">
@@ -799,7 +834,7 @@ function AddTransferForm({
             : <Car className="h-3.5 w-3.5 shrink-0" />}
           {roadKm != null && (
             <>
-              <span>{roadKm} km by road</span>
+              <span>Auto: {roadKm} km by road</span>
               {roadMin != null && (
                 <span className="text-muted-foreground/60">
                   · ~{Math.floor(roadMin / 60)}h{roadMin % 60 > 0 ? ` ${roadMin % 60}m` : ""}
@@ -809,6 +844,32 @@ function AddTransferForm({
           )}
         </div>
       )}
+      <div className="space-y-1.5">
+        <Label className="text-xs">Km to cover today (override)</Label>
+        <div className="relative">
+          <Input
+            type="number"
+            min="1"
+            step="1"
+            value={form.km_override}
+            onChange={(e) => setForm(f => ({ ...f, km_override: e.target.value }))}
+            className="h-9 text-xs pr-8"
+            placeholder={roadKm != null ? `Auto: ${roadKm} km` : "e.g. 30"}
+          />
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">km</span>
+        </div>
+        {hasOverride && roadKm != null && (
+          <p className="text-[10px] text-blue-600">
+            Using {overrideParsed} km (overrides auto {roadKm} km) · pricing based on {overrideParsed} km
+          </p>
+        )}
+        {hasOverride && roadKm == null && (
+          <p className="text-[10px] text-blue-600">Using {overrideParsed} km for pricing</p>
+        )}
+        {!hasOverride && roadKm != null && (
+          <p className="text-[10px] text-muted-foreground/60">Leave blank to use auto distance ({roadKm} km)</p>
+        )}
+      </div>
       <div className="space-y-1.5">
         <Label className="text-xs">Notes</Label>
         <Input value={form.notes} onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))} className="h-9 text-xs" placeholder="Optional note…" />
@@ -2307,11 +2368,26 @@ export function ItineraryDaySidebar({
                                   <p className="text-xs font-medium truncate">
                                     {item.data.route ? `${item.data.route.pickup_name} → ${item.data.route.drop_name}` : "Route not set"}
                                   </p>
-                                  <p className="text-[10px] text-muted-foreground/60 truncate">
-                                    {item.data.route?.distance_km != null
-                                      ? `${item.data.route.distance_km} km by road`
-                                      : "No details"}
-                                  </p>
+                                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                    {item.data.km_override != null ? (
+                                      <>
+                                        <span className="text-[10px] font-semibold bg-blue-100 text-blue-700 border border-blue-300 px-1.5 py-0.5 rounded leading-none">
+                                          {item.data.km_override} km (manual)
+                                        </span>
+                                        {item.data.route?.distance_km != null && (
+                                          <span className="text-[10px] text-muted-foreground/50 line-through">
+                                            auto {item.data.route.distance_km} km
+                                          </span>
+                                        )}
+                                      </>
+                                    ) : item.data.route?.distance_km != null ? (
+                                      <span className="text-[10px] text-muted-foreground/60">
+                                        {item.data.route.distance_km} km by road
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] text-muted-foreground/40">No distance</span>
+                                    )}
+                                  </div>
                                 </TimelineRowCard>
                               )}
                               {item.kind === "activity" && (

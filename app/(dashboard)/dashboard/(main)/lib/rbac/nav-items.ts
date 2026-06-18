@@ -26,17 +26,22 @@ export const NAV_GROUPS = [
     items: [
       { title: "Regions", href: "/dashboard/regions", icon: GlobeHemisphereEastIcon, phosphor: true },
       { title: "Destinations", href: "/dashboard/destinations", icon: MapPinIcon, phosphor: true },
-      { title: "Package Categories", href: "/dashboard/categories", icon: TagIcon, phosphor: true },
       { title: "Policies", href: "/dashboard/policies", icon: FileTextIcon, phosphor: true },
-      { title: "Travel Packages", href: "/dashboard/packages", icon: PackageIcon, phosphor: true },
-      { title: "Package Bookings", href: "/dashboard/package-bookings", icon: BookOpen },
     ],
   },
   {
     id: "activities", label: "Activities",
     items: [
-      { title: "Activities", href: "/dashboard/activities", icon: ParachuteIcon, phosphor: true },
       { title: "Activity Categories", href: "/dashboard/activities/categories", icon: TagIcon, phosphor: true },
+      { title: "Activities", href: "/dashboard/activities", icon: ParachuteIcon, phosphor: true },
+    ],
+  },
+  {
+    id: "packages", label: "Packages",
+    items: [
+      { title: "Package Categories", href: "/dashboard/categories", icon: TagIcon, phosphor: true },
+      { title: "Travel Packages", href: "/dashboard/packages", icon: PackageIcon, phosphor: true },
+      { title: "Package Bookings", href: "/dashboard/package-bookings", icon: BookOpen },
     ],
   },
   {
@@ -46,11 +51,6 @@ export const NAV_GROUPS = [
       { title: "Meal Types", href: "/dashboard/hotels/meal-types", icon: KeyRound },
       { title: "Diet Types", href: "/dashboard/hotels/diet-types", icon: IdCardLanyard },
       { title: "Verify Hotels", href: "/dashboard/verify-hotels", icon: Bed },
-    ],
-  },
-  {
-    id: "packages", label: "Packages",
-    items: [
     ],
   },
   {

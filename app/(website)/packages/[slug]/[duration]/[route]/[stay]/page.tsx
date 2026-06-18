@@ -316,7 +316,7 @@ export default async function PackagePage({
         adults: initialAdults ?? 2,
         children: (initialChildAges ?? []).length,
         childAges: initialChildAges ?? [],
-        travelDate: initialTravelDate ?? null,
+        travelDate: initialTravelDate ?? new Date().toISOString().slice(0, 10),
     };
     const durationPrices = startingStayId
         ? await getDurationStartingPrices(pageData.id, pageData.durations.map(d => d.id), startingStayId, initialPriceOccupancy)
