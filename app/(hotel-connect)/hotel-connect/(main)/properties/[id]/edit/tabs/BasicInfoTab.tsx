@@ -2,10 +2,11 @@
 
 import { useActionState, useState } from "react";
 import { Star } from "@phosphor-icons/react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { cn } from "@/app/lib/utils";
 import { saveBasicInfo } from "./basic-info-actions";
+import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
+import { Input } from "../../../../components/ui/input";
+import { Label } from "../../../../components/ui/label";
 import type { BasicInfoState } from "./basic-info-schema";
 import type { PropertySubType } from "@/app/generated/prisma";
 
@@ -53,18 +54,6 @@ function FieldError({ errors }: { errors?: string[] }) {
   return <p className="text-xs text-red-500 mt-1">{errors[0]}</p>;
 }
 
-function SectionCard({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }) {
-  return (
-    <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
-      <div className="px-5 py-3.5 border-b border-neutral-100">
-        <h3 className="text-sm font-semibold text-neutral-800">{title}</h3>
-        {desc && <p className="text-xs text-neutral-400 mt-0.5">{desc}</p>}
-      </div>
-      <div className="p-5 space-y-4">{children}</div>
-    </div>
-  );
-}
-
 function FieldRow({ label, error, required, children }: {
   label: string;
   error?: string[];
@@ -72,8 +61,8 @@ function FieldRow({ label, error, required, children }: {
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-1.5">
-      <Label className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">
+    <div className="flex flex-col gap-1.5">
+      <Label>
         {label}{required && <span className="text-red-400 ml-0.5">*</span>}
       </Label>
       {children}
@@ -108,7 +97,7 @@ function StarRatingInput({ value, onChange, disabled }: {
           <Star
             size={22}
             weight={display !== null && n <= display ? "fill" : "regular"}
-            className={display !== null && n <= display ? "text-amber-400" : "text-neutral-300"}
+            className={display !== null && n <= display ? "text-amber-400" : "text-neutral-400"}
           />
         </button>
       ))}
@@ -130,12 +119,10 @@ function ToggleSwitch({ name, label, hint, checked, onChange, disabled }: {
   disabled?: boolean;
 }) {
   return (
-    <div
-      className={cn("flex items-center justify-between gap-3", disabled && "opacity-50")}
-    >
+    <div className={cn("flex items-center justify-between gap-3", disabled && "opacity-50")}>
       <div>
         <p className="text-sm font-medium text-neutral-800">{label}</p>
-        {hint && <p className="text-xs text-neutral-400 mt-0.5">{hint}</p>}
+        {hint && <p className="text-xs text-neutral-600/90 mt-0.5">{hint}</p>}
       </div>
       <input type="hidden" name={name} value={checked ? "on" : "off"} />
       <button
@@ -169,9 +156,9 @@ export default function BasicInfoTab({ hotel }: { hotel: HotelBasicInfo }) {
     {}
   );
 
-  const [starRating,        setStarRating]       = useState<number | null>(hotel.star_rating);
-  const [hasChannelMgr,     setHasChannelMgr]    = useState(hotel.has_channel_manager);
-  const [whatsappSame,      setWhatsappSame]      = useState(hotel.whatsapp_same_as_mobile);
+  const [starRating,    setStarRating]    = useState<number | null>(hotel.star_rating);
+  const [hasChannelMgr, setHasChannelMgr] = useState(hotel.has_channel_manager);
+  const [whatsappSame,  setWhatsappSame]  = useState(hotel.whatsapp_same_as_mobile);
 
   const initialName = hotel.name === "My Property" ? "" : hotel.name;
   const fe = state.fieldErrors ?? {};
@@ -194,7 +181,7 @@ export default function BasicInfoTab({ hotel }: { hotel: HotelBasicInfo }) {
             defaultValue={initialName}
             placeholder="e.g. The Grand Shimla Resort"
             disabled={isPending}
-            className={cn("h-10 rounded-lg text-sm", fe.name && "border-red-400")}
+            aria-invalid={!!fe.name}
           />
         </FieldRow>
 
@@ -206,9 +193,10 @@ export default function BasicInfoTab({ hotel }: { hotel: HotelBasicInfo }) {
               defaultValue={hotel.property_sub_type ?? ""}
               disabled={isPending}
               className={cn(
-                "w-full h-10 rounded-lg border px-3 text-sm bg-white text-neutral-900 transition-colors",
-                "focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent",
-                fe.property_sub_type ? "border-red-400" : "border-neutral-300"
+                "h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 shadow-sm outline-none transition-colors",
+                "focus:bg-white focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20",
+                "disabled:bg-neutral-100 disabled:opacity-60 disabled:cursor-not-allowed",
+                fe.property_sub_type && "border-red-400 bg-red-50/30"
               )}
             >
               <option value="" disabled>Select type…</option>
@@ -237,7 +225,7 @@ export default function BasicInfoTab({ hotel }: { hotel: HotelBasicInfo }) {
               defaultValue={hotel.year_built ?? ""}
               placeholder="e.g. 2010"
               disabled={isPending}
-              className={cn("h-10 rounded-lg text-sm", fe.year_built && "border-red-400")}
+              aria-invalid={!!fe.year_built}
             />
           </FieldRow>
 
@@ -250,7 +238,7 @@ export default function BasicInfoTab({ hotel }: { hotel: HotelBasicInfo }) {
               defaultValue={hotel.booking_since_year ?? ""}
               placeholder="e.g. 2022"
               disabled={isPending}
-              className={cn("h-10 rounded-lg text-sm", fe.booking_since_year && "border-red-400")}
+              aria-invalid={!!fe.booking_since_year}
             />
           </FieldRow>
         </div>
@@ -277,7 +265,6 @@ export default function BasicInfoTab({ hotel }: { hotel: HotelBasicInfo }) {
               defaultValue={hotel.channel_manager_name ?? ""}
               placeholder="e.g. Cloudbeds"
               disabled={isPending}
-              className="h-10 rounded-lg text-sm"
             />
           </FieldRow>
         )}
@@ -296,7 +283,7 @@ export default function BasicInfoTab({ hotel }: { hotel: HotelBasicInfo }) {
             defaultValue={hotel.contact_email ?? ""}
             placeholder="reservations@yourhotel.com"
             disabled={isPending}
-            className={cn("h-10 rounded-lg text-sm", fe.contact_email && "border-red-400")}
+            aria-invalid={!!fe.contact_email}
           />
         </FieldRow>
 
@@ -306,7 +293,7 @@ export default function BasicInfoTab({ hotel }: { hotel: HotelBasicInfo }) {
             <Input
               name="contact_mobile_cc"
               defaultValue={hotel.contact_mobile_cc ?? "+91"}
-              className="h-10 w-16 rounded-lg text-sm text-center shrink-0"
+              className="w-16 text-center shrink-0"
               disabled={isPending}
             />
             <Input
@@ -316,7 +303,8 @@ export default function BasicInfoTab({ hotel }: { hotel: HotelBasicInfo }) {
               defaultValue={hotel.contact_mobile ?? ""}
               placeholder="10-digit number"
               disabled={isPending}
-              className={cn("h-10 rounded-lg text-sm flex-1", fe.contact_mobile && "border-red-400")}
+              className="flex-1"
+              aria-invalid={!!fe.contact_mobile}
             />
           </div>
         </FieldRow>
@@ -336,7 +324,7 @@ export default function BasicInfoTab({ hotel }: { hotel: HotelBasicInfo }) {
               <Input
                 value="+91"
                 readOnly
-                className="h-10 w-16 rounded-lg text-sm text-center shrink-0 bg-neutral-50"
+                className="w-16 text-center shrink-0 bg-neutral-50"
               />
               <Input
                 name="contact_whatsapp"
@@ -345,7 +333,7 @@ export default function BasicInfoTab({ hotel }: { hotel: HotelBasicInfo }) {
                 defaultValue={hotel.contact_whatsapp ?? ""}
                 placeholder="10-digit number"
                 disabled={isPending}
-                className="h-10 rounded-lg text-sm flex-1"
+                className="flex-1"
               />
             </div>
           </FieldRow>
@@ -359,7 +347,6 @@ export default function BasicInfoTab({ hotel }: { hotel: HotelBasicInfo }) {
             defaultValue={hotel.contact_landline ?? ""}
             placeholder="e.g. 01772-123456"
             disabled={isPending}
-            className="h-10 rounded-lg text-sm"
           />
         </FieldRow>
       </SectionCard>

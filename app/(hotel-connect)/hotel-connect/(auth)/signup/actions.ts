@@ -2,7 +2,9 @@
 
 import { hash } from "bcryptjs";
 import { z } from "zod";
+import { AuthError } from "next-auth";
 import { db } from "@/app/lib/db";
+import { hotelConnectSignIn } from "@/app/lib/auth-hotel-connect";
 
 const SignupSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),
@@ -19,7 +21,6 @@ const SignupSchema = z.object({
 });
 
 export type SignupState = {
-  success?: boolean;
   error?: string;
   fieldErrors?: {
     name?: string[];
@@ -69,9 +70,23 @@ export async function signupAction(
       phone,
       businessName,
       password: hashed,
-      // status defaults to PENDING_VERIFICATION
+      status: "ACTIVE", // account live immediately; listing goes for review after tab 7
     },
   });
 
-  return { success: true };
+  // Auto sign-in and drop straight into the property listing wizard
+  try {
+    await hotelConnectSignIn("credentials", {
+      email,
+      password,
+      redirectTo: "/hotel-connect/properties/new",
+    });
+  } catch (err) {
+    if (err instanceof AuthError) {
+      return { error: "Account created but sign-in failed. Please log in manually." };
+    }
+    throw err; // re-throw the Next.js redirect
+  }
+
+  return {};
 }

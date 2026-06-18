@@ -12,9 +12,15 @@ export default async function HotelConnectLayout({
   if (!session) redirect("/hotel-connect/login");
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div
+      className="flex min-h-screen bg-slate-100"
+      style={{
+        "--border-default": "var(--color-neutral-200, #e5e7eb)",
+        "--border-muted": "var(--color-neutral-200, #e5e7eb)",
+      } as React.CSSProperties}
+    >
       <ConnectSidebar />
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex-1 flex flex-col overflow-hidden min-w-0">
         {children}
       </main>
       <Toaster position="top-center" />

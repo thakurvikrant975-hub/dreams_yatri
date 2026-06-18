@@ -867,68 +867,68 @@ model HotelOwner {
 }
 
 model hotels {
-  id                Int                      @id @default(autoincrement())
-  name              String
-  slug              String                   @unique
-  description       String?
-  meta_title        String?
-  meta_desc         String?
-  destination_id    Int?
-  address           String?
-  category          String?
-  stay_type         String?
-  check_in_time     String?
-  check_out_time    String?
-  is_active         Boolean                  @default(true)
-  created_at        DateTime                 @default(now())
-  updated_at        DateTime                 @updatedAt
-  thumbnail         String?
-  city              String?
-  state             String?
-  country           String?
-  pincode           String?
-  business_phone    String?
-  business_email    String?
-  whatsapp_number   String?
-  b2b_email         String?
-  location_id       BigInt?
-  margin_percentage Decimal                  @default(10) @db.Decimal(5, 2)
-  gst_percentage    Decimal                  @default(18) @db.Decimal(5, 2)
-  created_by        String?
-  updated_by        String?
-  owner_id          String?
-  listing_status            HotelListingStatus       @default(DRAFT)
-  submitted_at              DateTime?
-  approved_at               DateTime?
-  approved_by_id            String?
-  rejection_reason          String?
+  id                      Int                      @id @default(autoincrement())
+  name                    String
+  slug                    String                   @unique
+  description             String?
+  meta_title              String?
+  meta_desc               String?
+  destination_id          Int?
+  address                 String?
+  category                String?
+  stay_type               String?
+  check_in_time           String?
+  check_out_time          String?
+  is_active               Boolean                  @default(true)
+  created_at              DateTime                 @default(now())
+  updated_at              DateTime                 @updatedAt
+  thumbnail               String?
+  city                    String?
+  state                   String?
+  country                 String?
+  pincode                 String?
+  business_phone          String?
+  business_email          String?
+  whatsapp_number         String?
+  b2b_email               String?
+  location_id             BigInt?
+  margin_percentage       Decimal                  @default(10) @db.Decimal(5, 2)
+  gst_percentage          Decimal                  @default(18) @db.Decimal(5, 2)
+  created_by              String?
+  updated_by              String?
+  owner_id                String?
+  listing_status          HotelListingStatus       @default(DRAFT)
+  submitted_at            DateTime?
+  approved_at             DateTime?
+  approved_by_id          String?
+  rejection_reason        String?
   // ── Wizard fields ──────────────────────────────────────────────────────────
-  property_category         PropertyCategory?
-  property_sub_type         PropertySubType?
-  star_rating               Int?
-  year_built                Int?
-  booking_since_year        Int?
-  has_channel_manager       Boolean                  @default(false)
-  channel_manager_name      String?
-  contact_email             String?
-  contact_mobile_cc         String?                  @default("+91")
-  contact_mobile            String?
-  whatsapp_same_as_mobile   Boolean                  @default(false)
-  contact_whatsapp          String?
-  contact_landline          String?
-  wizard_step               Int                      @default(0)
-  bookingHotels             BookingHotel[]
-  childPolicies     hotel_child_policies[]
-  image_categories  hotel_image_categories[]
-  images            hotel_images[]
-  room_pricing      hotel_room_pricing[]
-  meal_pricing      hotel_meal_pricing[]
-  addons            hotel_addons[]
-  hotelRooms        hotel_rooms[]
-  destination       destinations?            @relation(fields: [destination_id], references: [id])
-  location          Location?                @relation(fields: [location_id], references: [id])
-  packageBookings   PackageBookingHotel[]
-  owner             HotelOwner?              @relation(fields: [owner_id], references: [id])
+  property_category       PropertyCategory?
+  property_sub_type       PropertySubType?
+  star_rating             Int?
+  year_built              Int?
+  booking_since_year      Int?
+  has_channel_manager     Boolean                  @default(false)
+  channel_manager_name    String?
+  contact_email           String?
+  contact_mobile_cc       String?                  @default("+91")
+  contact_mobile          String?
+  whatsapp_same_as_mobile Boolean                  @default(false)
+  contact_whatsapp        String?
+  contact_landline        String?
+  wizard_step             Int                      @default(0)
+  bookingHotels           BookingHotel[]
+  childPolicies           hotel_child_policies[]
+  image_categories        hotel_image_categories[]
+  images                  hotel_images[]
+  room_pricing            hotel_room_pricing[]
+  meal_pricing            hotel_meal_pricing[]
+  addons                  hotel_addons[]
+  hotelRooms              hotel_rooms[]
+  destination             destinations?            @relation(fields: [destination_id], references: [id])
+  location                Location?                @relation(fields: [location_id], references: [id])
+  packageBookings         PackageBookingHotel[]
+  owner                   HotelOwner?              @relation(fields: [owner_id], references: [id])
 
   @@index([destination_id, is_active])
   @@index([location_id])
@@ -970,31 +970,31 @@ model hotel_images {
 }
 
 model hotel_rooms {
-  id                 Int                  @id @default(autoincrement())
-  hotel_id           Int
-  name               String
-  slug               String
-  area_sqft          Int?
-  bed_type           String?
-  view_type          String?
-  max_occupancy      Int                  @default(2)
-  max_adults         Int                  @default(3)
-  max_children       Int                  @default(2)
+  id                  Int                  @id @default(autoincrement())
+  hotel_id            Int
+  name                String
+  slug                String
+  area_sqft           Int?
+  bed_type            String?
+  view_type           String?
+  max_occupancy       Int                  @default(2)
+  max_adults          Int                  @default(3)
+  max_children        Int                  @default(2)
   extra_bed_capacity  Int                  @default(0)
   bed_count           Int                  @default(1)
   child_cot_available Boolean              @default(false)
   amenities           Json?
-  features           Json?
-  bathroom           Json?
-  facilities         Json?
-  description        String?
-  is_active          Boolean              @default(true)
-  sort_order         Int                  @default(0)
-  created_at         DateTime             @default(now())
-  updated_at         DateTime             @updatedAt
-  images             hotel_room_images[]
-  pricing            hotel_room_pricing[]
-  hotel              hotels               @relation(fields: [hotel_id], references: [id])
+  features            Json?
+  bathroom            Json?
+  facilities          Json?
+  description         String?
+  is_active           Boolean              @default(true)
+  sort_order          Int                  @default(0)
+  created_at          DateTime             @default(now())
+  updated_at          DateTime             @updatedAt
+  images              hotel_room_images[]
+  pricing             hotel_room_pricing[]
+  hotel               hotels               @relation(fields: [hotel_id], references: [id])
 
   @@unique([hotel_id, slug])
   @@index([hotel_id])

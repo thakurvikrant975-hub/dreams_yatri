@@ -25,13 +25,13 @@ type HotelSummary = {
 // ── Tab config ────────────────────────────────────────────────────────────────
 
 export const WIZARD_TABS = [
-  { index: 1, label: "Basic Info",  desc: "Type, name & contact" },
-  { index: 2, label: "Location",    desc: "Address & map" },
-  { index: 3, label: "Amenities",   desc: "Facilities & features" },
-  { index: 4, label: "Rooms",       desc: "Types & pricing" },
-  { index: 5, label: "Photos",      desc: "Property images" },
-  { index: 6, label: "Policies",    desc: "Check-in & rules" },
-  { index: 7, label: "Finance",     desc: "Bank & GST" },
+  { index: 1, label: "Basic Info" },
+  { index: 2, label: "Location" },
+  { index: 3, label: "Amenities" },
+  { index: 4, label: "Rooms" },
+  { index: 5, label: "Photos" },
+  { index: 6, label: "Policies" },
+  { index: 7, label: "Finance" },
 ];
 
 // ── Status badge ──────────────────────────────────────────────────────────────
@@ -40,12 +40,12 @@ const STATUS_CONFIG: Record<
   HotelListingStatus,
   { label: string; className: string }
 > = {
-  DRAFT:        { label: "Draft",        className: "bg-neutral-100 text-neutral-600 border-neutral-200" },
-  SUBMITTED:    { label: "Submitted",    className: "bg-blue-50 text-blue-700 border-blue-200" },
+  DRAFT: { label: "Draft", className: "bg-neutral-100 text-neutral-600 border-neutral-200" },
+  SUBMITTED: { label: "Submitted", className: "bg-blue-50 text-blue-700 border-blue-200" },
   UNDER_REVIEW: { label: "Under Review", className: "bg-amber-50 text-amber-700 border-amber-200" },
-  APPROVED:     { label: "Approved",     className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  LIVE:         { label: "Live",         className: "bg-emerald-100 text-emerald-800 border-emerald-300" },
-  REJECTED:     { label: "Rejected",     className: "bg-red-50 text-red-700 border-red-200" },
+  APPROVED: { label: "Approved", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  LIVE: { label: "Live", className: "bg-emerald-100 text-emerald-800 border-emerald-300" },
+  REJECTED: { label: "Rejected", className: "bg-red-50 text-red-700 border-red-200" },
 };
 
 // ── Sub-type label ────────────────────────────────────────────────────────────
@@ -68,45 +68,40 @@ function TabItem({
   wizardStep: number;
   hotelId: number;
 }) {
-  const isCurrent   = tab.index === currentTab;
+  const isCurrent = tab.index === currentTab;
   const isCompleted = tab.index < currentTab && tab.index <= wizardStep;
-  const isFuture    = tab.index > wizardStep;
+  const isFuture = tab.index > wizardStep;
 
   return (
     <Link
       href={`/hotel-connect/properties/${hotelId}/edit?tab=${tab.index}`}
       className={cn(
-        "flex items-center gap-2.5 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors border-b-2",
+        "relative flex flex-col items-center gap-3 px-5 py-3.5 whitespace-nowrap transition-colors select-none",
+        "after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:transition-colors",
         isCurrent
-          ? "border-primary-500 text-primary-700"
+          ? "bg-primary-50/70 text-primary-700 after:bg-primary-500"
           : isCompleted
-          ? "border-transparent text-neutral-600 hover:text-neutral-900 hover:border-neutral-200"
-          : isFuture
-          ? "border-transparent text-neutral-400 hover:text-neutral-600"
-          : "border-transparent text-neutral-500 hover:text-neutral-800"
+            ? "text-neutral-600 hover:text-neutral-800 hover:bg-neutral-50 after:bg-transparent hover:after:bg-neutral-200"
+            : isFuture
+              ? "text-neutral-600/90 hover:text-neutral-500 hover:bg-neutral-50 after:bg-transparent"
+              : "text-neutral-500 hover:text-neutral-700 hover:bg-neutral-50 after:bg-transparent"
       )}
     >
       {/* Step indicator */}
       <span
         className={cn(
-          "w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0",
+          "size-6 rounded-full text-[11px] font-bold flex items-center justify-center shrink-0 font-heading",
           isCurrent
             ? "bg-primary-500 text-white"
             : isCompleted
-            ? "bg-emerald-500 text-white"
-            : "bg-neutral-200 text-neutral-500"
+              ? "bg-emerald-500 text-white"
+              : "bg-linear-to-b from-neutral-100 via-neutral-100/70 to-white text-neutral-400 ring-1 ring-neutral-200 shadow shadow-neutral-300/80"
         )}
       >
         {isCompleted ? <CheckCircle size={12} weight="bold" /> : tab.index}
       </span>
 
-      {/* Label (always visible) + desc (hidden on small screens) */}
-      <span>
-        {tab.label}
-        <span className="hidden md:inline text-xs font-normal text-neutral-400 ml-1.5">
-          {tab.desc}
-        </span>
-      </span>
+      <span className="text-xs font-semibold leading-none font-heading">{tab.label}</span>
     </Link>
   );
 }
@@ -133,13 +128,13 @@ export default function WizardShell({
   }
 
   const isFirstTab = currentTab === 1;
-  const isLastTab  = currentTab === 7;
+  const isLastTab = currentTab === 7;
 
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div className="flex flex-col h-full min-h-0 ">
 
       {/* ── Wizard header ─────────────────────────────────────────────── */}
-      <header className="shrink-0 bg-white border-b border-neutral-100 px-4 h-14 flex items-center gap-3">
+      <header className="shrink-0 bg-white border-b border-neutral-200 px-4 h-14 flex items-center gap-3">
         <Link
           href="/hotel-connect/properties"
           className="flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-800 transition-colors shrink-0"
@@ -177,8 +172,8 @@ export default function WizardShell({
       </header>
 
       {/* ── Tab bar ───────────────────────────────────────────────────── */}
-      <div className="shrink-0 bg-white border-b border-neutral-100 overflow-x-auto scrollbar-none">
-        <div className="flex min-w-max">
+      <div className=" bg-white  overflow-x-auto scrollbar-none py-5 ">
+        <div className="flex max-w-4xl justify-between m-auto px-6">
           {WIZARD_TABS.map((tab) => (
             <TabItem
               key={tab.index}
@@ -192,59 +187,62 @@ export default function WizardShell({
       </div>
 
       {/* ── Scrollable content ────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl mx-auto w-full p-6">
-          {children}
+      <div className="relative after:absolute after:bg-white after:top-0 after:left-0 after:h-20 after:w-full z-10 after:-z-10 bg-neutral-100 after:border-b after:border-neutral-200">
+        <div className="flex-1 overflow-y-auto  sticky">
+          <div className="max-w-4xl mx-auto w-full px-6">
+            {children}
+          </div>
         </div>
-      </div>
 
-      {/* ── Bottom navigation ─────────────────────────────────────────── */}
-      <footer className="shrink-0 bg-white border-t border-neutral-100 px-6 h-16 flex items-center justify-between gap-4">
-        <button
-          type="button"
-          onClick={() => goTo(currentTab - 1)}
-          disabled={isFirstTab}
-          className={cn(
-            "flex items-center gap-2 text-sm font-medium transition-colors",
-            isFirstTab
-              ? "text-neutral-300 cursor-not-allowed"
-              : "text-neutral-600 hover:text-neutral-900"
-          )}
-        >
-          <ArrowLeft size={14} weight="bold" />
-          Previous
-        </button>
-
-        <p className="text-xs text-neutral-400 font-medium">
-          Step {currentTab} of {WIZARD_TABS.length}
-        </p>
-
-        {tabFormId ? (
-          <button
-            type="submit"
-            form={tabFormId}
-            className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold bg-primary-600 hover:bg-primary-700 text-white transition-colors"
-          >
-            Save & Continue
-            <ArrowRight size={14} weight="bold" />
-          </button>
-        ) : (
+        {/* ── Bottom navigation ─────────────────────────────────────────── */}
+        <footer className="shrink-0 bg-white border-t border-neutral-200 px-6 h-16 flex items-center justify-between gap-4">
           <button
             type="button"
-            onClick={() => goTo(currentTab + 1)}
-            disabled={isLastTab}
+            onClick={() => goTo(currentTab - 1)}
+            disabled={isFirstTab}
             className={cn(
-              "flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-colors",
-              isLastTab
-                ? "bg-neutral-100 text-neutral-400 cursor-not-allowed"
-                : "bg-primary-600 hover:bg-primary-700 text-white"
+              "flex items-center gap-2 text-sm font-medium transition-colors",
+              isFirstTab
+                ? "text-neutral-300 cursor-not-allowed"
+                : "text-neutral-600 hover:text-neutral-900"
             )}
           >
-            Save & Continue
-            <ArrowRight size={14} weight="bold" />
+            <ArrowLeft size={14} weight="bold" />
+            Previous
           </button>
-        )}
-      </footer>
+
+          <p className="text-xs text-neutral-400 font-medium">
+            Step {currentTab} of {WIZARD_TABS.length}
+          </p>
+
+          {tabFormId ? (
+            <button
+              type="submit"
+              form={tabFormId}
+              className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold bg-primary-600 hover:bg-primary-700 text-white transition-colors"
+            >
+              Save & Continue
+              <ArrowRight size={14} weight="bold" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => goTo(currentTab + 1)}
+              disabled={isLastTab}
+              className={cn(
+                "flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-colors",
+                isLastTab
+                  ? "bg-neutral-100 text-neutral-400 cursor-not-allowed"
+                  : "bg-primary-600 hover:bg-primary-700 text-white"
+              )}
+            >
+              Save & Continue
+              <ArrowRight size={14} weight="bold" />
+            </button>
+          )}
+        </footer>
+      </div>
+
 
     </div>
   );

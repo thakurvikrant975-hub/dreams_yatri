@@ -19,7 +19,7 @@ import {
   ArrowRight,
 } from "@phosphor-icons/react";
 import { cn } from "@/app/lib/utils";
-import { Button } from "@/components/ui/button";
+import Button from "@/app/components/ui/Button";
 import { createDraftProperty } from "./actions";
 import type { PropertySubType } from "@/app/generated/prisma";
 
