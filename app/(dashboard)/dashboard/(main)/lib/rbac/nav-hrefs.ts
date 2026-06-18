@@ -6,24 +6,31 @@
 // (nav-items.ts) — update both when adding/removing/renaming a sidebar entry.
 
 export const ALL_HREFS = [
+  // Overview
   "/dashboard",
   "/dashboard/analytics",
+  // Content Management
   "/dashboard/regions",
   "/dashboard/destinations",
   "/dashboard/categories",
   "/dashboard/policies",
   "/dashboard/blogs",
+  // Activities
   "/dashboard/activities",
   "/dashboard/activities/categories",
+  // Hotels
   "/dashboard/hotels",
   "/dashboard/hotels/meal-types",
   "/dashboard/hotels/diet-types",
+  // Packages
   "/dashboard/packages",
+  // Cab Management
   "/dashboard/vehicles",
   "/dashboard/cab-pricing",
   "/dashboard/cab-drivers",
   "/dashboard/verify-cabs",
   "/dashboard/assign-driver",
+  // Marketing
   "/dashboard/queries",
   "/dashboard/email-marketing",
   "/dashboard/follow-ups",
@@ -31,20 +38,23 @@ export const ALL_HREFS = [
   "/dashboard/coupons",
   "/dashboard/reviews",
   "/dashboard/not-found",
+  // Sales
   "/sales-dashboard",
   "/dashboard/sales-query",
   "/dashboard/sale-analytics",
-  "/dashboard/follow-ups",
   "/dashboard/package-builder",
+  // Transactions
   "/dashboard/transactions",
   "/dashboard/failed-transactions",
   "/dashboard/refunds",
-  "/dashboard/analytics",
+  // Our Team
   "/dashboard/team-members",
   "/dashboard/activity-logs",
   "/dashboard/roles-and-permissions",
+  // Booking Management
   "/dashboard/package-bookings",
   "/dashboard/verify-hotels",
+  // Settings
   "/dashboard/settings",
 ];
 
