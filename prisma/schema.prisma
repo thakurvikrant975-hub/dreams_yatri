@@ -897,12 +897,27 @@ model hotels {
   created_by        String?
   updated_by        String?
   owner_id          String?
-  listing_status    HotelListingStatus       @default(DRAFT)
-  submitted_at      DateTime?
-  approved_at       DateTime?
-  approved_by_id    String?
-  rejection_reason  String?
-  bookingHotels     BookingHotel[]
+  listing_status            HotelListingStatus       @default(DRAFT)
+  submitted_at              DateTime?
+  approved_at               DateTime?
+  approved_by_id            String?
+  rejection_reason          String?
+  // ── Wizard fields ──────────────────────────────────────────────────────────
+  property_category         PropertyCategory?
+  property_sub_type         PropertySubType?
+  star_rating               Int?
+  year_built                Int?
+  booking_since_year        Int?
+  has_channel_manager       Boolean                  @default(false)
+  channel_manager_name      String?
+  contact_email             String?
+  contact_mobile_cc         String?                  @default("+91")
+  contact_mobile            String?
+  whatsapp_same_as_mobile   Boolean                  @default(false)
+  contact_whatsapp          String?
+  contact_landline          String?
+  wizard_step               Int                      @default(0)
+  bookingHotels             BookingHotel[]
   childPolicies     hotel_child_policies[]
   image_categories  hotel_image_categories[]
   images            hotel_images[]
@@ -2364,6 +2379,27 @@ enum HotelListingStatus {
   APPROVED
   REJECTED
   LIVE
+}
+
+enum PropertyCategory {
+  HOTEL
+  HOMESTAY_VILLA
+}
+
+enum PropertySubType {
+  HOTEL
+  RESORT
+  LODGE
+  GUEST_HOUSE
+  PALACE
+  HOUSEBOAT
+  MOTEL
+  HOMESTAY
+  VILLA
+  APARTMENT
+  FARMHOUSE
+  TREEHOUSE
+  TENT_CAMP
 }
 
 // ── Blog ─────────────────────────────────────────────────────────────────────
