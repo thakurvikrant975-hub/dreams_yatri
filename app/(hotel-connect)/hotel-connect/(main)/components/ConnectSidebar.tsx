@@ -33,7 +33,7 @@ export default function ConnectSidebar() {
   }
 
   return (
-    <aside className="w-15 lg:w-60 min-h-screen flex flex-col border-r border-neutral-200 bg-white shrink-0">
+    <aside className="w-15 lg:w-60 sticky top-0 h-screen flex flex-col border-r border-neutral-200 bg-white shrink-0">
 
       {/* Logo */}
       <div className="h-14 flex items-center gap-2.5 px-4 border-b border-neutral-200 overflow-hidden">
