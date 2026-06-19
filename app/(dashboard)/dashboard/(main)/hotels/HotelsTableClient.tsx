@@ -50,6 +50,7 @@ type HotelItem = {
   stay_type: string | null;
   city: string | null;
   state: string | null;
+  country: string | null;
   meta_title: string | null;
   meta_desc: string | null;
   location: { name: string; city: { name: string } | null; state: { name: string } | null; country: { name: string } | null } | null;
@@ -213,15 +214,15 @@ export function HotelsTableClient({
           <div>
             <p className="font-medium text-sm">{h.name}</p>
             {h.stay_type && <p className="text-xs text-muted-foreground">{h.stay_type}</p>}
-            {h.location ? (
-              <p className="text-xs text-muted-foreground/70">
-                {[h.location.city?.name ?? h.location.name, h.location.state?.name].filter(Boolean).join(", ")}
-              </p>
-            ) : (h.city || h.state) ? (
-              <p className="text-xs text-muted-foreground/70">
-                {[h.city, h.state].filter(Boolean).join(", ")}
-              </p>
-            ) : null}
+            {(() => {
+              const city    = h.location?.city?.name    ?? h.city;
+              const state   = h.location?.state?.name   ?? h.state;
+              const country = h.location?.country?.name ?? h.country;
+              const parts   = [city, state, country].filter(Boolean);
+              return parts.length > 0 ? (
+                <p className="text-xs text-muted-foreground/70">{parts.join(", ")}</p>
+              ) : null;
+            })()}
           </div>
         </div>
       ),
