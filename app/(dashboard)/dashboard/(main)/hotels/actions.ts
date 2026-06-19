@@ -129,6 +129,7 @@ export async function getHotels(params: GetHotelsParams = {}) {
         { name:     { contains: search, mode: "insensitive" as const } },
         { city:     { contains: search, mode: "insensitive" as const } },
         { state:    { contains: search, mode: "insensitive" as const } },
+        { country:  { contains: search, mode: "insensitive" as const } },
         { location: { name:    { contains: search, mode: "insensitive" as const } } },
         { location: { city:    { name: { contains: search, mode: "insensitive" as const } } } },
         { location: { state:   { name: { contains: search, mode: "insensitive" as const } } } },

@@ -337,7 +337,7 @@ export function HotelsTableClient({
           className="flex-1 min-w-0"
           search={localSearch}
           onSearchChange={handleSearch}
-          searchPlaceholder="Search hotels..."
+          searchPlaceholder="Search by name, city, state, country…"
           filters={[
             {
               value: destination === "all" ? "all" : String(destination),
