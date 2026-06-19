@@ -223,10 +223,9 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
                 setLocation(loc);
                 if (loc) {
                   setAddress(loc.breadcrumb);
-                  const parts = loc.breadcrumb.split(",").map((s: string) => s.trim());
-                  if (parts.length >= 1 && !country) setCountry(parts.at(-1) ?? "");
-                  if (parts.length >= 2 && !state) setState(parts.at(-2) ?? "");
-                  if (parts.length >= 3 && !city) setCity(parts.at(-3) ?? "");
+                  setCity(loc.city_name ?? "");
+                  setState(loc.state_name ?? "");
+                  setCountry(loc.country_name ?? "");
                 }
               }}
               placeholder="Search hotel location…"

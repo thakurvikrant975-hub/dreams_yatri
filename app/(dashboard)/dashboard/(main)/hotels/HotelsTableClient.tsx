@@ -213,11 +213,15 @@ export function HotelsTableClient({
           <div>
             <p className="font-medium text-sm">{h.name}</p>
             {h.stay_type && <p className="text-xs text-muted-foreground">{h.stay_type}</p>}
-            {h.location && (
+            {h.location ? (
               <p className="text-xs text-muted-foreground/70">
-                {[h.location.city?.name ?? h.location.name, h.location.state?.name, h.location.country?.name].filter(Boolean).join(", ")}
+                {[h.location.city?.name ?? h.location.name, h.location.state?.name].filter(Boolean).join(", ")}
               </p>
-            )}
+            ) : (h.city || h.state) ? (
+              <p className="text-xs text-muted-foreground/70">
+                {[h.city, h.state].filter(Boolean).join(", ")}
+              </p>
+            ) : null}
           </div>
         </div>
       ),

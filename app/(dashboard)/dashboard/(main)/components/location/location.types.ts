@@ -53,10 +53,13 @@ export interface LocationValue {
   id: string;            // BigInt serialised as string
   name: string;
   type: LocationType;
-  breadcrumb: string;    // "City, State, Country"
+  breadcrumb: string;    // "Name, State, Country"
   slug: string;
   latitude?: number | null;
   longitude?: number | null;
+  city_name?: string | null;
+  state_name?: string | null;
+  country_name?: string | null;
 }
 
 // ── API response shapes ────────────────────────────────────────────────────────

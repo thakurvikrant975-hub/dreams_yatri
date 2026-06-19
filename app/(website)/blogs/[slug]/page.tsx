@@ -18,8 +18,12 @@ import { SITE_URL, SITE_CONFIG } from "@/app/lib/seo/site-config";
 export const revalidate = 3600;
 
 export async function generateStaticParams() {
-  const slugs = await getAllPublishedBlogSlugs();
-  return slugs.map((slug) => ({ slug }));
+  try {
+    const slugs = await getAllPublishedBlogSlugs();
+    return slugs.map((slug) => ({ slug }));
+  } catch {
+    return [];
+  }
 }
 
 // ── SEO ───────────────────────────────────────────────────────────────────────

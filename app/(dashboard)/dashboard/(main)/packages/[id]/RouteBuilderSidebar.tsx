@@ -343,6 +343,7 @@ function DurationStep({
   // Read persisted stepData on remount so values survive step navigation
   const saved = stepData["duration"] as {
     days?: number; nights?: number; label?: string;
+    nightsManual?: boolean;
     is_default?: boolean; is_active?: boolean;
     sort_order?: number; thumbnail_url?: string | null;
   } | undefined;
@@ -358,10 +359,22 @@ function DurationStep({
     saved && "thumbnail_url" in saved ? (saved.thumbnail_url ?? null) : (init?.thumbnail_url ?? null)
   );
 
-  // Keep days in sync when nights changes (unless admin has edited days manually)
   const [daysManual, setDaysManual] = useState(false);
+  // nightsManual is false on mount — becomes true only when the user explicitly types
+  // into the nights field. Stored in stepData so handleComplete can read it.
+  const [nightsManual, setNightsManual] = useState<boolean>(() => saved?.nightsManual === true);
+
+  // When the user is on Step 3, keep nights/days/label in sync with stop changes
+  // unless they've manually overridden.
+  useEffect(() => {
+    if (nightsManual || daysManual) return;
+    setNights(autoNights);
+    setDays(autoNights + 1);
+    setLabel(`${autoNights + 1}D / ${autoNights}N`);
+  }, [autoNights, nightsManual, daysManual]);
 
   function handleNightsChange(val: number) {
+    setNightsManual(true);
     setNights(val);
     if (!daysManual) setDays(val + 1);
     setLabel(`${daysManual ? days : val + 1}D / ${val}N`);
@@ -373,17 +386,18 @@ function DurationStep({
   }
 
   function resetToAuto() {
+    setNightsManual(false);
+    setDaysManual(false);
     setNights(autoNights);
     setDays(autoDays);
     setLabel(autoLabel);
-    setDaysManual(false);
   }
 
   useEffect(() => {
-    setStepData("duration", { days, nights, label, is_default: isDefault, is_active: isActive, sort_order: sortOrder, thumbnail_url: thumbnail });
-  }, [days, nights, label, isDefault, isActive, sortOrder, thumbnail, setStepData]);
+    setStepData("duration", { days, nights, label, nightsManual, is_default: isDefault, is_active: isActive, sort_order: sortOrder, thumbnail_url: thumbnail });
+  }, [days, nights, label, nightsManual, isDefault, isActive, sortOrder, thumbnail, setStepData]);
 
-  const isModified = nights !== autoNights || days !== autoDays;
+  const isModified = nightsManual || daysManual;
 
   return (
     <div className="space-y-5">
@@ -572,15 +586,26 @@ export function RouteBuilderSidebar({ packageId, packageTitle, editing, open, on
       }));
 
     const meta = data as { name?: string; meta_title?: string | null; meta_desc?: string | null };
-    const dur = data as DurationMeta & { thumbnail_url?: string | null };
+    const dur = data as DurationMeta & { thumbnail_url?: string | null; nightsManual?: boolean };
+
+    // Compute auto nights from the final stop list
+    const stopsNights = stopInputs.reduce((s, r) => s + r.stay_days, 0);
+
+    // Use stops-derived nights unless the user explicitly typed a value in Step 3.
+    // data.nightsManual is undefined when Step 3 was never visited (DurationStep never mounted),
+    // and false when visited but nights weren't touched — in both cases, auto-derive.
+    const userSetNights = dur.nightsManual === true;
+    const effectiveNights = userSetNights && typeof dur.nights === "number" ? dur.nights : stopsNights;
+    const effectiveDays   = userSetNights && typeof dur.days  === "number" ? dur.days  : effectiveNights + 1;
+    const effectiveLabel  = userSetNights && typeof dur.label === "string"  ? dur.label  : `${effectiveDays}D / ${effectiveNights}N`;
 
     const durationMeta: DurationMeta = {
-      days: typeof dur.days === "number" ? dur.days : undefined,
-      nights: typeof dur.nights === "number" ? dur.nights : undefined,
-      label: typeof dur.label === "string" ? dur.label : undefined,
+      days:      effectiveDays,
+      nights:    effectiveNights,
+      label:     effectiveLabel,
       is_default: typeof dur.is_default === "boolean" ? dur.is_default : undefined,
-      is_active: typeof dur.is_active === "boolean" ? dur.is_active : undefined,
-      sort_order: typeof dur.sort_order === "number" ? dur.sort_order : undefined,
+      is_active:  typeof dur.is_active  === "boolean" ? dur.is_active  : undefined,
+      sort_order: typeof dur.sort_order === "number"  ? dur.sort_order : undefined,
       thumbnail_url: dur.thumbnail_url ?? null,
     };
 
