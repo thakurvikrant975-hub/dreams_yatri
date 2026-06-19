@@ -33,10 +33,10 @@ export default function ConnectSidebar() {
   }
 
   return (
-    <aside className="w-15 lg:w-60 min-h-screen flex flex-col border-r border-neutral-100 bg-white shrink-0">
+    <aside className="w-15 lg:w-60 min-h-screen flex flex-col border-r border-neutral-200 bg-white shrink-0">
 
       {/* Logo */}
-      <div className="h-14 flex items-center gap-2.5 px-4 border-b border-neutral-100 overflow-hidden">
+      <div className="h-14 flex items-center gap-2.5 px-4 border-b border-neutral-200 overflow-hidden">
         <Link href="/hotel-connect" className="hidden lg:flex items-center gap-2 min-w-0">
           <DyLogo className="h-9 w-full text-primary-500 shrink-0" />
         </Link>
@@ -69,7 +69,7 @@ export default function ConnectSidebar() {
       </nav>
 
       {/* Sign out */}
-      <div className="p-2 border-t border-neutral-100">
+      <div className="p-2 border-t border-neutral-200">
         <form action={signOutHotelOwner}>
           <button
             type="submit"

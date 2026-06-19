@@ -6,7 +6,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary:
-          'bg-brand text-inverse hover:bg-primary-500',
+          'bg-primary-500 text-inverse hover:bg-primary-600 text-white',
         premium: 'bg-gradient-to-r from-primary-400 to-primary-600 text-white hover:from-primary-500 hover:to-primary-700 focus:ring-primary-500 ',
         secondary:
           'bg-neutral-600/80 text-white hover:bg-neutral-700 focus:ring-neutral-500 disabled:bg-neutral-300',

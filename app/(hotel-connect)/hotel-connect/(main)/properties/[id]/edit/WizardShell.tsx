@@ -7,9 +7,10 @@ import {
   ArrowRight,
   CheckCircle,
   FloppyDisk,
-} from "@phosphor-icons/react";
+} from "@phosphor-icons/react/dist/ssr";
 import { cn } from "@/app/lib/utils";
 import { HotelListingStatus, PropertySubType } from "@/app/generated/prisma";
+import Button from "@/app/components/ui/Button";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -76,16 +77,19 @@ function TabItem({
     <Link
       href={`/hotel-connect/properties/${hotelId}/edit?tab=${tab.index}`}
       className={cn(
-        "relative flex flex-col items-center gap-3 px-5 py-3.5 whitespace-nowrap transition-colors select-none",
+        "relative flex-1 flex flex-col items-center gap-3 px-5 py-3.5 whitespace-nowrap transition-colors select-none",
         "after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:transition-colors",
+        tab.index === 1 ? "rounded-tl-xl" : "",
+        tab.index === WIZARD_TABS.length ? "rounded-tr-xl" : "",
         isCurrent
-          ? "bg-primary-50/70 text-primary-700 after:bg-primary-500"
+          ? "bg-white text-primary-500 relative after:absolute after:bottom-0 after:h-px after:w-full  after:bg-white after:translate-y-px"
           : isCompleted
             ? "text-neutral-600 hover:text-neutral-800 hover:bg-neutral-50 after:bg-transparent hover:after:bg-neutral-200"
             : isFuture
-              ? "text-neutral-600/90 hover:text-neutral-500 hover:bg-neutral-50 after:bg-transparent"
-              : "text-neutral-500 hover:text-neutral-700 hover:bg-neutral-50 after:bg-transparent"
+              ? "text-neutral-800 hover:text-neutral-500 bg-neutral-50 hover:bg-neutral-100 after:bg-transparent"
+              : "text-neutral-500 hover:text-neutral-700 bg-neutral-50 hover:bg-neutral-100 after:bg-transparent"
       )}
+
     >
       {/* Step indicator */}
       <span
@@ -95,7 +99,7 @@ function TabItem({
             ? "bg-primary-500 text-white"
             : isCompleted
               ? "bg-emerald-500 text-white"
-              : "bg-linear-to-b from-neutral-100 via-neutral-100/70 to-white text-neutral-400 ring-1 ring-neutral-200 shadow shadow-neutral-300/80"
+              : "bg-white text-neutral-500/90 ring-1 ring-neutral-200 shadow shadow-neutral-300/80"
         )}
       >
         {isCompleted ? <CheckCircle size={12} weight="bold" /> : tab.index}
@@ -172,30 +176,32 @@ export default function WizardShell({
       </header>
 
       {/* ── Tab bar ───────────────────────────────────────────────────── */}
-      <div className=" bg-white  overflow-x-auto scrollbar-none py-5 ">
-        <div className="flex max-w-4xl justify-between m-auto px-6">
-          {WIZARD_TABS.map((tab) => (
-            <TabItem
-              key={tab.index}
-              tab={tab}
-              currentTab={currentTab}
-              wizardStep={hotel.wizard_step}
-              hotelId={hotel.id}
-            />
-          ))}
+      <div className="shrink-0 bg-white overflow-x-auto scrollbar-none py-5">
+        <div className="border-b border-neutral-200">
+          <div className="grid grid-cols-7 max-w-4xl m-auto divide-x divide-neutral-200 border border-neutral-200 rounded-t-xl -mb-px">
+            {WIZARD_TABS.map((tab) => (
+              <TabItem
+                key={tab.index}
+                tab={tab}
+                currentTab={currentTab}
+                wizardStep={hotel.wizard_step}
+                hotelId={hotel.id}
+              />
+            ))}
+          </div>
         </div>
       </div>
 
       {/* ── Scrollable content ────────────────────────────────────────── */}
-      <div className="relative after:absolute after:bg-white after:top-0 after:left-0 after:h-20 after:w-full z-10 after:-z-10 bg-neutral-100 after:border-b after:border-neutral-200">
-        <div className="flex-1 overflow-y-auto  sticky">
-          <div className="max-w-4xl mx-auto w-full px-6">
-            {children}
-          </div>
+      <div className="relative flex-1 overflow-y-auto bg-neutral-100 after:content-[''] after:absolute after:top-0 after:left-0 after:w-full after:h-25 after:bg-white after:border-b after:border-neutral-200 after:-z-10 isolate">
+        <div className="max-w-4xl mx-auto w-full ">
+          {children}
         </div>
+      </div>
 
-        {/* ── Bottom navigation ─────────────────────────────────────────── */}
-        <footer className="shrink-0 bg-white border-t border-neutral-200 px-6 h-16 flex items-center justify-between gap-4">
+      {/* ── Bottom navigation ─────────────────────────────────────────── */}
+      <footer className="shrink-0 bg-white border-t border-neutral-200 py-3.5">
+        <div className="flex items-center justify-between gap-4 max-w-4xl mx-auto px-6">
           <button
             type="button"
             onClick={() => goTo(currentTab - 1)}
@@ -216,32 +222,30 @@ export default function WizardShell({
           </p>
 
           {tabFormId ? (
-            <button
+            <Button
               type="submit"
               form={tabFormId}
-              className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold bg-primary-600 hover:bg-primary-700 text-white transition-colors"
+              variant="primary"
+              size="sm"
             >
               Save & Continue
               <ArrowRight size={14} weight="bold" />
-            </button>
+            </Button>
           ) : (
-            <button
+            <Button
               type="button"
               onClick={() => goTo(currentTab + 1)}
               disabled={isLastTab}
-              className={cn(
-                "flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-colors",
-                isLastTab
-                  ? "bg-neutral-100 text-neutral-400 cursor-not-allowed"
-                  : "bg-primary-600 hover:bg-primary-700 text-white"
-              )}
+              variant="primary"
+              size="sm"
+              className={cn(isLastTab ? "cursor-not-allowed opacity-50" : "")}
             >
               Save & Continue
               <ArrowRight size={14} weight="bold" />
-            </button>
+            </Button>
           )}
-        </footer>
-      </div>
+        </div>
+      </footer>
 
 
     </div>
