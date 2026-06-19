@@ -224,7 +224,7 @@ export function HotelsTableClient({
     },
     {
       header: "Destination",
-      cell: (h) => <Badge variant="secondary" className="text-xs bg-dashboard-primary/10 text-dashboard-primary">{h.destination.name}</Badge>,
+      cell: (h) => <Badge variant="secondary" className="text-xs bg-dashboard-primary/10 text-dashboard-primary">{h.destination?.name ?? "—"}</Badge>,
     },
     {
       header: "Category",
