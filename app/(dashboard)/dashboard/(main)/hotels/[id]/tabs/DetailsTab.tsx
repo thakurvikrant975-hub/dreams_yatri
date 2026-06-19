@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useState } from "react";
 import { Input }    from "../../../components/ui/input";
 import { Label }    from "../../../components/ui/label";
 import { Textarea } from "../../../components/ui/textarea";
@@ -69,8 +69,7 @@ export function DetailsTab({
     CATEGORIES.find(c => c.value === hotel.category)?.id ?? null
   );
   const [description, setDescription] = useState(hotel.description ?? "");
-
-  const nameRef = useRef<HTMLInputElement>(null);
+  const [hotelName,   setHotelName]   = useState(hotel.name);
 
   // Thumbnail state — managed separately so we can preview and pass key via hidden input
   const [thumbnail, setThumbnail] = useState<PickedImage[]>(
@@ -110,8 +109,13 @@ export function DetailsTab({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-sm text-dashboard-base-content">Hotel Name</Label>
-              <Input ref={nameRef} name="name" defaultValue={hotel.name} required
-                className="bg-dashboard-base-100 border-dashboard-base-content/20" />
+              <Input
+                name="name"
+                value={hotelName}
+                onChange={(e) => setHotelName(e.target.value.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()))}
+                required
+                className="bg-dashboard-base-100 border-dashboard-base-content/20"
+              />
             </div>
             <div className="space-y-1.5">
               <Label className="text-sm text-dashboard-base-content">Slug</Label>

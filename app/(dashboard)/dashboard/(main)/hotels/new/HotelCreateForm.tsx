@@ -65,7 +65,7 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
   }, [description, metaDescManual]);
 
   function handleNameChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const val = e.target.value;
+    const val = e.target.value.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
     setName(val);
     setSlug(
       val.toLowerCase()
