@@ -234,7 +234,12 @@ export function LocationManualSheet({ open, onOpenChange, onCreated, initialName
       });
       const data = await res.json();
       if (!res.ok) { setServerError(data.error ?? "Failed to create location"); return; }
-      onCreated(data as LocationValue);
+      onCreated({
+        ...(data as LocationValue),
+        city_name:    values.city    || null,
+        state_name:   values.state   || null,
+        country_name: values.country || null,
+      });
       onOpenChange(false);
     } catch {
       setServerError("Network error. Please try again.");
