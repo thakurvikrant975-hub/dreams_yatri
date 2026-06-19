@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
 import {
@@ -237,63 +237,58 @@ function RouteMetaStep({ autoName, packageTitle, autoNights, init }: {
 }) {
   const { setStepData, stepData } = useMultiStepSheet();
 
-  // stepData["meta"] persists across step navigation — read from it on remount
-  // so values aren't lost when user goes to step 3 and comes back.
-  // null means "from DB / never typed" → auto-fill; "" means "user cleared" → stay empty.
+  // stepData["meta"] persists across step navigation so values survive going to step 3 and back.
+  // We also track isNameManual / isTitleManual / hasVisited so we know whether the admin
+  // typed something vs. letting values auto-derive from the current stops.
   const saved = stepData["meta"] as {
     name?: string;
     meta_title?: string | null;
     meta_desc?: string | null;
+    isNameManual?: boolean;
+    isTitleManual?: boolean;
+    hasVisited?: boolean;
   } | undefined;
 
-  const defaultName = init.name || autoName;
+  const savedIsNameManual = !!saved?.isNameManual;
+  const savedIsTitleManual = !!saved?.isTitleManual;
+  const hasVisited = !!saved?.hasVisited;
 
-  // SEO title should reflect the package name + duration, not the stop sequence
-  // (e.g. "Shimla Manali Family Tour Package 5D / 4N", not "Shimla → Manali → Shimla").
   const defaultMetaTitle = `${packageTitle} ${autoNights + 1}D / ${autoNights}N`;
 
-  // Treat a stored meta title that just mirrors the auto-generated route name
-  // (the old, incorrect default) the same as "never set" so it gets corrected.
   function resolveMetaTitle(stored: string | null): string {
     if (stored === null || stored === autoName) return defaultMetaTitle;
     return stored;
   }
 
-  // Lazy init so it only runs once per mount
-  const [name, setName] = useState<string>(() => saved?.name ?? defaultName);
+  // Route name: always defaults to autoName (derived from current stops).
+  // Only preserved if admin explicitly typed something in this session.
+  const [isNameManual, setIsNameManual] = useState(savedIsNameManual);
+  const [name, setName] = useState<string>(() =>
+    savedIsNameManual && saved?.name ? saved.name : (autoName || init.name)
+  );
 
-  // Track whether the admin has manually typed a custom name. If not, keep
-  // the name in sync with autoName as stops change in step 1.
-  const [isNameManual, setIsNameManual] = useState(
-    () => !!(saved?.name ?? defaultName) && (saved?.name ?? defaultName) !== autoName,
-  );
-  const prevAutoNameRef = useRef(autoName);
-  useEffect(() => {
-    if (autoName !== prevAutoNameRef.current) {
-      if (!isNameManual) setName(autoName);
-      prevAutoNameRef.current = autoName;
-    }
-  }, [autoName, isNameManual]);
+  // Meta title: on first visit use the DB-stored value (if any); on return visits
+  // after stop changes, auto-update to reflect the current duration.
+  // Preserved only if admin manually typed something in this session.
+  const [isTitleManual, setIsTitleManual] = useState(savedIsTitleManual);
+  const [metaTitle, setMetaTitle] = useState<string>(() => {
+    if (savedIsTitleManual && saved?.meta_title) return saved.meta_title as string;
+    if (!hasVisited && init.meta_title) return resolveMetaTitle(init.meta_title);
+    return defaultMetaTitle;
+  });
 
-  const [metaTitle, setMetaTitle] = useState<string>(() =>
-    saved !== undefined
-      ? resolveMetaTitle(saved.meta_title ?? null)
-      : (init.meta_title ? resolveMetaTitle(init.meta_title) : defaultMetaTitle)
-  );
-  const [metaDesc, setMetaDesc] = useState<string>(() =>
-    saved !== undefined
-      ? (saved.meta_desc ?? "")
-      : (init.meta_desc ?? "")
-  );
+  const [metaDesc, setMetaDesc] = useState<string>(() => saved?.meta_desc ?? init.meta_desc ?? "");
 
   useEffect(() => {
     setStepData("meta", {
       name: name.trim() || undefined,
-      // Save "" (not null) for empty so we can distinguish "user cleared" from "never typed (DB null)"
       meta_title: metaTitle.trim(),
       meta_desc: metaDesc.trim(),
+      isNameManual,
+      isTitleManual,
+      hasVisited: true,
     });
-  }, [name, metaTitle, metaDesc, setStepData]);
+  }, [name, metaTitle, metaDesc, isNameManual, isTitleManual, setStepData]);
 
   return (
     <div className="space-y-4">
@@ -312,7 +307,10 @@ function RouteMetaStep({ autoName, packageTitle, autoNights, init }: {
       </div>
       <div className="space-y-1.5">
         <Label>Meta Title <span className="text-muted-foreground font-normal text-xs">(SEO)</span></Label>
-        <Input value={metaTitle} onChange={(e) => setMetaTitle(e.target.value)}
+        <Input value={metaTitle} onChange={(e) => {
+          setMetaTitle(e.target.value);
+          setIsTitleManual(e.target.value !== defaultMetaTitle);
+        }}
           placeholder="Page title for this route" />
       </div>
       <div className="space-y-1.5">
