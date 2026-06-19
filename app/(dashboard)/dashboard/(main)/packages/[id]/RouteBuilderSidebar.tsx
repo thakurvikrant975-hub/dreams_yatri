@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
 import {
@@ -261,6 +261,20 @@ function RouteMetaStep({ autoName, packageTitle, autoNights, init }: {
 
   // Lazy init so it only runs once per mount
   const [name, setName] = useState<string>(() => saved?.name ?? defaultName);
+
+  // Track whether the admin has manually typed a custom name. If not, keep
+  // the name in sync with autoName as stops change in step 1.
+  const [isNameManual, setIsNameManual] = useState(
+    () => !!(saved?.name ?? defaultName) && (saved?.name ?? defaultName) !== autoName,
+  );
+  const prevAutoNameRef = useRef(autoName);
+  useEffect(() => {
+    if (autoName !== prevAutoNameRef.current) {
+      if (!isNameManual) setName(autoName);
+      prevAutoNameRef.current = autoName;
+    }
+  }, [autoName, isNameManual]);
+
   const [metaTitle, setMetaTitle] = useState<string>(() =>
     saved !== undefined
       ? resolveMetaTitle(saved.meta_title ?? null)
@@ -285,7 +299,10 @@ function RouteMetaStep({ autoName, packageTitle, autoNights, init }: {
     <div className="space-y-4">
       <div className="space-y-1.5">
         <Label>Route Name</Label>
-        <Input value={name} onChange={(e) => setName(e.target.value)}
+        <Input value={name} onChange={(e) => {
+          setName(e.target.value);
+          setIsNameManual(e.target.value !== autoName);
+        }}
           placeholder={autoName || "Auto-generated from stops"} />
         {autoName && name !== autoName && (
           <p className="text-[11px] text-muted-foreground">
