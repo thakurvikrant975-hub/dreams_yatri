@@ -26,6 +26,13 @@ export async function createDraftProperty(subType: PropertySubType) {
   if (!session) redirect("/hotel-connect/login");
 
   const ownerId = session.user.id;
+
+  const ownerExists = await db.hotelOwner.findUnique({
+    where: { id: ownerId },
+    select: { id: true },
+  });
+  if (!ownerExists) redirect("/hotel-connect/login");
+
   const slug = `draft-${ownerId.slice(-8)}-${Date.now()}`;
 
   const hotel = await db.hotels.create({

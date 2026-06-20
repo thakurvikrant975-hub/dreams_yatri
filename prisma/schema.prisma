@@ -916,6 +916,12 @@ model hotels {
   whatsapp_same_as_mobile Boolean                  @default(false)
   contact_whatsapp        String?
   contact_landline        String?
+  // ── Location wizard fields ─────────────────────────────────────────────────
+  latitude                Decimal?                 @db.Decimal(10, 7)
+  longitude               Decimal?                 @db.Decimal(10, 7)
+  landmark                String?
+  // ── Amenities wizard field ─────────────────────────────────────────────────
+  property_amenities      Json?
   wizard_step             Int                      @default(0)
   bookingHotels           BookingHotel[]
   childPolicies           hotel_child_policies[]
@@ -977,9 +983,11 @@ model hotel_rooms {
   area_sqft           Int?
   bed_type            String?
   view_type           String?
-  max_occupancy       Int                  @default(2)
-  max_adults          Int                  @default(3)
-  max_children        Int                  @default(2)
+  base_adults         Int                  @default(2)
+  max_adults          Int                  @default(2)
+  base_children       Int                  @default(0)
+  max_children        Int                  @default(1)
+  max_occupancy       Int                  @default(3)
   extra_bed_capacity  Int                  @default(0)
   bed_count           Int                  @default(1)
   child_cot_available Boolean              @default(false)
@@ -988,6 +996,14 @@ model hotel_rooms {
   bathroom            Json?
   facilities          Json?
   description         String?
+  room_type           String?
+  area_unit           String?              @default("sqft")
+  num_bedrooms        Int?
+  num_living_rooms    Int?
+  num_rooms           Int                  @default(1)
+  room_wizard_step    Int                  @default(0)
+  beds                Json?
+  meal_plan           String?
   is_active           Boolean              @default(true)
   sort_order          Int                  @default(0)
   created_at          DateTime             @default(now())

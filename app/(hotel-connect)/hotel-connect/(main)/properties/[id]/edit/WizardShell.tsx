@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
-  CheckCircle,
   FloppyDisk,
 } from "@phosphor-icons/react/dist/ssr";
 import { cn } from "@/app/lib/utils";
@@ -61,51 +60,68 @@ function subTypeLabel(st: PropertySubType | null): string {
 function TabItem({
   tab,
   currentTab,
-  wizardStep,
+  effectiveWizardStep,
   hotelId,
 }: {
   tab: (typeof WIZARD_TABS)[0];
   currentTab: number;
-  wizardStep: number;
+  effectiveWizardStep: number;
   hotelId: number;
 }) {
-  const isCurrent = tab.index === currentTab;
-  const isCompleted = tab.index < currentTab && tab.index <= wizardStep;
-  const isFuture = tab.index > wizardStep;
+  const isCurrent   = tab.index === currentTab;
+  const isCompleted = tab.index <= effectiveWizardStep && !isCurrent;
+  const isLocked    = tab.index > effectiveWizardStep + 1;
+
+  const baseClass = cn(
+    "relative flex-1 flex flex-col items-center gap-3 px-5 py-3.5 whitespace-nowrap transition-colors select-none",
+    "after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:transition-colors",
+    tab.index === 1 ? "rounded-tl-xl" : "",
+    tab.index === WIZARD_TABS.length ? "rounded-tr-xl" : "",
+    isCurrent
+      ? "bg-white text-primary-500 after:absolute after:bottom-0 after:h-px after:w-full after:bg-white after:translate-y-px"
+      : isCompleted
+        ? "text-neutral-600 hover:text-neutral-800 hover:bg-neutral-50 after:bg-transparent hover:after:bg-neutral-200"
+        : isLocked
+          ? "text-neutral-400 bg-neutral-50 cursor-not-allowed after:bg-transparent"
+          : "text-neutral-600 hover:text-neutral-800 bg-neutral-50 hover:bg-neutral-100 after:bg-transparent"
+  );
+
+  const indicator = (
+    <span
+      className={cn(
+        "size-6 rounded-full text-[11px] font-bold flex items-center justify-center shrink-0 font-heading",
+        isCurrent
+          ? "bg-primary-500 text-white"
+          : isCompleted
+            ? "bg-emerald-500 text-white"
+            : isLocked
+              ? "bg-neutral-200 text-neutral-400"
+              : "bg-white text-neutral-500/90 ring-1 ring-neutral-200 shadow shadow-neutral-300/80"
+      )}
+    >
+      {isCompleted
+        ? <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5-4.5-4.5 1.41-1.41L10 13.67l7.09-7.09L18.5 8l-8.5 8.5z"/></svg>
+        : tab.index}
+    </span>
+  );
+
+  const label = (
+    <span className="text-xs font-semibold leading-none font-heading">{tab.label}</span>
+  );
+
+  if (isLocked) {
+    return (
+      <div className={baseClass} title="Complete previous steps to unlock" aria-disabled="true">
+        {indicator}
+        {label}
+      </div>
+    );
+  }
 
   return (
-    <Link
-      href={`/hotel-connect/properties/${hotelId}/edit?tab=${tab.index}`}
-      className={cn(
-        "relative flex-1 flex flex-col items-center gap-3 px-5 py-3.5 whitespace-nowrap transition-colors select-none",
-        "after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:transition-colors",
-        tab.index === 1 ? "rounded-tl-xl" : "",
-        tab.index === WIZARD_TABS.length ? "rounded-tr-xl" : "",
-        isCurrent
-          ? "bg-white text-primary-500 relative after:absolute after:bottom-0 after:h-px after:w-full  after:bg-white after:translate-y-px"
-          : isCompleted
-            ? "text-neutral-600 hover:text-neutral-800 hover:bg-neutral-50 after:bg-transparent hover:after:bg-neutral-200"
-            : isFuture
-              ? "text-neutral-800 hover:text-neutral-500 bg-neutral-50 hover:bg-neutral-100 after:bg-transparent"
-              : "text-neutral-500 hover:text-neutral-700 bg-neutral-50 hover:bg-neutral-100 after:bg-transparent"
-      )}
-
-    >
-      {/* Step indicator */}
-      <span
-        className={cn(
-          "size-6 rounded-full text-[11px] font-bold flex items-center justify-center shrink-0 font-heading",
-          isCurrent
-            ? "bg-primary-500 text-white"
-            : isCompleted
-              ? "bg-emerald-500 text-white"
-              : "bg-white text-neutral-500/90 ring-1 ring-neutral-200 shadow shadow-neutral-300/80"
-        )}
-      >
-        {isCompleted ? <CheckCircle size={12} weight="bold" /> : tab.index}
-      </span>
-
-      <span className="text-xs font-semibold leading-none font-heading">{tab.label}</span>
+    <Link href={`/hotel-connect/properties/${hotelId}/edit?tab=${tab.index}`} className={baseClass}>
+      {indicator}
+      {label}
     </Link>
   );
 }
@@ -116,11 +132,13 @@ export default function WizardShell({
   hotel,
   currentTab,
   tabFormId,
+  effectiveWizardStep,
   children,
 }: {
   hotel: HotelSummary;
   currentTab: number;
   tabFormId?: string;
+  effectiveWizardStep: number;
   children: React.ReactNode;
 }) {
   const router = useRouter();
@@ -184,7 +202,7 @@ export default function WizardShell({
                 key={tab.index}
                 tab={tab}
                 currentTab={currentTab}
-                wizardStep={hotel.wizard_step}
+                effectiveWizardStep={effectiveWizardStep}
                 hotelId={hotel.id}
               />
             ))}
@@ -193,7 +211,7 @@ export default function WizardShell({
       </div>
 
       {/* ── Scrollable content ────────────────────────────────────────── */}
-      <div className="relative flex-1 overflow-y-auto bg-neutral-100 after:content-[''] after:absolute after:top-0 after:left-0 after:w-full after:h-25 after:bg-white after:border-b after:border-neutral-200 after:-z-10 isolate">
+      <div className="relative flex-1 overflow-y-auto bg-neutral-100 after:content-[''] after:absolute after:top-0 after:left-0 after:w-full after:h-25 after:bg-white after:border-b after:border-neutral-200 after:-z-10 isolate mb-6">
         <div className="max-w-4xl mx-auto w-full ">
           {children}
         </div>

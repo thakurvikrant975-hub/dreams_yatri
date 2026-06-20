@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { PropertySubType } from "@/app/generated/prisma";
 
 const year = new Date().getFullYear();
 
@@ -15,12 +14,9 @@ export const basicInfoSchema = z.object({
     .min(2, "Property name must be at least 2 characters")
     .max(100, "Property name is too long"),
 
-  property_sub_type: z.nativeEnum(PropertySubType, {
-    message: "Please select a property type",
-  }),
-
+  // "0" submitted by "Non-Rated / Budget" option → treated as null
   star_rating: z.preprocess(
-    (v) => (v === "" || v == null ? undefined : v),
+    (v) => (v === "" || v === "0" || v == null ? undefined : v),
     z.coerce.number().int().min(1).max(5).optional().nullable()
   ),
 
