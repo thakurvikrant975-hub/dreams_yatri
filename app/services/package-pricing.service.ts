@@ -613,6 +613,7 @@ export async function computePackagePrice(
     if (!cabTypeData.segments.length) continue;
 
     for (const seg of cabTypeData.segments) {
+      if (!seg.cab_pricing) continue; // orphaned FK — skip segment
       const segStartDate = travelDateObj
         ? new Date(travelDateObj.getTime() + (seg.day_from - 1) * 24 * 60 * 60 * 1000)
         : null;
@@ -922,6 +923,7 @@ export async function computePackagePrice(
     if (!cabTypeData.segments.length) continue;
 
     for (const seg of cabTypeData.segments) {
+      if (!seg.cab_pricing) continue; // orphaned FK — skip segment
       const segDays = seg.day_to - seg.day_from + 1;
       const segStartDate = travelDateObj
         ? new Date(travelDateObj.getTime() + (seg.day_from - 1) * 24 * 60 * 60 * 1000)

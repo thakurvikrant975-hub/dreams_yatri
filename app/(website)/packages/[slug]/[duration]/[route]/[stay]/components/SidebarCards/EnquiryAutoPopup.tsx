@@ -16,7 +16,7 @@ interface Props {
 }
 
 const DELAY_MS       = 30000;
-const SLIDE_INTERVAL = 2500;
+const SLIDE_INTERVAL = 4000;
 const AUTO_CLOSE_SEC = 12;
 
 /* ── Image slider ──────────────────────────────────────────────────────────── */

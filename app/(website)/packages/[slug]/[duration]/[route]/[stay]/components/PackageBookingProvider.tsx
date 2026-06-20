@@ -232,12 +232,16 @@ export function PackageBookingProvider({
                     cab_type_ids:     cabTypeIds.length > 0 ? cabTypeIds : null,
                 });
                 if (res.success) {
-                    setPricing({
-                        pricePerAdult: Math.round(res.data.price_per_adult),
-                        finalPrice:    Math.round(res.data.final_price),
-                        gstAmount:     Math.round(res.data.gst_amount),
-                        gstPercentage: res.data.gst_percentage,
-                    });
+                    if (res.data.missing_pricing_config) {
+                        setPricing(null);
+                    } else {
+                        setPricing({
+                            pricePerAdult: Math.round(res.data.price_per_adult),
+                            finalPrice:    Math.round(res.data.final_price),
+                            gstAmount:     Math.round(res.data.gst_amount),
+                            gstPercentage: res.data.gst_percentage,
+                        });
+                    }
                 }
             } finally {
                 setLoading(false);
