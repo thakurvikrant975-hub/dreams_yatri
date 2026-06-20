@@ -13,7 +13,7 @@ interface Props {
     packageSlug: string;
 }
 
-const DELAY_MS    = 2500;
+const DELAY_MS    = 30000;
 const SESSION_KEY = 'eq-popup-shown';
 
 function PopupHeader({
