@@ -729,6 +729,7 @@ export default async function PackagePage({
                     packageName={pageData.title}
                     destination={pageData.destination.name}
                     packageSlug={slug}
+                    images={image_gallery.length > 0 ? image_gallery.map(g => g.src) : coverImage ? [coverImage] : []}
                 />
             </PackageBookingProvider>
 
