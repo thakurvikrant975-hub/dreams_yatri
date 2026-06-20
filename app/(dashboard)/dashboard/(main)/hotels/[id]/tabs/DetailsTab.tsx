@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useState } from "react";
 import { Input }    from "../../../components/ui/input";
 import { Label }    from "../../../components/ui/label";
 import { Textarea } from "../../../components/ui/textarea";
@@ -62,15 +62,18 @@ export function DetailsTab({
     { success: false, message: "" }
   );
 
-  const [location, setLocation] = useState<LocationValue | null>(hotel.location);
+  const [location,  setLocation]  = useState<LocationValue | null>(hotel.location);
   const [address,   setAddress]   = useState(hotel.address ?? "");
+  const [city,      setCity]      = useState(hotel.city ?? "");
+  const [province,  setProvince]  = useState(hotel.state ?? "");
+  const [country,   setCountry]   = useState(hotel.country ?? "");
+  const [pincode,   setPincode]   = useState(hotel.pincode ?? "");
   const [destinationId, setDestinationId] = useState<number | null>(hotel.destination.id);
   const [categoryId, setCategoryId] = useState<number | null>(
     CATEGORIES.find(c => c.value === hotel.category)?.id ?? null
   );
   const [description, setDescription] = useState(hotel.description ?? "");
-
-  const nameRef = useRef<HTMLInputElement>(null);
+  const [hotelName,   setHotelName]   = useState(hotel.name);
 
   // Thumbnail state — managed separately so we can preview and pass key via hidden input
   const [thumbnail, setThumbnail] = useState<PickedImage[]>(
@@ -110,8 +113,13 @@ export function DetailsTab({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-sm text-dashboard-base-content">Hotel Name</Label>
-              <Input ref={nameRef} name="name" defaultValue={hotel.name} required
-                className="bg-dashboard-base-100 border-dashboard-base-content/20" />
+              <Input
+                name="name"
+                value={hotelName}
+                onChange={(e) => setHotelName(e.target.value.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()))}
+                required
+                className="bg-dashboard-base-100 border-dashboard-base-content/20"
+              />
             </div>
             <div className="space-y-1.5">
               <Label className="text-sm text-dashboard-base-content">Slug</Label>
@@ -191,11 +199,62 @@ export function DetailsTab({
             <Label className="text-sm text-dashboard-base-content">Location</Label>
             <LocationSearchSelect
               value={location}
-              onChange={(loc) => { setLocation(loc); if (loc) setAddress(loc.breadcrumb); }}
+              onChange={(loc) => {
+                setLocation(loc);
+                if (loc) {
+                  setAddress(loc.breadcrumb);
+                  setCity(loc.city_name ?? "");
+                  setProvince(loc.state_name ?? "");
+                  setCountry(loc.country_name ?? "");
+                }
+              }}
               placeholder="Search hotel location…"
               types={["HOTEL"]}
               lockedType="HOTEL"
             />
+          </div>
+
+          <div className="grid grid-cols-4 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-sm text-dashboard-base-content">City</Label>
+              <Input
+                name="city"
+                value={city}
+                onChange={e => setCity(e.target.value)}
+                placeholder="Srinagar"
+                className="bg-dashboard-base-100 border-dashboard-base-content/20"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm text-dashboard-base-content">State</Label>
+              <Input
+                name="state"
+                value={province}
+                onChange={e => setProvince(e.target.value)}
+                placeholder="Jammu & Kashmir"
+                className="bg-dashboard-base-100 border-dashboard-base-content/20"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm text-dashboard-base-content">Country</Label>
+              <Input
+                name="country"
+                value={country}
+                onChange={e => setCountry(e.target.value)}
+                placeholder="India"
+                className="bg-dashboard-base-100 border-dashboard-base-content/20"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm text-dashboard-base-content">Pincode</Label>
+              <Input
+                name="pincode"
+                value={pincode}
+                onChange={e => setPincode(e.target.value)}
+                placeholder="190001"
+                className="bg-dashboard-base-100 border-dashboard-base-content/20"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

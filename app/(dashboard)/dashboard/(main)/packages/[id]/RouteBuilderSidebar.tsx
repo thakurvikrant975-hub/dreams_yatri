@@ -237,55 +237,67 @@ function RouteMetaStep({ autoName, packageTitle, autoNights, init }: {
 }) {
   const { setStepData, stepData } = useMultiStepSheet();
 
-  // stepData["meta"] persists across step navigation — read from it on remount
-  // so values aren't lost when user goes to step 3 and comes back.
-  // null means "from DB / never typed" → auto-fill; "" means "user cleared" → stay empty.
+  // stepData["meta"] persists across step navigation so values survive going to step 3 and back.
+  // We also track isNameManual / isTitleManual / hasVisited so we know whether the admin
+  // typed something vs. letting values auto-derive from the current stops.
   const saved = stepData["meta"] as {
     name?: string;
     meta_title?: string | null;
     meta_desc?: string | null;
+    isNameManual?: boolean;
+    isTitleManual?: boolean;
+    hasVisited?: boolean;
   } | undefined;
 
-  const defaultName = init.name || autoName;
+  const savedIsNameManual = !!saved?.isNameManual;
+  const savedIsTitleManual = !!saved?.isTitleManual;
+  const hasVisited = !!saved?.hasVisited;
 
-  // SEO title should reflect the package name + duration, not the stop sequence
-  // (e.g. "Shimla Manali Family Tour Package 5D / 4N", not "Shimla → Manali → Shimla").
   const defaultMetaTitle = `${packageTitle} ${autoNights + 1}D / ${autoNights}N`;
 
-  // Treat a stored meta title that just mirrors the auto-generated route name
-  // (the old, incorrect default) the same as "never set" so it gets corrected.
   function resolveMetaTitle(stored: string | null): string {
     if (stored === null || stored === autoName) return defaultMetaTitle;
     return stored;
   }
 
-  // Lazy init so it only runs once per mount
-  const [name, setName] = useState<string>(() => saved?.name ?? defaultName);
-  const [metaTitle, setMetaTitle] = useState<string>(() =>
-    saved !== undefined
-      ? resolveMetaTitle(saved.meta_title ?? null)
-      : (init.meta_title ? resolveMetaTitle(init.meta_title) : defaultMetaTitle)
+  // Route name: always defaults to autoName (derived from current stops).
+  // Only preserved if admin explicitly typed something in this session.
+  const [isNameManual, setIsNameManual] = useState(savedIsNameManual);
+  const [name, setName] = useState<string>(() =>
+    savedIsNameManual && saved?.name ? saved.name : (autoName || init.name)
   );
-  const [metaDesc, setMetaDesc] = useState<string>(() =>
-    saved !== undefined
-      ? (saved.meta_desc ?? "")
-      : (init.meta_desc ?? "")
-  );
+
+  // Meta title: on first visit use the DB-stored value (if any); on return visits
+  // after stop changes, auto-update to reflect the current duration.
+  // Preserved only if admin manually typed something in this session.
+  const [isTitleManual, setIsTitleManual] = useState(savedIsTitleManual);
+  const [metaTitle, setMetaTitle] = useState<string>(() => {
+    if (savedIsTitleManual && saved?.meta_title) return saved.meta_title as string;
+    if (!hasVisited && init.meta_title) return resolveMetaTitle(init.meta_title);
+    return defaultMetaTitle;
+  });
+
+  const [metaDesc, setMetaDesc] = useState<string>(() => saved?.meta_desc ?? init.meta_desc ?? "");
 
   useEffect(() => {
     setStepData("meta", {
       name: name.trim() || undefined,
-      // Save "" (not null) for empty so we can distinguish "user cleared" from "never typed (DB null)"
       meta_title: metaTitle.trim(),
       meta_desc: metaDesc.trim(),
+      isNameManual,
+      isTitleManual,
+      hasVisited: true,
     });
-  }, [name, metaTitle, metaDesc, setStepData]);
+  }, [name, metaTitle, metaDesc, isNameManual, isTitleManual, setStepData]);
 
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
         <Label>Route Name</Label>
-        <Input value={name} onChange={(e) => setName(e.target.value)}
+        <Input value={name} onChange={(e) => {
+          setName(e.target.value);
+          setIsNameManual(e.target.value !== autoName);
+        }}
           placeholder={autoName || "Auto-generated from stops"} />
         {autoName && name !== autoName && (
           <p className="text-[11px] text-muted-foreground">
@@ -295,7 +307,10 @@ function RouteMetaStep({ autoName, packageTitle, autoNights, init }: {
       </div>
       <div className="space-y-1.5">
         <Label>Meta Title <span className="text-muted-foreground font-normal text-xs">(SEO)</span></Label>
-        <Input value={metaTitle} onChange={(e) => setMetaTitle(e.target.value)}
+        <Input value={metaTitle} onChange={(e) => {
+          setMetaTitle(e.target.value);
+          setIsTitleManual(e.target.value !== defaultMetaTitle);
+        }}
           placeholder="Page title for this route" />
       </div>
       <div className="space-y-1.5">
@@ -328,6 +343,7 @@ function DurationStep({
   // Read persisted stepData on remount so values survive step navigation
   const saved = stepData["duration"] as {
     days?: number; nights?: number; label?: string;
+    nightsManual?: boolean;
     is_default?: boolean; is_active?: boolean;
     sort_order?: number; thumbnail_url?: string | null;
   } | undefined;
@@ -343,10 +359,22 @@ function DurationStep({
     saved && "thumbnail_url" in saved ? (saved.thumbnail_url ?? null) : (init?.thumbnail_url ?? null)
   );
 
-  // Keep days in sync when nights changes (unless admin has edited days manually)
   const [daysManual, setDaysManual] = useState(false);
+  // nightsManual is false on mount — becomes true only when the user explicitly types
+  // into the nights field. Stored in stepData so handleComplete can read it.
+  const [nightsManual, setNightsManual] = useState<boolean>(() => saved?.nightsManual === true);
+
+  // When the user is on Step 3, keep nights/days/label in sync with stop changes
+  // unless they've manually overridden.
+  useEffect(() => {
+    if (nightsManual || daysManual) return;
+    setNights(autoNights);
+    setDays(autoNights + 1);
+    setLabel(`${autoNights + 1}D / ${autoNights}N`);
+  }, [autoNights, nightsManual, daysManual]);
 
   function handleNightsChange(val: number) {
+    setNightsManual(true);
     setNights(val);
     if (!daysManual) setDays(val + 1);
     setLabel(`${daysManual ? days : val + 1}D / ${val}N`);
@@ -358,17 +386,18 @@ function DurationStep({
   }
 
   function resetToAuto() {
+    setNightsManual(false);
+    setDaysManual(false);
     setNights(autoNights);
     setDays(autoDays);
     setLabel(autoLabel);
-    setDaysManual(false);
   }
 
   useEffect(() => {
-    setStepData("duration", { days, nights, label, is_default: isDefault, is_active: isActive, sort_order: sortOrder, thumbnail_url: thumbnail });
-  }, [days, nights, label, isDefault, isActive, sortOrder, thumbnail, setStepData]);
+    setStepData("duration", { days, nights, label, nightsManual, is_default: isDefault, is_active: isActive, sort_order: sortOrder, thumbnail_url: thumbnail });
+  }, [days, nights, label, nightsManual, isDefault, isActive, sortOrder, thumbnail, setStepData]);
 
-  const isModified = nights !== autoNights || days !== autoDays;
+  const isModified = nightsManual || daysManual;
 
   return (
     <div className="space-y-5">
@@ -557,15 +586,26 @@ export function RouteBuilderSidebar({ packageId, packageTitle, editing, open, on
       }));
 
     const meta = data as { name?: string; meta_title?: string | null; meta_desc?: string | null };
-    const dur = data as DurationMeta & { thumbnail_url?: string | null };
+    const dur = data as DurationMeta & { thumbnail_url?: string | null; nightsManual?: boolean };
+
+    // Compute auto nights from the final stop list
+    const stopsNights = stopInputs.reduce((s, r) => s + r.stay_days, 0);
+
+    // Use stops-derived nights unless the user explicitly typed a value in Step 3.
+    // data.nightsManual is undefined when Step 3 was never visited (DurationStep never mounted),
+    // and false when visited but nights weren't touched — in both cases, auto-derive.
+    const userSetNights = dur.nightsManual === true;
+    const effectiveNights = userSetNights && typeof dur.nights === "number" ? dur.nights : stopsNights;
+    const effectiveDays   = userSetNights && typeof dur.days  === "number" ? dur.days  : effectiveNights + 1;
+    const effectiveLabel  = userSetNights && typeof dur.label === "string"  ? dur.label  : `${effectiveDays}D / ${effectiveNights}N`;
 
     const durationMeta: DurationMeta = {
-      days: typeof dur.days === "number" ? dur.days : undefined,
-      nights: typeof dur.nights === "number" ? dur.nights : undefined,
-      label: typeof dur.label === "string" ? dur.label : undefined,
+      days:      effectiveDays,
+      nights:    effectiveNights,
+      label:     effectiveLabel,
       is_default: typeof dur.is_default === "boolean" ? dur.is_default : undefined,
-      is_active: typeof dur.is_active === "boolean" ? dur.is_active : undefined,
-      sort_order: typeof dur.sort_order === "number" ? dur.sort_order : undefined,
+      is_active:  typeof dur.is_active  === "boolean" ? dur.is_active  : undefined,
+      sort_order: typeof dur.sort_order === "number"  ? dur.sort_order : undefined,
       thumbnail_url: dur.thumbnail_url ?? null,
     };
 

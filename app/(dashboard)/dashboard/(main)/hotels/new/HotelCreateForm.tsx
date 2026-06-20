@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { useRouter }               from "next/navigation";
-import { Input }                   from "../../components/ui/input";
-import { Label }                   from "../../components/ui/label";
-import { Textarea }                from "../../components/ui/textarea";
-import { Button }                  from "../../components/ui/button";
-import { Switch }                  from "../../components/ui/switch";
+import { useRouter } from "next/navigation";
+import { Input } from "../../components/ui/input";
+import { Label } from "../../components/ui/label";
+import { Textarea } from "../../components/ui/textarea";
+import { Button } from "../../components/ui/button";
+import { Switch } from "../../components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card";
 import {
   Select, SelectContent, SelectItem,
@@ -18,43 +18,43 @@ import type { LocationValue } from "../../components/location/location.types";
 import { SearchSelect } from "../../components/dashboard/SearchSelect";
 import { createHotel } from "../actions";
 import { CATEGORIES, STAY_TYPES } from "../constants";
-import { toast }    from "sonner";
+import { toast } from "sonner";
 import { Hotel, Search, Loader2, MessageCircle } from "lucide-react";
 
 type Destination = {
-  id:     number;
-  name:   string;
+  id: number;
+  name: string;
   region: { name: string };
 };
 
 export function HotelCreateForm({ destinations }: { destinations: Destination[] }) {
-  const router                       = useRouter();
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const [name,          setName]          = useState("");
-  const [slug,          setSlug]          = useState("");
+  const [name, setName] = useState("");
+  const [slug, setSlug] = useState("");
   const [destinationId, setDestinationId] = useState<number | null>(null);
-  const [categoryId,    setCategoryId]    = useState<number | null>(null);
-  const [stayType,      setStayType]      = useState("");
-  const [checkIn,       setCheckIn]       = useState("14:00");
-  const [checkOut,      setCheckOut]      = useState("11:00");
-  const [address,        setAddress]        = useState("");
-  const [city,           setCity]           = useState("");
-  const [state,          setState]          = useState("");
-  const [country,        setCountry]        = useState("");
-  const [pincode,        setPincode]        = useState("");
-  const [businessPhone,  setBusinessPhone]  = useState("");
-  const [businessEmail,  setBusinessEmail]  = useState("");
+  const [categoryId, setCategoryId] = useState<number | null>(null);
+  const [stayType, setStayType] = useState("");
+  const [checkIn, setCheckIn] = useState("14:00");
+  const [checkOut, setCheckOut] = useState("11:00");
+  const [address, setAddress] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [country, setCountry] = useState("");
+  const [pincode, setPincode] = useState("");
+  const [businessPhone, setBusinessPhone] = useState("");
+  const [businessEmail, setBusinessEmail] = useState("");
   const [whatsappNumber, setWhatsappNumber] = useState("");
-  const [b2bEmail,       setB2bEmail]       = useState("");
-  const [location,       setLocation]       = useState<LocationValue | null>(null);
-  const [description,    setDescription]    = useState("");
-  const [isActive,      setIsActive]      = useState(true);
-  const [thumbnail,     setThumbnail]     = useState<PickedImage[]>([]);
-  const [metaTitle,      setMetaTitle]      = useState("");
-  const [metaDesc,       setMetaDesc]       = useState("");
+  const [b2bEmail, setB2bEmail] = useState("");
+  const [location, setLocation] = useState<LocationValue | null>(null);
+  const [description, setDescription] = useState("");
+  const [isActive, setIsActive] = useState(true);
+  const [thumbnail, setThumbnail] = useState<PickedImage[]>([]);
+  const [metaTitle, setMetaTitle] = useState("");
+  const [metaDesc, setMetaDesc] = useState("");
   const [metaTitleManual, setMetaTitleManual] = useState(false);
-  const [metaDescManual,  setMetaDescManual]  = useState(false);
+  const [metaDescManual, setMetaDescManual] = useState(false);
 
   // Keep SEO fields in sync with name/description until user manually edits them
   useEffect(() => {
@@ -65,7 +65,7 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
   }, [description, metaDescManual]);
 
   function handleNameChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const val = e.target.value;
+    const val = e.target.value.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
     setName(val);
     setSlug(
       val.toLowerCase()
@@ -91,28 +91,28 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
 
     startTransition(async () => {
       const formData = new FormData();
-      formData.append("name",           name);
-      formData.append("slug",           slug);
+      formData.append("name", name);
+      formData.append("slug", slug);
       formData.append("destination_id", destinationId ? String(destinationId) : "");
-      formData.append("thumbnail",      thumbnail[0]?.key ?? "");
-      formData.append("category",       CATEGORIES.find(c => c.id === categoryId)?.value ?? "");
-      formData.append("stay_type",      stayType);
-      formData.append("check_in_time",  checkIn);
+      formData.append("thumbnail", thumbnail[0]?.key ?? "");
+      formData.append("category", CATEGORIES.find(c => c.id === categoryId)?.value ?? "");
+      formData.append("stay_type", stayType);
+      formData.append("check_in_time", checkIn);
       formData.append("check_out_time", checkOut);
-      formData.append("address",        address);
-      formData.append("city",           city);
-      formData.append("state",          state);
-      formData.append("country",        country);
-      formData.append("pincode",        pincode);
-      formData.append("business_phone",            businessPhone);
-      formData.append("business_email",            businessEmail);
+      formData.append("address", address);
+      formData.append("city", city);
+      formData.append("state", state);
+      formData.append("country", country);
+      formData.append("pincode", pincode);
+      formData.append("business_phone", businessPhone);
+      formData.append("business_email", businessEmail);
       formData.append("whatsapp_number", whatsappNumber);
-      formData.append("b2b_email",       b2bEmail);
-      formData.append("location_id",               location?.id ?? "");
-      formData.append("description",    description);
-      formData.append("is_active",      String(isActive));
-      formData.append("meta_title",     metaTitle);
-      formData.append("meta_desc",      metaDesc);
+      formData.append("b2b_email", b2bEmail);
+      formData.append("location_id", location?.id ?? "");
+      formData.append("description", description);
+      formData.append("is_active", String(isActive));
+      formData.append("meta_title", metaTitle);
+      formData.append("meta_desc", metaDesc);
 
       const result = await createHotel({ success: false, message: "" }, formData);
 
@@ -223,10 +223,9 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
                 setLocation(loc);
                 if (loc) {
                   setAddress(loc.breadcrumb);
-                  const parts = loc.breadcrumb.split(",").map((s: string) => s.trim());
-                  if (parts.length >= 1 && !country) setCountry(parts.at(-1) ?? "");
-                  if (parts.length >= 2 && !state) setState(parts.at(-2) ?? "");
-                  if (parts.length >= 3 && !city) setCity(parts.at(-3) ?? "");
+                  setCity(loc.city_name ?? "");
+                  setState(loc.state_name ?? "");
+                  setCountry(loc.country_name ?? "");
                 }
               }}
               placeholder="Search hotel location…"
@@ -348,7 +347,7 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
               size="sm"
               onClick={() => {
                 if (!metaTitle) setMetaTitle(`${name} | Dreams Yatri`.slice(0, 60));
-                if (!metaDesc)  setMetaDesc(description.slice(0, 160));
+                if (!metaDesc) setMetaDesc(description.slice(0, 160));
               }}
             >
               Autofill from title &amp; description

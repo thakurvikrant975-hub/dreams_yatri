@@ -50,6 +50,7 @@ type HotelItem = {
   stay_type: string | null;
   city: string | null;
   state: string | null;
+  country: string | null;
   meta_title: string | null;
   meta_desc: string | null;
   location: { name: string; city: { name: string } | null; state: { name: string } | null; country: { name: string } | null } | null;
@@ -213,18 +214,22 @@ export function HotelsTableClient({
           <div>
             <p className="font-medium text-sm">{h.name}</p>
             {h.stay_type && <p className="text-xs text-muted-foreground">{h.stay_type}</p>}
-            {h.location && (
-              <p className="text-xs text-muted-foreground/70">
-                {[h.location.city?.name ?? h.location.name, h.location.state?.name, h.location.country?.name].filter(Boolean).join(", ")}
-              </p>
-            )}
+            {(() => {
+              const city    = h.location?.city?.name    ?? h.city;
+              const state   = h.location?.state?.name   ?? h.state;
+              const country = h.location?.country?.name ?? h.country;
+              const parts   = [city, state, country].filter(Boolean);
+              return parts.length > 0 ? (
+                <p className="text-xs text-muted-foreground/70">{parts.join(", ")}</p>
+              ) : null;
+            })()}
           </div>
         </div>
       ),
     },
     {
       header: "Destination",
-      cell: (h) => <Badge variant="secondary" className="text-xs bg-dashboard-primary/10 text-dashboard-primary">{h.destination.name}</Badge>,
+      cell: (h) => <Badge variant="secondary" className="text-xs bg-dashboard-primary/10 text-dashboard-primary">{h.destination?.name ?? "—"}</Badge>,
     },
     {
       header: "Category",
@@ -332,7 +337,7 @@ export function HotelsTableClient({
           className="flex-1 min-w-0"
           search={localSearch}
           onSearchChange={handleSearch}
-          searchPlaceholder="Search hotels..."
+          searchPlaceholder="Search by name, city, state, country…"
           filters={[
             {
               value: destination === "all" ? "all" : String(destination),

@@ -30,7 +30,9 @@ export const {
         httpOnly: true,
         sameSite: "strict",
         path: "/dashboard",   // scoped to /dashboard only
-        secure: process.env.NODE_ENV === "production",
+        secure:
+          process.env.NODE_ENV === "production" &&
+          !process.env.NEXTAUTH_URL?.startsWith("http://localhost"),
       },
     },
   },

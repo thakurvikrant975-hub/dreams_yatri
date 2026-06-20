@@ -652,11 +652,36 @@ const HOTEL_SELECT = {
   plan_name: true,
   price_per_night: true,
   meal_type: { select: { id: true, name: true, covered_meals: true } },
-  hotel: { select: { id: true, name: true, category: true, stay_type: true, thumbnail: true } },
-  room: { select: { id: true, name: true, bed_type: true, images: { select: { url: true, thumbnail: true }, orderBy: { sort_order: "asc" as const }, take: 1 } } },
+  hotel: {
+    select: {
+      id: true, name: true, category: true, stay_type: true, thumbnail: true,
+      location: { select: { latitude: true, longitude: true } },
+    },
+  },
+  room: {
+    select: {
+      id: true, name: true, bed_type: true, bed_count: true,
+      max_occupancy: true, max_adults: true, child_cot_available: true,
+      images: { select: { url: true, thumbnail: true }, orderBy: { sort_order: "asc" as const }, take: 1 },
+    },
+  },
 } as const;
 
-function toItems(list: { id: number; plan_name: string | null; price_per_night: unknown; meal_type: { id: number; name: string; covered_meals: string[] } | null; hotel: { id: number; name: string; category: string | null; stay_type: string | null; thumbnail: string | null }; room: { id: number; name: string; bed_type: string | null; images: { url: string; thumbnail: string | null }[] } | null }[]) {
+function toItems(list: {
+  id: number;
+  plan_name: string | null;
+  price_per_night: unknown;
+  meal_type: { id: number; name: string; covered_meals: string[] } | null;
+  hotel: {
+    id: number; name: string; category: string | null; stay_type: string | null; thumbnail: string | null;
+    location: { latitude: unknown; longitude: unknown } | null;
+  };
+  room: {
+    id: number; name: string; bed_type: string | null; bed_count: number | null;
+    max_occupancy: number | null; max_adults: number | null; child_cot_available: boolean | null;
+    images: { url: string; thumbnail: string | null }[];
+  } | null;
+}[]) {
   return list.slice(0, 50).map((p) => ({ ...p, price_per_night: Number(p.price_per_night) }));
 }
 

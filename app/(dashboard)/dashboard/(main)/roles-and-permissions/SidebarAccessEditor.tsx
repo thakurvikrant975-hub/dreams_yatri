@@ -66,7 +66,7 @@ export function SidebarAccessEditor({
 
             {/* ── Per-section checklist ────────────────────────────────────── */}
             <div className={["space-y-3", restricted ? "" : "opacity-50 pointer-events-none"].join(" ")}>
-                {NAV_GROUPS.map(group => {
+                {NAV_GROUPS.filter(group => group.items.length > 0).map(group => {
                     const hrefs = group.items.map(i => i.href);
                     const allSelected = hrefs.every(h => value.includes(h));
                     const someSelected = hrefs.some(h => value.includes(h));

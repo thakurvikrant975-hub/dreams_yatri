@@ -2,11 +2,7 @@
 // Single source of truth for the dashboard sidebar — also used by the
 // role "Sidebar Access" editor so the two stay in sync.
 import {
-  LayoutDashboard, Settings, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound,
-  MessageCircleQuestion, ClockCheck, Mails, Forward, BadgePercent, Banknote,
-  ChartSpline, BanknoteArrowDown, BanknoteX, Car, Bed, ChartNoAxesCombined,
-  BellRing, PackagePlus, ChartNoAxesGantt, Star, IndianRupee,
-  X,
+  LayoutDashboard, Settings, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound, MessageCircleQuestion, ClockCheck, Mails, Forward, BadgePercent, Banknote, ChartSpline, BanknoteArrowDown, BanknoteX, Car, Bed, ChartNoAxesCombined, BellRing, PackagePlus, ChartNoAxesGantt, Star, IndianRupee, X,
 } from "lucide-react";
 import {
   GlobeHemisphereEastIcon, MapPinIcon, BuildingIcon, TagIcon,

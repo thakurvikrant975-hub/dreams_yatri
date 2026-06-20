@@ -4,6 +4,11 @@
 
 @custom-variant dark (&:is(.dark *));
 
+:root {
+    --font-inter: "Inter Variable", "Inter", sans-serif;
+    --font-poppins: "Poppins", sans-serif;
+}
+
 @theme {
     --font-body: var(--font-inter), sans-serif;
     --font-heading: var(--font-poppins), sans-serif;
