@@ -137,14 +137,10 @@ function SuccessScreen({ destination, countdown, onClose }: {
                 </div>
 
                 <h3 className="text-xl font-bold text-neutral-800 leading-snug">
-                    You&apos;re all set! 🎉
+                    Thank You! Your Enquiry Has Been Received.
                 </h3>
                 <p className="mt-2 text-sm text-neutral-500 leading-relaxed max-w-xs">
-                    Our travel expert is already gearing up to call you — your{' '}
-                    <span className="font-semibold text-neutral-700">
-                        {destination ? `${destination} adventure` : 'dream trip'}
-                    </span>{' '}
-                    is about to get very real. 📞✨
+                    Our travel expert will review your request and contact you shortly.{' '}
                 </p>
 
                 {/* Divider */}
