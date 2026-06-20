@@ -159,8 +159,9 @@ export default function EnquiryAutoPopup({ packageName, destination, packageSlug
                         />
 
                         <div className="px-6 pt-4 pb-6 overflow-y-auto max-h-[55vh] sm:max-h-none">
+                            <h3 className='font-semibold text-lg'>Your Perfect Journey Starts Here</h3>
                             <p className="text-sm text-neutral-500 mb-4 leading-relaxed">
-                                Your <span className="font-semibold text-neutral-700">{destination ? `${destination} adventure` : 'dream trip'}</span> is just one call away — drop your number and our expert will craft every magical moment for you! ✈️
+                                Leave your phone number, and our travel expert will craft a personalized itinerary tailored to your preferences.
                             </p>
                             <PopupEnquiryForm
                                 packageName={packageName}
