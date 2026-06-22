@@ -34,8 +34,10 @@ export const fullRoomSchema = z.object({
   child_cot_available: z.boolean(),
 
   // Section 3
-  bathroom_type:     z.enum(["private", "shared"]),
-  bathroom_features: z.array(z.string()),
+  bathrooms: z.array(z.object({
+    type:        z.enum(["bathroom", "powder_room"]),
+    attached_to: z.string().min(1, "Select a room"),
+  })).min(1, "Add at least one bathroom"),
 
   // Section 4
   meal_plan: z.string().min(1, "Select a meal plan"),

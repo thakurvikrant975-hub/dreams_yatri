@@ -86,7 +86,7 @@ export async function createRoom(
       max_occupancy:       d.max_occupancy,
       extra_bed_capacity:  d.extra_bed ? d.extra_bed_capacity : 0,
       child_cot_available: d.child_cot_available,
-      bathroom:            { type: d.bathroom_type, features: d.bathroom_features } as Prisma.InputJsonValue,
+      bathroom:            d.bathrooms as Prisma.InputJsonValue,
       meal_plan:           d.meal_plan,
       amenities:           d.room_amenities as Prisma.InputJsonValue,
       room_wizard_step:    5,

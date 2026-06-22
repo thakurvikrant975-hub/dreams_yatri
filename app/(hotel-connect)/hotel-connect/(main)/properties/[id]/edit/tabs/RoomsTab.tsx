@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   BedIcon, PlusIcon, TrashIcon, CheckIcon, ArrowRightIcon, ArrowLeftIcon, WarningIcon, XIcon,
+  CaretDownIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import { cn } from "@/app/lib/utils";
 import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
@@ -12,7 +13,7 @@ import { SearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/compone
 import { createRoom, deleteRoom } from "./room-actions";
 import {
   ROOM_TYPES, ROOM_VIEWS, BED_TYPES, MULTI_ROOM_TYPES,
-  BATHROOM_FEATURES, MEAL_PLANS, ROOM_AMENITY_GROUPS,
+  MEAL_PLANS, ROOM_AMENITY_GROUPS,
 } from "./room-data";
 
 const inputBase =
@@ -31,6 +32,7 @@ export type RoomSummary = {
 
 type BedEntry = { type: string; count: number };
 type BedroomGroup = { beds: BedEntry[] };
+type BathroomEntry = { type: "bathroom" | "powder_room"; attached_to: string };
 
 type RoomFormData = {
   room_type: string;      view_type: string;
@@ -50,8 +52,7 @@ type RoomFormData = {
   extra_bed_capacity: number;
   child_cot_available: boolean;
   // Section 3
-  bathroom_type: "private" | "shared" | "";
-  bathroom_features: string[];
+  bathrooms: BathroomEntry[];
   // Section 4
   meal_plan: string;
   // Section 5
@@ -67,7 +68,7 @@ const DEFAULT_FORM: RoomFormData = {
   living_room_beds: [],
   base_adults: 2, max_adults: 2, base_children: 0, max_children: 1, max_occupancy: 3,
   extra_bed: false, extra_bed_capacity: 0, child_cot_available: false,
-  bathroom_type: "", bathroom_features: [],
+  bathrooms: [{ type: "bathroom", attached_to: "bedroom_1" }],
   meal_plan: "", room_amenities: [],
 };
 
@@ -124,7 +125,10 @@ function validateS2(d: RoomFormData): FieldErrors {
 }
 function validateS3(d: RoomFormData): FieldErrors {
   const e: FieldErrors = {};
-  if (!d.bathroom_type) e.bathroom_type = "Select bathroom type";
+  if (d.bathrooms.length === 0) e.bathrooms = "Add at least one bathroom";
+  d.bathrooms.forEach((b, i) => {
+    if (!b.attached_to) e[`bathroom_attached_to_${i}`] = "Select which room";
+  });
   return e;
 }
 function validateS4(d: RoomFormData): FieldErrors {
@@ -636,58 +640,166 @@ function Section2({ data, onChange, errors }: {
 
 // ── Section 3 — Bathroom Details ──────────────────────────────────────────────
 
+const BATHROOM_TYPE_OPTIONS = [
+  { value: "bathroom",    label: "Bathroom",    sub: "Toilet, Sink & Shower" },
+  { value: "powder_room", label: "Powder room", sub: "Toilet & Sink Only"    },
+] as const;
+
+function BathroomTypeDropdown({ value, onChange }: {
+  value: string; onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function h(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [open]);
+
+  const selected = BATHROOM_TYPE_OPTIONS.find((t) => t.value === value);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={cn(
+          "w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border bg-white text-left transition-colors",
+          open ? "border-primary-400 ring-2 ring-primary-100" : "border-neutral-300 hover:border-neutral-400",
+        )}
+      >
+        <span className="flex flex-col min-w-0">
+          {selected ? (
+            <>
+              <span className="text-sm font-medium text-neutral-800 leading-tight">{selected.label}</span>
+              <span className="text-xs text-neutral-500 leading-tight">{selected.sub}</span>
+            </>
+          ) : (
+            <span className="text-sm text-neutral-400">Select type</span>
+          )}
+        </span>
+        <CaretDownIcon size={14} className={cn("text-neutral-400 shrink-0 transition-transform", open && "rotate-180")} />
+      </button>
+
+      {open && (
+        <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-white border border-neutral-200 rounded-xl shadow-lg overflow-hidden">
+          {BATHROOM_TYPE_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => { onChange(opt.value); setOpen(false); }}
+              className={cn(
+                "w-full text-left px-4 py-3 flex flex-col gap-0.5 transition-colors",
+                value === opt.value ? "bg-primary-50" : "hover:bg-neutral-50",
+              )}
+            >
+              <span className="text-sm font-medium text-neutral-800">{opt.label}</span>
+              <span className="text-xs text-neutral-500">{opt.sub}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function getRoomOptions(data: RoomFormData): { value: string; label: string }[] {
+  const opts: { value: string; label: string }[] = [];
+  const numBR = parseInt(data.num_bedrooms) || 1;
+  const numLR = parseInt(data.num_living_rooms) || 0;
+  for (let i = 1; i <= numBR; i++) opts.push({ value: `bedroom_${i}`, label: `Bedroom ${i}` });
+  for (let i = 1; i <= numLR; i++) opts.push({ value: `living_room_${i}`, label: `Living Room ${i}` });
+  return opts;
+}
+
 function Section3({ data, onChange, errors }: {
   data: RoomFormData; onChange: (d: RoomFormData) => void; errors: FieldErrors;
 }) {
   const set = <K extends keyof RoomFormData>(k: K, v: RoomFormData[K]) => onChange({ ...data, [k]: v });
+  const roomOptions = getRoomOptions(data);
 
-  function toggleFeature(f: string) {
-    const cur = data.bathroom_features;
-    set("bathroom_features", cur.includes(f) ? cur.filter((x) => x !== f) : [...cur, f]);
+  function addBathroom() {
+    set("bathrooms", [
+      ...data.bathrooms,
+      { type: "bathroom", attached_to: roomOptions[0]?.value ?? "bedroom_1" },
+    ]);
+  }
+
+  function removeBathroom(i: number) {
+    set("bathrooms", data.bathrooms.filter((_, idx) => idx !== i));
+  }
+
+  function updateBathroom(i: number, key: keyof BathroomEntry, value: string) {
+    set("bathrooms", data.bathrooms.map((b, idx) =>
+      idx === i ? { ...b, [key]: value } : b,
+    ));
   }
 
   return (
-    <div className="px-5 pt-5 pb-4 space-y-4">
-      <FieldRow label="Bathroom Type" required error={errors.bathroom_type}>
-        <div className="space-y-2">
-          {[
-            { value: "private", label: "Private",  desc: "Each room has its own dedicated bathroom" },
-            { value: "shared",  label: "Shared",   desc: "Bathroom is shared between multiple rooms" },
-          ].map((opt) => (
-            <label key={opt.value}
-              className={cn(
-                "flex items-start gap-3 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all",
-                data.bathroom_type === opt.value
-                  ? "border-primary-400 bg-primary-50"
-                  : "border-neutral-200 bg-white hover:border-neutral-300",
-              )}>
-              <input
-                type="radio"
-                name="bathroom_type"
-                value={opt.value}
-                checked={data.bathroom_type === opt.value}
-                onChange={() => set("bathroom_type", opt.value as "private" | "shared")}
-                className="mt-0.5 h-4 w-4 accent-primary-500 cursor-pointer shrink-0"
-              />
-              <div>
-                <p className="text-sm font-semibold text-neutral-800">{opt.label}</p>
-                <p className="text-xs text-neutral-500 mt-0.5">{opt.desc}</p>
-              </div>
-            </label>
-          ))}
-        </div>
-      </FieldRow>
+    <div className="px-5 pt-5 pb-4 space-y-3">
+      {data.bathrooms.map((bathroom, i) => (
+        <div key={i} className="border border-neutral-200 rounded-xl">
+          <div className="flex items-center justify-between px-4 py-2.5 bg-neutral-50 border-b border-neutral-100 rounded-t-xl">
+            <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">
+              Bathroom {i + 1}
+            </span>
+            {data.bathrooms.length > 1 && (
+              <button
+                type="button"
+                onClick={() => removeBathroom(i)}
+                className="text-xs text-red-500 hover:text-red-700 transition-colors font-medium"
+              >
+                Remove
+              </button>
+            )}
+          </div>
 
-      <FieldRow label="Bathroom Features">
-        <div className="flex flex-wrap gap-2">
-          {BATHROOM_FEATURES.map((f) => (
-            <ChipToggle key={f} label={f}
-              selected={data.bathroom_features.includes(f)}
-              onClick={() => toggleFeature(f)}
-            />
-          ))}
+          <div className="p-4 grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-neutral-600">
+                Bathroom Type <span className="text-red-400">*</span>
+              </label>
+              <BathroomTypeDropdown
+                value={bathroom.type}
+                onChange={(v) => updateBathroom(i, "type", v as BathroomEntry["type"])}
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-neutral-600">
+                Attached to which room? <span className="text-red-400">*</span>
+              </label>
+              <SearchSelect
+                options={roomOptions}
+                value={bathroom.attached_to}
+                onChange={(v) => updateBathroom(i, "attached_to", v)}
+                placeholder="Select room"
+                showSearch={false}
+              />
+              {errors[`bathroom_attached_to_${i}`] && (
+                <p className="text-xs text-red-500">{errors[`bathroom_attached_to_${i}`]}</p>
+              )}
+            </div>
+          </div>
         </div>
-      </FieldRow>
+      ))}
+
+      {errors.bathrooms && (
+        <p className="text-xs text-red-500">{errors.bathrooms}</p>
+      )}
+
+      <button
+        type="button"
+        onClick={addBathroom}
+        className="flex items-center gap-1.5 text-sm font-medium text-primary-600 hover:text-primary-700 transition-colors"
+      >
+        <PlusIcon size={14} weight="bold" />
+        Add Another Bathroom
+      </button>
     </div>
   );
 }
@@ -795,8 +907,9 @@ function stepSummary(id: number, d: RoomFormData): string {
         .filter(Boolean).join(" · ");
     }
     case 3:
-      return [d.bathroom_type === "private" ? "Private bathroom" : "Shared bathroom", d.bathroom_features.length ? `${d.bathroom_features.length} features` : null]
-        .filter(Boolean).join(" · ");
+      return d.bathrooms.length
+        ? `${d.bathrooms.length} bathroom${d.bathrooms.length !== 1 ? "s" : ""}`
+        : "No bathrooms added";
     case 4:
       return MEAL_PLANS.find((p) => p.value === d.meal_plan)?.label.split(" — ")[0] ?? d.meal_plan;
     case 5:
@@ -839,7 +952,7 @@ function CreateRoomForm({ hotelId, onDone }: { hotelId: number; onDone: () => vo
         num_bedrooms:     Number(data.num_bedrooms),
         num_living_rooms: data.num_living_rooms !== "" ? Number(data.num_living_rooms) : undefined,
         num_rooms:        Number(data.num_rooms),
-        bathroom_type:    data.bathroom_type as "private" | "shared",
+        bathrooms:        data.bathrooms,
       });
       if (result.roomId) {
         router.refresh();
