@@ -8,10 +8,7 @@ import { Textarea } from "../../components/ui/textarea";
 import { Button } from "../../components/ui/button";
 import { Switch } from "../../components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card";
-import {
-  Select, SelectContent, SelectItem,
-  SelectTrigger, SelectValue,
-} from "../../components/ui/select";
+import {Select, SelectContent, SelectItem,SelectTrigger, SelectValue,} from "../../components/ui/select";
 import { ImagePicker, type PickedImage } from "../../components/dashboard/ImagePicker";
 import { LocationSearchSelect } from "../../components/location/LocationSearchSelect";
 import type { LocationValue } from "../../components/location/location.types";

@@ -398,7 +398,7 @@ function SectionTrigger({
   return (
     <div className="flex items-center gap-5 w-full min-w-0 overflow-hidden">
       <div className="flex items-center gap-2 min-w-0 flex-1">
-        <Icon weight='duotone' className="size-7 duo_icons shrink-0" />
+        <Icon aria-hidden="true" weight='duotone' className="size-7 duo_icons shrink-0" />
         <Text size='sm' weight='bold' intent='primary' className="font-heading shrink-0">{title}</Text>
         {subtitle && (
           <Text size='xs' className="text-secondary truncate min-w-0">{subtitle}</Text>
@@ -1062,13 +1062,13 @@ function AttractionStories({
       </div>
 
       {/* Story circles row */}
-      <div role="list" className="flex gap-4 overflow-x-auto no-scrollbar pb-1">
+      <div className="flex gap-4 overflow-x-auto no-scrollbar pb-1">
         {items.map((item, i) => (
           <button
             key={i}
             type="button"
             onClick={() => setActiveIdx(i)}
-            className="flex flex-col items-center gap-1.5 shrink-0 group focus:outline-none"
+            className="flex flex-col items-center gap-1.5 shrink-0 group focus-visible:outline-2 focus-visible:outline-primary-400 focus-visible:outline-offset-2 focus:outline-none"
           >
             {/* Gradient ring — Instagram-style */}
             <div className="p-0.5 rounded-full bg-linear-to-tr from-yellow-400 via-red-500 to-violet-600 group-active:scale-95 transition-transform duration-150 shadow-sm">

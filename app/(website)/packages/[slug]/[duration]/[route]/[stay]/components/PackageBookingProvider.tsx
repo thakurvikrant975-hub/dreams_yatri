@@ -142,7 +142,7 @@ export function PackageBookingProvider({
     const [childCount, setChildRaw]     = useState(initialChildAges?.length ?? 0);
     const [infants,    setInfantsRaw]   = useState(0);
     const [childAges,  setChildAges]    = useState<number[]>(initialChildAges ?? []);
-    const [travelDate, setTravelDateRaw] = useState(initialTravelDate ?? new Date().toISOString().slice(0, 10));
+    const [travelDate, setTravelDateRaw] = useState(initialTravelDate ?? '');
     const [leavingFrom, setLeavingFrom]  = useState<LocationValue | null>(initialLeavingFrom ?? null);
     const [dateHighlight, setDateHighlight] = useState(false);
 
@@ -228,16 +228,20 @@ export function PackageBookingProvider({
                     children:         childCount,
                     infants,
                     child_ages:       childAges.length === childCount ? childAges : undefined,
-                    travel_date:      travelDate || null,
+                    travel_date:      travelDate || (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); })(),
                     cab_type_ids:     cabTypeIds.length > 0 ? cabTypeIds : null,
                 });
                 if (res.success) {
-                    setPricing({
-                        pricePerAdult: Math.round(res.data.price_per_adult),
-                        finalPrice:    Math.round(res.data.final_price),
-                        gstAmount:     Math.round(res.data.gst_amount),
-                        gstPercentage: res.data.gst_percentage,
-                    });
+                    if (res.data.missing_pricing_config) {
+                        setPricing(null);
+                    } else {
+                        setPricing({
+                            pricePerAdult: Math.round(res.data.price_per_adult),
+                            finalPrice:    Math.round(res.data.final_price),
+                            gstAmount:     Math.round(res.data.gst_amount),
+                            gstPercentage: res.data.gst_percentage,
+                        });
+                    }
                 }
             } finally {
                 setLoading(false);

@@ -1,16 +1,25 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import "@fontsource-variable/inter";
-import "@fontsource/poppins/400.css";
-import "@fontsource/poppins/500.css";
-import "@fontsource/poppins/600.css";
-import "@fontsource/poppins/700.css";
-import "@fontsource/poppins/800.css";
+import { Inter } from "next/font/google";
+import { Poppins } from "next/font/google";
 import { cn } from "@/app/lib/utils";
 import { GlobalProvider } from "./context/Global";
 import { SITE_CONFIG } from "./lib/seo/site-config";
 import SchemaScript from "./components/seo/SchemaScript";
 import { organizationSchema, websiteSchema } from "./lib/seo/schema";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
+const poppins = Poppins({
+  weight: ["400", "500", "600", "700", "800"],
+  subsets: ["latin"],
+  variable: "--font-poppins",
+  display: "swap",
+});
 
 
 export const metadata: Metadata = {
@@ -64,7 +73,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={cn("font-mono")}>
+    <html lang="en" className={cn(inter.variable, poppins.variable, "font-sans")}>
       <head>
         {/* Organization + Website schema on every page */}
         <SchemaScript data={[organizationSchema(), websiteSchema()]} />

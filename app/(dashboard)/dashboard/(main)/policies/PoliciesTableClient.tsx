@@ -298,7 +298,6 @@ export function PoliciesTableClient({
                 </Select>
 
                 <div className="flex items-center gap-2 ml-auto">
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">Rows per page</span>
                     <Select
                         value={String(limit)}
                         onValueChange={v => updateParam("limit", v)}

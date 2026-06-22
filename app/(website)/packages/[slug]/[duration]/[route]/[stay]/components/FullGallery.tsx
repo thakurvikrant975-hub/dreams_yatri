@@ -9,7 +9,7 @@ import ImageLightbox from './ImageLightbox'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type GalleryImg = { src: string; label: string }
+export type GalleryImg = { src: string; fullSrc?: string; label: string }
 
 export type GalleryCategory = {
     label: string

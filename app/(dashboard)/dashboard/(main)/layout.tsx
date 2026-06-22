@@ -67,11 +67,11 @@ export default async function DashboardLayout({
 
           <div className="flex items-center gap-3 ml-auto">
             {isSales && <SalesTargetBadge memberId={realMember.id} />}
-
+{/* 
             <SalesStatusToggle
               memberId={realMember.id}
               initialActive={realMember.isActive}
-            />
+            /> */}
 
             {/* Header always shows the real logged-in user's identity */}
             <AvatarName

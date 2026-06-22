@@ -3,7 +3,6 @@ import { useState } from 'react';
 import Input from '@/app/components/forms/Input';
 import Label from '@/app/components/forms/Label';
 import Button from '@/app/components/ui/Button';
-import { Text } from '@/app/components/ui/Typography';
 import { submitPackageEnquiry } from '@/app/actions/enquiry/submit';
 import { COUNTRY_CODES, DEFAULT_COUNTRY } from '@/app/lib/assets/country-codes';
 
@@ -56,7 +55,6 @@ export default function PopupEnquiryForm({ packageName, destination, onSuccess }
         });
 
         if (result.ok) {
-            setStatus('success');
             onSuccess?.();
         } else if ('fieldErrors' in result && result.fieldErrors) {
             setErrors({ name: result.fieldErrors.name, phone: result.fieldErrors.phone });
@@ -66,22 +64,6 @@ export default function PopupEnquiryForm({ packageName, destination, onSuccess }
             setStatus('idle');
         }
     };
-
-    if (status === 'success') {
-        return (
-            <div className="flex flex-col items-center text-center gap-3 py-6">
-                <div className="size-14 rounded-full bg-success-50 flex items-center justify-center">
-                    <svg className="size-7 text-success-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                </div>
-                <div>
-                    <p className="font-semibold text-primary">We'll be in touch!</p>
-                    <Text size="sm" intent="secondary" className="mt-0.5">Our travel expert will call you within 2 hours.</Text>
-                </div>
-            </div>
-        );
-    }
 
     return (
         <form onSubmit={handleSubmit} noValidate>

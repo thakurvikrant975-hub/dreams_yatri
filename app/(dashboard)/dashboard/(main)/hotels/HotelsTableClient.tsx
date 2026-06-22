@@ -229,7 +229,7 @@ export function HotelsTableClient({
     },
     {
       header: "Destination",
-      cell: (h) => <Badge variant="secondary" className="text-xs bg-dashboard-primary/10 text-dashboard-primary">{h.destination?.name ?? "—"}</Badge>,
+      cell: (h) => h.destination ? <Badge variant="secondary" className="text-xs bg-dashboard-primary/10 text-dashboard-primary">{h.destination.name}</Badge> : <span className="text-muted-foreground text-xs">—</span>,
     },
     {
       header: "Category",
@@ -366,7 +366,6 @@ export function HotelsTableClient({
           ]}
         />
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-xs text-muted-foreground whitespace-nowrap">Rows per page</span>
           <Select value={String(limit)} onValueChange={v => updateParam("limit", v)}>
             <SelectTrigger className="w-20 h-10 border-dashboard-base-300 bg-dashboard-base-100 text-dashboard-base-content/70 rounded-lg">
               <SelectValue />

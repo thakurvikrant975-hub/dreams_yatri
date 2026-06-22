@@ -95,8 +95,9 @@ export const NAV_GROUPS = [
     id: "team", label: "Our Team",
     items: [
       { title: "Team Members", href: "/dashboard/team-members", icon: IdCardLanyard },
-      { title: "Activity Logs", href: "/dashboard/activity-logs", icon: Activity },
-      { title: "Roles and Permissions", href: "/dashboard/roles-and-permissions", icon: KeyRound },
+      { title: "Departments", href: "/dashboard/departments", icon: IdCardLanyard },
+      // { title: "Activity Logs", href: "/dashboard/activity-logs", icon: Activity },
+      { title: "Team Roles", href: "/dashboard/roles-and-permissions", icon: KeyRound },
     ],
   },
   {
