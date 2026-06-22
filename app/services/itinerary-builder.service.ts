@@ -225,8 +225,8 @@ export async function getItineraryData(
       day,
       title: rec.title,
       description: rec.description,
-      meals: rec.meals,
-      excluded_meals: rec.excluded_meals,
+      meals: rec.meals ?? [],
+      excluded_meals: rec.excluded_meals ?? [],
       activities: rec.itinerary_activities.map((ia) => ({
         id: ia.id,
         sort_order: ia.sort_order,
