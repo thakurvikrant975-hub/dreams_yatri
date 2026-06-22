@@ -27,8 +27,12 @@ export function getImageUrl(key: string, size: ImageSize = {}): string {
   // Full URL (e.g. unsplash, external CDN) — pass through unchanged
   if (key.startsWith("http")) return key;
 
-  // In development — skip transformation (Cloudflare not in the loop locally)
-  if (process.env.NODE_ENV === "development") {
+  // Cloudflare image transformations only work on CF-proxied domains.
+  // r2.dev public URLs are served directly from R2 — /cdn-cgi/image/ is not
+  // available there, so skip transforms and serve the raw R2 URL instead.
+  const isCFProxied = !base.includes("r2.dev") && process.env.NODE_ENV !== "development";
+
+  if (!isCFProxied) {
     return `${base}/${key}`;
   }
 
