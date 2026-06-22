@@ -198,7 +198,6 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
                 </SelectContent>
               </Select>
             </div>
-
           </div>
 
           <div className="grid grid-cols-2 gap-4">
