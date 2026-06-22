@@ -1171,6 +1171,7 @@ type SearchedRoom = {
   hotel: {
     id: number; name: string; category: string | null; stay_type: string | null;
     thumbnail: string | null;
+    city: string | null; state: string | null; country: string | null;
     location: { latitude: unknown; longitude: unknown } | null;
   };
   room: {
@@ -1380,6 +1381,13 @@ function HotelPickerPanel({
                         </span>
                       )}
                     </div>
+
+                    {/* Location */}
+                    {(item.hotel.city || item.hotel.state || item.hotel.country) && (
+                      <p className="text-[10px] text-muted-foreground/70 leading-snug">
+                        {[item.hotel.city, item.hotel.state, item.hotel.country].filter(Boolean).join(", ")}
+                      </p>
+                    )}
 
                     {/* Room info */}
                     {item.room && (

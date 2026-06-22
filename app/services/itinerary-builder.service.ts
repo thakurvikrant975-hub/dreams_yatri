@@ -655,6 +655,7 @@ const HOTEL_SELECT = {
   hotel: {
     select: {
       id: true, name: true, category: true, stay_type: true, thumbnail: true,
+      city: true, state: true, country: true,
       location: { select: { latitude: true, longitude: true } },
     },
   },
@@ -674,6 +675,7 @@ function toItems(list: {
   meal_type: { id: number; name: string; covered_meals: string[] } | null;
   hotel: {
     id: number; name: string; category: string | null; stay_type: string | null; thumbnail: string | null;
+    city: string | null; state: string | null; country: string | null;
     location: { latitude: unknown; longitude: unknown } | null;
   };
   room: {
