@@ -922,6 +922,41 @@ model hotels {
   landmark                String?
   // ── Amenities wizard field ─────────────────────────────────────────────────
   property_amenities      Json?
+  // ── Policy wizard fields ───────────────────────────────────────────────────
+  cancellation_policy       HotelCancellationPolicy?
+  allow_unmarried_couples   Boolean?
+  show_couple_tag           Boolean?
+  allow_guests_below_18     Boolean?
+  allow_male_only_groups    Boolean?
+  allow_same_city_id        Boolean?
+  smoking_allowed           Boolean?
+  parties_events_allowed    Boolean?
+  wheelchair_accessible     Boolean?
+  allow_outside_visitors    Boolean?
+  pets_on_property          Boolean?
+  pets_allowed              Boolean?
+  allowed_pet_types         String[]                 @default([])
+  pet_extra_charges         Boolean?
+  pets_restricted_areas     String?
+  pets_without_leash        Boolean?
+  pet_food_available        Boolean?
+  checkin_24_hours          Boolean?
+  acceptable_id_proofs      String[]                 @default([])
+  infant_free_occupancy     Boolean?
+  infant_complimentary_food Boolean?
+  extra_bed_included        Boolean?
+  provide_bed_extra_adults  Boolean?
+  provide_bed_extra_kids    Boolean?
+  // ── Finance & Legal wizard fields ─────────────────────────────────────────
+  bank_account_number     String?
+  bank_ifsc_code          String?
+  bank_name               String?
+  bank_consent_given      Boolean                  @default(false)
+  gstin_number            String?
+  pan_number              String?
+  business_type           HotelBusinessType?
+  msme_number             String?
+  property_documents      Json?
   wizard_step             Int                      @default(0)
   bookingHotels           BookingHotel[]
   childPolicies           hotel_child_policies[]
@@ -964,6 +999,7 @@ model hotel_images {
   category_id Int
   thumbnail   String?
   alt         String?
+  tags        String[]               @default([])
   sort_order  Int                    @default(0)
   is_primary  Boolean                @default(false)
   created_at  DateTime               @default(now())
@@ -1039,6 +1075,7 @@ model hotel_room_pricing {
   price_per_night      Decimal                       @db.Decimal(10, 2)
   original_price       Decimal?                      @db.Decimal(10, 2)
   extra_bed_rate       Decimal?                      @db.Decimal(10, 2)
+  extra_child_rate     Decimal?                      @db.Decimal(10, 2)
   margin_percentage    Decimal                       @default(10) @db.Decimal(5, 2)
   is_active            Boolean                       @default(true)
   sort_order           Int                           @default(0)
@@ -2386,6 +2423,23 @@ enum HotelOwnerStatus {
   ACTIVE
   SUSPENDED
   REJECTED
+}
+
+enum HotelCancellationPolicy {
+  FREE_TILL_CHECKIN
+  FREE_TILL_24H
+  FREE_TILL_48H
+  FREE_TILL_72H
+  NON_REFUNDABLE
+}
+
+enum HotelBusinessType {
+  PROPRIETORSHIP
+  PARTNERSHIP
+  LLP
+  PRIVATE_LIMITED
+  PUBLIC_LIMITED
+  HUF
 }
 
 enum HotelListingStatus {

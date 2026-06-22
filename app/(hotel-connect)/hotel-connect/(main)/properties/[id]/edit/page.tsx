@@ -6,11 +6,14 @@ import BasicInfoTab from "./tabs/BasicInfoTab";
 import LocationTab from "./tabs/LocationTab";
 import AmenitiesTab, { type HotelAmenitiesInfo } from "./tabs/AmenitiesTab";
 import RoomsTab, { type RoomSummary } from "./tabs/RoomsTab";
+import PhotosTab, { type PhotoCategory } from "./tabs/PhotosTab";
+import PoliciesTab, { type PoliciesHotelData } from "./tabs/PoliciesTab";
+import FinanceTab, { type FinanceHotelData } from "./tabs/FinanceTab";
 import TabPlaceholder from "./tabs/TabPlaceholder";
 
 // Tabs that have a real form (form id = "wizard-form"); grows with each phase.
 // Tab 4 (Rooms) manages its own internal form — excluded intentionally.
-const TABS_WITH_FORM = new Set([1, 2, 3]);
+const TABS_WITH_FORM = new Set([1, 2, 3, 6, 7]);
 
 export default async function EditPropertyPage({
   params,
@@ -58,6 +61,43 @@ export default async function EditPropertyPage({
       longitude: true,
       // amenities fields
       property_amenities: true,
+      // policy fields
+      check_in_time: true,
+      check_out_time: true,
+      cancellation_policy: true,
+      allow_unmarried_couples: true,
+      show_couple_tag: true,
+      allow_guests_below_18: true,
+      allow_male_only_groups: true,
+      allow_same_city_id: true,
+      smoking_allowed: true,
+      parties_events_allowed: true,
+      wheelchair_accessible: true,
+      allow_outside_visitors: true,
+      pets_on_property: true,
+      pets_allowed: true,
+      allowed_pet_types: true,
+      pet_extra_charges: true,
+      pets_restricted_areas: true,
+      pets_without_leash: true,
+      pet_food_available: true,
+      checkin_24_hours: true,
+      acceptable_id_proofs: true,
+      infant_free_occupancy: true,
+      infant_complimentary_food: true,
+      extra_bed_included: true,
+      provide_bed_extra_adults: true,
+      provide_bed_extra_kids: true,
+      // finance fields
+      bank_account_number: true,
+      bank_ifsc_code: true,
+      bank_name: true,
+      bank_consent_given: true,
+      gstin_number: true,
+      pan_number: true,
+      business_type: true,
+      msme_number: true,
+      property_documents: true,
       // rooms
       hotelRooms: {
         select: {
@@ -67,6 +107,8 @@ export default async function EditPropertyPage({
         where:   { is_active: true },
         orderBy: { sort_order: "asc" },
       },
+      // photo count — used to gate tab 5 completion tick
+      _count: { select: { images: true } },
     },
   });
   if (!hotel) notFound();
@@ -99,11 +141,40 @@ export default async function EditPropertyPage({
     ) return 1;
     // Tab 4 — Rooms: need at least one room
     if (rooms.length === 0) return 3;
-    // Respect whatever wizard_step recorded for tabs 5+
-    return h.wizard_step;
+    // Tab 5 — Photos: completed once at least one photo is uploaded
+    if (h._count.images === 0) return 4;
+    return Math.max(h.wizard_step, 5);
   }
 
   const currentTab = Math.max(1, Math.min(7, parseInt(tab ?? "1", 10) || 1));
+
+  // Fetch photos only when on Tab 5 to avoid unnecessary queries
+  let photoCategories: PhotoCategory[] = [];
+  if (currentTab === 5) {
+    const rawCats = await db.hotel_image_categories.findMany({
+      where: { hotel_id: hotelId },
+      orderBy: { sort_order: "asc" },
+      include: {
+        images: {
+          orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
+        },
+      },
+    });
+    photoCategories = rawCats.map((cat) => ({
+      id: cat.id,
+      name: cat.name,
+      is_system: cat.is_system,
+      photos: cat.images.map((img) => ({
+        id: img.id,
+        url: img.url,
+        thumbnail: img.thumbnail,
+        tags: img.tags as string[],
+        is_primary: img.is_primary,
+        category_id: img.category_id,
+        sort_order: img.sort_order,
+      })),
+    }));
+  }
   const tabLabel   = WIZARD_TABS[currentTab - 1]?.label ?? "";
   const tabFormId  = TABS_WITH_FORM.has(currentTab) ? "wizard-form" : undefined;
 
@@ -116,6 +187,12 @@ export default async function EditPropertyPage({
       <AmenitiesTab hotel={{ id: h.id, property_amenities: h.property_amenities as HotelAmenitiesInfo["property_amenities"] }} />
     ) : currentTab === 4 ? (
       <RoomsTab hotelId={h.id} rooms={rooms} />
+    ) : currentTab === 5 ? (
+      <PhotosTab hotelId={h.id} categories={photoCategories} />
+    ) : currentTab === 6 ? (
+      <PoliciesTab hotel={h as unknown as PoliciesHotelData} />
+    ) : currentTab === 7 ? (
+      <FinanceTab hotel={h as unknown as FinanceHotelData} />
     ) : (
       <TabPlaceholder tabIndex={currentTab} tabLabel={tabLabel} />
     );

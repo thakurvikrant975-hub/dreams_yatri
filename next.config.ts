@@ -8,6 +8,9 @@ const nextConfig: NextConfig = {
     staleTimes: {
       dynamic: 30,
     },
+    serverActions: {
+      bodySizeLimit: "20mb",
+    },
   },
   images: {
     remotePatterns: [

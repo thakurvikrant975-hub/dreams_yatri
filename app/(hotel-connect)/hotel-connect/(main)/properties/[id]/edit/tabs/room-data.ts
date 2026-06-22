@@ -31,44 +31,81 @@ export const BATHROOM_FEATURES = [
 ];
 
 export const MEAL_PLANS = [
-  { value: "EP",  label: "EP — Room Only (European Plan)" },
-  { value: "CP",  label: "CP — Breakfast Included (Continental Plan)" },
-  { value: "MAP", label: "MAP — Breakfast + Dinner (Modified American Plan)" },
-  { value: "AP",  label: "AP — All Meals Included (American Plan)" },
-  { value: "AI",  label: "AI — All Inclusive" },
+  { value: "accommodation_only",    label: "Accommodation only (No meals included)" },
+  { value: "free_breakfast",        label: "FREE Breakfast" },
+  { value: "half_board",            label: "FREE Breakfast and Lunch/Dinner (Half Board)" },
+  { value: "full_board",            label: "FREE Breakfast, Lunch and Dinner (Full Board)" },
+  { value: "cooked_breakfast",      label: "FREE Cooked Breakfast" },
+  { value: "full_board_custom",     label: "FREE Breakfast, Lunch, Dinner and Custom Inclusions" },
+  { value: "breakfast_lunch",       label: "FREE Breakfast and Lunch" },
+  { value: "breakfast_dinner",      label: "FREE Breakfast and Dinner" },
+  { value: "free_lunch",            label: "FREE Lunch" },
+  { value: "free_dinner",           label: "FREE Dinner" },
+  { value: "lunch_dinner",          label: "FREE Lunch and Dinner" },
 ];
 
 export const ROOM_AMENITY_GROUPS: { label: string; items: string[] }[] = [
   {
-    label: "Climate Control",
-    items: ["Air Conditioning", "Heater", "Fan", "Fireplace", "Air Purifier"],
+    label: "Mandatory",
+    items: [
+      "Bathtub", "Hairdryer", "Hot & Cold Water", "Toiletries", "Towels",
+      "TV", "Balcony", "Private Pool", "Air Conditioning", "Iron/Ironing Board",
+      "Mineral Water", "Kettle", "Wifi", "Safe", "Bathroom", "Peep Hole",
+    ],
   },
   {
-    label: "Entertainment",
-    items: ["TV", "Smart TV", "Cable TV", "Satellite TV", "Streaming Service", "Music System"],
+    label: "Popular with Guests",
+    items: [
+      "Interconnected Room", "Heater", "Housekeeping", "In Room Dining",
+      "Laundry Service", "Room Service", "Smoking Room", "Study Room",
+      "Air Purifier", "Bathroom Phone", "Bubble Bath", "Dental Kit",
+      "Geyser/Water Heater", "Slippers", "Shower Cap", "Hammam", "Bathrobes",
+      "Western Toilet Seat", "Shower Cubicle", "Weighing Scale", "Shaving Mirror",
+      "Sewing Kit", "Bidet", "Toilet with Grab Rails", "Ensuite Bathroom/Common Bay",
+      "Jetspray", "Open Air Shower",
+    ],
   },
   {
-    label: "Connectivity",
-    items: ["Wi-Fi", "LAN / Ethernet", "Telephone", "USB Charging Ports"],
+    label: "Room Features",
+    items: [
+      "Closet", "Blackout Curtains", "Center Table", "Charging Points", "Couch",
+      "Dining Table", "Fireplace", "Mini Fridge", "Sofa", "Telephone", "Work Desk",
+      "Pillow Menu", "Hypoallergenic Bedding", "Living Area", "Dining Area",
+      "Seating Area", "Chair", "Fireplace Guards", "Open Air Bath", "Jacuzzi",
+      "Hot Water Bag", "Full-length Mirror", "Private Garden", "Private Beach",
+    ],
   },
   {
-    label: "Kitchen & Dining",
-    items: ["Minibar", "Refrigerator", "Coffee / Tea Maker", "Kettle", "Microwave", "Oven", "Dining Table"],
+    label: "Media & Entertainment",
+    items: ["Smart Controls", "Sound Speakers", "Smartphone"],
   },
   {
-    label: "Bedroom & Comfort",
-    items: ["Bathrobe", "Slippers", "Iron / Ironing Board", "Blackout Curtains", "Wardrobe / Closet", "Study Table", "Sofa", "Reading Lamp"],
+    label: "Food & Drinks",
+    items: ["Cake", "Fruit Basket", "Mini Bar", "BBQ Grill", "Cook Service", "Champagne", "Sparkling Wine"],
   },
   {
-    label: "Outdoor",
-    items: ["Balcony", "Patio", "Private Terrace", "Private Garden", "Private Pool"],
+    label: "Kitchen & Appliances",
+    items: [
+      "Dishwasher", "Induction", "Kitchenette", "Refrigerator", "Washing Machine",
+      "Cook/Chef", "Cooking Basics", "Coffee Machine", "Stove/Induction",
+      "Dishes and Silverware", "Toaster", "Microwave", "Rice Cooker",
+      "Espresso Pod Machine", "French Press",
+    ],
   },
   {
-    label: "Security & Safety",
-    items: ["Safe / Locker", "Electronic Key Card", "First-aid Kit", "Smoke Detector"],
+    label: "Beds & Blanket",
+    items: ["Blanket"],
   },
   {
-    label: "Other",
-    items: ["Hairdryer", "In-room Dining", "Baby Cot", "Printer"],
+    label: "Safety & Security",
+    items: ["Cupboards with Locks"],
+  },
+  {
+    label: "Childcare",
+    items: ["Child Safety Socket Covers"],
+  },
+  {
+    label: "Other Facilities",
+    items: ["Mosquito Net", "Newspaper", "Jacuzzi", "Terrace", "Fan", "Butler Service"],
   },
 ];

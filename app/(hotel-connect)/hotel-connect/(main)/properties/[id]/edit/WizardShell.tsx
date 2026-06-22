@@ -3,13 +3,18 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft,
-  ArrowRight,
-  FloppyDisk,
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  FloppyDiskIcon,
+  PaperPlaneTiltIcon,
+  CheckCircleIcon,
+  ClockIcon,
+  SealCheckIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import { cn } from "@/app/lib/utils";
 import { HotelListingStatus, PropertySubType } from "@/app/generated/prisma";
 import Button from "@/app/components/ui/Button";
+import { submitForReview } from "./tabs/review-actions";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -31,7 +36,7 @@ export const WIZARD_TABS = [
   { index: 4, label: "Rooms" },
   { index: 5, label: "Photos" },
   { index: 6, label: "Policies" },
-  { index: 7, label: "Finance" },
+  { index: 7, label: "Finance & Legal" },
 ];
 
 // ── Status badge ──────────────────────────────────────────────────────────────
@@ -126,6 +131,87 @@ function TabItem({
   );
 }
 
+// ── Review status banner ──────────────────────────────────────────────────────
+
+function ReviewBanner({ listing_status }: { listing_status: HotelListingStatus }) {
+  if (listing_status === HotelListingStatus.SUBMITTED || listing_status === HotelListingStatus.UNDER_REVIEW) {
+    const isUnderReview = listing_status === HotelListingStatus.UNDER_REVIEW;
+    return (
+      <div className="px-4 pt-5 pb-1 max-w-4xl mx-auto w-full">
+        <div className="rounded-xl bg-blue-50 border border-blue-200 p-5">
+          <div className="flex items-start gap-3 mb-5">
+            <ClockIcon size={20} weight="fill" className="text-blue-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-blue-900">
+                {isUnderReview ? "Property Under Review" : "Property Submitted for Review"}
+              </p>
+              <p className="text-xs text-blue-700 mt-0.5 leading-relaxed">
+                Our team will verify your property details and documents within{" "}
+                <strong>1–2 business days</strong>. You&apos;ll receive an email once the review is complete.
+              </p>
+            </div>
+          </div>
+          {/* Timeline */}
+          <div className="flex items-center gap-1.5">
+            <div className="flex flex-col items-center gap-1 shrink-0">
+              <div className="size-7 rounded-full bg-blue-500 flex items-center justify-center">
+                <CheckCircleIcon size={15} weight="fill" className="text-white" />
+              </div>
+              <span className="text-[10px] font-semibold text-blue-700 text-center leading-tight">Submitted</span>
+            </div>
+            <div className={cn("flex-1 h-px -mt-3.5", isUnderReview ? "bg-blue-400" : "bg-blue-200")} />
+            <div className="flex flex-col items-center gap-1 shrink-0">
+              <div className={cn("size-7 rounded-full flex items-center justify-center", isUnderReview ? "bg-blue-500" : "bg-blue-100 ring-1 ring-blue-300")}>
+                <ClockIcon size={15} weight="fill" className={isUnderReview ? "text-white" : "text-blue-400"} />
+              </div>
+              <span className={cn("text-[10px] font-semibold text-center leading-tight whitespace-nowrap", isUnderReview ? "text-blue-700" : "text-blue-400")}>Under Review</span>
+            </div>
+            <div className="flex-1 h-px -mt-3.5 bg-blue-100" />
+            <div className="flex flex-col items-center gap-1 shrink-0">
+              <div className="size-7 rounded-full bg-neutral-100 ring-1 ring-neutral-200 flex items-center justify-center">
+                <SealCheckIcon size={15} weight="fill" className="text-neutral-300" />
+              </div>
+              <span className="text-[10px] font-semibold text-neutral-400 text-center leading-tight whitespace-nowrap">Approved & Live</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (listing_status === HotelListingStatus.APPROVED || listing_status === HotelListingStatus.LIVE) {
+    return (
+      <div className="px-4 pt-5 pb-1 max-w-4xl mx-auto w-full">
+        <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-5 flex items-center gap-3">
+          <SealCheckIcon size={22} weight="fill" className="text-emerald-500 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-emerald-800">Property Approved & Live</p>
+            <p className="text-xs text-emerald-600 mt-0.5">Your property is live and visible to travellers on Yatri.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (listing_status === HotelListingStatus.REJECTED) {
+    return (
+      <div className="px-4 pt-5 pb-1 max-w-4xl mx-auto w-full">
+        <div className="rounded-xl bg-red-50 border border-red-200 p-5 flex items-center gap-3">
+          <div className="size-8 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+            <span className="text-red-500 font-bold text-sm">✕</span>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-red-800">Review Rejected</p>
+            <p className="text-xs text-red-600 mt-0.5">Please correct the flagged issues and resubmit your property for review.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 // ── Main shell ────────────────────────────────────────────────────────────────
 
 export default function WizardShell({
@@ -151,6 +237,8 @@ export default function WizardShell({
 
   const isFirstTab = currentTab === 1;
   const isLastTab = currentTab === 7;
+  const allComplete = effectiveWizardStep >= WIZARD_TABS.length;
+  const isDraft = hotel.listing_status === HotelListingStatus.DRAFT;
 
   return (
     <div className="flex flex-col h-full min-h-0 ">
@@ -161,7 +249,7 @@ export default function WizardShell({
           href="/hotel-connect/properties"
           className="flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-800 transition-colors shrink-0"
         >
-          <ArrowLeft size={14} weight="bold" />
+          <ArrowLeftIcon size={14} weight="bold" />
           <span className="hidden sm:inline">Properties</span>
         </Link>
 
@@ -188,7 +276,7 @@ export default function WizardShell({
           className="shrink-0 flex items-center gap-1.5 text-xs font-medium text-neutral-500 hover:text-neutral-800 transition-colors"
           onClick={() => router.push("/hotel-connect")}
         >
-          <FloppyDisk size={14} />
+          <FloppyDiskIcon size={14} />
           <span className="hidden sm:inline">Save & Exit</span>
         </button>
       </header>
@@ -213,9 +301,31 @@ export default function WizardShell({
       {/* ── Scrollable content ────────────────────────────────────────── */}
       <div className="relative flex-1 overflow-y-auto bg-neutral-100 after:content-[''] after:absolute after:top-0 after:left-0 after:w-full after:h-25 after:bg-white after:border-b after:border-neutral-200 after:-z-10 isolate mb-6">
         <div className="max-w-4xl mx-auto w-full ">
+          <ReviewBanner listing_status={hotel.listing_status} />
           {children}
         </div>
       </div>
+
+      {/* ── Submit for Review strip ───────────────────────────────────── */}
+      {allComplete && isDraft && (
+        <div className="shrink-0 bg-emerald-50 border-t-2 border-emerald-200 px-6 py-3.5">
+          <div className="flex items-center justify-between gap-6 max-w-4xl mx-auto">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <CheckCircleIcon size={18} weight="fill" className="text-emerald-500 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-emerald-800 leading-none">All sections complete!</p>
+                <p className="text-xs text-emerald-600 mt-0.5 truncate">Your property is ready to be submitted for review.</p>
+              </div>
+            </div>
+            <form action={submitForReview.bind(null, hotel.id)}>
+              <Button type="submit" variant="primary" size="sm" className="bg-emerald-500 hover:bg-emerald-600 border-emerald-500 hover:border-emerald-600 shrink-0">
+                <PaperPlaneTiltIcon size={14} weight="bold" />
+                Submit for Review
+              </Button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* ── Bottom navigation ─────────────────────────────────────────── */}
       <footer className="shrink-0 bg-white border-t border-neutral-200 py-3.5">
@@ -231,7 +341,7 @@ export default function WizardShell({
                 : "text-neutral-600 hover:text-neutral-900"
             )}
           >
-            <ArrowLeft size={14} weight="bold" />
+            <ArrowLeftIcon size={14} weight="bold" />
             Previous
           </button>
 
@@ -247,7 +357,7 @@ export default function WizardShell({
               size="sm"
             >
               Save & Continue
-              <ArrowRight size={14} weight="bold" />
+              <ArrowRightIcon size={14} weight="bold" />
             </Button>
           ) : (
             <Button
@@ -259,7 +369,7 @@ export default function WizardShell({
               className={cn(isLastTab ? "cursor-not-allowed opacity-50" : "")}
             >
               Save & Continue
-              <ArrowRight size={14} weight="bold" />
+              <ArrowRightIcon size={14} weight="bold" />
             </Button>
           )}
         </div>

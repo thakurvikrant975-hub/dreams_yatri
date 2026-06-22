@@ -10,7 +10,7 @@ import { cn } from "@/app/lib/utils";
 import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
 import { Card } from "@/app/components/ui/Card";
 import { SearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
-import { createRoom, deleteRoom } from "./room-actions";
+import { createRoom, updateRoom, deleteRoom, fetchRoomForEdit, type RoomEditPayload } from "./room-actions";
 import {
   ROOM_TYPES, ROOM_VIEWS, BED_TYPES, MULTI_ROOM_TYPES,
   MEAL_PLANS, ROOM_AMENITY_GROUPS,
@@ -55,6 +55,11 @@ type RoomFormData = {
   bathrooms: BathroomEntry[];
   // Section 4
   meal_plan: string;
+  base_rate: string;
+  extra_adult_charge: string;
+  paid_child_charge: string;
+  rate_start_date: string;
+  rate_end_date: string;
   // Section 5
   room_amenities: string[];
 };
@@ -69,7 +74,9 @@ const DEFAULT_FORM: RoomFormData = {
   base_adults: 2, max_adults: 2, base_children: 0, max_children: 1, max_occupancy: 3,
   extra_bed: false, extra_bed_capacity: 0, child_cot_available: false,
   bathrooms: [{ type: "bathroom", attached_to: "bedroom_1" }],
-  meal_plan: "", room_amenities: [],
+  meal_plan: "", base_rate: "", extra_adult_charge: "", paid_child_charge: "",
+  rate_start_date: "", rate_end_date: "",
+  room_amenities: [],
 };
 
 const SECTIONS = [
@@ -134,6 +141,11 @@ function validateS3(d: RoomFormData): FieldErrors {
 function validateS4(d: RoomFormData): FieldErrors {
   const e: FieldErrors = {};
   if (!d.meal_plan) e.meal_plan = "Select a meal plan";
+  if (!d.base_rate || Number(d.base_rate) <= 0) e.base_rate = "Enter a valid base rate";
+  if (!d.rate_start_date) e.rate_start_date = "Select start date";
+  if (!d.rate_end_date)   e.rate_end_date   = "Select end date";
+  if (d.rate_start_date && d.rate_end_date && d.rate_end_date < d.rate_start_date)
+    e.rate_end_date = "End date must be after start date";
   return e;
 }
 const VALIDATORS = [validateS1, validateS2, validateS3, validateS4];
@@ -193,22 +205,6 @@ function NumberStepper({ value, onChange, min = 0, max = 99 }: {
         <span className="text-base leading-none select-none">+</span>
       </button>
     </div>
-  );
-}
-
-function ChipToggle({ label, selected, onClick }: {
-  label: string; selected: boolean; onClick: () => void;
-}) {
-  return (
-    <button type="button" onClick={onClick}
-      className={cn(
-        "px-3 py-1.5 rounded-lg text-xs font-medium border transition-all",
-        selected
-          ? "bg-primary-50 border-primary-300 text-primary-700"
-          : "bg-white border-neutral-200 text-neutral-600 hover:border-neutral-300",
-      )}>
-      {label}
-    </button>
   );
 }
 
@@ -810,32 +806,117 @@ function Section4({ data, onChange, errors }: {
   data: RoomFormData; onChange: (d: RoomFormData) => void; errors: FieldErrors;
 }) {
   const set = <K extends keyof RoomFormData>(k: K, v: RoomFormData[K]) => onChange({ ...data, [k]: v });
+  const today = new Date().toISOString().split("T")[0];
 
   return (
-    <div className="px-5 pt-5 pb-4">
-      <FieldRow label="Meal Plan Offered" required error={errors.meal_plan}>
-        <div className="space-y-2">
-          {MEAL_PLANS.map((plan) => (
-            <label key={plan.value}
-              className={cn(
-                "flex items-center gap-3 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all",
-                data.meal_plan === plan.value
-                  ? "border-primary-400 bg-primary-50"
-                  : "border-neutral-200 bg-white hover:border-neutral-300",
-              )}>
-              <input
-                type="radio"
-                name="meal_plan"
-                value={plan.value}
-                checked={data.meal_plan === plan.value}
-                onChange={() => set("meal_plan", plan.value)}
-                className="h-4 w-4 accent-primary-500 cursor-pointer shrink-0"
-              />
-              <span className="text-sm font-medium text-neutral-800">{plan.label}</span>
-            </label>
-          ))}
+    <div className="px-5 pt-5 pb-4 space-y-6">
+
+      {/* ── Meal Plan ── */}
+      <div className="space-y-3">
+        <div>
+          <p className="text-sm font-semibold text-neutral-700">Meal Plan</p>
+          <p className="text-xs text-neutral-400 mt-0.5">Select the meal option included with this room rate</p>
         </div>
-      </FieldRow>
+        <FieldRow label="Meal Options" required error={errors.meal_plan}>
+          <SearchSelect
+            options={MEAL_PLANS.map((p) => ({ value: p.value, label: p.label }))}
+            value={data.meal_plan}
+            onChange={(v) => set("meal_plan", v)}
+            placeholder="Select a meal plan"
+            searchPlaceholder="Search meal plans..."
+            showSearch
+            dropdownMinWidth={360}
+          />
+        </FieldRow>
+      </div>
+
+      <div className="border-t border-neutral-100" />
+
+      {/* ── Room Prices ── */}
+      <div className="space-y-3">
+        <div>
+          <p className="text-sm font-semibold text-neutral-700">Room Prices</p>
+          <p className="text-xs text-neutral-400 mt-0.5">Set the nightly rate and surcharges for this room</p>
+        </div>
+
+        <FieldRow
+          label={`Base Rate for ${data.base_adults} adult${data.base_adults !== 1 ? "s" : ""}`}
+          required
+          error={errors.base_rate}
+        >
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-neutral-500 pointer-events-none">₹</span>
+            <input
+              type="number"
+              min={0}
+              placeholder="Enter base rate"
+              value={data.base_rate}
+              onChange={(e) => set("base_rate", e.target.value)}
+              className={cn(inputBase, "h-10 rounded-lg pl-7")}
+            />
+          </div>
+        </FieldRow>
+
+        <div className="grid grid-cols-2 gap-3">
+          <FieldRow label="Extra Adult Charge" hint="Per adult beyond base" error={errors.extra_adult_charge}>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-neutral-500 pointer-events-none">₹</span>
+              <input
+                type="number"
+                min={0}
+                placeholder="Enter extra adult charge"
+                value={data.extra_adult_charge}
+                onChange={(e) => set("extra_adult_charge", e.target.value)}
+                className={cn(inputBase, "h-10 rounded-lg pl-7")}
+              />
+            </div>
+          </FieldRow>
+          <FieldRow label="Paid Child Charge" hint="Ages 7–17 years">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-neutral-500 pointer-events-none">₹</span>
+              <input
+                type="number"
+                min={0}
+                placeholder="Enter charge for child"
+                value={data.paid_child_charge}
+                onChange={(e) => set("paid_child_charge", e.target.value)}
+                className={cn(inputBase, "h-10 rounded-lg pl-7")}
+              />
+            </div>
+          </FieldRow>
+        </div>
+      </div>
+
+      <div className="border-t border-neutral-100" />
+
+      {/* ── Inventory Calendar ── */}
+      <div className="space-y-3">
+        <div>
+          <p className="text-sm font-semibold text-neutral-700">Inventory Calendar</p>
+          <p className="text-xs text-neutral-400 mt-0.5">Set the validity period for these rates</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <FieldRow label="Start Date" required error={errors.rate_start_date}>
+            <input
+              type="date"
+              value={data.rate_start_date}
+              min={today}
+              onChange={(e) => set("rate_start_date", e.target.value)}
+              className={cn(inputBase, "h-10 rounded-lg")}
+            />
+          </FieldRow>
+          <FieldRow label="End Date" required error={errors.rate_end_date}>
+            <input
+              type="date"
+              value={data.rate_end_date}
+              min={data.rate_start_date || today}
+              onChange={(e) => set("rate_end_date", e.target.value)}
+              className={cn(inputBase, "h-10 rounded-lg")}
+            />
+          </FieldRow>
+        </div>
+      </div>
+
     </div>
   );
 }
@@ -845,12 +926,15 @@ function Section4({ data, onChange, errors }: {
 function Section5({ data, onChange }: {
   data: RoomFormData; onChange: (d: RoomFormData) => void;
 }) {
+  const [activeCategory, setActiveCategory] = useState(ROOM_AMENITY_GROUPS[0].label);
+  const activeGroup = ROOM_AMENITY_GROUPS.find((g) => g.label === activeCategory) ?? ROOM_AMENITY_GROUPS[0];
+
   function toggle(item: string) {
     const cur = data.room_amenities;
     onChange({ ...data, room_amenities: cur.includes(item) ? cur.filter((x) => x !== item) : [...cur, item] });
   }
 
-  function toggleGroup(items: string[], selectAll: boolean) {
+  function toggleAll(items: string[], selectAll: boolean) {
     const cur = data.room_amenities;
     onChange({
       ...data,
@@ -860,35 +944,89 @@ function Section5({ data, onChange }: {
     });
   }
 
+  const allActiveSelected = activeGroup.items.every((i) => data.room_amenities.includes(i));
+
   return (
-    <div className="px-5 pt-5 pb-4 space-y-5">
-      {ROOM_AMENITY_GROUPS.map((group) => {
-        const allSelected = group.items.every((i) => data.room_amenities.includes(i));
-        return (
-          <div key={group.label}>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-neutral-700">{group.label}</label>
-              <button type="button" onClick={() => toggleGroup(group.items, !allSelected)}
-                className="text-xs text-primary-600 hover:text-primary-700 font-medium">
-                {allSelected ? "Deselect all" : "Select all"}
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {group.items.map((item) => (
-                <ChipToggle key={item} label={item}
-                  selected={data.room_amenities.includes(item)}
-                  onClick={() => toggle(item)}
-                />
-              ))}
-            </div>
+    <div className="flex divide-x divide-neutral-100" style={{ minHeight: 340 }}>
+
+      {/* Sidebar */}
+      <div className="w-44 shrink-0 overflow-y-auto border-r border-neutral-100">
+        {ROOM_AMENITY_GROUPS.map((group) => {
+          const selected = group.items.filter((i) => data.room_amenities.includes(i)).length;
+          const isActive = activeCategory === group.label;
+          return (
+            <button
+              key={group.label}
+              type="button"
+              onClick={() => setActiveCategory(group.label)}
+              className={cn(
+                "w-full text-left px-4 py-3 border-b border-neutral-100 transition-colors relative",
+                isActive
+                  ? "bg-primary-50 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-0.5 before:bg-primary-500"
+                  : "hover:bg-neutral-50",
+              )}
+            >
+              <p className={cn("text-[13px] font-medium leading-snug", isActive ? "text-primary-600" : "text-neutral-700")}>
+                {group.label}
+              </p>
+              <p className={cn(
+                "text-[11px] mt-0.5 font-medium",
+                selected === group.items.length ? "text-emerald-600" : selected > 0 ? "text-amber-500" : "text-neutral-400",
+              )}>
+                {selected} of {group.items.length}
+              </p>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Content panel */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-2.5 border-b border-neutral-100 bg-neutral-50/60 shrink-0">
+          <span className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">
+            {activeCategory}
+          </span>
+          <button
+            type="button"
+            onClick={() => toggleAll(activeGroup.items, !allActiveSelected)}
+            className="text-xs font-medium text-primary-600 hover:text-primary-700 transition-colors"
+          >
+            {allActiveSelected ? "Deselect all" : "Select all"}
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1">
+          {activeGroup.items.map((item) => {
+            const selected = data.room_amenities.includes(item);
+            return (
+              <div
+                key={item}
+                onClick={() => toggle(item)}
+                className={cn(
+                  "flex items-center justify-between px-5 py-3 border-b border-neutral-100 last:border-0 cursor-pointer transition-colors",
+                  selected ? "bg-emerald-50/50" : "hover:bg-neutral-50/60",
+                )}
+              >
+                <span className="text-sm text-neutral-700">{item}</span>
+                <div className={cn(
+                  "w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all",
+                  selected ? "border-emerald-500 bg-emerald-500" : "border-neutral-300 bg-white",
+                )}>
+                  {selected && <CheckIcon size={11} weight="bold" className="text-white" />}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {data.room_amenities.length > 0 && (
+          <div className="px-5 py-2 border-t border-neutral-100 bg-neutral-50/60 shrink-0">
+            <p className="text-xs text-neutral-400">
+              {data.room_amenities.length} amenit{data.room_amenities.length === 1 ? "y" : "ies"} selected across all categories
+            </p>
           </div>
-        );
-      })}
-      {data.room_amenities.length > 0 && (
-        <p className="text-xs text-neutral-400">
-          {data.room_amenities.length} amenit{data.room_amenities.length === 1 ? "y" : "ies"} selected
-        </p>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -910,23 +1048,40 @@ function stepSummary(id: number, d: RoomFormData): string {
       return d.bathrooms.length
         ? `${d.bathrooms.length} bathroom${d.bathrooms.length !== 1 ? "s" : ""}`
         : "No bathrooms added";
-    case 4:
-      return MEAL_PLANS.find((p) => p.value === d.meal_plan)?.label.split(" — ")[0] ?? d.meal_plan;
+    case 4: {
+      const plan = MEAL_PLANS.find((p) => p.value === d.meal_plan)?.label ?? d.meal_plan;
+      const rate = d.base_rate ? `₹${Number(d.base_rate).toLocaleString("en-IN")}` : "";
+      return [plan, rate].filter(Boolean).join(" · ");
+    }
     case 5:
       return d.room_amenities.length ? `${d.room_amenities.length} amenities selected` : "No amenities selected";
     default: return "";
   }
 }
 
-// ── Create Room Form ──────────────────────────────────────────────────────────
+// ── Room Wizard Form (create + edit) ─────────────────────────────────────────
 
-function CreateRoomForm({ hotelId, onDone }: { hotelId: number; onDone: () => void }) {
+function RoomWizardForm({
+  hotelId,
+  roomId,
+  initialData,
+  onDone,
+}: {
+  hotelId: number;
+  roomId?: number;
+  initialData?: RoomEditPayload;
+  onDone: () => void;
+}) {
   const router = useRouter();
   const [step, setStep]               = useState(1);
-  const [data, setData]               = useState<RoomFormData>(DEFAULT_FORM);
+  const [data, setData]               = useState<RoomFormData>(
+    initialData ? (initialData as unknown as RoomFormData) : DEFAULT_FORM,
+  );
   const [errors, setErrors]           = useState<FieldErrors>({});
   const [globalError, setGlobalError] = useState("");
   const [isPending, startTransition]  = useTransition();
+
+  const isEditing = roomId !== undefined;
 
   function advance() {
     if (step < 5) {
@@ -939,30 +1094,46 @@ function CreateRoomForm({ hotelId, onDone }: { hotelId: number; onDone: () => vo
     }
   }
 
+  function buildPayload() {
+    return {
+      ...data,
+      area:               data.area !== "" ? Number(data.area) : undefined,
+      num_bedrooms:       Number(data.num_bedrooms),
+      num_living_rooms:   data.num_living_rooms !== "" ? Number(data.num_living_rooms) : undefined,
+      num_rooms:          Number(data.num_rooms),
+      bathrooms:          data.bathrooms,
+      extra_adult_charge: data.extra_adult_charge !== "" ? Number(data.extra_adult_charge) : undefined,
+      paid_child_charge:  data.paid_child_charge  !== "" ? Number(data.paid_child_charge)  : undefined,
+    };
+  }
+
   function handleSave() {
-    for (const v of VALIDATORS) {
-      const errs = v(data);
-      if (Object.keys(errs).length > 0) { setErrors(errs); return; }
+    for (let i = 0; i < VALIDATORS.length; i++) {
+      const errs = VALIDATORS[i](data);
+      if (Object.keys(errs).length > 0) {
+        setErrors(errs);
+        setStep(i + 1);
+        return;
+      }
     }
     startTransition(async () => {
       setGlobalError("");
-      const result = await createRoom(hotelId, {
-        ...data,
-        area:             data.area !== "" ? Number(data.area) : undefined,
-        num_bedrooms:     Number(data.num_bedrooms),
-        num_living_rooms: data.num_living_rooms !== "" ? Number(data.num_living_rooms) : undefined,
-        num_rooms:        Number(data.num_rooms),
-        bathrooms:        data.bathrooms,
-      });
-      if (result.roomId) {
-        router.refresh();
-        onDone();
-      } else if (result.error) {
-        setGlobalError(result.error);
-      } else if (result.errors) {
-        const flat: FieldErrors = {};
-        for (const [k, msgs] of Object.entries(result.errors)) flat[k] = (msgs as string[])[0];
-        setErrors(flat);
+      try {
+        const result = isEditing
+          ? await updateRoom(hotelId, roomId, buildPayload())
+          : await createRoom(hotelId, buildPayload());
+        if (result.roomId) {
+          router.refresh();
+          onDone();
+        } else if (result.error) {
+          setGlobalError(result.error);
+        } else if (result.errors) {
+          const flat: FieldErrors = {};
+          for (const [k, msgs] of Object.entries(result.errors)) flat[k] = (msgs as string[])[0];
+          setErrors(flat);
+        }
+      } catch (err) {
+        setGlobalError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
       }
     });
   }
@@ -981,8 +1152,8 @@ function CreateRoomForm({ hotelId, onDone }: { hotelId: number; onDone: () => vo
   return (
     <Card variant="elevated" radius="md" className="overflow-hidden p-px">
       <div className="px-5 py-3.5 border-b border-neutral-200 bg-linear-to-b rounded-t-[inherit] bg-neutral-50">
-        <h3 className="text-sm font-semibold text-neutral-800">Create Room</h3>
-        <p className="text-xs text-neutral-600/90 mt-0.5">Complete all sections to add a room type</p>
+        <h3 className="text-sm font-semibold text-neutral-800">{isEditing ? "Edit Room" : "Create Room"}</h3>
+        <p className="text-xs text-neutral-600/90 mt-0.5">{isEditing ? "Update the details for this room type" : "Complete all sections to add a room type"}</p>
       </div>
 
       <div className="divide-y divide-neutral-100 bg-white">
@@ -1036,7 +1207,7 @@ function CreateRoomForm({ hotelId, onDone }: { hotelId: number; onDone: () => vo
                       )}
                       <button type="button" onClick={advance} disabled={isPending}
                         className="flex items-center gap-1.5 h-9 px-4 rounded-lg bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 disabled:opacity-60 transition-colors">
-                        {isPending ? "Saving…" : step === 5 ? "Save Room" : "Next"}
+                        {isPending ? "Saving…" : step === 5 ? (isEditing ? "Update Room" : "Save Room") : "Next"}
                         {!isPending && step < 5 && <ArrowRightIcon size={13} weight="bold" />}
                       </button>
                     </div>
@@ -1074,7 +1245,11 @@ function EmptyRooms({ onAdd }: { onAdd: () => void }) {
   );
 }
 
-function RoomsList({ hotelId, rooms, onAdd }: { hotelId: number; rooms: RoomSummary[]; onAdd: () => void }) {
+function RoomsList({
+  hotelId, rooms, onAdd, onEdit,
+}: {
+  hotelId: number; rooms: RoomSummary[]; onAdd: () => void; onEdit: (id: number) => void;
+}) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
@@ -1115,10 +1290,10 @@ function RoomsList({ hotelId, rooms, onAdd }: { hotelId: number; rooms: RoomSumm
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <span className="flex items-center gap-1 text-xs text-emerald-600 font-medium">
-                <CheckIcon size={11} weight="bold" />
-                Added
-              </span>
+              <button type="button" onClick={() => onEdit(room.id)}
+                className="h-7 px-3 rounded-lg border border-neutral-200 text-xs font-medium text-neutral-600 hover:border-neutral-300 hover:bg-neutral-50 transition-colors">
+                Edit
+              </button>
               <button type="button" onClick={() => handleDelete(room.id)} disabled={deletingId === room.id}
                 className="size-8 rounded-lg text-neutral-400 hover:text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors disabled:opacity-40">
                 <TrashIcon size={14} />
@@ -1133,14 +1308,49 @@ function RoomsList({ hotelId, rooms, onAdd }: { hotelId: number; rooms: RoomSumm
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
-export default function RoomsTab({ hotelId, rooms }: { hotelId: number; rooms: RoomSummary[] }) {
-  const [creating, setCreating] = useState(false);
+type TabMode =
+  | { kind: "list" }
+  | { kind: "create" }
+  | { kind: "edit"; roomId: number; payload: RoomEditPayload }
+  | { kind: "loading" };
 
-  if (creating) {
-    return <CreateRoomForm hotelId={hotelId} onDone={() => setCreating(false)} />;
+export default function RoomsTab({ hotelId, rooms }: { hotelId: number; rooms: RoomSummary[] }) {
+  const [mode, setMode] = useState<TabMode>({ kind: "list" });
+
+  async function handleEdit(roomId: number) {
+    setMode({ kind: "loading" });
+    const result = await fetchRoomForEdit(hotelId, roomId);
+    if (result.payload) {
+      setMode({ kind: "edit", roomId, payload: result.payload });
+    } else {
+      setMode({ kind: "list" });
+    }
+  }
+
+  if (mode.kind === "loading") {
+    return (
+      <div className="flex items-center justify-center py-16 text-sm text-neutral-400">
+        Loading room…
+      </div>
+    );
+  }
+
+  if (mode.kind === "create") {
+    return <RoomWizardForm hotelId={hotelId} onDone={() => setMode({ kind: "list" })} />;
+  }
+
+  if (mode.kind === "edit") {
+    return (
+      <RoomWizardForm
+        hotelId={hotelId}
+        roomId={mode.roomId}
+        initialData={mode.payload}
+        onDone={() => setMode({ kind: "list" })}
+      />
+    );
   }
 
   return rooms.length === 0
-    ? <EmptyRooms onAdd={() => setCreating(true)} />
-    : <RoomsList hotelId={hotelId} rooms={rooms} onAdd={() => setCreating(true)} />;
+    ? <EmptyRooms onAdd={() => setMode({ kind: "create" })} />
+    : <RoomsList hotelId={hotelId} rooms={rooms} onAdd={() => setMode({ kind: "create" })} onEdit={handleEdit} />;
 }

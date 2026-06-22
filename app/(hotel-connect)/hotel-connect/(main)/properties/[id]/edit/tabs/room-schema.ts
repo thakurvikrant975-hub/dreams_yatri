@@ -40,7 +40,12 @@ export const fullRoomSchema = z.object({
   })).min(1, "Add at least one bathroom"),
 
   // Section 4
-  meal_plan: z.string().min(1, "Select a meal plan"),
+  meal_plan:           z.string().min(1, "Select a meal plan"),
+  base_rate:           z.coerce.number().positive("Enter a valid base rate"),
+  extra_adult_charge:  z.coerce.number().min(0).optional(),
+  paid_child_charge:   z.coerce.number().min(0).optional(),
+  rate_start_date:     z.string().min(1, "Select start date"),
+  rate_end_date:       z.string().min(1, "Select end date"),
 
   // Section 5
   room_amenities: z.array(z.string()),
