@@ -460,7 +460,7 @@ export default async function PackagePage({
             is_optional: a.is_optional,
             pricingTiers: a.pricingTiers,
             images: a.images.map(img => ({
-                src: imgUrl(img.url),
+                src: imgUrlCard(img.url),
                 label: img.label ?? img.alt ?? a.category ?? a.name,
             })),
         }));
@@ -521,7 +521,8 @@ export default async function PackagePage({
         }
 
         const attractions = d.attractions.map(a => ({
-            imageUrl: imgUrl(a.image_key),
+            imageUrl: imgUrlThumb(a.image_key),
+            fullImageUrl: imgUrl(a.image_key),
             caption: a.caption,
         }));
 

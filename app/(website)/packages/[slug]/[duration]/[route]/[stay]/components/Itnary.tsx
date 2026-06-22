@@ -124,7 +124,7 @@ export interface ItineraryDay {
   description?: string | null;
   sections: DaySection[];
   notes?: ItineraryNote[];
-  attractions?: { imageUrl: string; caption: string }[];
+  attractions?: { imageUrl: string; fullImageUrl: string; caption: string }[];
 }
 
 interface ItineraryProps {
@@ -895,7 +895,7 @@ function ActivityContent({ section }: { section: ActivitySection }) {
                   onClick={() => setLightboxIdx(idx)}
                   className="relative rounded-xl overflow-hidden w-full focus-visible:outline-2 focus-visible:outline-primary-400 focus-visible:-outline-offset-2"
                 >
-                  <Image src={src} alt={label} width={1000} height={600} className="w-full aspect-5/3 object-cover hover:scale-[1.03] transition-transform duration-300" />
+                  <Image src={src} alt={label} width={400} height={240} className="w-full aspect-5/3 object-cover hover:scale-[1.03] transition-transform duration-300" />
                   <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-neutral-900/80 via-neutral-900/60 to-transparent px-2 py-1.5 pt-3">
                     <p className="text-sm text-white font-medium truncate">{label}</p>
                   </div>
@@ -1033,7 +1033,7 @@ function AttractionStories({
   items,
   className,
 }: {
-  items: { imageUrl: string; caption: string }[];
+  items: { imageUrl: string; fullImageUrl: string; caption: string }[];
   className?: string;
 }) {
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
@@ -1110,7 +1110,7 @@ function AttractionStories({
             {active !== null && activeIdx !== null && (
               <div className="relative flex flex-col items-center px-4">
                 <img
-                  src={active.imageUrl}
+                  src={active.fullImageUrl}
                   alt={active.caption || `Attraction photo ${activeIdx + 1}`}
                   className="w-[90vw] h-[78vh] rounded-2xl object-contain shadow-2xl ring-1 ring-white/10"
                 />

@@ -3,6 +3,7 @@
 // role "Sidebar Access" editor so the two stay in sync.
 import {
   LayoutDashboard, Settings, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound, MessageCircleQuestion, ClockCheck, Mails, Forward, BadgePercent, Banknote, ChartSpline, BanknoteArrowDown, BanknoteX, Car, Bed, ChartNoAxesCombined, BellRing, PackagePlus, ChartNoAxesGantt, Star, IndianRupee, X,
+  CirclePile,
 } from "lucide-react";
 import {
   GlobeHemisphereEastIcon, MapPinIcon, BuildingIcon, TagIcon,
@@ -75,7 +76,6 @@ export const NAV_GROUPS = [
   {
     id: "sales", label: "Sales",
     items: [
-      { title: "Dashboard", href: "/sales-dashboard", icon: LayoutDashboard },
       { title: "Queries Management", href: "/dashboard/sales-query", icon: ChartNoAxesGantt },
       { title: "Analytics", href: "/dashboard/sale-analytics", icon: ChartNoAxesCombined },
       { title: "Follow ups", href: "/dashboard/follow-ups", icon: BellRing },
@@ -97,7 +97,7 @@ export const NAV_GROUPS = [
       { title: "Team Members", href: "/dashboard/team-members", icon: IdCardLanyard },
       // { title: "Activity Logs", href: "/dashboard/activity-logs", icon: Activity },
       { title: "Team Roles", href: "/dashboard/roles-and-permissions", icon: KeyRound },
-      { title: "Departments", href: "/dashboard/departments", icon: IdCardLanyard },
+      { title: "Departments", href: "/dashboard/departments", icon: CirclePile },
     ],
   },
   {
