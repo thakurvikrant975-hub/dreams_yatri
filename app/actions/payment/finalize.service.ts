@@ -1,5 +1,5 @@
 import "server-only";
-import type { Prisma } from "@/app/generated/prisma";
+import type { TransactionClient } from "@/app/lib/db";
 
 /**
  * Apply a captured payment to the booking — the single place that flips
@@ -30,7 +30,7 @@ function mapMethod(m: unknown): "UPI" | "CARD" | "NET_BANKING" | "WALLET" | "EMI
 }
 
 export async function finalizeCapturedPayment(
-    tx: Prisma.TransactionClient,
+    tx: TransactionClient,
     args: {
         paymentId: string;
         gatewayPaymentId: string;

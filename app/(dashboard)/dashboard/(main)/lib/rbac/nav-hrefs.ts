@@ -51,7 +51,7 @@ export const ALL_HREFS = [
   "/dashboard/refunds",
   // Our Team
   "/dashboard/team-members",
-  "/dashboard/activity-logs",
+  "/dashboard/departments",
   "/dashboard/roles-and-permissions",
   // Settings
   "/dashboard/settings",
