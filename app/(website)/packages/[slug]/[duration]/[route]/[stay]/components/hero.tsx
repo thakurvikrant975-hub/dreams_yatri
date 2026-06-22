@@ -19,6 +19,7 @@ interface Inclusion {
 
 interface GalleryImage {
   src: string
+  fullSrc?: string
   label: string
 }
 

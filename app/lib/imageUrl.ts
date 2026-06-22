@@ -15,13 +15,17 @@ export const IMAGE_SIZES = {
   thumbnail: { width: 160,  height: 120, quality: 65  },  // small previews
   hero:      { width: 1200, quality: 85               },  // detail page hero
   og:        { width: 1200, height: 630, quality: 80  },  // social/OG meta
-  gallery:   { width: 800,  quality: 80               },  // gallery images
+  gallery:   { width: 800,  quality: 80               },  // gallery thumbnails
+  lightbox:  { width: 1600, quality: 90               },  // full-screen lightbox
 } as const;
 
 export function getImageUrl(key: string, size: ImageSize = {}): string {
   const base = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
 
   if (!key) return "";
+
+  // Full URL (e.g. unsplash, external CDN) — pass through unchanged
+  if (key.startsWith("http")) return key;
 
   // In development — skip transformation (Cloudflare not in the loop locally)
   if (process.env.NODE_ENV === "development") {

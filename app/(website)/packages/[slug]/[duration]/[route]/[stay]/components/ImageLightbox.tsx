@@ -6,7 +6,7 @@ import { XIcon, ArrowLeftIcon, ArrowRightIcon } from '@phosphor-icons/react'
 import { Dialog, VisuallyHidden } from 'radix-ui'
 import { cn } from '@/app/lib/utils'
 
-export type LightboxImage = { src: string; label: string }
+export type LightboxImage = { src: string; fullSrc?: string; label: string }
 
 interface Props {
     images: LightboxImage[]
@@ -77,8 +77,8 @@ export default function ImageLightbox({ images, activeIdx, onClose, onNavigate, 
                     <div className="flex-1 min-h-0 relative flex items-center justify-center">
                         <div className="absolute inset-0">
                             <Image
-                                key={current.src}
-                                src={current.src}
+                                key={current.fullSrc ?? current.src}
+                                src={current.fullSrc ?? current.src}
                                 alt={current.label || `Image ${activeIdx + 1}`}
                                 fill
                                 className="object-contain"
