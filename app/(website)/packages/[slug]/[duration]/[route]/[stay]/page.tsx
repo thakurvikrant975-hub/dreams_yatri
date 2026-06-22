@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import { fetchPackagePageData, getActivePackageParams, getDurationStartingPrices } from "@/app/actions/packages/fetch-page-data";
 import { imgUrl as toImgUrl } from "@/app/lib/packages/cardShaper";
 import { getImageUrl, IMAGE_SIZES } from "@/app/lib/imageUrl";
@@ -731,10 +732,12 @@ export default async function PackagePage({
                     />
                 </div>
 
-                <RelatedPackages
-                    currentPackageId={pageData.id}
-                    destinationId={pageData.destination_id}
-                />
+                <Suspense fallback={null}>
+                    <RelatedPackages
+                        currentPackageId={pageData.id}
+                        destinationId={pageData.destination_id}
+                    />
+                </Suspense>
 
                 <EnquiryAutoPopup
                     packageName={pageData.title}
