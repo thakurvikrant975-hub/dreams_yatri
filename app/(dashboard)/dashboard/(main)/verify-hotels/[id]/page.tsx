@@ -46,9 +46,9 @@ function addDays(dateStr: string, n: number): string {
 // ── Sidebar helpers ───────────────────────────────────────────────────────────
 function SideCard({ title, children }: { title: string; children: React.ReactNode }) {
     return (
-        <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 overflow-hidden">
-            <div className="border-b border-dashboard-base-300 bg-dashboard-base-200/60 px-4 py-2.5">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-dashboard-neutral">{title}</h3>
+        <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 overflow-hidden shadow-lg">
+            <div className="border-b border-dashboard-base-300 bg-dashboard-base-200/60 px-4 py-2.5 bg-dashboard-base-content">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-dashboard-base-100 ">{title}</h3>
             </div>
             <div className="p-4">{children}</div>
         </div>
@@ -164,7 +164,7 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
             </div>
 
             {/* Progress */}
-            <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 px-5 py-3.5">
+            <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 px-5 py-3.5 shadow-lg">
                 <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-dashboard-base-content">Confirmation Progress</span>
                     <span className={`text-sm font-medium ${allDone ? "text-dashboard-success" : "text-dashboard-error"}`}>
@@ -214,7 +214,7 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                             return (
                                 <div
                                     key={d.day}
-                                    className={`rounded-xl overflow-hidden border ${isDone ? "border-green-200" : "border-amber-200"}`}
+                                    className={`rounded-xl overflow-hidden shadow-lg border ${isDone ? "border-green-200" : "border-amber-200"}`}
                                 >
                                     {/* Top bar */}
                                     <div className={`flex items-center justify-between px-4 py-2.5 border-b ${
@@ -242,10 +242,10 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                                         )}
                                     </div>
 
-                                    <div className="px-4 py-3 flex flex-col gap-3">
+                                    <div className="px-4 py-3 flex flex-col gap-3 bg-white">
                                         {/* Hotel name + contacts */}
                                         <div className="flex items-start justify-between gap-3">
-                                            <div className="min-w-0 flex items-start gap-3">
+                                            <div className="min-w-0 gap-3 flex items-center">
                                                 <div className="mt-0.5 shrink-0 rounded-md bg-blue-50 p-1.5 text-blue-600">
                                                     <Hotel className="size-4" />
                                                 </div>
