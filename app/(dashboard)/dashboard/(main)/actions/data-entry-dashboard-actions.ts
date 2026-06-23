@@ -149,7 +149,7 @@ export async function getDataEntryDashboardData(): Promise<DataEntryDashboardDat
     recentHotels: recentHotelsRaw.map((h) => ({
       id: h.id,
       name: h.name,
-      destination: h.destination.name,
+      destination: h.destination?.name ?? "",
       roomCount: h._count.hotelRooms,
       is_active: h.is_active,
       created_at: h.created_at,

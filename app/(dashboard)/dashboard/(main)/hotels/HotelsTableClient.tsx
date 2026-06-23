@@ -59,7 +59,7 @@ type HotelItem = {
   updated_at: Date;
   created_by: string | null;
   updated_by: string | null;
-  destination: { id: number; name: string };
+  destination: { id: number; name: string } | null;
   _count: {
     hotelRooms: number;
     images: number;
