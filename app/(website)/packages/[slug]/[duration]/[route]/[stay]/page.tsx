@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { fetchPackagePageData, getActivePackageParams, getDurationStartingPrices } from "@/app/actions/packages/fetch-page-data";
-import { imgUrl as toImgUrl } from "@/app/lib/packages/cardShaper";
 import { getImageUrl, IMAGE_SIZES } from "@/app/lib/imageUrl";
 import { SITE_URL, SITE_CONFIG } from "@/app/lib/seo/site-config";
+import { packageSchema, breadcrumbSchema } from "@/app/lib/seo/schema";
+import SchemaScript from "@/app/components/seo/SchemaScript";
 import PackageHero from "./components/hero";
 import PackageTab from "./components/PackageTab";
 import PackageScrollReset from "./components/PackageScrollReset";
@@ -89,20 +90,31 @@ export async function generateMetadata({
     const data = await fetchPackagePageData(slug, duration, route, stay);
     if (!data) return { title: "Package not found | Dreams Yatri" };
 
-    const title = data.selectedRoute?.meta_title ?? `${data.title} | Dreams Yatri`;
+    const dur = data.currentDuration;
+    const durLabel = dur.label || `${dur.days}D/${dur.nights}N`;
+    const destName = data.destination.name;
+    const title = data.selectedRoute?.meta_title
+        ?? `${data.title} – ${durLabel} ${destName} Package | Dreams Yatri`;
     const description = data.selectedRoute?.meta_desc ?? data.description ?? SITE_CONFIG.seo.defaultDescription;
-    const ogImage = toImgUrl(data.thumbnail) || SITE_CONFIG.defaultOgImage;
+    const ogImage = getImageUrl(data.thumbnail ?? data.images[0]?.url ?? '', IMAGE_SIZES.og) || SITE_CONFIG.defaultOgImage;
     const canonical = `${SITE_URL}/packages/${slug}/${duration}/${route}/${stay}`;
+
+    const stops = data.selectedRoute?.stops?.map(s => s.place_name) ?? [];
+    const keywords = [data.title, destName, ...stops, `${durLabel} tour`, "holiday package", "travel package", "book tour"].filter(Boolean).join(", ");
 
     return {
         title,
         description,
+        keywords,
         alternates: { canonical },
+        robots: { index: false, follow: false },
         openGraph: {
             title,
             description,
             url: canonical,
+            siteName: SITE_CONFIG.name,
             type: "website",
+            locale: SITE_CONFIG.seo.locale,
             images: [{ url: ogImage, width: 1200, height: 630, alt: data.title }],
         },
         twitter: {
@@ -534,8 +546,33 @@ export default async function PackagePage({
         ? { label: pageData.destination.region.name, slug: pageData.destination.region.slug }
         : { label: pageData.destination.name, slug: pageData.destination.slug };
 
+    // ── JSON-LD structured data ────────────────────────────────────────────────
+    const minPrice = Math.min(
+        ...pageData.durations.map(d => durationPrices.get(d.id)?.pricePerAdult ?? Infinity)
+    );
+    const dur = pageData.currentDuration;
+    const canonical = `${SITE_URL}/packages/${slug}/${duration}/${route}/${stay}`;
+    const jsonLd = [
+        packageSchema({
+            name:        pageData.title,
+            slug:        `${slug}/${duration}/${route}/${stay}`,
+            description: pageData.description ?? "",
+            image:       coverImage || SITE_CONFIG.defaultOgImage,
+            price:       isFinite(minPrice) ? minPrice : 0,
+            duration:    dur.label || `${dur.days}D/${dur.nights}N`,
+            destination: pageData.destination.name,
+        }),
+        breadcrumbSchema([
+            { name: "Home",                       url: SITE_URL },
+            { name: "Packages",                   url: `${SITE_URL}/packages` },
+            { name: pageData.destination.name,    url: `${SITE_URL}/destination/${pageData.destination.slug}` },
+            { name: pageData.title,               url: canonical },
+        ]),
+    ];
+
     return (
         <>
+            <SchemaScript data={jsonLd} />
             <PackageBookingProvider
                 packageId={pageData.id}
                 durationId={pageData.currentDuration.id}

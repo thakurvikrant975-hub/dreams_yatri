@@ -151,10 +151,18 @@ export function PackageBookingsTable({
         },
         {
             header: "Travel Dates",
+            width: "w-[130px]",
             cell: (b) => (
-                <span className="text-sm text-dashboard-base-content whitespace-nowrap">
-                    {fmtDate(b.startDate)} – {fmtDate(b.endDate)}
-                </span>
+                <div className="space-y-1.5">
+                    <div>
+                        <p className="text-[10px] font-medium text-dashboard-base-content/50 uppercase tracking-wide leading-none mb-0.5">Arrival</p>
+                        <p className="text-sm text-dashboard-base-content whitespace-nowrap">{fmtDate(b.startDate)}</p>
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-medium text-dashboard-base-content/50 uppercase tracking-wide leading-none mb-0.5">Departure</p>
+                        <p className="text-sm text-dashboard-base-content whitespace-nowrap">{fmtDate(b.endDate)}</p>
+                    </div>
+                </div>
             ),
         },
         {
