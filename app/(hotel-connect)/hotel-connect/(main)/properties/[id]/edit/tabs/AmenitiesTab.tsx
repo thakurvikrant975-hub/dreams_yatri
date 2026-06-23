@@ -7,6 +7,21 @@ import {
   MANDATORY_CONFIG,
   GUEST_HOUSE_MANDATORY_CONFIG,
   GENERAL_SERVICES_CONFIG,
+  SECURITY_CONFIG,
+  BASIC_FACILITIES_CONFIG,
+  OUTDOOR_SPORTS_CONFIG,
+  FOOD_AND_DRINK_CONFIG,
+  TRANSFERS_CONFIG,
+  ENTERTAINMENT_CONFIG,
+  MEDIA_TECHNOLOGY_CONFIG,
+  FAMILY_KIDS_CONFIG,
+  SPA_WELLNESS_CONFIG,
+  WATER_SPORTS_CONFIG,
+  INDOOR_SPORTS_CONFIG,
+  LIVE_SHOWS_CONFIG,
+  WILDLIFE_NATURE_CONFIG,
+  RIDES_SAFARI_CONFIG,
+  WORKSHOPS_CONFIG,
   type AmenityValue,
   type MandatoryItemConfig,
   type MandatorySubField,
@@ -22,6 +37,7 @@ import {
   getF2s,
 } from "./amenities-data";
 import SwimmingPoolModal from "./SwimmingPoolModal";
+import { SearchSelect, MultiSearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
 import { cn } from "@/app/lib/utils";
 
 export type HotelAmenitiesInfo = {
@@ -163,57 +179,28 @@ function FieldChips({
 }) {
   if (field.type === "select") {
     return (
-      <div className="flex flex-wrap gap-2">
-        {field.options.map((opt) => {
-          const active = currentStr === opt;
-          return (
-            <button
-              key={opt}
-              type="button"
-              onClick={() => onFieldChange(fieldKey, active ? "" : opt)}
-              disabled={disabled}
-              className={cn(
-                "px-3 py-1.5 rounded-full border text-xs font-medium transition-all disabled:opacity-50",
-                active
-                  ? "bg-primary-500 border-primary-500 text-white"
-                  : "bg-white border-neutral-300 text-neutral-600 hover:border-primary-400 hover:text-primary-500"
-              )}
-            >
-              {opt}
-            </button>
-          );
-        })}
-      </div>
+      <SearchSelect
+        options={field.options}
+        value={currentStr || undefined}
+        onChange={(v) => onFieldChange(fieldKey, v)}
+        placeholder="Select..."
+        showSearch={false}
+        disabled={disabled}
+        className="max-w-xs"
+      />
     );
   }
 
   return (
-    <div className="flex flex-wrap gap-2">
-      {field.options.map((opt) => {
-        const active = currentArr.includes(opt);
-        return (
-          <button
-            key={opt}
-            type="button"
-            onClick={() => onFieldChange(fieldKey, active ? currentArr.filter((v) => v !== opt) : [...currentArr, opt])}
-            disabled={disabled}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-all disabled:opacity-50",
-              active
-                ? "bg-primary-500 border-primary-500 text-white"
-                : "bg-white border-neutral-300 text-neutral-600 hover:border-primary-400 hover:text-primary-500"
-            )}
-          >
-            {active && (
-              <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-              </svg>
-            )}
-            {opt}
-          </button>
-        );
-      })}
-    </div>
+    <MultiSearchSelect
+      options={field.options}
+      value={currentArr}
+      onChange={(v) => onFieldChange(fieldKey, v)}
+      placeholder="Select..."
+      showSearch={field.options.length > 6}
+      disabled={disabled}
+      className="max-w-xs"
+    />
   );
 }
 
@@ -451,6 +438,381 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
     });
   }
 
+  function handleWorkshopsNoYes(config: GeneralServicesItemConfig, yes: boolean) {
+    if (!yes) { setAmenityValue(config.name, false); return; }
+    if (config.field1) {
+      const existing = amenities[config.name];
+      const prev: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "f1" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      setAmenityValue(config.name, prev);
+    } else {
+      setAmenityValue(config.name, true);
+    }
+  }
+
+  function handleWorkshopsFieldChange(name: string, field: "f1" | "f2", val: string | string[]) {
+    setAmenities((prev) => {
+      const existing = prev[name];
+      const base: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "yes" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      return { ...prev, [name]: { ...base, [field]: val } as MultiFieldAmenityValue };
+    });
+  }
+
+  function handleRidesSafariNoYes(config: GeneralServicesItemConfig, yes: boolean) {
+    if (!yes) { setAmenityValue(config.name, false); return; }
+    if (config.field1) {
+      const existing = amenities[config.name];
+      const prev: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "f1" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      setAmenityValue(config.name, prev);
+    } else {
+      setAmenityValue(config.name, true);
+    }
+  }
+
+  function handleRidesSafariFieldChange(name: string, field: "f1" | "f2", val: string | string[]) {
+    setAmenities((prev) => {
+      const existing = prev[name];
+      const base: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "yes" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      return { ...prev, [name]: { ...base, [field]: val } as MultiFieldAmenityValue };
+    });
+  }
+
+  function handleWildlifeNatureNoYes(config: GeneralServicesItemConfig, yes: boolean) {
+    if (!yes) { setAmenityValue(config.name, false); return; }
+    if (config.field1) {
+      const existing = amenities[config.name];
+      const prev: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "f1" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      setAmenityValue(config.name, prev);
+    } else {
+      setAmenityValue(config.name, true);
+    }
+  }
+
+  function handleWildlifeNatureFieldChange(name: string, field: "f1" | "f2", val: string | string[]) {
+    setAmenities((prev) => {
+      const existing = prev[name];
+      const base: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "yes" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      return { ...prev, [name]: { ...base, [field]: val } as MultiFieldAmenityValue };
+    });
+  }
+
+  function handleLiveShowsNoYes(config: GeneralServicesItemConfig, yes: boolean) {
+    if (!yes) { setAmenityValue(config.name, false); return; }
+    if (config.field1) {
+      const existing = amenities[config.name];
+      const prev: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "f1" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      setAmenityValue(config.name, prev);
+    } else {
+      setAmenityValue(config.name, true);
+    }
+  }
+
+  function handleLiveShowsFieldChange(name: string, field: "f1" | "f2", val: string | string[]) {
+    setAmenities((prev) => {
+      const existing = prev[name];
+      const base: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "yes" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      return { ...prev, [name]: { ...base, [field]: val } as MultiFieldAmenityValue };
+    });
+  }
+
+  function handleIndoorSportsNoYes(config: GeneralServicesItemConfig, yes: boolean) {
+    if (!yes) { setAmenityValue(config.name, false); return; }
+    if (config.field1) {
+      const existing = amenities[config.name];
+      const prev: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "f1" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      setAmenityValue(config.name, prev);
+    } else {
+      setAmenityValue(config.name, true);
+    }
+  }
+
+  function handleIndoorSportsFieldChange(name: string, field: "f1" | "f2", val: string | string[]) {
+    setAmenities((prev) => {
+      const existing = prev[name];
+      const base: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "yes" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      return { ...prev, [name]: { ...base, [field]: val } as MultiFieldAmenityValue };
+    });
+  }
+
+  function handleWaterSportsNoYes(config: GeneralServicesItemConfig, yes: boolean) {
+    if (!yes) { setAmenityValue(config.name, false); return; }
+    if (config.field1) {
+      const existing = amenities[config.name];
+      const prev: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "f1" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      setAmenityValue(config.name, prev);
+    } else {
+      setAmenityValue(config.name, true);
+    }
+  }
+
+  function handleWaterSportsFieldChange(name: string, field: "f1" | "f2", val: string | string[]) {
+    setAmenities((prev) => {
+      const existing = prev[name];
+      const base: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "yes" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      return { ...prev, [name]: { ...base, [field]: val } as MultiFieldAmenityValue };
+    });
+  }
+
+  function handleSpaWellnessNoYes(config: GeneralServicesItemConfig, yes: boolean) {
+    if (!yes) { setAmenityValue(config.name, false); return; }
+    if (config.field1) {
+      const existing = amenities[config.name];
+      const prev: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "f1" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      setAmenityValue(config.name, prev);
+    } else {
+      setAmenityValue(config.name, true);
+    }
+  }
+
+  function handleSpaWellnessFieldChange(name: string, field: "f1" | "f2", val: string | string[]) {
+    setAmenities((prev) => {
+      const existing = prev[name];
+      const base: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "yes" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      return { ...prev, [name]: { ...base, [field]: val } as MultiFieldAmenityValue };
+    });
+  }
+
+  function handleFamilyKidsNoYes(config: GeneralServicesItemConfig, yes: boolean) {
+    if (!yes) { setAmenityValue(config.name, false); return; }
+    if (config.field1) {
+      const existing = amenities[config.name];
+      const prev: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "f1" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      setAmenityValue(config.name, prev);
+    } else {
+      setAmenityValue(config.name, true);
+    }
+  }
+
+  function handleFamilyKidsFieldChange(name: string, field: "f1" | "f2", val: string | string[]) {
+    setAmenities((prev) => {
+      const existing = prev[name];
+      const base: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "yes" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      return { ...prev, [name]: { ...base, [field]: val } as MultiFieldAmenityValue };
+    });
+  }
+
+  function handleMediaTechnologyNoYes(config: GeneralServicesItemConfig, yes: boolean) {
+    if (!yes) { setAmenityValue(config.name, false); return; }
+    if (config.field1) {
+      const existing = amenities[config.name];
+      const prev: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "f1" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      setAmenityValue(config.name, prev);
+    } else {
+      setAmenityValue(config.name, true);
+    }
+  }
+
+  function handleMediaTechnologyFieldChange(name: string, field: "f1" | "f2", val: string | string[]) {
+    setAmenities((prev) => {
+      const existing = prev[name];
+      const base: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "yes" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      return { ...prev, [name]: { ...base, [field]: val } as MultiFieldAmenityValue };
+    });
+  }
+
+  function handleEntertainmentNoYes(config: GeneralServicesItemConfig, yes: boolean) {
+    if (!yes) { setAmenityValue(config.name, false); return; }
+    if (config.field1) {
+      const existing = amenities[config.name];
+      const prev: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "f1" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      setAmenityValue(config.name, prev);
+    } else {
+      setAmenityValue(config.name, true);
+    }
+  }
+
+  function handleEntertainmentFieldChange(name: string, field: "f1" | "f2", val: string | string[]) {
+    setAmenities((prev) => {
+      const existing = prev[name];
+      const base: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "yes" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      return { ...prev, [name]: { ...base, [field]: val } as MultiFieldAmenityValue };
+    });
+  }
+
+  function handleTransfersNoYes(config: GeneralServicesItemConfig, yes: boolean) {
+    if (!yes) { setAmenityValue(config.name, false); return; }
+    if (config.field1) {
+      const existing = amenities[config.name];
+      const prev: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "f1" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      setAmenityValue(config.name, prev);
+    } else {
+      setAmenityValue(config.name, true);
+    }
+  }
+
+  function handleTransfersFieldChange(name: string, field: "f1" | "f2", val: string | string[]) {
+    setAmenities((prev) => {
+      const existing = prev[name];
+      const base: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "yes" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      return { ...prev, [name]: { ...base, [field]: val } as MultiFieldAmenityValue };
+    });
+  }
+
+  function handleFoodAndDrinkNoYes(config: GeneralServicesItemConfig, yes: boolean) {
+    if (!yes) { setAmenityValue(config.name, false); return; }
+    if (config.field1) {
+      const existing = amenities[config.name];
+      const prev: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "f1" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      setAmenityValue(config.name, prev);
+    } else {
+      setAmenityValue(config.name, true);
+    }
+  }
+
+  function handleFoodAndDrinkFieldChange(name: string, field: "f1" | "f2", val: string | string[]) {
+    setAmenities((prev) => {
+      const existing = prev[name];
+      const base: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "yes" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      return { ...prev, [name]: { ...base, [field]: val } as MultiFieldAmenityValue };
+    });
+  }
+
+  function handleOutdoorSportsNoYes(config: GeneralServicesItemConfig, yes: boolean) {
+    if (!yes) { setAmenityValue(config.name, false); return; }
+    if (config.field1) {
+      const existing = amenities[config.name];
+      const prev: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "f1" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      setAmenityValue(config.name, prev);
+    } else {
+      setAmenityValue(config.name, true);
+    }
+  }
+
+  function handleOutdoorSportsFieldChange(name: string, field: "f1" | "f2", val: string | string[]) {
+    setAmenities((prev) => {
+      const existing = prev[name];
+      const base: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "yes" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      return { ...prev, [name]: { ...base, [field]: val } as MultiFieldAmenityValue };
+    });
+  }
+
+  function handleBasicFacilitiesNoYes(config: GeneralServicesItemConfig, yes: boolean) {
+    if (!yes) { setAmenityValue(config.name, false); return; }
+    if (config.field1) {
+      const existing = amenities[config.name];
+      const prev: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "f1" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      setAmenityValue(config.name, prev);
+    } else {
+      setAmenityValue(config.name, true);
+    }
+  }
+
+  function handleBasicFacilitiesFieldChange(name: string, field: "f1" | "f2", val: string | string[]) {
+    setAmenities((prev) => {
+      const existing = prev[name];
+      const base: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "yes" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      return { ...prev, [name]: { ...base, [field]: val } as MultiFieldAmenityValue };
+    });
+  }
+
+  function handleSecurityNoYes(config: GeneralServicesItemConfig, yes: boolean) {
+    if (!yes) { setAmenityValue(config.name, false); return; }
+    if (config.field1) {
+      const existing = amenities[config.name];
+      const prev: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "f1" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      setAmenityValue(config.name, prev);
+    } else {
+      setAmenityValue(config.name, true);
+    }
+  }
+
+  function handleSecurityFieldChange(name: string, field: "f1" | "f2", val: string | string[]) {
+    setAmenities((prev) => {
+      const existing = prev[name];
+      const base: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "yes" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      return { ...prev, [name]: { ...base, [field]: val } as MultiFieldAmenityValue };
+    });
+  }
+
   function handleGeneralServicesNoYes(config: GeneralServicesItemConfig, yes: boolean) {
     if (!yes) { setAmenityValue(config.name, false); return; }
     if (config.field1) {
@@ -502,8 +864,23 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
 
   const activeCat        = AMENITY_CATEGORIES.find((c) => c.label === activeCategory)!;
   const activeStats      = getStats(activeCat.items);
-  const isMandatory      = activeCategory === "Mandatory";
-  const isGeneralServices = activeCategory === "General Services";
+  const isMandatory           = activeCategory === "Mandatory";
+  const isGeneralServices     = activeCategory === "General Services";
+  const isSecurityCategory    = activeCategory === "Security";
+  const isBasicFacilities     = activeCategory === "Basic Facilities";
+  const isOutdoorSports       = activeCategory === "Outdoor Sports & Activities";
+  const isFoodAndDrink        = activeCategory === "Food and Drink";
+  const isTransfers           = activeCategory === "Transfers";
+  const isEntertainment       = activeCategory === "Entertainment";
+  const isMediaTechnology     = activeCategory === "Media and Technology";
+  const isFamilyKids          = activeCategory === "Family and Kids";
+  const isSpaWellness         = activeCategory === "Spa & Wellness";
+  const isWaterSports         = activeCategory === "Water Sports & Activities";
+  const isIndoorSports        = activeCategory === "Indoor Sports & Activities";
+  const isLiveShows           = activeCategory === "Live Shows & Music";
+  const isWildlifeNature      = activeCategory === "Wildlife & Nature";
+  const isRidesSafari         = activeCategory === "Rides, Safari, Excursions & Tour";
+  const isWorkshops           = activeCategory === "Hands-on Workshops";
 
   return (
     <>
@@ -597,6 +974,171 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
                       value={amenities[config.name]}
                       onNoYes={(val) => handleGeneralServicesNoYes(config, val)}
                       onFieldChange={(field, val) => handleGeneralFieldChange(config.name, field, val)}
+                      disabled={isPending}
+                    />
+                  ))
+                  : isSecurityCategory
+                  ? SECURITY_CONFIG.map((config) => (
+                    <GeneralServicesAmenityRow
+                      key={config.name}
+                      config={config}
+                      value={amenities[config.name]}
+                      onNoYes={(val) => handleSecurityNoYes(config, val)}
+                      onFieldChange={(field, val) => handleSecurityFieldChange(config.name, field, val)}
+                      disabled={isPending}
+                    />
+                  ))
+                  : isBasicFacilities
+                  ? BASIC_FACILITIES_CONFIG.map((config) => (
+                    <GeneralServicesAmenityRow
+                      key={config.name}
+                      config={config}
+                      value={amenities[config.name]}
+                      onNoYes={(val) => handleBasicFacilitiesNoYes(config, val)}
+                      onFieldChange={(field, val) => handleBasicFacilitiesFieldChange(config.name, field, val)}
+                      disabled={isPending}
+                    />
+                  ))
+                  : isOutdoorSports
+                  ? OUTDOOR_SPORTS_CONFIG.map((config) => (
+                    <GeneralServicesAmenityRow
+                      key={config.name}
+                      config={config}
+                      value={amenities[config.name]}
+                      onNoYes={(val) => handleOutdoorSportsNoYes(config, val)}
+                      onFieldChange={(field, val) => handleOutdoorSportsFieldChange(config.name, field, val)}
+                      disabled={isPending}
+                    />
+                  ))
+                  : isFoodAndDrink
+                  ? FOOD_AND_DRINK_CONFIG.map((config) => (
+                    <GeneralServicesAmenityRow
+                      key={config.name}
+                      config={config}
+                      value={amenities[config.name]}
+                      onNoYes={(val) => handleFoodAndDrinkNoYes(config, val)}
+                      onFieldChange={(field, val) => handleFoodAndDrinkFieldChange(config.name, field, val)}
+                      disabled={isPending}
+                    />
+                  ))
+                  : isTransfers
+                  ? TRANSFERS_CONFIG.map((config) => (
+                    <GeneralServicesAmenityRow
+                      key={config.name}
+                      config={config}
+                      value={amenities[config.name]}
+                      onNoYes={(val) => handleTransfersNoYes(config, val)}
+                      onFieldChange={(field, val) => handleTransfersFieldChange(config.name, field, val)}
+                      disabled={isPending}
+                    />
+                  ))
+                  : isEntertainment
+                  ? ENTERTAINMENT_CONFIG.map((config) => (
+                    <GeneralServicesAmenityRow
+                      key={config.name}
+                      config={config}
+                      value={amenities[config.name]}
+                      onNoYes={(val) => handleEntertainmentNoYes(config, val)}
+                      onFieldChange={(field, val) => handleEntertainmentFieldChange(config.name, field, val)}
+                      disabled={isPending}
+                    />
+                  ))
+                  : isMediaTechnology
+                  ? MEDIA_TECHNOLOGY_CONFIG.map((config) => (
+                    <GeneralServicesAmenityRow
+                      key={config.name}
+                      config={config}
+                      value={amenities[config.name]}
+                      onNoYes={(val) => handleMediaTechnologyNoYes(config, val)}
+                      onFieldChange={(field, val) => handleMediaTechnologyFieldChange(config.name, field, val)}
+                      disabled={isPending}
+                    />
+                  ))
+                  : isFamilyKids
+                  ? FAMILY_KIDS_CONFIG.map((config) => (
+                    <GeneralServicesAmenityRow
+                      key={config.name}
+                      config={config}
+                      value={amenities[config.name]}
+                      onNoYes={(val) => handleFamilyKidsNoYes(config, val)}
+                      onFieldChange={(field, val) => handleFamilyKidsFieldChange(config.name, field, val)}
+                      disabled={isPending}
+                    />
+                  ))
+                  : isSpaWellness
+                  ? SPA_WELLNESS_CONFIG.map((config) => (
+                    <GeneralServicesAmenityRow
+                      key={config.name}
+                      config={config}
+                      value={amenities[config.name]}
+                      onNoYes={(val) => handleSpaWellnessNoYes(config, val)}
+                      onFieldChange={(field, val) => handleSpaWellnessFieldChange(config.name, field, val)}
+                      disabled={isPending}
+                    />
+                  ))
+                  : isWaterSports
+                  ? WATER_SPORTS_CONFIG.map((config) => (
+                    <GeneralServicesAmenityRow
+                      key={config.name}
+                      config={config}
+                      value={amenities[config.name]}
+                      onNoYes={(val) => handleWaterSportsNoYes(config, val)}
+                      onFieldChange={(field, val) => handleWaterSportsFieldChange(config.name, field, val)}
+                      disabled={isPending}
+                    />
+                  ))
+                  : isIndoorSports
+                  ? INDOOR_SPORTS_CONFIG.map((config) => (
+                    <GeneralServicesAmenityRow
+                      key={config.name}
+                      config={config}
+                      value={amenities[config.name]}
+                      onNoYes={(val) => handleIndoorSportsNoYes(config, val)}
+                      onFieldChange={(field, val) => handleIndoorSportsFieldChange(config.name, field, val)}
+                      disabled={isPending}
+                    />
+                  ))
+                  : isLiveShows
+                  ? LIVE_SHOWS_CONFIG.map((config) => (
+                    <GeneralServicesAmenityRow
+                      key={config.name}
+                      config={config}
+                      value={amenities[config.name]}
+                      onNoYes={(val) => handleLiveShowsNoYes(config, val)}
+                      onFieldChange={(field, val) => handleLiveShowsFieldChange(config.name, field, val)}
+                      disabled={isPending}
+                    />
+                  ))
+                  : isWildlifeNature
+                  ? WILDLIFE_NATURE_CONFIG.map((config) => (
+                    <GeneralServicesAmenityRow
+                      key={config.name}
+                      config={config}
+                      value={amenities[config.name]}
+                      onNoYes={(val) => handleWildlifeNatureNoYes(config, val)}
+                      onFieldChange={(field, val) => handleWildlifeNatureFieldChange(config.name, field, val)}
+                      disabled={isPending}
+                    />
+                  ))
+                  : isRidesSafari
+                  ? RIDES_SAFARI_CONFIG.map((config) => (
+                    <GeneralServicesAmenityRow
+                      key={config.name}
+                      config={config}
+                      value={amenities[config.name]}
+                      onNoYes={(val) => handleRidesSafariNoYes(config, val)}
+                      onFieldChange={(field, val) => handleRidesSafariFieldChange(config.name, field, val)}
+                      disabled={isPending}
+                    />
+                  ))
+                  : isWorkshops
+                  ? WORKSHOPS_CONFIG.map((config) => (
+                    <GeneralServicesAmenityRow
+                      key={config.name}
+                      config={config}
+                      value={amenities[config.name]}
+                      onNoYes={(val) => handleWorkshopsNoYes(config, val)}
+                      onFieldChange={(field, val) => handleWorkshopsFieldChange(config.name, field, val)}
                       disabled={isPending}
                     />
                   ))

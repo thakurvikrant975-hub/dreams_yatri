@@ -48,7 +48,8 @@ export const fullRoomSchema = z.object({
   rate_end_date:       z.string().min(1, "Select end date"),
 
   // Section 5
-  room_amenities: z.array(z.string()),
+  room_amenities:        z.array(z.string()),
+  room_amenity_details:  z.record(z.union([z.string(), z.array(z.string())])).optional(),
 });
 
 export type FullRoomData = z.infer<typeof fullRoomSchema>;

@@ -48,6 +48,45 @@ export const MEAL_PLANS = [
   { value: "lunch_dinner",          label: "FREE Lunch and Dinner" },
 ];
 
+// ── Room amenity sub-field config ─────────────────────────────────────────────
+
+export type RoomAmenitySubField = {
+  label?: string;
+  type: "select" | "multiselect";
+  options: string[];
+};
+
+export type RoomAmenityConfig = {
+  name: string;
+  field?: RoomAmenitySubField;
+};
+
+export const ROOM_MANDATORY_CONFIG: RoomAmenityConfig[] = [
+  { name: "Bathtub" },
+  { name: "Hairdryer" },
+  { name: "Hot & Cold Water" },
+  { name: "Toiletries",
+    field: { type: "multiselect", options: ["Premium", "Moisturiser", "Shampoo", "Conditioner", "Shower Gel", "Soap", "Comb"] } },
+  { name: "Towels",
+    field: { type: "multiselect", options: ["Bath Towel", "Pool Towel"] } },
+  { name: "TV",
+    field: { type: "multiselect", options: ["LED TV", "LCD TV", "Plasma TV", "CRT TV", "Smart TV"] } },
+  { name: "Balcony",
+    field: { label: "Type", type: "select", options: ["Private", "Shared"] } },
+  { name: "Private Pool" },
+  { name: "Air Conditioning",
+    field: { label: "Type", type: "select", options: ["Centralized", "Room controlled", "Temperature will be fixed as per Govt. Norms", "Window AC", "Split AC"] } },
+  { name: "Iron/Ironing Board" },
+  { name: "Mineral Water" },
+  { name: "Kettle" },
+  { name: "Wifi" },
+  { name: "Safe",
+    field: { label: "Type", type: "select", options: ["Electronic", "Manual"] } },
+  { name: "Bathroom",
+    field: { label: "Type", type: "select", options: ["Private", "Shared"] } },
+  { name: "Peep Hole" },
+];
+
 export const ROOM_AMENITY_GROUPS: { label: string; items: string[] }[] = [
   {
     label: "Mandatory",

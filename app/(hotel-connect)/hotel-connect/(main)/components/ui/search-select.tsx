@@ -16,6 +16,8 @@ import {
 } from "@floating-ui/react";
 import { CaretDown, MagnifyingGlass } from "@phosphor-icons/react/dist/ssr";
 
+import { Check } from "@phosphor-icons/react/dist/ssr";
+
 // ── Option type ───────────────────────────────────────────────────────────────
 // Accepts plain strings (value === label) or explicit { value, label } objects.
 
@@ -269,6 +271,200 @@ export function SearchSelect({
       </button>
 
       {/* Portal — renders into document.body, fully outside any overflow container */}
+      {typeof document !== "undefined" && createPortal(dropdown, document.body)}
+    </div>
+  );
+}
+
+// ── MultiSearchSelect ─────────────────────────────────────────────────────────
+
+interface MultiSearchSelectProps {
+  options: RawOption[];
+  value: string[];
+  onChange: (value: string[]) => void;
+  placeholder?: string;
+  searchPlaceholder?: string;
+  showSearch?: boolean;
+  disabled?: boolean;
+  className?: string;
+}
+
+export function MultiSearchSelect({
+  options,
+  value,
+  onChange,
+  placeholder = "Select...",
+  searchPlaceholder = "Search...",
+  showSearch = true,
+  disabled = false,
+  className,
+}: MultiSearchSelectProps) {
+  const listboxId = useId();
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const searchRef  = useRef<HTMLInputElement>(null);
+  const normalized = options.map(normalize);
+
+  const { refs, floatingStyles, context } = useFloating({
+    open,
+    onOpenChange: (next) => { if (!disabled) setOpen(next); },
+    placement: "bottom-start",
+    strategy: "fixed",
+    middleware: [
+      offset(4),
+      flip({ padding: 8 }),
+      shift({ padding: 8 }),
+      size({
+        apply({ rects, elements }) {
+          Object.assign(elements.floating.style, { width: `${rects.reference.width}px` });
+        },
+        padding: 8,
+      }),
+    ],
+    whileElementsMounted: autoUpdate,
+  });
+
+  const click   = useClick(context, { enabled: !disabled });
+  const dismiss = useDismiss(context);
+  const { getReferenceProps, getFloatingProps } = useInteractions([click, dismiss]);
+
+  useEffect(() => {
+    if (open) {
+      setQuery("");
+      if (showSearch) {
+        const id = setTimeout(() => searchRef.current?.focus(), 10);
+        return () => clearTimeout(id);
+      }
+    }
+  }, [open, showSearch]);
+
+  const filtered = query.trim()
+    ? normalized.filter((o) => o.label.toLowerCase().includes(query.toLowerCase()))
+    : normalized;
+
+  function toggle(opt: NormalizedOption) {
+    const next = value.includes(opt.value)
+      ? value.filter((v) => v !== opt.value)
+      : [...value, opt.value];
+    onChange(next);
+  }
+
+
+  const dropdown = open && !disabled && (
+    <div
+      ref={refs.setFloating}
+      id={listboxId}
+      role="listbox"
+      aria-multiselectable="true"
+      aria-label={placeholder}
+      style={floatingStyles}
+      {...getFloatingProps()}
+      className="z-9999 rounded-xl bg-white shadow-xl ring-1 ring-neutral-200 overflow-hidden"
+    >
+      {showSearch && (
+        <div className="p-2 border-b border-neutral-100">
+          <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-neutral-50 border border-neutral-200">
+            <MagnifyingGlass size={13} className="text-neutral-400 shrink-0" />
+            <input
+              ref={searchRef}
+              type="text"
+              aria-label="Search options"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={searchPlaceholder}
+              className="flex-1 min-w-0 bg-transparent text-sm text-neutral-900 placeholder:text-neutral-400 outline-none"
+            />
+          </div>
+        </div>
+      )}
+      <div className="max-h-56 overflow-y-auto scrollbar-mini py-1">
+        {filtered.length === 0 ? (
+          <p className="px-3 py-4 text-sm text-neutral-400 text-center" role="status">No results</p>
+        ) : (
+          filtered.map((opt) => {
+            const selected = value.includes(opt.value);
+            return (
+              <div
+                key={opt.value}
+                role="option"
+                aria-selected={selected}
+                onClick={() => toggle(opt)}
+                className={cn(
+                  "flex items-center gap-2.5 px-3 py-2 text-sm cursor-pointer transition-colors select-none",
+                  selected ? "bg-primary-50 text-primary-700" : "text-neutral-700 hover:bg-neutral-50"
+                )}
+              >
+                <span className={cn(
+                  "w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors",
+                  selected ? "bg-primary-500 border-primary-500" : "border-neutral-300 bg-white"
+                )}>
+                  {selected && <Check size={10} weight="bold" className="text-white" />}
+                </span>
+                {opt.label}
+              </div>
+            );
+          })
+        )}
+      </div>
+      {value.length > 0 && (
+        <div className="px-3 py-2 border-t border-neutral-100 flex justify-end">
+          <button
+            type="button"
+            onClick={() => onChange([])}
+            className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors"
+          >
+            Clear all
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div className={cn("relative w-full", className)}>
+      <div
+        ref={refs.setReference as React.RefCallback<HTMLDivElement>}
+        role="combobox"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? listboxId : undefined}
+        className={cn(
+          "min-h-10 w-full rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-sm shadow-sm outline-none transition-colors flex flex-wrap items-center gap-1.5 cursor-pointer",
+          open && "border-primary-400 ring-2 ring-primary-500/20",
+          disabled && "bg-neutral-50 opacity-60 pointer-events-none",
+        )}
+        {...getReferenceProps()}
+      >
+        {value.length === 0 ? (
+          <span className="text-neutral-400 px-1 flex-1">{placeholder}</span>
+        ) : (
+          value.map((v) => {
+            const label = normalized.find((o) => o.value === v)?.label ?? v;
+            return (
+              <span
+                key={v}
+                className="flex items-center gap-1 bg-primary-50 text-primary-700 border border-primary-200 rounded-md px-2 py-0.5 text-xs font-medium shrink-0"
+              >
+                {label}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onChange(value.filter((x) => x !== v)); }}
+                  disabled={disabled}
+                  className="text-primary-400 hover:text-primary-700 leading-none ml-0.5"
+                >
+                  ×
+                </button>
+              </span>
+            );
+          })
+        )}
+        <CaretDown
+          size={14}
+          weight="bold"
+          className={cn("ml-auto shrink-0 text-neutral-400 transition-transform duration-150", open && "rotate-180")}
+        />
+      </div>
       {typeof document !== "undefined" && createPortal(dropdown, document.body)}
     </div>
   );
