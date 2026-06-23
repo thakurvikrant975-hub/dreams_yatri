@@ -42,6 +42,17 @@ export async function saveAmenities(
         property_amenities[key] = { yes: true, pools: v.pools };
       } else if (Array.isArray(v.selections)) {
         property_amenities[key] = { yes: true, selections: v.selections.filter((s) => typeof s === "string") };
+      } else if ("f1" in v || "f2" in v) {
+        const out: Record<string, Prisma.InputJsonValue> = { yes: true };
+        if ("f1" in v) {
+          if (typeof v.f1 === "string") out.f1 = v.f1;
+          else if (Array.isArray(v.f1)) out.f1 = (v.f1 as unknown[]).filter((s) => typeof s === "string") as string[];
+        }
+        if ("f2" in v) {
+          if (typeof v.f2 === "string") out.f2 = v.f2;
+          else if (Array.isArray(v.f2)) out.f2 = (v.f2 as unknown[]).filter((s) => typeof s === "string") as string[];
+        }
+        property_amenities[key] = out as Prisma.InputJsonValue;
       }
     }
   }

@@ -2459,17 +2459,11 @@ enum PropertyCategory {
 enum PropertySubType {
   HOTEL
   RESORT
-  LODGE
   GUEST_HOUSE
-  PALACE
   HOUSEBOAT
-  MOTEL
-  HOMESTAY
   VILLA
+  HOMESTAY
   APARTMENT
-  FARMHOUSE
-  TREEHOUSE
-  TENT_CAMP
 }
 
 // ── Blog ─────────────────────────────────────────────────────────────────────

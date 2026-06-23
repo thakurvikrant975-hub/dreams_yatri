@@ -3,18 +3,12 @@
 import { useState, useTransition } from "react";
 import {
   Buildings,
-  Building,
   BuildingApartment,
   House,
   HouseLine,
   HouseSimple,
-  Crown,
   Boat,
   Umbrella,
-  Tree,
-  TreeEvergreen,
-  Plant,
-  Tent,
   CheckCircle,
   ArrowRight,
 } from "@phosphor-icons/react";
@@ -51,14 +45,6 @@ const HOTEL_TYPES: TypeConfig[] = [
     iconBg: "bg-cyan-50",
   },
   {
-    subType: "LODGE",
-    label: "Lodge",
-    desc: "Cozy retreat, often in a nature setting",
-    Icon: Tree,
-    iconColor: "text-green-700",
-    iconBg: "bg-green-50",
-  },
-  {
     subType: "GUEST_HOUSE",
     label: "Guest House",
     desc: "Family-run, homely accommodation",
@@ -67,28 +53,12 @@ const HOTEL_TYPES: TypeConfig[] = [
     iconBg: "bg-amber-50",
   },
   {
-    subType: "PALACE",
-    label: "Palace / Heritage",
-    desc: "Historic royal or heritage property",
-    Icon: Crown,
-    iconColor: "text-yellow-600",
-    iconBg: "bg-yellow-50",
-  },
-  {
     subType: "HOUSEBOAT",
     label: "Houseboat",
     desc: "Floating accommodation on water",
     Icon: Boat,
     iconColor: "text-sky-600",
     iconBg: "bg-sky-50",
-  },
-  {
-    subType: "MOTEL",
-    label: "Motel",
-    desc: "Drive-to-room highway accommodation",
-    Icon: Building,
-    iconColor: "text-slate-600",
-    iconBg: "bg-slate-100",
   },
 ];
 
@@ -116,30 +86,6 @@ const HOMESTAY_TYPES: TypeConfig[] = [
     Icon: BuildingApartment,
     iconColor: "text-indigo-600",
     iconBg: "bg-indigo-50",
-  },
-  {
-    subType: "FARMHOUSE",
-    label: "Farmhouse",
-    desc: "Rural stay with an open-air experience",
-    Icon: Plant,
-    iconColor: "text-lime-700",
-    iconBg: "bg-lime-50",
-  },
-  {
-    subType: "TREEHOUSE",
-    label: "Treehouse",
-    desc: "Elevated woodland accommodation",
-    Icon: TreeEvergreen,
-    iconColor: "text-emerald-700",
-    iconBg: "bg-emerald-50",
-  },
-  {
-    subType: "TENT_CAMP",
-    label: "Tent / Camp",
-    desc: "Glamping or camping experience",
-    Icon: Tent,
-    iconColor: "text-orange-600",
-    iconBg: "bg-orange-50",
   },
 ];
 

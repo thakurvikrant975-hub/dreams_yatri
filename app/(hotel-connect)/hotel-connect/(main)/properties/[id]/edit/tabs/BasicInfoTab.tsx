@@ -381,6 +381,7 @@ export default function BasicInfoTab({ hotel }: { hotel: HotelBasicInfo }) {
   // ── Field errors ───────────────────────────────────────────────────────────
   const [clientErrors, setClientErrors] = useState<NonNullable<BasicInfoState["fieldErrors"]>>({});
 
+  const isGuestHouse = hotel.property_sub_type === "GUEST_HOUSE";
   const initialName = hotel.name === "My Property" ? "" : hotel.name;
   const fe = { ...(state.fieldErrors ?? {}), ...clientErrors };
 
@@ -496,7 +497,7 @@ export default function BasicInfoTab({ hotel }: { hotel: HotelBasicInfo }) {
     const name = (data.get("name") as string ?? "").trim();
     if (name.length < 2) errs.name = ["Property name must be at least 2 characters"];
 
-    if (!starRating)   errs.star_rating       = ["Please select a star classification"];
+    if (!isGuestHouse && !starRating) errs.star_rating = ["Please select a star classification"];
     if (!yearBuilt)    errs.year_built         = ["Please select the year of construction"];
     if (!bookingSince) errs.booking_since_year = ["Please select the year bookings started"];
 
@@ -578,18 +579,20 @@ export default function BasicInfoTab({ hotel }: { hotel: HotelBasicInfo }) {
           />
         </FieldRow>
 
-        <FieldRow label="Star Classification" error={fe.star_rating}>
-          <SearchSelect
-            name="star_rating"
-            options={STAR_OPTIONS}
-            value={starRating}
-            onChange={(v) => { setStarRating(v); clearError("star_rating"); }}
-            placeholder="Select rating"
-            showSearch={false}
-            disabled={isPending}
-            error={!!fe.star_rating}
-          />
-        </FieldRow>
+        {!isGuestHouse && (
+          <FieldRow label="Star Classification" error={fe.star_rating}>
+            <SearchSelect
+              name="star_rating"
+              options={STAR_OPTIONS}
+              value={starRating}
+              onChange={(v) => { setStarRating(v); clearError("star_rating"); }}
+              placeholder="Select rating"
+              showSearch={false}
+              disabled={isPending}
+              error={!!fe.star_rating}
+            />
+          </FieldRow>
+        )}
 
         <FieldRow label="Year of Construction" error={fe.year_built}>
           <SearchSelect

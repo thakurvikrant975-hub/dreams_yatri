@@ -124,6 +124,7 @@ export type FinanceHotelData = {
   bank_account_number: string | null;
   bank_ifsc_code: string | null;
   bank_name: string | null;
+  bank_consent_given: boolean;
   gstin_number: string | null;
   pan_number: string | null;
   business_type: HotelBusinessType | null;
@@ -349,6 +350,7 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
   const [confirmAccountNumber, setConfirmAccountNumber] = useState("");
   const [ifscCode,             setIfscCode]             = useState(hotel.bank_ifsc_code ?? "");
   const [bankName,             setBankName]             = useState(hotel.bank_name ?? "");
+  const [consentGiven,         setConsentGiven]         = useState(hotel.bank_consent_given ?? false);
 
   // Auto-fill bank name from IFSC prefix
   useEffect(() => {
@@ -361,7 +363,7 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
   const accountMismatch =
     confirmAccountNumber.length > 0 && confirmAccountNumber !== accountNumber;
 
-  const bankSectionComplete = !!accountNumber && !!ifscCode && !!bankName;
+  const bankSectionComplete = !!accountNumber && !!ifscCode && !!bankName && consentGiven;
 
   // ── Section 2: Tax / MSME ────────────────────────────────────────────────
   const [gstRegistered,  setGstRegistered]  = useState<boolean | null>(hotel.gstin_number ? true : null);
@@ -390,12 +392,20 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
   const requiredDocs = DOCUMENT_TYPES.filter((d) => d.required).map((d) => d.key);
   const docsSectionComplete = requiredDocs.every((k) => !!docs[k]);
 
+  function handleSubmit(e: React.FormEvent) {
+    if (accountMismatch) {
+      e.preventDefault();
+      setExpanded((prev) => new Set([...prev, 1]));
+    }
+  }
+
   return (
-    <form id="wizard-form" action={formAction} className="space-y-4 py-5">
+    <form id="wizard-form" action={formAction} onSubmit={handleSubmit} className="space-y-4 py-5">
       {/* ── Hidden inputs ── */}
       <input type="hidden" name="bank_account_number" value={accountNumber} />
       <input type="hidden" name="bank_ifsc_code"      value={ifscCode} />
       <input type="hidden" name="bank_name"           value={bankName} />
+      <input type="hidden" name="bank_consent_given"  value={consentGiven ? "yes" : "no"} />
       <input type="hidden" name="gstin_number"        value={gstRegistered ? gstinNumber : ""} />
       <input type="hidden" name="pan_number"          value={panNumber} />
       <input type="hidden" name="business_type"       value={businessType} />
@@ -471,6 +481,25 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
             </div>
           </div>
 
+          {/* Consent declaration */}
+          <div
+            onClick={() => setConsentGiven((v) => !v)}
+            className={cn(
+              "flex items-start gap-3 rounded-xl border-2 p-4 cursor-pointer transition-colors select-none",
+              consentGiven ? "border-emerald-400 bg-emerald-50/60" : "border-neutral-200 bg-neutral-50/50 hover:border-neutral-300"
+            )}
+          >
+            <div className={cn(
+              "size-5 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all",
+              consentGiven ? "border-emerald-500 bg-emerald-500" : "border-neutral-300 bg-white"
+            )}>
+              {consentGiven && <CheckIcon size={10} weight="bold" className="text-white" />}
+            </div>
+            <p className="text-xs text-neutral-600 leading-relaxed">
+              I confirm that the bank account details provided above are correct and I authorise
+              DreamsYatri to use this account for property payout settlements.
+            </p>
+          </div>
         </div>
       </Section>
 

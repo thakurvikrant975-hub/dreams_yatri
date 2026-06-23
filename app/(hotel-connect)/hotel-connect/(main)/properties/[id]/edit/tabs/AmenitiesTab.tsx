@@ -5,31 +5,36 @@ import { saveAmenities, type AmenitiesState } from "./amenities-actions";
 import {
   AMENITY_CATEGORIES,
   MANDATORY_CONFIG,
+  GUEST_HOUSE_MANDATORY_CONFIG,
   GENERAL_SERVICES_CONFIG,
   type AmenityValue,
   type MandatoryItemConfig,
+  type MandatorySubField,
+  type MultiFieldAmenityValue,
   type GeneralServicesItemConfig,
   type PoolConfig,
   isYesValue,
   isNoValue,
-  getDetail,
   getPools,
-  getSelections,
+  getF1,
+  getF1s,
+  getF2,
+  getF2s,
 } from "./amenities-data";
 import SwimmingPoolModal from "./SwimmingPoolModal";
-import { SearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
 import { cn } from "@/app/lib/utils";
 
 export type HotelAmenitiesInfo = {
   id: number;
   property_amenities: Record<string, AmenityValue> | null;
+  property_sub_type: string | null;
 };
 
 type AmenitiesMap = Record<string, AmenityValue>;
 
-// ── Toggle switch ─────────────────────────────────────────────────────────────
+// ── Yes / No button pair ──────────────────────────────────────────────────────
 
-function AmenityToggle({
+function YesNoButtons({
   value,
   onChange,
   disabled,
@@ -38,34 +43,36 @@ function AmenityToggle({
   onChange: (val: boolean) => void;
   disabled: boolean;
 }) {
-  const isOn      = value === true;
-  const hasAnswer = value !== undefined;
-
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={isOn}
-      onClick={() => onChange(!isOn)}
-      disabled={disabled}
-      className={cn(
-        "relative w-11 h-6 rounded-full transition-all duration-200 shrink-0",
-        "focus:outline-none focus:ring-2 focus:ring-offset-1",
-        "disabled:opacity-50 disabled:cursor-not-allowed",
-        isOn
-          ? "bg-emerald-500 focus:ring-emerald-400"
-          : hasAnswer
-            ? "bg-neutral-400 focus:ring-neutral-400"
-            : "bg-neutral-200 focus:ring-neutral-300"
-      )}
-    >
-      <span
+    <div className="flex rounded-lg border border-neutral-200 overflow-hidden text-xs font-medium shrink-0">
+      <button
+        type="button"
+        onClick={() => onChange(false)}
+        disabled={disabled}
         className={cn(
-          "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-all duration-200",
-          isOn ? "left-5.5" : "left-0.5"
+          "px-3.5 py-1.5 transition-colors disabled:opacity-50",
+          value === false
+            ? "bg-neutral-700 text-white"
+            : "text-neutral-500 hover:bg-neutral-50"
         )}
-      />
-    </button>
+      >
+        No
+      </button>
+      <div className="w-px bg-neutral-200" />
+      <button
+        type="button"
+        onClick={() => onChange(true)}
+        disabled={disabled}
+        className={cn(
+          "px-3.5 py-1.5 transition-colors disabled:opacity-50",
+          value === true
+            ? "bg-primary-500 text-white"
+            : "text-neutral-500 hover:bg-neutral-50"
+        )}
+      >
+        Yes
+      </button>
+    </div>
   );
 }
 
@@ -132,26 +139,89 @@ function SimpleAmenityRow({
       yes ? "bg-emerald-50/40" : no ? "bg-neutral-50/40" : ""
     )}>
       <span className="text-sm text-neutral-700 flex-1 pr-4">{label}</span>
-      <div className="flex items-center gap-2.5 shrink-0">
-        <span className={cn(
-          "text-xs font-medium w-5 text-right",
-          yes ? "text-emerald-600" : no ? "text-neutral-500" : "text-neutral-300"
-        )}>
-          {yes ? "Yes" : no ? "No" : ""}
-        </span>
-        <AmenityToggle value={yes ? true : no ? false : undefined} onChange={onChange} disabled={disabled} />
-      </div>
+      <YesNoButtons value={yes ? true : no ? false : undefined} onChange={onChange} disabled={disabled} />
     </div>
   );
 }
 
-// ── Mandatory row (supports sub-options + pool) ───────────────────────────────
+// ── Mandatory row (field1 / field2 + pool) ────────────────────────────────────
+
+function FieldChips({
+  field,
+  currentStr,
+  currentArr,
+  fieldKey,
+  onFieldChange,
+  disabled,
+}: {
+  field: MandatorySubField;
+  currentStr: string;
+  currentArr: string[];
+  fieldKey: "f1" | "f2";
+  onFieldChange: (k: "f1" | "f2", v: string | string[]) => void;
+  disabled: boolean;
+}) {
+  if (field.type === "select") {
+    return (
+      <div className="flex flex-wrap gap-2">
+        {field.options.map((opt) => {
+          const active = currentStr === opt;
+          return (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => onFieldChange(fieldKey, active ? "" : opt)}
+              disabled={disabled}
+              className={cn(
+                "px-3 py-1.5 rounded-full border text-xs font-medium transition-all disabled:opacity-50",
+                active
+                  ? "bg-primary-500 border-primary-500 text-white"
+                  : "bg-white border-neutral-300 text-neutral-600 hover:border-primary-400 hover:text-primary-500"
+              )}
+            >
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {field.options.map((opt) => {
+        const active = currentArr.includes(opt);
+        return (
+          <button
+            key={opt}
+            type="button"
+            onClick={() => onFieldChange(fieldKey, active ? currentArr.filter((v) => v !== opt) : [...currentArr, opt])}
+            disabled={disabled}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-all disabled:opacity-50",
+              active
+                ? "bg-primary-500 border-primary-500 text-white"
+                : "bg-white border-neutral-300 text-neutral-600 hover:border-primary-400 hover:text-primary-500"
+            )}
+          >
+            {active && (
+              <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+              </svg>
+            )}
+            {opt}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function MandatoryAmenityRow({
   config,
   value,
   onNoYes,
-  onDetailChange,
+  onFieldChange,
   onOpenPool,
   onDeletePool,
   onEditPool,
@@ -160,53 +230,65 @@ function MandatoryAmenityRow({
   config: MandatoryItemConfig;
   value: AmenityValue | undefined;
   onNoYes: (val: boolean) => void;
-  onDetailChange: (detail: string) => void;
+  onFieldChange: (field: "f1" | "f2", value: string | string[]) => void;
   onOpenPool: () => void;
   onDeletePool: (id: string) => void;
   onEditPool: (pool: PoolConfig) => void;
   disabled: boolean;
 }) {
-  const yes    = isYesValue(value);
-  const no     = isNoValue(value);
-  const detail = getDetail(value);
-  const pools  = getPools(value);
+  const yes   = isYesValue(value);
+  const no    = isNoValue(value);
+  const pools = getPools(value);
+  const f1    = getF1(value);
+  const f1s   = getF1s(value);
+  const f2    = getF2(value);
+  const f2s   = getF2s(value);
 
   const boolValue: boolean | undefined = yes ? true : no ? false : undefined;
 
   return (
-    <div className={cn(
-      "border-b border-neutral-100 last:border-0"
-    )}>
+    <div className="border-b border-neutral-100 last:border-0">
       {/* Main row */}
       <div className="flex items-center justify-between px-6 py-3.5">
         <span className="text-sm text-neutral-700 flex-1 pr-4">{config.name}</span>
-        <div className="flex items-center gap-2.5 shrink-0">
-          <span className={cn(
-            "text-xs font-medium w-5 text-right",
-            yes ? "text-emerald-600" : no ? "text-neutral-500" : "text-neutral-300"
-          )}>
-            {yes ? "Yes" : no ? "No" : ""}
-          </span>
-          <AmenityToggle value={boolValue} onChange={onNoYes} disabled={disabled} />
-        </div>
+        <YesNoButtons value={boolValue} onChange={onNoYes} disabled={disabled} />
       </div>
 
-      {/* Sub-option: SearchSelect dropdown when Yes + has options */}
-      {yes && config.subOptions && config.subOptions.length > 0 && (
+      {/* Field 1 */}
+      {yes && config.field1 && (
         <div className="px-6 pb-3.5">
-          <SearchSelect
-            options={config.subOptions}
-            value={detail || undefined}
-            onChange={(val) => onDetailChange(val)}
-            placeholder="Select type"
-            showSearch={false}
-            className="max-w-65"
+          {config.field1.label && (
+            <p className="text-[11px] font-medium text-neutral-400 mb-2">{config.field1.label}</p>
+          )}
+          <FieldChips
+            field={config.field1}
+            currentStr={f1}
+            currentArr={f1s}
+            fieldKey="f1"
+            onFieldChange={onFieldChange}
             disabled={disabled}
           />
         </div>
       )}
 
-      {/* Sub-option: pool list + add button when Yes + isPool */}
+      {/* Field 2 */}
+      {yes && config.field2 && (
+        <div className="px-6 pb-3.5">
+          {config.field2.label && (
+            <p className="text-[11px] font-medium text-neutral-400 mb-2">{config.field2.label}</p>
+          )}
+          <FieldChips
+            field={config.field2}
+            currentStr={f2}
+            currentArr={f2s}
+            fieldKey="f2"
+            onFieldChange={onFieldChange}
+            disabled={disabled}
+          />
+        </div>
+      )}
+
+      {/* Pool list */}
       {yes && config.isPool && (
         <div className="px-6 pb-3.5 space-y-2">
           {pools.map((pool) => (
@@ -269,21 +351,21 @@ function GeneralServicesAmenityRow({
   config,
   value,
   onNoYes,
-  onDetailChange,
-  onSelectionToggle,
+  onFieldChange,
   disabled,
 }: {
   config: GeneralServicesItemConfig;
   value: AmenityValue | undefined;
   onNoYes: (val: boolean) => void;
-  onDetailChange: (detail: string) => void;
-  onSelectionToggle: (option: string) => void;
+  onFieldChange: (field: "f1" | "f2", val: string | string[]) => void;
   disabled: boolean;
 }) {
-  const yes        = isYesValue(value);
-  const no         = isNoValue(value);
-  const detail     = getDetail(value);
-  const selections = getSelections(value);
+  const yes   = isYesValue(value);
+  const no    = isNoValue(value);
+  const f1    = getF1(value);
+  const f1s   = getF1s(value);
+  const f2    = getF2(value);
+  const f2s   = getF2s(value);
   const boolValue: boolean | undefined = yes ? true : no ? false : undefined;
 
   return (
@@ -291,65 +373,26 @@ function GeneralServicesAmenityRow({
       "border-b border-neutral-100 last:border-0",
       yes ? "bg-emerald-50/30" : no ? "bg-neutral-50/40" : ""
     )}>
-      {/* Main row */}
       <div className="flex items-center justify-between px-6 py-3.5">
         <span className="text-sm text-neutral-700 flex-1 pr-4">{config.name}</span>
-        <div className="flex items-center gap-2.5 shrink-0">
-          <span className={cn(
-            "text-xs font-medium w-5 text-right",
-            yes ? "text-emerald-600" : no ? "text-neutral-500" : "text-neutral-300"
-          )}>
-            {yes ? "Yes" : no ? "No" : ""}
-          </span>
-          <AmenityToggle value={boolValue} onChange={onNoYes} disabled={disabled} />
-        </div>
+        <YesNoButtons value={boolValue} onChange={onNoYes} disabled={disabled} />
       </div>
 
-      {/* Sub-field when Yes */}
-      {yes && config.subField && (
+      {yes && config.field1 && (
         <div className="px-6 pb-3.5">
-          <p className="text-[11px] font-medium text-neutral-400 mb-2">{config.subField.label}</p>
-
-          {config.subField.type === "select" && (
-            <SearchSelect
-              options={config.subField.options}
-              value={detail || undefined}
-              onChange={onDetailChange}
-              placeholder="Select"
-              showSearch={false}
-              className="max-w-65"
-              disabled={disabled}
-            />
+          {config.field1.label && (
+            <p className="text-[11px] font-medium text-neutral-400 mb-2">{config.field1.label}</p>
           )}
+          <FieldChips field={config.field1} currentStr={f1} currentArr={f1s} fieldKey="f1" onFieldChange={onFieldChange} disabled={disabled} />
+        </div>
+      )}
 
-          {config.subField.type === "multiselect" && (
-            <div className="flex flex-wrap gap-2">
-              {config.subField.options.map((opt) => {
-                const active = selections.includes(opt);
-                return (
-                  <button
-                    key={opt}
-                    type="button"
-                    onClick={() => onSelectionToggle(opt)}
-                    disabled={disabled}
-                    className={cn(
-                      "flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-all",
-                      active
-                        ? "bg-primary-500 border-primary-500 text-white"
-                        : "bg-white border-neutral-300 text-neutral-600 hover:border-primary-400 hover:text-primary-500"
-                    )}
-                  >
-                    {active && (
-                      <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                      </svg>
-                    )}
-                    {opt}
-                  </button>
-                );
-              })}
-            </div>
+      {yes && config.field2 && (
+        <div className="px-6 pb-3.5">
+          {config.field2.label && (
+            <p className="text-[11px] font-medium text-neutral-400 mb-2">{config.field2.label}</p>
           )}
+          <FieldChips field={config.field2} currentStr={f2} currentArr={f2s} fieldKey="f2" onFieldChange={onFieldChange} disabled={disabled} />
         </div>
       )}
     </div>
@@ -365,6 +408,10 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
     {}
   );
 
+  const mandatoryConfig = hotel.property_sub_type === "GUEST_HOUSE"
+    ? GUEST_HOUSE_MANDATORY_CONFIG
+    : MANDATORY_CONFIG;
+
   const [amenities, setAmenities] = useState<AmenitiesMap>(
     () => (hotel.property_amenities as AmenitiesMap) ?? {}
   );
@@ -378,44 +425,55 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
   }
 
   function handleNoYes(config: MandatoryItemConfig, yes: boolean) {
-    if (!yes) {
-      setAmenityValue(config.name, false);
-      return;
-    }
+    if (!yes) { setAmenityValue(config.name, false); return; }
     if (config.isPool) {
-      const existing = getPools(amenities[config.name]);
-      setAmenityValue(config.name, { yes: true, pools: existing });
-    } else if (config.subOptions?.length) {
-      const prevDetail = getDetail(amenities[config.name]);
-      setAmenityValue(config.name, { yes: true, detail: prevDetail });
+      setAmenityValue(config.name, { yes: true, pools: getPools(amenities[config.name]) });
+    } else if (config.field1) {
+      const existing = amenities[config.name];
+      const prev: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "f1" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      setAmenityValue(config.name, prev);
     } else {
       setAmenityValue(config.name, true);
     }
   }
 
-  function handleDetailChange(name: string, detail: string) {
-    setAmenityValue(name, { yes: true, detail });
+  function handleMandatoryFieldChange(name: string, field: "f1" | "f2", val: string | string[]) {
+    setAmenities((prev) => {
+      const existing = prev[name];
+      const base: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "yes" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      return { ...prev, [name]: { ...base, [field]: val } as MultiFieldAmenityValue };
+    });
   }
 
   function handleGeneralServicesNoYes(config: GeneralServicesItemConfig, yes: boolean) {
     if (!yes) { setAmenityValue(config.name, false); return; }
-    if (config.subField?.type === "multiselect") {
-      const existing = getSelections(amenities[config.name]);
-      setAmenityValue(config.name, { yes: true, selections: existing });
-    } else if (config.subField?.type === "select") {
-      const prevDetail = getDetail(amenities[config.name]);
-      setAmenityValue(config.name, { yes: true, detail: prevDetail });
+    if (config.field1) {
+      const existing = amenities[config.name];
+      const prev: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "f1" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      setAmenityValue(config.name, prev);
     } else {
       setAmenityValue(config.name, true);
     }
   }
 
-  function handleSelectionToggle(name: string, option: string) {
-    const existing = getSelections(amenities[name]);
-    const next = existing.includes(option)
-      ? existing.filter((s) => s !== option)
-      : [...existing, option];
-    setAmenityValue(name, { yes: true, selections: next });
+  function handleGeneralFieldChange(name: string, field: "f1" | "f2", val: string | string[]) {
+    setAmenities((prev) => {
+      const existing = prev[name];
+      const base: MultiFieldAmenityValue =
+        typeof existing === "object" && existing !== null && "yes" in existing
+          ? { ...(existing as MultiFieldAmenityValue) }
+          : { yes: true };
+      return { ...prev, [name]: { ...base, [field]: val } as MultiFieldAmenityValue };
+    });
   }
 
   function handleSavePool(pool: PoolConfig) {
@@ -518,13 +576,13 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
             {/* Rows */}
             <div>
               {isMandatory
-                ? MANDATORY_CONFIG.map((config) => (
+                ? mandatoryConfig.map((config) => (
                   <MandatoryAmenityRow
                     key={config.name}
                     config={config}
                     value={amenities[config.name]}
                     onNoYes={(val) => handleNoYes(config, val)}
-                    onDetailChange={(detail) => handleDetailChange(config.name, detail)}
+                    onFieldChange={(field, val) => handleMandatoryFieldChange(config.name, field, val)}
                     onOpenPool={() => setPoolModal({ editingPool: null })}
                     onDeletePool={handleDeletePool}
                     onEditPool={(pool) => setPoolModal({ editingPool: pool })}
@@ -538,8 +596,7 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
                       config={config}
                       value={amenities[config.name]}
                       onNoYes={(val) => handleGeneralServicesNoYes(config, val)}
-                      onDetailChange={(detail) => handleDetailChange(config.name, detail)}
-                      onSelectionToggle={(opt) => handleSelectionToggle(config.name, opt)}
+                      onFieldChange={(field, val) => handleGeneralFieldChange(config.name, field, val)}
                       disabled={isPending}
                     />
                   ))

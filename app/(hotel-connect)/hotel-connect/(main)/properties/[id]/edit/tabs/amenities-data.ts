@@ -210,37 +210,83 @@ export type PoolConfig = {
 export type DetailAmenityValue      = { yes: true; detail: string };
 export type PoolAmenityValue        = { yes: true; pools: PoolConfig[] };
 export type MultiSelectAmenityValue = { yes: true; selections: string[] };
-export type AmenityValue = boolean | DetailAmenityValue | PoolAmenityValue | MultiSelectAmenityValue;
+export type MultiFieldAmenityValue  = { yes: true; f1?: string | string[]; f2?: string | string[] };
+export type AmenityValue = boolean | DetailAmenityValue | PoolAmenityValue | MultiSelectAmenityValue | MultiFieldAmenityValue;
 
 // ── Mandatory category config ─────────────────────────────────────────────────
 
+export type MandatorySubField = {
+  label?: string;
+  type: "select" | "multiselect";
+  options: string[];
+};
+
 export type MandatoryItemConfig = {
   name: string;
-  subOptions?: string[];
+  field1?: MandatorySubField;
+  field2?: MandatorySubField;
   isPool?: true;
 };
 
-export const MANDATORY_CONFIG: MandatoryItemConfig[] = [
-  { name: "Air Conditioning",    subOptions: ["Room controlled", "Centralized"] },
-  { name: "Parking",             subOptions: ["Free", "Paid"] },
-  { name: "Room service",        subOptions: ["24-hour Room Service", "Limited hour Room Service"] },
-  { name: "Swimming Pool",       isPool: true },
-  { name: "Wifi",                subOptions: ["Free", "Paid"] },
-  { name: "Reception",           subOptions: ["24-hour Reception", "Limited hour Reception"] },
-  { name: "Bar",                 subOptions: ["In-house", "Outsourced"] },
-  { name: "Restaurant",          subOptions: ["In-house", "Outsourced"] },
-  { name: "Luggage assistance" },
-  { name: "Wheelchair",          subOptions: ["Available for use", "Property is wheelchair accessible"] },
-  { name: "Gym / Fitness centre", subOptions: ["In-house", "Outsourced"] },
+export const GUEST_HOUSE_MANDATORY_CONFIG: MandatoryItemConfig[] = [
+  { name: "Air Conditioning",
+    field1: { label: "Type",     type: "select",      options: ["Centralized", "Room controlled", "All-Weather (Hot & Cold)"] } },
+  { name: "Parking",
+    field1: { label: "Cost",     type: "select",      options: ["Free", "Paid"] },
+    field2: { label: "Location", type: "select",      options: ["Onsite", "Offsite"] } },
+  { name: "Wifi",
+    field1: { label: "Cost",     type: "select",      options: ["Free", "Paid"] },
+    field2: { label: "Speed",    type: "select",      options: ["Speed Suitable for working", "Basic Speed"] } },
+  { name: "Kitchen / Kitchenette",
+    field1: { label: "Facilities", type: "multiselect", options: ["Cooking appliances", "Microwave", "Utensils", "Toaster", "Induction", "Refrigerator"] } },
+  { name: "Housekeeping" },
+  { name: "Power backup" },
+  { name: "Caretaker" },
   { name: "CCTV" },
-  { name: "Airport Transfers",   subOptions: ["Free", "Paid"] },
+  { name: "Reception",
+    field1: { label: "Availability", type: "select",  options: ["24 hours", "Limited hours"] },
+    field2: { label: "Language",     type: "select",  options: ["English Spoken at front desk"] } },
+  { name: "Wheelchair",
+    field1: { label: "Cost",         type: "select",  options: ["Free", "Paid"] } },
+];
+
+export const MANDATORY_CONFIG: MandatoryItemConfig[] = [
+  { name: "Air Conditioning",
+    field1: { label: "Type",           type: "select",      options: ["Centralized", "Room controlled", "All-Weather (Hot & Cold)"] } },
+  { name: "Parking",
+    field1: { label: "Cost",           type: "select",      options: ["Free", "Paid"] },
+    field2: { label: "Location",       type: "select",      options: ["Onsite", "Offsite"] } },
+  { name: "Room service",
+    field1: { label: "Availability",   type: "select",      options: ["24 hours", "Limited hours"] } },
+  { name: "Swimming Pool", isPool: true },
+  { name: "Wifi",
+    field1: { label: "Cost",           type: "select",      options: ["Free", "Paid"] },
+    field2: { label: "Speed",          type: "select",      options: ["Speed Suitable for working", "Basic Speed"] } },
+  { name: "Reception",
+    field1: { label: "Availability",   type: "select",      options: ["24 hours", "Limited hours"] },
+    field2: { label: "Language",       type: "select",      options: ["English Spoken at front desk"] } },
+  { name: "Bar",
+    field1: { label: "Type",           type: "multiselect", options: ["Rooftop", "Poolside", "Sports Bar"] } },
+  { name: "Restaurant",
+    field1: { label: "Dietary options", type: "multiselect", options: ["Kosher", "Jain food available", "Halal", "Vegetarian only"] } },
+  { name: "Luggage assistance" },
+  { name: "Wheelchair",
+    field1: { label: "Cost",           type: "select",      options: ["Free", "Paid"] } },
+  { name: "Gym / Fitness centre",
+    field1: { label: "Features",       type: "multiselect", options: ["24-hour", "Personal Trainer", "Yoga classes"] } },
+  { name: "CCTV" },
+  { name: "Airport Transfers",
+    field1: { label: "Cost",           type: "select",      options: ["Free", "Paid"] },
+    field2: { label: "Transport type", type: "multiselect", options: ["Private taxi", "Luxury Car", "Shared shuttle"] } },
   { name: "Elevator / Lift" },
   { name: "Housekeeping" },
-  { name: "Kitchen / Kitchenette", subOptions: ["In-room Kitchen", "Shared Kitchen"] },
+  { name: "Kitchen / Kitchenette",
+    field1: { label: "Facilities",     type: "multiselect", options: ["Cooking appliances", "Microwave", "Utensils", "Toaster", "Induction", "Refrigerator"] } },
   { name: "Power backup" },
   { name: "Caretaker" },
   { name: "Spa" },
-  { name: "Kids' Play Area",     subOptions: ["Indoor", "Outdoor"] },
+  { name: "Kids' Play Area",
+    field1: { label: "Type",           type: "select",      options: ["Indoor", "Outdoor"] } },
 ];
 
 // ── Pool constants ────────────────────────────────────────────────────────────
@@ -297,30 +343,64 @@ export function getSelections(v: AmenityValue | undefined): string[] {
   return [];
 }
 
-// ── General Services category config ─────────────────────────────────────────
+export function getF1(v: AmenityValue | undefined): string {
+  if (typeof v === "object" && v !== null && "f1" in v) {
+    const f1 = (v as MultiFieldAmenityValue).f1;
+    return typeof f1 === "string" ? f1 : "";
+  }
+  return "";
+}
 
-export type GeneralServicesSubField = {
-  label: string;
-  type: "select" | "multiselect";
-  options: string[];
-};
+export function getF1s(v: AmenityValue | undefined): string[] {
+  if (typeof v === "object" && v !== null && "f1" in v) {
+    const f1 = (v as MultiFieldAmenityValue).f1;
+    return Array.isArray(f1) ? f1 : [];
+  }
+  return [];
+}
+
+export function getF2(v: AmenityValue | undefined): string {
+  if (typeof v === "object" && v !== null && "f2" in v) {
+    const f2 = (v as MultiFieldAmenityValue).f2;
+    return typeof f2 === "string" ? f2 : "";
+  }
+  return "";
+}
+
+export function getF2s(v: AmenityValue | undefined): string[] {
+  if (typeof v === "object" && v !== null && "f2" in v) {
+    const f2 = (v as MultiFieldAmenityValue).f2;
+    return Array.isArray(f2) ? f2 : [];
+  }
+  return [];
+}
+
+// ── General Services category config ─────────────────────────────────────────
 
 export type GeneralServicesItemConfig = {
   name: string;
-  subField?: GeneralServicesSubField;
+  field1?: MandatorySubField;
+  field2?: MandatorySubField;
 };
 
 export const GENERAL_SERVICES_CONFIG: GeneralServicesItemConfig[] = [
-  { name: "Laundry",                       subField: { label: "Service Type",        type: "select",      options: ["Free", "Paid"] } },
-  { name: "Newspaper",                     subField: { label: "Preferred Language",   type: "multiselect", options: ["English", "Local Language"] } },
+  { name: "Laundry",
+    field1: { label: "Cost",             type: "select",      options: ["Free", "Paid"] },
+    field2: { label: "Services",         type: "multiselect", options: ["Limited Pieces of Laundry Free", "Ironing Service", "Dry Cleaning"] } },
+  { name: "Newspaper",
+    field1: { label: "Type",             type: "multiselect", options: ["Local Language", "National", "International"] } },
   { name: "Smoking rooms" },
-  { name: "Lounge",                        subField: { label: "Lounge Access",        type: "select",      options: ["Paid", "Complimentary"] } },
+  { name: "Lounge",
+    field1: { label: "Type",             type: "multiselect", options: ["Cigar lounge", "Shared lounge", "Private lounge"] } },
   { name: "First-aid services" },
   { name: "Concierge" },
-  { name: "Multilingual Staff",            subField: { label: "Languages Spoken",     type: "multiselect", options: ["English", "Hindi", "Regional Language"] } },
+  { name: "Multilingual Staff",
+    field1: { label: "Languages Spoken", type: "multiselect", options: ["English", "Hindi", "French", "German", "Spanish", "Arabic", "Japanese", "Chinese", "Russian", "Italian", "Portuguese"] } },
   { name: "Cloak Room" },
-  { name: "Specially abled assistance",    subField: { label: "Assistance Type",      type: "multiselect", options: ["Wheelchair", "Braille", "Sign Language", "Task Assistance"] } },
-  { name: "Butler Services",               subField: { label: "Service Availability", type: "select",      options: ["24 Hours", "On Request", "Limited Hours"] } },
+  { name: "Specially abled assistance",
+    field1: { label: "Assistance Type",  type: "multiselect", options: ["Auditory Guidance", "Tactile paving", "Braille"] } },
+  { name: "Butler Services",
+    field1: { label: "Type",             type: "multiselect", options: ["Personal", "For each floor"] } },
   { name: "Doctor on call" },
   { name: "Medical centre (Within Premise)" },
   { name: "Pool / Beach towels" },

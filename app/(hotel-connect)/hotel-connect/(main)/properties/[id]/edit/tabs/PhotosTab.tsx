@@ -27,12 +27,18 @@ import {
 
 // ── Tag data ──────────────────────────────────────────────────────────────────
 
-const PHOTO_TAGS = [
+const HOTEL_PHOTO_TAGS = [
   "Swimming Pool", "Lobby", "Reception", "Restaurant", "Bar", "Lounge",
   "Spa", "Gym", "Garden", "Beach", "Mountain View", "City View",
   "Terrace", "Balcony", "Outside View", "Facade", "Dining Area",
   "Kids Area", "Conference Room", "Activities & Experiences",
   "Bedroom", "Bathroom", "Living Room", "Parking", "Corridor",
+];
+
+const GUEST_HOUSE_PHOTO_TAGS = [
+  "Bedroom", "Bathroom", "Common Area", "Dining Area", "Kitchen",
+  "Garden", "Entrance", "Terrace", "Living Room", "Parking",
+  "Outside View", "Facade",
 ];
 const MAX_TAGS = 3;
 
@@ -57,6 +63,7 @@ function PhotoPreviewModal({
   onClose,
   onCover,
   onDelete,
+  photoTags,
 }: {
   photo: HotelPhoto;
   tags: string[];
@@ -65,10 +72,11 @@ function PhotoPreviewModal({
   onClose: () => void;
   onCover: () => void;
   onDelete: () => void;
+  photoTags: string[];
 }) {
   const [search, setSearch] = useState("");
 
-  const visible = PHOTO_TAGS.filter(
+  const visible = photoTags.filter(
     (t) => !search || t.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -220,6 +228,7 @@ function PhotoCard({
   onDelete,
   onCover,
   showCaption = true,
+  photoTags,
 }: {
   photo: HotelPhoto;
   hotelId: number;
@@ -227,6 +236,7 @@ function PhotoCard({
   onDelete: (photoId: number) => void;
   onCover: (photoId: number) => void;
   showCaption?: boolean;
+  photoTags: string[];
 }) {
   const [tagOpen, setTagOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -254,7 +264,7 @@ function PhotoCard({
     setSaving(false);
   }
 
-  const visible = PHOTO_TAGS.filter(
+  const visible = photoTags.filter(
     (t) => !search || t.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -422,6 +432,7 @@ function PhotoCard({
           photo={photo}
           tags={tags}
           saving={saving}
+          photoTags={photoTags}
           onToggleTag={toggleTag}
           onClose={() => setPreviewOpen(false)}
           onCover={() => { onCover(photo.id); setPreviewOpen(false); }}
@@ -494,9 +505,11 @@ export type { HotelPhoto, PhotoCategory };
 export default function PhotosTab({
   hotelId,
   categories,
+  propertySubType,
 }: {
   hotelId: number;
   categories: PhotoCategory[];
+  propertySubType: string | null;
 }) {
   const router = useRouter();
 
@@ -504,6 +517,8 @@ export default function PhotosTab({
     () => categories.flatMap((c) => c.photos)
   );
   const roomCategories = categories.filter((c) => !c.is_system);
+
+  const photoTags = propertySubType === "GUEST_HOUSE" ? GUEST_HOUSE_PHOTO_TAGS : HOTEL_PHOTO_TAGS;
 
   const coverPhoto = photosState.find((p) => p.is_primary) ?? photosState[0] ?? null;
   const untagged = photosState.filter((p) => p.tags.length === 0);
@@ -605,6 +620,7 @@ export default function PhotosTab({
                           key={photo.id}
                           photo={photo}
                           hotelId={hotelId}
+                          photoTags={photoTags}
                           onTagsChange={handleTagsChange}
                           onDelete={handleDelete}
                           onCover={handleCover}
@@ -639,6 +655,7 @@ export default function PhotosTab({
                   key={photo.id}
                   photo={photo}
                   hotelId={hotelId}
+                  photoTags={photoTags}
                   onTagsChange={handleTagsChange}
                   onDelete={handleDelete}
                   onCover={handleCover}
@@ -668,6 +685,7 @@ export default function PhotosTab({
                       key={photo.id}
                       photo={photo}
                       hotelId={hotelId}
+                      photoTags={photoTags}
                       onTagsChange={handleTagsChange}
                       onDelete={handleDelete}
                       onCover={handleCover}

@@ -12,7 +12,7 @@ import { Card } from "@/app/components/ui/Card";
 import { SearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
 import { createRoom, updateRoom, deleteRoom, fetchRoomForEdit, type RoomEditPayload } from "./room-actions";
 import {
-  ROOM_TYPES, ROOM_VIEWS, BED_TYPES, MULTI_ROOM_TYPES,
+  ROOM_TYPES, GUEST_HOUSE_ROOM_TYPES, ROOM_VIEWS, BED_TYPES, MULTI_ROOM_TYPES,
   MEAL_PLANS, ROOM_AMENITY_GROUPS,
 } from "./room-data";
 
@@ -225,8 +225,8 @@ function StepCircle({ n, active, done }: { n: number; active: boolean; done: boo
 
 // ── Section 1 — Room Details ──────────────────────────────────────────────────
 
-function Section1({ data, onChange, errors }: {
-  data: RoomFormData; onChange: (d: RoomFormData) => void; errors: FieldErrors;
+function Section1({ data, onChange, errors, roomTypes }: {
+  data: RoomFormData; onChange: (d: RoomFormData) => void; errors: FieldErrors; roomTypes: string[];
 }) {
   const isMultiRoom = MULTI_ROOM_TYPES.has(data.room_type);
 
@@ -268,7 +268,7 @@ function Section1({ data, onChange, errors }: {
     <div className="divide-y divide-neutral-100">
       <FormRow label="Room Type" required desc="Category of the room, e.g. Apartment, Suite, Villa" error={errors.room_type}>
         <SearchSelect
-          options={ROOM_TYPES}
+          options={roomTypes}
           value={data.room_type}
           onChange={onRoomTypeChange}
           placeholder="Select room type"
@@ -1066,11 +1066,13 @@ function RoomWizardForm({
   roomId,
   initialData,
   onDone,
+  roomTypes,
 }: {
   hotelId: number;
   roomId?: number;
   initialData?: RoomEditPayload;
   onDone: () => void;
+  roomTypes: string[];
 }) {
   const router = useRouter();
   const [step, setStep]               = useState(1);
@@ -1140,7 +1142,7 @@ function RoomWizardForm({
 
   function sectionContent(s: number) {
     switch (s) {
-      case 1: return <Section1 data={data} onChange={setData} errors={errors} />;
+      case 1: return <Section1 data={data} onChange={setData} errors={errors} roomTypes={roomTypes} />;
       case 2: return <Section2 data={data} onChange={setData} errors={errors} />;
       case 3: return <Section3 data={data} onChange={setData} errors={errors} />;
       case 4: return <Section4 data={data} onChange={setData} errors={errors} />;
@@ -1314,7 +1316,8 @@ type TabMode =
   | { kind: "edit"; roomId: number; payload: RoomEditPayload }
   | { kind: "loading" };
 
-export default function RoomsTab({ hotelId, rooms }: { hotelId: number; rooms: RoomSummary[] }) {
+export default function RoomsTab({ hotelId, rooms, propertySubType }: { hotelId: number; rooms: RoomSummary[]; propertySubType: string | null }) {
+  const roomTypes = propertySubType === "GUEST_HOUSE" ? GUEST_HOUSE_ROOM_TYPES : ROOM_TYPES;
   const [mode, setMode] = useState<TabMode>({ kind: "list" });
 
   async function handleEdit(roomId: number) {
@@ -1336,7 +1339,7 @@ export default function RoomsTab({ hotelId, rooms }: { hotelId: number; rooms: R
   }
 
   if (mode.kind === "create") {
-    return <RoomWizardForm hotelId={hotelId} onDone={() => setMode({ kind: "list" })} />;
+    return <RoomWizardForm hotelId={hotelId} roomTypes={roomTypes} onDone={() => setMode({ kind: "list" })} />;
   }
 
   if (mode.kind === "edit") {
@@ -1345,6 +1348,7 @@ export default function RoomsTab({ hotelId, rooms }: { hotelId: number; rooms: R
         hotelId={hotelId}
         roomId={mode.roomId}
         initialData={mode.payload}
+        roomTypes={roomTypes}
         onDone={() => setMode({ kind: "list" })}
       />
     );

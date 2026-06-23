@@ -48,7 +48,7 @@ export async function saveLocation(
       pincode,
       latitude,
       longitude,
-      wizard_step: Math.max(2, hotel.wizard_step),
+      wizard_step: Math.max(3, hotel.wizard_step),
     },
   });
 

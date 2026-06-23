@@ -28,7 +28,7 @@ type PropertyCard = {
   listing_status: HotelListingStatus;
   city: string | null;
   state: string | null;
-  thumbnail: string | null;
+  coverImage: string | null; // thumbnail field OR first uploaded photo
   property_sub_type: PropertySubType | null;
   star_rating: number | null;
   roomCount: number;
@@ -76,6 +76,11 @@ export default async function PropertiesPage({
       city: true, state: true, thumbnail: true,
       property_sub_type: true, star_rating: true,
       _count: { select: { hotelRooms: true } },
+      images: {
+        orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
+        take: 1,
+        select: { url: true, thumbnail: true },
+      },
     },
     orderBy: { created_at: "desc" },
   });
@@ -86,7 +91,7 @@ export default async function PropertiesPage({
     listing_status:    h.listing_status,
     city:              h.city,
     state:             h.state,
-    thumbnail:         h.thumbnail,
+    coverImage:        h.thumbnail ?? h.images[0]?.thumbnail ?? h.images[0]?.url ?? null,
     property_sub_type: h.property_sub_type,
     star_rating:       h.star_rating,
     roomCount:         h._count.hotelRooms,
@@ -167,10 +172,10 @@ export default async function PropertiesPage({
                   <Card key={hotel.id} variant="elevated" radius="md" className="overflow-hidden group">
                     {/* Thumbnail */}
                     <div className="relative h-36 bg-neutral-100 overflow-hidden">
-                      {hotel.thumbnail ? (
+                      {hotel.coverImage ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={hotel.thumbnail}
+                          src={hotel.coverImage}
                           alt={hotel.name}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />

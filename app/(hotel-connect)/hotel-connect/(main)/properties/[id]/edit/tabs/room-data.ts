@@ -1,3 +1,7 @@
+export const GUEST_HOUSE_ROOM_TYPES = [
+  "Standard", "Deluxe", "Family", "AC Room", "Non-AC Room", "Dormitory", "Other",
+];
+
 export const ROOM_TYPES = [
   "Apartment", "Bungalow", "Chalet", "Common", "Cottage", "Deluxe",
   "Dorm room", "Family", "For Honeymooners", "Luxury", "Master",
@@ -106,6 +110,6 @@ export const ROOM_AMENITY_GROUPS: { label: string; items: string[] }[] = [
   },
   {
     label: "Other Facilities",
-    items: ["Mosquito Net", "Newspaper", "Jacuzzi", "Terrace", "Fan", "Butler Service"],
+    items: ["Mosquito Net", "Newspaper", "Terrace", "Fan", "Butler Service"],
   },
 ];

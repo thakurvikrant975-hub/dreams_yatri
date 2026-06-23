@@ -1,6 +1,8 @@
 "use server";
 
 import { createHmac, randomInt } from "crypto";
+import { sendOtpEmail } from "@/app/lib/functions/sendOtpEmail";
+import { sendOtpSms } from "@/app/lib/functions/sendOtpSms";
 
 const SECRET = process.env.OTP_SECRET ?? "dev-hotel-otp-secret-2025";
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
@@ -49,9 +51,8 @@ export async function sendEmailOtp(
   const token = signOtp(`email:${trimmed}`, otp);
 
   if (!isDev) {
-    // TODO: plug in transactional email provider (e.g. Resend, SendGrid)
-    // await sendMail({ to: trimmed, subject: "Verify your email — DreamsYatri", text: `Your OTP is ${otp}. Valid for 10 minutes.` })
-    console.log(`[OTP] Email ${trimmed} — ${otp}`);
+    const sent = await sendOtpEmail(trimmed, Number(otp));
+    if (!sent) return { ok: false, error: "Failed to send OTP email. Please try again." };
   }
 
   return { ok: true, token, devOtp: isDev ? otp : undefined };
@@ -89,9 +90,8 @@ export async function sendMobileOtp(
   const token = signOtp(`mobile:${cc}${trimmed}`, otp);
 
   if (!isDev) {
-    // TODO: plug in SMS provider (e.g. Fast2SMS, Twilio)
-    // await sendSms({ to: `${cc}${trimmed}`, message: `Your DreamsYatri OTP is ${otp}. Valid for 10 minutes.` })
-    console.log(`[OTP] Mobile ${cc}${trimmed} — ${otp}`);
+    const sent = await sendOtpSms(`${cc}${trimmed}`, Number(otp));
+    if (!sent) return { ok: false, error: "Failed to send OTP SMS. Please try again." };
   }
 
   return { ok: true, token, devOtp: isDev ? otp : undefined };
