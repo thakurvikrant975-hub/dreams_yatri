@@ -214,24 +214,30 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                             return (
                                 <div
                                     key={d.day}
-                                    className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 overflow-hidden"
+                                    className={`rounded-xl overflow-hidden border ${isDone ? "border-green-200" : "border-amber-200"}`}
                                 >
                                     {/* Top bar */}
-                                    <div className="flex items-center justify-between px-4 py-2 border-b bg-dashboard-base-200 border-dashboard-base-300">
-                                        <div className="flex items-center gap-2 min-w-0">
-                                            <span className="shrink-0 rounded bg-dashboard-primary px-2 py-0.5 text-[11px] font-bold text-dashboard-primary-content">
+                                    <div className={`flex items-center justify-between px-4 py-2.5 border-b ${
+                                        isDone
+                                            ? "bg-green-50 border-green-200"
+                                            : "bg-amber-50 border-amber-200"
+                                    }`}>
+                                        <div className="flex items-center gap-2.5 min-w-0">
+                                            <span className={`shrink-0 rounded-md px-2.5 py-0.5 text-xs font-bold ${
+                                                isDone ? "bg-green-600 text-white" : "bg-amber-500 text-white"
+                                            }`}>
                                                 Day {d.day}
                                             </span>
-                                            <span className="text-sm font-medium text-dashboard-base-content truncate">{d.day_title}</span>
-                                            <span className="shrink-0 text-xs text-dashboard-neutral">· {snap.num_nights}N</span>
+                                            <span className="text-sm font-semibold text-dashboard-base-content truncate">{d.day_title}</span>
+                                            <span className={`shrink-0 text-xs font-medium ${isDone ? "text-green-700" : "text-amber-700"}`}>· {snap.num_nights}N</span>
                                         </div>
                                         {isDone ? (
-                                            <span className="shrink-0 ml-2 rounded-full bg-dashboard-success/20 px-2.5 py-0.5 text-[11px] font-semibold text-dashboard-success">
-                                                ✓ Confirmed
+                                            <span className="shrink-0 ml-2 inline-flex items-center gap-1 rounded-full bg-green-100 border border-green-200 px-2.5 py-0.5 text-[11px] font-semibold text-green-700">
+                                                <CheckCircle2 className="size-3" /> Confirmed
                                             </span>
                                         ) : (
-                                            <span className="shrink-0 ml-2 rounded-full bg-dashboard-warning/20 px-2.5 py-0.5 text-[11px] font-semibold text-dashboard-neutral">
-                                                Pending
+                                            <span className="shrink-0 ml-2 inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-200 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700">
+                                                <Clock className="size-3" /> Pending
                                             </span>
                                         )}
                                     </div>
@@ -328,9 +334,12 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
 
                                         {/* Confirmed banner */}
                                         {isDone && confirmed && (
-                                            <div className="rounded-lg border border-dashboard-success/25 bg-dashboard-success/8 px-3 py-2 text-xs text-dashboard-success">
-                                                <span className="font-semibold">Confirmed</span> by {confirmed.confirmedBy?.name ?? "—"} · {fmtDateTime(confirmed.confirmedAt)}
-                                                {confirmed.notes && <p className="mt-0.5 opacity-80">Note: {confirmed.notes}</p>}
+                                            <div className="flex items-start gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-xs text-green-800">
+                                                <CheckCircle2 className="size-3.5 mt-0.5 shrink-0 text-green-600" />
+                                                <div>
+                                                    <span className="font-semibold">Confirmed</span> by {confirmed.confirmedBy?.name ?? "—"} · {fmtDateTime(confirmed.confirmedAt)}
+                                                    {confirmed.notes && <p className="mt-0.5 text-green-700">Note: {confirmed.notes}</p>}
+                                                </div>
                                             </div>
                                         )}
 

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { BedDouble, MapPin, Users, CheckCircle2, Check, X, Hotel } from "lucide-react";
+import { BedDouble, MapPin, Users, CheckCircle2, Check, X, Hotel as HotelIcon } from "lucide-react";
 import { confirmHotelStay, getRoomsForHotels, getRoadDistances, getMealsForHotels, type RoomOption, type MealOption } from "../actions";
 
 type Hotel = {
@@ -356,7 +356,7 @@ function ChangeHotelModal({
                 <div className="flex items-center justify-between border-b border-dashboard-base-300 px-5 py-3.5 shrink-0">
                     <div>
                         <h3 className="flex items-center gap-2 text-sm font-semibold text-dashboard-base-content">
-                            <Hotel className="size-4 text-dashboard-neutral" />
+                            <HotelIcon className="size-4 text-dashboard-neutral" />
                             Change Room — Day {dayNumber} · {cityName}
                         </h3>
                         {!loading && (
@@ -536,7 +536,7 @@ export default function HotelConfirmPanel({
                             type="button"
                             onClick={handleDirectConfirm}
                             disabled={confirming}
-                            className="cursor-pointer rounded-lg bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-700/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="cursor-pointer rounded-lg bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-700/90 transition-colors disabled:opacity-50 flex items-center gap-1 disabled:cursor-not-allowed"
                         >
                             {confirming ? "Confirming…" : <><Check className="size-4" /> Confirm Hotel</>}
                         </button>
