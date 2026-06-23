@@ -48,6 +48,7 @@ type Booking = {
     user: { name: string | null; email: string | null } | null;
     package: { title: string } | null;
     destination: { name: string } | null;
+    packageUrl: string | null;
 };
 
 export function PackageBookingsTable({
@@ -138,16 +139,37 @@ export function PackageBookingsTable({
         },
         {
             header: "Package",
-            cell: (b) => (
-                <div>
-                    <p className="text-sm text-dashboard-base-content line-clamp-1 max-w-48">
-                        {b.package?.title ?? "—"}
-                    </p>
-                    <p className="text-xs text-dashboard-base-content/55">
-                        {b.destination?.name ?? ""}
-                    </p>
-                </div>
-            ),
+            cell: (b) => {
+                const href = b.packageUrl
+                    ? (() => {
+                        const params = new URLSearchParams();
+                        params.set("adults", String(b.travellers));
+                        if (b.startDate) params.set("date", new Date(b.startDate).toISOString().slice(0, 10));
+                        return `${b.packageUrl}?${params.toString()}`;
+                    })()
+                    : null;
+                return (
+                    <div>
+                        {href ? (
+                            <a
+                                href={href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm font-medium text-dashboard-primary hover:underline line-clamp-1 max-w-48 block"
+                            >
+                                {b.package?.title ?? "—"}
+                            </a>
+                        ) : (
+                            <p className="text-sm text-dashboard-base-content line-clamp-1 max-w-48">
+                                {b.package?.title ?? "—"}
+                            </p>
+                        )}
+                        <p className="text-xs text-dashboard-base-content/55">
+                            {b.destination?.name ?? ""}
+                        </p>
+                    </div>
+                );
+            },
         },
         {
             header: "Travel Dates",

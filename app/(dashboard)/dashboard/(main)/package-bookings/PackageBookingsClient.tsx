@@ -99,6 +99,7 @@ async function BookingsData({
                 user: { select: { name: true, email: true } },
                 package: { select: { title: true } },
                 destination: { select: { name: true } },
+                packageUrl: true,
             },
         }),
     ]);
