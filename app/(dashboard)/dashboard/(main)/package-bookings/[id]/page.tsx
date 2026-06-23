@@ -348,12 +348,17 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                             <Field
                                 label="Package"
-                                value={booking.packageUrl && booking.package?.title ? (
-                                    <Link href={booking.packageUrl} target="_blank" className="inline-flex items-center gap-1 text-dashboard-primary hover:underline">
-                                        {booking.package.title}
-                                        <ExternalLink className="size-3.5" />
-                                    </Link>
-                                ) : booking.package?.title}
+                                value={booking.packageUrl && booking.package?.title ? (() => {
+                                    const params = new URLSearchParams();
+                                    params.set("adults", String(booking.travellers));
+                                    params.set("date", booking.startDate.toISOString().slice(0, 10));
+                                    return (
+                                        <Link href={`${booking.packageUrl}?${params.toString()}`} target="_blank" className="inline-flex items-center gap-1 text-dashboard-primary hover:underline">
+                                            {booking.package.title}
+                                            <ExternalLink className="size-3.5" />
+                                        </Link>
+                                    );
+                                })() : booking.package?.title}
                             />
                             <Field label="Destination" value={booking.destination?.name} />
                             <Field label="Trip type" value={titleCase(booking.tripType)} />
