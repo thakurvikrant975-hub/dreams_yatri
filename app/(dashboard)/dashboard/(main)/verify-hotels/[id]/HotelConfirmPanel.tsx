@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { BedDouble, MapPin, Users, CheckCircle2, Check, X, Hotel } from "lucide-react";
 import { confirmHotelStay, getRoomsForHotels, getRoadDistances, getMealsForHotels, type RoomOption, type MealOption } from "../actions";
 
 type Hotel = {
@@ -26,7 +27,7 @@ function fmtDist(km: number): string {
 
 function RoomImage({ url, thumbnail, alt }: { url: string | null; thumbnail: string | null; alt: string }) {
     const [failed, setFailed] = useState(false);
-    if (!url || failed) return <span className="text-2xl select-none">🛏</span>;
+    if (!url || failed) return <BedDouble className="size-6 text-dashboard-neutral/50" />;
     return (
         <img
             src={thumbnail ?? url}
@@ -261,17 +262,17 @@ function ChangeHotelModal({
                         )}
                         <div className="mt-1.5 flex flex-wrap gap-1">
                             {room.view_type && (
-                                <span className="rounded-full border border-dashboard-base-300 px-2 py-0.5 text-[10px] text-dashboard-base-content">
-                                    📍 {room.view_type}
+                                <span className="inline-flex items-center gap-1 rounded-full border border-dashboard-base-300 px-2 py-0.5 text-[10px] text-dashboard-base-content">
+                                    <MapPin className="size-2.5" /> {room.view_type}
                                 </span>
                             )}
                             {room.bed_type && (
-                                <span className="rounded-full border border-dashboard-base-300 px-2 py-0.5 text-[10px] text-dashboard-neutral">
-                                    🛏 {room.bed_type}
+                                <span className="inline-flex items-center gap-1 rounded-full border border-dashboard-base-300 px-2 py-0.5 text-[10px] text-dashboard-neutral">
+                                    <BedDouble className="size-2.5" /> {room.bed_type}
                                 </span>
                             )}
-                            <span className="rounded-full border border-dashboard-base-300 px-2 py-0.5 text-[10px] text-dashboard-neutral">
-                                👤 Max {room.max_occupancy}
+                            <span className="inline-flex items-center gap-1 rounded-full border border-dashboard-base-300 px-2 py-0.5 text-[10px] text-dashboard-neutral">
+                                <Users className="size-2.5" /> Max {room.max_occupancy}
                             </span>
                             {room.area_sqft && (
                                 <span className="rounded-full border border-dashboard-base-300 px-2 py-0.5 text-[10px] text-dashboard-neutral">
@@ -334,7 +335,9 @@ function ChangeHotelModal({
                             <span className="text-[10px] text-dashboard-neutral">vs current</span>
                         )}
                         {isSelected && (
-                            <span className="text-[10px] font-semibold text-green-600 mt-1">✓ Selected</span>
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-green-600 mt-1">
+                                <CheckCircle2 className="size-3" /> Selected
+                            </span>
                         )}
                     </div>
                 </button>
@@ -352,8 +355,9 @@ function ChangeHotelModal({
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-dashboard-base-300 px-5 py-3.5 shrink-0">
                     <div>
-                        <h3 className="text-sm font-semibold text-dashboard-base-content">
-                            🏨 Change Room — Day {dayNumber} · {cityName}
+                        <h3 className="flex items-center gap-2 text-sm font-semibold text-dashboard-base-content">
+                            <Hotel className="size-4 text-dashboard-neutral" />
+                            Change Room — Day {dayNumber} · {cityName}
                         </h3>
                         {!loading && (
                             <p className="text-[11px] text-dashboard-neutral mt-0.5">
@@ -365,7 +369,7 @@ function ChangeHotelModal({
                         onClick={onClose}
                         className="cursor-pointer rounded-md p-1.5 text-dashboard-neutral hover:bg-dashboard-base-200 hover:text-dashboard-base-content transition-colors"
                     >
-                        ✕
+                        <X className="size-4" />
                     </button>
                 </div>
 
@@ -534,7 +538,7 @@ export default function HotelConfirmPanel({
                             disabled={confirming}
                             className="cursor-pointer rounded-lg bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-700/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            {confirming ? "Confirming…" : "✓ Confirm Hotel"}
+                            {confirming ? "Confirming…" : <><Check className="size-4" /> Confirm Hotel</>}
                         </button>
                     </div>
                 </div>

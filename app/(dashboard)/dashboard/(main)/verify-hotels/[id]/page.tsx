@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarDays, Mail, MapPin, Phone, Users, Hotel } from "lucide-react";
+import { CalendarDays, Mail, MapPin, Phone, Users, Hotel, ExternalLink, CheckCircle2, Clock } from "lucide-react";
 import { db } from "@/app/lib/db";
 import { formatPaise } from "@/app/lib/money";
 import { PaymentPill, StatusPill } from "../../package-bookings/pills";
@@ -177,10 +177,10 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                         style={{ width: `${pct}%` }}
                     />
                 </div>
-                <p className={`mt-1.5 text-xs font-medium ${allDone ? "text-dashboard-success" : "text-dashboard-error"}`}>
+                <p className={`mt-1.5 flex items-center gap-1.5 text-xs font-medium ${allDone ? "text-dashboard-success" : "text-dashboard-error"}`}>
                     {allDone
-                        ? "✓ All stays confirmed — booking will advance to Hotel Confirmed."
-                        : `${totalCount - confirmedCount} hotel stay${totalCount - confirmedCount !== 1 ? "s" : ""} still need confirmation`}
+                        ? <><CheckCircle2 className="size-3.5" /> All stays confirmed — booking will advance to Hotel Confirmed.</>
+                        : <><Clock className="size-3.5" /> {totalCount - confirmedCount} hotel stay{totalCount - confirmedCount !== 1 ? "s" : ""} still need confirmation</>}
                 </p>
             </div>
 
@@ -239,33 +239,48 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                                     <div className="px-4 py-3 flex flex-col gap-3">
                                         {/* Hotel name + contacts */}
                                         <div className="flex items-start justify-between gap-3">
-                                            <div className="min-w-0">
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <span className="text-sm font-semibold text-dashboard-base-content">
-                                                        🏨 {snap.hotel_name}
-                                                    </span>
-                                                    {hotel?.category && (
-                                                        <span className="rounded px-1.5 py-0.5 text-[10px] text-dashboard-neutral bg-dashboard-base-200">
-                                                            {hotel.category}
-                                                        </span>
+                                            <div className="min-w-0 flex items-start gap-3">
+                                                <div className="mt-0.5 shrink-0 rounded-md bg-blue-50 p-1.5 text-blue-600">
+                                                    <Hotel className="size-4" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <Link
+                                                            href={`/dashboard/hotels/${snap.hotel_id}`}
+                                                            target="_blank"
+                                                            className="inline-flex items-center gap-1 text-sm font-semibold text-dashboard-primary hover:underline"
+                                                        >
+                                                            {snap.hotel_name}
+                                                            <ExternalLink className="size-3" />
+                                                        </Link>
+                                                        {hotel?.category && (
+                                                            <span className="rounded px-1.5 py-0.5 text-[10px] text-dashboard-neutral bg-dashboard-base-200 border border-dashboard-base-300">
+                                                                {hotel.category}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {(snap.hotel_city || snap.hotel_state) && (
+                                                        <div className="flex items-center gap-1 mt-0.5">
+                                                            <MapPin className="size-3 text-dashboard-neutral" />
+                                                            <p className="text-xs text-dashboard-neutral">
+                                                                {[snap.hotel_city, snap.hotel_state].filter(Boolean).join(", ")}
+                                                            </p>
+                                                        </div>
                                                     )}
                                                 </div>
-                                                {(snap.hotel_city || snap.hotel_state) && (
-                                                    <p className="text-xs text-dashboard-neutral mt-0.5">
-                                                        {[snap.hotel_city, snap.hotel_state].filter(Boolean).join(", ")}
-                                                    </p>
-                                                )}
                                             </div>
                                             {(hotel?.business_phone || hotel?.business_email) && (
-                                                <div className="shrink-0 flex flex-col items-end gap-1 text-xs text-dashboard-neutral">
+                                                <div className="shrink-0 flex flex-col items-end gap-1.5 text-xs text-dashboard-neutral">
                                                     {hotel.business_phone && (
-                                                        <a href={`tel:${hotel.business_phone}`} className="cursor-pointer hover:text-dashboard-primary transition-colors">
-                                                            📞 {hotel.business_phone}
+                                                        <a href={`tel:${hotel.business_phone}`} className="flex items-center gap-1.5 hover:text-dashboard-primary transition-colors">
+                                                            <Phone className="size-3" />
+                                                            {hotel.business_phone}
                                                         </a>
                                                     )}
                                                     {hotel.business_email && (
-                                                        <a href={`mailto:${hotel.business_email}`} className="cursor-pointer hover:text-dashboard-primary transition-colors">
-                                                            ✉ {hotel.business_email}
+                                                        <a href={`mailto:${hotel.business_email}`} className="flex items-center gap-1.5 hover:text-dashboard-primary transition-colors">
+                                                            <Mail className="size-3" />
+                                                            {hotel.business_email}
                                                         </a>
                                                     )}
                                                 </div>
@@ -383,10 +398,12 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                                                     : "bg-dashboard-base-200/50 border border-dashboard-base-300/40"
                                             }`}
                                         >
-                                            <div className={`flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                                                done ? "bg-green-200 text-green-800" : "bg-dashboard-base-300/70 text-dashboard-neutral"
+                                            <div className={`flex size-5 shrink-0 items-center justify-center rounded-full ${
+                                                done ? "bg-green-200 text-green-700" : "bg-dashboard-base-300/70 text-dashboard-neutral"
                                             }`}>
-                                                {done ? "✓" : d.day}
+                                                {done
+                                                    ? <CheckCircle2 className="size-3.5" />
+                                                    : <span className="text-[10px] font-bold">{d.day}</span>}
                                             </div>
                                             <div className="min-w-0 flex-1">
                                                 <p className="truncate text-xs font-medium text-dashboard-base-content">{d.hotel.hotel_name}</p>
