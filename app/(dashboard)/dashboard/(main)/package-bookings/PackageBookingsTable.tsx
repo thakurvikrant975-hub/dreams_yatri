@@ -178,11 +178,11 @@ export function PackageBookingsTable({
                 <div className="space-y-1.5">
                     <div>
                         <p className="text-[10px] font-medium text-dashboard-base-content/50 uppercase tracking-wide leading-none mb-0.5">Arrival</p>
-                        <p className="text-sm text-dashboard-base-content whitespace-nowrap">{fmtDate(b.startDate)}</p>
+                        <p className="text-xs text-dashboard-base-content whitespace-nowrap">{fmtDate(b.startDate)}</p>
                     </div>
                     <div>
                         <p className="text-[10px] font-medium text-dashboard-base-content/50 uppercase tracking-wide leading-none mb-0.5">Departure</p>
-                        <p className="text-sm text-dashboard-base-content whitespace-nowrap">{fmtDate(b.endDate)}</p>
+                        <p className="text-xs text-dashboard-base-content whitespace-nowrap">{fmtDate(b.endDate)}</p>
                     </div>
                 </div>
             ),
