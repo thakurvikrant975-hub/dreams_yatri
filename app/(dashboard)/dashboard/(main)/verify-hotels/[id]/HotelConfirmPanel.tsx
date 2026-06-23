@@ -125,18 +125,18 @@ function ChangeHotelModal({
             }
         });
         return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [showAll]);
 
     // Filter rooms by search query (room name, hotel name, city)
     const q = search.trim().toLowerCase();
     const visibleRooms = q
         ? rooms.filter((r) => {
-              const hotel = hotelMap.get(r.hotel_id);
-              return r.name.toLowerCase().includes(q) ||
-                     (hotel?.name ?? "").toLowerCase().includes(q) ||
-                     (hotel?.city ?? "").toLowerCase().includes(q);
-          })
+            const hotel = hotelMap.get(r.hotel_id);
+            return r.name.toLowerCase().includes(q) ||
+                (hotel?.name ?? "").toLowerCase().includes(q) ||
+                (hotel?.city ?? "").toLowerCase().includes(q);
+        })
         : rooms;
 
     async function handleConfirmChange() {
@@ -220,23 +220,23 @@ function ChangeHotelModal({
             // max_occupancy = beds only; extra_bed_capacity = mattress slots.
             // Total capacity per room = beds + mattresses.
             const totalCapacity = room.max_occupancy + room.extra_bed_capacity;
-            const roomsNeeded   = Math.ceil(travellers / totalCapacity);
+            const roomsNeeded = Math.ceil(travellers / totalCapacity);
             // Extra beds = people beyond pure-bed capacity across all rooms.
             // Capped at the actual mattress slots available (rooms × extra_bed_capacity).
             const rawExtraBeds = Math.max(0, travellers - roomsNeeded * room.max_occupancy);
-            const extraBeds    = p.extra_bed_rate != null
+            const extraBeds = p.extra_bed_rate != null
                 ? Math.min(rawExtraBeds, roomsNeeded * room.extra_bed_capacity)
                 : 0;
 
             // Cost breakdown
-            const roomCost     = p.price_per_night * roomsNeeded * numNights;
+            const roomCost = p.price_per_night * roomsNeeded * numNights;
             const extraBedCost = (p.extra_bed_rate != null && extraBeds > 0)
                 ? p.extra_bed_rate * extraBeds * numNights : 0;
             const mealCostPerPax = hotelMeals.reduce((s, m) => s + m.price_per_person, 0);
-            const mealTotal    = mealCostPerPax * travellers * numNights;
-            const grandTotal   = roomCost + extraBedCost + mealTotal;
-            const totalDiff    = isCurrentBooking ? 0 : grandTotal - adjustedSnapshotTotal;
-            const diffLabel    = totalDiff === 0 ? null
+            const mealTotal = mealCostPerPax * travellers * numNights;
+            const grandTotal = roomCost + extraBedCost + mealTotal;
+            const totalDiff = isCurrentBooking ? 0 : grandTotal - adjustedSnapshotTotal;
+            const diffLabel = totalDiff === 0 ? null
                 : `${totalDiff > 0 ? "+" : "-"}${inr(Math.abs(totalDiff))}`;
 
             return (
@@ -244,13 +244,12 @@ function ChangeHotelModal({
                     key={`${room.id}-${p.id}`}
                     type="button"
                     onClick={() => setSelected({ hotel, room, pricing: p })}
-                    className={`cursor-pointer w-full rounded-lg border text-left flex flex-col gap-2.5 p-3 transition-colors ${
-                        isSelected
+                    className={`cursor-pointer w-full rounded-lg border text-left flex flex-col gap-2.5 p-3 transition-colors ${isSelected
                             ? "border-green-500 bg-green-50"
                             : isCurrentBooking
-                            ? "border-green-600 bg-green-50 hover:bg-green-50/80"
-                            : "border-dashboard-base-300 bg-dashboard-base-100 hover:bg-dashboard-base-200/50"
-                    }`}
+                                ? "border-green-600 bg-green-50 hover:bg-green-50/80"
+                                : "border-dashboard-base-300 bg-dashboard-base-100 hover:bg-dashboard-base-200/50"
+                        }`}
                 >
                     {/* ── Hotel strip ───────────────────────────────────── */}
                     <div className="w-full flex items-start justify-between gap-2">
