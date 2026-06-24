@@ -403,6 +403,7 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
     () => (hotel.property_amenities as AmenitiesMap) ?? {}
   );
   const [activeCategory, setActiveCategory] = useState(AMENITY_CATEGORIES[0].label);
+  const [search, setSearch] = useState("");
   const [poolModal, setPoolModal] = useState<{ editingPool: PoolConfig | null } | null>(null);
 
   // ── State updaters ─────────────────────────────────────────────────────────
@@ -862,8 +863,17 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
     };
   }
 
-  const activeCat        = AMENITY_CATEGORIES.find((c) => c.label === activeCategory)!;
-  const activeStats      = getStats(activeCat.items);
+  const activeCat   = AMENITY_CATEGORIES.find((c) => c.label === activeCategory)!;
+  const activeStats = getStats(activeCat.items);
+  const sq          = search.toLowerCase().trim();
+
+  const searchResults = sq
+    ? AMENITY_CATEGORIES.flatMap((cat) =>
+        cat.items
+          .filter((name) => name.toLowerCase().includes(sq))
+          .map((name) => ({ name, category: cat.label }))
+      )
+    : [];
   const isMandatory           = activeCategory === "Mandatory";
   const isGeneralServices     = activeCategory === "General Services";
   const isSecurityCategory    = activeCategory === "Security";
@@ -893,7 +903,54 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
           </div>
         )}
 
-        {/* Sidebar + Content */}
+        {/* Global search */}
+        <div className="mb-3">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search all amenities…"
+            className="w-full text-sm border border-neutral-200 rounded-xl px-4 py-2.5 placeholder:text-neutral-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-colors bg-white shadow-sm"
+          />
+        </div>
+
+        {sq ? (
+          /* Global search results */
+          <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden shadow-sm">
+            {searchResults.length === 0 ? (
+              <p className="px-6 py-10 text-center text-sm text-neutral-400">
+                No amenities match &ldquo;{search}&rdquo;
+              </p>
+            ) : (
+              searchResults.map(({ name, category }) => {
+                const value = amenities[name];
+                const yes = isYesValue(value);
+                const no  = isNoValue(value);
+                return (
+                  <div
+                    key={`${category}::${name}`}
+                    className={cn(
+                      "flex items-center justify-between px-6 py-3.5 border-b border-neutral-100 last:border-0",
+                      yes ? "bg-emerald-50/40" : no ? "bg-neutral-50/40" : "",
+                    )}
+                  >
+                    <div className="flex-1 min-w-0 pr-4">
+                      <p className="text-sm text-neutral-700">{name}</p>
+                      <p className="text-xs text-neutral-400 mt-0.5">{category}</p>
+                    </div>
+                    <YesNoButtons
+                      value={yes ? true : no ? false : undefined}
+                      onChange={(val) => setAmenityValue(name, val)}
+                      disabled={isPending}
+                    />
+                  </div>
+                );
+              })
+            )}
+          </div>
+        ) : (
+
+        /* Sidebar + Content */
         <div className="flex bg-white rounded-xl border border-neutral-200 overflow-hidden shadow-sm">
 
           {/* Sidebar */}
@@ -1155,6 +1212,7 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
 
           </div>
         </div>
+        )} {/* end sq ternary */}
       </form>
 
       {poolModal && (

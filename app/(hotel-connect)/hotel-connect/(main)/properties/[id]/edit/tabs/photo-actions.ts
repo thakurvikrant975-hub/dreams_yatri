@@ -110,6 +110,7 @@ export async function uploadHotelPhotos(
         fileName: file.name,
         contentType: file.type || "image/jpeg",
       });
+      const isPrimary = existingCount === 0 && count === 0;
       await db.hotel_images.create({
         data: {
           hotel_id: hotelId,
@@ -117,9 +118,12 @@ export async function uploadHotelPhotos(
           url,
           tags: [],
           sort_order: existingCount + count,
-          is_primary: existingCount === 0 && count === 0,
+          is_primary: isPrimary,
         },
       });
+      if (isPrimary) {
+        await db.hotels.update({ where: { id: hotelId }, data: { thumbnail: url } });
+      }
       count++;
     }
     return { count };
@@ -138,9 +142,14 @@ export async function setCoverPhoto(
   if (!(await assertOwner(hotelId, session.user.id))) return { error: "Property not found." };
 
   try {
+    const image = await db.hotel_images.findUnique({
+      where: { id: imageId },
+      select: { url: true },
+    });
     await db.$transaction([
       db.hotel_images.updateMany({ where: { hotel_id: hotelId }, data: { is_primary: false } }),
       db.hotel_images.update({ where: { id: imageId }, data: { is_primary: true } }),
+      db.hotels.update({ where: { id: hotelId }, data: { thumbnail: image?.url ?? null } }),
     ]);
     return {};
   } catch (err) {
@@ -179,7 +188,7 @@ export async function deleteHotelPhoto(
   try {
     const image = await db.hotel_images.findFirst({
       where: { id: imageId, hotel_id: hotelId },
-      select: { id: true, url: true },
+      select: { id: true, url: true, is_primary: true },
     });
     if (!image) return { error: "Photo not found." };
 
@@ -196,6 +205,19 @@ export async function deleteHotelPhoto(
     }
 
     await db.hotel_images.delete({ where: { id: imageId } });
+
+    if (image.is_primary) {
+      const next = await db.hotel_images.findFirst({
+        where: { hotel_id: hotelId },
+        orderBy: [{ sort_order: "asc" }],
+        select: { id: true, url: true },
+      });
+      await db.$transaction([
+        ...(next ? [db.hotel_images.update({ where: { id: next.id }, data: { is_primary: true } })] : []),
+        db.hotels.update({ where: { id: hotelId }, data: { thumbnail: next?.url ?? null } }),
+      ]);
+    }
+
     return {};
   } catch (err) {
     console.error("[deleteHotelPhoto]", err);

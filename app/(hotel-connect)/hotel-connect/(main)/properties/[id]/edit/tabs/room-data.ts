@@ -87,6 +87,105 @@ export const ROOM_MANDATORY_CONFIG: RoomAmenityConfig[] = [
   { name: "Peep Hole" },
 ];
 
+export const ROOM_POPULAR_CONFIG: RoomAmenityConfig[] = [
+  { name: "Interconnected Room" },
+  { name: "Heater",          field: { label: "Cost",         type: "select", options: ["Free", "Paid"] } },
+  { name: "Housekeeping",    field: { label: "Availability", type: "select", options: ["24 hours", "Limited duration", "Daily"] } },
+  { name: "In Room Dining",  field: { label: "Availability", type: "select", options: ["24 hours", "Limited duration", "Indian veg food", "Jain food", "Indian Veg & Jain food"] } },
+  { name: "Laundry Service", field: { label: "Cost",         type: "select", options: ["Free", "Paid"] } },
+  { name: "Room Service",    field: { label: "Availability", type: "select", options: ["24 hours", "Limited duration"] } },
+  { name: "Smoking Room" },
+  { name: "Study Room" },
+  { name: "Air Purifier" },
+  { name: "Bathroom Phone" },
+  { name: "Bubble Bath" },
+  { name: "Dental Kit" },
+  { name: "Geyser/Water Heater" },
+  { name: "Slippers" },
+  { name: "Shower Cap" },
+  { name: "Hammam" },
+  { name: "Bathrobes" },
+  { name: "Western Toilet Seat" },
+  { name: "Shower Cubicle" },
+  { name: "Weighing Scale" },
+  { name: "Shaving Mirror" },
+  { name: "Sewing Kit" },
+  { name: "Bidet" },
+  { name: "Toilet with Grab Rails" },
+  { name: "Ensuite Bathroom/Common Bay" },
+  { name: "Jetspray" },
+  { name: "Open Air Shower" },
+];
+
+export const ROOM_FEATURES_CONFIG: RoomAmenityConfig[] = [
+  { name: "Closet" },
+  { name: "Blackout Curtains" },
+  { name: "Center Table" },
+  { name: "Charging Points", field: { type: "multiselect", options: ["International Adaptors"] } },
+  { name: "Couch" },
+  { name: "Dining Table" },
+  { name: "Fireplace" },
+  { name: "Mini Fridge" },
+  { name: "Sofa", field: { type: "multiselect", options: ["Sofa Chair", "Sofa cum bed"] } },
+  { name: "Telephone" },
+  { name: "Work Desk" },
+  { name: "Pillow Menu" },
+  { name: "Hypoallergenic Bedding" },
+  { name: "Living Area" },
+  { name: "Dining Area" },
+  { name: "Seating Area" },
+  { name: "Chair" },
+  { name: "Fireplace Guards" },
+  { name: "Open Air Bath" },
+  { name: "Jacuzzi" },
+  { name: "Hot Water Bag" },
+  { name: "Full-length Mirror" },
+  { name: "Private Garden" },
+  { name: "Private Beach" },
+];
+
+const ROOM_FREE_PAID: RoomAmenitySubField = { label: "Cost", type: "select", options: ["Free", "Paid"] };
+
+export const ROOM_FOOD_DRINKS_CONFIG: RoomAmenityConfig[] = [
+  { name: "Cake",          field: ROOM_FREE_PAID },
+  { name: "Fruit Basket",  field: ROOM_FREE_PAID },
+  { name: "Mini Bar",      field: ROOM_FREE_PAID },
+  { name: "BBQ Grill",     field: ROOM_FREE_PAID },
+  { name: "Cook Service",  field: ROOM_FREE_PAID },
+  { name: "Champagne",     field: ROOM_FREE_PAID },
+  { name: "Sparkling Wine", field: ROOM_FREE_PAID },
+];
+
+export const ROOM_KITCHEN_CONFIG: RoomAmenityConfig[] = [
+  { name: "Dishwasher",        field: ROOM_FREE_PAID },
+  { name: "Induction" },
+  { name: "Kitchenette",       field: { label: "Type",    type: "select",      options: ["Private", "Shared"] } },
+  { name: "Refrigerator" },
+  { name: "Washing Machine" },
+  { name: "Cook/Chef",         field: ROOM_FREE_PAID },
+  { name: "Cooking Basics",    field: { type: "multiselect", options: ["Pots", "Pans", "Cooking Oil", "Cooker", "Dishes", "Silverware", "Salt & Pepper", "Seasoning", "Tableware", "Microwave Oven"] } },
+  { name: "Coffee Machine" },
+  { name: "Stove/Induction" },
+  { name: "Dishes and Silverware" },
+  { name: "Toaster" },
+  { name: "Microwave" },
+  { name: "Rice Cooker" },
+  { name: "Espresso Pod Machine" },
+  { name: "French Press" },
+];
+
+export const ROOM_BEDS_BLANKET_CONFIG: RoomAmenityConfig[] = [
+  { name: "Blanket", field: { type: "multiselect", options: ["Electric", "Woolen"] } },
+];
+
+export const ROOM_OTHER_FACILITIES_CONFIG: RoomAmenityConfig[] = [
+  { name: "Mosquito Net" },
+  { name: "Newspaper" },
+  { name: "Terrace" },
+  { name: "Fan",           field: { label: "Type", type: "select", options: ["Ceiling Fan", "Table Fan"] } },
+  { name: "Butler Service" },
+];
+
 export const ROOM_AMENITY_GROUPS: { label: string; items: string[] }[] = [
   {
     label: "Mandatory",

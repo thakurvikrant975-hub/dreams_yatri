@@ -943,10 +943,29 @@ model hotels {
   checkin_24_hours          Boolean?
   acceptable_id_proofs      String[]                 @default([])
   infant_free_occupancy     Boolean?
-  infant_complimentary_food Boolean?
-  extra_bed_included        Boolean?
-  provide_bed_extra_adults  Boolean?
-  provide_bed_extra_kids    Boolean?
+  infant_complimentary_food  Boolean?
+  extra_bed_included         Boolean?
+  provide_bed_extra_adults   Boolean?
+  provide_bed_extra_kids     Boolean?
+  // ── Extra bed detail fields ────────────────────────────────────────────────
+  extra_bed_adults_avail     String?
+  extra_bed_adults_types     String[]  @default([])
+  extra_cot_charge_adult     String?
+  extra_mattress_charge_adult  String?
+  extra_sofa_charge_adult    String?
+  extra_bed_kids_avail       String?
+  extra_bed_kids_types       String[]  @default([])
+  extra_cot_charge_child     String?
+  extra_mattress_charge_child  String?
+  extra_sofa_charge_child    String?
+  extra_crib_charge_child    String?
+  // ── Meal rack prices ──────────────────────────────────────────────────────
+  meal_price_breakfast       String?
+  meal_price_lunch           String?
+  meal_price_dinner          String?
+  // ── Homestay-specific wizard fields ──────────────────────────────────────
+  hosted_as                  String?
+  host_lives_at_property     Boolean?
   // ── Finance & Legal wizard fields ─────────────────────────────────────────
   bank_account_number     String?
   bank_ifsc_code          String?
@@ -2459,11 +2478,27 @@ enum PropertyCategory {
 enum PropertySubType {
   HOTEL
   RESORT
+  LODGE
   GUEST_HOUSE
+  PALACE
   HOUSEBOAT
+  MOTEL
   VILLA
   HOMESTAY
+  COTTAGE
   APARTMENT
+  APART_HOTEL
+  HOSTEL
+  BED_AND_BREAKFAST
+  FARMHOUSE
+  CAMP
+  BEACH_HUT
+  TREEHOUSE
+  DHARAMSHALA
+  ASHRAM
+  HOLIDAY_HOME
+  RV
+  LUXURY_CAMPS
 }
 
 // ── Blog ─────────────────────────────────────────────────────────────────────

@@ -13,7 +13,7 @@ import { SearchSelect, MultiSearchSelect } from "@/app/(hotel-connect)/hotel-con
 import { createRoom, updateRoom, deleteRoom, fetchRoomForEdit, type RoomEditPayload } from "./room-actions";
 import {
   ROOM_TYPES, GUEST_HOUSE_ROOM_TYPES, ROOM_VIEWS, BED_TYPES, MULTI_ROOM_TYPES,
-  MEAL_PLANS, ROOM_AMENITY_GROUPS, ROOM_MANDATORY_CONFIG, type RoomAmenityConfig,
+  MEAL_PLANS, ROOM_AMENITY_GROUPS, ROOM_MANDATORY_CONFIG, ROOM_POPULAR_CONFIG, ROOM_FEATURES_CONFIG, ROOM_FOOD_DRINKS_CONFIG, ROOM_KITCHEN_CONFIG, ROOM_BEDS_BLANKET_CONFIG, ROOM_OTHER_FACILITIES_CONFIG, type RoomAmenityConfig,
 } from "./room-data";
 
 const inputBase =
@@ -957,8 +957,20 @@ function Section5({ data, onChange }: {
   data: RoomFormData; onChange: (d: RoomFormData) => void;
 }) {
   const [activeCategory, setActiveCategory] = useState(ROOM_AMENITY_GROUPS[0].label);
+  const [search, setSearch] = useState("");
+
   const activeGroup = ROOM_AMENITY_GROUPS.find((g) => g.label === activeCategory) ?? ROOM_AMENITY_GROUPS[0];
-  const isMandatory = activeCategory === "Mandatory";
+  const configMap: Record<string, RoomAmenityConfig[] | undefined> = {
+    "Mandatory":             ROOM_MANDATORY_CONFIG,
+    "Popular with Guests":   ROOM_POPULAR_CONFIG,
+    "Room Features":         ROOM_FEATURES_CONFIG,
+    "Food & Drinks":         ROOM_FOOD_DRINKS_CONFIG,
+    "Kitchen & Appliances":  ROOM_KITCHEN_CONFIG,
+    "Beds & Blanket":        ROOM_BEDS_BLANKET_CONFIG,
+    "Other Facilities":      ROOM_OTHER_FACILITIES_CONFIG,
+  };
+  const activeConfig = configMap[activeCategory];
+  const sq = search.toLowerCase().trim();
 
   function setItem(item: string, val: boolean) {
     const cur = data.room_amenities;
@@ -984,117 +996,193 @@ function Section5({ data, onChange }: {
 
   const allActiveSelected = activeGroup.items.every((i) => data.room_amenities.includes(i));
 
-  return (
-    <div className="flex divide-x divide-neutral-100" style={{ minHeight: 340 }}>
+  // Global search: flatten all groups
+  const searchResults = sq
+    ? ROOM_AMENITY_GROUPS.flatMap((group) => {
+        const cfg = configMap[group.label];
+        const items: RoomAmenityConfig[] = cfg ?? group.items.map((name) => ({ name }));
+        return items
+          .filter((c) => c.name.toLowerCase().includes(sq))
+          .map((c) => ({ config: c, category: group.label }));
+      })
+    : [];
 
-      {/* Sidebar */}
-      <div className="w-44 shrink-0 overflow-y-auto border-r border-neutral-100">
-        {ROOM_AMENITY_GROUPS.map((group) => {
-          const selected = group.items.filter((i) => data.room_amenities.includes(i)).length;
-          const isActive = activeCategory === group.label;
-          return (
-            <button
-              key={group.label}
-              type="button"
-              onClick={() => setActiveCategory(group.label)}
-              className={cn(
-                "w-full text-left px-4 py-3 border-b border-neutral-100 transition-colors relative",
-                isActive
-                  ? "bg-primary-50 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-0.5 before:bg-primary-500"
-                  : "hover:bg-neutral-50",
+  function renderRow(config: RoomAmenityConfig, key: string) {
+    const selected = data.room_amenities.includes(config.name);
+    const detailVal = data.room_amenity_details[config.name];
+    return (
+      <div key={key} className={cn("border-b border-neutral-100 last:border-0", selected ? "bg-emerald-50/40" : "")}>
+        <div className="flex items-center justify-between px-5 py-3">
+          <span className="text-sm text-neutral-700 flex-1 pr-4">{config.name}</span>
+          <RoomYesNo selected={selected} onChange={(v) => setItem(config.name, v)} />
+        </div>
+        {selected && config.field && (
+          <div className="px-5 pb-3">
+            <div className="max-w-xs">
+              {config.field.type === "select" ? (
+                <SearchSelect
+                  options={config.field.options}
+                  value={(detailVal as string) ?? ""}
+                  onChange={(v) => updateDetail(config.name, v)}
+                  placeholder={config.field.label ?? "Select…"}
+                  showSearch={false}
+                />
+              ) : (
+                <MultiSearchSelect
+                  options={config.field.options}
+                  value={(detailVal as string[]) ?? []}
+                  onChange={(v) => updateDetail(config.name, v)}
+                  placeholder={config.field.label ?? "Select…"}
+                />
               )}
-            >
-              <p className={cn("text-[13px] font-medium leading-snug", isActive ? "text-primary-600" : "text-neutral-700")}>
-                {group.label}
-              </p>
-              <p className={cn(
-                "text-[11px] mt-0.5 font-medium",
-                selected === group.items.length ? "text-emerald-600" : selected > 0 ? "text-amber-500" : "text-neutral-400",
-              )}>
-                {selected} of {group.items.length}
-              </p>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Content panel */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-2.5 border-b border-neutral-100 bg-neutral-50/60 shrink-0">
-          <span className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">
-            {activeCategory}
-          </span>
-          <button
-            type="button"
-            onClick={() => setAll(activeGroup.items, !allActiveSelected)}
-            className="text-xs font-medium text-primary-600 hover:text-primary-700 transition-colors"
-          >
-            {allActiveSelected ? "Deselect all" : "Select all"}
-          </button>
-        </div>
-
-        <div className="overflow-y-auto flex-1">
-          {isMandatory
-            ? ROOM_MANDATORY_CONFIG.map((config) => {
-                const selected = data.room_amenities.includes(config.name);
-                const detailVal = data.room_amenity_details[config.name];
-                return (
-                  <div key={config.name} className={cn("border-b border-neutral-100 last:border-0", selected ? "bg-emerald-50/40" : "")}>
-                    <div className="flex items-center justify-between px-5 py-3">
-                      <span className="text-sm text-neutral-700 flex-1 pr-4">{config.name}</span>
-                      <RoomYesNo selected={selected} onChange={(v) => setItem(config.name, v)} />
-                    </div>
-                    {selected && config.field && (
-                      <div className="px-5 pb-3">
-                        <div className="max-w-xs">
-                          {config.field.type === "select" ? (
-                            <SearchSelect
-                              options={config.field.options}
-                              value={(detailVal as string) ?? ""}
-                              onChange={(v) => updateDetail(config.name, v)}
-                              placeholder={config.field.label ?? "Select…"}
-                              showSearch={false}
-                            />
-                          ) : (
-                            <MultiSearchSelect
-                              options={config.field.options}
-                              value={(detailVal as string[]) ?? []}
-                              onChange={(v) => updateDetail(config.name, v)}
-                              placeholder={config.field.label ?? "Select…"}
-                            />
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            : activeGroup.items.map((item) => {
-                const selected = data.room_amenities.includes(item);
-                return (
-                  <div
-                    key={item}
-                    className={cn(
-                      "flex items-center justify-between px-5 py-3 border-b border-neutral-100 last:border-0",
-                      selected ? "bg-emerald-50/40" : "",
-                    )}
-                  >
-                    <span className="text-sm text-neutral-700 flex-1 pr-4">{item}</span>
-                    <RoomYesNo selected={selected} onChange={(v) => setItem(item, v)} />
-                  </div>
-                );
-              })
-          }
-        </div>
-
-        {data.room_amenities.length > 0 && (
-          <div className="px-5 py-2 border-t border-neutral-100 bg-neutral-50/60 shrink-0">
-            <p className="text-xs text-neutral-400">
-              {data.room_amenities.length} amenit{data.room_amenities.length === 1 ? "y" : "ies"} selected across all categories
-            </p>
+            </div>
           </div>
         )}
       </div>
+    );
+  }
+
+  return (
+    <div>
+      {/* Global search input */}
+      <div className="px-4 py-3 border-b border-neutral-100">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search all amenities…"
+          className="w-full text-sm border border-neutral-200 rounded-lg px-3 py-2 placeholder:text-neutral-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-colors"
+        />
+      </div>
+
+      {sq ? (
+        /* ── Global search results ── */
+        <div className="overflow-y-auto" style={{ maxHeight: 500 }}>
+          {searchResults.length === 0 ? (
+            <p className="px-5 py-8 text-center text-sm text-neutral-400">
+              No amenities match &ldquo;{search}&rdquo;
+            </p>
+          ) : (
+            searchResults.map(({ config, category }) => {
+              const selected = data.room_amenities.includes(config.name);
+              const detailVal = data.room_amenity_details[config.name];
+              return (
+                <div key={`${category}::${config.name}`} className={cn("border-b border-neutral-100 last:border-0", selected ? "bg-emerald-50/40" : "")}>
+                  <div className="flex items-center justify-between px-5 py-3">
+                    <div className="flex-1 min-w-0 pr-4">
+                      <p className="text-sm text-neutral-700">{config.name}</p>
+                      <p className="text-xs text-neutral-400 mt-0.5">{category}</p>
+                    </div>
+                    <RoomYesNo selected={selected} onChange={(v) => setItem(config.name, v)} />
+                  </div>
+                  {selected && config.field && (
+                    <div className="px-5 pb-3">
+                      <div className="max-w-xs">
+                        {config.field.type === "select" ? (
+                          <SearchSelect
+                            options={config.field.options}
+                            value={(detailVal as string) ?? ""}
+                            onChange={(v) => updateDetail(config.name, v)}
+                            placeholder={config.field.label ?? "Select…"}
+                            showSearch={false}
+                          />
+                        ) : (
+                          <MultiSearchSelect
+                            options={config.field.options}
+                            value={(detailVal as string[]) ?? []}
+                            onChange={(v) => updateDetail(config.name, v)}
+                            placeholder={config.field.label ?? "Select…"}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      ) : (
+        /* ── Normal sidebar + panel ── */
+        <div className="flex divide-x divide-neutral-100" style={{ minHeight: 340 }}>
+
+          {/* Sidebar */}
+          <div className="w-44 shrink-0 overflow-y-auto border-r border-neutral-100">
+            {ROOM_AMENITY_GROUPS.map((group) => {
+              const selected = group.items.filter((i) => data.room_amenities.includes(i)).length;
+              const isActive = activeCategory === group.label;
+              return (
+                <button
+                  key={group.label}
+                  type="button"
+                  onClick={() => setActiveCategory(group.label)}
+                  className={cn(
+                    "w-full text-left px-4 py-3 border-b border-neutral-100 transition-colors relative",
+                    isActive
+                      ? "bg-primary-50 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-0.5 before:bg-primary-500"
+                      : "hover:bg-neutral-50",
+                  )}
+                >
+                  <p className={cn("text-[13px] font-medium leading-snug", isActive ? "text-primary-600" : "text-neutral-700")}>
+                    {group.label}
+                  </p>
+                  <p className={cn(
+                    "text-[11px] mt-0.5 font-medium",
+                    selected === group.items.length ? "text-emerald-600" : selected > 0 ? "text-amber-500" : "text-neutral-400",
+                  )}>
+                    {selected} of {group.items.length}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Content panel */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-2.5 border-b border-neutral-100 bg-neutral-50/60 shrink-0">
+              <span className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">
+                {activeCategory}
+              </span>
+              <button
+                type="button"
+                onClick={() => setAll(activeGroup.items, !allActiveSelected)}
+                className="text-xs font-medium text-primary-600 hover:text-primary-700 transition-colors"
+              >
+                {allActiveSelected ? "Deselect all" : "Select all"}
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1">
+              {activeConfig
+                ? activeConfig.map((config) => renderRow(config, config.name))
+                : activeGroup.items.map((item) => {
+                    const selected = data.room_amenities.includes(item);
+                    return (
+                      <div
+                        key={item}
+                        className={cn(
+                          "flex items-center justify-between px-5 py-3 border-b border-neutral-100 last:border-0",
+                          selected ? "bg-emerald-50/40" : "",
+                        )}
+                      >
+                        <span className="text-sm text-neutral-700 flex-1 pr-4">{item}</span>
+                        <RoomYesNo selected={selected} onChange={(v) => setItem(item, v)} />
+                      </div>
+                    );
+                  })
+              }
+            </div>
+
+            {data.room_amenities.length > 0 && (
+              <div className="px-5 py-2 border-t border-neutral-100 bg-neutral-50/60 shrink-0">
+                <p className="text-xs text-neutral-400">
+                  {data.room_amenities.length} amenit{data.room_amenities.length === 1 ? "y" : "ies"} selected across all categories
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

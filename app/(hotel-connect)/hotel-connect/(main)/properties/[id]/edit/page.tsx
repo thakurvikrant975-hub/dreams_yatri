@@ -3,6 +3,7 @@ import { hotelConnectAuth } from "@/app/lib/auth-hotel-connect";
 import { db } from "@/app/lib/db";
 import WizardShell, { WIZARD_TABS } from "./WizardShell";
 import BasicInfoTab from "./tabs/BasicInfoTab";
+import HomestayBasicInfoTab, { type HomestayBasicInfo } from "./tabs/HomestayBasicInfoTab";
 import LocationTab from "./tabs/LocationTab";
 import AmenitiesTab, { type HotelAmenitiesInfo } from "./tabs/AmenitiesTab";
 import RoomsTab, { type RoomSummary } from "./tabs/RoomsTab";
@@ -50,6 +51,9 @@ export default async function EditPropertyPage({
       whatsapp_same_as_mobile: true,
       contact_whatsapp: true,
       contact_landline: true,
+      // homestay-specific fields
+      hosted_as: true,
+      host_lives_at_property: true,
       // location fields
       address: true,
       landmark: true,
@@ -88,6 +92,20 @@ export default async function EditPropertyPage({
       extra_bed_included: true,
       provide_bed_extra_adults: true,
       provide_bed_extra_kids: true,
+      extra_bed_adults_avail: true,
+      extra_bed_adults_types: true,
+      extra_cot_charge_adult: true,
+      extra_mattress_charge_adult: true,
+      extra_sofa_charge_adult: true,
+      extra_bed_kids_avail: true,
+      extra_bed_kids_types: true,
+      extra_cot_charge_child: true,
+      extra_mattress_charge_child: true,
+      extra_sofa_charge_child: true,
+      extra_crib_charge_child: true,
+      meal_price_breakfast: true,
+      meal_price_lunch: true,
+      meal_price_dinner: true,
       // finance fields
       bank_account_number: true,
       bank_ifsc_code: true,
@@ -180,7 +198,9 @@ export default async function EditPropertyPage({
 
   const tabContent =
     currentTab === 1 ? (
-      <BasicInfoTab hotel={h} />
+      h.property_category === "HOMESTAY_VILLA"
+        ? <HomestayBasicInfoTab hotel={h as unknown as HomestayBasicInfo} />
+        : <BasicInfoTab hotel={h} />
     ) : currentTab === 2 ? (
       <LocationTab hotel={h} />
     ) : currentTab === 3 ? (

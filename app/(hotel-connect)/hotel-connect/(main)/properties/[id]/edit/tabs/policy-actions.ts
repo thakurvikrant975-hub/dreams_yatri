@@ -67,8 +67,26 @@ export async function savePolicies(
   const infant_free_occupancy      = parseBool(formData.get("infant_free_occupancy"));
   const infant_complimentary_food  = parseBool(formData.get("infant_complimentary_food"));
   const extra_bed_included         = parseBool(formData.get("extra_bed_included"));
-  const provide_bed_extra_adults   = parseBool(formData.get("provide_bed_extra_adults"));
-  const provide_bed_extra_kids     = parseBool(formData.get("provide_bed_extra_kids"));
+
+  const extra_bed_adults_avail  = (formData.get("extra_bed_adults_avail") as string | null) || null;
+  const extra_bed_adults_types  = extra_bed_adults_avail === "yes" ? parseStrArray(formData.get("extra_bed_adults_types")) : [];
+  const extra_cot_charge_adult  = extra_bed_adults_avail === "yes" ? (formData.get("extra_cot_charge_adult") as string | null) || null : null;
+  const extra_mattress_charge_adult = extra_bed_adults_avail === "yes" ? (formData.get("extra_mattress_charge_adult") as string | null) || null : null;
+  const extra_sofa_charge_adult = extra_bed_adults_avail === "yes" ? (formData.get("extra_sofa_charge_adult") as string | null) || null : null;
+
+  const extra_bed_kids_avail    = (formData.get("extra_bed_kids_avail") as string | null) || null;
+  const extra_bed_kids_types    = extra_bed_kids_avail === "yes" ? parseStrArray(formData.get("extra_bed_kids_types")) : [];
+  const extra_cot_charge_child  = extra_bed_kids_avail === "yes" ? (formData.get("extra_cot_charge_child") as string | null) || null : null;
+  const extra_mattress_charge_child = extra_bed_kids_avail === "yes" ? (formData.get("extra_mattress_charge_child") as string | null) || null : null;
+  const extra_sofa_charge_child = extra_bed_kids_avail === "yes" ? (formData.get("extra_sofa_charge_child") as string | null) || null : null;
+  const extra_crib_charge_child = extra_bed_kids_avail === "yes" ? (formData.get("extra_crib_charge_child") as string | null) || null : null;
+
+  const provide_bed_extra_adults = extra_bed_adults_avail === "yes" ? true : extra_bed_adults_avail === "no" ? false : null;
+  const provide_bed_extra_kids   = extra_bed_kids_avail   === "yes" ? true : extra_bed_kids_avail   === "no" ? false : null;
+
+  const meal_price_breakfast = (formData.get("meal_price_breakfast") as string | null) || null;
+  const meal_price_lunch     = (formData.get("meal_price_lunch")     as string | null) || null;
+  const meal_price_dinner    = (formData.get("meal_price_dinner")    as string | null) || null;
 
   await db.hotels.update({
     where: { id: hotelId },
@@ -99,6 +117,20 @@ export async function savePolicies(
       extra_bed_included,
       provide_bed_extra_adults,
       provide_bed_extra_kids,
+      extra_bed_adults_avail,
+      extra_bed_adults_types,
+      extra_cot_charge_adult,
+      extra_mattress_charge_adult,
+      extra_sofa_charge_adult,
+      extra_bed_kids_avail,
+      extra_bed_kids_types,
+      extra_cot_charge_child,
+      extra_mattress_charge_child,
+      extra_sofa_charge_child,
+      extra_crib_charge_child,
+      meal_price_breakfast,
+      meal_price_lunch,
+      meal_price_dinner,
       wizard_step: Math.max(hotel.wizard_step, 6),
     },
   });

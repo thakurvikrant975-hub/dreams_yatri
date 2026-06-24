@@ -3,6 +3,7 @@ import { db } from "@/app/lib/db";
 import ConnectHeader from "../components/ConnectHeader";
 import { Card } from "@/app/components/ui/Card";
 import Link from "next/link";
+import Image from "next/image";
 import {
   BuildingsIcon,
   PlusCircleIcon,
@@ -13,7 +14,6 @@ import {
   DoorIcon,
   CheckCircleIcon,
   ClockIcon,
-  WarningCircleIcon,
   ProhibitIcon,
   NotePencilIcon,
 } from "@phosphor-icons/react/dist/ssr";
@@ -173,11 +173,12 @@ export default async function PropertiesPage({
                     {/* Thumbnail */}
                     <div className="relative h-36 bg-neutral-100 overflow-hidden">
                       {hotel.coverImage ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
+                        <Image
                           src={hotel.coverImage}
                           alt={hotel.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          fill
+                          className="object-cover group-hover:scale-105 transition-transform duration-300"
+                          sizes="(max-width: 640px) 100vw, 50vw"
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
