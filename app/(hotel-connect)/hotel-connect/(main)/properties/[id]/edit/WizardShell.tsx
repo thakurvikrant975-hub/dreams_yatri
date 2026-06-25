@@ -219,12 +219,14 @@ export default function WizardShell({
   currentTab,
   tabFormId,
   effectiveWizardStep,
+  hideNextButton,
   children,
 }: {
   hotel: HotelSummary;
   currentTab: number;
   tabFormId?: string;
   effectiveWizardStep: number;
+  hideNextButton?: boolean;
   children: React.ReactNode;
 }) {
   const router = useRouter();
@@ -349,7 +351,9 @@ export default function WizardShell({
             Step {currentTab} of {WIZARD_TABS.length}
           </p>
 
-          {tabFormId ? (
+          {hideNextButton ? (
+            <div />
+          ) : tabFormId ? (
             <Button
               type="submit"
               form={tabFormId}

@@ -211,7 +211,8 @@ export default async function EditPropertyPage({
     }));
   }
   const tabLabel   = WIZARD_TABS[currentTab - 1]?.label ?? "";
-  const tabFormId  = TABS_WITH_FORM.has(currentTab) ? "wizard-form" : undefined;
+  const isHomestayTab1 = currentTab === 1 && h.property_category === "HOMESTAY_VILLA";
+  const tabFormId  = isHomestayTab1 || !TABS_WITH_FORM.has(currentTab) ? undefined : "wizard-form";
 
   const tabContent =
     currentTab === 1 ? (
@@ -240,6 +241,7 @@ export default async function EditPropertyPage({
       currentTab={currentTab}
       tabFormId={tabFormId}
       effectiveWizardStep={effectiveWizardStep()}
+      hideNextButton={isHomestayTab1}
     >
       {tabContent}
     </WizardShell>

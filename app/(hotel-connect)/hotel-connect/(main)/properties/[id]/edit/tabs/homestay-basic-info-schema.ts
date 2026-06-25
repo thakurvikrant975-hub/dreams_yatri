@@ -49,6 +49,7 @@ export const homestayBasicInfoSchema = z.object({
 export type HomestayBasicInfoValues = z.infer<typeof homestayBasicInfoSchema>;
 
 export type HomestayBasicInfoState = {
+  ok?: boolean;
   error?: string;
   fieldErrors?: Partial<Record<keyof HomestayBasicInfoValues, string[]>>;
 };

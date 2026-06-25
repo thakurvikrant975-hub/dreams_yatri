@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useRef, useTransition } from "react";
+import { useActionState, useState, useRef, useEffect } from "react";
 import { CaretDownIcon, CaretUpIcon } from "@phosphor-icons/react/dist/ssr";
 import { saveHostDetails, uploadOwnerLogo, type HostDetailsState } from "./host-details-actions";
 import {
@@ -290,11 +290,15 @@ function LogoUpload({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function HostDetailsSection({ owner, locked = false }: { owner: OwnerProfile; locked?: boolean }) {
+export default function HostDetailsSection({ owner, locked = false, onSaved }: { owner: OwnerProfile; locked?: boolean; onSaved?: () => void }) {
   const [open, setOpen] = useState(!locked);
   const [state, formAction, isPending] = useActionState<HostDetailsState, FormData>(
     saveHostDetails, {}
   );
+
+  useEffect(() => {
+    if (state.ok) onSaved?.();
+  }, [state.ok]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Logo ───────────────────────────────────────────────────────────────────
   const [logoUrl, setLogoUrl] = useState(owner.logo_url ?? "");

@@ -52,5 +52,6 @@ export async function saveHomestayBasicInfo(
     },
   });
 
-  redirect(`/hotel-connect/properties/${hotelId}/edit?tab=2`);
+  // Return ok — caller shows Host Details section and manages navigation
+  return { ok: true };
 }

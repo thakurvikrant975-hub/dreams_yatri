@@ -1,6 +1,8 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowRightIcon } from "@phosphor-icons/react/dist/ssr";
 import { saveHomestayBasicInfo } from "./homestay-basic-info-actions";
 import {
   sendEmailOtp, verifyEmailOtp,
@@ -303,11 +305,15 @@ function OtpEntry({
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function HomestayBasicInfoTab({ hotel, owner }: { hotel: HomestayBasicInfo; owner: OwnerProfile }) {
+  const router = useRouter();
   const boundAction = saveHomestayBasicInfo.bind(null, hotel.id);
   const [state, formAction, isPending] = useActionState<HomestayBasicInfoState, FormData>(
     boundAction,
     {}
   );
+
+  const basicSaved = state.ok || hotel.wizard_step >= 2;
+  const [hostDetailsSaved, setHostDetailsSaved] = useState(hotel.wizard_step >= 2);
 
   // ── Dropdown state ─────────────────────────────────────────────────────────
   const [mobileCC,      setMobileCC]      = useState(hotel.contact_mobile_cc ?? "+91");
@@ -778,12 +784,41 @@ export default function HomestayBasicInfoTab({ hotel, owner }: { hotel: Homestay
 
       </SectionCard>
 
+      {/* ── Save button ───────────────────────────────────────────────────── */}
+      <div className="flex justify-end">
+        <button
+          type="submit"
+          disabled={isPending}
+          className="h-10 px-6 rounded-xl text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {isPending ? "Saving…" : basicSaved ? "Save Changes" : "Save"}
+        </button>
+      </div>
+
     </form>
 
     {/* ── Host Details accordion ────────────────────────────────────────── */}
     <div className="mt-5">
-      <HostDetailsSection owner={owner} locked={hotel.wizard_step < 2} />
+      <HostDetailsSection
+        owner={owner}
+        locked={!basicSaved}
+        onSaved={() => setHostDetailsSaved(true)}
+      />
     </div>
+
+    {/* ── Continue button — visible once both sections are saved ─────────── */}
+    {basicSaved && hostDetailsSaved && (
+      <div className="flex justify-end mt-4">
+        <button
+          type="button"
+          onClick={() => router.push(`/hotel-connect/properties/${hotel.id}/edit?tab=2`)}
+          className="h-10 px-6 rounded-xl text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 transition-colors flex items-center gap-2"
+        >
+          Continue to Location
+          <ArrowRightIcon size={14} weight="bold" />
+        </button>
+      </div>
+    )}
     </>
   );
 }
