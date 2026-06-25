@@ -290,8 +290,8 @@ function LogoUpload({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function HostDetailsSection({ owner }: { owner: OwnerProfile }) {
-  const [open, setOpen] = useState(true);
+export default function HostDetailsSection({ owner, locked = false }: { owner: OwnerProfile; locked?: boolean }) {
+  const [open, setOpen] = useState(!locked);
   const [state, formAction, isPending] = useActionState<HostDetailsState, FormData>(
     saveHostDetails, {}
   );
@@ -352,25 +352,34 @@ export default function HostDetailsSection({ owner }: { owner: OwnerProfile }) {
       {/* ── Accordion header ── */}
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-6 py-4 hover:bg-neutral-50 transition-colors"
+        onClick={() => { if (!locked) setOpen((v) => !v); }}
+        className={cn(
+          "w-full flex items-center justify-between px-6 py-4 transition-colors",
+          locked ? "cursor-default opacity-60" : "hover:bg-neutral-50"
+        )}
       >
         <div className="text-left">
           <p className="text-sm font-semibold text-neutral-900">Host Details</p>
-          <p className="text-xs text-neutral-500 mt-0.5">Update your details here</p>
+          <p className="text-xs text-neutral-500 mt-0.5">
+            {locked ? "Complete property details above to unlock" : "Update your details here"}
+          </p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-primary-500 font-medium hover:underline" onClick={(e) => e.stopPropagation()}>
-            How guests will see your profile? Preview
-          </span>
-          {open
-            ? <CaretUpIcon size={18} className="text-neutral-400 shrink-0" />
-            : <CaretDownIcon size={18} className="text-neutral-400 shrink-0" />
+          {!locked && (
+            <span className="text-xs text-primary-500 font-medium hover:underline" onClick={(e) => e.stopPropagation()}>
+              How guests will see your profile? Preview
+            </span>
+          )}
+          {locked
+            ? <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256" className="text-neutral-400 shrink-0"><path d="M208 96h-28V72a52 52 0 0 0-104 0v24H48a16 16 0 0 0-16 16v96a16 16 0 0 0 16 16h160a16 16 0 0 0 16-16V112a16 16 0 0 0-16-16ZM92 72a36 36 0 0 1 72 0v24H92Zm116 136H48V112h160v96Zm-84-24a8 8 0 0 1-8 8 8 8 0 0 1-8-8v-32a8 8 0 0 1 16 0Z"/></svg>
+            : open
+              ? <CaretUpIcon size={18} className="text-neutral-400 shrink-0" />
+              : <CaretDownIcon size={18} className="text-neutral-400 shrink-0" />
           }
         </div>
       </button>
 
-      {open && (
+      {open && !locked && (
         <div className="border-t border-neutral-100">
 
           {/* Amber info banner */}

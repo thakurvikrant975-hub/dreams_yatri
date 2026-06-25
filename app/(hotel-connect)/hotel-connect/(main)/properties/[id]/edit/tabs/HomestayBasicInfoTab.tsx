@@ -18,6 +18,7 @@ import type { HomestayBasicInfoState, HomestayBasicInfoValues } from "./homestay
 export type HomestayBasicInfo = {
   id: number;
   name: string;
+  wizard_step: number;
   year_built: number | null;
   booking_since_year: number | null;
   hosted_as: string | null;
@@ -780,7 +781,9 @@ export default function HomestayBasicInfoTab({ hotel, owner }: { hotel: Homestay
     </form>
 
     {/* ── Host Details accordion ────────────────────────────────────────── */}
-    <HostDetailsSection owner={owner} />
+    <div className="mt-5">
+      <HostDetailsSection owner={owner} locked={hotel.wizard_step < 2} />
+    </div>
     </>
   );
 }
