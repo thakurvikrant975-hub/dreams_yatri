@@ -10,6 +10,7 @@ import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/S
 import { Input } from "../../../../components/ui/input";
 import { Label } from "../../../../components/ui/label";
 import { SearchSelect } from "../../../../components/ui/search-select";
+import HostDetailsSection, { type OwnerProfile } from "./HostDetailsSection";
 import type { HomestayBasicInfoState, HomestayBasicInfoValues } from "./homestay-basic-info-schema";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -300,7 +301,7 @@ function OtpEntry({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function HomestayBasicInfoTab({ hotel }: { hotel: HomestayBasicInfo }) {
+export default function HomestayBasicInfoTab({ hotel, owner }: { hotel: HomestayBasicInfo; owner: OwnerProfile }) {
   const boundAction = saveHomestayBasicInfo.bind(null, hotel.id);
   const [state, formAction, isPending] = useActionState<HomestayBasicInfoState, FormData>(
     boundAction,
@@ -488,6 +489,7 @@ export default function HomestayBasicInfoTab({ hotel }: { hotel: HomestayBasicIn
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
+    <>
     <form id="wizard-form" action={formAction} onSubmit={handleSubmit} className="space-y-5">
 
       {state.error && (
@@ -776,5 +778,9 @@ export default function HomestayBasicInfoTab({ hotel }: { hotel: HomestayBasicIn
       </SectionCard>
 
     </form>
+
+    {/* ── Host Details accordion ────────────────────────────────────────── */}
+    <HostDetailsSection owner={owner} />
+    </>
   );
 }

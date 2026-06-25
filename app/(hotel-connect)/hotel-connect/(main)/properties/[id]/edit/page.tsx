@@ -4,6 +4,7 @@ import { db } from "@/app/lib/db";
 import WizardShell, { WIZARD_TABS } from "./WizardShell";
 import BasicInfoTab from "./tabs/BasicInfoTab";
 import HomestayBasicInfoTab, { type HomestayBasicInfo } from "./tabs/HomestayBasicInfoTab";
+import type { OwnerProfile } from "./tabs/HostDetailsSection";
 import LocationTab from "./tabs/LocationTab";
 import AmenitiesTab, { type HotelAmenitiesInfo } from "./tabs/AmenitiesTab";
 import RoomsTab, { type RoomSummary } from "./tabs/RoomsTab";
@@ -131,6 +132,22 @@ export default async function EditPropertyPage({
   });
   if (!hotel) notFound();
 
+  // Fetch owner profile for HomestayBasicInfoTab host-details section
+  const ownerRecord = hotel.property_category === "HOMESTAY_VILLA"
+    ? await db.hotelOwner.findUnique({
+        where: { id: ownerId },
+        select: {
+          id: true, name: true, email: true,
+          phone: true, phone_cc: true,
+          whatsapp: true, whatsapp_cc: true,
+          businessName: true, logo_url: true,
+          gender: true, languages: true,
+          founded_year: true, property_count: true,
+          business_description: true,
+        },
+      })
+    : null;
+
   // Prisma returns Decimal objects for latitude/longitude — not serializable to
   // Client Components. Convert once here so every usage below is plain numbers.
   const h = {
@@ -199,7 +216,7 @@ export default async function EditPropertyPage({
   const tabContent =
     currentTab === 1 ? (
       h.property_category === "HOMESTAY_VILLA"
-        ? <HomestayBasicInfoTab hotel={h as unknown as HomestayBasicInfo} />
+        ? <HomestayBasicInfoTab hotel={h as unknown as HomestayBasicInfo} owner={ownerRecord as unknown as OwnerProfile} />
         : <BasicInfoTab hotel={h} />
     ) : currentTab === 2 ? (
       <LocationTab hotel={h} />

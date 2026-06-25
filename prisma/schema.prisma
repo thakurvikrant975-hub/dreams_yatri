@@ -847,20 +847,29 @@ model policies {
 }
 
 model HotelOwner {
-  id           String           @id @default(cuid())
-  email        String           @unique
-  password     String
-  name         String
-  phone        String?
-  whatsapp     String?
-  businessName String?
-  status       HotelOwnerStatus @default(PENDING_VERIFICATION)
-  verifiedAt   DateTime?
-  verifiedById String?
-  lastLoginAt  DateTime?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-  hotels       hotels[]
+  id                   String           @id @default(cuid())
+  email                String           @unique
+  password             String
+  name                 String
+  phone                String?
+  phone_cc             String?          @default("+91")
+  whatsapp             String?
+  whatsapp_cc          String?          @default("+91")
+  businessName         String?
+  status               HotelOwnerStatus @default(PENDING_VERIFICATION)
+  verifiedAt           DateTime?
+  verifiedById         String?
+  lastLoginAt          DateTime?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  // ── Host profile fields ────────────────────────────────────────────────────
+  logo_url             String?
+  gender               String?
+  languages            String[]         @default([])
+  founded_year         Int?
+  property_count       Int              @default(1)
+  business_description String?
+  hotels               hotels[]
 
   @@index([email])
   @@map("hotel_owners")
