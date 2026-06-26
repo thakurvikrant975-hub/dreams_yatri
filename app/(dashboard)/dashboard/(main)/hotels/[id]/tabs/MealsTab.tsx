@@ -91,16 +91,21 @@ function toISODate(val: Date | string | null | undefined): string {
 
 function toDateObj(str: string): Date | undefined {
   if (!str) return undefined;
-  const normalized = "2000" + str.slice(4);
-  const d = new Date(normalized + "T00:00:00");
+  const d = new Date(str + "T00:00:00");
   return isNaN(d.getTime()) ? undefined : d;
 }
 
 function fromDateObj(d: Date | undefined): string {
   if (!d) return "";
+  const y   = d.getFullYear();
   const m   = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
-  return `2000-${m}-${day}`;
+  return `${y}-${m}-${day}`;
+}
+
+function upgradeYearIfPlaceholder(isoDate: string): string {
+  if (!isoDate || !isoDate.startsWith("2000-")) return isoDate;
+  return `${new Date().getFullYear()}${isoDate.slice(4)}`;
 }
 
 function fmtMonthDay(dateStr: string): string {
@@ -133,8 +138,8 @@ function toFormState(m: HotelMealPricing): MealFormState {
     is_active:     m.is_active,
     seasons:       m.seasons.map((s) => ({
       tempId:        uid(),
-      valid_from:    toISODate(s.valid_from),
-      valid_to:      toISODate(s.valid_to),
+      valid_from:    upgradeYearIfPlaceholder(toISODate(s.valid_from)),
+      valid_to:      upgradeYearIfPlaceholder(toISODate(s.valid_to)),
       price:         String(s.price),
       weekend_price: s.weekend_price ? String(s.weekend_price) : "",
     })),
@@ -177,8 +182,8 @@ function SeasonsInlineList({
   const calendarSeasons: SeasonRange[] = seasons
     .filter((x) => x.valid_from && x.valid_to && Number(x.price) > 0)
     .map((x) => ({
-      from:           x.valid_from.slice(5),
-      to:             x.valid_to.slice(5),
+      from:           x.valid_from,
+      to:             x.valid_to,
       weekdayPrice:   Number(x.price),
       weekendPrice:   x.weekend_price ? Number(x.weekend_price) : null,
       weekendEnabled: !!x.weekend_price,
@@ -641,6 +646,8 @@ export function MealsTab({
           label:         form.label.trim(),
           price:         Number(form.price),
           weekend_price: form.weekend_price ? Number(form.weekend_price) : null,
+          veg_price:     null,
+          non_veg_price: null,
           is_active:     form.is_active,
           sort_order:    prev.length,
           seasons:       form.seasons
@@ -674,6 +681,8 @@ export function MealsTab({
           label:         form.label.trim(),
           price:         Number(form.price),
           weekend_price: form.weekend_price ? Number(form.weekend_price) : null,
+          veg_price:     null,
+          non_veg_price: null,
           is_active:     form.is_active,
           seasons:       form.seasons
             .filter((s) => s.valid_from && s.valid_to && Number(s.price) > 0)

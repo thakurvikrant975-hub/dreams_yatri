@@ -75,16 +75,22 @@ function toISODate(val: Date | string | null | undefined): string {
 
 function toDateObj(str: string): Date | undefined {
   if (!str) return undefined;
-  const normalized = "2000" + str.slice(4);
-  const d = new Date(normalized + "T00:00:00");
+  const d = new Date(str + "T00:00:00");
   return isNaN(d.getTime()) ? undefined : d;
 }
 
 function fromDateObj(d: Date | undefined): string {
   if (!d) return "";
+  const y   = d.getFullYear();
   const m   = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
-  return `2000-${m}-${day}`;
+  return `${y}-${m}-${day}`;
+}
+
+// Existing DB rows may have year-2000 placeholder dates — upgrade to current year on load
+function upgradeYearIfPlaceholder(isoDate: string): string {
+  if (!isoDate || !isoDate.startsWith("2000-")) return isoDate;
+  return `${new Date().getFullYear()}${isoDate.slice(4)}`;
 }
 
 function fmtMonthDay(dateStr: string): string {
@@ -132,8 +138,8 @@ function SeasonsInlineList({
   const calendarSeasons: SeasonRange[] = seasons
     .filter((x) => x.valid_from && x.valid_to && Number(x.price) > 0)
     .map((x) => ({
-      from:           x.valid_from.slice(5),
-      to:             x.valid_to.slice(5),
+      from:           x.valid_from,
+      to:             x.valid_to,
       weekdayPrice:   Number(x.price),
       weekendPrice:   x.weekend_price ? Number(x.weekend_price) : null,
       weekendEnabled: !!x.weekend_price,
@@ -292,25 +298,34 @@ type MealFormState = {
   label:         string;
   price:         string;
   weekend_price: string;
+  veg_price:     string;
+  non_veg_price: string;
+  veg_non_veg:   boolean;
   is_active:     boolean;
   seasons:       SeasonEntry[];
 };
 
 const EMPTY_MEAL_FORM: MealFormState = {
-  meal_type: "", label: "", price: "", weekend_price: "", is_active: true, seasons: [],
+  meal_type: "", label: "", price: "", weekend_price: "",
+  veg_price: "", non_veg_price: "", veg_non_veg: false,
+  is_active: true, seasons: [],
 };
 
 function toMealFormState(m: HotelMealPricing): MealFormState {
+  const hasVegNonVeg = !!(m.veg_price || m.non_veg_price);
   return {
     meal_type:     m.meal_type,
     label:         m.label,
     price:         String(m.price),
     weekend_price: m.weekend_price ? String(m.weekend_price) : "",
+    veg_price:     m.veg_price ? String(m.veg_price) : "",
+    non_veg_price: m.non_veg_price ? String(m.non_veg_price) : "",
+    veg_non_veg:   hasVegNonVeg,
     is_active:     m.is_active,
     seasons:       m.seasons.map((s) => ({
       tempId:        uid(),
-      valid_from:    toISODate(s.valid_from),
-      valid_to:      toISODate(s.valid_to),
+      valid_from:    upgradeYearIfPlaceholder(toISODate(s.valid_from)),
+      valid_to:      upgradeYearIfPlaceholder(toISODate(s.valid_to)),
       price:         String(s.price),
       weekend_price: s.weekend_price ? String(s.weekend_price) : "",
     })),
@@ -321,8 +336,10 @@ function buildMealInput(form: MealFormState): MealPricingInput {
   return {
     meal_type:     form.meal_type,
     label:         form.label.trim(),
-    price:         Number(form.price),
+    price:         form.veg_non_veg ? Number(form.veg_price) : Number(form.price),
     weekend_price: form.weekend_price ? Number(form.weekend_price) : null,
+    veg_price:     form.veg_non_veg ? Number(form.veg_price) : null,
+    non_veg_price: form.veg_non_veg ? Number(form.non_veg_price) : null,
     is_active:     form.is_active,
     seasons:       form.seasons
       .filter((s) => s.valid_from && s.valid_to && Number(s.price) > 0)
@@ -356,9 +373,12 @@ function MealForm({
   }
 
   const overlaps = overlappingIds(form.seasons);
+  const priceValid = form.veg_non_veg
+    ? (!!form.veg_price && Number(form.veg_price) > 0 && !!form.non_veg_price && Number(form.non_veg_price) > 0)
+    : (!!form.price && Number(form.price) > 0);
   const isValid =
     !!form.meal_type && !!form.label.trim() &&
-    !!form.price && Number(form.price) > 0 &&
+    priceValid &&
     overlaps.size === 0 &&
     form.seasons.every((s) => !s.valid_from || (s.valid_from && s.valid_to && Number(s.price) > 0));
 
@@ -416,51 +436,91 @@ function MealForm({
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label className="text-sm font-medium text-dashboard-base-content">
-            Weekday Price (₹/person) <span className="text-dashboard-error">*</span>
-          </Label>
-          <Input
-            type="number" min={0} placeholder="150"
-            value={form.price}
-            onChange={(e) => upd("price", e.target.value)}
-            className="bg-dashboard-base-100 border-dashboard-base-content/20"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-1.5 h-5">
-            <input
-              type="checkbox" id="meal-weekend"
-              checked={!!form.weekend_price}
-              onChange={(e) => upd("weekend_price", e.target.checked ? form.price : "")}
-              className="h-3.5 w-3.5 accent-dashboard-primary cursor-pointer"
-            />
-            <Label htmlFor="meal-weekend" className="text-sm font-medium text-dashboard-base-content cursor-pointer">
-              Weekend rate (Sat &amp; Sun)
-              {form.price && (
-                <span className="text-xs text-dashboard-base-content/50 ml-1">
-                  (base ₹{Number(form.price).toLocaleString("en-IN")})
-                </span>
-              )}
+      {/* Veg / Non-Veg toggle */}
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox" id="meal-veg-nonveg"
+          checked={form.veg_non_veg}
+          onChange={(e) => upd("veg_non_veg", e.target.checked)}
+          className="h-3.5 w-3.5 accent-dashboard-primary cursor-pointer"
+        />
+        <Label htmlFor="meal-veg-nonveg" className="text-sm font-medium text-dashboard-base-content cursor-pointer">
+          Different rates for Veg &amp; Non-Veg
+        </Label>
+      </div>
+
+      {form.veg_non_veg ? (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium text-dashboard-base-content">
+              Veg Price (₹/person) <span className="text-dashboard-error">*</span>
             </Label>
-          </div>
-          {form.weekend_price !== "" && (
             <Input
-              type="number" min={0} placeholder="Same as weekday"
-              value={form.weekend_price}
-              onChange={(e) => upd("weekend_price", e.target.value)}
+              type="number" min={0} placeholder="100"
+              value={form.veg_price}
+              onChange={(e) => upd("veg_price", e.target.value)}
               className="bg-dashboard-base-100 border-dashboard-base-content/20"
             />
-          )}
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium text-dashboard-base-content">
+              Non-Veg Price (₹/person) <span className="text-dashboard-error">*</span>
+            </Label>
+            <Input
+              type="number" min={0} placeholder="150"
+              value={form.non_veg_price}
+              onChange={(e) => upd("non_veg_price", e.target.value)}
+              className="bg-dashboard-base-100 border-dashboard-base-content/20"
+            />
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium text-dashboard-base-content">
+              Weekday Price (₹/person) <span className="text-dashboard-error">*</span>
+            </Label>
+            <Input
+              type="number" min={0} placeholder="150"
+              value={form.price}
+              onChange={(e) => upd("price", e.target.value)}
+              className="bg-dashboard-base-100 border-dashboard-base-content/20"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-1.5 h-5">
+              <input
+                type="checkbox" id="meal-weekend"
+                checked={!!form.weekend_price}
+                onChange={(e) => upd("weekend_price", e.target.checked ? form.price : "")}
+                className="h-3.5 w-3.5 accent-dashboard-primary cursor-pointer"
+              />
+              <Label htmlFor="meal-weekend" className="text-sm font-medium text-dashboard-base-content cursor-pointer">
+                Weekend rate (Sat &amp; Sun)
+                {form.price && (
+                  <span className="text-xs text-dashboard-base-content/50 ml-1">
+                    (base ₹{Number(form.price).toLocaleString("en-IN")})
+                  </span>
+                )}
+              </Label>
+            </div>
+            {form.weekend_price !== "" && (
+              <Input
+                type="number" min={0} placeholder="Same as weekday"
+                value={form.weekend_price}
+                onChange={(e) => upd("weekend_price", e.target.value)}
+                className="bg-dashboard-base-100 border-dashboard-base-content/20"
+              />
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="border-t border-dashboard-base-content/10 pt-4">
         <SeasonsInlineList
           seasons={form.seasons}
           onChange={(s) => upd("seasons", s)}
-          basePrice={Number(form.price) || 0}
+          basePrice={form.veg_non_veg ? (Number(form.veg_price) || 0) : (Number(form.price) || 0)}
         />
       </div>
 
@@ -522,7 +582,9 @@ function MealCard({
               )}
             </div>
             <p className="text-xs text-dashboard-base-content/50">
-              ₹{meal.price.toLocaleString("en-IN")}/person weekday
+              {meal.veg_price && meal.non_veg_price
+                ? `Veg ₹${meal.veg_price.toLocaleString("en-IN")} · Non-veg ₹${meal.non_veg_price.toLocaleString("en-IN")}/person`
+                : `₹${meal.price.toLocaleString("en-IN")}/person weekday`}
               {meal.weekend_price ? ` · ₹${meal.weekend_price.toLocaleString("en-IN")} weekend` : ""}
               {meal.seasons.length > 0
                 ? ` · ${meal.seasons.length} season${meal.seasons.length !== 1 ? "s" : ""}`
@@ -625,8 +687,8 @@ function toAddonFormState(a: HotelAddon): AddonFormState {
     is_active:     a.is_active,
     seasons:       a.seasons.map((s) => ({
       tempId:        uid(),
-      valid_from:    toISODate(s.valid_from),
-      valid_to:      toISODate(s.valid_to),
+      valid_from:    upgradeYearIfPlaceholder(toISODate(s.valid_from)),
+      valid_to:      upgradeYearIfPlaceholder(toISODate(s.valid_to)),
       price:         String(s.price),
       weekend_price: s.weekend_price ? String(s.weekend_price) : "",
     })),
@@ -961,8 +1023,10 @@ export function MealsAndAddonsTab({
           hotel_id,
           meal_type:     form.meal_type,
           label:         form.label.trim(),
-          price:         Number(form.price),
+          price:         form.veg_non_veg ? Number(form.veg_price) : Number(form.price),
           weekend_price: form.weekend_price ? Number(form.weekend_price) : null,
+          veg_price:     form.veg_non_veg ? Number(form.veg_price) : null,
+          non_veg_price: form.veg_non_veg ? Number(form.non_veg_price) : null,
           is_active:     form.is_active,
           sort_order:    prev.length,
           seasons:       form.seasons
@@ -994,8 +1058,10 @@ export function MealsAndAddonsTab({
           ...m,
           meal_type:     form.meal_type,
           label:         form.label.trim(),
-          price:         Number(form.price),
+          price:         form.veg_non_veg ? Number(form.veg_price) : Number(form.price),
           weekend_price: form.weekend_price ? Number(form.weekend_price) : null,
+          veg_price:     form.veg_non_veg ? Number(form.veg_price) : null,
+          non_veg_price: form.veg_non_veg ? Number(form.non_veg_price) : null,
           is_active:     form.is_active,
           seasons:       form.seasons
             .filter((s) => s.valid_from && s.valid_to && Number(s.price) > 0)
