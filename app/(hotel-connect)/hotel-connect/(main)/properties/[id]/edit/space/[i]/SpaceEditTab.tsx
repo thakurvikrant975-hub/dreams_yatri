@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeftIcon, CheckIcon, MinusIcon, PlusIcon, TrashIcon,
+  ArrowLeftIcon, CheckIcon, MinusIcon, PlusIcon, TrashIcon, CaretDownIcon, CaretUpIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import { saveHomestaySpaceDetail, deleteHomestaySpace } from "../../tabs/homestay-rooms-crud-actions";
 import { BED_TYPES } from "../../tabs/homestay-rooms-types";
@@ -16,6 +16,12 @@ import { cn } from "@/app/lib/utils";
 
 const SLEEPING_SPACE_TYPES = new Set(["living_room", "helpers_room", "drivers_room"]);
 
+// Staff-room types use "Accessible to Guests" framing instead of Private/Shared
+const STAFF_ROOM_TYPES = new Set(["helpers_room", "drivers_room"]);
+
+// First 6 bed types shown by default; the rest shown via "View more"
+const BED_TYPES_DEFAULT_COUNT = 6;
+
 // ── Amenity structure ─────────────────────────────────────────────────────────
 
 type AmenityDetail =
@@ -24,18 +30,59 @@ type AmenityDetail =
 
 type Amenity = { key: string; label: string; detail?: AmenityDetail };
 
-const AMENITY_CATEGORIES: { label: string; items: Amenity[] }[] = [
+// Room-level amenities — used for sleeping spaces (helpers_room, drivers_room, living_room)
+const ROOM_AMENITY_CATEGORIES: { label: string; items: Amenity[] }[] = [
   {
-    label: "Common Area",
+    label: "Cooling & Heating",
     items: [
-      { key: "sun_deck", label: "Sun Deck" },
+      { key: "ac",           label: "Air Conditioning" },
+      { key: "fan",          label: "Fan" },
+      { key: "ceiling_fan",  label: "Ceiling Fan" },
+      { key: "heater",       label: "Heater" },
     ],
   },
   {
-    label: "Business Center & Conferences",
+    label: "Furniture",
     items: [
-      { key: "business_center", label: "Business Center" },
-      { key: "conference_room", label: "Conference Room" },
+      { key: "wardrobe",     label: "Wardrobe" },
+      { key: "desk",         label: "Desk" },
+      { key: "chair",        label: "Chair" },
+      { key: "table",        label: "Table" },
+      { key: "shelves",      label: "Shelves / Storage" },
+    ],
+  },
+  {
+    label: "Entertainment",
+    items: [
+      {
+        key: "tv", label: "TV",
+        detail: {
+          type: "checkboxes", label: "Type / Channels",
+          options: ["LED", "LCD", "Smart TV", "Cable", "Satellite Channels", "Netflix", "Other OTT"],
+        },
+      },
+    ],
+  },
+  {
+    label: "Other",
+    items: [
+      { key: "wifi",          label: "WiFi" },
+      { key: "power_outlets", label: "Power Outlets / Extension Board" },
+      { key: "window",        label: "Window" },
+      { key: "curtains",      label: "Curtains / Blinds" },
+      { key: "mirror",        label: "Mirror" },
+      { key: "lock",          label: "Door Lock" },
+    ],
+  },
+];
+
+// Generic amenities — for non-sleeping space types
+const SPACE_AMENITY_CATEGORIES: { label: string; items: Amenity[] }[] = [
+  {
+    label: "Common Area",
+    items: [
+      { key: "sun_deck",        label: "Sun Deck" },
+      { key: "seating_area",    label: "Seating Area" },
     ],
   },
   {
@@ -52,21 +99,11 @@ const AMENITY_CATEGORIES: { label: string; items: Amenity[] }[] = [
           ],
         },
       },
-    ],
-  },
-  {
-    label: "Media & Technology",
-    items: [
       {
         key: "tv", label: "TV",
         detail: {
           type: "checkboxes", label: "Type / Channels",
-          options: [
-            "LED", "LCD", "Flat Screen", "Cable", "Satellite Channels",
-            "Pay Per View Movies", "Netflix", "Hotstar", "Other OTT",
-            "Pay-Per-View Channels", "Regional Channels", "Limited Channels",
-            "Smart TV", "Non-Smart LED TV", "Non-Smart LCD TV",
-          ],
+          options: ["LED", "LCD", "Smart TV", "Cable", "Satellite Channels", "Netflix", "Other OTT"],
         },
       },
     ],
@@ -74,28 +111,16 @@ const AMENITY_CATEGORIES: { label: string; items: Amenity[] }[] = [
   {
     label: "Spa & Wellness",
     items: [
-      {
-        key: "massage", label: "Massage",
-        detail: { type: "radio", label: "Pricing", options: ["Free", "Paid"] },
-      },
-      {
-        key: "salon", label: "Salon",
-        detail: { type: "radio", label: "Pricing", options: ["Free", "Paid"] },
-      },
-      {
-        key: "steam_and_sauna", label: "Steam and Sauna",
-        detail: { type: "radio", label: "Pricing", options: ["Free", "Paid"] },
-      },
+      { key: "massage",        label: "Massage",       detail: { type: "radio", label: "Pricing", options: ["Free", "Paid"] } },
+      { key: "salon",          label: "Salon",         detail: { type: "radio", label: "Pricing", options: ["Free", "Paid"] } },
+      { key: "steam_and_sauna", label: "Steam & Sauna", detail: { type: "radio", label: "Pricing", options: ["Free", "Paid"] } },
     ],
   },
   {
-    label: "Mandatory",
+    label: "Other",
     items: [
-      { key: "spa", label: "Spa" },
-      {
-        key: "kids_play_area", label: "Kids' Play Area",
-        detail: { type: "radio", label: "Pricing", options: ["Free", "Paid"] },
-      },
+      { key: "wifi",          label: "WiFi" },
+      { key: "kids_play_area", label: "Kids' Play Area", detail: { type: "radio", label: "Pricing", options: ["Free", "Paid"] } },
     ],
   },
 ];
@@ -204,23 +229,30 @@ export default function SpaceEditTab({
   const [isPending, startTransition] = useTransition();
 
   const hasSleepingStep = SLEEPING_SPACE_TYPES.has(item.space_type);
-  const S_SLEEPING  = hasSleepingStep ? 2 : -1;
-  const S_AMENITIES = hasSleepingStep ? 3 : 2;
+  const isStaffRoom     = STAFF_ROOM_TYPES.has(item.space_type);
+  const S_SLEEPING      = hasSleepingStep ? 2 : -1;
+  const S_FACILITIES    = hasSleepingStep ? 3 : 2;
 
   const [stepReached, setStepReached] = useState(item.step_reached ?? 0);
   const [currentStep, setCurrentStep] = useState(
-    item.step_reached >= S_AMENITIES ? 1 : Math.min((item.step_reached ?? 0) + 1, S_AMENITIES)
+    item.step_reached >= S_FACILITIES ? 1 : Math.min((item.step_reached ?? 0) + 1, S_FACILITIES)
   );
 
   // Step 1 — Access Info
-  const [accessType, setAccessType] = useState(item.access_type || "");
+  const [spaceName, setSpaceName]       = useState(item.name || `${item.label} ${item.instance}`);
+  const [isAccessible, setIsAccessible] = useState<boolean | null>(
+    item.is_accessible !== undefined ? item.is_accessible : null
+  );
+  const [accessType, setAccessType]     = useState(item.access_type || "");
 
   // Step 2 — Sleeping Arrangement (sleeping spaces only)
   const [beds, setBeds]             = useState<Record<string, number>>(item.beds ?? {});
   const [baseAdults, setBaseAdults] = useState(item.base_adults ?? 1);
   const [maxAdults, setMaxAdults]   = useState(item.max_adults ?? 2);
+  const [showMoreBeds, setShowMoreBeds] = useState(false);
 
-  // Step S_AMENITIES — Amenities
+  // Step S_FACILITIES — Facilities
+  const [hasBathroom, setHasBathroom]       = useState<boolean | null>(item.has_attached_bathroom ?? null);
   const [amenities, setAmenities]           = useState<string[]>(item.amenities ?? []);
   const [amenityDetails, setAmenityDetails] = useState<Record<string, string | string[]>>(
     item.amenity_details ?? {}
@@ -283,16 +315,17 @@ export default function SpaceEditTab({
     if (stepReached >= s - 1 || s === 1) setCurrentStep(s);
   }
 
-  const accessOptions = [
-    {
-      key: `Private ${item.label}`,
-      desc: `Guests will have private access to the ${item.label} space & amenities`,
-    },
-    {
-      key: `Shared ${item.label}`,
-      desc: `Guests will have to share the ${item.label} & amenities with other guests.`,
-    },
-  ];
+  // Step 1 validity
+  const step1Valid = isStaffRoom
+    ? !!spaceName.trim() && isAccessible !== null
+    : !!spaceName.trim() && !!accessType;
+
+  // Amenity categories based on space type
+  const amenityCategories = hasSleepingStep ? ROOM_AMENITY_CATEGORIES : SPACE_AMENITY_CATEGORIES;
+
+  // Bed types: first N shown, rest behind "View more"
+  const visibleBeds = showMoreBeds ? BED_TYPES : BED_TYPES.slice(0, BED_TYPES_DEFAULT_COUNT);
+  const hiddenCount = BED_TYPES.length - BED_TYPES_DEFAULT_COUNT;
 
   return (
     <div>
@@ -323,46 +356,124 @@ export default function SpaceEditTab({
           <StepSection
             index={1}
             label="Access Info"
-            subtitle={`Add details about the ${item.label} ${item.instance} and specify if the guests will have access to it or not`}
+            subtitle={`Name this space and specify its accessibility for guests`}
             isActive={currentStep === 1} isCompleted={stepReached >= 1} canOpen={true}
             onOpen={() => openStep(1)}
           >
-            <div className="space-y-2">
-              <p className="text-sm font-semibold text-neutral-800">Type of Access for the {item.label}</p>
-              <p className="text-xs text-neutral-400">
-                Please specify if the access to the {item.label} is private or shared for guests
-              </p>
-              <div className="space-y-2 pt-1">
-                {accessOptions.map(opt => (
-                  <label
-                    key={opt.key}
-                    className={cn(
-                      "flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-colors",
-                      accessType === opt.key
-                        ? "border-primary-400 bg-primary-50"
-                        : "border-neutral-200 hover:border-neutral-300 bg-white"
-                    )}
-                  >
-                    <input
-                      type="radio"
-                      name="space-access-type"
-                      checked={accessType === opt.key}
-                      onChange={() => setAccessType(opt.key)}
-                      className="mt-0.5 h-4 w-4 accent-primary-500 cursor-pointer shrink-0"
-                    />
-                    <div>
-                      <p className="text-sm font-medium text-neutral-800">{opt.key}</p>
-                      <p className="text-xs text-neutral-500 mt-0.5">{opt.desc}</p>
-                    </div>
-                  </label>
-                ))}
-              </div>
+            {/* Space Name */}
+            <div className="space-y-1.5">
+              <p className="text-sm font-semibold text-neutral-800">Space Name</p>
+              <p className="text-xs text-neutral-400">Give this space a name to identify it on the property</p>
+              <input
+                type="text"
+                value={spaceName}
+                onChange={e => setSpaceName(e.target.value)}
+                placeholder={`e.g. ${item.label} ${item.instance}`}
+                className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 placeholder:text-neutral-400"
+              />
             </div>
+
+            {/* Access Status */}
+            {isStaffRoom ? (
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-neutral-800">Access Status</p>
+                <p className="text-xs text-neutral-400">
+                  Specify whether guests can access and use this space during their stay
+                </p>
+                <div className="space-y-2 pt-1">
+                  {[
+                    {
+                      val: true,
+                      label: "Accessible to Guests",
+                      desc: `Guests can access and use the ${item.label} during their stay`,
+                    },
+                    {
+                      val: false,
+                      label: "Not Accessible to Guests",
+                      desc: `This space is for staff / internal use only and is not available to guests`,
+                    },
+                  ].map(opt => (
+                    <label
+                      key={String(opt.val)}
+                      className={cn(
+                        "flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-colors",
+                        isAccessible === opt.val
+                          ? "border-primary-400 bg-primary-50"
+                          : "border-neutral-200 hover:border-neutral-300 bg-white"
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="space-access-status"
+                        checked={isAccessible === opt.val}
+                        onChange={() => setIsAccessible(opt.val)}
+                        className="mt-0.5 h-4 w-4 accent-primary-500 cursor-pointer shrink-0"
+                      />
+                      <div>
+                        <p className="text-sm font-medium text-neutral-800">{opt.label}</p>
+                        <p className="text-xs text-neutral-500 mt-0.5">{opt.desc}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-neutral-800">Type of Access</p>
+                <p className="text-xs text-neutral-400">
+                  Specify if access to the {item.label} is private or shared for guests
+                </p>
+                <div className="space-y-2 pt-1">
+                  {[
+                    {
+                      key: `Private ${item.label}`,
+                      desc: `Guests will have private access to the ${item.label} space & amenities`,
+                    },
+                    {
+                      key: `Shared ${item.label}`,
+                      desc: `Guests will have to share the ${item.label} & amenities with other guests`,
+                    },
+                  ].map(opt => (
+                    <label
+                      key={opt.key}
+                      className={cn(
+                        "flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-colors",
+                        accessType === opt.key
+                          ? "border-primary-400 bg-primary-50"
+                          : "border-neutral-200 hover:border-neutral-300 bg-white"
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="space-access-type"
+                        checked={accessType === opt.key}
+                        onChange={() => setAccessType(opt.key)}
+                        className="mt-0.5 h-4 w-4 accent-primary-500 cursor-pointer shrink-0"
+                      />
+                      <div>
+                        <p className="text-sm font-medium text-neutral-800">{opt.key}</p>
+                        <p className="text-xs text-neutral-500 mt-0.5">{opt.desc}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <button
               type="button"
-              disabled={isPending || !accessType}
-              onClick={() => save({ access_type: accessType }, 1, hasSleepingStep ? 2 : S_AMENITIES)}
+              disabled={isPending || !step1Valid}
+              onClick={() => save(
+                {
+                  name: spaceName.trim(),
+                  is_accessible: isStaffRoom ? (isAccessible ?? true) : true,
+                  access_type: isStaffRoom
+                    ? (isAccessible ? "Accessible to Guests" : "Not Accessible to Guests")
+                    : accessType,
+                },
+                1,
+                hasSleepingStep ? 2 : S_FACILITIES,
+              )}
               className="px-5 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Next
@@ -374,7 +485,7 @@ export default function SpaceEditTab({
             <StepSection
               index={2}
               label="Sleeping Arrangement"
-              subtitle={`Specify the bed types and occupancy details for ${item.label} ${item.instance}`}
+              subtitle={`Specify the bed types and occupancy for ${item.label} ${item.instance}`}
               isActive={currentStep === S_SLEEPING} isCompleted={stepReached >= S_SLEEPING} canOpen={stepReached >= 1}
               onOpen={() => openStep(S_SLEEPING)}
             >
@@ -384,7 +495,7 @@ export default function SpaceEditTab({
                   Specify the number of each bed type available in this space
                 </p>
                 <div className="divide-y divide-neutral-100 border border-neutral-200 rounded-xl overflow-hidden">
-                  {BED_TYPES.map(bed => (
+                  {visibleBeds.map(bed => (
                     <div key={bed.key} className="flex items-center justify-between gap-3 px-4 py-3 bg-white">
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-neutral-800">{bed.label}</p>
@@ -399,6 +510,19 @@ export default function SpaceEditTab({
                     </div>
                   ))}
                 </div>
+
+                {/* View more / View less */}
+                <button
+                  type="button"
+                  onClick={() => setShowMoreBeds(p => !p)}
+                  className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary-600 hover:text-primary-700 transition-colors"
+                >
+                  {showMoreBeds ? (
+                    <><CaretUpIcon size={12} weight="bold" /> View less</>
+                  ) : (
+                    <><CaretDownIcon size={12} weight="bold" /> View {hiddenCount} more bed types</>
+                  )}
+                </button>
               </div>
 
               <div className="pt-2 border-t border-neutral-100">
@@ -434,7 +558,7 @@ export default function SpaceEditTab({
               <button
                 type="button"
                 disabled={isPending}
-                onClick={() => save({ beds, base_adults: baseAdults, max_adults: maxAdults }, S_SLEEPING, S_AMENITIES)}
+                onClick={() => save({ beds, base_adults: baseAdults, max_adults: maxAdults }, S_SLEEPING, S_FACILITIES)}
                 className="px-5 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
               >
                 Next
@@ -442,18 +566,54 @@ export default function SpaceEditTab({
             </StepSection>
           )}
 
-          {/* ── Step S_AMENITIES: Amenities (final step) ────────────── */}
+          {/* ── Step S_FACILITIES: Facilities (final step) ─────────── */}
           <StepSection
-            index={S_AMENITIES}
-            label="Amenities"
-            subtitle={`Add the amenities and facilities available in ${item.label} ${item.instance}`}
-            isActive={currentStep === S_AMENITIES}
-            isCompleted={stepReached >= S_AMENITIES}
-            canOpen={stepReached >= S_AMENITIES - 1}
-            onOpen={() => openStep(S_AMENITIES)}
+            index={S_FACILITIES}
+            label="Facilities"
+            subtitle={`Add the facilities and amenities available in ${item.label} ${item.instance}`}
+            isActive={currentStep === S_FACILITIES}
+            isCompleted={stepReached >= S_FACILITIES}
+            canOpen={stepReached >= S_FACILITIES - 1}
+            onOpen={() => openStep(S_FACILITIES)}
           >
+            {/* Ensuite Bathroom — only for sleeping spaces */}
+            {hasSleepingStep && (
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-neutral-800">Ensuite Bathroom</p>
+                <p className="text-xs text-neutral-400">
+                  Does this space have a private attached bathroom?
+                </p>
+                <div className="flex gap-3">
+                  {[
+                    { val: true,  label: "Yes" },
+                    { val: false, label: "No"  },
+                  ].map(opt => (
+                    <label
+                      key={String(opt.val)}
+                      className={cn(
+                        "flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition-colors text-sm font-medium",
+                        hasBathroom === opt.val
+                          ? "border-primary-400 bg-primary-50 text-primary-700"
+                          : "border-neutral-200 hover:border-neutral-300 bg-white text-neutral-700"
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="space-has-bathroom"
+                        checked={hasBathroom === opt.val}
+                        onChange={() => setHasBathroom(opt.val)}
+                        className="h-3.5 w-3.5 accent-primary-500 cursor-pointer"
+                      />
+                      {opt.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Amenities / Facilities list */}
             <div className="space-y-6">
-              {AMENITY_CATEGORIES.map(cat => {
+              {amenityCategories.map(cat => {
                 const selectedWithDetail = cat.items.filter(
                   a => a.detail && amenities.includes(a.key)
                 );
@@ -545,8 +705,13 @@ export default function SpaceEditTab({
               type="button"
               disabled={isPending}
               onClick={() => save(
-                { amenities, amenity_details: amenityDetails, details_added: true },
-                S_AMENITIES, "back"
+                {
+                  amenities,
+                  amenity_details: amenityDetails,
+                  has_attached_bathroom: hasSleepingStep ? (hasBathroom ?? false) : null,
+                  details_added: true,
+                },
+                S_FACILITIES, "back"
               )}
               className="px-5 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
             >
