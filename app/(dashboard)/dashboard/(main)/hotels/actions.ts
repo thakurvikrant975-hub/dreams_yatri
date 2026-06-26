@@ -1515,20 +1515,22 @@ export type HotelMealPricingSeason = {
 };
 
 export type HotelMealPricing = {
-  id:           number;
-  hotel_id:     number;
-  meal_type:    string;
-  label:        string;
-  price:        number;
+  id:            number;
+  hotel_id:      number;
+  meal_type:     string;
+  label:         string;
+  price:         number;
   weekend_price: number | null;
-  is_active:    boolean;
-  sort_order:   number;
-  seasons:      HotelMealPricingSeason[];
+  veg_price:     number | null;
+  non_veg_price: number | null;
+  is_active:     boolean;
+  sort_order:    number;
+  seasons:       HotelMealPricingSeason[];
 };
 
 export type MealSeasonInput = {
   season_name:   string;
-  valid_from:    string;  // YYYY-MM-DD (year-2000 placeholder)
+  valid_from:    string;  // YYYY-MM-DD
   valid_to:      string;
   price:         number;
   weekend_price?: number | null;
@@ -1536,12 +1538,14 @@ export type MealSeasonInput = {
 };
 
 export type MealPricingInput = {
-  meal_type:     string;
-  label:         string;
-  price:         number;
+  meal_type:      string;
+  label:          string;
+  price:          number;
   weekend_price?: number | null;
-  is_active:     boolean;
-  seasons:       MealSeasonInput[];
+  veg_price?:     number | null;
+  non_veg_price?: number | null;
+  is_active:      boolean;
+  seasons:        MealSeasonInput[];
 };
 
 export async function getMealPricings(hotel_id: number): Promise<HotelMealPricing[]> {
@@ -1555,6 +1559,8 @@ export async function getMealPricings(hotel_id: number): Promise<HotelMealPricin
       ...m,
       price:         Number(m.price),
       weekend_price: m.weekend_price ? Number(m.weekend_price) : null,
+      veg_price:     m.veg_price ? Number(m.veg_price) : null,
+      non_veg_price: m.non_veg_price ? Number(m.non_veg_price) : null,
       seasons: m.seasons.map((s) => ({
         ...s,
         price:         Number(s.price),
@@ -1583,6 +1589,8 @@ export async function createMealPricing(
           label:         data.label.trim(),
           price:         data.price,
           weekend_price: data.weekend_price ?? null,
+          veg_price:     data.veg_price ?? null,
+          non_veg_price: data.non_veg_price ?? null,
           is_active:     data.is_active,
           sort_order:    count,
         },
@@ -1628,6 +1636,8 @@ export async function updateMealPricing(
           label:         data.label.trim(),
           price:         data.price,
           weekend_price: data.weekend_price ?? null,
+          veg_price:     data.veg_price ?? null,
+          non_veg_price: data.non_veg_price ?? null,
           is_active:     data.is_active,
         },
       });
