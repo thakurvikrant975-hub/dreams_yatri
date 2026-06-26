@@ -4,6 +4,7 @@ import { db } from "@/app/lib/db";
 import WizardShell, { WIZARD_TABS } from "./WizardShell";
 import BasicInfoTab from "./tabs/BasicInfoTab";
 import HomestayBasicInfoTab, { type HomestayBasicInfo } from "./tabs/HomestayBasicInfoTab";
+import HomestayRoomsTab, { type HomestayRoomsData } from "./tabs/HomestayRoomsTab";
 import type { OwnerProfile } from "./tabs/HostDetailsSection";
 import LocationTab from "./tabs/LocationTab";
 import AmenitiesTab, { type HotelAmenitiesInfo } from "./tabs/AmenitiesTab";
@@ -55,6 +56,13 @@ export default async function EditPropertyPage({
       // homestay-specific fields
       hosted_as: true,
       host_lives_at_property: true,
+      hs_bedrooms: true,
+      hs_bathrooms: true,
+      hs_has_kitchen: true,
+      hs_bedroom_details: true,
+      hs_bathroom_details: true,
+      hs_kitchen_details: true,
+      hs_space_items: true,
       // location fields
       address: true,
       landmark: true,
@@ -174,7 +182,14 @@ export default async function EditPropertyPage({
       !h.pincode ||
       h.latitude == null
     ) return 1;
-    // Tab 4 — Rooms: need at least one room
+    const isHomestay = h.property_category === "HOMESTAY_VILLA";
+    if (isHomestay) {
+      // Tab 3 — Rooms & Spaces: gated by wizard_step >= 4
+      if (h.wizard_step < 4) return 2;
+      if (h._count.images === 0) return 4;
+      return Math.max(h.wizard_step, 5);
+    }
+    // Tab 4 — Rooms: need at least one room (regular hotels only)
     if (rooms.length === 0) return 3;
     // Tab 5 — Photos: completed once at least one photo is uploaded
     if (h._count.images === 0) return 4;
@@ -212,6 +227,10 @@ export default async function EditPropertyPage({
   }
   const tabLabel   = WIZARD_TABS[currentTab - 1]?.label ?? "";
   const isHomestayTab1 = currentTab === 1 && h.property_category === "HOMESTAY_VILLA";
+  // Tab 3 for HOMESTAY_VILLA: Phase 1 (counts not yet saved) hides the footer button.
+  // Phase 2 (counts saved) shows "Save & Continue" via the hidden wizard-form.
+  const isHomestayTab3CountsPending =
+    currentTab === 3 && h.property_category === "HOMESTAY_VILLA" && h.hs_bedrooms == null;
   const tabFormId  = isHomestayTab1 || !TABS_WITH_FORM.has(currentTab) ? undefined : "wizard-form";
 
   const tabContent =
@@ -222,7 +241,9 @@ export default async function EditPropertyPage({
     ) : currentTab === 2 ? (
       <LocationTab hotel={h} />
     ) : currentTab === 3 ? (
-      <AmenitiesTab hotel={{ id: h.id, property_amenities: h.property_amenities as HotelAmenitiesInfo["property_amenities"], property_sub_type: h.property_sub_type }} />
+      h.property_category === "HOMESTAY_VILLA"
+        ? <HomestayRoomsTab hotel={h as unknown as HomestayRoomsData} />
+        : <AmenitiesTab hotel={{ id: h.id, property_amenities: h.property_amenities as HotelAmenitiesInfo["property_amenities"], property_sub_type: h.property_sub_type }} />
     ) : currentTab === 4 ? (
       <RoomsTab hotelId={h.id} rooms={rooms} propertySubType={h.property_sub_type} />
     ) : currentTab === 5 ? (
@@ -241,7 +262,7 @@ export default async function EditPropertyPage({
       currentTab={currentTab}
       tabFormId={tabFormId}
       effectiveWizardStep={effectiveWizardStep()}
-      hideNextButton={isHomestayTab1}
+      hideNextButton={isHomestayTab1 || isHomestayTab3CountsPending}
     >
       {tabContent}
     </WizardShell>

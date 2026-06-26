@@ -975,6 +975,15 @@ model hotels {
   // ── Homestay-specific wizard fields ──────────────────────────────────────
   hosted_as                  String?
   host_lives_at_property     Boolean?
+  // ── Homestay Rooms & Spaces ────────────────────────────────────────────────
+  hs_bedrooms                Int?
+  hs_bathrooms               Int?
+  hs_has_kitchen             Boolean?
+  hs_additional_spaces       Json?
+  hs_bedroom_details         Json?
+  hs_bathroom_details        Json?
+  hs_kitchen_details         Json?
+  hs_space_items             Json?
   // ── Finance & Legal wizard fields ─────────────────────────────────────────
   bank_account_number     String?
   bank_ifsc_code          String?

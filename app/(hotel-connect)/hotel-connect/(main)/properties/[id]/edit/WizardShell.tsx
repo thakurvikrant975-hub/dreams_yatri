@@ -232,6 +232,12 @@ export default function WizardShell({
   const router = useRouter();
   const status = STATUS_CONFIG[hotel.listing_status] ?? STATUS_CONFIG.DRAFT;
 
+  const tabs = WIZARD_TABS.map((t) =>
+    t.index === 3 && hotel.property_category === "HOMESTAY_VILLA"
+      ? { ...t, label: "Rooms & Spaces" }
+      : t
+  );
+
   function goTo(tab: number) {
     const t = Math.max(1, Math.min(7, tab));
     router.push(`/hotel-connect/properties/${hotel.id}/edit?tab=${t}`);
@@ -287,7 +293,7 @@ export default function WizardShell({
       <div className="shrink-0 bg-white overflow-x-auto scrollbar-none py-5">
         <div className="border-b border-neutral-200">
           <div className="grid grid-cols-7 max-w-4xl m-auto divide-x divide-neutral-200 border border-neutral-200 rounded-t-xl -mb-px">
-            {WIZARD_TABS.map((tab) => (
+            {tabs.map((tab) => (
               <TabItem
                 key={tab.index}
                 tab={tab}
