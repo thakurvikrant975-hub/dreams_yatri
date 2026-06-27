@@ -5,7 +5,7 @@ import { hotelConnectAuth } from "@/app/lib/auth-hotel-connect";
 import { db } from "@/app/lib/db";
 import { HotelCancellationPolicy } from "@/app/generated/prisma";
 
-export type PolicyState = { error?: string };
+export type PolicyState = { ok?: boolean; error?: string };
 
 function parseBool(v: FormDataEntryValue | null): boolean | null {
   if (v === "yes") return true;
@@ -131,9 +131,9 @@ export async function savePolicies(
       meal_price_breakfast,
       meal_price_lunch,
       meal_price_dinner,
-      wizard_step: Math.max(hotel.wizard_step, 6),
+      wizard_step: Math.max(hotel.wizard_step, 5),
     },
   });
 
-  redirect(`/hotel-connect/properties/${hotelId}/edit?tab=7`);
+  return { ok: true };
 }

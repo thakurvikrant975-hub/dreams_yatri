@@ -6,7 +6,7 @@ import { hotelConnectAuth } from "@/app/lib/auth-hotel-connect";
 import { db } from "@/app/lib/db";
 import { ALL_AMENITY_KEYS } from "./amenities-data";
 
-export type AmenitiesState = { error?: string };
+export type AmenitiesState = { ok?: boolean; error?: string };
 
 export async function saveAmenities(
   hotelId: number,
@@ -71,5 +71,5 @@ export async function saveAmenities(
     },
   });
 
-  redirect(`/hotel-connect/properties/${hotelId}/edit?tab=4`);
+  return { ok: true };
 }

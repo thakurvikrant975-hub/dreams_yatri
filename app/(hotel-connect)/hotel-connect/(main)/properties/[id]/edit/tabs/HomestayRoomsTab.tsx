@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useState, useTransition, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -318,7 +318,11 @@ function ListEditView({ hotel }: { hotel: HomestayRoomsData }) {
   const [spaceDropdownOpen, setSpaceDropdownOpen] = useState(false);
 
   const boundAction = saveHomestayRooms.bind(null, hotel.id);
-  const [, formAction] = useActionState<HomestayRoomsState, FormData>(boundAction, {});
+  const [state, formAction] = useActionState<HomestayRoomsState, FormData>(boundAction, {});
+
+  useEffect(() => {
+    if (state.ok) window.location.href = `/hotel-connect/properties/${hotel.id}/edit?tab=4`;
+  }, [state.ok, hotel.id]);
 
   const bedrooms  = (hotel.hs_bedroom_details  ?? []) as BedroomDetail[];
   const bathrooms = (hotel.hs_bathroom_details ?? []) as BathroomDetail[];

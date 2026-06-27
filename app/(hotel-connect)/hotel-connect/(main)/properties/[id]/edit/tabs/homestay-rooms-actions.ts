@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { hotelConnectAuth } from "@/app/lib/auth-hotel-connect";
 import { db } from "@/app/lib/db";
 
-export type HomestayRoomsState = { error?: string };
+export type HomestayRoomsState = { ok?: boolean; error?: string };
 
 export async function saveHomestayRooms(
   hotelId: number,
@@ -26,5 +26,5 @@ export async function saveHomestayRooms(
     data: { wizard_step: Math.max(hotel.wizard_step, 4) },
   });
 
-  redirect(`/hotel-connect/properties/${hotelId}/edit?tab=4`);
+  return { ok: true };
 }

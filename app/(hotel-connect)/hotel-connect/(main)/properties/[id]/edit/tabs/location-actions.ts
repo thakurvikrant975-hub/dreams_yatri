@@ -52,5 +52,5 @@ export async function saveLocation(
     },
   });
 
-  redirect(`/hotel-connect/properties/${hotelId}/edit?tab=3`);
+  return { ok: true };
 }

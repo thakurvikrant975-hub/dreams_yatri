@@ -48,6 +48,7 @@ export const basicInfoSchema = z.object({
 export type BasicInfoValues = z.infer<typeof basicInfoSchema>;
 
 export type BasicInfoState = {
+  ok?: boolean;
   error?: string;
   fieldErrors?: Partial<Record<keyof BasicInfoValues, string[]>>;
 };

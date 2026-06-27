@@ -29,15 +29,28 @@ type HotelSummary = {
 
 // ── Tab config ────────────────────────────────────────────────────────────────
 
-export const WIZARD_TABS = [
+// Hotels & Villas — no Rooms tab
+export const HOTEL_WIZARD_TABS = [
   { index: 1, label: "Basic Info" },
   { index: 2, label: "Location" },
   { index: 3, label: "Amenities" },
-  { index: 4, label: "Rooms" },
-  { index: 5, label: "Photos" },
-  { index: 6, label: "Policies" },
-  { index: 7, label: "Finance & Legal" },
+  { index: 4, label: "Photos" },
+  { index: 5, label: "Policies" },
+  { index: 6, label: "Finance & Legal" },
 ];
+
+// Homestay Villas — 6 tabs, same structure as hotels but tab 3 = Rooms & Spaces
+export const HOMESTAY_WIZARD_TABS = [
+  { index: 1, label: "Basic Info" },
+  { index: 2, label: "Location" },
+  { index: 3, label: "Rooms & Spaces" },
+  { index: 4, label: "Photos" },
+  { index: 5, label: "Policies" },
+  { index: 6, label: "Finance & Legal" },
+];
+
+// Kept for any legacy imports
+export const WIZARD_TABS = HOTEL_WIZARD_TABS;
 
 // ── Status badge ──────────────────────────────────────────────────────────────
 
@@ -67,11 +80,13 @@ function TabItem({
   currentTab,
   effectiveWizardStep,
   hotelId,
+  totalTabs,
 }: {
-  tab: (typeof WIZARD_TABS)[0];
+  tab: (typeof HOTEL_WIZARD_TABS)[0];
   currentTab: number;
   effectiveWizardStep: number;
   hotelId: number;
+  totalTabs: number;
 }) {
   const isCurrent   = tab.index === currentTab;
   const isCompleted = tab.index <= effectiveWizardStep && !isCurrent;
@@ -81,7 +96,7 @@ function TabItem({
     "relative flex-1 flex flex-col items-center gap-3 px-5 py-3.5 whitespace-nowrap transition-colors select-none",
     "after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:transition-colors",
     tab.index === 1 ? "rounded-tl-xl" : "",
-    tab.index === WIZARD_TABS.length ? "rounded-tr-xl" : "",
+    tab.index === totalTabs ? "rounded-tr-xl" : "",
     isCurrent
       ? "bg-white text-primary-500 after:absolute after:bottom-0 after:h-px after:w-full after:bg-white after:translate-y-px"
       : isCompleted
@@ -124,7 +139,11 @@ function TabItem({
   }
 
   return (
-    <Link href={`/hotel-connect/properties/${hotelId}/edit?tab=${tab.index}`} className={baseClass}>
+    <Link
+      href={`/hotel-connect/properties/${hotelId}/edit?tab=${tab.index}`}
+      className={baseClass}
+      prefetch={false}
+    >
       {indicator}
       {label}
     </Link>
@@ -232,20 +251,19 @@ export default function WizardShell({
   const router = useRouter();
   const status = STATUS_CONFIG[hotel.listing_status] ?? STATUS_CONFIG.DRAFT;
 
-  const tabs = WIZARD_TABS.map((t) =>
-    t.index === 3 && hotel.property_category === "HOMESTAY_VILLA"
-      ? { ...t, label: "Rooms & Spaces" }
-      : t
-  );
+  const tabs = hotel.property_category === "HOMESTAY_VILLA"
+    ? HOMESTAY_WIZARD_TABS
+    : HOTEL_WIZARD_TABS;
+  const totalTabs = tabs.length;
 
   function goTo(tab: number) {
-    const t = Math.max(1, Math.min(7, tab));
-    router.push(`/hotel-connect/properties/${hotel.id}/edit?tab=${t}`);
+    const t = Math.max(1, Math.min(totalTabs, tab));
+    window.location.href = `/hotel-connect/properties/${hotel.id}/edit?tab=${t}`;
   }
 
   const isFirstTab = currentTab === 1;
-  const isLastTab = currentTab === 7;
-  const allComplete = effectiveWizardStep >= WIZARD_TABS.length;
+  const isLastTab = currentTab === totalTabs;
+  const allComplete = effectiveWizardStep >= totalTabs;
   const isDraft = hotel.listing_status === HotelListingStatus.DRAFT;
 
   return (
@@ -292,7 +310,12 @@ export default function WizardShell({
       {/* ── Tab bar ───────────────────────────────────────────────────── */}
       <div className="shrink-0 bg-white overflow-x-auto scrollbar-none py-5">
         <div className="border-b border-neutral-200">
-          <div className="grid grid-cols-7 max-w-4xl m-auto divide-x divide-neutral-200 border border-neutral-200 rounded-t-xl -mb-px">
+          <div
+            className={cn(
+              totalTabs === 7 ? "grid-cols-7" : "grid-cols-6",
+              "grid max-w-4xl m-auto divide-x divide-neutral-200 border border-neutral-200 rounded-t-xl -mb-px",
+            )}
+          >
             {tabs.map((tab) => (
               <TabItem
                 key={tab.index}
@@ -300,6 +323,7 @@ export default function WizardShell({
                 currentTab={currentTab}
                 effectiveWizardStep={effectiveWizardStep}
                 hotelId={hotel.id}
+                totalTabs={totalTabs}
               />
             ))}
           </div>
@@ -354,7 +378,7 @@ export default function WizardShell({
           </button>
 
           <p className="text-xs text-neutral-400 font-medium">
-            Step {currentTab} of {WIZARD_TABS.length}
+            Step {currentTab} of {totalTabs}
           </p>
 
           {hideNextButton ? (

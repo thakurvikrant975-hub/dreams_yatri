@@ -13,7 +13,7 @@ export async function submitForReview(hotelId: number) {
     select: { id: true, listing_status: true, wizard_step: true },
   });
 
-  if (!hotel || hotel.listing_status !== "DRAFT" || hotel.wizard_step < 7) return;
+  if (!hotel || hotel.listing_status !== "DRAFT" || hotel.wizard_step < 6) return;
 
   await db.hotels.update({
     where: { id: hotelId },
@@ -23,5 +23,5 @@ export async function submitForReview(hotelId: number) {
     },
   });
 
-  redirect(`/hotel-connect/properties/${hotelId}/edit?tab=7`);
+  redirect(`/hotel-connect/properties/${hotelId}/edit?tab=6`);
 }

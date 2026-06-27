@@ -13,6 +13,7 @@ export const locationSchema = z.object({
 
 export type LocationValues = z.infer<typeof locationSchema>;
 export type LocationState = {
+  ok?: boolean;
   error?: string;
   fieldErrors?: Partial<Record<keyof LocationValues, string[]>>;
 };

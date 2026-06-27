@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useEffect } from "react";
 import { saveBasicInfo } from "./basic-info-actions";
 import {
   sendEmailOtp, verifyEmailOtp,
@@ -346,6 +346,10 @@ export default function BasicInfoTab({ hotel }: { hotel: HotelBasicInfo }) {
     boundAction,
     {}
   );
+
+  useEffect(() => {
+    if (state.ok) window.location.href = `/hotel-connect/properties/${hotel.id}/edit?tab=2`;
+  }, [state.ok, hotel.id]);
 
   // ── Dropdown / checkbox state ──────────────────────────────────────────────
   const [mobileCC,      setMobileCC]      = useState(hotel.contact_mobile_cc ?? "+91");

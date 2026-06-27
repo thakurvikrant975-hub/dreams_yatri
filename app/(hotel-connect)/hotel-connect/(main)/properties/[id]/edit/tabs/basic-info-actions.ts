@@ -54,5 +54,5 @@ export async function saveBasicInfo(
     },
   });
 
-  redirect(`/hotel-connect/properties/${hotelId}/edit?tab=2`);
+  return { ok: true };
 }

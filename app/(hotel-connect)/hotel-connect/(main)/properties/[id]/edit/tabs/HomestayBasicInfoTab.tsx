@@ -1,8 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { useRouter } from "next/navigation";
-import { ArrowRightIcon } from "@phosphor-icons/react/dist/ssr";
+import { useActionState, useState, useEffect } from "react";
 import { saveHomestayBasicInfo } from "./homestay-basic-info-actions";
 import {
   sendEmailOtp, verifyEmailOtp,
@@ -305,15 +303,20 @@ function OtpEntry({
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function HomestayBasicInfoTab({ hotel, owner }: { hotel: HomestayBasicInfo; owner: OwnerProfile }) {
-  const router = useRouter();
   const boundAction = saveHomestayBasicInfo.bind(null, hotel.id);
   const [state, formAction, isPending] = useActionState<HomestayBasicInfoState, FormData>(
     boundAction,
     {}
   );
 
-  const basicSaved = state.ok || hotel.wizard_step >= 2;
-  const [hostDetailsSaved, setHostDetailsSaved] = useState(hotel.wizard_step >= 2);
+  const basicSaved = hotel.wizard_step >= 2;
+
+  // Navigate to Location tab when action succeeds
+  useEffect(() => {
+    if (state.ok) {
+      window.location.href = `/hotel-connect/properties/${hotel.id}/edit?tab=2`;
+    }
+  }, [state.ok, hotel.id]);
 
   // ── Dropdown state ─────────────────────────────────────────────────────────
   const [mobileCC,      setMobileCC]      = useState(hotel.contact_mobile_cc ?? "+91");
@@ -524,7 +527,7 @@ export default function HomestayBasicInfoTab({ hotel, owner }: { hotel: Homestay
           />
         </FieldRow>
 
-        <FieldRow label="Year of Construction" error={fe.year_built}>
+        <FieldRow label="Year of Construction" required error={fe.year_built}>
           <SearchSelect
             name="year_built"
             options={BUILT_YEARS}
@@ -539,6 +542,7 @@ export default function HomestayBasicInfoTab({ hotel, owner }: { hotel: Homestay
 
         <FieldRow
           label="Accepting Bookings Since"
+          required
           hint="The year you first started accepting guest reservations"
           error={fe.booking_since_year}
         >
@@ -653,8 +657,9 @@ export default function HomestayBasicInfoTab({ hotel, owner }: { hotel: Homestay
                 />
           }
         >
+          {/* Hidden input ensures the value is always submitted — disabled inputs are excluded from FormData */}
+          <input type="hidden" name="contact_email" value={emailInput} />
           <Input
-            name="contact_email"
             type="email"
             value={emailInput}
             onChange={(e) => onEmailChange(e.target.value)}
@@ -692,9 +697,11 @@ export default function HomestayBasicInfoTab({ hotel, owner }: { hotel: Homestay
                 />
           }
         >
+          {/* Hidden inputs ensure values are always submitted — disabled inputs are excluded from FormData */}
+          <input type="hidden" name="contact_mobile_cc" value={mobileCC} />
+          <input type="hidden" name="contact_mobile" value={mobileInput} />
           <div className="flex gap-2">
             <SearchSelect
-              name="contact_mobile_cc"
               options={COUNTRY_CODES}
               value={mobileCC}
               onChange={onMobileCCChange}
@@ -706,7 +713,6 @@ export default function HomestayBasicInfoTab({ hotel, owner }: { hotel: Homestay
               className="w-24 shrink-0"
             />
             <Input
-              name="contact_mobile"
               type="tel"
               maxLength={15}
               value={mobileInput}
@@ -784,41 +790,20 @@ export default function HomestayBasicInfoTab({ hotel, owner }: { hotel: Homestay
 
       </SectionCard>
 
-      {/* ── Save button ───────────────────────────────────────────────────── */}
-      <div className="flex justify-end">
-        <button
-          type="submit"
-          disabled={isPending}
-          className="h-10 px-6 rounded-xl text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {isPending ? "Saving…" : basicSaved ? "Save Changes" : "Save"}
-        </button>
-      </div>
-
     </form>
 
     {/* ── Host Details accordion ────────────────────────────────────────── */}
     <div className="mt-5">
+      {basicSaved && (
+        <p className="text-xs text-neutral-400 mb-2 px-1">
+          Your host profile is shared across all your properties and saved to your account — not to this listing individually.
+        </p>
+      )}
       <HostDetailsSection
         owner={owner}
         locked={!basicSaved}
-        onSaved={() => setHostDetailsSaved(true)}
       />
     </div>
-
-    {/* ── Continue button — visible once both sections are saved ─────────── */}
-    {basicSaved && hostDetailsSaved && (
-      <div className="flex justify-end mt-4">
-        <button
-          type="button"
-          onClick={() => router.push(`/hotel-connect/properties/${hotel.id}/edit?tab=2`)}
-          className="h-10 px-6 rounded-xl text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 transition-colors flex items-center gap-2"
-        >
-          Continue to Location
-          <ArrowRightIcon size={14} weight="bold" />
-        </button>
-      </div>
-    )}
     </>
   );
 }

@@ -52,6 +52,5 @@ export async function saveHomestayBasicInfo(
     },
   });
 
-  // Return ok — caller shows Host Details section and manages navigation
   return { ok: true };
 }

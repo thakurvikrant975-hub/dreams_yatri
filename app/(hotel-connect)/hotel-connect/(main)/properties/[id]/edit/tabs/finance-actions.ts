@@ -8,7 +8,7 @@ import { uploadToR2 } from "@/app/lib/r2/r2upload";
 import { r2, R2_BUCKET } from "@/app/lib/r2/r2";
 import { HotelBusinessType, Prisma } from "@/app/generated/prisma";
 
-export type FinanceState = { error?: string };
+export type FinanceState = { ok?: boolean; error?: string };
 
 export async function saveFinance(
   hotelId: number,
@@ -49,11 +49,11 @@ export async function saveFinance(
       pan_number,
       business_type,
       msme_number,
-      wizard_step: Math.max(hotel.wizard_step, 7),
+      wizard_step: Math.max(hotel.wizard_step, 6),
     },
   });
 
-  redirect(`/hotel-connect/properties/${hotelId}/edit?tab=7`);
+  return { ok: true };
 }
 
 // ── Document upload ───────────────────────────────────────────────────────────

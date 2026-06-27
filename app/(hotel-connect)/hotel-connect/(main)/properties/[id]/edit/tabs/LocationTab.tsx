@@ -181,6 +181,13 @@ export default function LocationTab({ hotel }: { hotel: HotelLocationInfo }) {
   const [country, setCountry] = useState(hotel.country ?? "");
   const [pincode, setPincode] = useState(hotel.pincode ?? "");
 
+  // Navigate to Rooms tab when action succeeds
+  useEffect(() => {
+    if (state.ok) {
+      window.location.href = `/hotel-connect/properties/${hotel.id}/edit?tab=3`;
+    }
+  }, [state.ok, hotel.id]);
+
   // ── Terms checkbox ─────────────────────────────────────────────────────────
   const [termsChecked, setTermsChecked] = useState(false);
 

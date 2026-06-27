@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useEffect } from "react";
 import { saveAmenities, type AmenitiesState } from "./amenities-actions";
 import {
   AMENITY_CATEGORIES,
@@ -394,6 +394,10 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
     boundAction,
     {}
   );
+
+  useEffect(() => {
+    if (state.ok) window.location.href = `/hotel-connect/properties/${hotel.id}/edit?tab=4`;
+  }, [state.ok, hotel.id]);
 
   const mandatoryConfig = hotel.property_sub_type === "GUEST_HOUSE"
     ? GUEST_HOUSE_MANDATORY_CONFIG

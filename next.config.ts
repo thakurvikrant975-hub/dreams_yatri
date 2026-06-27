@@ -6,7 +6,12 @@ const nextConfig: NextConfig = {
   // client across navigations so it doesn't re-fetch/flicker on every route change.
   experimental: {
     staleTimes: {
-      dynamic: 30,
+      // 0 = Next.js 15 default for dynamic routes. The router cache does NOT
+      // differentiate searchParams in its cache key, so a non-zero value causes
+      // the wrong tab content to appear when navigating between ?tab=N URLs on
+      // the same pathname. Dashboard layout caching should be solved at the
+      // layout level, not by globally caching all dynamic pages.
+      dynamic: 0,
     },
     serverActions: {
       bodySizeLimit: "50mb",

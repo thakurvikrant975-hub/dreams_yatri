@@ -4,7 +4,8 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeftIcon, CheckIcon, MinusIcon, PlusIcon, TrashIcon, CaretDownIcon, CaretUpIcon,
+  ArrowLeftIcon, CheckIcon, MinusIcon, PlusIcon, TrashIcon,
+  CaretDownIcon, CaretUpIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import { saveHomestaySpaceDetail, deleteHomestaySpace } from "../../tabs/homestay-rooms-crud-actions";
 import { BED_TYPES } from "../../tabs/homestay-rooms-types";
@@ -218,6 +219,500 @@ function StepSection({
   );
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// SWIMMING POOL FORM
+// ══════════════════════════════════════════════════════════════════════════════
+
+const POOL_TYPES = [
+  { key: "outdoor",  label: "Outdoor" },
+  { key: "indoor",   label: "Indoor" },
+  { key: "rooftop",  label: "Rooftop" },
+  { key: "infinity", label: "Infinity / Overflow" },
+  { key: "plunge",   label: "Plunge Pool" },
+  { key: "natural",  label: "Natural / Spring" },
+];
+
+const WATER_TYPES = [
+  { key: "fresh",      label: "Fresh Water" },
+  { key: "salt",       label: "Salt Water" },
+  { key: "heated",     label: "Heated" },
+  { key: "temp_ctrl",  label: "Temperature Controlled" },
+];
+
+const DEPTH_PROFILES = [
+  { key: "shallow_only",  label: "Shallow Only", desc: "Up to 4 ft throughout" },
+  { key: "shallow_deep",  label: "Shallow + Deep End", desc: "Varies from 3 ft to 6+ ft" },
+  { key: "variable",      label: "Variable / Custom", desc: "Non-standard depth profile" },
+];
+
+const POOL_SIZE_OPTIONS = [
+  { key: "small",    label: "Small",     desc: "Up to 5 m × 3 m" },
+  { key: "medium",   label: "Medium",    desc: "Up to 10 m × 5 m" },
+  { key: "large",    label: "Large",     desc: "10 m × 5 m or bigger" },
+  { key: "not_sure", label: "Not Sure",  desc: "I'll add dimensions later" },
+];
+
+const POOL_FEATURE_CATEGORIES: { label: string; items: { key: string; label: string }[] }[] = [
+  {
+    label: "Safety",
+    items: [
+      { key: "lifeguard",     label: "Lifeguard on Duty" },
+      { key: "safety_rail",   label: "Safety Rail / Steps" },
+      { key: "night_lighting", label: "Night Lighting" },
+      { key: "cctv",          label: "CCTV" },
+      { key: "life_rings",    label: "Life Rings / Safety Equipment" },
+    ],
+  },
+  {
+    label: "Poolside Facilities",
+    items: [
+      { key: "sun_loungers",      label: "Sun Loungers / Deck Chairs" },
+      { key: "umbrellas",         label: "Umbrellas / Shade" },
+      { key: "poolside_shower",   label: "Poolside Shower" },
+      { key: "changing_room",     label: "Changing Room" },
+      { key: "towels",            label: "Towels Provided" },
+      { key: "locker",            label: "Locker / Storage" },
+    ],
+  },
+  {
+    label: "Extras",
+    items: [
+      { key: "pool_bar",      label: "Pool Bar" },
+      { key: "jacuzzi",       label: "Jacuzzi / Hot Tub" },
+      { key: "kids_section",  label: "Kids' Section / Wading Pool" },
+      { key: "waterslide",    label: "Waterslide" },
+      { key: "diving_board",  label: "Diving Board" },
+      { key: "pool_heating",  label: "Pool Heating" },
+    ],
+  },
+];
+
+const POOL_RULES = [
+  { key: "swimwear_required",    label: "Swimwear Required" },
+  { key: "no_diving",            label: "No Diving" },
+  { key: "no_running",           label: "No Running / Rough Play" },
+  { key: "supervised_children",  label: "Children Must Be Supervised" },
+  { key: "adults_only_night",    label: "Adults Only After Sunset" },
+  { key: "booking_required",     label: "Prior Booking / Slot Required" },
+];
+
+// ── Pool-specific radio picker ─────────────────────────────────────────────────
+
+function RadioCard({
+  selected, onSelect, label, desc,
+}: {
+  selected: boolean; onSelect: () => void; label: string; desc?: string;
+}) {
+  return (
+    <label className={cn(
+      "flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-colors",
+      selected ? "border-primary-400 bg-primary-50" : "border-neutral-200 hover:border-neutral-300 bg-white",
+    )}>
+      <input
+        type="radio"
+        checked={selected}
+        onChange={onSelect}
+        className="mt-0.5 h-4 w-4 accent-primary-500 cursor-pointer shrink-0"
+      />
+      <div>
+        <p className="text-sm font-medium text-neutral-800">{label}</p>
+        {desc && <p className="text-xs text-neutral-500 mt-0.5">{desc}</p>}
+      </div>
+    </label>
+  );
+}
+
+// ── Pool form ─────────────────────────────────────────────────────────────────
+
+function PoolSpaceForm({
+  hotelId, idx, item, isPending,
+}: {
+  hotelId: number; idx: number; item: SpaceItem; isPending: boolean;
+}) {
+  const router = useRouter();
+  const [poolPending, startTransition] = useTransition();
+
+  const details = item.amenity_details ?? {};
+
+  const [stepReached, setStepReached] = useState(item.step_reached ?? 0);
+  const [currentStep, setCurrentStep] = useState(
+    item.step_reached >= 3 ? 1 : Math.min((item.step_reached ?? 0) + 1, 3)
+  );
+
+  // Step 1
+  const [poolName,     setPoolName]     = useState(item.name || `Swimming Pool ${item.instance}`);
+  const [poolType,     setPoolType]     = useState((details.pool_type as string) || "");
+  const [isAccessible, setIsAccessible] = useState<boolean | null>(
+    item.is_accessible !== undefined ? item.is_accessible : null,
+  );
+
+  // Step 2
+  const [poolSize,     setPoolSize]     = useState((details.pool_size as string)    || "");
+  const [waterType,    setWaterType]    = useState((details.water_type as string)   || "");
+  const [depthProfile, setDepthProfile] = useState((details.depth_profile as string) || "");
+
+  // Step 3
+  const [features,   setFeatures]   = useState<string[]>(item.amenities ?? []);
+  const [hoursType,  setHoursType]  = useState<"all_day" | "specific">(
+    (details.hours_type as "all_day" | "specific") || "all_day",
+  );
+  const [hoursOpen,  setHoursOpen]  = useState((details.hours_open as string)  || "06:00");
+  const [hoursClose, setHoursClose] = useState((details.hours_close as string) || "22:00");
+  const [rules,      setRules]      = useState<string[]>(
+    Array.isArray(details.rules) ? (details.rules as string[]) : [],
+  );
+  const [description, setDescription] = useState(item.description || "");
+
+  function toggleFeature(key: string) {
+    setFeatures(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+  }
+  function toggleRule(key: string) {
+    setRules(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+  }
+
+  function openStep(s: number) {
+    if (stepReached >= s - 1 || s === 1) setCurrentStep(s);
+  }
+
+  function save(patch: Partial<SpaceItem>, completingStep: number, nextStep: number | "back") {
+    const newReached = Math.max(stepReached, completingStep);
+    startTransition(async () => {
+      await saveHomestaySpaceDetail(hotelId, idx, { ...patch, step_reached: newReached });
+    });
+    setStepReached(newReached);
+    if (nextStep === "back") {
+      router.push(`/hotel-connect/properties/${hotelId}/edit?tab=3`);
+    } else {
+      setCurrentStep(nextStep as number);
+    }
+  }
+
+  const step1Valid = !!poolName.trim() && !!poolType && isAccessible !== null;
+  const step2Valid = !!poolSize && !!waterType && !!depthProfile;
+
+  return (
+    <div>
+      {/* ── Step 1: Pool Info ─────────────────────────────────────── */}
+      <StepSection
+        index={1}
+        label="Pool Info"
+        subtitle="Name the pool, select its type, and set guest accessibility"
+        isActive={currentStep === 1} isCompleted={stepReached >= 1} canOpen={true}
+        onOpen={() => openStep(1)}
+      >
+        {/* Pool Name */}
+        <div className="space-y-1.5">
+          <p className="text-sm font-semibold text-neutral-800">Pool Name</p>
+          <p className="text-xs text-neutral-400">Give this pool a name to identify it on the property</p>
+          <input
+            type="text"
+            value={poolName}
+            onChange={e => setPoolName(e.target.value)}
+            placeholder={`e.g. Swimming Pool ${item.instance}`}
+            className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 placeholder:text-neutral-400"
+          />
+        </div>
+
+        {/* Pool Type */}
+        <div className="space-y-2">
+          <p className="text-sm font-semibold text-neutral-800">Pool Type <span className="text-red-400">*</span></p>
+          <p className="text-xs text-neutral-400">Select the type that best describes this pool</p>
+          <div className="flex flex-wrap gap-2 pt-1">
+            {POOL_TYPES.map(pt => (
+              <button
+                key={pt.key}
+                type="button"
+                onClick={() => setPoolType(pt.key)}
+                className={cn(
+                  "px-4 py-2 text-sm font-medium rounded-xl border transition-colors",
+                  poolType === pt.key
+                    ? "bg-primary-500 text-white border-primary-500"
+                    : "bg-white text-neutral-600 border-neutral-300 hover:border-primary-400",
+                )}
+              >
+                {pt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Access Status */}
+        <div className="space-y-2">
+          <p className="text-sm font-semibold text-neutral-800">Access Status <span className="text-red-400">*</span></p>
+          <p className="text-xs text-neutral-400">
+            Specify whether guests can use this pool during their stay
+          </p>
+          <div className="space-y-2 pt-1">
+            <RadioCard
+              selected={isAccessible === true}
+              onSelect={() => setIsAccessible(true)}
+              label="Accessible to Guests"
+              desc="Guests can use the swimming pool during their stay"
+            />
+            <RadioCard
+              selected={isAccessible === false}
+              onSelect={() => setIsAccessible(false)}
+              label="Not Accessible to Guests"
+              desc="Pool is for property use only — not available to guests"
+            />
+          </div>
+        </div>
+
+        <button
+          type="button"
+          disabled={poolPending || isPending || !step1Valid}
+          onClick={() => save(
+            {
+              name: poolName.trim(),
+              is_accessible: isAccessible ?? false,
+              access_type: isAccessible ? "Accessible to Guests" : "Not Accessible to Guests",
+              amenity_details: { ...details, pool_type: poolType },
+            },
+            1, 2,
+          )}
+          className="px-5 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          Next
+        </button>
+      </StepSection>
+
+      {/* ── Step 2: Pool Details ──────────────────────────────────── */}
+      <StepSection
+        index={2}
+        label="Pool Details"
+        subtitle="Specify size, water type, and depth profile"
+        isActive={currentStep === 2} isCompleted={stepReached >= 2} canOpen={stepReached >= 1}
+        onOpen={() => openStep(2)}
+      >
+        {/* Pool Size */}
+        <div className="space-y-2">
+          <p className="text-sm font-semibold text-neutral-800">Pool Size <span className="text-red-400">*</span></p>
+          <div className="space-y-2 pt-1">
+            {POOL_SIZE_OPTIONS.map(opt => (
+              <RadioCard
+                key={opt.key}
+                selected={poolSize === opt.key}
+                onSelect={() => setPoolSize(opt.key)}
+                label={opt.label}
+                desc={opt.desc}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Water Type */}
+        <div className="space-y-2">
+          <p className="text-sm font-semibold text-neutral-800">Water Type <span className="text-red-400">*</span></p>
+          <div className="flex flex-wrap gap-2 pt-1">
+            {WATER_TYPES.map(wt => (
+              <button
+                key={wt.key}
+                type="button"
+                onClick={() => setWaterType(wt.key)}
+                className={cn(
+                  "px-4 py-2 text-sm font-medium rounded-xl border transition-colors",
+                  waterType === wt.key
+                    ? "bg-primary-500 text-white border-primary-500"
+                    : "bg-white text-neutral-600 border-neutral-300 hover:border-primary-400",
+                )}
+              >
+                {wt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Depth Profile */}
+        <div className="space-y-2">
+          <p className="text-sm font-semibold text-neutral-800">Depth Profile <span className="text-red-400">*</span></p>
+          <div className="space-y-2 pt-1">
+            {DEPTH_PROFILES.map(dp => (
+              <RadioCard
+                key={dp.key}
+                selected={depthProfile === dp.key}
+                onSelect={() => setDepthProfile(dp.key)}
+                label={dp.label}
+                desc={dp.desc}
+              />
+            ))}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          disabled={poolPending || isPending || !step2Valid}
+          onClick={() => save(
+            {
+              amenity_details: {
+                ...details,
+                pool_type:     poolType,
+                pool_size:     poolSize,
+                water_type:    waterType,
+                depth_profile: depthProfile,
+              },
+            },
+            2, 3,
+          )}
+          className="px-5 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          Next
+        </button>
+      </StepSection>
+
+      {/* ── Step 3: Facilities & Rules ────────────────────────────── */}
+      <StepSection
+        index={3}
+        label="Facilities & Rules"
+        subtitle="Add poolside features, operating hours, and house rules"
+        isActive={currentStep === 3} isCompleted={stepReached >= 3} canOpen={stepReached >= 2}
+        onOpen={() => openStep(3)}
+      >
+        {/* Poolside features */}
+        <div className="space-y-5">
+          {POOL_FEATURE_CATEGORIES.map(cat => (
+            <div key={cat.label}>
+              <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-2">
+                {cat.label}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {cat.items.map(f => (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() => toggleFeature(f.key)}
+                    className={cn(
+                      "px-3 py-1.5 text-xs font-medium rounded-full border transition-colors",
+                      features.includes(f.key)
+                        ? "bg-primary-500 text-white border-primary-500"
+                        : "bg-white text-neutral-600 border-neutral-300 hover:border-primary-400",
+                    )}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Operating Hours */}
+        <div className="space-y-2 pt-1 border-t border-neutral-100">
+          <p className="text-sm font-semibold text-neutral-800">Operating Hours</p>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { key: "all_day" as const, label: "Open All Day" },
+              { key: "specific" as const, label: "Specific Hours" },
+            ].map(opt => (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => setHoursType(opt.key)}
+                className={cn(
+                  "px-4 py-2 text-sm font-medium rounded-xl border transition-colors",
+                  hoursType === opt.key
+                    ? "bg-primary-500 text-white border-primary-500"
+                    : "bg-white text-neutral-600 border-neutral-300 hover:border-primary-400",
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
+          {hoursType === "specific" && (
+            <div className="flex items-center gap-3 pt-1">
+              <div className="space-y-1">
+                <p className="text-xs text-neutral-500">Opens at</p>
+                <input
+                  type="time"
+                  value={hoursOpen}
+                  onChange={e => setHoursOpen(e.target.value)}
+                  className="px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400"
+                />
+              </div>
+              <div className="pt-5 text-neutral-400 text-sm">to</div>
+              <div className="space-y-1">
+                <p className="text-xs text-neutral-500">Closes at</p>
+                <input
+                  type="time"
+                  value={hoursClose}
+                  onChange={e => setHoursClose(e.target.value)}
+                  className="px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* House Rules */}
+        <div className="space-y-2 pt-1 border-t border-neutral-100">
+          <p className="text-sm font-semibold text-neutral-800">House Rules</p>
+          <p className="text-xs text-neutral-400">Select all rules that apply to this pool</p>
+          <div className="flex flex-wrap gap-2 pt-1">
+            {POOL_RULES.map(r => (
+              <button
+                key={r.key}
+                type="button"
+                onClick={() => toggleRule(r.key)}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-medium rounded-full border transition-colors",
+                  rules.includes(r.key)
+                    ? "bg-primary-500 text-white border-primary-500"
+                    : "bg-white text-neutral-600 border-neutral-300 hover:border-primary-400",
+                )}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Additional Notes */}
+        <div className="space-y-1.5 pt-1 border-t border-neutral-100">
+          <p className="text-sm font-semibold text-neutral-800">
+            Additional Notes{" "}
+            <span className="text-xs font-normal text-neutral-400">— optional</span>
+          </p>
+          <textarea
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            rows={3}
+            placeholder="e.g. Pool is heated in winter. Guests should inform the host before use."
+            className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 placeholder:text-neutral-400"
+          />
+        </div>
+
+        <button
+          type="button"
+          disabled={poolPending || isPending}
+          onClick={() => save(
+            {
+              amenities: features,
+              description,
+              details_added: true,
+              amenity_details: {
+                ...details,
+                pool_type:     poolType,
+                pool_size:     poolSize,
+                water_type:    waterType,
+                depth_profile: depthProfile,
+                hours_type:    hoursType,
+                hours_open:    hoursType === "specific" ? hoursOpen  : "",
+                hours_close:   hoursType === "specific" ? hoursClose : "",
+                rules,
+              },
+            },
+            3, "back",
+          )}
+          className="px-5 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
+        >
+          {poolPending || isPending ? "Saving…" : "Save & Continue"}
+        </button>
+      </StepSection>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function SpaceEditTab({
@@ -351,6 +846,9 @@ export default function SpaceEditTab({
           Back to Rooms &amp; Spaces
         </Link>
 
+        {item.space_type === "swimming_pool" ? (
+          <PoolSpaceForm hotelId={hotelId} idx={idx} item={item} isPending={isPending} />
+        ) : (
         <div>
           {/* ── Step 1: Access Info ────────────────────────────────── */}
           <StepSection
@@ -719,6 +1217,7 @@ export default function SpaceEditTab({
             </button>
           </StepSection>
         </div>
+        )}
       </SectionCard>
     </div>
   );
