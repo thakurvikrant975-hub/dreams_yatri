@@ -22,7 +22,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "lh3.googleusercontent.com" },
     ],
   },
-  // Site is in testing — keep search engines out of every response.
+  // Site under development — keep search engines out of every response.
   async headers() {
     return [
       {
