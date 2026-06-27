@@ -16,10 +16,10 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: "50mb",
     },
+    // Allow the middleware proxy to forward large upload payloads (server action
+    // photo uploads go through the middleware before reaching the action handler).
+    middlewareClientMaxBodySize: "50mb",
   },
-  // Allow the middleware proxy to forward large upload payloads (server action
-  // photo uploads go through the middleware before reaching the action handler).
-  middlewareClientMaxBodySize: "50mb",
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },

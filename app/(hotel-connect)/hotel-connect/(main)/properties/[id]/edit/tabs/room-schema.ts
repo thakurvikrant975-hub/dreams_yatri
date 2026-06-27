@@ -49,7 +49,7 @@ export const fullRoomSchema = z.object({
 
   // Section 5
   room_amenities:        z.array(z.string()),
-  room_amenity_details:  z.record(z.union([z.string(), z.array(z.string())])).optional(),
+  room_amenity_details:  z.record(z.string(), z.union([z.string(), z.array(z.string())])).optional(),
 });
 
 export type FullRoomData = z.infer<typeof fullRoomSchema>;
