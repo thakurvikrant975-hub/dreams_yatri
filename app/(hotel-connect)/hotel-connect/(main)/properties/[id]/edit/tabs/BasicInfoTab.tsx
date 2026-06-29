@@ -512,15 +512,13 @@ export default function BasicInfoTab({ hotel }: { hotel: HotelBasicInfo }) {
     if (hasChannelMgr && !channelMgr)
       errs.channel_manager_name = ["Please select your channel manager"];
 
-    // Email: format check + must be verified if provided
+    // Email: format check only
     if (emailInput) {
       if (!isValidEmail(emailInput))
         errs.contact_email = ["Enter a valid email address"];
-      else if (emailStep !== "verified")
-        errs.contact_email = ["Please verify your email address"];
     }
 
-    // Mobile: format check + must be verified if provided
+    // Mobile: format check only
     if (mobileInput) {
       if (!isValidMobile(mobileCC, mobileInput))
         errs.contact_mobile = [
@@ -528,8 +526,6 @@ export default function BasicInfoTab({ hotel }: { hotel: HotelBasicInfo }) {
             ? "Enter a valid 10-digit number for India (+91)"
             : "Enter a valid mobile number",
         ];
-      else if (mobileStep !== "verified")
-        errs.contact_mobile = ["Please verify your mobile number"];
     }
 
     return errs;

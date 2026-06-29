@@ -40,7 +40,6 @@ model pricing_rules {
 model User {
   id                     String            @id @default(cuid())
   phone                  String?           @unique
-  whatsapp               String?           @unique
   name                   String?
   email                  String?           @unique
   gender                 Gender?
@@ -62,12 +61,13 @@ model User {
   country_code           String?
   role                   Role              @default(USER)
   status                 UserStatus        @default(ACTIVE)
+  whatsapp               String?           @unique
   accounts               Account[]
   sessions               Session[]
+  blogPosts              blog_posts[]
   bookings               Booking[]
   payments               Payment[]
   travelPreference       TravelPreference?
-  blogPosts              blog_posts[]
 }
 
 model Account {
@@ -129,8 +129,8 @@ model MagicSession {
 model PendingContactVerification {
   id        String   @id @default(cuid())
   userId    String
-  type      String // "email" | "whatsapp"
-  value     String // new email or phone being verified
+  type      String
+  value     String
   token     String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
@@ -177,9 +177,6 @@ model Booking {
   gstAmount               Decimal               @default(0) @db.Decimal(10, 2)
   totalAmount             Decimal               @db.Decimal(10, 2)
   paidAmount              Decimal               @default(0) @db.Decimal(10, 2)
-  totalAmount_paise       Int                   @default(0) // paise — charge source of truth
-  advanceAmount_paise     Int                   @default(0)
-  balanceAmount_paise     Int                   @default(0)
   currency                String                @default("INR")
   notes                   String?
   cancelledAt             DateTime?
@@ -203,14 +200,6 @@ model Booking {
   advancePaidAmount       Decimal               @default(0) @db.Decimal(10, 2)
   balanceDueAmount        Decimal               @default(0) @db.Decimal(10, 2)
   balanceDueDate          DateTime?
-  quoteId                 String?               @unique // loose ref to package_quote.id (one booking per quote)
-  quoteInputsHash         String? // audit trail back to the quote's locked inputs
-  priceSnapshot           Json? // frozen FullPricingBreakdown copied from the quote
-  packageUrl              String? // public package URL booked (for admin reference/management)
-  paymentPlan             PaymentPlan? // FULL vs DEPOSIT (resolved at booking time)
-  contactEmail            String? // checkout contact (may differ from account email)
-  contactPhone            String?
-  gstStateCode            String? // optional GST state for invoicing
   sourceQueryId           String?               @unique
   convertedAt             DateTime?
   salesAgentId            String?
@@ -222,14 +211,23 @@ model Booking {
   cabAgentName            String?
   confirmationEmailSentAt DateTime?
   confirmationEmailTo     String?
+  totalAmount_paise       Int                   @default(0)
+  advanceAmount_paise     Int                   @default(0)
+  balanceAmount_paise     Int                   @default(0)
+  quoteId                 String?               @unique
+  quoteInputsHash         String?
+  priceSnapshot           Json?
+  paymentPlan             PaymentPlan?
+  contactEmail            String?
+  contactPhone            String?
+  gstStateCode            String?
+  packageUrl              String?
+  bookingActivities       BookingActivity[]
   cabBookings             BookingCab[]
   hotelBookings           BookingHotel[]
   bookingMeals            BookingMeal[]
-  bookingActivities       BookingActivity[]
-  replacementOffers       ReplacementOffer[]
-  travellersList          BookingTraveller[]
-  installments            PaymentInstallment[]
   timeline                BookingTimeline[]
+  travellersList          BookingTraveller[]
   cabAssignee             TeamMember?           @relation("BookingCabAssignee", fields: [cabAssigneeId], references: [id])
   currentAssignee         TeamMember?           @relation("BookingCurrentAssignee", fields: [currentAssigneeId], references: [id])
   currentDepartment       Department?           @relation("BookingCurrentDept", fields: [currentDepartmentId], references: [id])
@@ -240,7 +238,9 @@ model Booking {
   sourceQuery             package_queries?      @relation(fields: [sourceQueryId], references: [id])
   user                    User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   packageHotels           PackageBookingHotel[]
+  installments            PaymentInstallment[]
   payments                Payment[]
+  replacementOffers       ReplacementOffer[]
   documents               TripDocument[]
 
   @@index([userId])
@@ -274,11 +274,11 @@ model BookingHotel {
   ratePerRoom   Decimal           @db.Decimal(10, 2)
   totalCost     Decimal           @db.Decimal(10, 2)
   isConfirmed   Boolean           @default(false)
-  status        FulfillmentStatus @default(PENDING)
-  voucherUrl    String?
   confirmedAt   DateTime?
   confirmedById String?
   notes         String?
+  status        FulfillmentStatus @default(PENDING)
+  voucherUrl    String?
   booking       Booking           @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   confirmedBy   TeamMember?       @relation(fields: [confirmedById], references: [id])
   hotel         hotels            @relation(fields: [hotelId], references: [id])
@@ -303,14 +303,14 @@ model BookingCab {
   ratePerCab    Decimal           @db.Decimal(10, 2)
   totalCost     Decimal           @db.Decimal(10, 2)
   isConfirmed   Boolean           @default(false)
-  status        FulfillmentStatus @default(PENDING)
-  voucherUrl    String?
   confirmedAt   DateTime?
   confirmedById String?
   driverName    String?
   driverPhone   String?
   vehicleNumber String?
   notes         String?
+  status        FulfillmentStatus @default(PENDING)
+  voucherUrl    String?
   booking       Booking           @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   confirmedBy   TeamMember?       @relation(fields: [confirmedById], references: [id])
 
@@ -326,7 +326,7 @@ model BookingActivity {
   activityId    Int
   variantId     Int?
   name          String
-  isPaid        Boolean           @default(false) // included/ticketed (needs voucher) vs free
+  isPaid        Boolean           @default(false)
   status        FulfillmentStatus @default(PENDING)
   voucherUrl    String?
   confirmedAt   DateTime?
@@ -341,15 +341,14 @@ model BookingActivity {
   @@map("booking_activities")
 }
 
-// An ops-proposed set of alternatives for an UNAVAILABLE item; the customer picks one.
 model ReplacementOffer {
   id             String    @id @default(cuid())
   bookingId      String
-  kind           String // HOTEL | TRANSFER | ACTIVITY
+  kind           String
   day            Int
-  activityId     Int? // targets the specific activity when kind = ACTIVITY
-  options        Json // [{ id, label, sublabel?, hotelId?, roomPricingId?, activityId?, variantId?, vehicleId? }]
-  status         String    @default("PROPOSED") // PROPOSED | CHOSEN | DISMISSED
+  activityId     Int?
+  options        Json
+  status         String    @default("PROPOSED")
   chosenOptionId String?
   proposedById   String
   proposedByName String
@@ -367,8 +366,6 @@ model BookingTraveller {
   bookingId      String
   type           TravellerType
   fullName       String
-  firstName      String?
-  lastName       String?
   age            Int?
   dateOfBirth    DateTime?
   gender         Gender?
@@ -377,6 +374,8 @@ model BookingTraveller {
   passportExpiry DateTime?
   nationality    String?
   createdAt      DateTime      @default(now())
+  firstName      String?
+  lastName       String?
   booking        Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
   @@index([bookingId])
@@ -387,16 +386,16 @@ model PaymentInstallment {
   id             String            @id @default(cuid())
   bookingId      String
   type           InstallmentType
-  sequence       Int               @default(0) // order legs are due (0 = deposit, 1 = balance)
-  amount_paise   Int // integer minor units — what this leg charges
+  sequence       Int               @default(0)
+  amount_paise   Int
   dueDate        DateTime?
   status         InstallmentStatus @default(PENDING)
-  paidPaymentId  String? // loose ref to the Payment that settled this leg
+  paidPaymentId  String?
   paidAt         DateTime?
-  reminderSentAt DateTime? // last balance-due reminder sent (de-dupes the cron)
-  reminderCount  Int               @default(0)
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
+  reminderSentAt DateTime?
+  reminderCount  Int               @default(0)
   booking        Booking           @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
   @@unique([bookingId, type])
@@ -408,18 +407,18 @@ model PaymentInstallment {
 model WebhookEvent {
   id          String         @id @default(cuid())
   gateway     PaymentGateway
-  eventId     String // gateway's own event id — the idempotency key
+  eventId     String
   eventType   String?
-  payload     Json // full raw event body for replay/audit
+  payload     Json
   signature   String?
   status      WebhookStatus  @default(RECEIVED)
   error       String?
-  paymentId   String? // loose ref to Payment (no FK — events may arrive first)
-  bookingId   String? // loose ref to Booking
+  paymentId   String?
+  bookingId   String?
   receivedAt  DateTime       @default(now())
   processedAt DateTime?
 
-  @@unique([gateway, eventId]) // THE idempotency guard for webhook handling
+  @@unique([gateway, eventId])
   @@index([status])
   @@index([paymentId])
   @@map("webhook_events")
@@ -466,18 +465,13 @@ model Payment {
   bookingId        String
   userId           String
   amount           Decimal        @db.Decimal(10, 2)
-  amount_paise     Int            @default(0) // integer minor units — charge source of truth
   currency         String         @default("INR")
   gateway          PaymentGateway
   method           PaymentMethod?
   status           PaymentStatus  @default(PENDING)
-  purpose          PaymentPurpose @default(INITIAL) // INITIAL booking payment vs TOPUP (date-change) etc
-  idempotencyKey   String?        @unique // guards duplicate charge/order creation
-  gatewayOrderId   String?        @unique // one Payment per gateway order
+  gatewayOrderId   String?        @unique
   gatewayPaymentId String?        @unique
   gatewaySignature String?
-  rawResponse      Json? // raw gateway response/payload for audit
-  webhookEventId   String? // loose ref to the WebhookEvent that settled this
   refundId         String?
   refundAmount     Decimal?       @db.Decimal(10, 2)
   refundedAt       DateTime?
@@ -485,6 +479,11 @@ model Payment {
   paidAt           DateTime?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
+  amount_paise     Int            @default(0)
+  idempotencyKey   String?        @unique
+  rawResponse      Json?
+  webhookEventId   String?
+  purpose          PaymentPurpose @default(INITIAL)
   booking          Booking        @relation(fields: [bookingId], references: [id])
   user             User           @relation(fields: [userId], references: [id])
 
@@ -570,9 +569,9 @@ model TeamRole {
   name        String       @unique @db.VarChar(100)
   description String?      @db.VarChar(500)
   permissions Json         @default("[]")
-  pageAccess  Json         @default("[]")
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
+  pageAccess  Json         @default("[]")
   members     TeamMember[]
 
   @@map("team_roles")
@@ -817,11 +816,9 @@ model tags {
   @@index([slug])
 }
 
-// Reusable library of package inclusion/exclusion phrases. Tracks how often
-// each phrase is used so the package form can suggest the most popular ones.
 model inclusion_exclusion_options {
   id          Int      @id @default(autoincrement())
-  type        String // "inclusion" | "exclusion"
+  type        String
   text        String
   usage_count Int      @default(1)
   created_at  DateTime @default(now())
@@ -852,9 +849,7 @@ model HotelOwner {
   password             String
   name                 String
   phone                String?
-  phone_cc             String?          @default("+91")
   whatsapp             String?
-  whatsapp_cc          String?          @default("+91")
   businessName         String?
   status               HotelOwnerStatus @default(PENDING_VERIFICATION)
   verifiedAt           DateTime?
@@ -862,13 +857,14 @@ model HotelOwner {
   lastLoginAt          DateTime?
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt
-  // ── Host profile fields ────────────────────────────────────────────────────
-  logo_url             String?
+  business_description String?
+  founded_year         Int?
   gender               String?
   languages            String[]         @default([])
-  founded_year         Int?
+  logo_url             String?
+  phone_cc             String?          @default("+91")
   property_count       Int              @default(1)
-  business_description String?
+  whatsapp_cc          String?          @default("+91")
   hotels               hotels[]
 
   @@index([email])
@@ -876,137 +872,128 @@ model HotelOwner {
 }
 
 model hotels {
-  id                      Int                      @id @default(autoincrement())
-  name                    String
-  slug                    String                   @unique
-  description             String?
-  meta_title              String?
-  meta_desc               String?
-  destination_id          Int?
-  address                 String?
-  category                String?
-  stay_type               String?
-  check_in_time           String?
-  check_out_time          String?
-  is_active               Boolean                  @default(true)
-  created_at              DateTime                 @default(now())
-  updated_at              DateTime                 @updatedAt
-  thumbnail               String?
-  city                    String?
-  state                   String?
-  country                 String?
-  pincode                 String?
-  business_phone          String?
-  business_email          String?
-  whatsapp_number         String?
-  b2b_email               String?
-  location_id             BigInt?
-  margin_percentage       Decimal                  @default(10) @db.Decimal(5, 2)
-  gst_percentage          Decimal                  @default(18) @db.Decimal(5, 2)
-  created_by              String?
-  updated_by              String?
-  owner_id                String?
-  listing_status          HotelListingStatus       @default(DRAFT)
-  submitted_at            DateTime?
-  approved_at             DateTime?
-  approved_by_id          String?
-  rejection_reason        String?
-  // ── Wizard fields ──────────────────────────────────────────────────────────
-  property_category       PropertyCategory?
-  property_sub_type       PropertySubType?
-  star_rating             Int?
-  year_built              Int?
-  booking_since_year      Int?
-  has_channel_manager     Boolean                  @default(false)
-  channel_manager_name    String?
-  contact_email           String?
-  contact_mobile_cc       String?                  @default("+91")
-  contact_mobile          String?
-  whatsapp_same_as_mobile Boolean                  @default(false)
-  contact_whatsapp        String?
-  contact_landline        String?
-  // ── Location wizard fields ─────────────────────────────────────────────────
-  latitude                Decimal?                 @db.Decimal(10, 7)
-  longitude               Decimal?                 @db.Decimal(10, 7)
-  landmark                String?
-  // ── Amenities wizard field ─────────────────────────────────────────────────
-  property_amenities      Json?
-  // ── Policy wizard fields ───────────────────────────────────────────────────
-  cancellation_policy       HotelCancellationPolicy?
-  allow_unmarried_couples   Boolean?
-  show_couple_tag           Boolean?
-  allow_guests_below_18     Boolean?
-  allow_male_only_groups    Boolean?
-  allow_same_city_id        Boolean?
-  smoking_allowed           Boolean?
-  parties_events_allowed    Boolean?
-  wheelchair_accessible     Boolean?
-  allow_outside_visitors    Boolean?
-  pets_on_property          Boolean?
-  pets_allowed              Boolean?
-  allowed_pet_types         String[]                 @default([])
-  pet_extra_charges         Boolean?
-  pets_restricted_areas     String?
-  pets_without_leash        Boolean?
-  pet_food_available        Boolean?
-  checkin_24_hours          Boolean?
-  acceptable_id_proofs      String[]                 @default([])
-  infant_free_occupancy     Boolean?
-  infant_complimentary_food  Boolean?
-  extra_bed_included         Boolean?
-  provide_bed_extra_adults   Boolean?
-  provide_bed_extra_kids     Boolean?
-  // ── Extra bed detail fields ────────────────────────────────────────────────
-  extra_bed_adults_avail     String?
-  extra_bed_adults_types     String[]  @default([])
-  extra_cot_charge_adult     String?
-  extra_mattress_charge_adult  String?
-  extra_sofa_charge_adult    String?
-  extra_bed_kids_avail       String?
-  extra_bed_kids_types       String[]  @default([])
-  extra_cot_charge_child     String?
-  extra_mattress_charge_child  String?
-  extra_sofa_charge_child    String?
-  extra_crib_charge_child    String?
-  // ── Meal rack prices ──────────────────────────────────────────────────────
-  meal_price_breakfast       String?
-  meal_price_lunch           String?
-  meal_price_dinner          String?
-  // ── Homestay-specific wizard fields ──────────────────────────────────────
-  hosted_as                  String?
-  host_lives_at_property     Boolean?
-  // ── Homestay Rooms & Spaces ────────────────────────────────────────────────
-  hs_bedrooms                Int?
-  hs_bathrooms               Int?
-  hs_has_kitchen             Boolean?
-  hs_additional_spaces       Json?
-  hs_bedroom_details         Json?
-  hs_bathroom_details        Json?
-  hs_kitchen_details         Json?
-  hs_space_items             Json?
-  // ── Finance & Legal wizard fields ─────────────────────────────────────────
-  bank_account_number     String?
-  bank_ifsc_code          String?
-  bank_name               String?
-  bank_consent_given      Boolean                  @default(false)
-  gstin_number            String?
-  pan_number              String?
-  business_type           HotelBusinessType?
-  msme_number             String?
-  property_documents      Json?
-  wizard_step             Int                      @default(0)
-  bookingHotels           BookingHotel[]
-  childPolicies           hotel_child_policies[]
-  image_categories        hotel_image_categories[]
-  images                  hotel_images[]
-  room_pricing            hotel_room_pricing[]
-  meal_pricing            hotel_meal_pricing[]
-  addons                  hotel_addons[]
-  hotelRooms              hotel_rooms[]
-  destination             destinations?            @relation(fields: [destination_id], references: [id])
-  location                Location?                @relation(fields: [location_id], references: [id])
-  packageBookings         PackageBookingHotel[]
-  owner                   HotelOwner?              @relation(fields: [owner_id], references: [id])
+  id                          Int                      @id @default(autoincrement())
+  name                        String
+  slug                        String                   @unique
+  description                 String?
+  meta_title                  String?
+  meta_desc                   String?
+  destination_id              Int?
+  address                     String?
+  category                    String?
+  stay_type                   String?
+  check_in_time               String?
+  check_out_time              String?
+  is_active                   Boolean                  @default(true)
+  created_at                  DateTime                 @default(now())
+  updated_at                  DateTime                 @updatedAt
+  thumbnail                   String?
+  city                        String?
+  state                       String?
+  country                     String?
+  pincode                     String?
+  business_phone              String?
+  business_email              String?
+  location_id                 BigInt?
+  whatsapp_number             String?
+  b2b_email                   String?
+  margin_percentage           Decimal                  @default(10) @db.Decimal(5, 2)
+  gst_percentage              Decimal                  @default(18) @db.Decimal(5, 2)
+  created_by                  String?
+  updated_by                  String?
+  approved_at                 DateTime?
+  approved_by_id              String?
+  booking_since_year          Int?
+  channel_manager_name        String?
+  contact_email               String?
+  contact_landline            String?
+  contact_mobile              String?
+  contact_mobile_cc           String?                  @default("+91")
+  contact_whatsapp            String?
+  has_channel_manager         Boolean                  @default(false)
+  landmark                    String?
+  latitude                    Decimal?                 @db.Decimal(10, 7)
+  listing_status              HotelListingStatus       @default(DRAFT)
+  longitude                   Decimal?                 @db.Decimal(10, 7)
+  owner_id                    String?
+  property_amenities          Json?
+  property_category           PropertyCategory?
+  property_sub_type           PropertySubType?
+  rejection_reason            String?
+  star_rating                 Int?
+  submitted_at                DateTime?
+  whatsapp_same_as_mobile     Boolean                  @default(false)
+  wizard_step                 Int                      @default(0)
+  year_built                  Int?
+  acceptable_id_proofs        String[]                 @default([])
+  allow_guests_below_18       Boolean?
+  allow_male_only_groups      Boolean?
+  allow_outside_visitors      Boolean?
+  allow_same_city_id          Boolean?
+  allow_unmarried_couples     Boolean?
+  allowed_pet_types           String[]                 @default([])
+  cancellation_policy         HotelCancellationPolicy?
+  checkin_24_hours            Boolean?
+  extra_bed_included          Boolean?
+  infant_complimentary_food   Boolean?
+  infant_free_occupancy       Boolean?
+  parties_events_allowed      Boolean?
+  pet_extra_charges           Boolean?
+  pet_food_available          Boolean?
+  pets_allowed                Boolean?
+  pets_on_property            Boolean?
+  pets_restricted_areas       String?
+  pets_without_leash          Boolean?
+  provide_bed_extra_adults    Boolean?
+  provide_bed_extra_kids      Boolean?
+  show_couple_tag             Boolean?
+  smoking_allowed             Boolean?
+  wheelchair_accessible       Boolean?
+  bank_account_number         String?
+  bank_consent_given          Boolean                  @default(false)
+  bank_ifsc_code              String?
+  bank_name                   String?
+  business_type               HotelBusinessType?
+  gstin_number                String?
+  msme_number                 String?
+  pan_number                  String?
+  property_documents          Json?
+  extra_bed_adults_avail      String?
+  extra_bed_adults_types      String[]                 @default([])
+  extra_bed_kids_avail        String?
+  extra_bed_kids_types        String[]                 @default([])
+  extra_cot_charge_adult      String?
+  extra_cot_charge_child      String?
+  extra_crib_charge_child     String?
+  extra_mattress_charge_adult String?
+  extra_mattress_charge_child String?
+  extra_sofa_charge_adult     String?
+  extra_sofa_charge_child     String?
+  meal_price_breakfast        String?
+  meal_price_dinner           String?
+  meal_price_lunch            String?
+  host_lives_at_property      Boolean?
+  hosted_as                   String?
+  hs_additional_spaces        Json?
+  hs_bathrooms                Int?
+  hs_bedrooms                 Int?
+  hs_has_kitchen              Boolean?
+  hs_bedroom_details          Json?
+  hs_bathroom_details         Json?
+  hs_kitchen_details          Json?
+  hs_space_items              Json?
+  bookingHotels               BookingHotel[]
+  addons                      hotel_addons[]
+  childPolicies               hotel_child_policies[]
+  image_categories            hotel_image_categories[]
+  images                      hotel_images[]
+  meal_pricing                hotel_meal_pricing[]
+  room_pricing                hotel_room_pricing[]
+  hotelRooms                  hotel_rooms[]
+  destination                 destinations?            @relation(fields: [destination_id], references: [id])
+  location                    Location?                @relation(fields: [location_id], references: [id])
+  owner                       HotelOwner?              @relation(fields: [owner_id], references: [id])
+  packageBookings             PackageBookingHotel[]
 
   @@index([destination_id, is_active])
   @@index([location_id])
@@ -1036,11 +1023,11 @@ model hotel_images {
   category_id Int
   thumbnail   String?
   alt         String?
-  tags        String[]               @default([])
   sort_order  Int                    @default(0)
   is_primary  Boolean                @default(false)
   created_at  DateTime               @default(now())
   url         String?
+  tags        String[]               @default([])
   category    hotel_image_categories @relation(fields: [category_id], references: [id])
   hotel       hotels                 @relation(fields: [hotel_id], references: [id])
 
@@ -1056,31 +1043,31 @@ model hotel_rooms {
   area_sqft           Int?
   bed_type            String?
   view_type           String?
-  base_adults         Int                  @default(2)
-  max_adults          Int                  @default(2)
-  base_children       Int                  @default(0)
-  max_children        Int                  @default(1)
   max_occupancy       Int                  @default(3)
-  extra_bed_capacity  Int                  @default(0)
-  bed_count           Int                  @default(1)
-  child_cot_available Boolean              @default(false)
   amenities           Json?
   features            Json?
   bathroom            Json?
   facilities          Json?
   description         String?
-  room_type           String?
-  area_unit           String?              @default("sqft")
-  num_bedrooms        Int?
-  num_living_rooms    Int?
-  num_rooms           Int                  @default(1)
-  room_wizard_step    Int                  @default(0)
-  beds                Json?
-  meal_plan           String?
   is_active           Boolean              @default(true)
   sort_order          Int                  @default(0)
   created_at          DateTime             @default(now())
   updated_at          DateTime             @updatedAt
+  extra_bed_capacity  Int                  @default(0)
+  max_adults          Int                  @default(2)
+  max_children        Int                  @default(1)
+  bed_count           Int                  @default(1)
+  child_cot_available Boolean              @default(false)
+  area_unit           String?              @default("sqft")
+  base_adults         Int                  @default(2)
+  base_children       Int                  @default(0)
+  beds                Json?
+  meal_plan           String?
+  num_bedrooms        Int?
+  num_living_rooms    Int?
+  num_rooms           Int                  @default(1)
+  room_type           String?
+  room_wizard_step    Int                  @default(0)
   images              hotel_room_images[]
   pricing             hotel_room_pricing[]
   hotel               hotels               @relation(fields: [hotel_id], references: [id])
@@ -1112,7 +1099,6 @@ model hotel_room_pricing {
   price_per_night      Decimal                       @db.Decimal(10, 2)
   original_price       Decimal?                      @db.Decimal(10, 2)
   extra_bed_rate       Decimal?                      @db.Decimal(10, 2)
-  extra_child_rate     Decimal?                      @db.Decimal(10, 2)
   margin_percentage    Decimal                       @default(10) @db.Decimal(5, 2)
   is_active            Boolean                       @default(true)
   sort_order           Int                           @default(0)
@@ -1121,6 +1107,7 @@ model hotel_room_pricing {
   valid_from           DateTime?
   valid_to             DateTime?
   gst_percentage       Decimal                       @default(18) @db.Decimal(5, 2)
+  extra_child_rate     Decimal?                      @db.Decimal(10, 2)
   hotelImageCategories hotel_image_categories[]
   occupancy_prices     hotel_room_occupancy_prices[]
   diet_type            diet_types?                   @relation(fields: [diet_type_id], references: [id])
@@ -1171,18 +1158,16 @@ model hotel_room_pricing_season_occupancy {
 model hotel_meal_pricing {
   id            Int                         @id @default(autoincrement())
   hotel_id      Int
-  meal_type     String // preset key: BREAKFAST | LUNCH | DINNER | MORNING_SNACKS | EVENING_SNACKS | CUSTOM
-  label         String // display name, e.g. "Breakfast", "Evening High Tea"
+  meal_type     String
+  label         String
   price         Decimal                     @db.Decimal(10, 2)
   weekend_price Decimal?                    @db.Decimal(10, 2)
-  veg_price     Decimal?                    @db.Decimal(10, 2)
-  non_veg_price Decimal?                    @db.Decimal(10, 2)
   is_active     Boolean                     @default(true)
   sort_order    Int                         @default(0)
   created_at    DateTime                    @default(now())
   updated_at    DateTime                    @updatedAt
-  hotel         hotels                      @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
   seasons       hotel_meal_pricing_season[]
+  hotel         hotels                      @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
 
   @@index([hotel_id])
   @@map("hotel_meal_pricings")
@@ -1211,15 +1196,15 @@ model hotel_addons {
   hotel_id      Int
   label         String
   description   String?
-  charge_type   String // PER_PERSON | PER_ROOM | PER_BOOKING
+  charge_type   String
   price         Decimal               @db.Decimal(10, 2)
   weekend_price Decimal?              @db.Decimal(10, 2)
   is_active     Boolean               @default(true)
   sort_order    Int                   @default(0)
   created_at    DateTime              @default(now())
   updated_at    DateTime              @updatedAt
-  hotel         hotels                @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
   seasons       hotel_addon_seasons[]
+  hotel         hotels                @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
 
   @@index([hotel_id])
   @@map("hotel_addons")
@@ -1829,16 +1814,6 @@ model package_pricing {
   @@index([package_id])
 }
 
-// ── Booking: short-lived, server-computed, signed price quote ────────────────
-// An immutable snapshot of a FullPricingBreakdown locked for a few minutes so
-// the amount cannot drift between "review" and "pay". Selectors are stored as
-// loose scalars (no FK) so historical quotes survive package edits/deletes.
-enum QuoteStatus {
-  ACTIVE
-  EXPIRED
-  CONSUMED
-}
-
 model package_quote {
   id               String      @id @default(cuid())
   package_id       Int
@@ -1856,17 +1831,17 @@ model package_quote {
   cab_type_ids     Int[]       @default([])
   travel_date      DateTime
   currency         String      @default("INR")
-  breakdown        Json // full FullPricingBreakdown snapshot
+  breakdown        Json
   base_cost        Decimal     @default(0) @db.Decimal(10, 2)
   margin_amount    Decimal     @default(0) @db.Decimal(10, 2)
   gst_amount       Decimal     @default(0) @db.Decimal(10, 2)
   total_amount     Decimal     @db.Decimal(10, 2)
   price_per_adult  Decimal     @default(0) @db.Decimal(10, 2)
-  inputs_hash      String // hash of price-affecting inputs (dedupe / drift id)
-  signature        String // HMAC over the canonical snapshot
+  inputs_hash      String
+  signature        String
   status           QuoteStatus @default(ACTIVE)
   expires_at       DateTime
-  user_id          String? // optional — set when a logged-in user requests it
+  user_id          String?
   created_at       DateTime    @default(now())
   updated_at       DateTime    @updatedAt
 
@@ -1914,8 +1889,6 @@ model package_cab_types {
   @@map("package_cab_types")
 }
 
-// Permits required for a duration's itinerary (e.g. wildlife sanctuary entry).
-// When is_included is true, the price is folded into the package's base cost.
 model package_permits {
   id          Int               @id @default(autoincrement())
   package_id  Int
@@ -2004,7 +1977,6 @@ model package_queries {
   utmMedium         String?
   utmCampaign       String?
   pageUrl           String?
-  packageUrl        String?
   status            QueryStatus      @default(SUBMITTED)
   verified          Boolean          @default(false)
   verifiedAt        DateTime?
@@ -2025,6 +1997,7 @@ model package_queries {
   closedAt          DateTime?
   closedBy          String?
   requirements      Json?
+  packageUrl        String?
   queryFollowUps    QueryFollowUp[]
   booking           Booking?
   custom_packages   custom_packages?
@@ -2090,6 +2063,85 @@ model custom_itineraries {
 
   @@index([customPackageId])
   @@index([day])
+}
+
+model blog_posts {
+  id             String                 @id @default(cuid())
+  slug           String                 @unique
+  title          String
+  excerpt        String?
+  content        Json
+  cover_image    String?
+  status         BlogStatus             @default(DRAFT)
+  rejection_note String?
+  read_time      Int?
+  published_at   DateTime?
+  author_id      String
+  reviewed_by_id String?
+  reviewed_at    DateTime?
+  created_at     DateTime               @default(now())
+  updated_at     DateTime               @updatedAt
+  categories     blog_post_categories[]
+  tags           blog_post_tags[]
+  author         User                   @relation(fields: [author_id], references: [id], onDelete: Cascade)
+
+  @@index([author_id])
+  @@index([status])
+  @@index([slug])
+  @@index([published_at])
+  @@map("blog_posts")
+}
+
+model blog_categories {
+  id          Int                    @id @default(autoincrement())
+  name        String                 @unique
+  slug        String                 @unique
+  description String?
+  is_active   Boolean                @default(true)
+  sort_order  Int                    @default(0)
+  posts       blog_post_categories[]
+
+  @@index([slug])
+  @@index([is_active])
+  @@map("blog_categories")
+}
+
+model blog_tags {
+  id    Int              @id @default(autoincrement())
+  name  String           @unique
+  slug  String           @unique
+  posts blog_post_tags[]
+
+  @@index([slug])
+  @@map("blog_tags")
+}
+
+model blog_post_categories {
+  post_id     String
+  category_id Int
+  category    blog_categories @relation(fields: [category_id], references: [id])
+  post        blog_posts      @relation(fields: [post_id], references: [id], onDelete: Cascade)
+
+  @@id([post_id, category_id])
+  @@index([category_id])
+  @@map("blog_post_categories")
+}
+
+model blog_post_tags {
+  post_id String
+  tag_id  Int
+  post    blog_posts @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  tag     blog_tags  @relation(fields: [tag_id], references: [id])
+
+  @@id([post_id, tag_id])
+  @@index([tag_id])
+  @@map("blog_post_tags")
+}
+
+enum QuoteStatus {
+  ACTIVE
+  EXPIRED
+  CONSUMED
 }
 
 enum LocationType {
@@ -2394,14 +2446,13 @@ enum ReferralSource {
 enum DocumentType {
   HOTEL_VOUCHER
   CAB_CONFIRMATION
-  ACTIVITY_TICKET
   ITINERARY
   INVOICE
   FLIGHT_TICKET
   OTHER
+  ACTIVITY_TICKET
 }
 
-// Per-item fulfilment lifecycle for hotels / cabs / activities (status tracking).
 enum FulfillmentStatus {
   PENDING
   IN_PROCESS
@@ -2498,15 +2549,15 @@ enum PropertyCategory {
 enum PropertySubType {
   HOTEL
   RESORT
-  LODGE
   GUEST_HOUSE
-  PALACE
   HOUSEBOAT
-  MOTEL
   VILLA
   HOMESTAY
-  COTTAGE
   APARTMENT
+  LODGE
+  PALACE
+  MOTEL
+  COTTAGE
   APART_HOTEL
   HOSTEL
   BED_AND_BREAKFAST
@@ -2521,84 +2572,9 @@ enum PropertySubType {
   LUXURY_CAMPS
 }
 
-// ── Blog ─────────────────────────────────────────────────────────────────────
-
 enum BlogStatus {
   DRAFT
   PENDING_REVIEW
   PUBLISHED
   REJECTED
-}
-
-model blog_posts {
-  id             String                 @id @default(cuid())
-  slug           String                 @unique
-  title          String
-  excerpt        String?
-  content        Json // Tiptap JSON document
-  cover_image    String?
-  status         BlogStatus             @default(DRAFT)
-  rejection_note String? // filled by reviewer on REJECTED
-  read_time      Int? // minutes, computed from word count on save
-  published_at   DateTime?
-  author_id      String
-  reviewed_by_id String? // User with ADMIN role who approved/rejected
-  reviewed_at    DateTime?
-  created_at     DateTime               @default(now())
-  updated_at     DateTime               @updatedAt
-  author         User                   @relation(fields: [author_id], references: [id], onDelete: Cascade)
-  categories     blog_post_categories[]
-  tags           blog_post_tags[]
-
-  @@index([author_id])
-  @@index([status])
-  @@index([slug])
-  @@index([published_at])
-  @@map("blog_posts")
-}
-
-model blog_categories {
-  id          Int                    @id @default(autoincrement())
-  name        String                 @unique
-  slug        String                 @unique
-  description String?
-  is_active   Boolean                @default(true)
-  sort_order  Int                    @default(0)
-  posts       blog_post_categories[]
-
-  @@index([slug])
-  @@index([is_active])
-  @@map("blog_categories")
-}
-
-model blog_tags {
-  id    Int              @id @default(autoincrement())
-  name  String           @unique
-  slug  String           @unique
-  posts blog_post_tags[]
-
-  @@index([slug])
-  @@map("blog_tags")
-}
-
-model blog_post_categories {
-  post_id     String
-  category_id Int
-  post        blog_posts      @relation(fields: [post_id], references: [id], onDelete: Cascade)
-  category    blog_categories @relation(fields: [category_id], references: [id])
-
-  @@id([post_id, category_id])
-  @@index([category_id])
-  @@map("blog_post_categories")
-}
-
-model blog_post_tags {
-  post_id String
-  tag_id  Int
-  post    blog_posts @relation(fields: [post_id], references: [id], onDelete: Cascade)
-  tag     blog_tags  @relation(fields: [tag_id], references: [id])
-
-  @@id([post_id, tag_id])
-  @@index([tag_id])
-  @@map("blog_post_tags")
 }

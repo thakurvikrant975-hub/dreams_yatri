@@ -90,7 +90,6 @@ function TabItem({
 }) {
   const isCurrent   = tab.index === currentTab;
   const isCompleted = tab.index <= effectiveWizardStep && !isCurrent;
-  const isLocked    = tab.index > effectiveWizardStep + 1;
 
   const baseClass = cn(
     "relative flex-1 flex flex-col items-center gap-3 px-5 py-3.5 whitespace-nowrap transition-colors select-none",
@@ -101,9 +100,7 @@ function TabItem({
       ? "bg-white text-primary-500 after:absolute after:bottom-0 after:h-px after:w-full after:bg-white after:translate-y-px"
       : isCompleted
         ? "text-neutral-600 hover:text-neutral-800 hover:bg-neutral-50 after:bg-transparent hover:after:bg-neutral-200"
-        : isLocked
-          ? "text-neutral-400 bg-neutral-50 cursor-not-allowed after:bg-transparent"
-          : "text-neutral-600 hover:text-neutral-800 bg-neutral-50 hover:bg-neutral-100 after:bg-transparent"
+        : "text-neutral-600 hover:text-neutral-800 bg-neutral-50 hover:bg-neutral-100 after:bg-transparent"
   );
 
   const indicator = (
@@ -114,9 +111,7 @@ function TabItem({
           ? "bg-primary-500 text-white"
           : isCompleted
             ? "bg-emerald-500 text-white"
-            : isLocked
-              ? "bg-neutral-200 text-neutral-400"
-              : "bg-white text-neutral-500/90 ring-1 ring-neutral-200 shadow shadow-neutral-300/80"
+            : "bg-white text-neutral-500/90 ring-1 ring-neutral-200 shadow shadow-neutral-300/80"
       )}
     >
       {isCompleted
@@ -128,15 +123,6 @@ function TabItem({
   const label = (
     <span className="text-xs font-semibold leading-none font-heading">{tab.label}</span>
   );
-
-  if (isLocked) {
-    return (
-      <div className={baseClass} title="Complete previous steps to unlock" aria-disabled="true">
-        {indicator}
-        {label}
-      </div>
-    );
-  }
 
   return (
     <Link

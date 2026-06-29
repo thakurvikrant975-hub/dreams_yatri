@@ -460,8 +460,6 @@ export default function HomestayBasicInfoTab({ hotel, owner }: { hotel: Homestay
     if (emailInput) {
       if (!isValidEmail(emailInput))
         errs.contact_email = ["Enter a valid email address"];
-      else if (emailStep !== "verified")
-        errs.contact_email = ["Please verify your email address"];
     }
 
     if (mobileInput) {
@@ -471,8 +469,6 @@ export default function HomestayBasicInfoTab({ hotel, owner }: { hotel: Homestay
             ? "Enter a valid 10-digit number for India (+91)"
             : "Enter a valid mobile number",
         ];
-      else if (mobileStep !== "verified")
-        errs.contact_mobile = ["Please verify your mobile number"];
     }
 
     return errs;
