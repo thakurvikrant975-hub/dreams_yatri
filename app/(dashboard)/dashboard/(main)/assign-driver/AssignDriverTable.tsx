@@ -224,7 +224,7 @@ export function AssignDriverTable({
             </StatGrid>
 
             {/* Legend */}
-            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 px-4 py-2.5 text-xs text-dashboard-neutral">
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-dashboard-base-300 bg-dashboard-base-100 px-4 py-2.5 text-xs text-dashboard-neutral shadow-lg">
                 <span className="font-medium text-dashboard-base-content">Row colours:</span>
                 <span className="flex items-center gap-1.5"><span className="size-3 rounded-sm bg-green-200 inline-block" /> All drivers assigned</span>
                 <span className="flex items-center gap-1.5"><span className="size-3 rounded-sm bg-red-200 inline-block" /> Travel ≤ 15 days, no driver</span>
