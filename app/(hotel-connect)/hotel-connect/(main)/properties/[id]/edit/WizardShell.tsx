@@ -15,6 +15,7 @@ import { cn } from "@/app/lib/utils";
 import { HotelListingStatus, PropertySubType } from "@/app/generated/prisma";
 import Button from "@/app/components/ui/Button";
 import { submitForReview } from "./tabs/review-actions";
+import { WIZARD_TABS, HOMESTAY_WIZARD_TABS } from "./wizard-tab-config";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -27,30 +28,9 @@ type HotelSummary = {
   property_sub_type: PropertySubType | null;
 };
 
-// ── Tab config ────────────────────────────────────────────────────────────────
+// ── Tab config (re-exported from shared config for server-component consumers) ─
 
-// Hotels & Villas — no Rooms tab
-export const HOTEL_WIZARD_TABS = [
-  { index: 1, label: "Basic Info" },
-  { index: 2, label: "Location" },
-  { index: 3, label: "Amenities" },
-  { index: 4, label: "Photos" },
-  { index: 5, label: "Policies" },
-  { index: 6, label: "Finance & Legal" },
-];
-
-// Homestay Villas — 6 tabs, same structure as hotels but tab 3 = Rooms & Spaces
-export const HOMESTAY_WIZARD_TABS = [
-  { index: 1, label: "Basic Info" },
-  { index: 2, label: "Location" },
-  { index: 3, label: "Rooms & Spaces" },
-  { index: 4, label: "Photos" },
-  { index: 5, label: "Policies" },
-  { index: 6, label: "Finance & Legal" },
-];
-
-// Kept for any legacy imports
-export const WIZARD_TABS = HOTEL_WIZARD_TABS;
+export { WIZARD_TABS, HOMESTAY_WIZARD_TABS } from "./wizard-tab-config";
 
 // ── Status badge ──────────────────────────────────────────────────────────────
 
@@ -80,13 +60,15 @@ function TabItem({
   currentTab,
   effectiveWizardStep,
   hotelId,
-  totalTabs,
+  isFirst,
+  isLast,
 }: {
-  tab: (typeof HOTEL_WIZARD_TABS)[0];
+  tab: { index: number; label: string };
   currentTab: number;
   effectiveWizardStep: number;
   hotelId: number;
-  totalTabs: number;
+  isFirst: boolean;
+  isLast: boolean;
 }) {
   const isCurrent   = tab.index === currentTab;
   const isCompleted = tab.index <= effectiveWizardStep && !isCurrent;
@@ -94,8 +76,8 @@ function TabItem({
   const baseClass = cn(
     "relative flex-1 flex flex-col items-center gap-3 px-5 py-3.5 whitespace-nowrap transition-colors select-none",
     "after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:transition-colors",
-    tab.index === 1 ? "rounded-tl-xl" : "",
-    tab.index === totalTabs ? "rounded-tr-xl" : "",
+    isFirst ? "rounded-tl-xl" : "",
+    isLast  ? "rounded-tr-xl" : "",
     isCurrent
       ? "bg-white text-primary-500 after:absolute after:bottom-0 after:h-px after:w-full after:bg-white after:translate-y-px"
       : isCompleted
@@ -120,10 +102,6 @@ function TabItem({
     </span>
   );
 
-  const label = (
-    <span className="text-xs font-semibold leading-none font-heading">{tab.label}</span>
-  );
-
   return (
     <Link
       href={`/hotel-connect/properties/${hotelId}/edit?tab=${tab.index}`}
@@ -131,7 +109,7 @@ function TabItem({
       prefetch={false}
     >
       {indicator}
-      {label}
+      <span className="text-xs font-semibold leading-none font-heading">{tab.label}</span>
     </Link>
   );
 }
@@ -237,18 +215,16 @@ export default function WizardShell({
   const router = useRouter();
   const status = STATUS_CONFIG[hotel.listing_status] ?? STATUS_CONFIG.DRAFT;
 
-  const tabs = hotel.property_category === "HOMESTAY_VILLA"
-    ? HOMESTAY_WIZARD_TABS
-    : HOTEL_WIZARD_TABS;
-  const totalTabs = tabs.length;
+  const tabs = hotel.property_category === "HOMESTAY_VILLA" ? HOMESTAY_WIZARD_TABS : WIZARD_TABS;
+  const totalTabs = tabs[tabs.length - 1].index;
 
   function goTo(tab: number) {
     const t = Math.max(1, Math.min(totalTabs, tab));
-    window.location.href = `/hotel-connect/properties/${hotel.id}/edit?tab=${t}`;
+    router.push(`/hotel-connect/properties/${hotel.id}/edit?tab=${t}`);
   }
 
   const isFirstTab = currentTab === 1;
-  const isLastTab = currentTab === totalTabs;
+  const isLastTab  = currentTab === totalTabs;
   const allComplete = effectiveWizardStep >= totalTabs;
   const isDraft = hotel.listing_status === HotelListingStatus.DRAFT;
 
@@ -297,19 +273,18 @@ export default function WizardShell({
       <div className="shrink-0 bg-white overflow-x-auto scrollbar-none py-5">
         <div className="border-b border-neutral-200">
           <div
-            className={cn(
-              totalTabs === 7 ? "grid-cols-7" : "grid-cols-6",
-              "grid max-w-4xl m-auto divide-x divide-neutral-200 border border-neutral-200 rounded-t-xl -mb-px",
-            )}
+            className="max-w-4xl m-auto divide-x divide-neutral-200 border border-neutral-200 rounded-t-xl -mb-px"
+            style={{ display: "grid", gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
           >
-            {tabs.map((tab) => (
+            {tabs.map((tab, i) => (
               <TabItem
                 key={tab.index}
                 tab={tab}
                 currentTab={currentTab}
                 effectiveWizardStep={effectiveWizardStep}
                 hotelId={hotel.id}
-                totalTabs={totalTabs}
+                isFirst={i === 0}
+                isLast={i === tabs.length - 1}
               />
             ))}
           </div>

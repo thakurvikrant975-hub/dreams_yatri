@@ -321,7 +321,7 @@ function ListEditView({ hotel }: { hotel: HomestayRoomsData }) {
   const [state, formAction] = useActionState<HomestayRoomsState, FormData>(boundAction, {});
 
   useEffect(() => {
-    if (state.ok) window.location.href = `/hotel-connect/properties/${hotel.id}/edit?tab=4`;
+    if (state.ok) window.location.href = `/hotel-connect/properties/${hotel.id}/edit?tab=5`;
   }, [state.ok, hotel.id]);
 
   const bedrooms  = (hotel.hs_bedroom_details  ?? []) as BedroomDetail[];

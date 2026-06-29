@@ -10,10 +10,11 @@ export async function submitForReview(hotelId: number) {
 
   const hotel = await db.hotels.findFirst({
     where: { id: hotelId, owner_id: session.user.id },
-    select: { id: true, listing_status: true, wizard_step: true },
+    select: { id: true, listing_status: true, wizard_step: true, property_category: true },
   });
 
-  if (!hotel || hotel.listing_status !== "DRAFT" || hotel.wizard_step < 6) return;
+  const requiredStep = hotel?.property_category === "HOMESTAY_VILLA" ? 8 : 7;
+  if (!hotel || hotel.listing_status !== "DRAFT" || hotel.wizard_step < requiredStep) return;
 
   await db.hotels.update({
     where: { id: hotelId },
@@ -23,5 +24,6 @@ export async function submitForReview(hotelId: number) {
     },
   });
 
-  redirect(`/hotel-connect/properties/${hotelId}/edit?tab=6`);
+  const lastTab = requiredStep;
+  redirect(`/hotel-connect/properties/${hotelId}/edit?tab=${lastTab}`);
 }
