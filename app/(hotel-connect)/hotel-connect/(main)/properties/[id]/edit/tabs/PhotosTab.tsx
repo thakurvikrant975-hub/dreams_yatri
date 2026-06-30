@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import * as Popover from "@radix-ui/react-popover";
 import { useRouter } from "next/navigation";
@@ -545,6 +545,11 @@ export default function PhotosTab({
   const [pendingUploads, setPendingUploads] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
+  // Sync local state whenever the server re-fetches categories (after router.refresh())
+  useEffect(() => {
+    setPhotosState(categories.flatMap((c) => c.photos));
+  }, [categories]);
+
   const roomCategories = categories.filter((c) => !c.is_system);
   const photoTags = propertySubType === "GUEST_HOUSE" ? GUEST_HOUSE_PHOTO_TAGS : HOTEL_PHOTO_TAGS;
 
@@ -574,8 +579,14 @@ export default function PhotosTab({
   }
 
   async function handleDelete(photoId: number) {
-    await deleteHotelPhoto(hotelId, photoId);
-    router.refresh();
+    // Optimistic: remove immediately so the UI responds instantly
+    setPhotosState((prev) => prev.filter((p) => p.id !== photoId));
+    const result = await deleteHotelPhoto(hotelId, photoId);
+    if (result.error) {
+      // Restore by re-syncing from the server
+      setUploadError(result.error);
+    }
+    router.refresh(); // always refresh to keep server and UI in sync
   }
 
   async function handleCover(photoId: number) {
