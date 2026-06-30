@@ -63,6 +63,7 @@ type RoomFormData = {
   // Section 5
   room_amenities: string[];
   room_amenity_details: Record<string, string | string[]>;
+  room_mandatory_noes: string[]; // mandatory items explicitly set to No (UI tracking only)
 };
 
 type FieldErrors = Partial<Record<string, string>>;
@@ -79,6 +80,7 @@ const DEFAULT_FORM: RoomFormData = {
   rate_start_date: "", rate_end_date: "",
   room_amenities: [],
   room_amenity_details: {},
+  room_mandatory_noes: [],
 };
 
 const SECTIONS = [
@@ -150,7 +152,22 @@ function validateS4(d: RoomFormData): FieldErrors {
     e.rate_end_date = "End date must be after start date";
   return e;
 }
-const VALIDATORS = [validateS1, validateS2, validateS3, validateS4];
+function validateS5(d: RoomFormData): FieldErrors {
+  const e: FieldErrors = {};
+  const unanswered = ROOM_MANDATORY_CONFIG.filter(
+    (c) => !d.room_amenities.includes(c.name) && !d.room_mandatory_noes.includes(c.name)
+  );
+  if (unanswered.length > 0) {
+    e._mandatory = `${unanswered.length} mandatory amenit${unanswered.length === 1 ? "y has" : "ies have"} no answer. Select Yes or No for every item in the Mandatory category.`;
+    return e;
+  }
+  const yesCount = ROOM_MANDATORY_CONFIG.filter((c) => d.room_amenities.includes(c.name)).length;
+  if (yesCount < 3) {
+    e._mandatory = `At least 3 mandatory amenities must be marked "Yes". Currently only ${yesCount} ${yesCount === 1 ? "is" : "are"} selected.`;
+  }
+  return e;
+}
+const VALIDATORS = [validateS1, validateS2, validateS3, validateS4, validateS5];
 
 // ── Shared form helpers ───────────────────────────────────────────────────────
 
@@ -953,8 +970,8 @@ function RoomYesNo({ selected, onChange }: { selected: boolean | undefined; onCh
   );
 }
 
-function Section5({ data, onChange }: {
-  data: RoomFormData; onChange: (d: RoomFormData) => void;
+function Section5({ data, onChange, mandatoryError }: {
+  data: RoomFormData; onChange: (d: RoomFormData) => void; mandatoryError?: string;
 }) {
   const [activeCategory, setActiveCategory] = useState(ROOM_AMENITY_GROUPS[0].label);
   const [search, setSearch] = useState("");
@@ -973,18 +990,29 @@ function Section5({ data, onChange }: {
   const sq = search.toLowerCase().trim();
 
   function setItem(item: string, val: boolean) {
-    const cur = data.room_amenities;
-    onChange({ ...data, room_amenities: val ? [...new Set([...cur, item])] : cur.filter((x) => x !== item) });
+    const isMandatory = ROOM_MANDATORY_CONFIG.some((c) => c.name === item);
+    const newAmenities = val
+      ? [...new Set([...data.room_amenities, item])]
+      : data.room_amenities.filter((x) => x !== item);
+    const newNoes = isMandatory
+      ? val
+        ? data.room_mandatory_noes.filter((x) => x !== item)
+        : [...new Set([...data.room_mandatory_noes, item])]
+      : data.room_mandatory_noes;
+    onChange({ ...data, room_amenities: newAmenities, room_mandatory_noes: newNoes });
   }
 
   function setAll(items: string[], val: boolean) {
-    const cur = data.room_amenities;
-    onChange({
-      ...data,
-      room_amenities: val
-        ? [...new Set([...cur, ...items])]
-        : cur.filter((x) => !items.includes(x)),
-    });
+    const isMandatoryGroup = activeCategory === "Mandatory";
+    const newAmenities = val
+      ? [...new Set([...data.room_amenities, ...items])]
+      : data.room_amenities.filter((x) => !items.includes(x));
+    const newNoes = isMandatoryGroup
+      ? val
+        ? data.room_mandatory_noes.filter((x) => !items.includes(x))
+        : [...new Set([...data.room_mandatory_noes, ...items])]
+      : data.room_mandatory_noes;
+    onChange({ ...data, room_amenities: newAmenities, room_mandatory_noes: newNoes });
   }
 
   function updateDetail(name: string, val: string | string[]) {
@@ -1007,13 +1035,22 @@ function Section5({ data, onChange }: {
       })
     : [];
 
-  function renderRow(config: RoomAmenityConfig, key: string) {
-    const selected = data.room_amenities.includes(config.name);
+  function renderRow(config: RoomAmenityConfig, key: string, isMandatory = false) {
+    const inAmenities = data.room_amenities.includes(config.name);
+    const inNoes = data.room_mandatory_noes.includes(config.name);
+    const selected: boolean | undefined = isMandatory
+      ? (inAmenities ? true : inNoes ? false : undefined)
+      : inAmenities;
+    const isUnanswered = isMandatory && selected === undefined;
+    const showRowError = !!mandatoryError && isUnanswered;
     const detailVal = data.room_amenity_details[config.name];
     return (
-      <div key={key} className={cn("border-b border-neutral-100 last:border-0", selected ? "bg-emerald-50/40" : "")}>
+      <div key={key} className={cn("border-b border-neutral-100 last:border-0", selected === true ? "bg-emerald-50/40" : showRowError ? "bg-red-50/40" : "")}>
         <div className="flex items-center justify-between px-5 py-3">
-          <span className="text-sm text-neutral-700 flex-1 pr-4">{config.name}</span>
+          <span className={cn("text-sm flex-1 pr-4", showRowError ? "text-red-700 font-medium" : "text-neutral-700")}>
+            {config.name}
+            {showRowError && <span className="ml-2 text-[10px] font-semibold text-red-500 uppercase tracking-wide">Required</span>}
+          </span>
           <RoomYesNo selected={selected} onChange={(v) => setItem(config.name, v)} />
         </div>
         {selected && config.field && (
@@ -1044,6 +1081,20 @@ function Section5({ data, onChange }: {
 
   return (
     <div>
+      {mandatoryError && (
+        <div className="mx-4 mt-3 rounded-lg px-3 py-2.5 text-sm text-red-700 bg-red-50 border border-red-200">
+          <p>{mandatoryError}</p>
+          {activeCategory !== "Mandatory" && (
+            <button
+              type="button"
+              onClick={() => setActiveCategory("Mandatory")}
+              className="mt-1 text-red-600 underline underline-offset-2 text-xs hover:text-red-800"
+            >
+              Jump to Mandatory →
+            </button>
+          )}
+        </div>
+      )}
       {/* Global search input */}
       <div className="px-4 py-3 border-b border-neutral-100">
         <input
@@ -1154,7 +1205,7 @@ function Section5({ data, onChange }: {
 
             <div className="overflow-y-auto flex-1">
               {activeConfig
-                ? activeConfig.map((config) => renderRow(config, config.name))
+                ? activeConfig.map((config) => renderRow(config, config.name, activeCategory === "Mandatory"))
                 : activeGroup.items.map((item) => {
                     const selected = data.room_amenities.includes(item);
                     return (
@@ -1232,9 +1283,15 @@ function RoomWizardForm({
 }) {
   const router = useRouter();
   const [step, setStep]               = useState(1);
-  const [data, setData]               = useState<RoomFormData>(
-    initialData ? (initialData as unknown as RoomFormData) : DEFAULT_FORM,
-  );
+  const [data, setData]               = useState<RoomFormData>(() => {
+    if (!initialData) return DEFAULT_FORM;
+    const base = initialData as unknown as RoomFormData;
+    // When editing an existing room, treat all mandatory items not in room_amenities as explicitly "No"
+    const room_mandatory_noes = ROOM_MANDATORY_CONFIG
+      .filter((c) => !base.room_amenities.includes(c.name))
+      .map((c) => c.name);
+    return { ...base, room_mandatory_noes };
+  });
   const [errors, setErrors]           = useState<FieldErrors>({});
   const [globalError, setGlobalError] = useState("");
   const [isPending, startTransition]  = useTransition();
@@ -1302,7 +1359,7 @@ function RoomWizardForm({
       case 2: return <Section2 data={data} onChange={setData} errors={errors} />;
       case 3: return <Section3 data={data} onChange={setData} errors={errors} />;
       case 4: return <Section4 data={data} onChange={setData} errors={errors} />;
-      case 5: return <Section5 data={data} onChange={setData} />;
+      case 5: return <Section5 data={data} onChange={setData} mandatoryError={errors._mandatory} />;
       default: return null;
     }
   }
