@@ -1,5 +1,6 @@
 import "server-only";
 import dns from "dns";
+import net from "net";
 import { PrismaClient } from "../generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
@@ -11,6 +12,15 @@ const { Pool } = pg;
 // here is cleaner than resolving IPs manually — pg re-resolves DNS per new
 // connection, so IP changes (failover, cold-start rerouting) are handled too.
 dns.setDefaultResultOrder("ipv4first");
+
+// `dns.setDefaultResultOrder` only changes which family Node *prefers* — with
+// autoSelectFamily (default on since Node 18.13/20) it still races the other
+// family in parallel and can surface an AggregateError across both if either
+// side is slow, even when the preferred family would have connected fine on
+// its own. pg calls `stream.connect(port, host)` with no options object, so
+// there's no per-connection way to force a single family — this Node-level
+// switch is the only lever that fully disables the dual-stack race.
+net.setDefaultAutoSelectFamily(false);
 
 function createPool() {
   const url = new URL(process.env.DATABASE_URL!);
