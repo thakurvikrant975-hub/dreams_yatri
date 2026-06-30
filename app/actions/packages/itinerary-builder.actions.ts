@@ -50,8 +50,9 @@ export async function handleGetItineraryData(packageId: number, durationId: numb
   try {
     const data = await getItineraryData(packageId, durationId, routeId);
     return { success: true as const, data };
-  } catch (e) {
-    console.error(e);
+  } catch (e: unknown) {
+    const err = e as Record<string, unknown>;
+    console.error("[getItineraryData] FAILED:", JSON.stringify({ code: err?.code, meta: err?.meta, message: err?.message }, null, 2));
     return { success: false as const, message: "Failed to load itinerary data" };
   }
 }
