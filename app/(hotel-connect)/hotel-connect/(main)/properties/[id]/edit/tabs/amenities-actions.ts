@@ -63,13 +63,18 @@ export async function saveAmenities(
   });
   if (!hotel) return { error: "Property not found." };
 
-  await db.hotels.update({
-    where: { id: hotelId },
-    data: {
-      property_amenities,
-      wizard_step: Math.max(3, hotel.wizard_step),
-    },
-  });
+  try {
+    await db.hotels.update({
+      where: { id: hotelId },
+      data: {
+        property_amenities,
+        wizard_step: Math.max(hotel.wizard_step, 4),
+      },
+    });
+  } catch (err) {
+    console.error("[saveAmenities]", err);
+    return { error: "Failed to save amenities. Please try again." };
+  }
 
-  return { ok: true };
+  redirect(`/hotel-connect/properties/${hotelId}/edit?tab=4`);
 }

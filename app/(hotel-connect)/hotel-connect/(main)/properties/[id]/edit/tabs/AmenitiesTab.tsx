@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useEffect } from "react";
+import { useActionState, useState } from "react";
 import { saveAmenities, type AmenitiesState } from "./amenities-actions";
 import {
   AMENITY_CATEGORIES,
@@ -213,6 +213,7 @@ function MandatoryAmenityRow({
   onDeletePool,
   onEditPool,
   disabled,
+  hasError,
 }: {
   config: MandatoryItemConfig;
   value: AmenityValue | undefined;
@@ -222,6 +223,7 @@ function MandatoryAmenityRow({
   onDeletePool: (id: string) => void;
   onEditPool: (pool: PoolConfig) => void;
   disabled: boolean;
+  hasError?: boolean;
 }) {
   const yes   = isYesValue(value);
   const no    = isNoValue(value);
@@ -234,10 +236,13 @@ function MandatoryAmenityRow({
   const boolValue: boolean | undefined = yes ? true : no ? false : undefined;
 
   return (
-    <div className="border-b border-neutral-100 last:border-0">
+    <div className={cn("border-b border-neutral-100 last:border-0", hasError && "bg-red-50/40")}>
       {/* Main row */}
       <div className="flex items-center justify-between px-6 py-3.5">
-        <span className="text-sm text-neutral-700 flex-1 pr-4">{config.name}</span>
+        <span className={cn("text-sm flex-1 pr-4", hasError ? "text-red-700 font-medium" : "text-neutral-700")}>
+          {config.name}
+          {hasError && <span className="ml-2 text-[10px] font-semibold text-red-500 uppercase tracking-wide">Required</span>}
+        </span>
         <YesNoButtons value={boolValue} onChange={onNoYes} disabled={disabled} />
       </div>
 
@@ -395,10 +400,6 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
     {}
   );
 
-  useEffect(() => {
-    if (state.ok) window.location.href = `/hotel-connect/properties/${hotel.id}/edit?tab=4`;
-  }, [state.ok, hotel.id]);
-
   const mandatoryConfig = hotel.property_sub_type === "GUEST_HOUSE"
     ? GUEST_HOUSE_MANDATORY_CONFIG
     : MANDATORY_CONFIG;
@@ -409,11 +410,41 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
   const [activeCategory, setActiveCategory] = useState(AMENITY_CATEGORIES[0].label);
   const [search, setSearch] = useState("");
   const [poolModal, setPoolModal] = useState<{ editingPool: PoolConfig | null } | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [showMandatoryErrors, setShowMandatoryErrors] = useState(false);
+
+  // ── Validation ─────────────────────────────────────────────────────────────
+
+  function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
+    const unanswered = mandatoryConfig.filter((c) => amenities[c.name] === undefined);
+    const yesCount = mandatoryConfig.filter((c) => isYesValue(amenities[c.name])).length;
+
+    if (unanswered.length > 0) {
+      e.preventDefault();
+      setValidationError(
+        `${unanswered.length} mandatory amenit${unanswered.length === 1 ? "y has" : "ies have"} no answer. Please select Yes or No for every item in the Mandatory category.`
+      );
+      setShowMandatoryErrors(true);
+      setActiveCategory("Mandatory");
+      return;
+    }
+    if (yesCount < 3) {
+      e.preventDefault();
+      setValidationError(
+        `At least 3 mandatory amenities must be marked "Yes". Currently only ${yesCount} ${yesCount === 1 ? "is" : "are"} selected.`
+      );
+      setActiveCategory("Mandatory");
+      return;
+    }
+    setValidationError(null);
+    setShowMandatoryErrors(false);
+  }
 
   // ── State updaters ─────────────────────────────────────────────────────────
 
   function setAmenityValue(key: string, value: AmenityValue) {
     setAmenities((prev) => ({ ...prev, [key]: value }));
+    setValidationError(null);
   }
 
   function handleNoYes(config: MandatoryItemConfig, yes: boolean) {
@@ -898,12 +929,21 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
 
   return (
     <>
-      <form id="wizard-form" action={formAction}>
+      <form id="wizard-form" action={formAction} onSubmit={handleSubmit}>
         <input type="hidden" name="amenities_json" value={JSON.stringify(amenities)} />
 
-        {state.error && (
+        {(state.error || validationError) && (
           <div className="mb-4 rounded-lg px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
-            {state.error}
+            <p>{validationError ?? state.error}</p>
+            {validationError && activeCategory !== "Mandatory" && (
+              <button
+                type="button"
+                onClick={() => setActiveCategory("Mandatory")}
+                className="mt-1 text-red-600 underline underline-offset-2 text-xs hover:text-red-800"
+              >
+                Jump to Mandatory section →
+              </button>
+            )}
           </div>
         )}
 
@@ -1025,6 +1065,7 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
                     onDeletePool={handleDeletePool}
                     onEditPool={(pool) => setPoolModal({ editingPool: pool })}
                     disabled={isPending}
+                    hasError={showMandatoryErrors && amenities[config.name] === undefined}
                   />
                 ))
                 : isGeneralServices
