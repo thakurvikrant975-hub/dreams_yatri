@@ -9,6 +9,7 @@ export const ALL_HREFS = [
   // Overview
   "/dashboard",
   "/dashboard/analytics",
+  "/dashboard/locations",
   // Content Management
   "/dashboard/regions",
   "/dashboard/destinations",
