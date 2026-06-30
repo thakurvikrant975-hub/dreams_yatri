@@ -105,9 +105,14 @@ function TabsTrigger({
         "data-[state=active]:border-transparent",
 
         // ── Line variant overrides ────────────────────────────────
+        // The default active state pairs a solid primary background with
+        // light "primary-content" text. Line variant drops the background
+        // but must also swap the text back to the primary color — otherwise
+        // it stays light-on-transparent and becomes unreadable.
         "group-data-[variant=line]/tabs-list:bg-transparent",
         "group-data-[variant=line]/tabs-list:data-[state=active]:bg-transparent",
         "group-data-[variant=line]/tabs-list:data-[state=active]:border-transparent",
+        "group-data-[variant=line]/tabs-list:data-[state=active]:text-dashboard-primary",
         // ── Underline bar (line variant only) ─────────────────────
         "after:absolute after:opacity-0 after:transition-opacity after:rounded-full",
         "after:bg-dashboard-primary",
