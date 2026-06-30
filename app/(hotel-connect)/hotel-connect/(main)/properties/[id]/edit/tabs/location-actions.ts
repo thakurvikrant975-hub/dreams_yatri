@@ -37,20 +37,25 @@ export async function saveLocation(
   });
   if (!hotel) return { error: "Property not found." };
 
-  await db.hotels.update({
-    where: { id: hotelId },
-    data: {
-      address,
-      landmark: landmark || null,
-      city,
-      state,
-      country,
-      pincode,
-      latitude,
-      longitude,
-      wizard_step: Math.max(3, hotel.wizard_step),
-    },
-  });
+  try {
+    await db.hotels.update({
+      where: { id: hotelId },
+      data: {
+        address,
+        landmark: landmark || null,
+        city,
+        state,
+        country,
+        pincode,
+        latitude,
+        longitude,
+        wizard_step: Math.max(hotel.wizard_step, 3),
+      },
+    });
+  } catch (err) {
+    console.error("[saveLocation]", err);
+    return { error: "Failed to save location. Please try again." };
+  }
 
-  return { ok: true };
+  redirect(`/hotel-connect/properties/${hotelId}/edit?tab=3`);
 }
