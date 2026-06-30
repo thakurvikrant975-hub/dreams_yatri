@@ -690,6 +690,8 @@ export default function BasicInfoTab({ hotel }: { hotel: HotelBasicInfo }) {
       >
 
         {/* ── Email ── */}
+        {/* Hidden input carries the verified value — disabled inputs are excluded from FormData */}
+        {emailStep === "verified" && <input type="hidden" name="contact_email" value={emailInput} />}
         <FieldRow
           label="Business Email"
           error={fe.contact_email}
@@ -729,6 +731,13 @@ export default function BasicInfoTab({ hotel }: { hotel: HotelBasicInfo }) {
         </FieldRow>
 
         {/* ── Mobile ── */}
+        {/* Hidden inputs carry verified values — disabled inputs are excluded from FormData */}
+        {mobileStep === "verified" && (
+          <>
+            <input type="hidden" name="contact_mobile_cc" value={mobileCC} />
+            <input type="hidden" name="contact_mobile" value={mobileInput} />
+          </>
+        )}
         <FieldRow
           label="Primary Mobile"
           error={fe.contact_mobile}

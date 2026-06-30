@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useEffect } from "react";
+import { useActionState, useState } from "react";
 import { saveHomestayBasicInfo } from "./homestay-basic-info-actions";
 import {
   sendEmailOtp, verifyEmailOtp,
@@ -312,11 +312,7 @@ export default function HomestayBasicInfoTab({ hotel, owner }: { hotel: Homestay
   const basicSaved = hotel.wizard_step >= 2;
 
   // Navigate to Location tab when action succeeds
-  useEffect(() => {
-    if (state.ok) {
-      window.location.href = `/hotel-connect/properties/${hotel.id}/edit?tab=2`;
-    }
-  }, [state.ok, hotel.id]);
+  // Navigation is handled by server-side redirect in homestay-basic-info-actions.ts
 
   // ── Dropdown state ─────────────────────────────────────────────────────────
   const [mobileCC,      setMobileCC]      = useState(hotel.contact_mobile_cc ?? "+91");

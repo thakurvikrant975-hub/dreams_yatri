@@ -270,10 +270,9 @@ export default async function EditPropertyPage({
   const wizardTabs = isHomestay ? HOMESTAY_WIZARD_TABS : WIZARD_TABS;
   const tabLabel   = wizardTabs.find(t => t.index === currentTab)?.label ?? "";
 
-  const isHomestayTab1 = isHomestay && currentTab === 1;
   // Homestay tab 4 = Rooms & Spaces: Phase 1 (counts not yet saved) hides footer button
   const isHomestayRoomsCountsPending = isHomestay && currentTab === 4 && h.hs_bedrooms == null;
-  const tabFormId = isHomestayTab1 || !TABS_WITH_FORM.has(currentTab) ? undefined : "wizard-form";
+  const tabFormId = !TABS_WITH_FORM.has(currentTab) ? undefined : "wizard-form";
 
   const pricingData: MealsPricingHotelData = {
     id:                  h.id,
@@ -336,7 +335,7 @@ export default async function EditPropertyPage({
       currentTab={currentTab}
       tabFormId={tabFormId}
       effectiveWizardStep={effectiveWizardStep()}
-      hideNextButton={isHomestayTab1 || isHomestayRoomsCountsPending}
+      hideNextButton={isHomestayRoomsCountsPending}
     >
       {tabContent}
     </WizardShell>
