@@ -14,6 +14,7 @@ import {
   StarIcon,
   MagnifyingGlassIcon,
   TagIcon,
+  WarningIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import { cn } from "@/app/lib/utils";
 import {
@@ -51,6 +52,17 @@ function groupPhotosByTag(photos: HotelPhoto[]): { tag: string; photos: HotelPho
     map.get(tag)!.push(photo);
   }
   return Array.from(map.entries()).map(([tag, photos]) => ({ tag, photos }));
+}
+
+// ── Skeleton card (shown while uploading) ────────────────────────────────────
+
+function PhotoSkeleton() {
+  return (
+    <div className="flex flex-col items-center gap-1 shrink-0">
+      <div className="w-22 h-15 rounded-lg bg-neutral-200 animate-pulse" />
+      <div className="w-12 h-2 rounded-full bg-neutral-200 animate-pulse mt-0.5" />
+    </div>
+  );
 }
 
 // ── Photo preview lightbox ────────────────────────────────────────────────────
@@ -450,33 +462,47 @@ function UploadButton({
   hotelId,
   label = "Upload More",
   variant = "primary",
+  disabled: externallyDisabled = false,
+  onStart,
+  onEnd,
 }: {
   hotelId: number;
   label?: string;
   variant?: "primary" | "ghost" | "dashed";
+  disabled?: boolean;
+  onStart?: (count: number) => void;
+  onEnd?: (result: { count?: number; error?: string }) => void;
 }) {
   const ref = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-  const router = useRouter();
 
   async function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
     if (!files?.length) return;
+    onStart?.(files.length);
     setUploading(true);
     const fd = new FormData();
     for (const f of files) fd.append("photos", f);
-    const result = await uploadHotelPhotos(hotelId, fd);
-    setUploading(false);
-    e.target.value = "";
-    if (!result.error) router.refresh();
+    let result: { count?: number; error?: string } = {};
+    try {
+      result = await uploadHotelPhotos(hotelId, fd);
+    } catch (err) {
+      result = { error: err instanceof Error ? err.message : "Upload failed." };
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+      onEnd?.(result);
+    }
   }
+
+  const isDisabled = uploading || externallyDisabled;
 
   return (
     <>
       <input ref={ref} type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleChange} />
       <button
         type="button"
-        disabled={uploading}
+        disabled={isDisabled}
         onClick={() => ref.current?.click()}
         className={cn(
           "flex items-center gap-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-60",
@@ -516,8 +542,10 @@ export default function PhotosTab({
   const [photosState, setPhotosState] = useState<HotelPhoto[]>(
     () => categories.flatMap((c) => c.photos)
   );
-  const roomCategories = categories.filter((c) => !c.is_system);
+  const [pendingUploads, setPendingUploads] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
+  const roomCategories = categories.filter((c) => !c.is_system);
   const photoTags = propertySubType === "GUEST_HOUSE" ? GUEST_HOUSE_PHOTO_TAGS : HOTEL_PHOTO_TAGS;
 
   const coverPhoto = photosState.find((p) => p.is_primary) ?? photosState[0] ?? null;
@@ -525,6 +553,21 @@ export default function PhotosTab({
   const tagged = photosState.filter((p) => p.tags.length > 0);
   const tagGroups = groupPhotosByTag(tagged);
   const total = photosState.length;
+
+  // ── Upload handlers ──────────────────────────────────────────────────────────
+
+  function handleUploadStart(count: number) {
+    setPendingUploads(count);
+    setUploadError(null);
+  }
+
+  function handleUploadEnd(result: { count?: number; error?: string }) {
+    setPendingUploads(0);
+    if (result.error) setUploadError(result.error);
+    router.refresh(); // always refresh — show partial uploads too
+  }
+
+  // ── Photo interactions ───────────────────────────────────────────────────────
 
   function handleTagsChange(photoId: number, tags: string[]) {
     setPhotosState((prev) => prev.map((p) => p.id === photoId ? { ...p, tags } : p));
@@ -540,23 +583,77 @@ export default function PhotosTab({
     setPhotosState((prev) => prev.map((p) => ({ ...p, is_primary: p.id === photoId })));
   }
 
-  if (total === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 rounded-xl border-2 border-dashed border-neutral-200 bg-white text-center">
-        <div className="size-14 rounded-2xl bg-neutral-100 flex items-center justify-center mb-4">
-          <ImageIcon size={26} className="text-neutral-400" />
-        </div>
-        <p className="text-sm font-semibold text-neutral-800 mb-1">No photos yet</p>
-        <p className="text-xs text-neutral-400 mb-6 max-w-xs leading-relaxed">
-          Upload high-quality photos to attract more guests.
+  // ── Uploading state (skeleton section) ──────────────────────────────────────
+
+  const isUploading = pendingUploads > 0;
+
+  const skeletonSection = isUploading && (
+    <div className="rounded-xl border border-primary-200 bg-white shadow-sm overflow-hidden">
+      <div className="px-4 py-3 border-b border-primary-100 bg-primary-50/60 flex items-center gap-2">
+        <span className="relative flex size-2">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-400 opacity-75" />
+          <span className="relative inline-flex rounded-full size-2 bg-primary-500" />
+        </span>
+        <p className="text-xs font-semibold text-primary-700">
+          Uploading {pendingUploads} photo{pendingUploads > 1 ? "s" : ""}…
         </p>
-        <UploadButton hotelId={hotelId} label="Upload Photos" />
+      </div>
+      <div className="px-4 py-4">
+        <div className="flex flex-wrap gap-3">
+          {Array.from({ length: pendingUploads }).map((_, i) => (
+            <PhotoSkeleton key={i} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── Empty state ──────────────────────────────────────────────────────────────
+
+  if (total === 0 && !isUploading) {
+    return (
+      <div className="space-y-3">
+        {uploadError && (
+          <div className="flex items-start gap-2.5 rounded-lg px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
+            <WarningIcon size={15} className="shrink-0 mt-0.5" />
+            <span className="flex-1">{uploadError}</span>
+            <button type="button" onClick={() => setUploadError(null)} className="shrink-0 text-red-400 hover:text-red-600">
+              <XIcon size={13} />
+            </button>
+          </div>
+        )}
+        <div className="flex flex-col items-center justify-center py-20 rounded-xl border-2 border-dashed border-neutral-200 bg-white text-center">
+          <div className="size-14 rounded-2xl bg-neutral-100 flex items-center justify-center mb-4">
+            <ImageIcon size={26} className="text-neutral-400" />
+          </div>
+          <p className="text-sm font-semibold text-neutral-800 mb-1">No photos yet</p>
+          <p className="text-xs text-neutral-400 mb-6 max-w-xs leading-relaxed">
+            Upload high-quality photos to attract more guests.
+          </p>
+          <UploadButton hotelId={hotelId} label="Upload Photos" onStart={handleUploadStart} onEnd={handleUploadEnd} />
+        </div>
       </div>
     );
   }
 
+  // ── Main view ────────────────────────────────────────────────────────────────
+
   return (
     <div className="space-y-4 pb-8">
+
+      {/* Upload error banner */}
+      {uploadError && (
+        <div className="flex items-start gap-2.5 rounded-lg px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
+          <WarningIcon size={15} className="shrink-0 mt-0.5" />
+          <span className="flex-1">{uploadError}</span>
+          <button type="button" onClick={() => setUploadError(null)} className="shrink-0 text-red-400 hover:text-red-600">
+            <XIcon size={13} />
+          </button>
+        </div>
+      )}
+
+      {/* Skeleton section for pending uploads */}
+      {skeletonSection}
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -564,7 +661,7 @@ export default function PhotosTab({
           Photos &amp; Videos
           <span className="ml-1.5 text-neutral-400 font-normal">({total})</span>
         </h2>
-        <UploadButton hotelId={hotelId} />
+        <UploadButton hotelId={hotelId} disabled={isUploading} onStart={handleUploadStart} onEnd={handleUploadEnd} />
       </div>
 
       {/* Cover photo */}
@@ -576,7 +673,7 @@ export default function PhotosTab({
               <span className="ml-1.5 font-normal text-neutral-400">({coverPhoto.tags[0]})</span>
             )}
           </p>
-          <UploadButton hotelId={hotelId} label="Change" variant="ghost" />
+          <UploadButton hotelId={hotelId} label="Change" variant="ghost" disabled={isUploading} onStart={handleUploadStart} onEnd={handleUploadEnd} />
         </div>
         <div className="relative w-full" style={{ aspectRatio: "16/5" }}>
           {coverPhoto?.url ? (
@@ -602,7 +699,7 @@ export default function PhotosTab({
         <div className="p-4">
           {roomCategories.length === 0 ? (
             <div className="flex items-center gap-4">
-              <UploadButton hotelId={hotelId} label="Add" variant="dashed" />
+              <UploadButton hotelId={hotelId} label="Add" variant="dashed" disabled={isUploading} onStart={handleUploadStart} onEnd={handleUploadEnd} />
               <p className="text-xs text-neutral-400 leading-relaxed max-w-xs">
                 No room categories yet. Add rooms first to organise photos by room type.
               </p>
@@ -626,7 +723,7 @@ export default function PhotosTab({
                           onCover={handleCover}
                         />
                       ))}
-                      <UploadButton hotelId={hotelId} label="Add" variant="dashed" />
+                      <UploadButton hotelId={hotelId} label="Add" variant="dashed" disabled={isUploading} onStart={handleUploadStart} onEnd={handleUploadEnd} />
                     </div>
                   </div>
                 );

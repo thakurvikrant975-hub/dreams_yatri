@@ -101,8 +101,10 @@ export async function uploadHotelPhotos(
   const existingCount = await db.hotel_images.count({ where: { hotel_id: hotelId } });
 
   let count = 0;
-  try {
-    for (const file of valid) {
+  const failed: string[] = [];
+
+  for (const file of valid) {
+    try {
       const buffer = Buffer.from(await file.arrayBuffer());
       const { url } = await uploadToR2({
         file: buffer,
@@ -125,12 +127,22 @@ export async function uploadHotelPhotos(
         await db.hotels.update({ where: { id: hotelId }, data: { thumbnail: url } });
       }
       count++;
+    } catch (err) {
+      console.error("[uploadHotelPhotos] file error:", file.name, err);
+      failed.push(file.name);
     }
-    return { count };
-  } catch (err) {
-    console.error("[uploadHotelPhotos]", err);
-    return { error: err instanceof Error ? err.message : "Upload failed." };
   }
+
+  if (count === 0) {
+    return { error: "No photos could be uploaded. Please check the files and try again." };
+  }
+  if (failed.length > 0) {
+    return {
+      count,
+      error: `${count} photo${count > 1 ? "s" : ""} uploaded. ${failed.length} failed — ${failed.join(", ")}`,
+    };
+  }
+  return { count };
 }
 
 export async function setCoverPhoto(
