@@ -82,6 +82,39 @@ async function attachHierarchyRefs<T extends {
   }));
 }
 
+// Location has no created_by/updated_by columns (unlike destinations), so
+// attribution is derived from the ActivityLog audit trail this page already
+// writes to. Bounded by the current page's ids — cheap, no N+1.
+async function attachActors<T extends { id: bigint }>(
+  rows: T[],
+): Promise<(T & { createdByName: string | null; updatedByName: string | null })[]> {
+  const ids = rows.map((r) => r.id.toString());
+  const logs = ids.length > 0
+    ? await db.activityLog.findMany({
+        where: { entity: "Location", entityId: { in: ids }, action: { in: ["CREATE", "UPDATE"] } },
+        orderBy: { actionAt: "desc" },
+        select: { entityId: true, action: true, userName: true },
+      })
+    : [];
+
+  const latestMap = new Map<string, string | null>();
+  const createdMap = new Map<string, string | null>();
+  for (const log of logs) {
+    if (!log.entityId) continue;
+    if (!latestMap.has(log.entityId)) latestMap.set(log.entityId, log.userName);
+    if (log.action === "CREATE" && !createdMap.has(log.entityId)) createdMap.set(log.entityId, log.userName);
+  }
+
+  return rows.map((r) => {
+    const id = r.id.toString();
+    return {
+      ...r,
+      createdByName: createdMap.get(id) ?? null,
+      updatedByName: latestMap.get(id) ?? null,
+    };
+  });
+}
+
 // ── Read ──────────────────────────────────────────────────────────────────────
 
 export type GetLocationsParams = {
@@ -130,9 +163,10 @@ export async function getLocations(params: GetLocationsParams = {}) {
   ]);
 
   const withRefs = await attachHierarchyRefs(rows);
+  const withActors = await attachActors(withRefs);
 
   return {
-    locations: withRefs.map((r) => ({
+    locations: withActors.map((r) => ({
       ...serialize(r),
       linkedCount:
         r._count.hotels + r._count.activities + r._count.route_stops +
@@ -158,7 +192,8 @@ export async function getLocationById(id: string) {
   const loc = await db.location.findUnique({ where: { id: bigId } });
   if (!loc) return null;
   const [withRefs] = await attachHierarchyRefs([loc]);
-  return serialize(withRefs);
+  const [withActor] = await attachActors([withRefs]);
+  return serialize(withActor);
 }
 
 // ── Slug availability check ───────────────────────────────────────────────────

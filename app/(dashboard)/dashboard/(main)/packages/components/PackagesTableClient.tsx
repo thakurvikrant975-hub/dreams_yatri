@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   ImageIcon, MapPin, Package, Pencil, Route, Timer, Trash2,
 } from "lucide-react";
@@ -175,14 +176,16 @@ export function PackagesTableClient({
         return (
           <div className="flex items-center gap-3">
             {pkg.thumbnail ? (
-              <img
+              <Image
                 src={`${base}/${pkg.thumbnail}`}
                 alt={pkg.title}
-                className="h-12 w-16 rounded-lg object-cover shrink-0 border"
+                width={112}
+                height={84}
+                className="h-21 w-28 rounded-lg object-cover shrink-0 border"
               />
             ) : (
-              <div className="h-12 w-16 rounded-lg bg-dashboard-base-200 border border-dashboard-base-content/15 flex items-center justify-center shrink-0">
-                <Package className="h-4 w-4 text-dashboard-base-content/30" />
+              <div className="h-21 w-28 rounded-lg bg-dashboard-base-200 border border-dashboard-base-content/15 flex items-center justify-center shrink-0">
+                <Package className="h-5 w-5 text-dashboard-base-content/30" />
               </div>
             )}
             <div className="min-w-0">

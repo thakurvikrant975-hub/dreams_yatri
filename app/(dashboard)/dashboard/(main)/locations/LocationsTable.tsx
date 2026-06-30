@@ -38,6 +38,8 @@ type Location = LocationRow & {
     created_at: Date;
     updated_at: Date;
     linkedCount: number;
+    createdByName: string | null;
+    updatedByName: string | null;
 };
 
 type Stats = { total: number; used: number; active: number; inactive: number };
@@ -242,11 +244,16 @@ export function LocationsTable({
             ),
         },
         {
-            header: "Updated",
+            header: "Updated By",
             cell: (loc) => (
-                <p className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(loc.updated_at), { addSuffix: true })}
-                </p>
+                <div className="space-y-0.5">
+                    <p className="text-xs font-medium text-foreground/80 truncate max-w-28">
+                        {loc.updatedByName ?? loc.createdByName ?? "—"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(new Date(loc.updated_at), { addSuffix: true })}
+                    </p>
+                </div>
             ),
         },
         {
@@ -260,6 +267,10 @@ export function LocationsTable({
                         title={loc.name}
                         entityLabel="location"
                         fetchHistory={(id) => getLocationHistory(String(id))}
+                        createdBy={loc.createdByName}
+                        createdAt={loc.created_at}
+                        updatedBy={loc.updatedByName}
+                        updatedAt={loc.updated_at}
                     />
                     <EditLocationDialog location={loc} />
                     <DeleteLocationDialog id={loc.id} name={loc.name} />
