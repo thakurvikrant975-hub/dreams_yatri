@@ -1,18 +1,22 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Activity, Users, Flame, Trophy, ChevronDown, ChevronRight,
-  PlusCircle, Pencil, Trash2, Clock,
+  PlusCircle, Pencil, Trash2, Clock, Building2, Car, Map as MapIcon, PieChart as PieChartIcon,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { DateRangePicker } from "../ui/date-range-picker";
+import { Tabs, TabsList, TabsTrigger } from "../ui/tabs";
 import { StatCard, StatGrid } from "./Statcard";
 import { TrendAreaChart } from "./charts/TrendAreaChart";
 import { BreakdownPieChart } from "./charts/BreakdownPieChart";
 import { RankedBarChart } from "./charts/RankedBarChart";
-import type { PlatformManagerAnalyticsData } from "../../actions/platform-manager-analytics-actions";
+import type {
+  PlatformManagerAnalyticsData, DepartmentKey,
+} from "../../actions/platform-manager-analytics-actions";
 
 type Props = {
   data: PlatformManagerAnalyticsData;
@@ -44,6 +48,18 @@ const ACTION_STYLE: Record<string, string> = {
   DELETE: "bg-dashboard-error/10 text-dashboard-error",
 };
 
+const DEPT_ICON: Record<DepartmentKey, LucideIcon> = {
+  hotel: Building2,
+  cab: Car,
+  travel: MapIcon,
+};
+const DEPT_BADGE_STYLE: Record<string, string> = {
+  "Hotel Department": "bg-dashboard-primary/10 text-dashboard-primary",
+  "Cab Department": "bg-dashboard-info/10 text-dashboard-info",
+  "Travel Expert": "bg-dashboard-secondary/10 text-dashboard-secondary",
+  "Hotel & Cab": "bg-dashboard-warning/10 text-dashboard-warning",
+};
+
 function DashCard({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
     <div className={cn("rounded-xl overflow-hidden bg-dashboard-base-100 border border-dashboard-base-300", className)}>
@@ -64,6 +80,7 @@ export function PlatformManagerAnalytics({ data, from, to }: Props) {
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [deptFilter, setDeptFilter] = useState<"all" | DepartmentKey>("all");
 
   const isToday = from === todayStr() && to === todayStr();
   const isLast7 = from === daysAgoStr(6) && to === todayStr();
@@ -87,6 +104,11 @@ export function PlatformManagerAnalytics({ data, from, to }: Props) {
   const rangeLabel = from === to
     ? new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${from}T00:00:00`))
     : `${new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" }).format(new Date(`${from}T00:00:00`))} – ${new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${to}T00:00:00`))}`;
+
+  const visibleWorkReport = useMemo(() => {
+    if (deptFilter === "all") return data.workReport;
+    return data.workReport.filter((emp) => emp.departmentKeys.includes(deptFilter));
+  }, [data.workReport, deptFilter]);
 
   return (
     <div className="space-y-6">
@@ -141,21 +163,52 @@ export function PlatformManagerAnalytics({ data, from, to }: Props) {
         />
       </StatGrid>
 
+      {/* ── Department breakdown ─────────────────────────────────────────── */}
+      <StatGrid cols={3}>
+        {data.departments.map((dept) => {
+          const Icon = DEPT_ICON[dept.key];
+          return (
+            <StatCard
+              key={dept.key}
+              label={dept.label}
+              value={dept.totalActions}
+              icon={Icon}
+              sub={
+                dept.topEmployee
+                  ? `${dept.activeEmployees}/${dept.totalEmployees} active · top: ${dept.topEmployee.name} (${dept.topEmployee.count})`
+                  : `${dept.activeEmployees}/${dept.totalEmployees} active · no activity yet`
+              }
+            />
+          );
+        })}
+      </StatGrid>
+
       {/* ── Work report (primary) ────────────────────────────────────────── */}
       <DashCard>
         <DashCardHeader>
           <Clock className="h-4 w-4" />
-          <p className="text-sm font-semibold">Work report — who did what</p>
+          <p className="text-sm font-semibold flex-1">Work report — who did what</p>
         </DashCardHeader>
 
-        {data.workReport.length === 0 ? (
+        <div className="px-4 pt-3">
+          <Tabs value={deptFilter} onValueChange={(v) => setDeptFilter(v as "all" | DepartmentKey)}>
+            <TabsList variant="line">
+              <TabsTrigger value="all">All</TabsTrigger>
+              <TabsTrigger value="hotel">Hotel Department</TabsTrigger>
+              <TabsTrigger value="cab">Cab Department</TabsTrigger>
+              <TabsTrigger value="travel">Travel Expert</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
+        {visibleWorkReport.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 gap-2 text-center px-6">
             <span className="text-3xl">🗂️</span>
-            <p className="text-sm font-medium text-dashboard-base-content">No Inventory Managers or Travel Experts yet.</p>
+            <p className="text-sm font-medium text-dashboard-base-content">No team members in this department yet.</p>
           </div>
         ) : (
           <div>
-            {data.workReport.map((emp) => {
+            {visibleWorkReport.map((emp) => {
               const isOpen = expanded.has(emp.id);
               return (
                 <div key={emp.id} className="border-t border-dashboard-base-300 first:border-t-0">
@@ -177,12 +230,11 @@ export function PlatformManagerAnalytics({ data, from, to }: Props) {
                         <p className="text-sm font-medium text-dashboard-base-content">{emp.name}</p>
                         <span className={cn(
                           "text-[10px] font-semibold px-1.5 py-0.5 rounded-full",
-                          emp.role === "Inventory Manager"
-                            ? "bg-dashboard-primary/10 text-dashboard-primary"
-                            : "bg-dashboard-secondary/10 text-dashboard-secondary",
+                          DEPT_BADGE_STYLE[emp.departmentLabel] ?? "bg-dashboard-base-300 text-dashboard-base-content/60",
                         )}>
-                          {emp.role}
+                          {emp.departmentLabel}
                         </span>
+                        <span className="text-[10px] text-dashboard-base-content/40">{emp.role}</span>
                       </div>
                       {emp.total > 0 && (
                         <p className="text-xs text-dashboard-base-content/45 mt-0.5">
@@ -239,10 +291,21 @@ export function PlatformManagerAnalytics({ data, from, to }: Props) {
             <TrendAreaChart
               data={data.dailyTrend}
               series={[
-                { key: "Inventory Manager", label: "Inventory Manager", color: "var(--color-dashboard-primary)" },
+                { key: "Hotel Department", label: "Hotel Department", color: "var(--color-dashboard-primary)" },
+                { key: "Cab Department", label: "Cab Department", color: "var(--color-dashboard-info)" },
                 { key: "Travel Expert", label: "Travel Expert", color: "var(--color-dashboard-secondary)" },
               ]}
             />
+          </div>
+        </DashCard>
+
+        <DashCard>
+          <DashCardHeader>
+            <PieChartIcon className="h-4 w-4" />
+            <p className="text-sm font-semibold">Share of work by department</p>
+          </DashCardHeader>
+          <div className="p-4">
+            <BreakdownPieChart data={data.departmentBreakdown} />
           </div>
         </DashCard>
 
