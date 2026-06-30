@@ -3,6 +3,7 @@
 import { db } from "@/app/lib/db";
 import { revalidatePath } from "next/cache";
 import { dashboardAuth } from "@/app/lib/auth-dashboard";
+import { createLog } from "../../lib/logger";
 
 const PATH = "/dashboard/cab-drivers";
 
@@ -203,6 +204,13 @@ export async function createCabDriver(data: CabDriverInput) {
       include: { vehicle: { select: { id: true, name: true, type: true, image_key: true } } },
     });
     revalidatePath(PATH);
+    await createLog({
+      action:     "CREATE",
+      entity:     "CabDriver",
+      entityId:   String(created.id),
+      entitySlug: created.name,
+      newData:    { name: created.name, mobile: created.mobile, created_by: actorName },
+    });
     return { success: true as const, message: "Driver added", driver: serializeDriver(created) };
   } catch (e) {
     console.error("[createCabDriver]", e);
@@ -247,6 +255,12 @@ export async function updateCabDriver(id: number, data: CabDriverInput) {
       include: { vehicle: { select: { id: true, name: true, type: true, image_key: true } } },
     });
     revalidatePath(PATH);
+    await createLog({
+      action:     "UPDATE",
+      entity:     "CabDriver",
+      entityId:   String(id),
+      entitySlug: updated.name,
+    });
     return { success: true as const, message: "Driver updated", driver: serializeDriver(updated) };
   } catch (e) {
     console.error("[updateCabDriver]", e);
@@ -258,8 +272,16 @@ export async function updateCabDriver(id: number, data: CabDriverInput) {
 
 export async function toggleDriverActive(id: number, value: boolean) {
   try {
-    await db.cab_drivers.update({ where: { id }, data: { is_active: value, updated_at: new Date() } });
+    const updated = await db.cab_drivers.update({ where: { id }, data: { is_active: value, updated_at: new Date() } });
     revalidatePath(PATH);
+    await createLog({
+      action:     "UPDATE",
+      entity:     "CabDriver",
+      entityId:   String(id),
+      entitySlug: updated.name,
+      newData:    { is_active: value },
+      metadata:   { operation: "toggle_active" },
+    });
     return { success: true as const };
   } catch (e) {
     console.error("[toggleDriverActive]", e);
@@ -274,8 +296,16 @@ export async function toggleDriverVerified(id: number, value: boolean) {
   if (!session?.user) return { success: false as const, message: "Unauthorized" };
 
   try {
-    await db.cab_drivers.update({ where: { id }, data: { is_verified: value, updated_at: new Date() } });
+    const updated = await db.cab_drivers.update({ where: { id }, data: { is_verified: value, updated_at: new Date() } });
     revalidatePath(PATH);
+    await createLog({
+      action:     "UPDATE",
+      entity:     "CabDriver",
+      entityId:   String(id),
+      entitySlug: updated.name,
+      newData:    { is_verified: value },
+      metadata:   { operation: "toggle_verified" },
+    });
     return { success: true as const, message: value ? "Driver verified" : "Verification removed" };
   } catch (e) {
     console.error("[toggleDriverVerified]", e);
@@ -309,8 +339,14 @@ export async function deleteCabDriver(id: number) {
   if (!session?.user) return { success: false as const, message: "Unauthorized" };
 
   try {
-    await db.cab_drivers.delete({ where: { id } });
+    const deleted = await db.cab_drivers.delete({ where: { id } });
     revalidatePath(PATH);
+    await createLog({
+      action:     "DELETE",
+      entity:     "CabDriver",
+      entityId:   String(id),
+      entitySlug: deleted.name,
+    });
     return { success: true as const, message: "Driver deleted" };
   } catch (e) {
     console.error("[deleteCabDriver]", e);

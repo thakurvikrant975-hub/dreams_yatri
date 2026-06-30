@@ -1281,6 +1281,7 @@ model activities {
   destination_id       Int?
   location_id          BigInt?
   included_meals       String[]
+  created_by           String?
   category             activity_categories?   @relation(fields: [category_id], references: [id])
   destination          destinations?          @relation(fields: [destination_id], references: [id])
   location             Location?              @relation(fields: [location_id], references: [id])
@@ -1674,6 +1675,7 @@ model cab_pricing {
   updated_at      DateTime               @updatedAt
   price           Decimal                @db.Decimal(10, 2)
   pricing_type    CabPricingType         @default(PER_DAY)
+  created_by      String?
   updated_by      String?
   seasons         cab_pricing_season[]
   destination     destinations           @relation(fields: [destination_id], references: [id], onDelete: Cascade)
