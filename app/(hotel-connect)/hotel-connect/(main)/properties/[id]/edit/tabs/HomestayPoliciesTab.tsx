@@ -303,7 +303,7 @@ export default function HomestayPoliciesTab({ hotel }: { hotel: HomestayPolicies
   const [coupleTag,           setCoupleTag]            = useState(hotel.show_couple_tag         ?? null);
   const [guestsBelow18,       setGuestsBelow18]        = useState(hotel.allow_guests_below_18   ?? null);
   const [maleOnlyGroups,      setMaleOnlyGroups]       = useState(hotel.allow_male_only_groups  ?? null);
-  const [idProofs,            setIdProofs]             = useState<string[]>(hotel.acceptable_id_proofs);
+  const [idProofs,            setIdProofs]             = useState<string[]>(hotel.acceptable_id_proofs ?? []);
   const [sameCityId,          setSameCityId]           = useState(hotel.allow_same_city_id      ?? null);
 
   // Property restrictions
@@ -318,7 +318,7 @@ export default function HomestayPoliciesTab({ hotel }: { hotel: HomestayPolicies
   // Pet policy
   const [petsOnProperty,      setPetsOnProperty]       = useState(hotel.pets_on_property        ?? null);
   const [petsAllowed,         setPetsAllowed]          = useState(hotel.pets_allowed             ?? null);
-  const [petTypes,            setPetTypes]             = useState<string[]>(hotel.allowed_pet_types);
+  const [petTypes,            setPetTypes]             = useState<string[]>(hotel.allowed_pet_types ?? []);
   const [petExtraCharges,     setPetExtraCharges]      = useState(hotel.pet_extra_charges        ?? null);
   const [petChargeAmount,     setPetChargeAmount]      = useState(hotel.pet_charge_amount        ?? "");
   const [petFoodAvail,        setPetFoodAvail]         = useState(hotel.pet_food_available       ?? null);
@@ -333,8 +333,8 @@ export default function HomestayPoliciesTab({ hotel }: { hotel: HomestayPolicies
   const [caretakerStays,      setCaretakerStays]       = useState(hotel.caretaker_stays          ?? null);
   const [caretakerDetails,    setCaretakerDetails]     = useState(hotel.caretaker_details        ?? "");
   const [caretakerAvail,      setCaretakerAvail]       = useState(hotel.caretaker_availability   ?? "");
-  const [caretakerSvcs,       setCaretakerSvcs]        = useState<string[]>(hotel.caretaker_services);
-  const [caretakerKnow,       setCaretakerKnow]        = useState<string[]>(hotel.caretaker_knowledge);
+  const [caretakerSvcs,       setCaretakerSvcs]        = useState<string[]>(hotel.caretaker_services ?? []);
+  const [caretakerKnow,       setCaretakerKnow]        = useState<string[]>(hotel.caretaker_knowledge ?? []);
   const [caretakerCleaning,   setCaretakerCleaning]    = useState(hotel.caretaker_helps_cleaning ?? null);
 
   // Key exchange
@@ -492,7 +492,7 @@ export default function HomestayPoliciesTab({ hotel }: { hotel: HomestayPolicies
         <SectionCard title="Property Rules">
           <SubSectionHeader label="Guest Profile" />
 
-          <PolicyRow label="Do you allow unmarried couples?" value={unmarriedCouples} onChange={setUnmarriedCouples}>
+          <PolicyRow label="Do you allow unmarried couples?" value={unmarriedCouples} onChange={(v) => { setUnmarriedCouples(v); if (!v) setCoupleTag(null); }}>
             <SubRow label="Do you want to show couple friendly tag?" value={coupleTag} onChange={setCoupleTag} />
           </PolicyRow>
           <PolicyRow label="Do you allow guests below 18 years of age?" value={guestsBelow18} onChange={setGuestsBelow18} />
@@ -511,7 +511,7 @@ export default function HomestayPoliciesTab({ hotel }: { hotel: HomestayPolicies
 
           <SubSectionHeader label="Property Restrictions" />
 
-          <PolicyRow label="Is smoking allowed?" value={smokingAllowed} onChange={setSmokingAllowed}>
+          <PolicyRow label="Is smoking allowed?" value={smokingAllowed} onChange={(v) => { setSmokingAllowed(v); if (!v) setSmokingAreas(""); }}>
             <FieldLabel>Where is smoking allowed?</FieldLabel>
             <SelectField
               value={smokingAreas}
@@ -540,7 +540,7 @@ export default function HomestayPoliciesTab({ hotel }: { hotel: HomestayPolicies
         {/* ── 4. Pet Policy ────────────────────────────────────────────── */}
         <SectionCard title="Pet Policy">
           <PolicyRow label="Any pet(s) living on the property?" value={petsOnProperty} onChange={setPetsOnProperty} />
-          <PolicyRow label="Are pets allowed?" value={petsAllowed} onChange={setPetsAllowed}>
+          <PolicyRow label="Are pets allowed?" value={petsAllowed} onChange={(v) => { setPetsAllowed(v); if (!v) { setPetTypes([]); setPetExtraCharges(null); setPetChargeAmount(""); setPetFoodAvail(null); } }}>
             <FieldLabel>Which pets are allowed?</FieldLabel>
             <div className="flex flex-wrap gap-2">
               {PET_TYPE_OPTIONS.map((p) => {
@@ -614,7 +614,7 @@ export default function HomestayPoliciesTab({ hotel }: { hotel: HomestayPolicies
 
         {/* ── 6. Caretaker Information ──────────────────────────────────── */}
         <SectionCard title="Caretaker Information">
-          <PolicyRow label="Does the caretaker stay at the property?" value={caretakerStays} onChange={setCaretakerStays}>
+          <PolicyRow label="Does the caretaker stay at the property?" value={caretakerStays} onChange={(v) => { setCaretakerStays(v); if (!v) setCaretakerDetails(""); }}>
             <FieldLabel>Caretaker details</FieldLabel>
             <textarea
               value={caretakerDetails}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useEffect } from "react";
+import { useActionState, useState } from "react";
 import { savePolicies, type PolicyState } from "./policy-actions";
 import { HotelCancellationPolicy } from "@/app/generated/prisma";
 import { cn } from "@/app/lib/utils";
@@ -453,9 +453,7 @@ export default function PoliciesTab({ hotel }: { hotel: PoliciesHotelData }) {
     {}
   );
 
-  useEffect(() => {
-    if (state.ok) window.location.href = `/hotel-connect/properties/${hotel.id}/edit?tab=6`;
-  }, [state.ok, hotel.id]);
+  // Navigation is handled by server-side redirect in policy-actions.ts
 
   // Check-in / Check-out
   const [checkInTime,  setCheckInTime]  = useState(hotel.check_in_time  ?? "");

@@ -81,12 +81,12 @@ function TabItem({
     isCurrent
       ? "bg-white text-primary-500 after:absolute after:bottom-0 after:h-px after:w-full after:bg-white after:translate-y-px"
       : isCompleted
-        ? "text-neutral-600 hover:text-neutral-800 hover:bg-neutral-50 after:bg-transparent hover:after:bg-neutral-200"
-        : "text-neutral-600 hover:text-neutral-800 bg-neutral-50 hover:bg-neutral-100 after:bg-transparent"
+        ? "text-neutral-900 hover:text-neutral-800 hover:bg-neutral-50 after:bg-transparent hover:after:bg-neutral-200"
+        : "text-neutral-500 hover:text-neutral-600 bg-neutral-50 hover:bg-neutral-100 after:bg-transparent"
   );
 
   const indicator = (
-    <span
+    <div
       className={cn(
         "size-6 rounded-full text-[11px] font-bold flex items-center justify-center shrink-0 font-heading",
         isCurrent
@@ -99,7 +99,7 @@ function TabItem({
       {isCompleted
         ? <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5-4.5-4.5 1.41-1.41L10 13.67l7.09-7.09L18.5 8l-8.5 8.5z"/></svg>
         : tab.index}
-    </span>
+    </div>
   );
 
   return (
@@ -109,7 +109,7 @@ function TabItem({
       prefetch={false}
     >
       {indicator}
-      <span className="text-xs font-semibold leading-none font-heading">{tab.label}</span>
+      <span className="text-xs font-semibold leading-none font-heading ">{tab.label}</span>
     </Link>
   );
 }

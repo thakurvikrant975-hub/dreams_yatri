@@ -6,6 +6,14 @@ import { db } from "@/app/lib/db";
 
 export type MealsPricingState = { error?: string };
 
+const VALID_MEAL_OPTIONS = new Set([
+  "ACCOMMODATION_ONLY",
+  "BREAKFAST",
+  "HALF_BOARD",
+  "FULL_BOARD",
+  "ALL_INCLUSIVE",
+]);
+
 function parseIntField(v: FormDataEntryValue | null): number | null {
   if (!v || typeof v !== "string" || v.trim() === "") return null;
   const n = parseInt(v.trim(), 10);
@@ -50,23 +58,49 @@ export async function saveMealsPricing(
   const prop_extra_adult    = parseDecimalField(formData.get("prop_extra_adult"));
   const prop_child_rate     = parseDecimalField(formData.get("prop_child_rate"));
 
-  await db.hotels.update({
-    where: { id: hotelId },
-    data: {
-      prop_num_units,
-      prop_meal_option,
-      prop_base_occupancy,
-      prop_max_adults,
-      prop_max_children,
-      prop_max_occupancy,
-      prop_avail_from,
-      prop_avail_to,
-      prop_base_rate:   prop_base_rate   ?? undefined,
-      prop_extra_adult: prop_extra_adult ?? undefined,
-      prop_child_rate:  prop_child_rate  ?? undefined,
-      wizard_step: Math.max(hotel.wizard_step, 6),
-    },
-  });
+  // Validate meal option
+  if (prop_meal_option && !VALID_MEAL_OPTIONS.has(prop_meal_option)) {
+    return { error: "Invalid meal option selected." };
+  }
+
+  // Validate date range
+  if (prop_avail_from && prop_avail_to && prop_avail_from >= prop_avail_to) {
+    return { error: "Availability end date must be after start date." };
+  }
+
+  // Validate rates are non-negative
+  for (const [label, val] of [
+    ["Base rate", prop_base_rate],
+    ["Extra adult charge", prop_extra_adult],
+    ["Child rate", prop_child_rate],
+  ] as [string, string | null][]) {
+    if (val !== null && parseFloat(val) < 0) {
+      return { error: `${label} cannot be negative.` };
+    }
+  }
+
+  try {
+    await db.hotels.update({
+      where: { id: hotelId },
+      data: {
+        prop_num_units,
+        prop_meal_option,
+        prop_base_occupancy,
+        prop_max_adults,
+        prop_max_children,
+        prop_max_occupancy,
+        prop_avail_from,
+        prop_avail_to,
+        prop_base_rate:   prop_base_rate   ?? undefined,
+        prop_extra_adult: prop_extra_adult ?? undefined,
+        prop_child_rate:  prop_child_rate  ?? undefined,
+        wizard_step: Math.max(hotel.wizard_step, 6),
+      },
+    });
+  } catch (err) {
+    console.error("[saveMealsPricing]", err);
+    return { error: "Failed to save pricing details. Please try again." };
+  }
 
   redirect(`/hotel-connect/properties/${hotelId}/edit?tab=7`);
 }

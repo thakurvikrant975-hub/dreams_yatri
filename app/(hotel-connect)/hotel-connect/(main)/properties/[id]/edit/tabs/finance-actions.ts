@@ -38,22 +38,27 @@ export async function saveFinance(
       : null;
   const msme_number = (formData.get("msme_number") as string | null)?.trim() || null;
 
-  await db.hotels.update({
-    where: { id: hotelId },
-    data: {
-      bank_account_number,
-      bank_ifsc_code,
-      bank_name,
-      bank_consent_given,
-      gstin_number,
-      pan_number,
-      business_type,
-      msme_number,
-      wizard_step: Math.max(hotel.wizard_step, 6),
-    },
-  });
+  try {
+    await db.hotels.update({
+      where: { id: hotelId },
+      data: {
+        bank_account_number,
+        bank_ifsc_code,
+        bank_name,
+        bank_consent_given,
+        gstin_number,
+        pan_number,
+        business_type,
+        msme_number,
+        wizard_step: Math.max(hotel.wizard_step, 7),
+      },
+    });
+  } catch (err) {
+    console.error("[saveFinance]", err);
+    return { error: "Failed to save finance details. Please try again." };
+  }
 
-  return { ok: true };
+  redirect(`/hotel-connect/properties/${hotelId}/edit?tab=7`);
 }
 
 // ── Document upload ───────────────────────────────────────────────────────────
@@ -74,6 +79,7 @@ export async function uploadFinanceDocument(
 
   const file = formData.get("document") as File | null;
   if (!file || file.size === 0) return { error: "No file selected." };
+  if (file.size > 15 * 1024 * 1024) return { error: "File must be 15 MB or smaller." };
 
   try {
     const buffer = Buffer.from(await file.arrayBuffer());

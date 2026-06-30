@@ -336,9 +336,7 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
     {}
   );
 
-  useEffect(() => {
-    if (state.ok) window.location.href = `/hotel-connect/properties/${hotel.id}/edit?tab=6`;
-  }, [state.ok, hotel.id]);
+  // Navigation is handled by server-side redirect in finance-actions.ts
 
   const [expanded, setExpanded] = useState<Set<number>>(new Set([1]));
   function toggle(n: number) {

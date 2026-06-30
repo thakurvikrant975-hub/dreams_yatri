@@ -289,7 +289,7 @@ export default function MealsPricingTab({ hotel }: { hotel: MealsPricingHotelDat
               label="Adult Occupancy"
               description="Total number of adults that can be accommodated in this property"
               value={maxAdult}
-              onChange={(v) => { setMaxAdult(v); if (baseOcc > v) setBaseOcc(v); }}
+              onChange={(v) => { setMaxAdult(v); if (baseOcc > v) setBaseOcc(v); if (maxOcc < v) setMaxOcc(v); }}
               min={1}
             />
             <OccupancyRow
@@ -302,7 +302,7 @@ export default function MealsPricingTab({ hotel }: { hotel: MealsPricingHotelDat
               label="Maximum Occupancy"
               description="Total number of adults &amp; children that can be accommodated in this property"
               value={maxOcc}
-              onChange={setMaxOcc}
+              onChange={(v) => setMaxOcc(Math.max(v, maxAdult))}
               min={1}
             />
           </div>
@@ -318,7 +318,11 @@ export default function MealsPricingTab({ hotel }: { hotel: MealsPricingHotelDat
               <FieldLabel label="Start Date" />
               <DatePickerField
                 value={availFrom}
-                onChange={setAvailFrom}
+                onChange={(d) => {
+                  setAvailFrom(d);
+                  // Clear end date if it's no longer after the new start date
+                  if (d && availTo && d >= availTo) setAvailTo(null);
+                }}
                 placeholder="Select start date"
                 minDate={new Date()}
               />

@@ -301,8 +301,9 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
   const boundAction = saveHomestayFinance.bind(null, hotel.id);
   const [state, formAction] = useActionState<HomestayFinanceState, FormData>(boundAction, {});
 
-  // Which section is open
-  const [open, setOpen] = useState<1 | 2 | 3>(1);
+  // Which section is open (null = all closed)
+  const [open, setOpen] = useState<number | null>(1);
+  function toggleSection(n: number) { setOpen((prev) => (prev === n ? null : n)); }
 
   // ── Section 1: Ownership Details ──────────────────────────────────────────
   const [ownershipType,      setOwnershipType]      = useState(hotel.ownership_type        ?? "");
@@ -328,7 +329,7 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
 
   // ── Section 3: Banking Details ─────────────────────────────────────────────
   const [accountNo,    setAccountNo]    = useState(hotel.bank_account_number ?? "");
-  const [accountConf,  setAccountConf]  = useState(hotel.bank_account_number ?? "");
+  const [accountConf,  setAccountConf]  = useState("");
   const [showAcct,     setShowAcct]     = useState(false);
   const [ifsc,         setIfsc]         = useState(hotel.bank_ifsc_code ?? "");
   const [bankName,     setBankName]     = useState(hotel.bank_name      ?? "");
@@ -355,7 +356,12 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
   }
 
   // Completeness checks for section indicators
-  const sec1Complete = !!ownershipType && !!docs["registration_doc"];
+  // 3rd-party with no registration doc: section is complete once hasRegDoc is answered
+  const sec1Complete = !!ownershipType && (
+    isThirdParty && hasRegDoc === false
+      ? true
+      : !!docs["registration_doc"]
+  );
   const sec2Complete = !!idProofType && !!docs["id_proof"];
   const sec3Complete = !!accountNo && !!ifsc && !!bankName;
 
@@ -365,7 +371,16 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
 
   return (
     <>
-      <form id="wizard-form" action={formAction}>
+      <form
+        id="wizard-form"
+        action={formAction}
+        onSubmit={(e) => {
+          if (accountConf !== accountNo) {
+            e.preventDefault();
+            return;
+          }
+        }}
+      >
         {/* Hidden form fields */}
         <input type="hidden" name="ownership_type"        value={ownershipType} />
         <input type="hidden" name="has_registration_doc"  value={hasRegDoc === true ? "yes" : hasRegDoc === false ? "no" : ""} />
@@ -391,7 +406,7 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
           title="Ownership Details"
           description="Tell us who owns the property and upload proof of ownership"
           expanded={open === 1}
-          onToggle={() => setOpen(1)}
+          onToggle={() => toggleSection(1)}
           complete={sec1Complete}
         >
           <div className="p-5 space-y-5">
@@ -475,7 +490,7 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
           title="ID Proof"
           description="Upload your identity proof for verification"
           expanded={open === 2}
-          onToggle={() => setOpen(2)}
+          onToggle={() => toggleSection(2)}
           complete={sec2Complete}
         >
           <div className="p-5 space-y-5">
@@ -511,7 +526,7 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
           title="Banking Details"
           description="Add your bank account, tax identifiers for payouts"
           expanded={open === 3}
-          onToggle={() => setOpen(3)}
+          onToggle={() => toggleSection(3)}
           complete={sec3Complete}
         >
           <div className="p-5 space-y-6">
@@ -549,7 +564,7 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
                     onChange={setAccountConf}
                     placeholder="Enter Account Number"
                   />
-                  {accountConf && accountNo && accountConf !== accountNo && (
+                  {(accountConf || accountNo) && accountConf !== accountNo && (
                     <p className="text-[11px] text-red-500 mt-1">Account numbers do not match</p>
                   )}
                 </div>
