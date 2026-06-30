@@ -45,6 +45,43 @@ function serialize<T extends { id: bigint; latitude: Prisma.Decimal | null; long
   };
 }
 
+// Lightweight ref used to hydrate the Parent/Country/State/City pickers —
+// mirrors the LocationValue shape the LocationSearchSelect component expects.
+export type LocationRef = { id: string; name: string; type: string; breadcrumb: string; slug: string };
+
+function toRef(loc: { id: bigint; name: string; type: string; slug: string } | null): LocationRef | null {
+  if (!loc) return null;
+  return { id: loc.id.toString(), name: loc.name, type: loc.type, breadcrumb: loc.name, slug: loc.slug };
+}
+
+// Batch-resolve parent/country/state/city display refs for a page of rows —
+// avoids an N+1 query per row.
+async function attachHierarchyRefs<T extends {
+  parent_id: bigint | null; country_id: bigint | null; state_id: bigint | null; city_id: bigint | null;
+}>(rows: T[]): Promise<(T & { parent: LocationRef | null; country: LocationRef | null; state: LocationRef | null; city: LocationRef | null })[]> {
+  const ids = new Set<bigint>();
+  for (const r of rows) {
+    if (r.parent_id) ids.add(r.parent_id);
+    if (r.country_id) ids.add(r.country_id);
+    if (r.state_id) ids.add(r.state_id);
+    if (r.city_id) ids.add(r.city_id);
+  }
+  const refs = ids.size > 0
+    ? await db.location.findMany({
+        where: { id: { in: [...ids] } },
+        select: { id: true, name: true, type: true, slug: true },
+      })
+    : [];
+  const map = new Map(refs.map((r) => [r.id.toString(), r]));
+  return rows.map((r) => ({
+    ...r,
+    parent: toRef(r.parent_id ? (map.get(r.parent_id.toString()) ?? null) : null),
+    country: toRef(r.country_id ? (map.get(r.country_id.toString()) ?? null) : null),
+    state: toRef(r.state_id ? (map.get(r.state_id.toString()) ?? null) : null),
+    city: toRef(r.city_id ? (map.get(r.city_id.toString()) ?? null) : null),
+  }));
+}
+
 // ── Read ──────────────────────────────────────────────────────────────────────
 
 export type GetLocationsParams = {
@@ -92,8 +129,10 @@ export async function getLocations(params: GetLocationsParams = {}) {
     db.location.count({ where: { ...USED_FILTER, is_active: true } }),
   ]);
 
+  const withRefs = await attachHierarchyRefs(rows);
+
   return {
-    locations: rows.map((r) => ({
+    locations: withRefs.map((r) => ({
       ...serialize(r),
       linkedCount:
         r._count.hotels + r._count.activities + r._count.route_stops +
@@ -118,7 +157,8 @@ export async function getLocationById(id: string) {
   }
   const loc = await db.location.findUnique({ where: { id: bigId } });
   if (!loc) return null;
-  return serialize(loc);
+  const [withRefs] = await attachHierarchyRefs([loc]);
+  return serialize(withRefs);
 }
 
 // ── Slug availability check ───────────────────────────────────────────────────
@@ -166,6 +206,29 @@ function extractRaw(formData: FormData) {
     is_popular: formData.get("is_popular") === "true",
     is_searchable: formData.get("is_searchable") !== "false",
     is_active: formData.get("is_active") !== "false",
+    parent_id: (formData.get("parent_id") as string) || undefined,
+    country_id: (formData.get("country_id") as string) || undefined,
+    state_id: (formData.get("state_id") as string) || undefined,
+    city_id: (formData.get("city_id") as string) || undefined,
+    seo_title: (formData.get("seo_title") as string) || undefined,
+    seo_description: (formData.get("seo_description") as string) || undefined,
+    hero_image: (formData.get("hero_image") as string) || undefined,
+    geonames_id: formData.get("geonames_id") ? Number(formData.get("geonames_id")) : null,
+    osm_id: (formData.get("osm_id") as string) || undefined,
+    mapbox_id: (formData.get("mapbox_id") as string) || undefined,
+  };
+}
+
+// Pulls the hierarchy/BigInt-FK fields out of a parsed LocationInput so they
+// can be converted to BigInt (or null) separately from the rest of the data.
+function buildHierarchyData(data: {
+  parent_id?: string; country_id?: string; state_id?: string; city_id?: string;
+}) {
+  return {
+    parent_id: data.parent_id ? BigInt(data.parent_id) : null,
+    country_id: data.country_id ? BigInt(data.country_id) : null,
+    state_id: data.state_id ? BigInt(data.state_id) : null,
+    city_id: data.city_id ? BigInt(data.city_id) : null,
   };
 }
 
@@ -190,6 +253,7 @@ export async function createLocation(
     const created = await db.location.create({
       data: {
         ...parsed.data,
+        ...buildHierarchyData(parsed.data),
         latitude: parsed.data.latitude != null ? String(parsed.data.latitude) : null,
         longitude: parsed.data.longitude != null ? String(parsed.data.longitude) : null,
         metadata: { source: "manual" },
@@ -239,10 +303,15 @@ export async function updateLocation(
       return { success: false, message: "Slug already taken", errors: { slug: ["This slug is already taken"] } };
     }
 
+    if ([parsed.data.parent_id, parsed.data.country_id, parsed.data.state_id, parsed.data.city_id].includes(id)) {
+      return { success: false, message: "A location cannot be its own parent, country, state, or city" };
+    }
+
     await db.location.update({
       where: { id: bigId },
       data: {
         ...parsed.data,
+        ...buildHierarchyData(parsed.data),
         latitude: parsed.data.latitude != null ? String(parsed.data.latitude) : null,
         longitude: parsed.data.longitude != null ? String(parsed.data.longitude) : null,
       },

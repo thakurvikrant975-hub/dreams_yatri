@@ -17,7 +17,9 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/app/lib/utils";
 import { LOCATION_TYPES, type LocationTypeValue } from "@/app/lib/validators/locations";
-import { createLocation, updateLocation, checkLocationSlug, type LocationFormState } from "./actions";
+import { createLocation, updateLocation, checkLocationSlug, type LocationFormState, type LocationRef } from "./actions";
+import { LocationSearchSelect } from "../components/location/LocationSearchSelect";
+import type { LocationValue } from "../components/location/location.types";
 
 const LocationMapPicker = dynamic(
     () => import("../components/location/LocationMapPicker"),
@@ -44,6 +46,16 @@ export type LocationRow = {
     is_popular: boolean;
     is_searchable: boolean;
     is_active: boolean;
+    parent: LocationRef | null;
+    country: LocationRef | null;
+    state: LocationRef | null;
+    city: LocationRef | null;
+    seo_title: string | null;
+    seo_description: string | null;
+    hero_image: string | null;
+    geonames_id: number | null;
+    osm_id: string | null;
+    mapbox_id: string | null;
 };
 
 type FormState = {
@@ -63,7 +75,22 @@ type FormState = {
     is_popular: boolean;
     is_searchable: boolean;
     is_active: boolean;
+    parent: LocationValue | null;
+    country: LocationValue | null;
+    state: LocationValue | null;
+    city: LocationValue | null;
+    seo_title: string;
+    seo_description: string;
+    hero_image: string;
+    geonames_id: string;
+    osm_id: string;
+    mapbox_id: string;
 };
+
+function refToValue(ref: LocationRef | null): LocationValue | null {
+    if (!ref) return null;
+    return { id: ref.id, name: ref.name, type: ref.type as LocationValue["type"], breadcrumb: ref.breadcrumb, slug: ref.slug };
+}
 
 const DEFAULT_CENTER: [number, number] = [22.5, 80]; // roughly central India
 
@@ -94,6 +121,16 @@ function emptyForm(): FormState {
         is_popular: false,
         is_searchable: true,
         is_active: true,
+        parent: null,
+        country: null,
+        state: null,
+        city: null,
+        seo_title: "",
+        seo_description: "",
+        hero_image: "",
+        geonames_id: "",
+        osm_id: "",
+        mapbox_id: "",
     };
 }
 
@@ -115,6 +152,16 @@ function fromRow(row: LocationRow): FormState {
         is_popular: row.is_popular,
         is_searchable: row.is_searchable,
         is_active: row.is_active,
+        parent: refToValue(row.parent),
+        country: refToValue(row.country),
+        state: refToValue(row.state),
+        city: refToValue(row.city),
+        seo_title: row.seo_title ?? "",
+        seo_description: row.seo_description ?? "",
+        hero_image: row.hero_image ?? "",
+        geonames_id: row.geonames_id != null ? String(row.geonames_id) : "",
+        osm_id: row.osm_id ?? "",
+        mapbox_id: row.mapbox_id ?? "",
     };
 }
 
@@ -136,6 +183,16 @@ function buildFormData(data: FormState): FormData {
     fd.append("is_popular", String(data.is_popular));
     fd.append("is_searchable", String(data.is_searchable));
     fd.append("is_active", String(data.is_active));
+    fd.append("parent_id", data.parent?.id ?? "");
+    fd.append("country_id", data.country?.id ?? "");
+    fd.append("state_id", data.state?.id ?? "");
+    fd.append("city_id", data.city?.id ?? "");
+    fd.append("seo_title", data.seo_title);
+    fd.append("seo_description", data.seo_description);
+    fd.append("hero_image", data.hero_image);
+    fd.append("geonames_id", data.geonames_id);
+    fd.append("osm_id", data.osm_id);
+    fd.append("mapbox_id", data.mapbox_id);
     return fd;
 }
 
@@ -330,6 +387,111 @@ function LocationForm({
                     value={data.description}
                     onChange={(e) => setData({ ...data, description: e.target.value })}
                 />
+            </div>
+
+            {/* Hierarchy — country/state/city are denormalised lookups used for fast
+                hierarchy queries; parent is the general "belongs under" relation. */}
+            <div className="space-y-3 rounded-lg border p-3">
+                <p className="text-sm font-medium">Hierarchy</p>
+                <p className="text-xs text-muted-foreground -mt-2">
+                    Fix a wrong country/state/city by re-linking it here
+                </p>
+
+                <div className="space-y-1.5">
+                    <Label>Country</Label>
+                    <LocationSearchSelect
+                        value={data.country}
+                        onChange={(loc) => setData({ ...data, country: loc })}
+                        placeholder="Search country…"
+                        types={["COUNTRY"]}
+                    />
+                </div>
+                <div className="space-y-1.5">
+                    <Label>State</Label>
+                    <LocationSearchSelect
+                        value={data.state}
+                        onChange={(loc) => setData({ ...data, state: loc })}
+                        placeholder="Search state…"
+                        types={["STATE"]}
+                    />
+                </div>
+                <div className="space-y-1.5">
+                    <Label>City</Label>
+                    <LocationSearchSelect
+                        value={data.city}
+                        onChange={(loc) => setData({ ...data, city: loc })}
+                        placeholder="Search city…"
+                        types={["CITY"]}
+                    />
+                </div>
+                <div className="space-y-1.5">
+                    <Label>Parent location <span className="text-[10px] font-normal text-muted-foreground">(optional, general hierarchy)</span></Label>
+                    <LocationSearchSelect
+                        value={data.parent}
+                        onChange={(loc) => setData({ ...data, parent: loc })}
+                        placeholder="Search parent location…"
+                    />
+                </div>
+            </div>
+
+            {/* SEO */}
+            <div className="space-y-3 rounded-lg border p-3">
+                <p className="text-sm font-medium">SEO</p>
+                <div className="space-y-1.5">
+                    <Label htmlFor="loc-seo-title">Meta title</Label>
+                    <Input
+                        id="loc-seo-title"
+                        value={data.seo_title}
+                        onChange={(e) => setData({ ...data, seo_title: e.target.value.slice(0, 60) })}
+                    />
+                </div>
+                <div className="space-y-1.5">
+                    <Label htmlFor="loc-seo-desc">Meta description</Label>
+                    <Textarea
+                        id="loc-seo-desc" rows={2}
+                        value={data.seo_description}
+                        onChange={(e) => setData({ ...data, seo_description: e.target.value.slice(0, 160) })}
+                    />
+                </div>
+                <div className="space-y-1.5">
+                    <Label htmlFor="loc-hero-image">Hero image URL / R2 key</Label>
+                    <Input
+                        id="loc-hero-image"
+                        value={data.hero_image}
+                        onChange={(e) => setData({ ...data, hero_image: e.target.value })}
+                    />
+                </div>
+            </div>
+
+            {/* Source ids — informational, populated by seeding/import flows */}
+            <div className="space-y-3 rounded-lg border p-3">
+                <p className="text-sm font-medium">Source IDs</p>
+                <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-1.5">
+                        <Label htmlFor="loc-geonames">Geonames ID</Label>
+                        <Input
+                            id="loc-geonames" type="number"
+                            value={data.geonames_id}
+                            onChange={(e) => setData({ ...data, geonames_id: e.target.value })}
+                        />
+                    </div>
+                    <div className="space-y-1.5">
+                        <Label htmlFor="loc-osm">OSM ID</Label>
+                        <Input
+                            id="loc-osm"
+                            value={data.osm_id}
+                            onChange={(e) => setData({ ...data, osm_id: e.target.value })}
+                        />
+                    </div>
+                    <div className="space-y-1.5">
+                        <Label htmlFor="loc-mapbox">Mapbox ID</Label>
+                        <Input
+                            id="loc-mapbox"
+                            value={data.mapbox_id}
+                            onChange={(e) => setData({ ...data, mapbox_id: e.target.value })}
+                        />
+                    </div>
+                </div>
             </div>
 
             <div className="space-y-2">

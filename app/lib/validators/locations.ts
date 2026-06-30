@@ -66,6 +66,28 @@ export const LocationSchema = z.object({
   is_popular: z.boolean().default(false),
   is_searchable: z.boolean().default(true),
   is_active: z.boolean().default(true),
+
+  // Hierarchy — references to other Location rows (BigInt ids passed as strings).
+  parent_id: z.string().optional().transform((s) => s?.trim() || undefined),
+  country_id: z.string().optional().transform((s) => s?.trim() || undefined),
+  state_id: z.string().optional().transform((s) => s?.trim() || undefined),
+  city_id: z.string().optional().transform((s) => s?.trim() || undefined),
+
+  // SEO + external source ids.
+  seo_title: z
+    .string()
+    .max(60, "SEO title must be 60 characters or less")
+    .optional()
+    .transform((s) => s?.trim() || undefined),
+  seo_description: z
+    .string()
+    .max(160, "SEO description must be 160 characters or less")
+    .optional()
+    .transform((s) => s?.trim() || undefined),
+  hero_image: z.string().optional().transform((s) => s?.trim() || undefined),
+  geonames_id: z.coerce.number().int().nullable().optional(),
+  osm_id: z.string().max(50).optional().transform((s) => s?.trim() || undefined),
+  mapbox_id: z.string().max(100).optional().transform((s) => s?.trim() || undefined),
 });
 
 export type LocationInput = z.infer<typeof LocationSchema>;
