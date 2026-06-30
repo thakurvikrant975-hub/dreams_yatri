@@ -23,7 +23,10 @@ export type LocationFormState = {
 };
 
 // A location counts as "in use" once it's referenced by real content —
-// hotels, activities, package route stops, or cab transfer pickup/drop points.
+// hotels, activities, package route stops, or cab transfer pickup/drop points —
+// OR it was added manually through this admin page (metadata.source: "manual").
+// Without that second branch, a location you just created here would vanish
+// from the default view until someone separately links it to a hotel/activity.
 const USED_FILTER: Prisma.LocationWhereInput = {
   OR: [
     { hotels: { some: {} } },
@@ -31,8 +34,11 @@ const USED_FILTER: Prisma.LocationWhereInput = {
     { route_stops: { some: {} } },
     { pickup_routes: { some: {} } },
     { drop_routes: { some: {} } },
+    { metadata: { path: ["source"], equals: "manual" } },
   ],
 };
+
+const RECENT_DAYS = 7;
 
 function serialize<T extends { id: bigint; latitude: Prisma.Decimal | null; longitude: Prisma.Decimal | null }>(
   loc: T,
@@ -144,10 +150,13 @@ export async function getLocations(params: GetLocationsParams = {}) {
     ...(status === "inactive" ? { is_active: false } : {}),
   };
 
-  const [rows, totalCount, totalAll, usedCount, activeCount] = await Promise.all([
+  const recentSince = new Date();
+  recentSince.setDate(recentSince.getDate() - RECENT_DAYS);
+
+  const [rows, totalCount, totalAll, usedCount, activeCount, recentCount] = await Promise.all([
     db.location.findMany({
       where,
-      orderBy: { updated_at: "desc" },
+      orderBy: { created_at: "desc" },
       skip,
       take: limit,
       include: {
@@ -160,6 +169,7 @@ export async function getLocations(params: GetLocationsParams = {}) {
     db.location.count(),
     db.location.count({ where: USED_FILTER }),
     db.location.count({ where: { ...USED_FILTER, is_active: true } }),
+    db.location.count({ where: { ...USED_FILTER, created_at: { gte: recentSince } } }),
   ]);
 
   const withRefs = await attachHierarchyRefs(rows);
@@ -178,6 +188,7 @@ export async function getLocations(params: GetLocationsParams = {}) {
       used: usedCount,
       active: activeCount,
       inactive: usedCount - activeCount,
+      recent: recentCount,
     },
   };
 }
@@ -472,4 +483,219 @@ export async function getLocationHistory(id: string) {
     },
     take: 50,
   });
+}
+
+// ── Linked items ──────────────────────────────────────────────────────────────
+// The "Linked" count on the table is just a number — this resolves it into the
+// actual hotel/activity/route-stop/transfer records so a wrong link can be
+// identified and fixed (either jump to the owning record's edit page, or
+// unlink it directly when it was clearly a mistake).
+
+export type LinkedItemKind = "hotel" | "activity" | "route_stop" | "transfer_pickup" | "transfer_drop";
+
+export type LocationLinkedItem = {
+  kind: LinkedItemKind;
+  refId: number;
+  label: string;
+  context: string | null;
+  editHref: string | null;
+};
+
+export async function getLocationLinkedItems(id: string): Promise<LocationLinkedItem[]> {
+  const bigId = BigInt(id);
+
+  const [hotels, activities, routeStops, transferRoutes] = await Promise.all([
+    db.hotels.findMany({ where: { location_id: bigId }, select: { id: true, name: true } }),
+    db.activities.findMany({ where: { location_id: bigId }, select: { id: true, name: true } }),
+    db.route_stops.findMany({
+      where: { location_id: bigId },
+      select: {
+        id: true, place_name: true,
+        route: { select: { duration: { select: { package: { select: { id: true, title: true } } } } } },
+      },
+    }),
+    db.transfer_routes.findMany({
+      where: { OR: [{ pickup_location_id: bigId }, { drop_location_id: bigId }] },
+      select: {
+        id: true, pickup_name: true, drop_name: true, pickup_location_id: true, drop_location_id: true,
+        transfers: {
+          take: 1,
+          select: { itinerary: { select: { package: { select: { id: true, title: true } } } } },
+        },
+      },
+    }),
+  ]);
+
+  const items: LocationLinkedItem[] = [];
+
+  for (const h of hotels) {
+    items.push({ kind: "hotel", refId: h.id, label: h.name, context: null, editHref: `/dashboard/hotels/${h.id}` });
+  }
+  for (const a of activities) {
+    items.push({ kind: "activity", refId: a.id, label: a.name, context: null, editHref: `/dashboard/activities/${a.id}` });
+  }
+  for (const rs of routeStops) {
+    const pkg = rs.route.duration.package;
+    items.push({
+      kind: "route_stop", refId: rs.id, label: rs.place_name,
+      context: `Route stop in "${pkg.title}"`, editHref: `/dashboard/packages/${pkg.id}`,
+    });
+  }
+  for (const tr of transferRoutes) {
+    const pkg = tr.transfers[0]?.itinerary?.package ?? null;
+    const route = `${tr.pickup_name} → ${tr.drop_name}`;
+    const editHref = pkg ? `/dashboard/packages/${pkg.id}` : null;
+    const context = pkg ? `Transfer route in "${pkg.title}"` : "Transfer route (not yet used in an itinerary)";
+    if (tr.pickup_location_id === bigId) {
+      items.push({ kind: "transfer_pickup", refId: tr.id, label: `Pickup — ${route}`, context, editHref });
+    }
+    if (tr.drop_location_id === bigId) {
+      items.push({ kind: "transfer_drop", refId: tr.id, label: `Drop — ${route}`, context, editHref });
+    }
+  }
+
+  return items;
+}
+
+// ── Unlink ────────────────────────────────────────────────────────────────────
+// Quick fix for "this got linked to the wrong location" — detaches the
+// reference without touching the referencing record otherwise. Safe for all
+// five kinds: none of them require a non-null location.
+
+export async function unlinkLocationReference(
+  kind: LinkedItemKind,
+  refId: number,
+): Promise<LocationFormState> {
+  const actor = await requireActor();
+  if (!actor) return { success: false, message: "Unauthorized" };
+
+  try {
+    switch (kind) {
+      case "hotel": {
+        const row = await db.hotels.update({ where: { id: refId }, data: { location_id: null }, select: { name: true } });
+        await createLog({
+          action: "UPDATE", entity: "Hotel", entityId: String(refId), entitySlug: row.name,
+          newData: { location_id: null }, metadata: { operation: "unlink_location" },
+        });
+        revalidatePath("/dashboard/hotels");
+        break;
+      }
+      case "activity": {
+        const row = await db.activities.update({ where: { id: refId }, data: { location_id: null }, select: { name: true } });
+        await createLog({
+          action: "UPDATE", entity: "Activity", entityId: String(refId), entitySlug: row.name,
+          newData: { location_id: null }, metadata: { operation: "unlink_location" },
+        });
+        revalidatePath("/dashboard/activities");
+        break;
+      }
+      case "route_stop": {
+        const row = await db.route_stops.update({ where: { id: refId }, data: { location_id: null }, select: { place_name: true } });
+        await createLog({
+          action: "UPDATE", entity: "RouteStop", entityId: String(refId), entitySlug: row.place_name,
+          newData: { location_id: null }, metadata: { operation: "unlink_location" },
+        });
+        break;
+      }
+      case "transfer_pickup": {
+        const row = await db.transfer_routes.update({ where: { id: refId }, data: { pickup_location_id: null }, select: { pickup_name: true } });
+        await createLog({
+          action: "UPDATE", entity: "TransferRoute", entityId: String(refId), entitySlug: row.pickup_name,
+          newData: { pickup_location_id: null }, metadata: { operation: "unlink_pickup_location" },
+        });
+        break;
+      }
+      case "transfer_drop": {
+        const row = await db.transfer_routes.update({ where: { id: refId }, data: { drop_location_id: null }, select: { drop_name: true } });
+        await createLog({
+          action: "UPDATE", entity: "TransferRoute", entityId: String(refId), entitySlug: row.drop_name,
+          newData: { drop_location_id: null }, metadata: { operation: "unlink_drop_location" },
+        });
+        break;
+      }
+    }
+
+    revalidatePath("/dashboard/locations");
+    return { success: true, message: "Unlinked from this location" };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
+  }
+}
+
+// ── Relink (point at a different Location) ────────────────────────────────────
+// Same correction as unlink, but re-pointed at a different Location instead of
+// cleared — for when a hotel/activity/route was linked to the wrong place
+// rather than one that shouldn't be linked at all.
+
+export async function relinkLocationReference(
+  kind: LinkedItemKind,
+  refId: number,
+  newLocationId: string,
+): Promise<LocationFormState> {
+  const actor = await requireActor();
+  if (!actor) return { success: false, message: "Unauthorized" };
+
+  let newBigId: bigint;
+  try {
+    newBigId = BigInt(newLocationId);
+  } catch {
+    return { success: false, message: "Invalid location" };
+  }
+
+  try {
+    const target = await db.location.findUnique({ where: { id: newBigId }, select: { name: true } });
+    if (!target) return { success: false, message: "That location no longer exists" };
+
+    switch (kind) {
+      case "hotel": {
+        const row = await db.hotels.update({ where: { id: refId }, data: { location_id: newBigId }, select: { name: true } });
+        await createLog({
+          action: "UPDATE", entity: "Hotel", entityId: String(refId), entitySlug: row.name,
+          newData: { location_id: newLocationId, location_name: target.name }, metadata: { operation: "relink_location" },
+        });
+        revalidatePath("/dashboard/hotels");
+        break;
+      }
+      case "activity": {
+        const row = await db.activities.update({ where: { id: refId }, data: { location_id: newBigId }, select: { name: true } });
+        await createLog({
+          action: "UPDATE", entity: "Activity", entityId: String(refId), entitySlug: row.name,
+          newData: { location_id: newLocationId, location_name: target.name }, metadata: { operation: "relink_location" },
+        });
+        revalidatePath("/dashboard/activities");
+        break;
+      }
+      case "route_stop": {
+        const row = await db.route_stops.update({ where: { id: refId }, data: { location_id: newBigId }, select: { place_name: true } });
+        await createLog({
+          action: "UPDATE", entity: "RouteStop", entityId: String(refId), entitySlug: row.place_name,
+          newData: { location_id: newLocationId, location_name: target.name }, metadata: { operation: "relink_location" },
+        });
+        break;
+      }
+      case "transfer_pickup": {
+        const row = await db.transfer_routes.update({ where: { id: refId }, data: { pickup_location_id: newBigId }, select: { pickup_name: true } });
+        await createLog({
+          action: "UPDATE", entity: "TransferRoute", entityId: String(refId), entitySlug: row.pickup_name,
+          newData: { pickup_location_id: newLocationId, location_name: target.name }, metadata: { operation: "relink_pickup_location" },
+        });
+        break;
+      }
+      case "transfer_drop": {
+        const row = await db.transfer_routes.update({ where: { id: refId }, data: { drop_location_id: newBigId }, select: { drop_name: true } });
+        await createLog({
+          action: "UPDATE", entity: "TransferRoute", entityId: String(refId), entitySlug: row.drop_name,
+          newData: { drop_location_id: newLocationId, location_name: target.name }, metadata: { operation: "relink_drop_location" },
+        });
+        break;
+      }
+    }
+
+    revalidatePath("/dashboard/locations");
+    return { success: true, message: `Relinked to ${target.name}` };
+  } catch (e) {
+    console.error(e);
+    return actionError(e);
+  }
 }

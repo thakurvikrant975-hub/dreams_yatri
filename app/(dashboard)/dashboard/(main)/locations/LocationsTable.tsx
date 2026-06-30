@@ -9,7 +9,7 @@ import { Button } from "../components/ui/button";
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "../components/ui/select";
-import { Trash2, MapPin, MapPinned, MapPinCheck, MapPinOff, Table2, Map as MapIcon } from "lucide-react";
+import { Trash2, MapPin, MapPinned, MapPinCheck, MapPinOff, Table2, Map as MapIcon, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import {
@@ -19,6 +19,7 @@ import {
     AlertDialogTrigger,
 } from "../components/ui/alert-dialog";
 import { EditLocationDialog, type LocationRow } from "./LocationDialog";
+import { LinkedItemsSheet } from "./LinkedItemsSheet";
 import { HistorySheet } from "../components/dashboard/HistorySheet";
 import { deleteLocation, toggleLocationActive, getLocationHistory } from "./actions";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
@@ -42,7 +43,12 @@ type Location = LocationRow & {
     updatedByName: string | null;
 };
 
-type Stats = { total: number; used: number; active: number; inactive: number };
+type Stats = { total: number; used: number; active: number; inactive: number; recent: number };
+
+const RECENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+function isRecent(createdAt: Date) {
+    return Date.now() - new Date(createdAt).getTime() < RECENT_WINDOW_MS;
+}
 
 // ── Delete Dialog ─────────────────────────────────────────────────────────────
 
@@ -190,7 +196,14 @@ export function LocationsTable({
             width: "w-[260px]",
             cell: (loc) => (
                 <div>
-                    <p className="font-medium text-sm">{loc.name}</p>
+                    <div className="flex items-center gap-1.5">
+                        <p className="font-medium text-sm">{loc.name}</p>
+                        {isRecent(loc.created_at) && (
+                            <Badge className="h-4.5 px-1.5 text-[10px] gap-0.5 bg-dashboard-success/10 text-dashboard-success border-0">
+                                <Sparkles className="h-2.5 w-2.5" /> New
+                            </Badge>
+                        )}
+                    </div>
                     {loc.official_name && (
                         <p className="text-xs text-muted-foreground">{loc.official_name}</p>
                     )}
@@ -227,9 +240,7 @@ export function LocationsTable({
             header: "Linked",
             align: "center",
             cell: (loc) => (
-                <span className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
-                    <MapPin className="h-3 w-3" /> {loc.linkedCount}
-                </span>
+                <LinkedItemsSheet locationId={loc.id} locationName={loc.name} linkedCount={loc.linkedCount} />
             ),
         },
         {
@@ -241,6 +252,19 @@ export function LocationsTable({
                     disabled={isPending}
                     onCheckedChange={() => handleToggle(loc.id, loc.is_active)}
                 />
+            ),
+        },
+        {
+            header: "Created By",
+            cell: (loc) => (
+                <div className="space-y-0.5">
+                    <p className="text-xs font-medium text-foreground/80 truncate max-w-28">
+                        {loc.createdByName ?? "—"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(new Date(loc.created_at), { addSuffix: true })}
+                    </p>
+                </div>
             ),
         },
         {
@@ -286,9 +310,10 @@ export function LocationsTable({
     return (
         <div className="space-y-4">
 
-            <StatGrid cols={4}>
+            <StatGrid cols={5}>
                 <StatCard label="Total Locations (all data)" value={stats.total} icon={MapPinned} />
                 <StatCard label="In Use" value={stats.used} icon={MapPinCheck} />
+                <StatCard label="Added Last 7 Days" value={stats.recent} icon={Sparkles} />
                 <StatCard label="Active" value={stats.active} icon={MapPin} />
                 <StatCard label="Inactive" value={stats.inactive} icon={MapPinOff} />
             </StatGrid>

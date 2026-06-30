@@ -60,6 +60,7 @@ export type ActivityItem = {
     email:          string | null;
     is_active:      boolean;
     created_at:     Date;
+    created_by:     string | null;
     category:       ActivityCategory | null;
     images:         ActivityImage[];
     _count:         { images: number; variants: number };
