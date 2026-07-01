@@ -207,6 +207,58 @@ export async function getLocationById(id: string) {
   return serialize(withActor);
 }
 
+// ── Duplicate detection ───────────────────────────────────────────────────────
+
+export type LocationDuplicateMatch = {
+  id: string;
+  name: string;
+  slug: string;
+  latitude: number | null;
+  longitude: number | null;
+  createdByName: string | null;
+  created_at: Date;
+};
+
+export async function checkLocationDuplicate(
+  name: string,
+  type: string,
+  excludeId?: string,
+): Promise<{ matches: LocationDuplicateMatch[] }> {
+  if (!name || name.trim().length < 2) return { matches: [] };
+
+  const rows = await db.location.findMany({
+    where: {
+      type: type as LocationTypeValue,
+      name: { contains: name.trim(), mode: "insensitive" },
+      ...(excludeId ? { NOT: { id: BigInt(excludeId) } } : {}),
+    },
+    select: { id: true, name: true, slug: true, latitude: true, longitude: true, created_at: true },
+    take: 3,
+    orderBy: { created_at: "desc" },
+  });
+
+  if (rows.length === 0) return { matches: [] };
+
+  const ids = rows.map((r) => r.id.toString());
+  const logs = await db.activityLog.findMany({
+    where: { entity: "Location", entityId: { in: ids }, action: "CREATE" },
+    select: { entityId: true, userName: true },
+  });
+  const creatorMap = new Map(logs.map((l) => [l.entityId, l.userName]));
+
+  return {
+    matches: rows.map((r) => ({
+      id: r.id.toString(),
+      name: r.name,
+      slug: r.slug,
+      latitude: r.latitude != null ? Number(r.latitude) : null,
+      longitude: r.longitude != null ? Number(r.longitude) : null,
+      createdByName: creatorMap.get(r.id.toString()) ?? null,
+      created_at: r.created_at,
+    })),
+  };
+}
+
 // ── Slug availability check ───────────────────────────────────────────────────
 
 export async function checkLocationSlug(

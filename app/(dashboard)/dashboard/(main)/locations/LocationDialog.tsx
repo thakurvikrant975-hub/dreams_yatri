@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import dynamic from "next/dynamic";
-import { Plus, Pencil, Loader2, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { Plus, Pencil, Loader2, AlertTriangle, CheckCircle2, Clock, User2 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -17,7 +18,10 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/app/lib/utils";
 import { LOCATION_TYPES, type LocationTypeValue } from "@/app/lib/validators/locations";
-import { createLocation, updateLocation, checkLocationSlug, type LocationFormState, type LocationRef } from "./actions";
+import {
+    createLocation, updateLocation, checkLocationSlug, checkLocationDuplicate,
+    type LocationFormState, type LocationRef, type LocationDuplicateMatch,
+} from "./actions";
 import { LocationSearchSelect } from "../components/location/LocationSearchSelect";
 import type { LocationValue } from "../components/location/location.types";
 
@@ -34,6 +38,10 @@ export type LocationRow = {
     name: string;
     official_name: string | null;
     slug: string;
+    // Attribution — optional so existing callers without these fields still typecheck.
+    // Populated whenever this row comes from getLocations / getLocationById (which call attachActors).
+    created_at?: Date;
+    createdByName?: string | null;
     short_code: string | null;
     iso_code: string | null;
     latitude: number | null;
@@ -101,6 +109,30 @@ function toSlug(s: string) {
         .replace(/\s+/g, "-")
         .replace(/-+/g, "-")
         .replace(/(^-|-$)/g, "");
+}
+
+// Entity-specific types get a suffix appended to the slug to reduce collisions
+// (e.g. "manali-hotel" vs "manali-activity" for the same place name).
+// Pure geographic types (CITY, STATE, COUNTRY, …) don't need a suffix.
+const TYPE_SLUG_SUFFIX: Record<string, string> = {
+    HOTEL:           "hotel",
+    ACTIVITY:        "activity",
+    AIRPORT:         "airport",
+    RAILWAY_STATION: "railway-station",
+    BUS_STOP:        "bus-stop",
+    ROUTE_STOP:      "stop",
+    TRANSFER_POINT:  "transfer",
+    PORT:            "port",
+    ATTRACTION:      "attraction",
+    PARK:            "park",
+    LANDMARK:        "landmark",
+};
+
+function slugWithSuffix(baseName: string, type: string): string {
+    const base = toSlug(baseName);
+    const suffix = TYPE_SLUG_SUFFIX[type];
+    if (!suffix || !base) return base;
+    return `${base}-${suffix}`;
 }
 
 function emptyForm(): FormState {
@@ -214,9 +246,11 @@ function LocationForm({
     const [slugStatus, setSlugStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
     const [slugSuggestion, setSlugSuggestion] = useState("");
     const [slugManual, setSlugManual] = useState(isEdit);
+    const [duplicates, setDuplicates] = useState<LocationDuplicateMatch[]>([]);
     const dataRef = useRef(data);
     useEffect(() => { dataRef.current = data; });
 
+    // Slug availability check
     useEffect(() => {
         if (!data.slug) { setSlugStatus("idle"); return; }
         setSlugStatus("checking");
@@ -233,6 +267,21 @@ function LocationForm({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [data.slug]);
 
+    // Duplicate detection — fires when name or type changes
+    useEffect(() => {
+        if (!data.name || data.name.trim().length < 2) { setDuplicates([]); return; }
+        const timer = setTimeout(async () => {
+            try {
+                const result = await checkLocationDuplicate(data.name, data.type, excludeId);
+                setDuplicates(result.matches);
+            } catch {
+                setDuplicates([]);
+            }
+        }, 600);
+        return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [data.name, data.type]);
+
     const lat = data.latitude ?? DEFAULT_CENTER[0];
     const lng = data.longitude ?? DEFAULT_CENTER[1];
 
@@ -242,7 +291,17 @@ function LocationForm({
             <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                     <Label>Type <span className="text-destructive">*</span></Label>
-                    <Select value={data.type} onValueChange={(v) => setData({ ...data, type: v as LocationTypeValue })}>
+                    <Select
+                        value={data.type}
+                        onValueChange={(v) => {
+                            const newType = v as LocationTypeValue;
+                            setData({
+                                ...data,
+                                type: newType,
+                                ...(slugManual ? {} : { slug: slugWithSuffix(data.name, newType) }),
+                            });
+                        }}
+                    >
                         <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                         <SelectContent>
                             {LOCATION_TYPES.map((t) => (
@@ -271,12 +330,41 @@ function LocationForm({
                         const name = e.target.value;
                         setData({
                             ...data, name,
-                            ...(slugManual ? {} : { slug: toSlug(name) }),
+                            ...(slugManual ? {} : { slug: slugWithSuffix(name, data.type) }),
                         });
                     }}
                     placeholder="e.g. Manali"
                 />
                 {errors?.name && <p className="text-xs text-destructive">{errors.name[0]}</p>}
+
+                {/* Duplicate warning — same type, similar name */}
+                {duplicates.length > 0 && (
+                    <div className="rounded-lg border px-3 py-2 space-y-1.5"
+                        style={{
+                            borderColor: "color-mix(in oklch, var(--color-dashboard-warning) 35%, transparent)",
+                            backgroundColor: "color-mix(in oklch, var(--color-dashboard-warning) 8%, transparent)",
+                        }}>
+                        <p className="flex items-center gap-1.5 text-xs font-medium text-dashboard-warning">
+                            <AlertTriangle className="h-3 w-3 shrink-0" />
+                            Similar {data.type.replace(/_/g, " ").toLowerCase()} already exists
+                        </p>
+                        {duplicates.map((d) => (
+                            <div key={d.id} className="pl-4.5 flex items-start gap-1 text-[11px] text-dashboard-warning/80">
+                                <span className="font-medium">{d.name}</span>
+                                {d.createdByName && (
+                                    <span className="flex items-center gap-0.5 shrink-0">
+                                        <User2 className="h-2.5 w-2.5" />
+                                        {d.createdByName}
+                                    </span>
+                                )}
+                                <span className="flex items-center gap-0.5 shrink-0">
+                                    <Clock className="h-2.5 w-2.5" />
+                                    {formatDistanceToNow(new Date(d.created_at), { addSuffix: true })}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
             <div className="space-y-1.5">
@@ -626,6 +714,22 @@ export function EditLocationDialog({
                     <SheetHeader>
                         <SheetTitle>Edit Location</SheetTitle>
                         <SheetDescription>Editing: {location.name}</SheetDescription>
+                        {(location.createdByName || location.created_at) && (
+                            <p className="flex items-center gap-3 text-xs text-muted-foreground pt-0.5">
+                                {location.createdByName && (
+                                    <span className="flex items-center gap-1">
+                                        <User2 className="h-3 w-3 shrink-0" />
+                                        {location.createdByName}
+                                    </span>
+                                )}
+                                {location.created_at && (
+                                    <span className="flex items-center gap-1">
+                                        <Clock className="h-3 w-3 shrink-0" />
+                                        {formatDistanceToNow(new Date(location.created_at), { addSuffix: true })}
+                                    </span>
+                                )}
+                            </p>
+                        )}
                     </SheetHeader>
 
                     <LocationForm data={data} setData={setData} isEdit excludeId={location.id} errors={errors} />
