@@ -75,9 +75,9 @@ export function CabPricingTable({
     return `?${params.toString()}`;
   }
 
-  function handleToggle(destinationId: number, current: boolean) {
+  function handleToggle(locationId: string, current: boolean) {
     startTransition(async () => {
-      const res = await toggleCabPricingActive(destinationId, !current);
+      const res = await toggleCabPricingActive(locationId, !current);
       if (res.success) toast.success(res.message);
       else             toast.error(res.message);
     });
@@ -85,13 +85,13 @@ export function CabPricingTable({
 
   const from  = totalCount === 0 ? 0 : (currentPage - 1) * limit + 1;
   const to    = Math.min(currentPage * limit, totalCount);
-  const paginationLabel = `Showing ${from}–${to} of ${totalCount} destination${totalCount !== 1 ? "s" : ""}`;
+  const paginationLabel = `Showing ${from}–${to} of ${totalCount} cit${totalCount !== 1 ? "ies" : "y"}`;
 
   // ── Columns ──────────────────────────────────────────────────────────────
 
   const columns: ColumnDef<CabPricingGroup>[] = [
     {
-      header: "Destination",
+      header: "City",
       width:  "w-[200px]",
       cell: (row) => (
         <div className="flex items-center gap-2">
@@ -99,8 +99,8 @@ export function CabPricingTable({
             <Car className="h-4 w-4 text-dashboard-primary" />
           </div>
           <div>
-            <p className="font-medium text-sm">{row.destination_name}</p>
-            <p className="text-xs text-muted-foreground font-mono">{row.destination_slug}</p>
+            <p className="font-medium text-sm">{row.location_name}</p>
+            <p className="text-xs text-muted-foreground font-mono">{row.location_slug}</p>
           </div>
         </div>
       ),
@@ -161,8 +161,17 @@ export function CabPricingTable({
         <Switch
           checked={row.active_count > 0}
           disabled={isPending}
-          onCheckedChange={() => handleToggle(row.destination_id, row.active_count > 0)}
+          onCheckedChange={() => handleToggle(row.location_id, row.active_count > 0)}
         />
+      ),
+    },
+    {
+      header: "Created By",
+      width:  "w-[150px]",
+      cell: (row) => (
+        <p className="text-xs font-medium text-foreground/80 truncate max-w-32">
+          {row.created_by ?? "—"}
+        </p>
       ),
     },
     {
@@ -170,7 +179,7 @@ export function CabPricingTable({
       width:  "w-[150px]",
       cell: (row) => (
         <div className="space-y-0.5">
-          <p className="text-xs font-medium text-foreground/80 truncate max-w-32.5">
+          <p className="text-xs font-medium text-foreground/80 truncate max-w-32">
             {row.updated_by ?? "—"}
           </p>
           <p className="text-xs text-muted-foreground">
@@ -187,8 +196,8 @@ export function CabPricingTable({
         <div className="flex items-center justify-end gap-1">
           <EditCabPricingSheet row={row} vehicles={vehicles} />
           <DeleteCabPricingDialog
-            destinationId={row.destination_id}
-            destinationName={row.destination_name}
+            locationId={row.location_id}
+            locationName={row.location_name}
             vehicleCount={row.total_count}
           />
         </div>
@@ -250,7 +259,7 @@ export function CabPricingTable({
       <DataTable
         data={rows}
         columns={columns}
-        rowKey={(r) => r.destination_id}
+        rowKey={(r) => r.location_id}
         emptyState={
           <TableEmptyState
             title="No cab pricing found"

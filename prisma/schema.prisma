@@ -538,6 +538,7 @@ model Location {
   route_stops      route_stops[]
   drop_routes      transfer_routes[] @relation("drop_routes")
   pickup_routes    transfer_routes[] @relation("pickup_routes")
+  cabPricings      cab_pricing[]     @relation("CabPricingLocation")
 
   @@index([type])
   @@index([parent_id])
@@ -1669,7 +1670,8 @@ model vehicle_rates {
 
 model cab_pricing {
   id              Int                    @id @default(autoincrement())
-  destination_id  Int
+  destination_id  Int?
+  location_id     BigInt?
   vehicle_id      Int
   cost_price      Decimal?               @db.Decimal(10, 2)
   is_active       Boolean                @default(true)
@@ -1680,12 +1682,14 @@ model cab_pricing {
   created_by      String?
   updated_by      String?
   seasons         cab_pricing_season[]
-  destination     destinations           @relation(fields: [destination_id], references: [id], onDelete: Cascade)
+  destination     destinations?          @relation(fields: [destination_id], references: [id], onDelete: Cascade)
+  location        Location?              @relation("CabPricingLocation", fields: [location_id], references: [id], onDelete: SetNull)
   vehicle         vehicles               @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
   packageSegments package_cab_segments[]
 
   @@unique([destination_id, vehicle_id])
   @@index([destination_id])
+  @@index([location_id])
   @@index([vehicle_id])
   @@map("cab_pricings")
 }

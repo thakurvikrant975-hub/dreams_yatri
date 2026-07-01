@@ -444,6 +444,7 @@ export async function computePackagePrice(
               select: {
                 pricing_type: true,
                 price: true,
+                location:    { select: { name: true } },
                 destination: { select: { name: true } },
                 seasons: {
                   where: { is_active: true },
@@ -967,7 +968,7 @@ export async function computePackagePrice(
         vehicle_id: cabTypeData.vehicle_id,
         vehicle_name: cabTypeData.vehicle.name,
         vehicle_capacity: cabTypeData.vehicle.passenger_capacity,
-        destination_name: seg.cab_pricing.destination.name,
+        destination_name: seg.cab_pricing.location?.name ?? seg.cab_pricing.destination?.name ?? "—",
         pricing_type: resolved.pricing_type,
         price_used,
         is_seasonal: resolved.is_seasonal,

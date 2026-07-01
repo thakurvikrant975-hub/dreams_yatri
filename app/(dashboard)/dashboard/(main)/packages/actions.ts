@@ -72,6 +72,7 @@ export async function getPackageForBuilder(id: number) {
             include: {
               cab_pricing: {
                 include: {
+                  location:    { select: { id: true, name: true } },
                   destination: { select: { id: true, name: true } },
                   seasons: {
                     where: { is_active: true },
@@ -161,7 +162,9 @@ export async function getPackageForBuilder(id: number) {
           id: s.cab_pricing.id,
           pricing_type: s.cab_pricing.pricing_type as "PER_DAY" | "PER_KM",
           price: Number(s.cab_pricing.price),
-          destination: s.cab_pricing.destination,
+          destination: s.cab_pricing.location
+            ? { id: 0, name: s.cab_pricing.location.name }
+            : (s.cab_pricing.destination ?? { id: 0, name: "—" }),
           seasons: s.cab_pricing.seasons.map((se) => ({
             id: se.id,
             valid_from: se.valid_from,

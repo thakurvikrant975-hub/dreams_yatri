@@ -562,6 +562,7 @@ export async function fetchPackagePageData(
                 id: true,
                 pricing_type: true,
                 price: true,
+                location:    { select: { id: true, name: true } },
                 destination: { select: { id: true, name: true } },
                 seasons: {
                   where: { is_active: true },
@@ -773,7 +774,9 @@ export async function fetchPackagePageData(
       cab_pricing_id: seg.cab_pricing.id,
       pricing_type: seg.cab_pricing.pricing_type as "PER_DAY" | "PER_KM",
       price: Number(seg.cab_pricing.price),
-      destination: seg.cab_pricing.destination,
+      destination: seg.cab_pricing.location
+        ? { id: 0, name: seg.cab_pricing.location.name }
+        : (seg.cab_pricing.destination ?? { id: 0, name: "—" }),
       seasons: seg.cab_pricing.seasons.map((s) => ({
         id: s.id,
         valid_from: s.valid_from.toISOString(),

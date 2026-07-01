@@ -458,7 +458,7 @@ function CabPricingSearchSelect({
       return {
         id:          o.cab_pricing_id,
         label:       `${o.vehicle_name}${o.has_ac ? " · AC" : ""} · ${o.passenger_capacity} pax`,
-        description: `${o.destination_name} · ${o.pricing_type === "PER_DAY" ? "Per Day" : "Per Km"} · ₹${fmt(o.price)}`,
+        description: `${o.city_name} · ${o.pricing_type === "PER_DAY" ? "Per Day" : "Per Km"} · ₹${fmt(o.price)}`,
       };
     });
     optionsMapRef.current = map;
@@ -512,18 +512,18 @@ function VehiclePricingSearchSelect({
     let data = res.data;
     if (query) {
       const q = query.toLowerCase();
-      data = data.filter((o) => o.destination_name.toLowerCase().includes(q));
+      data = data.filter((o) => o.city_name.toLowerCase().includes(q));
     }
     const map = new Map<number, VehiclePricingMeta>();
     const opts = data.map((o) => {
       map.set(o.cab_pricing_id, {
         pricing_type: o.pricing_type,
         price:        o.price,
-        destination:  { id: o.destination_id, name: o.destination_name },
+        destination:  { id: 0, name: o.city_name },
       });
       return {
         id:          o.cab_pricing_id,
-        label:       o.destination_name,
+        label:       o.city_name,
         description: `${o.pricing_type === "PER_DAY" ? "Per Day" : "Per Km"} · ₹${fmt(o.price)}${
           o.seasons_count > 0 ? ` · ${o.seasons_count} season${o.seasons_count > 1 ? "s" : ""}` : ""
         }`,
@@ -859,7 +859,7 @@ function AddOptionToGroupForm({
               id:           option.cab_pricing_id,
               pricing_type: option.pricing_type,
               price:        option.price,
-              destination:  { id: option.destination_id, name: option.destination_name },
+              destination:  { id: 0, name: option.city_name },
               seasons:      [],
             },
           }],
@@ -1221,7 +1221,7 @@ function AddCabTypeForm({
                 id:           row.option!.cab_pricing_id,
                 pricing_type: row.option!.pricing_type,
                 price:        row.option!.price,
-                destination:  { id: row.option!.destination_id, name: row.option!.destination_name },
+                destination:  { id: 0, name: row.option!.city_name },
                 seasons:      [],
               },
             }],

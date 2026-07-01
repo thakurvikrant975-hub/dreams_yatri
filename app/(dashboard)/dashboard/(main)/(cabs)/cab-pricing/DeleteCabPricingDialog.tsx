@@ -9,17 +9,17 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
 } from "../../components/ui/alert-dialog";
-import { deleteCabPricingForDestination } from "./actions";
+import { deleteCabPricingForLocation } from "./actions";
 import { toast } from "sonner";
 
 export function DeleteCabPricingDialog({
-  destinationId,
-  destinationName,
+  locationId,
+  locationName,
   vehicleCount,
 }: {
-  destinationId:   number;
-  destinationName: string;
-  vehicleCount:    number;
+  locationId:   string;
+  locationName: string;
+  vehicleCount: number;
 }) {
   const [open,     setOpen]          = useState(false);
   const [errorMsg, setErrorMsg]      = useState<string | null>(null);
@@ -32,7 +32,7 @@ export function DeleteCabPricingDialog({
 
   function handleDelete() {
     startTransition(async () => {
-      const result = await deleteCabPricingForDestination(destinationId);
+      const result = await deleteCabPricingForLocation(locationId);
       if (result.success) {
         toast.success(result.message);
         setOpen(false);
@@ -61,7 +61,7 @@ export function DeleteCabPricingDialog({
             <div className="space-y-3">
               <p>
                 Are you sure you want to delete all cab pricing for{" "}
-                <span className="font-semibold text-foreground">{destinationName}</span>?
+                <span className="font-semibold text-foreground">{locationName}</span>?
                 This will remove{" "}
                 <span className="font-semibold text-foreground">{vehicleCount}</span>{" "}
                 vehicle price{vehicleCount !== 1 ? "s" : ""}. This action cannot be undone.
