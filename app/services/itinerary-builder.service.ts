@@ -796,6 +796,9 @@ export type AttractionSourceImage = {
   url: string;
   thumbnail: string | null;
   group_label: string;
+  // Pre-filled caption suggestion — set to the activity name for ACTIVITY tab images
+  // so clicking an image auto-populates the caption input without a server round-trip.
+  default_caption?: string;
 };
 
 export type AttractionSourceImages = {
@@ -857,6 +860,7 @@ export async function getDaySourceImages(
     ACTIVITY: activityImgs.map((img) => ({
       id: img.id, url: img.url, thumbnail: img.thumbnail,
       group_label: img.activity.name,
+      default_caption: img.activity.name,
     })),
   };
 }

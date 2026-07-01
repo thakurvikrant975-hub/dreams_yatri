@@ -1869,6 +1869,20 @@ function AttractionsModal({
     const res = await handleBulkAddAttractions(itineraryId, [imageKey], packageId);
     setAddingUrl(null);
     if (!res.success) { toast.error(res.message ?? "Failed to add attraction"); return; }
+
+    // Pre-fill caption from the activity name for ACTIVITY tab images.
+    // Must be done BEFORE onAttractionsChange so the sync useEffect (which only
+    // fills IDs not already in the map) finds the key already set and skips it,
+    // preserving the prefilled value instead of overwriting with "".
+    const defaultCaption = allImages.find((img) => img.url === imageKey)?.default_caption ?? "";
+    if (defaultCaption && res.data.length > 0) {
+      setEditCaptions((prev) => {
+        const next = { ...prev };
+        for (const a of res.data) { next[a.id] = defaultCaption; }
+        return next;
+      });
+    }
+
     onAttractionsChange([...attractions, ...res.data]);
   }
 
