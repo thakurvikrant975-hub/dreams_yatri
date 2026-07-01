@@ -189,6 +189,46 @@ export async function savePhotoTags(
   }
 }
 
+export async function proceedPhotos(
+  hotelId: number,
+  _prev: { error?: string },
+  _formData: FormData,
+): Promise<{ error?: string }> {
+  const session = await hotelConnectAuth();
+  if (!session) redirect("/hotel-connect/login");
+
+  const hotel = await db.hotels.findFirst({
+    where: { id: hotelId, owner_id: session.user.id },
+    select: { id: true, wizard_step: true, property_category: true },
+  });
+  if (!hotel) return { error: "Property not found." };
+
+  const totalImages = await db.hotel_images.count({ where: { hotel_id: hotelId } });
+  if (totalImages === 0) return { error: "Upload at least one photo before continuing." };
+
+  const allImages = await db.hotel_images.findMany({
+    where: { hotel_id: hotelId },
+    select: { tags: true },
+  });
+  const untaggedCount = allImages.filter((img) => {
+    const tags = img.tags as unknown[];
+    return !Array.isArray(tags) || tags.length === 0;
+  }).length;
+  if (untaggedCount > 0) {
+    return {
+      error: `${untaggedCount} photo${untaggedCount > 1 ? "s are" : " is"} missing a tag. Add at least one tag to each photo.`,
+    };
+  }
+
+  const nextStep = hotel.property_category === "HOMESTAY_VILLA" ? 6 : 6;
+  await db.hotels.update({
+    where: { id: hotelId },
+    data: { wizard_step: Math.max(hotel.wizard_step, nextStep) },
+  });
+
+  redirect(`/hotel-connect/properties/${hotelId}/edit?tab=6`);
+}
+
 export async function deleteHotelPhoto(
   hotelId: number,
   imageId: number,

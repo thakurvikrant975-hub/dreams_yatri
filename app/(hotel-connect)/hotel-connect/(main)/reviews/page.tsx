@@ -87,7 +87,7 @@ export default async function ReviewsPage() {
       <ConnectHeader title="Reviews" />
 
       <div className="flex-1 overflow-y-auto">
-        <div className="p-6 max-w-5xl mx-auto w-full space-y-6">
+        <div className="p-6  mx-auto w-full space-y-6">
 
           {/* Overall rating (empty) */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

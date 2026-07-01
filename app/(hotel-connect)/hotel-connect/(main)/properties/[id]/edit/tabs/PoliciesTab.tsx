@@ -5,7 +5,14 @@ import { savePolicies, type PolicyState } from "./policy-actions";
 import { HotelCancellationPolicy } from "@/app/generated/prisma";
 import { cn } from "@/app/lib/utils";
 import { CheckIcon, CaretDownIcon, CaretUpIcon } from "@phosphor-icons/react/dist/ssr";
-import { MultiSearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
+import { SearchSelect, MultiSearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
+import { Input } from "../../../../components/ui/input";
+import { Label } from "../../../../components/ui/label";
+import { Card } from "@/app/components/ui/Card";
+
+function PLabel({ className, ...props }: React.ComponentProps<"label">) {
+  return <Label className={cn("normal-case tracking-normal", className)} {...props} />;
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -88,13 +95,13 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
-      <div className="px-5 py-3.5 border-b border-neutral-100 bg-neutral-50">
+    <Card variant="elevated" radius="md" className="overflow-hidden p-px">
+      <div className="px-5 py-3.5 border-b border-neutral-200 bg-linear-to-b bg-neutral-50 rounded-t-[inherit]">
         <p className="text-sm font-semibold text-neutral-800">{title}</p>
-        {description && <p className="text-[11px] text-neutral-400 mt-0.5">{description}</p>}
+        {description && <p className="text-xs text-neutral-600/90 mt-0.5">{description}</p>}
       </div>
       <div className="divide-y divide-neutral-100">{children}</div>
-    </div>
+    </Card>
   );
 }
 
@@ -183,19 +190,17 @@ function ChargeInput({
 }) {
   return (
     <div className="rounded-lg border border-neutral-100 bg-white p-3">
-      <p className="text-xs text-neutral-700 leading-snug mb-1">
-        {label}
-        {note && <span className="text-neutral-400"> ({note})</span>}
-      </p>
-      <div className="flex items-center gap-1.5 mt-2">
+      <PLabel className="mb-0.5">{label}</PLabel>
+      {note && <p className="text-[10px] text-neutral-400 leading-snug mb-2">{note}</p>}
+      <div className="flex items-center gap-1.5 mt-1">
         <span className="text-xs text-neutral-400 font-medium">₹</span>
-        <input
+        <Input
           type="text"
           name={name}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="Enter"
-          className="flex-1 h-8 rounded-md border border-neutral-200 bg-white px-2.5 text-xs text-neutral-700 focus:outline-none focus:ring-1 focus:ring-primary-300 focus:border-primary-300 placeholder:text-neutral-300"
+          placeholder="Enter amount"
+          className="flex-1"
         />
       </div>
     </div>
@@ -217,7 +222,7 @@ function PolicyRow({
   return (
     <div>
       <div className="flex items-center justify-between gap-6 px-5 py-3.5">
-        <p className="text-xs text-neutral-700 leading-snug flex-1">{label}</p>
+        <PLabel className="flex-1">{label}</PLabel>
         <YesNoButtons value={value} onChange={onChange} />
       </div>
       {value === true && children && (
@@ -241,7 +246,7 @@ function SubRow({
 }) {
   return (
     <div className="flex items-center justify-between gap-6 py-1.5">
-      <p className="text-xs text-neutral-600 leading-snug flex-1">{label}</p>
+      <PLabel className="flex-1">{label}</PLabel>
       <YesNoButtons value={value} onChange={onChange} />
     </div>
   );
@@ -298,12 +303,12 @@ function ExtraBedPolicies(props: ExtraBedPoliciesProps) {
   const childNote = "Please add this only if these charges are not included as part of extra child guest rates. These will be paid at the property";
 
   return (
-    <div className="rounded-xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
+    <Card variant="elevated" radius="md" className="overflow-hidden p-px">
       {/* Header */}
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between px-5 py-3.5 border-b border-neutral-100 bg-neutral-50 hover:bg-neutral-100 transition-colors"
+        className="w-full flex items-center justify-between px-5 py-3.5 border-b border-neutral-200 bg-linear-to-b bg-neutral-50 rounded-t-[inherit] hover:bg-neutral-100 transition-colors"
       >
         <div className="flex items-center gap-2.5">
           <p className="text-sm font-semibold text-neutral-800">Extra Bed Policies</p>
@@ -319,13 +324,13 @@ function ExtraBedPolicies(props: ExtraBedPoliciesProps) {
           {/* Adults */}
           <div>
             <div className="flex items-center justify-between gap-4 px-5 py-3.5">
-              <p className="text-xs text-neutral-700 leading-snug flex-1">Do you provide bed to extra adults?</p>
+              <PLabel className="flex-1">Do you provide bed to extra adults?</PLabel>
               <TriStateButtons value={props.bedAdultsAvail} onChange={props.setBedAdultsAvail} />
             </div>
             {props.bedAdultsAvail === "yes" && (
               <div className="px-5 pb-5 pt-1 bg-primary-50/20 border-t border-neutral-100 space-y-3">
                 <div>
-                  <p className="text-xs font-medium text-neutral-600 mb-1.5">Please mention the type of extra bed provided to adults</p>
+                  <PLabel className="mb-1.5">Please mention the type of extra bed provided to adults</PLabel>
                   <MultiSearchSelect
                     options={EXTRA_BED_TYPES_ADULT}
                     value={props.bedAdultsTypes}
@@ -350,13 +355,13 @@ function ExtraBedPolicies(props: ExtraBedPoliciesProps) {
           {/* Kids */}
           <div>
             <div className="flex items-center justify-between gap-4 px-5 py-3.5">
-              <p className="text-xs text-neutral-700 leading-snug flex-1">Do you provide bed to extra kids?</p>
+              <PLabel className="flex-1">Do you provide bed to extra kids?</PLabel>
               <TriStateButtons value={props.bedKidsAvail} onChange={props.setBedKidsAvail} />
             </div>
             {props.bedKidsAvail === "yes" && (
               <div className="px-5 pb-5 pt-1 bg-primary-50/20 border-t border-neutral-100 space-y-3">
                 <div>
-                  <p className="text-xs font-medium text-neutral-600 mb-1.5">Please mention the type of extra bed provided to kids</p>
+                  <PLabel className="mb-1.5">Please mention the type of extra bed provided to kids</PLabel>
                   <MultiSearchSelect
                     options={EXTRA_BED_TYPES_CHILD}
                     value={props.bedKidsTypes}
@@ -382,7 +387,7 @@ function ExtraBedPolicies(props: ExtraBedPoliciesProps) {
           </div>
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -406,11 +411,11 @@ function MealRackPrices({
   const rulesAdded = meals.filter((m) => m.value.trim() !== "").length;
 
   return (
-    <div className="rounded-xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
+    <Card variant="elevated" radius="md" className="overflow-hidden p-px">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between px-5 py-3.5 border-b border-neutral-100 bg-neutral-50 hover:bg-neutral-100 transition-colors"
+        className="w-full flex items-center justify-between px-5 py-3.5 border-b border-neutral-200 bg-linear-to-b bg-neutral-50 rounded-t-[inherit] hover:bg-neutral-100 transition-colors"
       >
         <div className="flex items-center gap-2.5">
           <p className="text-sm font-semibold text-neutral-800">Meal rack prices</p>
@@ -425,23 +430,23 @@ function MealRackPrices({
         <div className="divide-y divide-neutral-100">
           {meals.map((meal) => (
             <div key={meal.label} className="flex items-center justify-between gap-6 px-5 py-3.5">
-              <p className="text-xs text-neutral-700 flex-1 min-w-0">{meal.label}</p>
+              <PLabel className="flex-1 min-w-0">{meal.label}</PLabel>
               <div className="flex items-center gap-1.5 shrink-0 w-48 max-w-[40%]">
                 <span className="text-xs text-neutral-400 font-medium shrink-0">₹</span>
-                <input
+                <Input
                   type="text"
                   name={meal.name}
                   value={meal.value}
                   onChange={(e) => meal.onChange(e.target.value)}
-                  placeholder="Enter"
-                  className="min-w-0 flex-1 h-9 rounded-lg border border-neutral-200 bg-white px-3 text-sm text-neutral-700 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300 placeholder:text-neutral-300"
+                  placeholder="Enter amount"
+                  className="flex-1"
                 />
               </div>
             </div>
           ))}
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -567,30 +572,24 @@ export default function PoliciesTab({ hotel }: { hotel: PoliciesHotelData }) {
       <SectionCard title="Check-in & Check-out Time">
         <div className="px-5 py-4 grid grid-cols-2 gap-5">
           <div>
-            <label className="block text-xs font-medium text-neutral-600 mb-1.5">Check-in Time</label>
-            <select
+            <PLabel className="mb-1.5">Check-in Time</PLabel>
+            <SearchSelect
+              options={TIME_OPTIONS}
               value={checkInTime}
-              onChange={(e) => setCheckInTime(e.target.value)}
-              className="w-full h-9 rounded-lg border border-neutral-200 bg-white px-3 pr-8 text-xs text-neutral-700 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300 appearance-none"
-            >
-              <option value="">Select time</option>
-              {TIME_OPTIONS.map((t) => (
-                <option key={t.value} value={t.value}>{t.label}</option>
-              ))}
-            </select>
+              onChange={setCheckInTime}
+              placeholder="Select time"
+              searchPlaceholder="Search time…"
+            />
           </div>
           <div>
-            <label className="block text-xs font-medium text-neutral-600 mb-1.5">Check-out Time</label>
-            <select
+            <PLabel className="mb-1.5">Check-out Time</PLabel>
+            <SearchSelect
+              options={TIME_OPTIONS}
               value={checkOutTime}
-              onChange={(e) => setCheckOutTime(e.target.value)}
-              className="w-full h-9 rounded-lg border border-neutral-200 bg-white px-3 pr-8 text-xs text-neutral-700 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300 appearance-none"
-            >
-              <option value="">Select time</option>
-              {TIME_OPTIONS.map((t) => (
-                <option key={t.value} value={t.value}>{t.label}</option>
-              ))}
-            </select>
+              onChange={setCheckOutTime}
+              placeholder="Select time"
+              searchPlaceholder="Search time…"
+            />
           </div>
         </div>
       </SectionCard>
@@ -697,7 +696,7 @@ export default function PoliciesTab({ hotel }: { hotel: PoliciesHotelData }) {
         >
           {/* Which pets */}
           <div>
-            <p className="text-xs font-medium text-neutral-600 mb-2">Which pets are allowed at the property?</p>
+            <PLabel className="mb-2">Which pets are allowed at the property?</PLabel>
             <div className="flex flex-wrap gap-2">
               {PET_TYPE_OPTIONS.map((pet) => (
                 <Pill
@@ -711,13 +710,11 @@ export default function PoliciesTab({ hotel }: { hotel: PoliciesHotelData }) {
           </div>
           <SubRow label="Are there any extra charges for pets?" value={petExtraCharges} onChange={setPetExtraCharges} />
           <div>
-            <p className="text-xs font-medium text-neutral-600 mb-1.5">Pets are restricted/not allowed in these areas?</p>
-            <input
-              type="text"
+            <PLabel className="mb-1.5">Pets are restricted/not allowed in these areas?</PLabel>
+            <Input
               value={petsRestrictedAreas}
               onChange={(e) => setPetsRestrictedAreas(e.target.value)}
               placeholder="e.g. Restaurant, Pool area, Lobby"
-              className="w-full h-9 rounded-lg border border-neutral-200 bg-white px-3 text-xs text-neutral-700 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300 placeholder:text-neutral-400"
             />
           </div>
           <SubRow label="Are pets allowed to roam around without leash?" value={petsWithoutLeash} onChange={setPetsWithoutLeash} />
@@ -733,7 +730,7 @@ export default function PoliciesTab({ hotel }: { hotel: PoliciesHotelData }) {
           onChange={setCheckin24Hours}
         />
         <div className="px-5 py-4">
-          <p className="text-xs font-medium text-neutral-700 mb-2.5">Acceptable Identity Proofs</p>
+          <PLabel className="mb-2.5">Acceptable Identity Proofs</PLabel>
           <div className="flex flex-wrap gap-2">
             {ID_PROOF_OPTIONS.map((proof) => (
               <Pill

@@ -115,7 +115,7 @@ export default async function PropertiesPage({
       <ConnectHeader title="My Properties" />
 
       <div className="flex-1 overflow-y-auto">
-        <div className="p-6 max-w-5xl mx-auto w-full space-y-5">
+        <div className="p-6 mx-auto w-full space-y-5">
 
           {/* Top bar */}
           <div className="flex items-center justify-between gap-4">
@@ -129,9 +129,9 @@ export default async function PropertiesPage({
             </div>
             <Link
               href="/hotel-connect/properties/new"
-              className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 transition-colors"
+              className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-white bg-linear-to-r from-primary-500 to-primary-600 hover:bg-primary-400 transition-colors"
             >
-              <PlusCircleIcon size={15} weight="fill" />
+              <PlusCircleIcon size={20} weight="fill" />
               Add Property
             </Link>
           </div>
@@ -164,7 +164,7 @@ export default async function PropertiesPage({
 
           {/* Property grid */}
           {filtered.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {filtered.map((hotel) => {
                 const cfg = STATUS_CONFIG[hotel.listing_status];
                 const StatusIcon = cfg.icon;
@@ -266,7 +266,7 @@ export default async function PropertiesPage({
                 {tab === "all" && (
                   <Link
                     href="/hotel-connect/properties/new"
-                    className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 transition-colors"
+                    className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary-500 hover:bg-primary-600 transition-colors"
                   >
                     <PlusCircleIcon size={15} weight="fill" />
                     Add Property

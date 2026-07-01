@@ -998,7 +998,7 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
         <div className="flex bg-white rounded-xl border border-neutral-200 overflow-hidden shadow-sm">
 
           {/* Sidebar */}
-          <aside className="w-52 shrink-0 border-r border-neutral-200 bg-neutral-50 self-start sticky top-0 h-full overflow-y-auto">
+          <aside className="w-64 shrink-0  self-start sticky top-0 h-full overflow-y-auto">
             <div className="px-4 py-2.5 border-b border-neutral-200 bg-white sticky top-0">
               <p className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">Categories</p>
             </div>
@@ -1018,7 +1018,7 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
           </aside>
 
           {/* Content */}
-          <div className="flex-1 min-w-0 flex flex-col">
+          <div className="flex-1 min-w-0 flex flex-col border-l border-neutral-200 ">
 
             {/* Category header */}
             <div className="px-6 py-4 border-b border-neutral-200 bg-white sticky top-0 z-10">

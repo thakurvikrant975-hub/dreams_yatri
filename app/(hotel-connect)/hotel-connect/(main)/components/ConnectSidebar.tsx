@@ -3,25 +3,32 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Buildings,
-  ChatCircleDots,
-  HouseLine,
-  SignOut,
-  Star,
-  CalendarBlank,
-  CurrencyInr,
-} from "@phosphor-icons/react";
+  HomeIcon,
+  BuildingOffice2Icon,
+  CalendarDaysIcon,
+  CurrencyRupeeIcon,
+  StarIcon,
+  ChatBubbleLeftRightIcon,
+  ArrowRightStartOnRectangleIcon,
+} from "@heroicons/react/24/solid";
 import { signOutHotelOwner } from "@/app/lib/auth-hotel-connect-actions";
 import DyLogo from "@/app/components/ui/DyLogo";
 import { cn } from "@/app/lib/utils";
 
-const navItems = [
-  { href: "/hotel-connect",            label: "Dashboard",    icon: HouseLine,    exact: true },
-  { href: "/hotel-connect/properties", label: "My Properties", icon: Buildings },
-  { href: "/hotel-connect/bookings",   label: "Bookings",     icon: CalendarBlank },
-  { href: "/hotel-connect/revenue",    label: "Revenue",      icon: CurrencyInr },
-  { href: "/hotel-connect/reviews",    label: "Reviews",      icon: Star },
-  { href: "/hotel-connect/inbox",      label: "Group Inbox",  icon: ChatCircleDots },
+type HeroIcon = React.ComponentType<React.SVGProps<SVGSVGElement>>;
+
+const navItems: {
+  href: string;
+  label: string;
+  icon: HeroIcon;
+  exact?: boolean;
+}[] = [
+  { href: "/hotel-connect",            label: "Dashboard",     icon: HomeIcon, exact: true },
+  { href: "/hotel-connect/properties", label: "My Properties", icon: BuildingOffice2Icon },
+  { href: "/hotel-connect/bookings",   label: "Bookings",      icon: CalendarDaysIcon },
+  { href: "/hotel-connect/revenue",    label: "Revenue",       icon: CurrencyRupeeIcon },
+  { href: "/hotel-connect/reviews",    label: "Reviews",       icon: StarIcon },
+  { href: "/hotel-connect/inbox",      label: "Group Inbox",   icon: ChatBubbleLeftRightIcon },
 ];
 
 export default function ConnectSidebar() {
@@ -41,7 +48,7 @@ export default function ConnectSidebar() {
           <DyLogo className="h-9 w-full text-primary-500 shrink-0" />
         </Link>
         <Link href="/hotel-connect" className="lg:hidden w-8 h-8 rounded-lg bg-primary-500 flex items-center justify-center shrink-0">
-          <Buildings size={16} weight="fill" color="white" />
+          <BuildingOffice2Icon className="w-4 h-4 text-white" />
         </Link>
       </div>
 
@@ -55,13 +62,13 @@ export default function ConnectSidebar() {
               href={href}
               title={label}
               className={cn(
-                "flex items-center gap-3 px-2.5 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                "flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm font-medium transition-colors",
                 active
-                  ? "bg-primary-50 text-primary-700"
-                  : "text-neutral-500 hover:bg-neutral-50 hover:text-neutral-800"
+                  ? "bg-white bg-linear-to-b from-primary-100/80 to-white text-primary-600 ring-1 ring-inset ring-primary-200/80 relative after:absolute after:left-0 after:top-1/2 after:-translate-x-1/2 after:-translate-y-1/2 after:w-1 after:h-1/2 after:bg-linear-to-b after:bg-white after:from-primary-400 after:to-primary-600 after:rounded-pill"
+                  : "text-neutral-600 hover:bg-neutral-50 hover:text-neutral-800"
               )}
             >
-              <Icon size={17} weight={active ? "fill" : "regular"} className="shrink-0" />
+              <Icon className={cn("w-5 h-5 shrink-0",  active ? "text-primary-500/90" : "text-neutral-400")} />
               <span className="hidden lg:block truncate">{label}</span>
             </Link>
           );
@@ -76,7 +83,7 @@ export default function ConnectSidebar() {
             title="Sign out"
             className="w-full flex items-center gap-3 px-2.5 py-2.5 rounded-lg text-sm font-medium text-neutral-400 hover:bg-red-50 hover:text-red-600 transition-colors cursor-pointer"
           >
-            <SignOut size={17} weight="regular" className="shrink-0" />
+            <ArrowRightStartOnRectangleIcon className="w-5 h-5 shrink-0" />
             <span className="hidden lg:block">Sign out</span>
           </button>
         </form>

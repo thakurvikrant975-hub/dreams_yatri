@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useActionState } from "react";
 import { createPortal } from "react-dom";
 import * as Popover from "@radix-ui/react-popover";
 import { useRouter } from "next/navigation";
@@ -17,11 +17,14 @@ import {
   WarningIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import { cn } from "@/app/lib/utils";
+import { Card } from "@/app/components/ui/Card";
+import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
 import {
   uploadHotelPhotos,
   setCoverPhoto,
   savePhotoTags,
   deleteHotelPhoto,
+  proceedPhotos,
   type HotelPhoto,
   type PhotoCategory,
 } from "./photo-actions";
@@ -241,6 +244,7 @@ function PhotoCard({
   onCover,
   showCaption = true,
   photoTags,
+  hasTagError = false,
 }: {
   photo: HotelPhoto;
   hotelId: number;
@@ -249,6 +253,7 @@ function PhotoCard({
   onCover: (photoId: number) => void;
   showCaption?: boolean;
   photoTags: string[];
+  hasTagError?: boolean;
 }) {
   const [tagOpen, setTagOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -287,7 +292,10 @@ function PhotoCard({
 
           {/* Thumbnail — click opens preview lightbox */}
           <div
-            className="relative group w-22 h-15 rounded-lg overflow-hidden bg-neutral-100 cursor-zoom-in"
+            className={cn(
+              "relative group w-22 h-15 rounded-lg overflow-hidden bg-neutral-100 cursor-zoom-in",
+              hasTagError && tags.length === 0 && "ring-2 ring-red-400 ring-offset-1"
+            )}
             onClick={() => setPreviewOpen(true)}
           >
             {photo.url ? (
@@ -313,7 +321,12 @@ function PhotoCard({
                   type="button"
                   title="Edit tags"
                   onClick={(e) => e.stopPropagation()}
-                  className="size-5 rounded bg-white/90 flex items-center justify-center text-neutral-700 hover:text-primary-600 transition-colors pointer-events-auto"
+                  className={cn(
+                    "size-5 rounded flex items-center justify-center transition-colors pointer-events-auto",
+                    hasTagError && tags.length === 0
+                      ? "bg-red-500 text-white hover:bg-red-600"
+                      : "bg-white/90 text-neutral-700 hover:text-primary-600"
+                  )}
                 >
                   <TagIcon size={10} />
                 </button>
@@ -343,12 +356,26 @@ function PhotoCard({
             </div>
           </div>
 
-          {/* Tag caption */}
-          {showCaption && (
+          {/* Tag caption / Add Tag CTA */}
+          {tags.length === 0 ? (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); handleTagOpenChange(true); }}
+              className={cn(
+                "inline-flex items-center gap-0.5 text-[9px] font-semibold rounded-full px-1.5 py-0.5 border transition-colors mt-0.5",
+                hasTagError
+                  ? "border-red-300 text-red-500 bg-red-50 hover:bg-red-100"
+                  : "border-neutral-200 text-neutral-500 bg-white hover:border-primary-300 hover:text-primary-500"
+              )}
+            >
+              <TagIcon size={7} />
+              Add Tag
+            </button>
+          ) : showCaption ? (
             <p className="text-[10px] text-neutral-500 text-center leading-tight w-22 truncate px-0.5">
-              {tags[0] ?? <span className="text-red-400 font-medium">Tag Missing</span>}
+              {tags[0]}
             </p>
-          )}
+          ) : null}
 
           {/* Popover — auto-positioned, stays open on multi-select */}
           <Popover.Portal>
@@ -544,11 +571,26 @@ export default function PhotosTab({
   );
   const [pendingUploads, setPendingUploads] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [tagError, setTagError] = useState<string | null>(null);
+  const [showTagError, setShowTagError] = useState(false);
+  const untaggedRef = useRef<HTMLDivElement>(null);
+
+  const boundProceed = proceedPhotos.bind(null, hotelId);
+  const [actionState, formAction] = useActionState<{ error?: string }, FormData>(boundProceed, {});
 
   // Sync local state whenever the server re-fetches categories (after router.refresh())
   useEffect(() => {
     setPhotosState(categories.flatMap((c) => c.photos));
   }, [categories]);
+
+  // Show server-side validation error (e.g. if client-side check was somehow bypassed)
+  useEffect(() => {
+    if (actionState?.error) {
+      setTagError(actionState.error);
+      setShowTagError(true);
+      untaggedRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [actionState]);
 
   const roomCategories = categories.filter((c) => !c.is_system);
   const photoTags = propertySubType === "GUEST_HOUSE" ? GUEST_HOUSE_PHOTO_TAGS : HOTEL_PHOTO_TAGS;
@@ -558,6 +600,34 @@ export default function PhotosTab({
   const tagged = photosState.filter((p) => p.tags.length > 0);
   const tagGroups = groupPhotosByTag(tagged);
   const total = photosState.length;
+
+  // Auto-clear tag error once all photos have been tagged
+  useEffect(() => {
+    if (showTagError && untagged.length === 0) {
+      setTagError(null);
+      setShowTagError(false);
+    }
+  }, [untagged.length, showTagError]);
+
+  function handleFormSubmit(e: React.FormEvent<HTMLFormElement>) {
+    if (total === 0) {
+      e.preventDefault();
+      setTagError("Upload at least one photo before continuing.");
+      setShowTagError(true);
+      return;
+    }
+    if (untagged.length > 0) {
+      e.preventDefault();
+      setTagError(
+        `${untagged.length} photo${untagged.length > 1 ? "s are" : " is"} missing a tag. Add at least one tag to each photo to continue.`
+      );
+      setShowTagError(true);
+      untaggedRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    setTagError(null);
+    setShowTagError(false);
+  }
 
   // ── Upload handlers ──────────────────────────────────────────────────────────
 
@@ -599,24 +669,24 @@ export default function PhotosTab({
   const isUploading = pendingUploads > 0;
 
   const skeletonSection = isUploading && (
-    <div className="rounded-xl border border-primary-200 bg-white shadow-sm overflow-hidden">
-      <div className="px-4 py-3 border-b border-primary-100 bg-primary-50/60 flex items-center gap-2">
+    <Card variant="elevated" radius="md" className="overflow-hidden p-px">
+      <div className="px-5 py-3.5 border-b border-primary-200 bg-primary-50/60 rounded-t-[inherit] flex items-center gap-2">
         <span className="relative flex size-2">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-400 opacity-75" />
           <span className="relative inline-flex rounded-full size-2 bg-primary-500" />
         </span>
-        <p className="text-xs font-semibold text-primary-700">
+        <p className="text-sm font-semibold text-primary-700">
           Uploading {pendingUploads} photo{pendingUploads > 1 ? "s" : ""}…
         </p>
       </div>
-      <div className="px-4 py-4">
+      <div className="p-5">
         <div className="flex flex-wrap gap-3">
           {Array.from({ length: pendingUploads }).map((_, i) => (
             <PhotoSkeleton key={i} />
           ))}
         </div>
       </div>
-    </div>
+    </Card>
   );
 
   // ── Empty state ──────────────────────────────────────────────────────────────
@@ -624,11 +694,11 @@ export default function PhotosTab({
   if (total === 0 && !isUploading) {
     return (
       <div className="space-y-3">
-        {uploadError && (
+        {(uploadError || tagError) && (
           <div className="flex items-start gap-2.5 rounded-lg px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
             <WarningIcon size={15} className="shrink-0 mt-0.5" />
-            <span className="flex-1">{uploadError}</span>
-            <button type="button" onClick={() => setUploadError(null)} className="shrink-0 text-red-400 hover:text-red-600">
+            <span className="flex-1">{tagError ?? uploadError}</span>
+            <button type="button" onClick={() => { setUploadError(null); setTagError(null); }} className="shrink-0 text-red-400 hover:text-red-600">
               <XIcon size={13} />
             </button>
           </div>
@@ -643,6 +713,7 @@ export default function PhotosTab({
           </p>
           <UploadButton hotelId={hotelId} label="Upload Photos" onStart={handleUploadStart} onEnd={handleUploadEnd} />
         </div>
+        <form id="wizard-form" action={formAction} onSubmit={handleFormSubmit} className="hidden" />
       </div>
     );
   }
@@ -651,6 +722,29 @@ export default function PhotosTab({
 
   return (
     <div className="space-y-4 pb-8">
+
+      {/* Tag validation error banner */}
+      {tagError && (
+        <div className="flex items-start gap-2.5 rounded-lg px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
+          <WarningIcon size={15} className="shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-semibold">Photos need tags</p>
+            <p className="text-xs mt-0.5">{tagError}</p>
+            {untagged.length > 0 && (
+              <button
+                type="button"
+                onClick={() => untaggedRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                className="text-xs font-medium text-red-600 underline underline-offset-2 mt-1"
+              >
+                Jump to untagged photos ↓
+              </button>
+            )}
+          </div>
+          <button type="button" onClick={() => setTagError(null)} className="shrink-0 text-red-400 hover:text-red-600">
+            <XIcon size={13} />
+          </button>
+        </div>
+      )}
 
       {/* Upload error banner */}
       {uploadError && (
@@ -676,15 +770,17 @@ export default function PhotosTab({
       </div>
 
       {/* Cover photo */}
-      <div className="rounded-xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
-        <div className="px-4 py-2.5 border-b border-neutral-100 flex items-center justify-between bg-neutral-50">
-          <p className="text-xs font-semibold text-neutral-700">
-            Property cover photo
+      <Card variant="elevated" radius="md" className="overflow-hidden p-px">
+        <div className="px-5 py-3.5 border-b border-neutral-200 bg-linear-to-b bg-neutral-50 rounded-t-[inherit] flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-neutral-800">Property cover photo</h3>
             {coverPhoto?.tags[0] && (
-              <span className="ml-1.5 font-normal text-neutral-400">({coverPhoto.tags[0]})</span>
+              <p className="text-xs text-neutral-600/90 mt-0.5">{coverPhoto.tags[0]}</p>
             )}
-          </p>
-          <UploadButton hotelId={hotelId} label="Change" variant="ghost" disabled={isUploading} onStart={handleUploadStart} onEnd={handleUploadEnd} />
+          </div>
+          <div className="shrink-0">
+            <UploadButton hotelId={hotelId} label="Change" variant="ghost" disabled={isUploading} onStart={handleUploadStart} onEnd={handleUploadEnd} />
+          </div>
         </div>
         <div className="relative w-full" style={{ aspectRatio: "16/5" }}>
           {coverPhoto?.url ? (
@@ -695,93 +791,106 @@ export default function PhotosTab({
             </div>
           )}
         </div>
-      </div>
+      </Card>
 
       {/* Rooms & restaurant(s) */}
-      <div className="rounded-xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
-        <div className="px-4 py-3 border-b border-neutral-100 bg-neutral-50">
-          <p className="text-xs font-semibold text-neutral-700">
-            Photos &amp; Videos assigned to the rooms &amp; restaurant(s)
-          </p>
-          <p className="text-[11px] text-neutral-400 mt-0.5">
-            Photos help customers visualize what the room looks like
-          </p>
-        </div>
-        <div className="p-4">
-          {roomCategories.length === 0 ? (
-            <div className="flex items-center gap-4">
-              <UploadButton hotelId={hotelId} label="Add" variant="dashed" disabled={isUploading} onStart={handleUploadStart} onEnd={handleUploadEnd} />
-              <p className="text-xs text-neutral-400 leading-relaxed max-w-xs">
-                No room categories yet. Add rooms first to organise photos by room type.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {roomCategories.map((cat) => {
-                const catPhotos = photosState.filter((p) => p.category_id === cat.id);
-                return (
-                  <div key={cat.id}>
-                    <p className="text-xs font-semibold text-neutral-700 mb-2">{cat.name}</p>
-                    <div className="flex flex-wrap gap-3">
-                      {catPhotos.map((photo) => (
-                        <PhotoCard
-                          key={photo.id}
-                          photo={photo}
-                          hotelId={hotelId}
-                          photoTags={photoTags}
-                          onTagsChange={handleTagsChange}
-                          onDelete={handleDelete}
-                          onCover={handleCover}
-                        />
-                      ))}
-                      <UploadButton hotelId={hotelId} label="Add" variant="dashed" disabled={isUploading} onStart={handleUploadStart} onEnd={handleUploadEnd} />
-                    </div>
+      <SectionCard
+        title="Photos & Videos assigned to rooms & restaurant(s)"
+        desc="Photos help customers visualize what the room looks like"
+      >
+        {roomCategories.length === 0 ? (
+          <div className="flex items-center gap-4">
+            <UploadButton hotelId={hotelId} label="Add" variant="dashed" disabled={isUploading} onStart={handleUploadStart} onEnd={handleUploadEnd} />
+            <p className="text-xs text-neutral-500 leading-relaxed max-w-xs">
+              No room categories yet. Add rooms first to organise photos by room type.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-5">
+            {roomCategories.map((cat) => {
+              const catPhotos = photosState.filter((p) => p.category_id === cat.id);
+              return (
+                <div key={cat.id}>
+                  <p className="text-xs font-semibold text-neutral-700 mb-2">{cat.name}</p>
+                  <div className="flex flex-wrap gap-3">
+                    {catPhotos.map((photo) => (
+                      <PhotoCard
+                        key={photo.id}
+                        photo={photo}
+                        hotelId={hotelId}
+                        photoTags={photoTags}
+                        onTagsChange={handleTagsChange}
+                        onDelete={handleDelete}
+                        onCover={handleCover}
+                      />
+                    ))}
+                    <UploadButton hotelId={hotelId} label="Add" variant="dashed" disabled={isUploading} onStart={handleUploadStart} onEnd={handleUploadEnd} />
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </SectionCard>
 
       {/* Untagged section */}
       {untagged.length > 0 && (
-        <div className="rounded-xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-neutral-100">
-            <p className="text-xs font-semibold text-neutral-700">
-              Untagged Photos &amp; Videos
-              <span className="ml-1.5 font-normal text-neutral-400">({untagged.length})</span>
-            </p>
-            <p className="text-[11px] text-neutral-400 mt-0.5">
-              Click the <TagIcon size={10} className="inline" /> icon on a photo to add tags
-            </p>
-          </div>
-          <div className="px-4 py-4">
-            <div className="flex flex-wrap gap-3">
-              {untagged.map((photo) => (
-                <PhotoCard
-                  key={photo.id}
-                  photo={photo}
-                  hotelId={hotelId}
-                  photoTags={photoTags}
-                  onTagsChange={handleTagsChange}
-                  onDelete={handleDelete}
-                  onCover={handleCover}
-                  showCaption={false}
-                />
-              ))}
+        <div ref={untaggedRef}>
+          <Card
+            variant="elevated"
+            radius="md"
+            className={cn(
+              "overflow-hidden p-px",
+              showTagError && "ring-red-300 shadow-red-100/60"
+            )}
+          >
+            <div className={cn(
+              "px-5 py-3.5 border-b bg-linear-to-b rounded-t-[inherit] flex items-start justify-between gap-4",
+              showTagError ? "border-red-200 bg-red-50" : "border-neutral-200 bg-neutral-50"
+            )}>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  {showTagError && <WarningIcon size={13} className="text-red-500 shrink-0" />}
+                  <h3 className={cn("text-sm font-semibold", showTagError ? "text-red-800" : "text-neutral-800")}>
+                    Untagged Photos &amp; Videos
+                    <span className={cn("ml-1.5 font-normal", showTagError ? "text-red-400" : "text-neutral-400")}>
+                      ({untagged.length})
+                    </span>
+                  </h3>
+                </div>
+                <p className={cn("text-xs mt-0.5", showTagError ? "text-red-600/90" : "text-neutral-600/90")}>
+                  {showTagError
+                    ? <>Each photo needs at least 1 tag — click <TagIcon size={10} className="inline mx-0.5" /> or the <strong>Add Tag</strong> button below each photo.</>
+                    : <>Hover a photo and click <TagIcon size={10} className="inline mx-0.5" /> to tag it, or click the <strong>Add Tag</strong> button below each photo.</>
+                  }
+                </p>
+              </div>
             </div>
-          </div>
+            <div className="p-5">
+              <div className="flex flex-wrap gap-3">
+                {untagged.map((photo) => (
+                  <PhotoCard
+                    key={photo.id}
+                    photo={photo}
+                    hotelId={hotelId}
+                    photoTags={photoTags}
+                    onTagsChange={handleTagsChange}
+                    onDelete={handleDelete}
+                    onCover={handleCover}
+                    showCaption={false}
+                    hasTagError={showTagError}
+                  />
+                ))}
+              </div>
+            </div>
+          </Card>
         </div>
       )}
 
       {/* Tagged photos grouped by tag */}
       {tagged.length > 0 && (
-        <div className="rounded-xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-neutral-100 bg-neutral-50">
-            <p className="text-xs font-semibold text-neutral-700">Photos &amp; Videos tagged</p>
-          </div>
-          <div className="p-4 space-y-5">
+        <SectionCard title="Photos & Videos tagged">
+          <div className="space-y-5">
             {tagGroups.map(({ tag, photos: groupPhotos }) => (
               <div key={tag}>
                 <p className="text-[11px] font-semibold text-neutral-400 mb-2.5 uppercase tracking-widest">
@@ -803,8 +912,11 @@ export default function PhotosTab({
               </div>
             ))}
           </div>
-        </div>
+        </SectionCard>
       )}
+
+      {/* Hidden form — wires the WizardShell "Save & Continue" button to tag validation */}
+      <form id="wizard-form" action={formAction} onSubmit={handleFormSubmit} className="hidden" />
     </div>
   );
 }

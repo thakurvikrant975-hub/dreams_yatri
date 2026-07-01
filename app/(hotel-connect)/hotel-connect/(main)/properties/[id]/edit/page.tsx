@@ -21,8 +21,8 @@ import TabPlaceholder from "./tabs/TabPlaceholder";
 // Hotels: tabs 1–3, 6–7 render a wizard-form; tab 4 (Rooms) self-manages; tab 5 (Photos) upload-only.
 // Homestay: tabs 1–3, 6–8 render a wizard-form (tab 6=Pricing, 7=Policies, 8=Finance).
 // TABS_WITH_FORM is resolved dynamically below after isHomestay is known.
-const HOTEL_TABS_WITH_FORM    = new Set([1, 2, 3, 6, 7]);
-const HOMESTAY_TABS_WITH_FORM = new Set([1, 2, 3, 6, 7, 8]);
+const HOTEL_TABS_WITH_FORM    = new Set([1, 2, 3, 5, 6, 7]);
+const HOMESTAY_TABS_WITH_FORM = new Set([1, 2, 3, 5, 6, 7, 8]);
 
 export default async function EditPropertyPage({
   params,

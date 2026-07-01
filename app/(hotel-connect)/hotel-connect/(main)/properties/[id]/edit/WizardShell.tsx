@@ -95,6 +95,8 @@ function TabItem({
             ? "bg-emerald-500 text-white"
             : "bg-white text-neutral-500/90 ring-1 ring-neutral-200 shadow shadow-neutral-300/80"
       )}
+    
+    
     >
       {isCompleted
         ? <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5-4.5-4.5 1.41-1.41L10 13.67l7.09-7.09L18.5 8l-8.5 8.5z"/></svg>
