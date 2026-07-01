@@ -223,6 +223,7 @@ async function _performUpsert(
           price:          e.price,
           cost_price:     e.costPrice,
           is_active:      true,
+          created_by:     actorName,
           updated_by:     actorName,
         },
         update: {

@@ -147,7 +147,8 @@ export function ImagesTab({
     const hasDirtyLabels = dirtyLabels.length > 0;
 
     function handleLabelChange(id: number, value: string) {
-        setLabelDraft(prev => ({ ...prev, [id]: value }));
+        const v = value.length > 0 ? value[0].toUpperCase() + value.slice(1) : value;
+        setLabelDraft(prev => ({ ...prev, [id]: v }));
     }
 
     function handleDelete(id: number) {

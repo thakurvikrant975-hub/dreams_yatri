@@ -1,7 +1,10 @@
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import { fetchPackagePageData, getActivePackageParams, getDurationStartingPrices } from "@/app/actions/packages/fetch-page-data";
-import { imgUrl as toImgUrl } from "@/app/lib/packages/cardShaper";
+import { getImageUrl, IMAGE_SIZES } from "@/app/lib/imageUrl";
 import { SITE_URL, SITE_CONFIG } from "@/app/lib/seo/site-config";
+import { packageSchema, breadcrumbSchema } from "@/app/lib/seo/schema";
+import SchemaScript from "@/app/components/seo/SchemaScript";
 import PackageHero from "./components/hero";
 import PackageTab from "./components/PackageTab";
 import PackageScrollReset from "./components/PackageScrollReset";
@@ -9,6 +12,7 @@ import TripDuration from "./components/inputs/TripDuration";
 import StayCategory from "./components/inputs/StayCategory";
 import PricingCard from "./components/SidebarCards/PricingCard";
 import EnquiryForm from "./components/SidebarCards/EnquiryForm";
+import EnquiryAutoPopup from "./components/SidebarCards/EnquiryAutoPopup";
 import ItinerarySection, { ItineraryDay, DaySection } from "./components/Itnary";
 import DestinationRoutes from "./components/inputs/DestinationRoutes";
 import { PackageBookingProvider } from "./components/PackageBookingProvider";
@@ -86,20 +90,31 @@ export async function generateMetadata({
     const data = await fetchPackagePageData(slug, duration, route, stay);
     if (!data) return { title: "Package not found | Dreams Yatri" };
 
-    const title = data.selectedRoute?.meta_title ?? `${data.title} | Dreams Yatri`;
+    const dur = data.currentDuration;
+    const durLabel = dur.label || `${dur.days}D/${dur.nights}N`;
+    const destName = data.destination.name;
+    const title = data.selectedRoute?.meta_title
+        ?? `${data.title} – ${durLabel} ${destName} Package | Dreams Yatri`;
     const description = data.selectedRoute?.meta_desc ?? data.description ?? SITE_CONFIG.seo.defaultDescription;
-    const ogImage = toImgUrl(data.thumbnail) || SITE_CONFIG.defaultOgImage;
+    const ogImage = getImageUrl(data.thumbnail ?? data.images[0]?.url ?? '', IMAGE_SIZES.og) || SITE_CONFIG.defaultOgImage;
     const canonical = `${SITE_URL}/packages/${slug}/${duration}/${route}/${stay}`;
+
+    const stops = data.selectedRoute?.stops?.map(s => s.place_name) ?? [];
+    const keywords = [data.title, destName, ...stops, `${durLabel} tour`, "holiday package", "travel package", "book tour"].filter(Boolean).join(", ");
 
     return {
         title,
         description,
+        keywords,
         alternates: { canonical },
+        robots: { index: false, follow: false },
         openGraph: {
             title,
             description,
             url: canonical,
+            siteName: SITE_CONFIG.name,
             type: "website",
+            locale: SITE_CONFIG.seo.locale,
             images: [{ url: ogImage, width: 1200, height: 630, alt: data.title }],
         },
         twitter: {
@@ -143,9 +158,11 @@ export default async function PackagePage({
           }
         : null;
 
-    const R2 = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? "";
-    const imgUrl = (key: string | null | undefined): string =>
-        !key ? "" : key.startsWith("http") ? key : `${R2}/${key}`;
+    // Image URL helpers — Cloudflare transforms in production, raw R2 in dev
+    const imgUrl      = (k: string | null | undefined) => getImageUrl(k ?? '', IMAGE_SIZES.gallery);
+    const imgUrlFull  = (k: string | null | undefined) => getImageUrl(k ?? '', IMAGE_SIZES.lightbox);
+    const imgUrlCard  = (k: string | null | undefined) => getImageUrl(k ?? '', IMAGE_SIZES.card);
+    const imgUrlThumb = (k: string | null | undefined) => getImageUrl(k ?? '', IMAGE_SIZES.thumbnail);
 
     const slug = pageData.slug;
     const duration = _duration;
@@ -159,7 +176,9 @@ export default async function PackagePage({
     }));
 
     // ── Gallery images ─────────────────────────────────────────────────────────
-    type GalleryImage = { src: string; label: string };
+    // Each image carries src (gallery-sized, for hero grid display) and fullSrc
+    // (lightbox-sized, served when the user opens the full-screen lightbox).
+    type GalleryImage = { src: string; fullSrc: string; label: string };
 
     const coverImage = imgUrl(pageData.thumbnail) || imgUrl(pageData.images[0]?.url) || "";
 
@@ -174,6 +193,7 @@ export default async function PackagePage({
     if (assignedGallery.length > 0) {
         image_gallery = assignedGallery.map(g => ({
             src: imgUrl(g.image_url),
+            fullSrc: imgUrlFull(g.image_url),
             label: g.label ?? '',
         }));
     } else {
@@ -183,52 +203,56 @@ export default async function PackagePage({
         //   3 — first room image; if none, another hotel image  (label: "Hotel Room" or "Hotel")
         //   4 — first activity image     (label: "Sightseeing")
         //   5 — second activity image from a different activity if possible  (label: "Sightseeing")
+        type Candidate = { src: string; fullSrc: string; label: string };
         const seen = new Set<string>();
         const fallback: GalleryImage[] = [];
 
-        const addImg = (url: string, label: string) => {
-            if (url && !seen.has(url)) { seen.add(url); fallback.push({ src: url, label }); return true; }
+        const addImg = (c: Candidate) => {
+            if (c.src && !seen.has(c.src)) { seen.add(c.src); fallback.push(c); return true; }
             return false;
         };
 
         // Slot 1 — cover / thumbnail
-        if (coverImage) addImg(coverImage, pageData.destination.name);
+        const coverFull = imgUrlFull(pageData.thumbnail) || imgUrlFull(pageData.images[0]?.url) || "";
+        if (coverImage) addImg({ src: coverImage, fullSrc: coverFull, label: pageData.destination.name });
 
         // Collect hotel + room candidates in itinerary order (deduplicated by hotel id)
         const seenHotelIds = new Set<number>();
-        const hotelImgCandidates: GalleryImage[] = [];   // hotel exterior images
-        const roomImgCandidates: GalleryImage[] = [];   // room images
+        const hotelImgCandidates: Candidate[] = [];
+        const roomImgCandidates: Candidate[] = [];
 
         for (const d of pageData.itinerary) {
             const h = d.hotel;
             if (!h || seenHotelIds.has(h.id)) continue;
             seenHotelIds.add(h.id);
             for (const img of h.images) {
-                const url = imgUrl(img.url);
-                if (url) hotelImgCandidates.push({ src: url, label: 'Hotel' });
+                const src = imgUrl(img.url);
+                if (src) hotelImgCandidates.push({ src, fullSrc: imgUrlFull(img.url), label: 'Hotel' });
             }
             for (const img of h.room_images) {
-                const url = imgUrl(img.url);
-                if (url) roomImgCandidates.push({ src: url, label: 'Hotel Room' });
+                const src = imgUrl(img.url);
+                if (src) roomImgCandidates.push({ src, fullSrc: imgUrlFull(img.url), label: 'Hotel Room' });
             }
         }
 
         // Slot 2 — first hotel image
-        for (const c of hotelImgCandidates) { if (addImg(c.src, c.label)) break; }
+        for (const c of hotelImgCandidates) { if (addImg(c)) break; }
 
         // Slot 3 — first room image; fall back to next hotel image
         let slot3Filled = false;
-        for (const c of roomImgCandidates) { if (addImg(c.src, c.label)) { slot3Filled = true; break; } }
+        for (const c of roomImgCandidates) { if (addImg(c)) { slot3Filled = true; break; } }
         if (!slot3Filled) {
-            for (const c of hotelImgCandidates) { if (addImg(c.src, c.label)) break; }
+            for (const c of hotelImgCandidates) { if (addImg(c)) break; }
         }
 
         // Collect activity image candidates grouped by activity (to prefer different activities)
-        const actGroups: { label: string; urls: string[] }[] = [];
+        const actGroups: { items: Candidate[] }[] = [];
         for (const d of pageData.itinerary) {
             for (const act of d.activities) {
-                const urls = act.images.map(img => imgUrl(img.url)).filter(Boolean) as string[];
-                if (urls.length) actGroups.push({ label: 'Sightseeing', urls });
+                const items = act.images
+                    .map(img => ({ src: imgUrl(img.url), fullSrc: imgUrlFull(img.url), label: 'Sightseeing' }))
+                    .filter(c => c.src);
+                if (items.length) actGroups.push({ items });
             }
         }
 
@@ -240,8 +264,8 @@ export default async function PackagePage({
                 if (fallback.length >= 5) break;
                 if (usedActGroups.has(gi)) continue;
                 const g = actGroups[gi];
-                for (const url of g.urls) {
-                    if (addImg(url, g.label)) { usedActGroups.add(gi); break; }
+                for (const item of g.items) {
+                    if (addImg(item)) { usedActGroups.add(gi); break; }
                 }
             }
             // Second pass allows revisiting same activity if we still need images
@@ -252,7 +276,8 @@ export default async function PackagePage({
     }
 
     // ── Full gallery categories (for the gallery overlay) ─────────────────────
-    type GalleryCat = { label: string; images: { src: string; label: string }[] };
+    // src = gallery-sized thumbnail; fullSrc = lightbox-sized full image.
+    type GalleryCat = { label: string; images: { src: string; fullSrc: string; label: string }[] };
     const fullGallery: GalleryCat[] = [];
 
     if (image_gallery.length > 0) {
@@ -261,42 +286,42 @@ export default async function PackagePage({
 
     // Hotels
     const seenHotelGalleryIds = new Set<number>();
-    const hotelGalleryImgs: { src: string; label: string }[] = [];
+    const hotelGalleryImgs: { src: string; fullSrc: string; label: string }[] = [];
     for (const d of pageData.itinerary) {
         const h = d.hotel;
         if (!h || seenHotelGalleryIds.has(h.id)) continue;
         seenHotelGalleryIds.add(h.id);
         for (const img of h.images) {
             const src = imgUrl(img.url);
-            if (src) hotelGalleryImgs.push({ src, label: h.name });
+            if (src) hotelGalleryImgs.push({ src, fullSrc: imgUrlFull(img.url), label: h.name });
         }
     }
     if (hotelGalleryImgs.length > 0) fullGallery.push({ label: 'Hotels', images: hotelGalleryImgs });
 
     // Rooms
     const seenRoomHotelIds = new Set<number>();
-    const roomGalleryImgs: { src: string; label: string }[] = [];
+    const roomGalleryImgs: { src: string; fullSrc: string; label: string }[] = [];
     for (const d of pageData.itinerary) {
         const h = d.hotel;
         if (!h || seenRoomHotelIds.has(h.id)) continue;
         seenRoomHotelIds.add(h.id);
         for (const img of h.room_images) {
             const src = imgUrl(img.url);
-            if (src) roomGalleryImgs.push({ src, label: h.room_name ?? 'Room' });
+            if (src) roomGalleryImgs.push({ src, fullSrc: imgUrlFull(img.url), label: h.room_name ?? 'Room' });
         }
     }
     if (roomGalleryImgs.length > 0) fullGallery.push({ label: 'Rooms', images: roomGalleryImgs });
 
     // Activities
     const seenActivityGalleryIds = new Set<number>();
-    const actGalleryImgs: { src: string; label: string }[] = [];
+    const actGalleryImgs: { src: string; fullSrc: string; label: string }[] = [];
     for (const d of pageData.itinerary) {
         for (const act of d.activities) {
             if (seenActivityGalleryIds.has(act.id)) continue;
             seenActivityGalleryIds.add(act.id);
             for (const img of act.images) {
                 const src = imgUrl(img.url);
-                if (src) actGalleryImgs.push({ src, label: img.label ?? act.name });
+                if (src) actGalleryImgs.push({ src, fullSrc: imgUrlFull(img.url), label: img.label ?? act.name });
             }
         }
     }
@@ -315,7 +340,7 @@ export default async function PackagePage({
         adults: initialAdults ?? 2,
         children: (initialChildAges ?? []).length,
         childAges: initialChildAges ?? [],
-        travelDate: initialTravelDate ?? null,
+        travelDate: initialTravelDate ?? new Date().toISOString().slice(0, 10),
     };
     const durationPrices = startingStayId
         ? await getDurationStartingPrices(pageData.id, pageData.durations.map(d => d.id), startingStayId, initialPriceOccupancy)
@@ -327,7 +352,7 @@ export default async function PackagePage({
             slug: d.slug,
             label: d.label || `${d.days}D/${d.nights}N`,
             price: info?.pricePerAdult ? `₹${info.pricePerAdult.toLocaleString("en-IN")}` : "",
-            image_url: imgUrl(d.thumbnail_url) || imgUrl(pageData.images[i]?.url) || coverImage,
+            image_url: imgUrlCard(d.thumbnail_url) || imgUrlCard(pageData.images[i]?.url) || coverImage,
             isDefault: d.is_default,
             durationId: d.id,
             routeId: info?.routeId ?? null,
@@ -391,7 +416,7 @@ export default async function PackagePage({
             vehicle_name: t.vehicle_name ?? dayCab?.label ?? null,
             vehicle_type: t.vehicle_type ?? dayCab?.vehicle.type ?? null,
             vehicle_capacity: t.vehicle_capacity ?? dayCab?.vehicle.passenger_capacity ?? null,
-            vehicle_image: imgUrl(t.vehicle_image_key) || imgUrl(dayCab?.vehicle.image_key),
+            vehicle_image: imgUrlThumb(t.vehicle_image_key) || imgUrlThumb(dayCab?.vehicle.image_key),
             num_vehicles: t.num_vehicles,
             transfer_notes: t.notes,
         }));
@@ -420,9 +445,9 @@ export default async function PackagePage({
             planName: d.hotel.plan_name,
             images: (() => {
                 const hotelPool = d.hotel.images
-                    .map(img => imgUrl(img.url)).filter(Boolean) as string[];
+                    .map(img => imgUrlCard(img.url)).filter(Boolean) as string[];
                 const roomPool = d.hotel.room_images
-                    .map(img => imgUrl(img.url)).filter(Boolean) as string[];
+                    .map(img => imgUrlCard(img.url)).filter(Boolean) as string[];
                 const take = (primary: string[], fallback: string[]) =>
                     primary.shift() ?? fallback.shift();
                 const slots: string[] = [];
@@ -447,7 +472,7 @@ export default async function PackagePage({
             is_optional: a.is_optional,
             pricingTiers: a.pricingTiers,
             images: a.images.map(img => ({
-                src: imgUrl(img.url),
+                src: imgUrlCard(img.url),
                 label: img.label ?? img.alt ?? a.category ?? a.name,
             })),
         }));
@@ -508,7 +533,8 @@ export default async function PackagePage({
         }
 
         const attractions = d.attractions.map(a => ({
-            imageUrl: imgUrl(a.image_key),
+            imageUrl: imgUrlThumb(a.image_key),
+            fullImageUrl: imgUrl(a.image_key),
             caption: a.caption,
         }));
 
@@ -520,8 +546,33 @@ export default async function PackagePage({
         ? { label: pageData.destination.region.name, slug: pageData.destination.region.slug }
         : { label: pageData.destination.name, slug: pageData.destination.slug };
 
+    // ── JSON-LD structured data ────────────────────────────────────────────────
+    const minPrice = Math.min(
+        ...pageData.durations.map(d => durationPrices.get(d.id)?.pricePerAdult ?? Infinity)
+    );
+    const dur = pageData.currentDuration;
+    const canonical = `${SITE_URL}/packages/${slug}/${duration}/${route}/${stay}`;
+    const jsonLd = [
+        packageSchema({
+            name:        pageData.title,
+            slug:        `${slug}/${duration}/${route}/${stay}`,
+            description: pageData.description ?? "",
+            image:       coverImage || SITE_CONFIG.defaultOgImage,
+            price:       isFinite(minPrice) ? minPrice : 0,
+            duration:    dur.label || `${dur.days}D/${dur.nights}N`,
+            destination: pageData.destination.name,
+        }),
+        breadcrumbSchema([
+            { name: "Home",                       url: SITE_URL },
+            { name: "Packages",                   url: `${SITE_URL}/packages` },
+            { name: pageData.destination.name,    url: `${SITE_URL}/destination/${pageData.destination.slug}` },
+            { name: pageData.title,               url: canonical },
+        ]),
+    ];
+
     return (
         <>
+            <SchemaScript data={jsonLd} />
             <PackageBookingProvider
                 packageId={pageData.id}
                 durationId={pageData.currentDuration.id}
@@ -557,7 +608,7 @@ export default async function PackagePage({
                     <PackageTab
                         pricing={<PricingCard />}
                         coupon={null}
-                        enquiry={<EnquiryForm packageName={pageData.title} />}
+                        enquiry={<EnquiryForm packageName={pageData.title} destination={pageData.destination.name} />}
                         itinerary={
                             <div className="flex flex-col gap-8">
                                 <TripDuration
@@ -719,9 +770,18 @@ export default async function PackagePage({
                     />
                 </div>
 
-                <RelatedPackages
-                    currentPackageId={pageData.id}
-                    destinationId={pageData.destination_id}
+                <Suspense fallback={null}>
+                    <RelatedPackages
+                        currentPackageId={pageData.id}
+                        destinationId={pageData.destination_id}
+                    />
+                </Suspense>
+
+                <EnquiryAutoPopup
+                    packageName={pageData.title}
+                    destination={pageData.destination.name}
+                    packageSlug={slug}
+                    images={image_gallery.length > 0 ? image_gallery.map(g => g.src) : coverImage ? [coverImage] : []}
                 />
             </PackageBookingProvider>
 

@@ -846,51 +846,135 @@ model policies {
   @@index([type, is_active])
 }
 
+model HotelOwner {
+  id           String           @id @default(cuid())
+  email        String           @unique
+  password     String
+  name         String
+  phone        String?
+  whatsapp     String?
+  businessName String?
+  status       HotelOwnerStatus @default(PENDING_VERIFICATION)
+  verifiedAt   DateTime?
+  verifiedById String?
+  lastLoginAt  DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  hotels       hotels[]
+
+  @@index([email])
+  @@map("hotel_owners")
+}
+
 model hotels {
-  id                Int                      @id @default(autoincrement())
-  name              String
-  slug              String                   @unique
-  description       String?
-  meta_title        String?
-  meta_desc         String?
-  destination_id    Int
-  address           String?
-  category          String?
-  stay_type         String?
-  check_in_time     String?
-  check_out_time    String?
-  is_active         Boolean                  @default(true)
-  created_at        DateTime                 @default(now())
-  updated_at        DateTime                 @updatedAt
-  thumbnail         String?
-  city              String?
-  state             String?
-  country           String?
-  pincode           String?
-  business_phone    String?
-  business_email    String?
-  whatsapp_number   String?
-  b2b_email         String?
-  location_id       BigInt?
-  margin_percentage Decimal                  @default(10) @db.Decimal(5, 2)
-  gst_percentage    Decimal                  @default(18) @db.Decimal(5, 2)
-  created_by        String?
-  updated_by        String?
-  bookingHotels     BookingHotel[]
-  childPolicies     hotel_child_policies[]
-  image_categories  hotel_image_categories[]
-  images            hotel_images[]
-  room_pricing      hotel_room_pricing[]
-  meal_pricing      hotel_meal_pricing[]
-  addons            hotel_addons[]
-  hotelRooms        hotel_rooms[]
-  destination       destinations             @relation(fields: [destination_id], references: [id])
-  location          Location?                @relation(fields: [location_id], references: [id])
-  packageBookings   PackageBookingHotel[]
+  id                      Int                      @id @default(autoincrement())
+  name                    String
+  slug                    String                   @unique
+  description             String?
+  meta_title              String?
+  meta_desc               String?
+  destination_id          Int?
+  address                 String?
+  category                String?
+  stay_type               String?
+  check_in_time           String?
+  check_out_time          String?
+  is_active               Boolean                  @default(true)
+  created_at              DateTime                 @default(now())
+  updated_at              DateTime                 @updatedAt
+  thumbnail               String?
+  city                    String?
+  state                   String?
+  country                 String?
+  pincode                 String?
+  business_phone          String?
+  business_email          String?
+  whatsapp_number         String?
+  b2b_email               String?
+  location_id             BigInt?
+  margin_percentage       Decimal                  @default(10) @db.Decimal(5, 2)
+  gst_percentage          Decimal                  @default(18) @db.Decimal(5, 2)
+  created_by              String?
+  updated_by              String?
+  owner_id                String?
+  listing_status          HotelListingStatus       @default(DRAFT)
+  submitted_at            DateTime?
+  approved_at             DateTime?
+  approved_by_id          String?
+  rejection_reason        String?
+  // ── Wizard fields ──────────────────────────────────────────────────────────
+  property_category       PropertyCategory?
+  property_sub_type       PropertySubType?
+  star_rating             Int?
+  year_built              Int?
+  booking_since_year      Int?
+  has_channel_manager     Boolean                  @default(false)
+  channel_manager_name    String?
+  contact_email           String?
+  contact_mobile_cc       String?                  @default("+91")
+  contact_mobile          String?
+  whatsapp_same_as_mobile Boolean                  @default(false)
+  contact_whatsapp        String?
+  contact_landline        String?
+  // ── Location wizard fields ─────────────────────────────────────────────────
+  latitude                Decimal?                 @db.Decimal(10, 7)
+  longitude               Decimal?                 @db.Decimal(10, 7)
+  landmark                String?
+  // ── Amenities wizard field ─────────────────────────────────────────────────
+  property_amenities      Json?
+  // ── Policy wizard fields ───────────────────────────────────────────────────
+  cancellation_policy       HotelCancellationPolicy?
+  allow_unmarried_couples   Boolean?
+  show_couple_tag           Boolean?
+  allow_guests_below_18     Boolean?
+  allow_male_only_groups    Boolean?
+  allow_same_city_id        Boolean?
+  smoking_allowed           Boolean?
+  parties_events_allowed    Boolean?
+  wheelchair_accessible     Boolean?
+  allow_outside_visitors    Boolean?
+  pets_on_property          Boolean?
+  pets_allowed              Boolean?
+  allowed_pet_types         String[]                 @default([])
+  pet_extra_charges         Boolean?
+  pets_restricted_areas     String?
+  pets_without_leash        Boolean?
+  pet_food_available        Boolean?
+  checkin_24_hours          Boolean?
+  acceptable_id_proofs      String[]                 @default([])
+  infant_free_occupancy     Boolean?
+  infant_complimentary_food Boolean?
+  extra_bed_included        Boolean?
+  provide_bed_extra_adults  Boolean?
+  provide_bed_extra_kids    Boolean?
+  // ── Finance & Legal wizard fields ─────────────────────────────────────────
+  bank_account_number     String?
+  bank_ifsc_code          String?
+  bank_name               String?
+  bank_consent_given      Boolean                  @default(false)
+  gstin_number            String?
+  pan_number              String?
+  business_type           HotelBusinessType?
+  msme_number             String?
+  property_documents      Json?
+  wizard_step             Int                      @default(0)
+  bookingHotels           BookingHotel[]
+  childPolicies           hotel_child_policies[]
+  image_categories        hotel_image_categories[]
+  images                  hotel_images[]
+  room_pricing            hotel_room_pricing[]
+  meal_pricing            hotel_meal_pricing[]
+  addons                  hotel_addons[]
+  hotelRooms              hotel_rooms[]
+  destination             destinations?            @relation(fields: [destination_id], references: [id])
+  location                Location?                @relation(fields: [location_id], references: [id])
+  packageBookings         PackageBookingHotel[]
+  owner                   HotelOwner?              @relation(fields: [owner_id], references: [id])
 
   @@index([destination_id, is_active])
   @@index([location_id])
   @@index([slug])
+  @@index([owner_id])
 }
 
 model hotel_image_categories {
@@ -915,6 +999,7 @@ model hotel_images {
   category_id Int
   thumbnail   String?
   alt         String?
+  tags        String[]               @default([])
   sort_order  Int                    @default(0)
   is_primary  Boolean                @default(false)
   created_at  DateTime               @default(now())
@@ -927,31 +1012,41 @@ model hotel_images {
 }
 
 model hotel_rooms {
-  id                 Int                  @id @default(autoincrement())
-  hotel_id           Int
-  name               String
-  slug               String
-  area_sqft          Int?
-  bed_type           String?
-  view_type          String?
-  max_occupancy      Int                  @default(2)
-  max_adults         Int                  @default(3)
-  max_children       Int                  @default(2)
+  id                  Int                  @id @default(autoincrement())
+  hotel_id            Int
+  name                String
+  slug                String
+  area_sqft           Int?
+  bed_type            String?
+  view_type           String?
+  base_adults         Int                  @default(2)
+  max_adults          Int                  @default(2)
+  base_children       Int                  @default(0)
+  max_children        Int                  @default(1)
+  max_occupancy       Int                  @default(3)
   extra_bed_capacity  Int                  @default(0)
   bed_count           Int                  @default(1)
   child_cot_available Boolean              @default(false)
   amenities           Json?
-  features           Json?
-  bathroom           Json?
-  facilities         Json?
-  description        String?
-  is_active          Boolean              @default(true)
-  sort_order         Int                  @default(0)
-  created_at         DateTime             @default(now())
-  updated_at         DateTime             @updatedAt
-  images             hotel_room_images[]
-  pricing            hotel_room_pricing[]
-  hotel              hotels               @relation(fields: [hotel_id], references: [id])
+  features            Json?
+  bathroom            Json?
+  facilities          Json?
+  description         String?
+  room_type           String?
+  area_unit           String?              @default("sqft")
+  num_bedrooms        Int?
+  num_living_rooms    Int?
+  num_rooms           Int                  @default(1)
+  room_wizard_step    Int                  @default(0)
+  beds                Json?
+  meal_plan           String?
+  is_active           Boolean              @default(true)
+  sort_order          Int                  @default(0)
+  created_at          DateTime             @default(now())
+  updated_at          DateTime             @updatedAt
+  images              hotel_room_images[]
+  pricing             hotel_room_pricing[]
+  hotel               hotels               @relation(fields: [hotel_id], references: [id])
 
   @@unique([hotel_id, slug])
   @@index([hotel_id])
@@ -980,6 +1075,7 @@ model hotel_room_pricing {
   price_per_night      Decimal                       @db.Decimal(10, 2)
   original_price       Decimal?                      @db.Decimal(10, 2)
   extra_bed_rate       Decimal?                      @db.Decimal(10, 2)
+  extra_child_rate     Decimal?                      @db.Decimal(10, 2)
   margin_percentage    Decimal                       @default(10) @db.Decimal(5, 2)
   is_active            Boolean                       @default(true)
   sort_order           Int                           @default(0)
@@ -1187,6 +1283,7 @@ model activities {
   destination_id       Int?
   location_id          BigInt?
   included_meals       String[]
+  created_by           String?
   category             activity_categories?   @relation(fields: [category_id], references: [id])
   destination          destinations?          @relation(fields: [destination_id], references: [id])
   location             Location?              @relation(fields: [location_id], references: [id])
@@ -1580,6 +1677,7 @@ model cab_pricing {
   updated_at      DateTime               @updatedAt
   price           Decimal                @db.Decimal(10, 2)
   pricing_type    CabPricingType         @default(PER_DAY)
+  created_by      String?
   updated_by      String?
   seasons         cab_pricing_season[]
   destination     destinations           @relation(fields: [destination_id], references: [id], onDelete: Cascade)
@@ -1642,6 +1740,7 @@ model itinerary_transfers {
   route_id     Int?
   vehicle_id   Int?
   num_vehicles Int                 @default(1)
+  km_override  Float?
   itinerary    package_itineraries @relation(fields: [itinerary_id], references: [id], onDelete: Cascade)
   route        transfer_routes?    @relation(fields: [route_id], references: [id])
   vehicle      vehicles?           @relation(fields: [vehicle_id], references: [id])
@@ -2322,6 +2421,54 @@ enum SalaryType {
   PER_TRIP
   PER_DAY
   COMMISSION
+}
+
+enum HotelOwnerStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  SUSPENDED
+  REJECTED
+}
+
+enum HotelCancellationPolicy {
+  FREE_TILL_CHECKIN
+  FREE_TILL_24H
+  FREE_TILL_48H
+  FREE_TILL_72H
+  NON_REFUNDABLE
+}
+
+enum HotelBusinessType {
+  PROPRIETORSHIP
+  PARTNERSHIP
+  LLP
+  PRIVATE_LIMITED
+  PUBLIC_LIMITED
+  HUF
+}
+
+enum HotelListingStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  LIVE
+}
+
+enum PropertyCategory {
+  HOTEL
+  HOMESTAY_VILLA
+}
+
+enum PropertySubType {
+  HOTEL
+  RESORT
+  GUEST_HOUSE
+  HOUSEBOAT
+  VILLA
+  HOMESTAY
+  APARTMENT
 }
 
 // ── Blog ─────────────────────────────────────────────────────────────────────

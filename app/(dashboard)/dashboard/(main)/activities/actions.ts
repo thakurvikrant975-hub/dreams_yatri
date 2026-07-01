@@ -6,6 +6,7 @@ import { revalidatePath }      from "next/cache";
 import { dashboardAuth }       from "@/app/lib/auth-dashboard";
 import { ActivitySchema, ActivityUpdateSchema } from "@/app/lib/validators/activities";
 import { actionError }         from "@/app/lib/action-error";
+import { createLog }           from "../lib/logger";
 
 // ── Auth helper ───────────────────────────────────────────────────────────
 
@@ -59,6 +60,7 @@ export type ActivityItem = {
     email:          string | null;
     is_active:      boolean;
     created_at:     Date;
+    created_by:     string | null;
     category:       ActivityCategory | null;
     images:         ActivityImage[];
     _count:         { images: number; variants: number };
@@ -394,6 +396,13 @@ export async function createActivity(
                 // Reactivate and update the soft-deleted / inactive record
                 await db.activities.update({ where: { id: existing.id }, data: parsed.data });
                 revalidatePath("/dashboard/activities");
+                await createLog({
+                    action:     "UPDATE",
+                    entity:     "Activity",
+                    entityId:   String(existing.id),
+                    entitySlug: parsed.data.slug,
+                    userName:   actor,
+                });
                 return { success: true, message: "Activity updated successfully", id: existing.id };
             }
             return {
@@ -403,8 +412,16 @@ export async function createActivity(
             };
         }
 
-        const activity = await db.activities.create({ data: parsed.data });
+        const activity = await db.activities.create({ data: { ...parsed.data, created_by: actor } });
         revalidatePath("/dashboard/activities");
+        await createLog({
+            action:     "CREATE",
+            entity:     "Activity",
+            entityId:   String(activity.id),
+            entitySlug: activity.slug,
+            newData:    { name: activity.name, created_by: actor },
+            userName:   actor,
+        });
         return { success: true, message: "Activity created successfully", id: activity.id };
     } catch (e) {
         console.error("[createActivity]", e);
@@ -456,6 +473,13 @@ export async function updateActivity(
         await db.activities.update({ where: { id }, data: parsed.data });
         revalidatePath("/dashboard/activities");
         revalidatePath(`/dashboard/activities/${id}`);
+        await createLog({
+            action:     "UPDATE",
+            entity:     "Activity",
+            entityId:   String(id),
+            entitySlug: current.slug,
+            userName:   actor,
+        });
         return { success: true, message: "Activity updated successfully" };
     } catch (e) {
         console.error("[updateActivity]", e);
@@ -473,8 +497,17 @@ export async function toggleActivityActive(
     if (!actor) return { success: false, message: "Unauthorized" };
 
     try {
-        await db.activities.update({ where: { id }, data: { is_active } });
+        const updated = await db.activities.update({ where: { id }, data: { is_active } });
         revalidatePath("/dashboard/activities");
+        await createLog({
+            action:     "UPDATE",
+            entity:     "Activity",
+            entityId:   String(id),
+            entitySlug: updated.slug,
+            newData:    { is_active },
+            metadata:   { operation: "toggle_active" },
+            userName:   actor,
+        });
         return {
             success: true,
             message: `Activity ${is_active ? "activated" : "deactivated"}`,
@@ -526,6 +559,13 @@ export async function deleteActivity(id: number): Promise<ActivityFormState> {
         await db.activities.delete({ where: { id } });
 
         revalidatePath("/dashboard/activities");
+        await createLog({
+            action:     "DELETE",
+            entity:     "Activity",
+            entityId:   String(id),
+            entitySlug: activity.slug,
+            userName:   actor,
+        });
         return { success: true, message: "Activity deleted successfully" };
     } catch (e) {
         console.error("[deleteActivity]", e);

@@ -3,12 +3,13 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { BedDouble, MapPin, Users, CheckCircle2, Check, X, Hotel as HotelIcon } from "lucide-react";
 import { confirmHotelStay, getRoomsForHotels, getRoadDistances, getMealsForHotels, type RoomOption, type MealOption } from "../actions";
 
 type Hotel = {
     id: number; name: string; category: string | null;
     city: string | null; state: string | null; address: string | null;
-    destination_id: number;
+    destination_id: number | null;
     business_phone: string | null;
     business_email: string | null;
     latitude: number | null;
@@ -26,7 +27,7 @@ function fmtDist(km: number): string {
 
 function RoomImage({ url, thumbnail, alt }: { url: string | null; thumbnail: string | null; alt: string }) {
     const [failed, setFailed] = useState(false);
-    if (!url || failed) return <span className="text-2xl select-none">🛏</span>;
+    if (!url || failed) return <BedDouble className="size-6 text-dashboard-neutral/50" />;
     return (
         <img
             src={thumbnail ?? url}
@@ -124,18 +125,18 @@ function ChangeHotelModal({
             }
         });
         return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [showAll]);
 
     // Filter rooms by search query (room name, hotel name, city)
     const q = search.trim().toLowerCase();
     const visibleRooms = q
         ? rooms.filter((r) => {
-              const hotel = hotelMap.get(r.hotel_id);
-              return r.name.toLowerCase().includes(q) ||
-                     (hotel?.name ?? "").toLowerCase().includes(q) ||
-                     (hotel?.city ?? "").toLowerCase().includes(q);
-          })
+            const hotel = hotelMap.get(r.hotel_id);
+            return r.name.toLowerCase().includes(q) ||
+                (hotel?.name ?? "").toLowerCase().includes(q) ||
+                (hotel?.city ?? "").toLowerCase().includes(q);
+        })
         : rooms;
 
     async function handleConfirmChange() {
@@ -175,17 +176,34 @@ function ChangeHotelModal({
 
         if (room.pricing.length === 0) {
             return [(
-                <div key={`${room.id}-noprice`} className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-100 flex gap-3 p-3 items-center">
-                    <div className="shrink-0 w-14 h-14 rounded-md overflow-hidden bg-dashboard-base-200 flex items-center justify-center">
-                        <RoomImage url={room.image_url} thumbnail={room.image_thumbnail} alt={room.name} />
+                <div key={`${room.id}-noprice`} className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-100 flex flex-col gap-2 p-3">
+                    <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-sm font-semibold text-dashboard-base-content">{hotel.name}</span>
+                                {hotel.category && (
+                                    <span className="rounded border border-dashboard-base-300 bg-dashboard-base-200 px-1.5 py-0.5 text-[9px] font-medium text-dashboard-neutral uppercase tracking-wide">
+                                        {hotel.category}
+                                    </span>
+                                )}
+                            </div>
+                            {(hotelLocation || distLabel) && (
+                                <p className="flex items-center gap-1 text-[11px] text-dashboard-neutral mt-0.5">
+                                    <MapPin className="size-3 shrink-0" />
+                                    {hotelLocation}
+                                    {distLabel && <span className="ml-1 font-medium text-dashboard-primary/70">· {distLabel}</span>}
+                                </p>
+                            )}
+                        </div>
                     </div>
-                    <div className="min-w-0">
-                        <p className="text-sm font-semibold text-dashboard-base-content">{room.name}</p>
-                        <p className="text-xs text-dashboard-neutral mt-0.5 flex items-center gap-1 flex-wrap">
-                            {hotel.name}
-                        </p>
-                        {hotelLocation && <p className="text-[11px] text-dashboard-neutral">{hotelLocation}{distLabel && <span className="ml-1.5 text-dashboard-neutral/70">· {distLabel}</span>}</p>}
-                        <p className="text-xs text-dashboard-neutral italic mt-1">No pricing configured</p>
+                    <div className="flex gap-2.5 items-center">
+                        <div className="shrink-0 w-12 h-12 rounded-md overflow-hidden bg-dashboard-base-200 flex items-center justify-center">
+                            <RoomImage url={room.image_url} thumbnail={room.image_thumbnail} alt={room.name} />
+                        </div>
+                        <div>
+                            <p className="text-sm font-medium text-dashboard-base-content">{room.name}</p>
+                            <p className="text-xs text-dashboard-neutral italic mt-0.5">No pricing configured</p>
+                        </div>
                     </div>
                 </div>
             )];
@@ -202,23 +220,23 @@ function ChangeHotelModal({
             // max_occupancy = beds only; extra_bed_capacity = mattress slots.
             // Total capacity per room = beds + mattresses.
             const totalCapacity = room.max_occupancy + room.extra_bed_capacity;
-            const roomsNeeded   = Math.ceil(travellers / totalCapacity);
+            const roomsNeeded = Math.ceil(travellers / totalCapacity);
             // Extra beds = people beyond pure-bed capacity across all rooms.
             // Capped at the actual mattress slots available (rooms × extra_bed_capacity).
             const rawExtraBeds = Math.max(0, travellers - roomsNeeded * room.max_occupancy);
-            const extraBeds    = p.extra_bed_rate != null
+            const extraBeds = p.extra_bed_rate != null
                 ? Math.min(rawExtraBeds, roomsNeeded * room.extra_bed_capacity)
                 : 0;
 
             // Cost breakdown
-            const roomCost     = p.price_per_night * roomsNeeded * numNights;
+            const roomCost = p.price_per_night * roomsNeeded * numNights;
             const extraBedCost = (p.extra_bed_rate != null && extraBeds > 0)
                 ? p.extra_bed_rate * extraBeds * numNights : 0;
             const mealCostPerPax = hotelMeals.reduce((s, m) => s + m.price_per_person, 0);
-            const mealTotal    = mealCostPerPax * travellers * numNights;
-            const grandTotal   = roomCost + extraBedCost + mealTotal;
-            const totalDiff    = isCurrentBooking ? 0 : grandTotal - adjustedSnapshotTotal;
-            const diffLabel    = totalDiff === 0 ? null
+            const mealTotal = mealCostPerPax * travellers * numNights;
+            const grandTotal = roomCost + extraBedCost + mealTotal;
+            const totalDiff = isCurrentBooking ? 0 : grandTotal - adjustedSnapshotTotal;
+            const diffLabel = totalDiff === 0 ? null
                 : `${totalDiff > 0 ? "+" : "-"}${inr(Math.abs(totalDiff))}`;
 
             return (
@@ -226,115 +244,162 @@ function ChangeHotelModal({
                     key={`${room.id}-${p.id}`}
                     type="button"
                     onClick={() => setSelected({ hotel, room, pricing: p })}
-                    className={`cursor-pointer w-full rounded-lg border text-left flex gap-3 p-3 transition-colors ${
-                        isSelected
+                    className={`cursor-pointer w-full rounded-lg border text-left flex flex-col gap-2.5 p-3 transition-colors ${isSelected
                             ? "border-green-500 bg-green-50"
                             : isCurrentBooking
-                            ? "border-green-600 bg-green-50 bg-dashboard-base-100 hover:bg-dashboard-base-200/50"
-                            : "border-dashboard-base-300 bg-dashboard-base-100 hover:bg-dashboard-base-200/50"
-                    }`}
+                                ? "border-green-600 bg-green-50 hover:bg-green-50/80"
+                                : "border-dashboard-base-300 bg-dashboard-base-100 hover:bg-dashboard-base-200/50"
+                        }`}
                 >
-                    {/* Image */}
-                    <div className="shrink-0 w-14 h-14 rounded-md overflow-hidden bg-dashboard-base-200 flex items-center justify-center">
-                        <RoomImage url={room.image_url} thumbnail={room.image_thumbnail} alt={room.name} />
+                    {/* ── Hotel strip ───────────────────────────────────── */}
+                    <div className="w-full flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`text-sm font-semibold leading-tight ${isSelected || isCurrentBooking ? "text-green-700" : "text-dashboard-base-content"}`}>
+                                    {hotel.name}
+                                </span>
+                                {hotel.category && (
+                                    <span className="rounded border border-dashboard-base-300 bg-dashboard-base-200 px-1.5 py-0.5 text-[9px] font-medium text-dashboard-neutral uppercase tracking-wide">
+                                        {hotel.category}
+                                    </span>
+                                )}
+                                {isCurrentBooking && (
+                                    <span className="rounded bg-dashboard-primary/15 px-1.5 py-0.5 text-[9px] font-medium text-dashboard-primary">current</span>
+                                )}
+                            </div>
+                            {(hotelLocation || distLabel) && (
+                                <p className="flex items-center gap-1 text-[11px] text-dashboard-neutral mt-0.5">
+                                    <MapPin className="size-3 shrink-0" />
+                                    {hotelLocation}
+                                    {distLabel && <span className="ml-1 font-medium text-dashboard-primary/70">· {distLabel} from current</span>}
+                                </p>
+                            )}
+                        </div>
+                        {/* Price */}
+                        <div className="shrink-0 text-right">
+                            <p className={`text-sm font-bold tabular-nums ${isSelected || isCurrentBooking ? "text-green-700" : "text-dashboard-base-content"}`}>
+                                {inr(p.price_per_night)}
+                            </p>
+                            <p className="text-[10px] text-dashboard-neutral leading-tight">/room/night</p>
+                        </div>
                     </div>
 
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-semibold ${isSelected ? "text-green-700" : "text-dashboard-base-content"}`}>
-                            {room.name}
-                            {p.plan_name && (
-                                <span className="ml-1.5 text-xs font-normal text-dashboard-neutral">· {p.plan_name}</span>
-                            )}
-                        </p>
-                        <p className="text-xs text-dashboard-neutral mt-0.5 flex items-center gap-1 flex-wrap">
-                            {hotel.name}
-                            {isCurrentHotel && p.id === defaultPricingId && (
-                                <span className="rounded bg-dashboard-primary/15 px-1 text-[9px] font-medium text-dashboard-primary">current</span>
-                            )}
-                        </p>
-                        {(hotelLocation || distLabel) && (
-                            <p className="text-[11px] text-dashboard-neutral/80 mt-0.5">
-                                {hotelLocation}
-                                {distLabel && <span className="ml-1.5 font-medium text-dashboard-neutral">· {distLabel}</span>}
+                    {/* ── Room body ─────────────────────────────────────── */}
+                    <div className="w-full flex items-start gap-2.5">
+                        {/* Image */}
+                        <div className="shrink-0 w-14 h-14 rounded-md overflow-hidden bg-dashboard-base-200 flex items-center justify-center">
+                            <RoomImage url={room.image_url} thumbnail={room.image_thumbnail} alt={room.name} />
+                        </div>
+
+                        {/* Room info */}
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-dashboard-base-content leading-tight">
+                                {room.name}
+                                {p.plan_name && (
+                                    <span className="ml-1.5 text-xs font-normal text-dashboard-neutral">· {p.plan_name}</span>
+                                )}
                             </p>
-                        )}
-                        <div className="mt-1.5 flex flex-wrap gap-1">
-                            {room.view_type && (
-                                <span className="rounded-full border border-dashboard-base-300 px-2 py-0.5 text-[10px] text-dashboard-base-content">
-                                    📍 {room.view_type}
-                                </span>
+                            {p.season_name && (
+                                <span className="inline-block mt-0.5 rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-medium text-amber-700">{p.season_name}</span>
                             )}
-                            {room.bed_type && (
-                                <span className="rounded-full border border-dashboard-base-300 px-2 py-0.5 text-[10px] text-dashboard-neutral">
-                                    🛏 {room.bed_type}
+
+                            {/* Room spec chips */}
+                            <div className="mt-1.5 flex flex-wrap gap-1">
+                                {room.bed_type && (
+                                    <span className="inline-flex items-center gap-1 rounded-full border border-dashboard-base-300 px-2 py-0.5 text-[10px] text-dashboard-neutral">
+                                        <BedDouble className="size-2.5" /> {room.bed_type}
+                                    </span>
+                                )}
+                                <span className="inline-flex items-center gap-1 rounded-full border border-dashboard-base-300 px-2 py-0.5 text-[10px] text-dashboard-neutral">
+                                    <Users className="size-2.5" /> Max {room.max_occupancy} beds
                                 </span>
-                            )}
-                            <span className="rounded-full border border-dashboard-base-300 px-2 py-0.5 text-[10px] text-dashboard-neutral">
-                                👤 Max {room.max_occupancy}
-                            </span>
-                            {room.area_sqft && (
-                                <span className="rounded-full border border-dashboard-base-300 px-2 py-0.5 text-[10px] text-dashboard-neutral">
-                                    {room.area_sqft} sqft
-                                </span>
+                                {room.view_type && (
+                                    <span className="inline-flex items-center gap-1 rounded-full border border-dashboard-base-300 px-2 py-0.5 text-[10px] text-dashboard-neutral">
+                                        <MapPin className="size-2.5" /> {room.view_type}
+                                    </span>
+                                )}
+                                {room.area_sqft && (
+                                    <span className="inline-flex items-center rounded-full border border-dashboard-base-300 px-2 py-0.5 text-[10px] text-dashboard-neutral">
+                                        {room.area_sqft} sqft
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Mattress info */}
+                            {room.extra_bed_capacity > 0 && (
+                                <div className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-dashboard-base-200 border border-dashboard-base-300 px-2 py-0.5">
+                                    <BedDouble className="size-3 text-dashboard-neutral/70 shrink-0" />
+                                    <span className="text-[10px] text-dashboard-neutral">
+                                        {room.extra_bed_capacity} mattress{room.extra_bed_capacity > 1 ? "es" : ""}{" "}
+                                        {p.extra_bed_rate != null
+                                            ? <span className="font-medium text-dashboard-base-content">· {inr(p.extra_bed_rate)}/night each</span>
+                                            : "(no charge)"
+                                        }
+                                    </span>
+                                </div>
                             )}
                         </div>
 
-                        {/* Pricing toggle */}
+                        {/* Diff column */}
+                        <div className="shrink-0 flex flex-col items-end justify-start gap-0.5 pt-0.5">
+                            {diffLabel && (
+                                <span className={`text-sm font-bold tabular-nums ${totalDiff > 0 ? "text-red-500" : "text-green-600"}`}>
+                                    {diffLabel}
+                                </span>
+                            )}
+                            {diffLabel && (
+                                <span className="text-[10px] text-dashboard-neutral leading-tight">vs current</span>
+                            )}
+                            {isSelected && (
+                                <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-green-600 mt-1">
+                                    <CheckCircle2 className="size-3" /> Selected
+                                </span>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* ── Cost breakdown ────────────────────────────────── */}
+                    <div className="w-full border-t border-dashboard-base-300/50 pt-1.5">
                         <button
                             type="button"
                             onClick={(e) => togglePricing(cardKey, e)}
-                            className="cursor-pointer mt-1.5 text-[10px] text-dashboard-primary hover:underline"
+                            className="cursor-pointer text-[10px] text-dashboard-primary hover:underline"
                         >
-                            {isPricingExpanded ? "Hide pricing ▲" : "Show pricing ▼"}
+                            {isPricingExpanded ? "Hide cost breakdown ▲" : "View cost breakdown ▼"}
                         </button>
 
-                        {/* Cost breakdown — shown only when expanded */}
-                        {isPricingExpanded && <div className="mt-1.5 pt-2 border-t border-dashboard-base-300/50 space-y-0.5 text-[10px] text-dashboard-neutral">
-                            <div className="flex justify-between gap-4">
-                                <span>{roomsNeeded} room{roomsNeeded > 1 ? "s" : ""} × {inr(p.price_per_night)}/night × {numNights}N</span>
-                                <span className="tabular-nums">{inr(roomCost)}</span>
-                            </div>
-                            {extraBeds > 0 && p.extra_bed_rate != null && (
+                        {isPricingExpanded && (
+                            <div className="mt-1.5 space-y-0.5 text-[10px] text-dashboard-neutral">
                                 <div className="flex justify-between gap-4">
-                                    <span>{extraBeds} mattress{extraBeds > 1 ? "es" : ""} × {inr(p.extra_bed_rate)}/night × {numNights}N</span>
-                                    <span className="tabular-nums">{inr(extraBedCost)}</span>
+                                    <span>{roomsNeeded} room{roomsNeeded > 1 ? "s" : ""} × {inr(p.price_per_night)}/night × {numNights}N</span>
+                                    <span className="tabular-nums">{inr(roomCost)}</span>
                                 </div>
-                            )}
-                            {snapshotMealTypes.map((mealType) => {
-                                const m = hotelMeals.find((x) => x.meal_type === mealType);
-                                const label = mealType.charAt(0) + mealType.slice(1).toLowerCase().replace(/_/g, " ");
-                                return m ? (
-                                    <div key={mealType} className="flex justify-between gap-4">
-                                        <span>{m.label}: {inr(m.price_per_person)}/pax × {travellers} × {numNights}N</span>
-                                        <span className="tabular-nums">{inr(m.price_per_person * travellers * numNights)}</span>
+                                {extraBeds > 0 && p.extra_bed_rate != null && (
+                                    <div className="flex justify-between gap-4">
+                                        <span>{extraBeds} mattress{extraBeds > 1 ? "es" : ""} × {inr(p.extra_bed_rate)}/night × {numNights}N</span>
+                                        <span className="tabular-nums">{inr(extraBedCost)}</span>
                                     </div>
-                                ) : (
-                                    <div key={mealType} className="flex justify-between gap-4 text-dashboard-warning/80">
-                                        <span>{label}: not configured at this hotel</span>
-                                        <span>—</span>
-                                    </div>
-                                );
-                            })}
-                            <div className={`flex justify-between gap-4 font-semibold pt-0.5 border-t border-dashboard-base-300/40 ${isSelected ? "text-green-700" : "text-dashboard-base-content"}`}>
-                                <span>Grand total ({numNights}N)</span>
-                                <span className="tabular-nums">{inr(grandTotal)}</span>
+                                )}
+                                {snapshotMealTypes.map((mealType) => {
+                                    const m = hotelMeals.find((x) => x.meal_type === mealType);
+                                    const label = mealType.charAt(0) + mealType.slice(1).toLowerCase().replace(/_/g, " ");
+                                    return m ? (
+                                        <div key={mealType} className="flex justify-between gap-4">
+                                            <span>{m.label}: {inr(m.price_per_person)}/pax × {travellers} × {numNights}N</span>
+                                            <span className="tabular-nums">{inr(m.price_per_person * travellers * numNights)}</span>
+                                        </div>
+                                    ) : (
+                                        <div key={mealType} className="flex justify-between gap-4 text-dashboard-warning/80">
+                                            <span>{label}: not configured at this hotel</span>
+                                            <span>—</span>
+                                        </div>
+                                    );
+                                })}
+                                <div className={`flex justify-between gap-4 font-semibold pt-0.5 border-t border-dashboard-base-300/40 ${isSelected ? "text-green-700" : "text-dashboard-base-content"}`}>
+                                    <span>Grand total ({numNights}N)</span>
+                                    <span className="tabular-nums">{inr(grandTotal)}</span>
+                                </div>
                             </div>
-                        </div>}
-                    </div>
-
-                    {/* Diff column */}
-                    <div className="shrink-0 flex flex-col items-end justify-start gap-1 min-w-[72px] pt-0.5">
-                        {diffLabel && (
-                            <span className={`text-sm font-bold tabular-nums ${totalDiff > 0 ? "text-red-500" : "text-green-600"}`}>
-                                {diffLabel}
-                            </span>
-                        )}
-                        {diffLabel && (
-                            <span className="text-[10px] text-dashboard-neutral">vs current</span>
-                        )}
-                        {isSelected && (
-                            <span className="text-[10px] font-semibold text-green-600 mt-1">✓ Selected</span>
                         )}
                     </div>
                 </button>
@@ -352,8 +417,9 @@ function ChangeHotelModal({
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-dashboard-base-300 px-5 py-3.5 shrink-0">
                     <div>
-                        <h3 className="text-sm font-semibold text-dashboard-base-content">
-                            🏨 Change Room — Day {dayNumber} · {cityName}
+                        <h3 className="flex items-center gap-2 text-sm font-semibold text-dashboard-base-content">
+                            <HotelIcon className="size-4 text-dashboard-neutral" />
+                            Change Room — Day {dayNumber} · {cityName}
                         </h3>
                         {!loading && (
                             <p className="text-[11px] text-dashboard-neutral mt-0.5">
@@ -365,7 +431,7 @@ function ChangeHotelModal({
                         onClick={onClose}
                         className="cursor-pointer rounded-md p-1.5 text-dashboard-neutral hover:bg-dashboard-base-200 hover:text-dashboard-base-content transition-colors"
                     >
-                        ✕
+                        <X className="size-4" />
                     </button>
                 </div>
 
@@ -524,7 +590,7 @@ export default function HotelConfirmPanel({
                         <button
                             type="button"
                             onClick={() => setModalOpen(true)}
-                            className="cursor-pointer rounded-lg border border-dashboard-base-300 px-3 py-2 text-sm font-medium text-dashboard-base-content hover:bg-dashboard-base-200 transition-colors"
+                            className="cursor-pointer rounded-lg border border-dashboard-base-300 px-3 py-2 text-sm font-medium text-dashboard-base-100 bg-dashboard-error transition-colors"
                         >
                             Change Hotel
                         </button>
@@ -532,9 +598,9 @@ export default function HotelConfirmPanel({
                             type="button"
                             onClick={handleDirectConfirm}
                             disabled={confirming}
-                            className="cursor-pointer rounded-lg bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-700/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="cursor-pointer rounded-lg bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-700/90 transition-colors disabled:opacity-50 flex items-center gap-1 disabled:cursor-not-allowed"
                         >
-                            {confirming ? "Confirming…" : "✓ Confirm Hotel"}
+                            {confirming ? "Confirming…" : <>Confirm Hotel</>}
                         </button>
                     </div>
                 </div>

@@ -10,6 +10,7 @@ import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-c
 import { resolveNavHref } from "./lib/rbac/nav-hrefs";
 import { Toaster } from "sonner";
 import { SalesStatusToggle } from "./components/dashboard/Salesstatustoggle";
+import { OfflineDetector } from "./components/dashboard/OfflineDetector";
 
 function parsePageAccess(raw: unknown): string[] {
   return Array.isArray(raw) ? raw.filter((href): href is string => typeof href === "string") : [];
@@ -67,11 +68,11 @@ export default async function DashboardLayout({
 
           <div className="flex items-center gap-3 ml-auto">
             {isSales && <SalesTargetBadge memberId={realMember.id} />}
-
+{/* 
             <SalesStatusToggle
               memberId={realMember.id}
               initialActive={realMember.isActive}
-            />
+            /> */}
 
             {/* Header always shows the real logged-in user's identity */}
             <AvatarName
@@ -91,6 +92,7 @@ export default async function DashboardLayout({
       </main>
 
       <Toaster position="top-center" />
+      <OfflineDetector />
     </SidebarProvider>
   );
 }

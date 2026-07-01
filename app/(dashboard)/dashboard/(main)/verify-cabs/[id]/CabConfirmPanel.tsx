@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { CheckCircle2 } from "lucide-react";
 import { confirmCabLeg } from "../actions";
 
 const inputCls =
@@ -55,7 +56,10 @@ export default function CabConfirmPanel({
                 disabled={confirming}
                 className="cursor-pointer shrink-0 rounded-lg bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-700/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-                {confirming ? "Verifying…" : "✓ Verify Cab"}
+                {confirming
+                    ? "Verifying…"
+                    : <span className="flex items-center gap-1.5"><CheckCircle2 className="size-4" /> Verify Cab</span>
+                }
             </button>
         </div>
     );

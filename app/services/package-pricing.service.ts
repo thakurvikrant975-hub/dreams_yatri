@@ -14,7 +14,7 @@ export type PricingInput = {
   infants: number;
   child_ages?: number[];
   cab_type_ids?: number[] | null; // if null/empty → use is_default cab types for duration (one per group)
-  travel_date?: string | null;   // ISO date "YYYY-MM-DD"; null = use base price
+  travel_date?: string | null;   // ISO date "YYYY-MM-DD"; null = fall back to today for seasonal pricing
 };
 
 export type DayHotelLine = {
@@ -73,7 +73,9 @@ export type DayTransferLine = {
   drop_name: string | null;
   vehicle_name: string | null;
   distance_km: number | null;
-  included_in_cab: true;      // transfers are always display-only; cost in cab_subtotal
+  km_override: number | null;
+  km_used: number | null;        // km_override if set, else distance_km
+  included_in_cab: true;         // transfers are always display-only; cost in cab_subtotal
   total: 0;
 };
 
@@ -336,7 +338,8 @@ export async function computePackagePrice(
     cab_type_ids, travel_date,
   } = input;
 
-  const travelDateObj = travel_date ? new Date(travel_date) : null;
+  // When no travel date is provided, fall back to today so seasonal pricing is applied.
+  const travelDateObj = travel_date ? new Date(travel_date) : new Date();
 
   const [itineraries, pricingConfig, duration, stayCategory, loadedCabTypes, includedPermits] = await Promise.all([
     db.package_itineraries.findMany({
@@ -414,7 +417,8 @@ export async function computePackagePrice(
         // ── Transfers ──────────────────────────────────────────────────────
         itinerary_transfers: {
           orderBy: { sort_order: "asc" },
-          include: {
+          select: {
+            id: true, route_id: true, vehicle_id: true, km_override: true,
             route: { select: { pickup_name: true, drop_name: true, distance_km: true } },
             vehicle: { select: { id: true, name: true } },
           },
@@ -592,12 +596,13 @@ export async function computePackagePrice(
   }
 
   // ── Build day → km map from itinerary_transfers ────────────────────────
-  // Used for PER_KM segments: sum of transfer route distance_km per day
+  // km_override on the transfer takes priority over the auto road distance.
   const dayKmMap = new Map<number, number>();
   for (const itin of itineraries) {
     let dayKm = 0;
     for (const tr of itin.itinerary_transfers) {
-      if (tr.route?.distance_km) dayKm += Number(tr.route.distance_km);
+      const km = tr.km_override ?? (tr.route?.distance_km ? Number(tr.route.distance_km) : 0);
+      dayKm += km;
     }
     dayKmMap.set(itin.day, dayKm);
   }
@@ -608,6 +613,7 @@ export async function computePackagePrice(
     if (!cabTypeData.segments.length) continue;
 
     for (const seg of cabTypeData.segments) {
+      if (!seg.cab_pricing) continue; // orphaned FK — skip segment
       const segStartDate = travelDateObj
         ? new Date(travelDateObj.getTime() + (seg.day_from - 1) * 24 * 60 * 60 * 1000)
         : null;
@@ -873,17 +879,23 @@ export async function computePackagePrice(
     });
 
     // ── Transfers — display only, cost captured at segment level ─────────────
-    const transfers: DayTransferLine[] = itin.itinerary_transfers.map((tr) => ({
-      id: tr.id,
-      route_id: tr.route_id ?? null,
-      vehicle_id: tr.vehicle_id ?? null,
-      pickup_name: tr.route?.pickup_name ?? null,
-      drop_name: tr.route?.drop_name ?? null,
-      vehicle_name: tr.vehicle?.name ?? null,
-      distance_km: tr.route?.distance_km ? Number(tr.route.distance_km) : null,
-      included_in_cab: true,
-      total: 0,
-    }));
+    const transfers: DayTransferLine[] = itin.itinerary_transfers.map((tr) => {
+      const autoKm = tr.route?.distance_km ? Number(tr.route.distance_km) : null;
+      const overrideKm = tr.km_override ?? null;
+      return {
+        id: tr.id,
+        route_id: tr.route_id ?? null,
+        vehicle_id: tr.vehicle_id ?? null,
+        pickup_name: tr.route?.pickup_name ?? null,
+        drop_name: tr.route?.drop_name ?? null,
+        vehicle_name: tr.vehicle?.name ?? null,
+        distance_km: autoKm,
+        km_override: overrideKm,
+        km_used: overrideKm ?? autoKm,
+        included_in_cab: true,
+        total: 0,
+      };
+    });
 
     const cab_cost = dayCabCostMap.get(itin.day) ?? 0;
     const day_total =
@@ -911,6 +923,7 @@ export async function computePackagePrice(
     if (!cabTypeData.segments.length) continue;
 
     for (const seg of cabTypeData.segments) {
+      if (!seg.cab_pricing) continue; // orphaned FK — skip segment
       const segDays = seg.day_to - seg.day_from + 1;
       const segStartDate = travelDateObj
         ? new Date(travelDateObj.getTime() + (seg.day_from - 1) * 24 * 60 * 60 * 1000)

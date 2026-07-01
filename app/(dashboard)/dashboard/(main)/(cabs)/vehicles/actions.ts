@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/app/lib/db";
 import { dashboardAuth } from "@/app/lib/auth-dashboard";
+import { createLog } from "../../lib/logger";
 
 const PATH = "/dashboard/vehicles";
 
@@ -93,6 +94,13 @@ export async function createVehicle(data: {
       },
     });
     revalidatePath(PATH);
+    await createLog({
+      action:     "CREATE",
+      entity:     "Vehicle",
+      entityId:   String(created.id),
+      entitySlug: created.name,
+      newData:    { name: created.name, type: created.type, created_by: actorName },
+    });
     return { success: true as const, message: "Vehicle created", id: created.id };
   } catch (e) {
     console.error("[createVehicle]", e);
@@ -128,6 +136,12 @@ export async function updateVehicle(
       },
     });
     revalidatePath(PATH);
+    await createLog({
+      action:     "UPDATE",
+      entity:     "Vehicle",
+      entityId:   String(id),
+      entitySlug: data.name,
+    });
     return { success: true as const, message: "Vehicle updated" };
   } catch (e) {
     console.error("[updateVehicle]", e);
@@ -137,8 +151,16 @@ export async function updateVehicle(
 
 export async function toggleVehicleActive(id: number, value: boolean) {
   try {
-    await db.vehicles.update({ where: { id }, data: { is_active: value } });
+    const updated = await db.vehicles.update({ where: { id }, data: { is_active: value } });
     revalidatePath(PATH);
+    await createLog({
+      action:     "UPDATE",
+      entity:     "Vehicle",
+      entityId:   String(id),
+      entitySlug: updated.name,
+      newData:    { is_active: value },
+      metadata:   { operation: "toggle_active" },
+    });
     return { success: true as const };
   } catch (e) {
     console.error("[toggleVehicleActive]", e);
@@ -152,8 +174,14 @@ export async function deleteVehicle(id: number) {
     if (inUse > 0) {
       return { success: false as const, message: `Cannot delete — vehicle is used in ${inUse} cab pricing record(s)` };
     }
-    await db.vehicles.delete({ where: { id } });
+    const deleted = await db.vehicles.delete({ where: { id } });
     revalidatePath(PATH);
+    await createLog({
+      action:     "DELETE",
+      entity:     "Vehicle",
+      entityId:   String(id),
+      entitySlug: deleted.name,
+    });
     return { success: true as const, message: "Vehicle deleted" };
   } catch (e) {
     console.error("[deleteVehicle]", e);

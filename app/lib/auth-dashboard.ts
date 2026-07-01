@@ -30,7 +30,9 @@ export const {
         httpOnly: true,
         sameSite: "strict",
         path: "/dashboard",   // scoped to /dashboard only
-        secure: process.env.NODE_ENV === "production",
+        secure:
+          process.env.NODE_ENV === "production" &&
+          !process.env.NEXTAUTH_URL?.startsWith("http://localhost"),
       },
     },
   },
@@ -123,8 +125,10 @@ async authorize(credentials) {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id = user.id;
-        token.role = (user as any).role;
+        token.id          = user.id;
+        token.name        = (user as any).name        ?? token.name ?? null;
+        token.email       = (user as any).email       ?? token.email ?? null;
+        token.role        = (user as any).role;
         token.permissions = (user as any).permissions;
         token.departmentId = (user as any).departmentId;
       }
@@ -133,6 +137,7 @@ async authorize(credentials) {
 
 async session({ session, token }) {
   session.user.id           = token.id as string;
+  if (token.name) session.user.name = token.name as string;
   (session.user as any).role         = token.role         ?? null;
   (session.user as any).permissions  = token.permissions  ?? [];
   (session.user as any).departmentId = token.departmentId ?? null;

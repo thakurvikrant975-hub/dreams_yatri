@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarDays, Mail, MapPin, Phone, Users, Hotel } from "lucide-react";
+import { CalendarDays, Mail, MapPin, Phone, Users, Hotel, ExternalLink, CheckCircle2, Clock } from "lucide-react";
 import { db } from "@/app/lib/db";
 import { formatPaise } from "@/app/lib/money";
 import { PaymentPill, StatusPill } from "../../package-bookings/pills";
@@ -46,9 +46,9 @@ function addDays(dateStr: string, n: number): string {
 // ── Sidebar helpers ───────────────────────────────────────────────────────────
 function SideCard({ title, children }: { title: string; children: React.ReactNode }) {
     return (
-        <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 overflow-hidden">
-            <div className="border-b border-dashboard-base-300 bg-dashboard-base-200/60 px-4 py-2.5">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-dashboard-neutral">{title}</h3>
+        <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 overflow-hidden shadow-lg">
+            <div className="border-b border-dashboard-base-300 bg-dashboard-base-200/60 px-4 py-2.5 bg-dashboard-base-content">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-dashboard-base-100 ">{title}</h3>
             </div>
             <div className="p-4">{children}</div>
         </div>
@@ -164,7 +164,7 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
             </div>
 
             {/* Progress */}
-            <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 px-5 py-3.5">
+            <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 px-5 py-3.5 shadow-lg">
                 <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-dashboard-base-content">Confirmation Progress</span>
                     <span className={`text-sm font-medium ${allDone ? "text-dashboard-success" : "text-dashboard-error"}`}>
@@ -177,10 +177,10 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                         style={{ width: `${pct}%` }}
                     />
                 </div>
-                <p className={`mt-1.5 text-xs font-medium ${allDone ? "text-dashboard-success" : "text-dashboard-error"}`}>
+                <p className={`mt-1.5 flex items-center gap-1.5 text-xs font-medium ${allDone ? "text-dashboard-success" : "text-dashboard-error"}`}>
                     {allDone
-                        ? "✓ All stays confirmed — booking will advance to Hotel Confirmed."
-                        : `${totalCount - confirmedCount} hotel stay${totalCount - confirmedCount !== 1 ? "s" : ""} still need confirmation`}
+                        ? <><CheckCircle2 className="size-3.5" /> All stays confirmed — booking will advance to Hotel Confirmed.</>
+                        : <><Clock className="size-3.5" /> {totalCount - confirmedCount} hotel stay{totalCount - confirmedCount !== 1 ? "s" : ""} still need confirmation</>}
                 </p>
             </div>
 
@@ -214,58 +214,79 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                             return (
                                 <div
                                     key={d.day}
-                                    className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 overflow-hidden"
+                                    className={`rounded-xl overflow-hidden shadow-lg border ${isDone ? "border-green-200" : "border-amber-200"}`}
                                 >
                                     {/* Top bar */}
-                                    <div className="flex items-center justify-between px-4 py-2 border-b bg-dashboard-base-200 border-dashboard-base-300">
-                                        <div className="flex items-center gap-2 min-w-0">
-                                            <span className="shrink-0 rounded bg-dashboard-primary px-2 py-0.5 text-[11px] font-bold text-dashboard-primary-content">
+                                    <div className={`flex items-center justify-between px-4 py-2.5 border-b ${
+                                        isDone
+                                            ? "bg-green-50 border-green-200"
+                                            : "bg-amber-50 border-amber-200"
+                                    }`}>
+                                        <div className="flex items-center gap-2.5 min-w-0">
+                                            <span className={`shrink-0 rounded-md px-2.5 py-0.5 text-xs font-bold ${
+                                                isDone ? "bg-green-600 text-white" : "bg-amber-500 text-white"
+                                            }`}>
                                                 Day {d.day}
                                             </span>
-                                            <span className="text-sm font-medium text-dashboard-base-content truncate">{d.day_title}</span>
-                                            <span className="shrink-0 text-xs text-dashboard-neutral">· {snap.num_nights}N</span>
+                                            <span className="text-sm font-semibold text-dashboard-base-content truncate">{d.day_title}</span>
+                                            <span className={`shrink-0 text-xs font-medium ${isDone ? "text-green-700" : "text-amber-700"}`}>· {snap.num_nights}N</span>
                                         </div>
                                         {isDone ? (
-                                            <span className="shrink-0 ml-2 rounded-full bg-dashboard-success/20 px-2.5 py-0.5 text-[11px] font-semibold text-dashboard-success">
-                                                ✓ Confirmed
+                                            <span className="shrink-0 ml-2 inline-flex items-center gap-1 rounded-full bg-green-100 border border-green-200 px-2.5 py-0.5 text-[11px] font-semibold text-green-700">
+                                                <CheckCircle2 className="size-3" /> Confirmed
                                             </span>
                                         ) : (
-                                            <span className="shrink-0 ml-2 rounded-full bg-dashboard-warning/20 px-2.5 py-0.5 text-[11px] font-semibold text-dashboard-neutral">
-                                                Pending
+                                            <span className="shrink-0 ml-2 inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-200 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700">
+                                                <Clock className="size-3" /> Pending
                                             </span>
                                         )}
                                     </div>
 
-                                    <div className="px-4 py-3 flex flex-col gap-3">
+                                    <div className="px-4 py-3 flex flex-col gap-3 bg-white">
                                         {/* Hotel name + contacts */}
                                         <div className="flex items-start justify-between gap-3">
-                                            <div className="min-w-0">
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <span className="text-sm font-semibold text-dashboard-base-content">
-                                                        🏨 {snap.hotel_name}
-                                                    </span>
-                                                    {hotel?.category && (
-                                                        <span className="rounded px-1.5 py-0.5 text-[10px] text-dashboard-neutral bg-dashboard-base-200">
-                                                            {hotel.category}
-                                                        </span>
+                                            <div className="min-w-0 gap-3 flex items-center">
+                                                <div className="mt-0.5 shrink-0 rounded-md bg-blue-50 p-1.5 text-blue-600">
+                                                    <Hotel className="size-4" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <Link
+                                                            href={`/dashboard/hotels/${snap.hotel_id}`}
+                                                            target="_blank"
+                                                            className="inline-flex items-center gap-1 text-sm font-semibold text-dashboard-primary hover:underline"
+                                                        >
+                                                            {snap.hotel_name}
+                                                            <ExternalLink className="size-3" />
+                                                        </Link>
+                                                        {hotel?.category && (
+                                                            <span className="rounded px-1.5 py-0.5 text-[10px] text-dashboard-neutral bg-dashboard-base-200 border border-dashboard-base-300">
+                                                                {hotel.category}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {(snap.hotel_city || snap.hotel_state) && (
+                                                        <div className="flex items-center gap-1 mt-0.5">
+                                                            <MapPin className="size-3 text-dashboard-neutral" />
+                                                            <p className="text-xs text-dashboard-neutral">
+                                                                {[snap.hotel_city, snap.hotel_state].filter(Boolean).join(", ")}
+                                                            </p>
+                                                        </div>
                                                     )}
                                                 </div>
-                                                {(snap.hotel_city || snap.hotel_state) && (
-                                                    <p className="text-xs text-dashboard-neutral mt-0.5">
-                                                        {[snap.hotel_city, snap.hotel_state].filter(Boolean).join(", ")}
-                                                    </p>
-                                                )}
                                             </div>
                                             {(hotel?.business_phone || hotel?.business_email) && (
-                                                <div className="shrink-0 flex flex-col items-end gap-1 text-xs text-dashboard-neutral">
+                                                <div className="shrink-0 flex flex-col items-end gap-1.5 text-xs text-dashboard-neutral">
                                                     {hotel.business_phone && (
-                                                        <a href={`tel:${hotel.business_phone}`} className="cursor-pointer hover:text-dashboard-primary transition-colors">
-                                                            📞 {hotel.business_phone}
+                                                        <a href={`tel:${hotel.business_phone}`} className="flex items-center gap-1.5 hover:text-dashboard-primary transition-colors">
+                                                            <Phone className="size-3" />
+                                                            {hotel.business_phone}
                                                         </a>
                                                     )}
                                                     {hotel.business_email && (
-                                                        <a href={`mailto:${hotel.business_email}`} className="cursor-pointer hover:text-dashboard-primary transition-colors">
-                                                            ✉ {hotel.business_email}
+                                                        <a href={`mailto:${hotel.business_email}`} className="flex items-center gap-1.5 hover:text-dashboard-primary transition-colors">
+                                                            <Mail className="size-3" />
+                                                            {hotel.business_email}
                                                         </a>
                                                     )}
                                                 </div>
@@ -313,9 +334,12 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
 
                                         {/* Confirmed banner */}
                                         {isDone && confirmed && (
-                                            <div className="rounded-lg border border-dashboard-success/25 bg-dashboard-success/8 px-3 py-2 text-xs text-dashboard-success">
-                                                <span className="font-semibold">Confirmed</span> by {confirmed.confirmedBy?.name ?? "—"} · {fmtDateTime(confirmed.confirmedAt)}
-                                                {confirmed.notes && <p className="mt-0.5 opacity-80">Note: {confirmed.notes}</p>}
+                                            <div className="flex items-start gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-xs text-green-800">
+                                                <CheckCircle2 className="size-3.5 mt-0.5 shrink-0 text-green-600" />
+                                                <div>
+                                                    <span className="font-semibold">Confirmed</span> by {confirmed.confirmedBy?.name ?? "—"} · {fmtDateTime(confirmed.confirmedAt)}
+                                                    {confirmed.notes && <p className="mt-0.5 text-green-700">Note: {confirmed.notes}</p>}
+                                                </div>
                                             </div>
                                         )}
 
@@ -383,10 +407,12 @@ export default async function VerifyHotelDetailPage({ params }: { params: Promis
                                                     : "bg-dashboard-base-200/50 border border-dashboard-base-300/40"
                                             }`}
                                         >
-                                            <div className={`flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                                                done ? "bg-green-200 text-green-800" : "bg-dashboard-base-300/70 text-dashboard-neutral"
+                                            <div className={`flex size-5 shrink-0 items-center justify-center rounded-full ${
+                                                done ? "bg-green-200 text-green-700" : "bg-dashboard-base-300/70 text-dashboard-neutral"
                                             }`}>
-                                                {done ? "✓" : d.day}
+                                                {done
+                                                    ? <CheckCircle2 className="size-3.5" />
+                                                    : <span className="text-[10px] font-bold">{d.day}</span>}
                                             </div>
                                             <div className="min-w-0 flex-1">
                                                 <p className="truncate text-xs font-medium text-dashboard-base-content">{d.hotel.hotel_name}</p>

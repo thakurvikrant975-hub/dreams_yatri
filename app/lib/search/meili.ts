@@ -26,6 +26,7 @@ export type MeiliLocationDoc = {
     type: string
     slug: string
     breadcrumb: string
+    city: string | null
     state: string | null
     country: string | null
     latitude: number | null

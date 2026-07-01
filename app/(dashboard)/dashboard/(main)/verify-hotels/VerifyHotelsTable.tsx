@@ -8,7 +8,6 @@ import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
 import { TableFilters } from "../components/dashboard/Tablefilters";
 import { TableEmptyState } from "../components/dashboard/TableEmptyState";
 import { StatCard, StatGrid } from "../components/dashboard/Statcard";
-import { PageHeader } from "../components/dashboard/PageHeader";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
 import { PaymentPill } from "../package-bookings/pills";
@@ -238,47 +237,12 @@ export function VerifyHotelsTable({
 
     return (
         <div className="space-y-6">
-            <PageHeader
-                title="Verify Hotels"
-                description="Confirm hotel stays for paid bookings"
-                icon={Hotel}
-            />
-
             {/* Stats */}
             <StatGrid cols={4}>
-                <StatCard
-                    label="Total Pending"
-                    value={stats.pending}
-                    icon={Hotel}
-                    sub="Hotels not yet confirmed"
-                />
-                <StatCard
-                    label="Urgent (≤ 15 days)"
-                    value={stats.urgent}
-                    icon={AlertTriangle}
-                    iconColor="bg-red-100"
-                    iconText="text-red-600"
-                    sub="Travel date approaching"
-                    className={stats.urgent > 0 ? "border-red-200 bg-red-50/40" : ""}
-                />
-                <StatCard
-                    label="Overdue (> 48 h)"
-                    value={stats.overdue}
-                    icon={Clock}
-                    iconColor="bg-amber-100"
-                    iconText="text-amber-600"
-                    sub="Waiting over 2 days"
-                    className={stats.overdue > 0 ? "border-amber-200 bg-amber-50/40" : ""}
-                />
-                <StatCard
-                    label="Confirmed Today"
-                    value={stats.confirmedToday}
-                    icon={CheckCircle2}
-                    iconColor="bg-green-100"
-                    iconText="text-green-600"
-                    sub="Hotels locked in"
-                    className={stats.confirmedToday > 0 ? "border-green-200 bg-green-50/40" : ""}
-                />
+                <StatCard label="Total Pending"    value={stats.pending}        icon={Hotel}        />
+                <StatCard label="Urgent (≤ 15d)"   value={stats.urgent}         icon={AlertTriangle} />
+                <StatCard label="Overdue (> 48h)"  value={stats.overdue}        icon={Clock}        />
+                <StatCard label="Confirmed Today"  value={stats.confirmedToday} icon={CheckCircle2} />
             </StatGrid>
 
             {/* Legend */}
@@ -310,8 +274,6 @@ export function VerifyHotelsTable({
                             ],
                         },
                     ]}
-                    filteredCount={totalCount}
-                    totalCount={stats.total}
                 />
                 <Select
                     value={String(limit)}

@@ -10,16 +10,13 @@ import { actionError } from "@/app/lib/action-error";
 import { dashboardAuth } from "@/app/lib/auth-dashboard";
 import { createLog } from "../lib/logger";
 
-// ── Auth helper ───────────────────────────────────────────────────────────
- 
+// ── Auth helper ────────────────────────────────────────────────
+
 async function requireSession() {
   const session = await dashboardAuth();
   const actorName = session?.user?.name ?? session?.user?.email ?? null;
   return { session, actorName };
 }
-
-// Explicit scalar selects — omit columns that are in the Prisma schema but not yet
-// migrated to the production DB. Spread alongside relation configs in every query.
 
 const SAFE_HOTEL_SCALARS = {
   id: true, name: true, slug: true, description: true, meta_title: true, meta_desc: true,
@@ -28,6 +25,7 @@ const SAFE_HOTEL_SCALARS = {
   thumbnail: true, city: true, state: true, country: true, pincode: true,
   business_phone: true, business_email: true, whatsapp_number: true, b2b_email: true,
   location_id: true, margin_percentage: true, gst_percentage: true,
+  created_by: true, updated_by: true,
 } as const;
 
 const SAFE_HOTEL_ROOM_SCALARS = {
@@ -131,6 +129,7 @@ export async function getHotels(params: GetHotelsParams = {}) {
         { name:     { contains: search, mode: "insensitive" as const } },
         { city:     { contains: search, mode: "insensitive" as const } },
         { state:    { contains: search, mode: "insensitive" as const } },
+        { country:  { contains: search, mode: "insensitive" as const } },
         { location: { name:    { contains: search, mode: "insensitive" as const } } },
         { location: { city:    { name: { contains: search, mode: "insensitive" as const } } } },
         { location: { state:   { name: { contains: search, mode: "insensitive" as const } } } },
@@ -145,16 +144,13 @@ export async function getHotels(params: GetHotelsParams = {}) {
 
   type HotelRow = Awaited<ReturnType<typeof db.hotels.findMany<{ include: typeof HOTEL_INCLUDE }>>>[number];
 
-  // Use explicit safe scalars to avoid P2022 from created_by/updated_by not yet in production DB.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const partial: any[] = await (db.hotels.findMany as any)({
+  const rows = await db.hotels.findMany({
     where,
     orderBy: { created_at: "desc" },
     skip,
     take: limit,
     select: { ...SAFE_HOTEL_SCALARS, ...HOTEL_INCLUDE },
-  });
-  const rows = partial.map((h) => ({ ...h, created_by: null, updated_by: null })) as HotelRow[];
+  }) as HotelRow[];
 
   const [totalCount, statsTotal, statsActive, totalRooms] = await Promise.all([
     db.hotels.count({ where }),

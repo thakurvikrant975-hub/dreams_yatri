@@ -23,6 +23,7 @@ import {
     AlertDialogHeader, AlertDialogTitle,
 } from "../components/ui/alert-dialog";
 import Image from "next/image";
+import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/app/lib/utils";
 import { toggleActivityActive, deleteActivity, type ActivityItem } from "./actions";
@@ -236,6 +237,19 @@ export function ActivitiesTableClient({
                     disabled={isPending}
                     onCheckedChange={() => handleToggle(a.id, a.is_active)}
                 />
+            ),
+        },
+        {
+            header: "Created By",
+            cell: (a) => (
+                <div className="space-y-0.5">
+                    <p className="text-xs font-medium text-foreground/80 truncate max-w-30">
+                        {a.created_by ?? "—"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(new Date(a.created_at), { addSuffix: true })}
+                    </p>
+                </div>
             ),
         },
         {

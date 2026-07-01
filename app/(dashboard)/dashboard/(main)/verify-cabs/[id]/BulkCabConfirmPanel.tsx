@@ -36,11 +36,11 @@ export default function BulkCabConfirmPanel({
     }
 
     return (
-        <div className="rounded-xl border border-dashboard-primary/25 bg-dashboard-primary/5 overflow-hidden">
+        <div className="rounded-xl border shadow-lg bg-dashboard-base-100 overflow-hidden">
             <button
                 type="button"
                 onClick={() => setOpen((v) => !v)}
-                className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-dashboard-primary/10 transition-colors cursor-pointer"
+                className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left transition-colors cursor-pointer"
             >
                 <div className="flex items-center gap-2.5 min-w-0">
                     <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-dashboard-primary/15">

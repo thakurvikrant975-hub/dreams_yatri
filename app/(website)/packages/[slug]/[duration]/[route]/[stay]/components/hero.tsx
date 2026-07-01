@@ -2,10 +2,13 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Image from 'next/image'
+import dynamic from 'next/dynamic'
 import { ImagesIcon, CarIcon, BedIcon, ForkKnifeIcon, BinocularsIcon } from '@phosphor-icons/react'
 import { Heading, Text } from '@/app/components/ui/Typography'
 import Breadcrumps from '@/app/components/ui/Breadcrumps'
-import FullGallery, { type GalleryCategory } from './FullGallery'
+import type { GalleryCategory } from './FullGallery'
+
+const FullGallery = dynamic(() => import('./FullGallery'))
 
 interface ItineraryStop {
   days: number
@@ -19,6 +22,7 @@ interface Inclusion {
 
 interface GalleryImage {
   src: string
+  fullSrc?: string
   label: string
 }
 

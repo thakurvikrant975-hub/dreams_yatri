@@ -386,9 +386,11 @@ type TransferFormData = {
   pickup: LocationValue | null;
   drop: LocationValue | null;
   notes: string;
+  km_override: string; // empty string = not set
 };
 
 function transferFormToInput(data: TransferFormData) {
+  const parsed = parseFloat(data.km_override);
   return {
     pickup_name: data.pickup?.name ?? "",
     pickup_location_id: data.pickup?.id ?? null,
@@ -401,6 +403,7 @@ function transferFormToInput(data: TransferFormData) {
     vehicle_id: null,
     num_vehicles: 1,
     notes: data.notes || null,
+    km_override: data.km_override.trim() !== "" && !isNaN(parsed) && parsed > 0 ? parsed : null,
   };
 }
 
@@ -445,13 +448,17 @@ function TransferEditForm({
         }
       : null,
     notes: item.notes ?? "",
+    km_override: item.km_override != null ? String(item.km_override) : "",
   });
 
   const isValid = !!form.pickup && !!form.drop;
 
   const { roadKm: distKm, roadMin: distMin, loading: distLoading } = useRoadDistance(form.pickup, form.drop);
-  const displayKm = distKm ?? (distLoading ? (item.route?.distance_km ?? null) : null);
+  const autoKm = distKm ?? (distLoading ? (item.route?.distance_km ?? null) : null);
   const displayMin = distMin ?? (distLoading ? (item.route?.duration_min ?? null) : null);
+  const overrideParsed = parseFloat(form.km_override);
+  const hasOverride = form.km_override.trim() !== "" && !isNaN(overrideParsed) && overrideParsed > 0;
+  const effectiveKm = hasOverride ? overrideParsed : autoKm;
 
   return (
     <div className="space-y-4">
@@ -463,14 +470,14 @@ function TransferEditForm({
         <Label className="text-xs">Drop Location <span className="text-destructive">*</span></Label>
         <LocationSearchSelect value={form.drop} onChange={(v) => setForm(f => ({ ...f, drop: v }))} placeholder="Search drop point…" mapCenter={stopCoords} />
       </div>
-      {(displayKm != null || distLoading) && (
+      {(autoKm != null || distLoading) && (
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
-          {distLoading && displayKm == null
+          {distLoading && autoKm == null
             ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
             : <Car className="h-3.5 w-3.5 shrink-0" />}
-          {displayKm != null && (
+          {autoKm != null && (
             <>
-              <span>{displayKm} km by road</span>
+              <span>Auto: {autoKm} km by road</span>
               {displayMin != null && (
                 <span className="text-muted-foreground/60">
                   · ~{Math.floor(displayMin / 60)}h{displayMin % 60 > 0 ? ` ${displayMin % 60}m` : ""}
@@ -480,6 +487,32 @@ function TransferEditForm({
           )}
         </div>
       )}
+      <div className="space-y-1.5">
+        <Label className="text-xs">Km to cover today (override)</Label>
+        <div className="relative">
+          <Input
+            type="number"
+            min="1"
+            step="1"
+            value={form.km_override}
+            onChange={(e) => setForm(f => ({ ...f, km_override: e.target.value }))}
+            className="h-9 text-xs pr-8"
+            placeholder={autoKm != null ? `Auto: ${autoKm} km` : "e.g. 30"}
+          />
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">km</span>
+        </div>
+        {hasOverride && autoKm != null && (
+          <p className="text-[10px] text-blue-600">
+            Using {overrideParsed} km (overrides auto {autoKm} km) · pricing based on {overrideParsed} km
+          </p>
+        )}
+        {hasOverride && autoKm == null && (
+          <p className="text-[10px] text-blue-600">Using {overrideParsed} km for pricing</p>
+        )}
+        {!hasOverride && autoKm != null && (
+          <p className="text-[10px] text-muted-foreground/60">Leave blank to use auto distance ({autoKm} km)</p>
+        )}
+      </div>
       <div className="space-y-1.5">
         <Label className="text-xs">Notes</Label>
         <Input value={form.notes} onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))} className="h-9 text-xs" placeholder="Optional note…" />
@@ -776,11 +809,13 @@ function AddTransferForm({
   stopCoords?: { lat: number; lng: number };
 }) {
   const [form, setForm] = useState<TransferFormData>({
-    pickup: null, drop: null, notes: "",
+    pickup: null, drop: null, notes: "", km_override: "",
   });
   const isValid = !!form.pickup && !!form.drop;
 
   const { roadKm, roadMin, loading: distLoading } = useRoadDistance(form.pickup, form.drop);
+  const overrideParsed = parseFloat(form.km_override);
+  const hasOverride = form.km_override.trim() !== "" && !isNaN(overrideParsed) && overrideParsed > 0;
 
   return (
     <div className="space-y-4">
@@ -799,7 +834,7 @@ function AddTransferForm({
             : <Car className="h-3.5 w-3.5 shrink-0" />}
           {roadKm != null && (
             <>
-              <span>{roadKm} km by road</span>
+              <span>Auto: {roadKm} km by road</span>
               {roadMin != null && (
                 <span className="text-muted-foreground/60">
                   · ~{Math.floor(roadMin / 60)}h{roadMin % 60 > 0 ? ` ${roadMin % 60}m` : ""}
@@ -809,6 +844,32 @@ function AddTransferForm({
           )}
         </div>
       )}
+      <div className="space-y-1.5">
+        <Label className="text-xs">Km to cover today (override)</Label>
+        <div className="relative">
+          <Input
+            type="number"
+            min="1"
+            step="1"
+            value={form.km_override}
+            onChange={(e) => setForm(f => ({ ...f, km_override: e.target.value }))}
+            className="h-9 text-xs pr-8"
+            placeholder={roadKm != null ? `Auto: ${roadKm} km` : "e.g. 30"}
+          />
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">km</span>
+        </div>
+        {hasOverride && roadKm != null && (
+          <p className="text-[10px] text-blue-600">
+            Using {overrideParsed} km (overrides auto {roadKm} km) · pricing based on {overrideParsed} km
+          </p>
+        )}
+        {hasOverride && roadKm == null && (
+          <p className="text-[10px] text-blue-600">Using {overrideParsed} km for pricing</p>
+        )}
+        {!hasOverride && roadKm != null && (
+          <p className="text-[10px] text-muted-foreground/60">Leave blank to use auto distance ({roadKm} km)</p>
+        )}
+      </div>
       <div className="space-y-1.5">
         <Label className="text-xs">Notes</Label>
         <Input value={form.notes} onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))} className="h-9 text-xs" placeholder="Optional note…" />
@@ -1100,10 +1161,312 @@ function AddNoteForm({
   );
 }
 
+// ── Hotel picker panel ─────────────────────────────────────────────────────
+
+type SearchedRoom = {
+  id: number;
+  plan_name: string | null;
+  price_per_night: number;
+  meal_type: { id: number; name: string; covered_meals: string[] } | null;
+  hotel: {
+    id: number; name: string; category: string | null; stay_type: string | null;
+    thumbnail: string | null;
+    city: string | null; state: string | null; country: string | null;
+    location: { latitude: unknown; longitude: unknown } | null;
+  };
+  room: {
+    id: number; name: string; bed_type: string | null; bed_count: number | null;
+    max_occupancy: number | null; max_adults: number | null; child_cot_available: boolean | null;
+    images: { url: string; thumbnail: string | null }[];
+  } | null;
+};
+
+const HOTEL_CAT_LABEL: Record<string, string> = {
+  hotel: "Hotel", resort: "Resort", homestay: "Homestay", apartment: "Apartment",
+  villa: "Villa", guest_house: "Guest House", houseboat: "Houseboat", camp: "Camp",
+  glamping: "Glamping", treehouse: "Treehouse", jungle_lodge: "Jungle Lodge",
+  eco_lodge: "Eco Lodge", boutique_hotel: "Boutique", heritage_hotel: "Heritage",
+  luxury_hotel: "Luxury", cottage: "Cottage", bungalow: "Bungalow", farm_stay: "Farm Stay",
+};
+
+const MEAL_SHORT: Record<string, string> = {
+  BREAKFAST: "Brkfst", LUNCH: "Lunch", DINNER: "Dinner",
+  MORNING_SNACKS: "AM Snack", EVENING_SNACKS: "PM Snack", CUSTOM: "Meals",
+};
+
+function HotelPickerPanel({
+  destinationId, itineraryId, stayBlockOrder, stopIndex, stopCoords, onSelect, onCancel, isSaving,
+}: {
+  destinationId: number;
+  itineraryId: number | null;
+  stayBlockOrder: number;
+  stopIndex?: number;
+  stopCoords?: { lat: number; lng: number };
+  onSelect: (roomPricingId: number) => void;
+  onCancel: () => void;
+  isSaving: boolean;
+}) {
+  const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [items, setItems] = useState<SearchedRoom[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [starFilter, setStarFilter] = useState<string | null>(null);
+  const [catFilter, setCatFilter] = useState<string | null>(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query), 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    handleSearchRoomPricings(destinationId, debouncedQuery, itineraryId ?? undefined, stayBlockOrder, stopIndex)
+      .then((res) => {
+        if (cancelled) return;
+        setLoading(false);
+        if (res.success) {
+          setItems(res.data.items as unknown as SearchedRoom[]);
+          setHasMore(res.data.has_more);
+        }
+      })
+      .catch(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [debouncedQuery, destinationId, itineraryId, stayBlockOrder, stopIndex]);
+
+  const filtered = items.filter((item) => {
+    if (starFilter && item.hotel.stay_type !== starFilter) return false;
+    if (catFilter && item.hotel.category !== catFilter) return false;
+    return true;
+  });
+
+  const R2_BASE = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
+  const STAR_CHIPS = ["3 Star", "4 Star", "5 Star"];
+  const CAT_CHIPS = [
+    { value: "hotel", label: "Hotel" },
+    { value: "resort", label: "Resort" },
+    { value: "homestay", label: "Homestay" },
+    { value: "houseboat", label: "Houseboat" },
+    { value: "camp", label: "Camp" },
+  ];
+
+  return (
+    <div className="space-y-2.5">
+      {/* Search */}
+      <div className="relative">
+        <Hotel className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by hotel name…"
+          className="h-9 text-xs pl-8 pr-8"
+          autoFocus
+        />
+        {query && (
+          <button type="button" onClick={() => setQuery("")}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* Filter chips */}
+      <div className="flex flex-wrap gap-1.5">
+        {STAR_CHIPS.map((star) => (
+          <button key={star} type="button"
+            onClick={() => setStarFilter(starFilter === star ? null : star)}
+            className={cn(
+              "text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors",
+              starFilter === star
+                ? "bg-amber-500 text-white border-amber-500"
+                : "bg-muted/50 text-muted-foreground border-border hover:border-amber-400 hover:text-amber-700",
+            )}
+          >
+            ★ {star}
+          </button>
+        ))}
+        {CAT_CHIPS.map((c) => (
+          <button key={c.value} type="button"
+            onClick={() => setCatFilter(catFilter === c.value ? null : c.value)}
+            className={cn(
+              "text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors",
+              catFilter === c.value
+                ? "bg-violet-600 text-white border-violet-600"
+                : "bg-muted/50 text-muted-foreground border-border hover:border-violet-400 hover:text-violet-700",
+            )}
+          >
+            {c.label}
+          </button>
+        ))}
+        {(starFilter || catFilter) && (
+          <button type="button"
+            onClick={() => { setStarFilter(null); setCatFilter(null); }}
+            className="text-[10px] text-destructive/70 hover:text-destructive px-1"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {/* Results */}
+      <div className="rounded-xl border overflow-hidden">
+        {loading ? (
+          <div className="flex items-center justify-center py-8 gap-2 text-xs text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching hotels…
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="py-8 text-center space-y-1">
+            <p className="text-xs text-muted-foreground">No hotels found</p>
+            {(starFilter || catFilter) && (
+              <p className="text-[10px] text-muted-foreground/60">Try removing a filter</p>
+            )}
+          </div>
+        ) : (
+          <div className="max-h-[440px] overflow-y-auto divide-y">
+            {filtered.map((item) => {
+              const roomImg = item.room?.images?.[0];
+              const imgKey = roomImg ? (roomImg.thumbnail ?? roomImg.url) : item.hotel.thumbnail;
+              const lat = item.hotel.location?.latitude;
+              const lng = item.hotel.location?.longitude;
+              const distKm = stopCoords && lat != null && lng != null
+                ? haversineKm(stopCoords.lat, stopCoords.lng, Number(lat), Number(lng))
+                : null;
+              const coveredMeals = item.meal_type?.covered_meals ?? [];
+
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => onSelect(item.id)}
+                  disabled={isSaving}
+                  className="w-full text-left px-3 py-3 flex gap-3 items-start hover:bg-violet-50/60 transition-colors disabled:opacity-50"
+                >
+                  {/* Thumbnail */}
+                  {imgKey ? (
+                    <Image
+                      src={`${R2_BASE}/${imgKey}`}
+                      alt={item.hotel.name}
+                      width={72} height={54}
+                      className="h-[54px] w-[72px] rounded-lg object-cover shrink-0 border"
+                    />
+                  ) : (
+                    <div className="h-[54px] w-[72px] rounded-lg bg-muted border flex items-center justify-center shrink-0">
+                      <Hotel className="h-5 w-5 text-muted-foreground/30" />
+                    </div>
+                  )}
+
+                  {/* Details */}
+                  <div className="flex-1 min-w-0 space-y-1.5">
+                    {/* Name + distance */}
+                    <div className="flex items-start gap-1.5 justify-between">
+                      <p className="text-xs font-semibold leading-snug text-foreground">{item.hotel.name}</p>
+                      {distKm != null && (
+                        <span className="text-[9px] font-bold bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0.5 rounded-full shrink-0 whitespace-nowrap">
+                          {distKm.toFixed(1)} km
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Star + category */}
+                    <div className="flex flex-wrap items-center gap-1">
+                      {item.hotel.stay_type && (
+                        <span className="text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded">
+                          ★ {item.hotel.stay_type}
+                        </span>
+                      )}
+                      {item.hotel.category && (
+                        <span className="text-[9px] font-medium bg-muted text-muted-foreground border px-1.5 py-0.5 rounded">
+                          {HOTEL_CAT_LABEL[item.hotel.category] ?? item.hotel.category}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Location */}
+                    {(item.hotel.city || item.hotel.state || item.hotel.country) && (
+                      <p className="text-[10px] text-muted-foreground/70 leading-snug">
+                        {[item.hotel.city, item.hotel.state, item.hotel.country].filter(Boolean).join(", ")}
+                      </p>
+                    )}
+
+                    {/* Room info */}
+                    {item.room && (
+                      <p className="text-[10px] text-muted-foreground leading-snug">
+                        {[
+                          item.room.name,
+                          item.room.bed_type
+                            ? `${item.room.bed_type}${item.room.bed_count ? ` ×${item.room.bed_count}` : ""}`
+                            : null,
+                          item.room.max_occupancy
+                            ? `${item.room.max_occupancy} guests`
+                            : item.room.max_adults
+                              ? `${item.room.max_adults} adults`
+                              : null,
+                          item.room.child_cot_available ? "Child cot ✓" : null,
+                        ].filter(Boolean).join(" · ")}
+                      </p>
+                    )}
+
+                    {/* Meals + price */}
+                    <div className="flex items-center justify-between gap-2">
+                      {coveredMeals.length > 0 ? (
+                        <div className="flex flex-wrap items-center gap-1">
+                          {coveredMeals.map((meal) => {
+                            const cfg = HOTEL_MEAL_CFG[meal] ?? HOTEL_MEAL_CFG_DEFAULT;
+                            const Icon = cfg.Icon;
+                            return (
+                              <span key={meal}
+                                className={cn("flex items-center gap-0.5 px-1.5 py-0.5 rounded border text-[9px] font-semibold", cfg.activeBg)}
+                              >
+                                <Icon className={cn("h-2.5 w-2.5 shrink-0", cfg.color)} />
+                                <span className={cfg.color}>{MEAL_SHORT[meal] ?? meal}</span>
+                              </span>
+                            );
+                          })}
+                        </div>
+                      ) : item.meal_type ? (
+                        <span className="text-[10px] font-medium text-green-700 bg-green-50 border border-green-200 px-1.5 py-0.5 rounded">
+                          {item.meal_type.name}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground/50 italic">No meals</span>
+                      )}
+                      <span className="text-xs font-bold text-violet-700 shrink-0 whitespace-nowrap">
+                        ₹{item.price_per_night.toLocaleString("en-IN")}
+                        <span className="text-[10px] font-normal text-muted-foreground">/night</span>
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+            {hasMore && !starFilter && !catFilter && (
+              <p className="px-3 py-2 text-[10px] text-muted-foreground/60 text-center bg-muted/30">
+                Showing top 50 — search to refine
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between">
+        {isSaving ? (
+          <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+            <Loader2 className="h-3 w-3 animate-spin" /> Saving…
+          </p>
+        ) : <span />}
+        <Button size="sm" variant="ghost" onClick={onCancel} disabled={isSaving} className="text-xs h-7 px-2">
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // ── Stay block ─────────────────────────────────────────────────────────────
 
 function StayBlock({
-  stays, stayCategories, itineraryId, stayBlockOrder, packageId, destinationId, pending, currentDay, maxNights, stopIndex, onStaysChange, savingMealStayId, onToggleMeal,
+  stays, stayCategories, itineraryId, stayBlockOrder, packageId, destinationId, pending, currentDay, maxNights, stopIndex, stopCoords, onStaysChange, savingMealStayId, onToggleMeal,
 }: {
   stays: StayItem[];
   stayCategories: StayCategory[];
@@ -1115,6 +1478,7 @@ function StayBlock({
   currentDay: number;
   maxNights: number;
   stopIndex?: number;
+  stopCoords?: { lat: number; lng: number };
   onStaysChange: (stays: StayItem[]) => void;
   savingMealStayId: number | null;
   onToggleMeal: (stay: StayItem, mealKey: string) => Promise<void>;
@@ -1148,23 +1512,6 @@ function StayBlock({
   }, []);
 
   const R2_BASE = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
-  const fetchRooms = useCallback(async (query: string): Promise<Option[]> => {
-    const res = await handleSearchRoomPricings(destinationId, query, itineraryId ?? undefined, stayBlockOrder, stopIndex);
-    if (!res.success) return [];
-    const items: Option[] = res.data.items.map((p) => {
-      const hotelType = [p.hotel.category, p.hotel.stay_type].filter(Boolean).join(" · ");
-      const roomImg = p.room?.images?.[0];
-      const imgKey = roomImg ? (roomImg.thumbnail ?? roomImg.url) : p.hotel.thumbnail;
-      return {
-        id: p.id,
-        label: `${p.hotel.name}${p.room ? ` — ${p.room.name}` : ""}`,
-        description: [hotelType, p.room?.bed_type, p.plan_name ?? "Standard", `₹${p.price_per_night.toLocaleString("en-IN")}/night`].filter(Boolean).join(" · "),
-        thumbnail: imgKey ? `${R2_BASE}/${imgKey}` : "",
-      };
-    });
-    if (res.data.has_more) items.push({ id: -1, label: "Showing top 50 — refine search to see more" });
-    return items;
-  }, [destinationId, itineraryId, stayBlockOrder, stopIndex, R2_BASE]);
 
   async function handleAssign(categoryId: number, roomPricingId: number) {
     if (!itineraryId) return;
@@ -1319,10 +1666,16 @@ function StayBlock({
                 </div>
               </div>
               {isAssigning ? (
-                <div>
-                  <SearchSelect fetchOptions={fetchRooms} placeholder="Search hotel / room…" onChange={(id) => { if (id) handleAssign(cat.id, id); }} />
-                  {isSaving && <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Saving…</p>}
-                </div>
+                <HotelPickerPanel
+                  destinationId={destinationId}
+                  itineraryId={itineraryId}
+                  stayBlockOrder={stayBlockOrder}
+                  stopIndex={stopIndex}
+                  stopCoords={stopCoords}
+                  onSelect={(id) => handleAssign(cat.id, id)}
+                  onCancel={() => setAssigningCategoryId(null)}
+                  isSaving={isSaving}
+                />
               ) : stay ? (
                 (() => {
                   const rp = stay.room_pricing;
@@ -2307,11 +2660,26 @@ export function ItineraryDaySidebar({
                                   <p className="text-xs font-medium truncate">
                                     {item.data.route ? `${item.data.route.pickup_name} → ${item.data.route.drop_name}` : "Route not set"}
                                   </p>
-                                  <p className="text-[10px] text-muted-foreground/60 truncate">
-                                    {item.data.route?.distance_km != null
-                                      ? `${item.data.route.distance_km} km by road`
-                                      : "No details"}
-                                  </p>
+                                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                    {item.data.km_override != null ? (
+                                      <>
+                                        <span className="text-[10px] font-semibold bg-blue-100 text-blue-700 border border-blue-300 px-1.5 py-0.5 rounded leading-none">
+                                          {item.data.km_override} km (manual)
+                                        </span>
+                                        {item.data.route?.distance_km != null && (
+                                          <span className="text-[10px] text-muted-foreground/50 line-through">
+                                            auto {item.data.route.distance_km} km
+                                          </span>
+                                        )}
+                                      </>
+                                    ) : item.data.route?.distance_km != null ? (
+                                      <span className="text-[10px] text-muted-foreground/60">
+                                        {item.data.route.distance_km} km by road
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] text-muted-foreground/40">No distance</span>
+                                    )}
+                                  </div>
                                 </TimelineRowCard>
                               )}
                               {item.kind === "activity" && (
@@ -2457,6 +2825,7 @@ export function ItineraryDaySidebar({
                     currentDay={initialDay.day}
                     maxNights={maxNightsProp ?? 99}
                     stopIndex={stopIndex}
+                    stopCoords={stopCoords}
                     onStaysChange={(updated) => {
                       setStays(updated);
                       onSaved({ ...currentDayData(), stays: updated });

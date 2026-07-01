@@ -15,7 +15,7 @@ type Props = {
     label?: string;
     value?: UploadedImage | null;
     onChange?: (img: UploadedImage | null) => void;
-    folder: "regions" | "destinations" | "hotels" | "packages" | "activities";
+    folder: "regions" | "destinations" | "hotels" | "packages" | "activities" | "team-members";
     aspectRatio?: "square" | "video" | "wide";
 };
 

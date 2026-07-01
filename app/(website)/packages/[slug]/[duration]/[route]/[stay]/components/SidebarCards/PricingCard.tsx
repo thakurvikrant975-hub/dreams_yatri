@@ -17,11 +17,15 @@ export default function PricingCard() {
 
     return (
         <Card className="px-6 py-5">
-            {isPricingLoading || !pricing ? (
+            {isPricingLoading ? (
                 <div className="flex flex-col gap-3 animate-pulse">
                     <div className="h-4 w-24 rounded bg-neutral-200" />
                     <div className="h-8 w-36 rounded bg-neutral-200" />
                     <div className="h-3 w-40 rounded bg-neutral-200" />
+                </div>
+            ) : !pricing ? (
+                <div className="text-sm text-neutral-400 py-1">
+                    Pricing not configured for this package. Please contact us for a quote.
                 </div>
             ) : (
                 <>
@@ -59,7 +63,7 @@ export default function PricingCard() {
                 className="w-full mt-4"
                 onClick={book}
                 loading={booking}
-                disabled={isPricingLoading || !pricing}
+                disabled={isPricingLoading || !pricing || pricing.finalPrice === 0}
             >
                 {booking ? 'Locking your price…' : 'Book this package'}
             </Button>

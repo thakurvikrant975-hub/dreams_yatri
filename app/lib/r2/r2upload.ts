@@ -6,6 +6,7 @@ export type ImageFolder =
   | "regions"
   | "destinations"
   | "hotels"
+  | "hotel-docs"
   | "packages"
   | "activities"
   | "team-members"

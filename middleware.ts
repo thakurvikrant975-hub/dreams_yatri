@@ -30,6 +30,26 @@ export default async function middleware(req: NextRequest) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
+  if (pathname.startsWith("/hotel-connect")) {
+    const isAuthPage =
+      pathname === "/hotel-connect/login" ||
+      pathname === "/hotel-connect/signup";
+
+    const token = await getToken({
+      req,
+      secret: process.env.AUTH_SECRET,
+      cookieName: "dy.hotel-connect.session-token",
+    });
+
+    if (isAuthPage && token) {
+      return NextResponse.redirect(new URL("/hotel-connect", req.url));
+    }
+
+    if (!isAuthPage && !token) {
+      return NextResponse.redirect(new URL("/hotel-connect/login", req.url));
+    }
+  }
+
   return NextResponse.next();
 }
 

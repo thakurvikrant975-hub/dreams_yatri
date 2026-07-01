@@ -16,6 +16,7 @@ export type TransferInput = {
   vehicle_id?: number | null;
   num_vehicles?: number;
   notes?: string | null;
+  km_override?: number | null;
 };
 
 export type NoteInput = {
@@ -53,6 +54,7 @@ export type TransferItem = {
   num_vehicles: number;
   notes: string | null;
   sort_order: number;
+  km_override: number | null;
   route: {
     id: number;
     pickup_name: string;
@@ -172,7 +174,9 @@ export async function getItineraryData(
       },
       itinerary_transfers: {
           orderBy: { sort_order: "asc" },
-          include: {
+          select: {
+            id: true, itinerary_id: true, route_id: true, vehicle_id: true,
+            num_vehicles: true, notes: true, sort_order: true, km_override: true,
             route: {
               select: {
                 id: true,
@@ -221,8 +225,8 @@ export async function getItineraryData(
       day,
       title: rec.title,
       description: rec.description,
-      meals: rec.meals,
-      excluded_meals: rec.excluded_meals,
+      meals: rec.meals ?? [],
+      excluded_meals: rec.excluded_meals ?? [],
       activities: rec.itinerary_activities.map((ia) => ({
         id: ia.id,
         sort_order: ia.sort_order,
@@ -245,6 +249,7 @@ export async function getItineraryData(
           num_vehicles: t.num_vehicles,
           notes: t.notes,
           sort_order: t.sort_order,
+          km_override: t.km_override,
           route: t.route ? {
             id: t.route.id,
             pickup_name: t.route.pickup_name,
@@ -482,6 +487,7 @@ export async function addItineraryTransfer(itineraryId: number, data: TransferIn
       num_vehicles: data.num_vehicles ?? 1,
       notes: data.notes ?? null,
       sort_order: order,
+      km_override: data.km_override ?? null,
     },
   });
 }
@@ -495,6 +501,7 @@ export async function updateItineraryTransfer(id: number, data: TransferInput) {
       vehicle_id: data.vehicle_id ?? null,
       num_vehicles: data.num_vehicles ?? 1,
       notes: data.notes ?? null,
+      km_override: data.km_override ?? null,
     },
   });
 }
@@ -645,11 +652,38 @@ const HOTEL_SELECT = {
   plan_name: true,
   price_per_night: true,
   meal_type: { select: { id: true, name: true, covered_meals: true } },
-  hotel: { select: { id: true, name: true, category: true, stay_type: true, thumbnail: true } },
-  room: { select: { id: true, name: true, bed_type: true, images: { select: { url: true, thumbnail: true }, orderBy: { sort_order: "asc" as const }, take: 1 } } },
+  hotel: {
+    select: {
+      id: true, name: true, category: true, stay_type: true, thumbnail: true,
+      city: true, state: true, country: true,
+      location: { select: { latitude: true, longitude: true } },
+    },
+  },
+  room: {
+    select: {
+      id: true, name: true, bed_type: true, bed_count: true,
+      max_occupancy: true, max_adults: true, child_cot_available: true,
+      images: { select: { url: true, thumbnail: true }, orderBy: { sort_order: "asc" as const }, take: 1 },
+    },
+  },
 } as const;
 
-function toItems(list: { id: number; plan_name: string | null; price_per_night: unknown; meal_type: { id: number; name: string; covered_meals: string[] } | null; hotel: { id: number; name: string; category: string | null; stay_type: string | null; thumbnail: string | null }; room: { id: number; name: string; bed_type: string | null; images: { url: string; thumbnail: string | null }[] } | null }[]) {
+function toItems(list: {
+  id: number;
+  plan_name: string | null;
+  price_per_night: unknown;
+  meal_type: { id: number; name: string; covered_meals: string[] } | null;
+  hotel: {
+    id: number; name: string; category: string | null; stay_type: string | null; thumbnail: string | null;
+    city: string | null; state: string | null; country: string | null;
+    location: { latitude: unknown; longitude: unknown } | null;
+  };
+  room: {
+    id: number; name: string; bed_type: string | null; bed_count: number | null;
+    max_occupancy: number | null; max_adults: number | null; child_cot_available: boolean | null;
+    images: { url: string; thumbnail: string | null }[];
+  } | null;
+}[]) {
   return list.slice(0, 50).map((p) => ({ ...p, price_per_night: Number(p.price_per_night) }));
 }
 

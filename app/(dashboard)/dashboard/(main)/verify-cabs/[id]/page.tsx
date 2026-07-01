@@ -13,7 +13,6 @@ export const metadata: Metadata = {
     robots: { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false } },
 };
 
-// ── Snapshot types ────────────────────────────────────────────────────────────
 type SnapTransfer = {
     id?: number;
     pickup_name?: string | null;
@@ -47,17 +46,17 @@ function fmtDateTime(d: Date | null): string {
 const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
 const titleCase = (s: string) => s.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 
-// ── Sidebar helpers (same pattern as verify-hotels) ───────────────────────────
 function SideCard({ title, children }: { title: string; children: React.ReactNode }) {
     return (
-        <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 overflow-hidden">
-            <div className="border-b border-dashboard-base-300 bg-dashboard-base-200/60 px-4 py-2.5">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-dashboard-neutral">{title}</h3>
+        <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 overflow-hidden shadow-lg">
+            <div className="border-b border-dashboard-base-300 bg-dashboard-base-content px-4 py-2.5">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-dashboard-base-100">{title}</h3>
             </div>
             <div className="p-4">{children}</div>
         </div>
     );
 }
+
 function InfoItem({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: React.ReactNode }) {
     if (!value) return null;
     return (
@@ -104,9 +103,7 @@ export default async function VerifyCabDetailPage({ params }: { params: Promise<
     const allDays    = snapshot.days ?? [];
     const cabSegs    = snapshot.cab_segments ?? [];
 
-    // Days that have transfers
     const transferDays = allDays.filter((d) => (d.transfers ?? []).length > 0);
-
     const confirmedMap = new Map(booking.cabBookings.map((cb) => [cb.legNumber, cb]));
 
     const totalCount     = transferDays.length;
@@ -114,7 +111,6 @@ export default async function VerifyCabDetailPage({ params }: { params: Promise<
     const pct            = totalCount > 0 ? Math.round((confirmedCount / totalCount) * 100) : 0;
     const allDone        = pct === 100 && totalCount > 0;
 
-    // Legs that still need confirmation — passed to the bulk panel
     const pendingLegs = transferDays
         .filter((d) => !(confirmedMap.get(d.day)?.isConfirmed))
         .map((d) => ({
@@ -123,12 +119,10 @@ export default async function VerifyCabDetailPage({ params }: { params: Promise<
             to:   d.transfers?.[d.transfers.length - 1]?.drop_name ?? "—",
         }));
 
-    // Helper: find the segment for a given day
     function segForDay(day: number): SnapCab | undefined {
         return cabSegs.find((s) => day >= s.day_from && day <= s.day_to);
     }
 
-    // Day date from startDate + offset
     const startMs = booking.startDate.getTime();
     function dayDate(day: number): Date {
         return new Date(startMs + (day - 1) * 86_400_000);
@@ -159,7 +153,7 @@ export default async function VerifyCabDetailPage({ params }: { params: Promise<
             </div>
 
             {/* Progress */}
-            <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 px-5 py-3.5">
+            <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 px-5 py-3.5 shadow-lg">
                 <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-dashboard-base-content">Verification Progress</span>
                     <span className={`text-sm font-medium ${allDone ? "text-dashboard-success" : "text-dashboard-error"}`}>
@@ -172,17 +166,18 @@ export default async function VerifyCabDetailPage({ params }: { params: Promise<
                         style={{ width: `${pct}%` }}
                     />
                 </div>
-                <p className={`mt-1.5 text-xs font-medium ${allDone ? "text-dashboard-success" : "text-dashboard-error"}`}>
+                <p className={`mt-1.5 flex items-center gap-1.5 text-xs font-medium ${allDone ? "text-dashboard-success" : "text-dashboard-error"}`}>
                     {allDone
-                        ? "✓ All cab types verified — booking will advance to Cab Confirmed."
-                        : `${totalCount - confirmedCount} transfer${totalCount - confirmedCount !== 1 ? "s" : ""} still need verification`}
+                        ? <><CheckCircle2 className="size-3.5" /> All transfers verified — booking will advance to Cab Confirmed.</>
+                        : <><Clock className="size-3.5" /> {totalCount - confirmedCount} transfer{totalCount - confirmedCount !== 1 ? "s" : ""} still need verification</>
+                    }
                 </p>
             </div>
 
             <div className="grid gap-5 lg:grid-cols-3 items-start">
-                {/* ── Cab day cards ────────────────────────────────────────── */}
+                {/* ── Cab day cards ─────────────────────────────────────────── */}
                 <div className="lg:col-span-2 flex flex-col gap-3">
-                    {/* Bulk confirm panel — shown only when ≥1 pending leg */}
+
                     {pendingLegs.length > 0 && (
                         <BulkCabConfirmPanel
                             bookingId={booking.id}
@@ -208,85 +203,97 @@ export default async function VerifyCabDetailPage({ params }: { params: Promise<
                             return (
                                 <div
                                     key={d.day}
-                                    className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 overflow-hidden"
+                                    className={`rounded-xl overflow-hidden shadow-lg border ${isDone ? "border-green-200" : "border-amber-200"}`}
                                 >
                                     {/* Top bar */}
-                                    <div className="flex items-center justify-between px-4 py-2 border-b bg-dashboard-base-200 border-dashboard-base-300">
-                                        <div className="flex items-center gap-2 min-w-0">
-                                            <span className="shrink-0 rounded bg-dashboard-primary px-2 py-0.5 text-[11px] font-bold text-dashboard-primary-content">
+                                    <div className={`flex items-center justify-between px-4 py-2.5 border-b ${
+                                        isDone ? "bg-green-50 border-green-200" : "bg-amber-50 border-amber-200"
+                                    }`}>
+                                        <div className="flex items-center gap-2.5 min-w-0">
+                                            <span className={`shrink-0 rounded-md px-2.5 py-0.5 text-xs font-bold ${
+                                                isDone ? "bg-green-600 text-white" : "bg-amber-500 text-white"
+                                            }`}>
                                                 Day {d.day}
                                             </span>
-                                            <span className="text-sm font-medium text-dashboard-base-content truncate">
+                                            <span className="text-sm font-semibold text-dashboard-base-content truncate">
                                                 {d.day_title ?? `Day ${d.day}`}
                                             </span>
-                                            <span className="shrink-0 text-xs text-dashboard-neutral">· {fmtDate(date)}</span>
+                                            <span className={`shrink-0 text-xs font-medium ${isDone ? "text-green-700" : "text-amber-700"}`}>
+                                                · {fmtDate(date)}
+                                            </span>
                                         </div>
                                         {isDone ? (
-                                            <span className="shrink-0 ml-2 rounded-full bg-dashboard-success/20 px-2.5 py-0.5 text-[11px] font-semibold text-dashboard-success">
-                                                ✓ Cab Verified
+                                            <span className="shrink-0 ml-2 inline-flex items-center gap-1 rounded-full bg-green-100 border border-green-200 px-2.5 py-0.5 text-[11px] font-semibold text-green-700">
+                                                <CheckCircle2 className="size-3" /> Cab Verified
                                             </span>
                                         ) : (
-                                            <span className="shrink-0 ml-2 rounded-full bg-dashboard-warning/20 px-2.5 py-0.5 text-[11px] font-semibold text-dashboard-neutral">
-                                                Pending
+                                            <span className="shrink-0 ml-2 inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-200 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700">
+                                                <Clock className="size-3" /> Pending
                                             </span>
                                         )}
                                     </div>
 
-                                    <div className="px-4 py-3 flex flex-col gap-3">
+                                    <div className="px-4 py-3 flex flex-col gap-3 bg-white">
                                         {/* Route */}
-                                        <div className="flex items-center gap-3">
-                                            <div className="flex items-center gap-2 min-w-0 flex-1">
-                                                <span className="shrink-0 flex size-7 items-center justify-center rounded-full bg-dashboard-primary/10">
-                                                    <Car className="size-3.5 text-dashboard-primary" />
-                                                </span>
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="min-w-0 flex items-center gap-3">
+                                                <div className="mt-0.5 shrink-0 rounded-md bg-blue-50 p-1.5 text-blue-600">
+                                                    <Car className="size-4" />
+                                                </div>
                                                 <div className="min-w-0">
-                                                    <p className="text-sm font-semibold text-dashboard-base-content truncate">
-                                                        {from}
-                                                    </p>
-                                                    <p className="text-xs text-dashboard-neutral mt-0.5 flex items-center gap-1">
+                                                    <p className="text-sm font-semibold text-dashboard-base-content">{from}</p>
+                                                    <p className="flex items-center gap-1 mt-0.5 text-xs text-dashboard-neutral">
                                                         <span>→</span>
                                                         <span className="truncate">{to}</span>
                                                     </p>
                                                 </div>
                                             </div>
-                                            {/* Cab type chip */}
-                                            <span className="shrink-0 rounded-md border border-dashboard-base-300 bg-dashboard-base-200/60 px-2.5 py-1 text-xs font-medium text-dashboard-base-content">
+                                            <span className="shrink-0 rounded border border-dashboard-base-300 bg-dashboard-base-200 px-1.5 py-0.5 text-[10px] font-medium text-dashboard-neutral uppercase tracking-wide">
                                                 {seg?.vehicle_name ?? titleCase(booking.cabType)}
                                             </span>
                                         </div>
 
-                                        {/* Segment info */}
+                                        {/* Cab segment details */}
                                         {seg && (
                                             <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/60 px-3 py-2.5">
                                                 <p className="text-[10px] uppercase tracking-widest text-dashboard-neutral font-semibold mb-2">
                                                     Cab Details &nbsp;·&nbsp; {booking.travellers} guest{booking.travellers !== 1 ? "s" : ""}
                                                 </p>
-                                                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-dashboard-base-content">
+                                                <div className="flex flex-wrap gap-1.5">
                                                     {seg.vehicle_name && (
-                                                        <span>🚗 {seg.vehicle_name}{seg.upgraded ? " (upgraded)" : ""}</span>
+                                                        <span className="inline-flex items-center gap-1 rounded-full border border-dashboard-base-300 bg-dashboard-base-100 px-2.5 py-0.5 text-xs text-dashboard-base-content">
+                                                            <Car className="size-3" /> {seg.vehicle_name}{seg.upgraded ? " (upgraded)" : ""}
+                                                        </span>
                                                     )}
                                                     {seg.vehicle_capacity && (
-                                                        <span>👤 {seg.vehicle_capacity}-seater</span>
-                                                    )}
-                                                    {seg.total != null && seg.total > 0 && (
-                                                        <span className="font-semibold">
-                                                            {seg.pricing_type === "PER_KM"
-                                                                ? `${inr(seg.price_used ?? 0)}/km × ${seg.km ?? "?"}km = ${inr(seg.total)}`
-                                                                : `${inr(seg.total)}`}
+                                                        <span className="inline-flex items-center gap-1 rounded-full border border-dashboard-base-300 bg-dashboard-base-100 px-2.5 py-0.5 text-xs text-dashboard-base-content">
+                                                            <Users className="size-3" /> {seg.vehicle_capacity}-seater
                                                         </span>
                                                     )}
                                                     {seg.destination_name && (
-                                                        <span className="text-dashboard-neutral">📍 {seg.destination_name}</span>
+                                                        <span className="inline-flex items-center gap-1 rounded-full border border-dashboard-base-300 bg-dashboard-base-100 px-2.5 py-0.5 text-xs text-dashboard-base-content">
+                                                            <MapPin className="size-3" /> {seg.destination_name}
+                                                        </span>
                                                     )}
                                                 </div>
+                                                {seg.total != null && seg.total > 0 && (
+                                                    <div className="mt-2 flex items-center justify-between rounded bg-dashboard-base-100/80 px-2.5 py-1.5 text-sm">
+                                                        <span className="text-xs text-dashboard-neutral">
+                                                            {seg.pricing_type === "PER_KM"
+                                                                ? `${inr(seg.price_used ?? 0)}/km × ${seg.km ?? "?"}km`
+                                                                : "Fixed price"}
+                                                        </span>
+                                                        <span className="font-semibold text-dashboard-base-content">{inr(seg.total)}</span>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
 
-                                        {/* Multiple transfer stops on this day */}
+                                        {/* Multiple transfer stops */}
                                         {transfers.length > 1 && (
                                             <div className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/60 px-3 py-2.5">
                                                 <p className="text-[10px] uppercase tracking-widest text-dashboard-neutral font-semibold mb-2">Transfer Stops</p>
-                                                <div className="flex flex-col gap-1">
+                                                <div className="flex flex-col gap-1.5">
                                                     {transfers.map((t, i) => (
                                                         <div key={i} className="flex items-center gap-2 text-xs">
                                                             <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-dashboard-primary/15 text-[9px] font-bold text-dashboard-primary">
@@ -306,18 +313,19 @@ export default async function VerifyCabDetailPage({ params }: { params: Promise<
 
                                         {/* Confirmed banner */}
                                         {isDone && confirmed && (
-                                            <div className="rounded-lg border border-dashboard-success/25 bg-dashboard-success/8 px-3 py-2 text-xs text-dashboard-success">
-                                                <span className="font-semibold">Cab Verified</span> by {confirmed.confirmedBy?.name ?? "—"} · {fmtDateTime(confirmed.confirmedAt)}
-                                                {(confirmed.driverName || confirmed.driverPhone || confirmed.vehicleNumber) && (
-                                                    <p className="mt-1 opacity-90">
-                                                        {[
-                                                            confirmed.driverName    ? `Driver: ${confirmed.driverName}`       : null,
-                                                            confirmed.driverPhone   ? `📞 ${confirmed.driverPhone}`           : null,
-                                                            confirmed.vehicleNumber ? `🚗 ${confirmed.vehicleNumber}`        : null,
-                                                        ].filter(Boolean).join("  ·  ")}
-                                                    </p>
-                                                )}
-                                                {confirmed.notes && <p className="mt-0.5 opacity-80">Note: {confirmed.notes}</p>}
+                                            <div className="flex items-start gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-xs text-green-800">
+                                                <CheckCircle2 className="size-3.5 mt-0.5 shrink-0 text-green-600" />
+                                                <div>
+                                                    <span className="font-semibold">Cab Verified</span> by {confirmed.confirmedBy?.name ?? "—"} · {fmtDateTime(confirmed.confirmedAt)}
+                                                    {(confirmed.driverName || confirmed.driverPhone || confirmed.vehicleNumber) && (
+                                                        <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 opacity-90">
+                                                            {confirmed.driverName    && <span className="flex items-center gap-1"><Users className="size-3" />{confirmed.driverName}</span>}
+                                                            {confirmed.driverPhone   && <span className="flex items-center gap-1"><Phone className="size-3" />{confirmed.driverPhone}</span>}
+                                                            {confirmed.vehicleNumber && <span className="flex items-center gap-1"><Car className="size-3" />{confirmed.vehicleNumber}</span>}
+                                                        </p>
+                                                    )}
+                                                    {confirmed.notes && <p className="mt-0.5 text-green-700">Note: {confirmed.notes}</p>}
+                                                </div>
                                             </div>
                                         )}
 
@@ -337,10 +345,9 @@ export default async function VerifyCabDetailPage({ params }: { params: Promise<
                     )}
                 </div>
 
-                {/* ── Sidebar ──────────────────────────────────────────────── */}
+                {/* ── Sidebar ───────────────────────────────────────────────── */}
                 <div className="flex flex-col gap-4">
 
-                    {/* Booking Details */}
                     <SideCard title="Booking Details">
                         <div className="flex flex-col gap-3">
                             <InfoItem icon={Users}        label="Customer"     value={booking.user?.name} />
@@ -358,15 +365,14 @@ export default async function VerifyCabDetailPage({ params }: { params: Promise<
                         </div>
                     </SideCard>
 
-                    {/* Cab Checklist */}
                     {totalCount > 0 && (
                         <SideCard title="Transfer Checklist">
                             <div className="flex flex-col gap-1">
                                 {transferDays.map((d) => {
-                                    const c      = confirmedMap.get(d.day);
-                                    const done   = c?.isConfirmed ?? false;
-                                    const from   = c?.fromLocation ?? d.transfers?.[0]?.pickup_name ?? "—";
-                                    const to     = c?.toLocation   ?? d.transfers?.[d.transfers.length - 1]?.drop_name ?? "—";
+                                    const c    = confirmedMap.get(d.day);
+                                    const done = c?.isConfirmed ?? false;
+                                    const f    = c?.fromLocation ?? d.transfers?.[0]?.pickup_name ?? "—";
+                                    const t    = c?.toLocation   ?? d.transfers?.[d.transfers.length - 1]?.drop_name ?? "—";
                                     return (
                                         <div
                                             key={d.day}
@@ -376,14 +382,16 @@ export default async function VerifyCabDetailPage({ params }: { params: Promise<
                                                     : "bg-dashboard-base-200/50 border border-dashboard-base-300/40"
                                             }`}
                                         >
-                                            <div className={`flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                                                done ? "bg-green-200 text-green-800" : "bg-dashboard-base-300/70 text-dashboard-neutral"
+                                            <div className={`flex size-5 shrink-0 items-center justify-center rounded-full ${
+                                                done ? "bg-green-200 text-green-700" : "bg-dashboard-base-300/70 text-dashboard-neutral"
                                             }`}>
-                                                {done ? "✓" : d.day}
+                                                {done
+                                                    ? <CheckCircle2 className="size-3.5" />
+                                                    : <span className="text-[10px] font-bold">{d.day}</span>}
                                             </div>
                                             <div className="min-w-0 flex-1">
                                                 <p className="truncate text-xs font-medium text-dashboard-base-content">
-                                                    {from} → {to}
+                                                    {f} → {t}
                                                 </p>
                                                 <p className="text-[10px] text-dashboard-neutral">Day {d.day}</p>
                                             </div>
@@ -394,7 +402,6 @@ export default async function VerifyCabDetailPage({ params }: { params: Promise<
                                     );
                                 })}
                             </div>
-                            {/* Mini progress */}
                             <div className="mt-3 pt-3 border-t border-dashboard-base-300/50">
                                 <div className="flex items-center justify-between mb-1.5 text-xs">
                                     <span className="text-dashboard-neutral">Progress</span>

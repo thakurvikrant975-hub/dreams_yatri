@@ -15,7 +15,8 @@ export const IMAGE_SIZES = {
   thumbnail: { width: 160,  height: 120, quality: 65  },  // small previews
   hero:      { width: 1200, quality: 85               },  // detail page hero
   og:        { width: 1200, height: 630, quality: 80  },  // social/OG meta
-  gallery:   { width: 800,  quality: 80               },  // gallery images
+  gallery:   { width: 800,  quality: 80               },  // gallery thumbnails
+  lightbox:  { width: 1600, quality: 90               },  // full-screen lightbox
 } as const;
 
 export function getImageUrl(key: string, size: ImageSize = {}): string {
@@ -23,8 +24,15 @@ export function getImageUrl(key: string, size: ImageSize = {}): string {
 
   if (!key) return "";
 
-  // In development — skip transformation (Cloudflare not in the loop locally)
-  if (process.env.NODE_ENV === "development") {
+  // Full URL (e.g. unsplash, external CDN) — pass through unchanged
+  if (key.startsWith("http")) return key;
+
+  // Cloudflare image transformations only work on CF-proxied domains.
+  // r2.dev public URLs are served directly from R2 — /cdn-cgi/image/ is not
+  // available there, so skip transforms and serve the raw R2 URL instead.
+  const isCFProxied = !base.includes("r2.dev") && process.env.NODE_ENV !== "development";
+
+  if (!isCFProxied) {
     return `${base}/${key}`;
   }
 

@@ -35,14 +35,17 @@ export async function GET(req: NextRequest) {
           const r = await idx.search(q, { limit, filter: filters.join(" AND ") });
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           return NextResponse.json((r.hits as any[]).map((h) => ({
-            source:     "local",
-            id:         String(h.id),
-            name:       h.name,
-            type:       h.type,
-            slug:       h.slug,
-            breadcrumb: h.breadcrumb ?? h.name,
-            latitude:   h.latitude  ?? null,
-            longitude:  h.longitude ?? null,
+            source:       "local",
+            id:           String(h.id),
+            name:         h.name,
+            type:         h.type,
+            slug:         h.slug,
+            breadcrumb:   h.breadcrumb ?? h.name,
+            latitude:     h.latitude   ?? null,
+            longitude:    h.longitude  ?? null,
+            city_name:    h.city       ?? null,
+            state_name:   h.state      ?? null,
+            country_name: h.country    ?? null,
           })));
         }
       } catch (e) {
@@ -105,6 +108,7 @@ export async function GET(req: NextRequest) {
       select: {
         id: true, name: true, type: true, slug: true,
         latitude: true, longitude: true,
+        city:    { select: { name: true } },
         state:   { select: { name: true } },
         country: { select: { name: true } },
       },
@@ -122,14 +126,17 @@ export async function GET(req: NextRequest) {
         if (r.state?.name   && r.state.name   !== r.name) parts.push(r.state.name);
         if (r.country?.name && r.country.name !== r.name) parts.push(r.country.name);
         return {
-          source:    "local",
-          id:        r.id.toString(),
-          name:      r.name,
-          type:      r.type,
-          slug:      r.slug,
-          breadcrumb: parts.join(", "),
-          latitude:  r.latitude  != null ? Number(r.latitude)  : null,
-          longitude: r.longitude != null ? Number(r.longitude) : null,
+          source:       "local",
+          id:           r.id.toString(),
+          name:         r.name,
+          type:         r.type,
+          slug:         r.slug,
+          breadcrumb:   parts.join(", "),
+          latitude:     r.latitude  != null ? Number(r.latitude)  : null,
+          longitude:    r.longitude != null ? Number(r.longitude) : null,
+          city_name:    r.city?.name    ?? null,
+          state_name:   r.state?.name   ?? null,
+          country_name: r.country?.name ?? null,
         };
       }),
     );

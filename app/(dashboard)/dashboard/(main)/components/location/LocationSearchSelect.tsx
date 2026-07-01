@@ -259,6 +259,7 @@ export function LocationSearchSelect({
           coordinates: ext.coordinates,
           country: ext.country,
           region: ext.region,
+          place: ext.place,
         }),
       });
       if (res.ok) pick((await res.json()) as LocationValue);

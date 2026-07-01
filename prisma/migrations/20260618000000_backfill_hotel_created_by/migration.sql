@@ -1,0 +1,3 @@
+-- Backfill was superseded: hotels.created_by was dropped in the preceding
+-- sync_schema_drift migration and will be re-added in the next migration.
+-- This migration is intentionally a no-op.

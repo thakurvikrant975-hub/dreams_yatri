@@ -50,6 +50,7 @@ type HotelItem = {
   stay_type: string | null;
   city: string | null;
   state: string | null;
+  country: string | null;
   meta_title: string | null;
   meta_desc: string | null;
   location: { name: string; city: { name: string } | null; state: { name: string } | null; country: { name: string } | null } | null;
@@ -58,7 +59,7 @@ type HotelItem = {
   updated_at: Date;
   created_by: string | null;
   updated_by: string | null;
-  destination: { id: number; name: string };
+  destination: { id: number; name: string } | null;
   _count: {
     hotelRooms: number;
     images: number;
@@ -213,18 +214,22 @@ export function HotelsTableClient({
           <div>
             <p className="font-medium text-sm">{h.name}</p>
             {h.stay_type && <p className="text-xs text-muted-foreground">{h.stay_type}</p>}
-            {h.location && (
-              <p className="text-xs text-muted-foreground/70">
-                {[h.location.city?.name ?? h.location.name, h.location.state?.name, h.location.country?.name].filter(Boolean).join(", ")}
-              </p>
-            )}
+            {(() => {
+              const city    = h.location?.city?.name    ?? h.city;
+              const state   = h.location?.state?.name   ?? h.state;
+              const country = h.location?.country?.name ?? h.country;
+              const parts   = [city, state, country].filter(Boolean);
+              return parts.length > 0 ? (
+                <p className="text-xs text-muted-foreground/70">{parts.join(", ")}</p>
+              ) : null;
+            })()}
           </div>
         </div>
       ),
     },
     {
       header: "Destination",
-      cell: (h) => <Badge variant="secondary" className="text-xs bg-dashboard-primary/10 text-dashboard-primary">{h.destination.name}</Badge>,
+      cell: (h) => h.destination ? <Badge variant="secondary" className="text-xs bg-dashboard-primary/10 text-dashboard-primary">{h.destination.name}</Badge> : <span className="text-muted-foreground text-xs">—</span>,
     },
     {
       header: "Category",
@@ -270,7 +275,7 @@ export function HotelsTableClient({
       cell: (h) => (
         <div className="space-y-0.5">
           <p className="text-xs font-medium text-foreground/80 truncate max-w-30">
-            {h.created_by ?? "—"}
+            {h.created_by || "—"}
           </p>
           <p className="text-xs text-muted-foreground">
             {formatDistanceToNow(new Date(h.created_at), { addSuffix: true })}
@@ -332,7 +337,7 @@ export function HotelsTableClient({
           className="flex-1 min-w-0"
           search={localSearch}
           onSearchChange={handleSearch}
-          searchPlaceholder="Search hotels..."
+          searchPlaceholder="Search by name, city, state, country…"
           filters={[
             {
               value: destination === "all" ? "all" : String(destination),
@@ -361,7 +366,6 @@ export function HotelsTableClient({
           ]}
         />
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-xs text-muted-foreground whitespace-nowrap">Rows per page</span>
           <Select value={String(limit)} onValueChange={v => updateParam("limit", v)}>
             <SelectTrigger className="w-20 h-10 border-dashboard-base-300 bg-dashboard-base-100 text-dashboard-base-content/70 rounded-lg">
               <SelectValue />

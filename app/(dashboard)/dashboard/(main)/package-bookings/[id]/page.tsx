@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Hotel, Ticket, ArrowRight, Car, UtensilsCrossed, CalendarDays } from "lucide-react";
 import { db } from "@/app/lib/db";
 import { formatPaise } from "@/app/lib/money";
 import { PaymentPill, StatusPill } from "../pills";
@@ -122,63 +122,71 @@ function BookedItinerary({ snapshot }: { snapshot: Snapshot }) {
     if (days.length === 0) return <p className="text-sm text-dashboard-neutral">No itinerary snapshot stored for this booking.</p>;
 
     return (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-4">
             {days.map((d) => (
-                <div key={d.day} className="rounded-lg border border-dashboard-base-300/70 overflow-hidden">
+                <div key={d.day} className="rounded-xl border border-dashboard-base-300 overflow-hidden">
                     {/* Day header */}
-                    <div className="flex items-center gap-2.5 border-b border-dashboard-base-300/60 bg-dashboard-base-200/50 px-4 py-2.5">
-                        <span className="rounded bg-dashboard-primary/10 px-2 py-0.5 text-[11px] font-bold text-dashboard-primary">Day {d.day}</span>
+                    <div className="flex items-center gap-3 border-b border-dashboard-base-300 bg-dashboard-base-200/60 px-4 py-3">
+                        <span className="rounded-md bg-dashboard-primary/10 px-2.5 py-1 text-xs font-bold text-dashboard-primary tracking-wide">Day {d.day}</span>
                         <span className="text-sm font-semibold text-dashboard-base-content">{d.day_title}</span>
-                        {d.day_date && <span className="ml-auto text-xs text-dashboard-neutral">{fmtDate(new Date(`${d.day_date}T00:00:00`))}</span>}
+                        {d.day_date && (
+                            <div className="ml-auto flex items-center gap-1.5 text-xs text-dashboard-neutral">
+                                <CalendarDays className="size-3.5" />
+                                {fmtDate(new Date(`${d.day_date}T00:00:00`))}
+                            </div>
+                        )}
                     </div>
 
                     <div className="px-4 py-3 flex flex-col gap-3">
                         {/* Hotel */}
                         {d.hotel && (
-                            <div className="rounded-md border border-dashboard-base-300/60 overflow-hidden">
-                                <div className="flex items-start justify-between gap-2 bg-blue-50/60 px-3 py-2">
-                                    <div>
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="text-sm">🏨</span>
-                                            <span className="text-sm font-semibold text-dashboard-base-content">{d.hotel.hotel_name}</span>
-                                            {(d.hotel.hotel_city || d.hotel.hotel_state) && (
-                                                <span className="text-xs text-dashboard-neutral">{[d.hotel.hotel_city, d.hotel.hotel_state].filter(Boolean).join(", ")}</span>
-                                            )}
+                            <div className="rounded-lg border border-dashboard-base-300 overflow-hidden">
+                                <div className="flex items-start justify-between gap-3 px-4 py-3">
+                                    <div className="flex items-start gap-3 min-w-0">
+                                        <div className="mt-0.5 shrink-0 rounded-md bg-blue-50 p-1.5 text-blue-600">
+                                            <Hotel className="size-4" />
                                         </div>
-                                        <div className="mt-0.5 text-xs text-dashboard-neutral">
-                                            {d.hotel.room_name}{d.hotel.plan_name ? ` · ${d.hotel.plan_name}` : ""}
+                                        <div className="min-w-0">
+                                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                                <Link
+                                                    href={`/dashboard/hotels/${d.hotel.hotel_id}`}
+                                                    target="_blank"
+                                                    className="text-sm font-semibold text-dashboard-primary hover:underline inline-flex items-center gap-1"
+                                                >
+                                                    {d.hotel.hotel_name}
+                                                    <ExternalLink className="size-3" />
+                                                </Link>
+                                                {(d.hotel.hotel_city || d.hotel.hotel_state) && (
+                                                    <span className="text-xs text-dashboard-neutral">{[d.hotel.hotel_city, d.hotel.hotel_state].filter(Boolean).join(", ")}</span>
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-dashboard-neutral mt-0.5">
+                                                {[d.hotel.room_name, d.hotel.plan_name].filter(Boolean).join(" · ")}
+                                            </p>
+                                            {d.day_date && (
+                                                <div className="mt-1.5 flex items-center gap-1.5 text-xs text-dashboard-neutral">
+                                                    <span>Check-in {fmtDate(new Date(`${d.day_date}T00:00:00`))}{d.hotel.check_in_time ? ` ${d.hotel.check_in_time}` : ""}</span>
+                                                    <ArrowRight className="size-3 shrink-0" />
+                                                    <span>Check-out {fmtDate(new Date(`${addNightsISO(d.day_date, d.hotel.num_nights)}T00:00:00`))}{d.hotel.check_out_time ? ` ${d.hotel.check_out_time}` : ""}</span>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                     <span className="shrink-0 text-sm font-bold tabular-nums text-dashboard-base-content">{inr(d.hotel.total)}</span>
                                 </div>
-                                {/* Pricing calculation row */}
-                                <div className="grid grid-cols-4 divide-x divide-dashboard-base-300/50 border-t border-dashboard-base-300/50 text-center text-xs">
-                                    <div className="px-2 py-2">
-                                        <div className="text-dashboard-neutral">Rate/room/night</div>
-                                        <div className="mt-0.5 font-semibold tabular-nums text-dashboard-base-content">{inr(d.hotel.price_per_room)}</div>
-                                    </div>
-                                    <div className="px-2 py-2">
-                                        <div className="text-dashboard-neutral">Rooms</div>
-                                        <div className="mt-0.5 font-semibold text-dashboard-base-content">{d.hotel.rooms_count}</div>
-                                    </div>
-                                    <div className="px-2 py-2">
-                                        <div className="text-dashboard-neutral">Nights</div>
-                                        <div className="mt-0.5 font-semibold text-dashboard-base-content">{d.hotel.num_nights}</div>
-                                    </div>
-                                    <div className="px-2 py-2">
-                                        <div className="text-dashboard-neutral">Total</div>
-                                        <div className="mt-0.5 font-bold tabular-nums text-dashboard-base-content">{inr(d.hotel.total)}</div>
-                                    </div>
+                                <div className="grid grid-cols-4 divide-x divide-dashboard-base-300/60 border-t border-dashboard-base-300/60 bg-dashboard-base-200/30 text-center text-xs">
+                                    {[
+                                        { label: "Rate / room / night", value: inr(d.hotel.price_per_room) },
+                                        { label: "Rooms", value: d.hotel.rooms_count },
+                                        { label: "Nights", value: d.hotel.num_nights },
+                                        { label: "Total", value: inr(d.hotel.total) },
+                                    ].map(({ label, value }) => (
+                                        <div key={label} className="px-2 py-2">
+                                            <div className="text-dashboard-neutral">{label}</div>
+                                            <div className="mt-0.5 font-semibold tabular-nums text-dashboard-base-content">{value}</div>
+                                        </div>
+                                    ))}
                                 </div>
-                                {/* Check-in / out */}
-                                {d.day_date && (
-                                    <div className="flex items-center gap-1.5 border-t border-dashboard-base-300/50 px-3 py-1.5 text-[11px] text-dashboard-neutral">
-                                        <span>Check-in {fmtDate(new Date(`${d.day_date}T00:00:00`))}{d.hotel.check_in_time ? ` · ${d.hotel.check_in_time}` : ""}</span>
-                                        <span className="text-dashboard-base-300">→</span>
-                                        <span>Check-out {fmtDate(new Date(`${addNightsISO(d.day_date, d.hotel.num_nights)}T00:00:00`))}{d.hotel.check_out_time ? ` · ${d.hotel.check_out_time}` : ""}</span>
-                                        <span className="ml-auto">{ref("hotel", d.hotel.hotel_id)} {ref("room_pricing", d.hotel.room_pricing_id)} {ref("room", d.hotel.room_id)}</span>
-                                    </div>
-                                )}
                             </div>
                         )}
 
@@ -188,28 +196,38 @@ function BookedItinerary({ snapshot }: { snapshot: Snapshot }) {
                                 {d.activities.map((a) => {
                                     const hasPricing = (a.adult_price ?? 0) > 0 || (a.total ?? 0) > 0;
                                     return (
-                                        <div key={a.id} className="flex items-start justify-between gap-2 rounded-md border border-dashboard-base-300/50 px-3 py-2">
-                                            <div className="min-w-0">
-                                                <div className="flex flex-wrap items-center gap-1.5">
-                                                    <span className="text-sm">🎟</span>
-                                                    <span className="text-sm text-dashboard-base-content">{a.name}</span>
-                                                    {a.variant_label && <span className="text-xs text-dashboard-neutral">· {a.variant_label}</span>}
-                                                    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${a.is_optional ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
-                                                        {a.is_optional ? "optional" : "included"}
-                                                    </span>
+                                        <div key={a.id} className="flex items-start justify-between gap-3 rounded-lg border border-dashboard-base-300 px-4 py-3">
+                                            <div className="flex items-start gap-3 min-w-0">
+                                                <div className="mt-0.5 shrink-0 rounded-md bg-violet-50 p-1.5 text-violet-600">
+                                                    <Ticket className="size-4" />
                                                 </div>
-                                                {hasPricing && (
-                                                    <div className="mt-1 flex items-center gap-2 text-xs text-dashboard-neutral">
-                                                        {a.adult_price != null && a.adult_price > 0 && <span>{inr(a.adult_price)}/adult{a.adult_count ? ` × ${a.adult_count}` : ""}</span>}
-                                                        {a.child_price != null && a.child_price > 0 && <span>{inr(a.child_price)}/child{a.child_count ? ` × ${a.child_count}` : ""}</span>}
-                                                        {a.infant_price != null && a.infant_price > 0 && <span>{inr(a.infant_price)}/infant{a.infant_count ? ` × ${a.infant_count}` : ""}</span>}
+                                                <div className="min-w-0">
+                                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                                        <Link
+                                                            href={`/dashboard/activities/${a.id}`}
+                                                            target="_blank"
+                                                            className="text-sm font-medium text-dashboard-primary hover:underline inline-flex items-center gap-1"
+                                                        >
+                                                            {a.name}
+                                                            <ExternalLink className="size-3" />
+                                                        </Link>
+                                                        {a.variant_label && <span className="text-xs text-dashboard-neutral">· {a.variant_label}</span>}
+                                                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${a.is_optional ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+                                                            {a.is_optional ? "Optional" : "Included"}
+                                                        </span>
                                                     </div>
-                                                )}
-                                                <div className="mt-0.5 text-[11px] text-dashboard-neutral/70">{ref("activity", a.id)} {ref("variant", a.variant_id)}</div>
+                                                    {hasPricing && (
+                                                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-dashboard-neutral">
+                                                            {a.adult_price != null && a.adult_price > 0 && <span>{inr(a.adult_price)}/adult{a.adult_count ? ` × ${a.adult_count}` : ""}</span>}
+                                                            {a.child_price != null && a.child_price > 0 && <span>{inr(a.child_price)}/child{a.child_count ? ` × ${a.child_count}` : ""}</span>}
+                                                            {a.infant_price != null && a.infant_price > 0 && <span>{inr(a.infant_price)}/infant{a.infant_count ? ` × ${a.infant_count}` : ""}</span>}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                             {hasPricing && a.total != null && a.total > 0 && (
-                                                <span className="shrink-0 text-sm font-semibold tabular-nums text-dashboard-base-content">
-                                                    {a.is_optional ? <span className="text-amber-600">{inr(a.total)}</span> : inr(a.total)}
+                                                <span className={`shrink-0 text-sm font-semibold tabular-nums ${a.is_optional ? "text-amber-600" : "text-dashboard-base-content"}`}>
+                                                    {inr(a.total)}
                                                 </span>
                                             )}
                                         </div>
@@ -222,13 +240,14 @@ function BookedItinerary({ snapshot }: { snapshot: Snapshot }) {
                         {d.transfers.length > 0 && (
                             <div className="flex flex-col gap-1.5">
                                 {d.transfers.map((t) => (
-                                    <div key={t.id} className="flex items-center gap-2 rounded-md border border-dashboard-base-300/50 px-3 py-2 text-sm">
-                                        <span>🚐</span>
-                                        <span className="font-medium text-dashboard-base-content">{t.pickup_name ?? "—"}</span>
-                                        <span className="text-dashboard-neutral">→</span>
-                                        <span className="font-medium text-dashboard-base-content">{t.drop_name ?? "—"}</span>
-                                        {t.vehicle_name && <span className="text-xs text-dashboard-neutral">· {t.vehicle_name}</span>}
-                                        <span className="ml-auto text-[11px] text-dashboard-neutral/70">{ref("route", t.route_id)} {ref("vehicle", t.vehicle_id)}</span>
+                                    <div key={t.id} className="flex items-center gap-3 rounded-lg border border-dashboard-base-300 px-4 py-3">
+                                        <div className="shrink-0 rounded-md bg-sky-50 p-1.5 text-sky-600">
+                                            <Car className="size-4" />
+                                        </div>
+                                        <span className="text-sm text-dashboard-base-content">{t.pickup_name ?? "—"}</span>
+                                        <ArrowRight className="size-3.5 shrink-0 text-dashboard-neutral" />
+                                        <span className="text-sm text-dashboard-base-content">{t.drop_name ?? "—"}</span>
+                                        {t.vehicle_name && <span className="ml-auto text-xs text-dashboard-neutral">{t.vehicle_name}</span>}
                                     </div>
                                 ))}
                             </div>
@@ -236,50 +255,56 @@ function BookedItinerary({ snapshot }: { snapshot: Snapshot }) {
 
                         {/* Meals */}
                         {d.meals.length > 0 && (
-                            <div className="flex items-center gap-1.5">
-                                <span className="text-xs text-dashboard-neutral">Meals:</span>
-                                {d.meals.map((m) => (
-                                    <span key={m.label} className="rounded-full bg-dashboard-base-200 px-2 py-0.5 text-[11px] text-dashboard-neutral">{m.label}</span>
-                                ))}
+                            <div className="flex items-center gap-2">
+                                <UtensilsCrossed className="size-3.5 shrink-0 text-dashboard-neutral" />
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    {d.meals.map((m) => (
+                                        <span key={m.label} className="rounded-md border border-dashboard-base-300 bg-dashboard-base-200/60 px-2 py-0.5 text-xs text-dashboard-neutral">{m.label}</span>
+                                    ))}
+                                </div>
                             </div>
                         )}
                     </div>
                 </div>
             ))}
 
+            {/* Cab segments */}
             {cabs.length > 0 && (
-                <div className="rounded-lg border border-dashboard-base-300/70 overflow-hidden">
-                    <div className="border-b border-dashboard-base-300/60 bg-dashboard-base-200/50 px-4 py-2.5">
-                        <span className="text-xs font-semibold uppercase tracking-wide text-dashboard-neutral">🚗 Cab segments</span>
+                <div className="rounded-xl border border-dashboard-base-300 overflow-hidden">
+                    <div className="flex items-center gap-2.5 border-b border-dashboard-base-300 bg-dashboard-base-200/60 px-4 py-3">
+                        <Car className="size-4 text-dashboard-neutral" />
+                        <span className="text-sm font-semibold text-dashboard-base-content">Transportation</span>
                     </div>
                     <div className="px-4 py-3 flex flex-col gap-2">
                         {cabs.map((c, i) => (
-                            <div key={i} className="rounded-md border border-dashboard-base-300/50 overflow-hidden">
-                                <div className="flex items-start justify-between gap-2 px-3 py-2">
-                                    <div>
-                                        <div className="text-sm font-medium text-dashboard-base-content">
-                                            Day {c.day_from}–{c.day_to}: {c.vehicle_name}
-                                            <span className="ml-1 text-xs text-dashboard-neutral">({c.vehicle_capacity}-seater{c.upgraded ? " · upgraded" : ""})</span>
+                            <div key={i} className="rounded-lg border border-dashboard-base-300 overflow-hidden">
+                                <div className="flex items-start justify-between gap-3 px-4 py-3">
+                                    <div className="flex items-start gap-3">
+                                        <div className="mt-0.5 shrink-0 rounded-md bg-sky-50 p-1.5 text-sky-600">
+                                            <Car className="size-4" />
                                         </div>
-                                        {c.destination_name && <div className="text-xs text-dashboard-neutral mt-0.5">{c.destination_name}</div>}
-                                        <div className="mt-0.5 text-[11px] text-dashboard-neutral/70">{ref("cabType", c.cab_type_id)} {ref("vehicle", c.vehicle_id)}</div>
+                                        <div>
+                                            <p className="text-sm font-medium text-dashboard-base-content">
+                                                {c.vehicle_name}
+                                                <span className="ml-1.5 text-xs font-normal text-dashboard-neutral">({c.vehicle_capacity}-seater{c.upgraded ? " · upgraded" : ""})</span>
+                                            </p>
+                                            <p className="text-xs text-dashboard-neutral mt-0.5">Day {c.day_from}–{c.day_to}{c.destination_name ? ` · ${c.destination_name}` : ""}</p>
+                                        </div>
                                     </div>
                                     {c.total != null && <span className="shrink-0 text-sm font-bold tabular-nums text-dashboard-base-content">{inr(c.total)}</span>}
                                 </div>
                                 {(c.price_used != null || c.total != null) && (
-                                    <div className="grid grid-cols-3 divide-x divide-dashboard-base-300/50 border-t border-dashboard-base-300/50 text-center text-xs">
-                                        <div className="px-2 py-1.5">
-                                            <div className="text-dashboard-neutral">Rate/{c.pricing_type === "PER_KM" ? "km" : "day"}</div>
-                                            <div className="mt-0.5 font-semibold tabular-nums text-dashboard-base-content">{c.price_used != null ? inr(c.price_used) : "—"}</div>
-                                        </div>
-                                        <div className="px-2 py-1.5">
-                                            <div className="text-dashboard-neutral">{c.pricing_type === "PER_KM" ? "km" : "days"}</div>
-                                            <div className="mt-0.5 font-semibold text-dashboard-base-content">{c.pricing_type === "PER_KM" ? (c.km ?? "—") : (c.days ?? "—")}</div>
-                                        </div>
-                                        <div className="px-2 py-1.5">
-                                            <div className="text-dashboard-neutral">Total</div>
-                                            <div className="mt-0.5 font-bold tabular-nums text-dashboard-base-content">{c.total != null ? inr(c.total) : "—"}</div>
-                                        </div>
+                                    <div className="grid grid-cols-3 divide-x divide-dashboard-base-300/60 border-t border-dashboard-base-300/60 bg-dashboard-base-200/30 text-center text-xs">
+                                        {[
+                                            { label: `Rate / ${c.pricing_type === "PER_KM" ? "km" : "day"}`, value: c.price_used != null ? inr(c.price_used) : "—" },
+                                            { label: c.pricing_type === "PER_KM" ? "km" : "days", value: c.pricing_type === "PER_KM" ? (c.km ?? "—") : (c.days ?? "—") },
+                                            { label: "Total", value: c.total != null ? inr(c.total) : "—" },
+                                        ].map(({ label, value }) => (
+                                            <div key={label} className="px-2 py-2">
+                                                <div className="text-dashboard-neutral">{label}</div>
+                                                <div className="mt-0.5 font-semibold tabular-nums text-dashboard-base-content">{value}</div>
+                                            </div>
+                                        ))}
                                     </div>
                                 )}
                             </div>
@@ -348,12 +373,17 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                             <Field
                                 label="Package"
-                                value={booking.packageUrl && booking.package?.title ? (
-                                    <Link href={booking.packageUrl} target="_blank" className="inline-flex items-center gap-1 text-dashboard-primary hover:underline">
-                                        {booking.package.title}
-                                        <ExternalLink className="size-3.5" />
-                                    </Link>
-                                ) : booking.package?.title}
+                                value={booking.packageUrl && booking.package?.title ? (() => {
+                                    const params = new URLSearchParams();
+                                    params.set("adults", String(booking.travellers));
+                                    params.set("date", booking.startDate.toISOString().slice(0, 10));
+                                    return (
+                                        <Link href={`${booking.packageUrl}?${params.toString()}`} target="_blank" className="inline-flex items-center gap-1 text-dashboard-primary hover:underline">
+                                            {booking.package.title}
+                                            <ExternalLink className="size-3.5" />
+                                        </Link>
+                                    );
+                                })() : booking.package?.title}
                             />
                             <Field label="Destination" value={booking.destination?.name} />
                             <Field label="Trip type" value={titleCase(booking.tripType)} />

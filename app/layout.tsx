@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Inter, Poppins} from "next/font/google";
+import { Inter } from "next/font/google";
+import { Poppins } from "next/font/google";
 import { cn } from "@/app/lib/utils";
 import { GlobalProvider } from "./context/Global";
 import { SITE_CONFIG } from "./lib/seo/site-config";
@@ -14,8 +15,8 @@ const inter = Inter({
 });
 
 const poppins = Poppins({
-  subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
+  subsets: ["latin"],
   variable: "--font-poppins",
   display: "swap",
 });
@@ -72,7 +73,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html  lang="en" className={cn(inter.variable, poppins.variable, "font-mono")}>
+    <html lang="en" className={cn(inter.variable, poppins.variable, "font-sans")}>
       <head>
         {/* Organization + Website schema on every page */}
         <SchemaScript data={[organizationSchema(), websiteSchema()]} />
