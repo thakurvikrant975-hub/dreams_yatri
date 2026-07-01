@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { CheckCircle, ArrowRight } from "@phosphor-icons/react";
 import { cn } from "@/app/lib/utils";
 import Button from "@/app/components/ui/Button";
+import { Card } from "@/app/components/ui/Card";
 import { createDraftProperty } from "./actions";
 import type { PropertyCategory, PropertySubType } from "@/app/generated/prisma";
 
@@ -219,16 +220,18 @@ function CategoryCard({
       type="button"
       onClick={onClick}
       className={cn(
-        "relative flex-1 text-left rounded-xl border-2 px-5 py-4 transition-all",
+        "relative flex-1 text-left rounded-xl ring-[0.1em] ring-inset px-5 py-4 transition-all",
         selected
-          ? "border-primary-500 bg-primary-50/60 shadow-sm"
-          : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50"
+          ? "ring-primary-200/70 bg-primary-50/60 shadow-lg shadow-primary-100/75"
+          : "ring-neutral-200/85 bg-white hover:border-neutral-300 hover:bg-neutral-50 shadow-lg shadow-neutral-200/80 "
       )}
     >
-      <p className={cn("text-sm font-semibold mb-1", selected ? "text-primary-700" : "text-neutral-800")}>
+      <p className={cn("text-sm font-semibold mb-1", selected ? "text-primary-600" : "text-neutral-800")}>
         {config.label}
       </p>
-      <p className="text-[11px] text-neutral-500 leading-snug">{config.desc}</p>
+      <p className={cn("text-[11px]  leading-snug", selected ? "text-primary-500" : "text-neutral-600/90")}>
+        {config.desc}
+      </p>
       <div className={cn(
         "absolute top-3 right-3 size-5 rounded-full border-2 flex items-center justify-center transition-colors",
         selected ? "border-primary-500" : "border-neutral-300"
@@ -258,37 +261,48 @@ function SubTypeCard({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "relative text-left rounded-xl border-2 overflow-hidden transition-all cursor-pointer select-none bg-white",
-        selected
-          ? "border-primary-500 shadow-md"
-          : "border-neutral-200 hover:border-neutral-300 hover:shadow-sm",
-        disabled && "opacity-50 cursor-not-allowed"
+        "group block w-full text-left rounded-xl transition-all cursor-pointer select-none focus:outline-none ",
+        disabled && "opacity-50 cursor-not-allowed",
+         selected
+            ? "ring-2 ring-offset-[0.24em] ring-primary-500 shadow-md"
+            : ""
       )}
     >
-      {/* Radio indicator */}
-      <div className={cn(
-        "absolute top-2.5 right-2.5 z-10 size-5 rounded-full border-2 bg-white flex items-center justify-center transition-colors",
-        selected ? "border-primary-500" : "border-neutral-300"
-      )}>
-        {selected && <div className="size-2.5 rounded-full bg-primary-500" />}
-      </div>
+      <Card
+        variant="elevated"
+        radius="md"
+        className={cn(
+          "overflow-hidden p-px transition-all",
+         
+        )}
+      >
+        {/* Radio indicator */}
+        <div className={cn(
+          "absolute top-2.5 right-2.5 z-10 size-5 rounded-full border-2 bg-white flex items-center justify-center transition-colors",
+          selected ? "border-primary-500" : "border-neutral-300"
+        )}>
+          {selected && <div className="size-2.5 rounded-full bg-primary-500" />}
+        </div>
 
-      {/* Image */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={config.image}
-        alt={config.label}
-        className="w-full h-36 object-cover"
-        loading="lazy"
-      />
+        {/* Image */}
+        <div className="relative h-36 bg-neutral-100 overflow-hidden rounded-t-[inherit]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={config.image}
+            alt={config.label}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            loading="lazy"
+          />
+        </div>
 
-      {/* Content */}
-      <div className="p-3">
-        <p className={cn("text-sm font-semibold mb-1 leading-snug", selected ? "text-primary-700" : "text-neutral-800")}>
-          {config.label}
-        </p>
-        <p className="text-[11px] text-neutral-500 leading-snug line-clamp-3">{config.desc}</p>
-      </div>
+        {/* Content */}
+        <div className="p-4">
+          <p className={cn("text-sm font-semibold mb-1 leading-snug", selected ? "text-primary-500" : "text-neutral-800")}>
+            {config.label}
+          </p>
+          <p className="text-[11px] text-neutral-500 leading-snug line-clamp-3">{config.desc}</p>
+        </div>
+      </Card>
     </button>
   );
 }

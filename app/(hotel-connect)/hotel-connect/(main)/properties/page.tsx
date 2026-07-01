@@ -38,12 +38,12 @@ const STATUS_CONFIG: Record<
   HotelListingStatus,
   { label: string; icon: React.ElementType; badgeBg: string; badgeText: string }
 > = {
-  DRAFT:        { label: "Draft",        icon: NotePencilIcon,    badgeBg: "bg-neutral-100", badgeText: "text-neutral-500" },
-  SUBMITTED:    { label: "Submitted",    icon: ClockIcon,         badgeBg: "bg-blue-50",     badgeText: "text-blue-700"    },
-  UNDER_REVIEW: { label: "Under Review", icon: ClockIcon,         badgeBg: "bg-amber-50",    badgeText: "text-amber-700"   },
-  APPROVED:     { label: "Approved",     icon: CheckCircleIcon,   badgeBg: "bg-emerald-50",  badgeText: "text-emerald-700" },
-  LIVE:         { label: "Live",         icon: CheckCircleIcon,   badgeBg: "bg-emerald-100", badgeText: "text-emerald-800" },
-  REJECTED:     { label: "Rejected",     icon: ProhibitIcon,      badgeBg: "bg-red-50",      badgeText: "text-red-600"     },
+  DRAFT:        { label: "Draft",        icon: NotePencilIcon,    badgeBg: "bg-white/75 ring-1 ring-inset ring-neutral-200/80 shadow-sm shadow-neutral-200/80", badgeText: "text-neutral-500/85" },
+  SUBMITTED:    { label: "Submitted",    icon: ClockIcon,         badgeBg: "bg-blue-50/75",     badgeText: "text-blue-600/90"    },
+  UNDER_REVIEW: { label: "Under Review", icon: ClockIcon,         badgeBg: "bg-amber-50/75",    badgeText: "text-amber-600/90"   },
+  APPROVED:     { label: "Approved",     icon: CheckCircleIcon,   badgeBg: "bg-emerald-50/75",  badgeText: "text-emerald-600" },
+  LIVE:         { label: "Live",         icon: CheckCircleIcon,   badgeBg: "bg-emerald-100/75", badgeText: "text-emerald-600" },
+  REJECTED:     { label: "Rejected",     icon: ProhibitIcon,      badgeBg: "bg-error-50/75",      badgeText: "text-error-600"     },
 };
 
 function subTypeLabel(st: PropertySubType | null) {
@@ -129,7 +129,7 @@ export default async function PropertiesPage({
             </div>
             <Link
               href="/hotel-connect/properties/new"
-              className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-white bg-linear-to-r from-primary-500 to-primary-600 hover:bg-primary-400 transition-colors"
+              className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-white bg-linear-to-r from-primary-500 to-primary-600 hover:from-primary-400 hover:to-primary-500 transition-colors"
             >
               <PlusCircleIcon size={20} weight="fill" />
               Add Property
@@ -169,9 +169,9 @@ export default async function PropertiesPage({
                 const cfg = STATUS_CONFIG[hotel.listing_status];
                 const StatusIcon = cfg.icon;
                 return (
-                  <Card key={hotel.id} variant="elevated" radius="md" className="overflow-hidden group">
+                  <Card key={hotel.id} variant="elevated" radius="md" className="overflow-hidden group p-px">
                     {/* Thumbnail */}
-                    <div className="relative h-36 bg-neutral-100 overflow-hidden">
+                    <div className="relative h-36 bg-neutral-100 overflow-hidden rounded-t-[inherit]">
                       {hotel.coverImage ? (
                         <Image
                           src={hotel.coverImage}
@@ -182,7 +182,7 @@ export default async function PropertiesPage({
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
-                          <BuildingsIcon size={36} weight="duotone" className="text-neutral-300" />
+                          <BuildingsIcon size={42} weight="duotone" className="text-neutral-400/50" />
                         </div>
                       )}
                       {/* Status badge */}
@@ -192,7 +192,7 @@ export default async function PropertiesPage({
                           cfg.badgeBg, cfg.badgeText,
                         )}
                       >
-                        <StatusIcon size={9} weight="fill" />
+                        <StatusIcon size={12} weight="fill" className="opacity-85" />
                         {cfg.label}
                       </span>
                     </div>
@@ -216,12 +216,12 @@ export default async function PropertiesPage({
                       <div className="flex items-center gap-3 text-xs text-neutral-400 mb-4">
                         {(hotel.city || hotel.state) && (
                           <span className="flex items-center gap-1">
-                            <MapPinIcon size={11} weight="fill" className="text-neutral-300" />
+                            <MapPinIcon size={14} weight="fill" className="text-neutral-300" />
                             {[hotel.city, hotel.state].filter(Boolean).join(", ")}
                           </span>
                         )}
                         <span className="flex items-center gap-1">
-                          <DoorIcon size={11} weight="fill" className="text-neutral-300" />
+                          <DoorIcon size={14} weight="bold" className="text-neutral-300" />
                           {hotel.roomCount} room{hotel.roomCount !== 1 ? "s" : ""}
                         </span>
                       </div>
@@ -230,17 +230,17 @@ export default async function PropertiesPage({
                       <div className="flex items-center gap-2">
                         <Link
                           href={`/hotel-connect/properties/${hotel.id}/edit`}
-                          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold bg-primary-50 text-primary-700 hover:bg-primary-100 transition-colors"
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold bg-primary-50 text-primary-500 hover:bg-white transition-colors ring-1 ring-inset ring-primary-200"
                         >
-                          <PencilSimpleIcon size={13} weight="bold" />
+                          <PencilSimpleIcon size={14} weight="fill" />
                           Edit Listing
                         </Link>
                         <Link
                           href={`/hotel-connect/bookings`}
-                          className="flex items-center gap-1 py-2 px-3 rounded-lg text-xs font-semibold border border-neutral-200 text-neutral-600 hover:bg-neutral-50 transition-colors"
+                          className="flex items-center gap-1 py-2 px-3 rounded-lg text-xs font-semibold border border-neutral-200 text-neutral-600/90 hover:bg-neutral-50 transition-colors"
                         >
                           Bookings
-                          <ArrowRightIcon size={11} weight="bold" />
+                          <ArrowRightIcon size={11} weight="bold" className="text-neutral-400" />
                         </Link>
                       </div>
                     </div>
