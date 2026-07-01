@@ -21,7 +21,7 @@ import { Hotel, Search, Loader2, MessageCircle } from "lucide-react";
 type Destination = {
   id: number;
   name: string;
-  region: { name: string };
+  region: { name: string };  
 };
 
 export function HotelCreateForm({ destinations }: { destinations: Destination[] }) {
