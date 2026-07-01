@@ -100,8 +100,15 @@ export type PaginatedMembers = {
 // ── Employee ID generator ─────────────────────────────────────────────────────
 
 async function generateEmployeeId(): Promise<string> {
-  const count = await db.teamMember.count();
-  const num   = 100001 + count;
+  // Use the highest existing ID rather than count() so deletions don't cause
+  // collisions (count drops after a delete, making the next ID reuse a taken one).
+  const last = await db.teamMember.findFirst({
+    orderBy: { employeeId: "desc" },
+    select: { employeeId: true },
+  });
+  const num = last?.employeeId
+    ? (parseInt(last.employeeId.replace(/^DY/, ""), 10) || 100001) + 1
+    : 100002;
   return `DY${num}`;
 }
 
@@ -320,7 +327,12 @@ export async function createTeamMember(
     if (err && typeof err === "object" && "code" in err) {
       const e = err as { code: string; message: string; meta?: { target?: string[] } };
       switch (e.code) {
-        case "P2002": return { success: false, error: `Duplicate field: ${e.meta?.target?.join(", ")}` };
+        case "P2002": {
+          const fields = Array.isArray(e.meta?.target) ? e.meta.target.join(", ") : String(e.meta?.target ?? "");
+          if (fields.includes("email")) return { success: false, error: "Email is already registered" };
+          if (fields.includes("employeeId")) return { success: false, error: "Employee ID conflict — please try again" };
+          return { success: false, error: `Duplicate value on field: ${fields || "unknown"}` };
+        }
         case "P2003": return { success: false, error: "Invalid foreign key — check departmentId or roleId" };
         default:      return { success: false, error: `DB error [${e.code}]: ${e.message}` };
       }
