@@ -14,6 +14,7 @@ function mapRow(r: {
   id: number;
   name: string;
   category: string;
+  custom_category: string | null;
   location_id: bigint | null;
   location: { name: string } | null;
   issuing_authority: string | null;
@@ -32,6 +33,7 @@ function mapRow(r: {
     id:                r.id,
     name:              r.name,
     category:          r.category as PermitCategory,
+    custom_category:   r.custom_category,
     location_id:       r.location_id?.toString() ?? null,
     location_name:     r.location?.name ?? null,
     issuing_authority: r.issuing_authority,
@@ -60,7 +62,12 @@ export async function getPermits(opts: {
   search:   string;
   category: string;
   status:   string;
-}): Promise<{ rows: PermitRow[]; total: number }> {
+}): Promise<{
+  rows:       PermitRow[];
+  total:      number;
+  totalPages: number;
+  stats: { total: number; active: number; inactive: number; withLocation: number };
+}> {
   const { page, limit, search, category, status } = opts;
 
   const where = {
@@ -78,7 +85,7 @@ export async function getPermits(opts: {
         status === "inactive" ? { is_active: false } : {}),
   };
 
-  const [rows, total] = await Promise.all([
+  const [rows, total, statsTotal, statsActive, statsWithLoc] = await Promise.all([
     db.permits.findMany({
       where,
       include: INCLUDE,
@@ -87,9 +94,22 @@ export async function getPermits(opts: {
       take: limit,
     }),
     db.permits.count({ where }),
+    db.permits.count(),
+    db.permits.count({ where: { is_active: true } }),
+    db.permits.count({ where: { location_id: { not: null } } }),
   ]);
 
-  return { rows: rows.map(mapRow), total };
+  return {
+    rows:       rows.map(mapRow),
+    total,
+    totalPages: Math.max(1, Math.ceil(total / limit)),
+    stats: {
+      total:        statsTotal,
+      active:       statsActive,
+      inactive:     statsTotal - statsActive,
+      withLocation: statsWithLoc,
+    },
+  };
 }
 
 // ── Create ─────────────────────────────────────────────────────────────────
@@ -106,6 +126,7 @@ export async function createPermit(input: PermitInput) {
       data: {
         name,
         category:          input.category,
+        custom_category:   input.category === "OTHER" ? (input.custom_category?.trim() || null) : null,
         location_id:       input.location_id ? BigInt(input.location_id) : null,
         issuing_authority: input.issuing_authority?.trim() || null,
         price_per_vehicle: input.price_per_vehicle,
@@ -151,6 +172,7 @@ export async function updatePermit(id: number, input: PermitInput) {
       data: {
         name,
         category:          input.category,
+        custom_category:   input.category === "OTHER" ? (input.custom_category?.trim() || null) : null,
         location_id:       input.location_id ? BigInt(input.location_id) : null,
         issuing_authority: input.issuing_authority?.trim() || null,
         price_per_vehicle: input.price_per_vehicle,

@@ -2586,6 +2586,7 @@ model permits {
   price_per_person    Decimal?           @db.Decimal(10, 2)
   validity_type       PermitValidityType @default(SINGLE_TRIP)
   validity_days       Int?
+  custom_category     String?
   notes               String?
   is_active           Boolean            @default(true)
   created_by          String?

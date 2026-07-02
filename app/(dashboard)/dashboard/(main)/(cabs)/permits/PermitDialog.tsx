@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { Plus, Pencil, FileKey, MapPin, Building2, IndianRupee, CalendarClock, FileText } from "lucide-react";
+import { Plus, Pencil, FileKey, MapPin, Building2, IndianRupee, CalendarClock, FileText, Tag } from "lucide-react";
 import { Button }   from "../../components/ui/button";
 import { Input }    from "../../components/ui/input";
 import { Label }    from "../../components/ui/label";
@@ -22,6 +22,7 @@ import { createPermit, updatePermit } from "./actions";
 import {
   PERMIT_CATEGORIES, PERMIT_VALIDITY_TYPES,
   CATEGORY_LABELS, VALIDITY_LABELS,
+  CUSTOM_CATEGORY_VALUE,
   type PermitRow, type PermitInput, type PermitCategory, type PermitValidityType,
 } from "./permit.types";
 
@@ -31,23 +32,27 @@ function SectionHeader({ icon, title, description }: {
   icon: React.ReactNode; title: string; description: string;
 }) {
   return (
-    <div className="flex items-start gap-3 pb-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-dashboard-primary/10 text-dashboard-primary">
+    <div className="flex items-center gap-2.5 mb-3">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
         {icon}
       </div>
       <div>
-        <p className="text-sm font-semibold">{title}</p>
-        <p className="text-xs text-muted-foreground">{description}</p>
+        <p className="text-sm font-semibold leading-none">{title}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
       </div>
     </div>
   );
 }
 
-// ── Form ───────────────────────────────────────────────────────────────────
+// ── Form state ─────────────────────────────────────────────────────────────
+
+// categorySelection is either a real PermitCategory or the sentinel "__CUSTOM__"
+type CategorySelection = PermitCategory | typeof CUSTOM_CATEGORY_VALUE;
 
 type FormState = {
   name:               string;
-  category:           PermitCategory;
+  categorySelection:  CategorySelection;
+  customCategoryText: string;
   location:           LocationValue | null;
   issuing_authority:  string;
   price_per_vehicle:  string;
@@ -59,31 +64,34 @@ type FormState = {
 
 function blank(): FormState {
   return {
-    name:              "",
-    category:          "OTHER",
-    location:          null,
-    issuing_authority: "",
-    price_per_vehicle: "0",
-    price_per_person:  "",
-    validity_type:     "SINGLE_TRIP",
-    validity_days:     "",
-    notes:             "",
+    name:               "",
+    categorySelection:  "ENTRY_FEE",
+    customCategoryText: "",
+    location:           null,
+    issuing_authority:  "",
+    price_per_vehicle:  "0",
+    price_per_person:   "",
+    validity_type:      "SINGLE_TRIP",
+    validity_days:      "",
+    notes:              "",
   };
 }
 
 function fromPermit(p: PermitRow): FormState {
+  const isCustom = p.category === "OTHER" && !!p.custom_category;
   return {
-    name:              p.name,
-    category:          p.category,
-    location:          p.location_id && p.location_name
+    name:               p.name,
+    categorySelection:  isCustom ? CUSTOM_CATEGORY_VALUE : p.category,
+    customCategoryText: p.custom_category ?? "",
+    location:           p.location_id && p.location_name
       ? { id: p.location_id, name: p.location_name, slug: "", type: "CITY" as const, breadcrumb: p.location_name }
       : null,
-    issuing_authority: p.issuing_authority ?? "",
-    price_per_vehicle: String(p.price_per_vehicle),
-    price_per_person:  p.price_per_person != null ? String(p.price_per_person) : "",
-    validity_type:     p.validity_type,
-    validity_days:     p.validity_days != null ? String(p.validity_days) : "",
-    notes:             p.notes ?? "",
+    issuing_authority:  p.issuing_authority ?? "",
+    price_per_vehicle:  String(p.price_per_vehicle),
+    price_per_person:   p.price_per_person != null ? String(p.price_per_person) : "",
+    validity_type:      p.validity_type,
+    validity_days:      p.validity_days != null ? String(p.validity_days) : "",
+    notes:              p.notes ?? "",
   };
 }
 
@@ -98,7 +106,7 @@ export function PermitDialog({
   permit?:       PermitRow;
   open:          boolean;
   onOpenChange:  (open: boolean) => void;
-  onSaved:       (saved: PermitRow) => void;
+  onSaved?:      (saved: PermitRow) => void;
 }) {
   const isEdit = !!permit;
   const [form, setForm]     = useState<FormState>(permit ? fromPermit(permit) : blank());
@@ -117,9 +125,23 @@ export function PermitDialog({
     setError(null);
   }
 
+  const isCustomCategory = form.categorySelection === CUSTOM_CATEGORY_VALUE;
+
   function buildInput(): PermitInput | null {
     const name = form.name.trim();
     if (!name) { setError("Permit name is required"); return null; }
+
+    // Resolve category
+    let resolvedCategory: PermitCategory;
+    let customCategory: string | null = null;
+    if (isCustomCategory) {
+      const text = form.customCategoryText.trim();
+      if (!text) { setError("Enter a custom category name"); return null; }
+      resolvedCategory = "OTHER";
+      customCategory   = text;
+    } else {
+      resolvedCategory = form.categorySelection as PermitCategory;
+    }
 
     const pvRaw = parseFloat(form.price_per_vehicle);
     if (isNaN(pvRaw) || pvRaw < 0) { setError("Enter a valid vehicle price"); return null; }
@@ -138,7 +160,8 @@ export function PermitDialog({
 
     return {
       name,
-      category:           form.category,
+      category:           resolvedCategory,
+      custom_category:    customCategory,
       location_id:        form.location?.id ?? null,
       issuing_authority:  form.issuing_authority.trim() || null,
       price_per_vehicle:  pvRaw,
@@ -160,7 +183,7 @@ export function PermitDialog({
 
       if (res.success) {
         toast.success(isEdit ? "Permit updated" : "Permit created");
-        onSaved(res.data);
+        onSaved?.(res.data);
         onOpenChange(false);
       } else {
         setError(res.message);
@@ -170,15 +193,21 @@ export function PermitDialog({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-xl overflow-y-auto flex flex-col">
-        <SheetHeader className="shrink-0">
-          <SheetTitle className="flex items-center gap-2 text-base">
-            {isEdit ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+      <SheetContent side="right" className="w-full sm:max-w-xl flex flex-col gap-0 p-0">
+
+        {/* Header */}
+        <SheetHeader className="px-5 pt-5 pb-4 border-b shrink-0">
+          <SheetTitle className="flex items-center gap-2 text-base font-semibold">
+            {isEdit ? <Pencil className="h-4 w-4 text-primary" /> : <Plus className="h-4 w-4 text-primary" />}
             {isEdit ? "Edit Permit" : "Add Permit"}
           </SheetTitle>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {isEdit ? "Update the permit details below" : "Fill in the details to create a new permit"}
+          </p>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto space-y-6 py-4 pr-1">
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
 
           {/* ── Basic Info ── */}
           <div>
@@ -199,7 +228,10 @@ export function PermitDialog({
 
               <div className="space-y-1.5">
                 <Label>Category <span className="text-destructive">*</span></Label>
-                <Select value={form.category} onValueChange={(v) => set("category", v as PermitCategory)}>
+                <Select
+                  value={form.categorySelection}
+                  onValueChange={(v) => set("categorySelection", v as CategorySelection)}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
@@ -207,9 +239,30 @@ export function PermitDialog({
                     {PERMIT_CATEGORIES.map((c) => (
                       <SelectItem key={c} value={c}>{CATEGORY_LABELS[c]}</SelectItem>
                     ))}
+                    <SelectItem value={CUSTOM_CATEGORY_VALUE}>
+                      <span className="flex items-center gap-1.5">
+                        <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+                        Custom…
+                      </span>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+
+              {isCustomCategory && (
+                <div className="space-y-1.5">
+                  <Label className="flex items-center gap-1.5">
+                    <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+                    Custom Category Name <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    value={form.customCategoryText}
+                    onChange={(e) => set("customCategoryText", e.target.value)}
+                    placeholder="e.g. Heritage Site, Eco Zone"
+                    autoFocus
+                  />
+                </div>
+              )}
             </div>
           </div>
 
@@ -360,7 +413,8 @@ export function PermitDialog({
           )}
         </div>
 
-        <div className="shrink-0 border-t pt-4 flex justify-end gap-2">
+        {/* Footer */}
+        <div className="shrink-0 border-t px-5 py-4 flex justify-end gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
             Cancel
           </Button>
@@ -368,6 +422,7 @@ export function PermitDialog({
             {isPending ? (isEdit ? "Saving…" : "Creating…") : (isEdit ? "Save Changes" : "Create Permit")}
           </Button>
         </div>
+
       </SheetContent>
     </Sheet>
   );

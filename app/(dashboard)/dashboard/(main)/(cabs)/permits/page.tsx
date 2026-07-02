@@ -1,16 +1,26 @@
 import type { Metadata } from "next";
-import { getPermits } from "./actions";
-import { PermitsClient } from "./PermitsClient";
+import PermitsPage from "./PermitsClient";
+import { PERMIT_CATEGORIES } from "./permit.types";
 
 export const metadata: Metadata = {
   title: "Permits - Dashboard",
-  robots: { index: false, follow: false },
+  description: "",
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    googleBot: { index: false, follow: false },
+  },
 };
 
-const VALID_LIMITS   = [10, 20, 50] as const;
-const VALID_STATUSES = ["active", "inactive", "all"] as const;
+const VALID_LIMITS    = [10, 20, 50] as const;
+const VALID_STATUSES  = ["active", "inactive", "all"] as const;
+const VALID_CATEGORIES = [...PERMIT_CATEGORIES, "all"] as const;
 
-export default async function PermitsPage({
+type Status   = (typeof VALID_STATUSES)[number];
+type Category = (typeof VALID_CATEGORIES)[number];
+
+export default async function Page({
   searchParams,
 }: {
   searchParams: Promise<{
@@ -26,31 +36,20 @@ export default async function PermitsPage({
     ? (limitRaw as 10 | 20 | 50)
     : 10;
   const search   = p.search ?? "";
-  const category = p.category ?? "all";
+  const category = (VALID_CATEGORIES as readonly string[]).includes(p.category ?? "")
+    ? (p.category as Category)
+    : "all";
   const status   = (VALID_STATUSES as readonly string[]).includes(p.status ?? "")
-    ? (p.status ?? "all")
+    ? (p.status as Status)
     : "all";
 
-  const { rows, total } = await getPermits({ page, limit, search, category, status });
-
   return (
-    <div className="space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Permits</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Manage entry permits, mountain passes, wildlife fees, and other travel permits
-        </p>
-      </div>
-
-      <PermitsClient
-        initialRows={rows}
-        initialTotal={total}
-        page={page}
-        limit={limit}
-        search={search}
-        category={category}
-        status={status}
-      />
-    </div>
+    <PermitsPage
+      page={page}
+      limit={limit}
+      search={search}
+      category={category}
+      status={status}
+    />
   );
 }

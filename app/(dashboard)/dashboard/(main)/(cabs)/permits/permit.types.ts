@@ -12,6 +12,9 @@ export const PERMIT_CATEGORIES = [
 ] as const;
 export type PermitCategory = (typeof PERMIT_CATEGORIES)[number];
 
+// Sentinel used only in the form UI — maps to category=OTHER + custom_category=<text>
+export const CUSTOM_CATEGORY_VALUE = "__CUSTOM__";
+
 export const PERMIT_VALIDITY_TYPES = ["SINGLE_TRIP", "PER_DAY", "MULTI_DAY"] as const;
 export type PermitValidityType = (typeof PERMIT_VALIDITY_TYPES)[number];
 
@@ -35,6 +38,7 @@ export type PermitRow = {
   id:                 number;
   name:               string;
   category:           PermitCategory;
+  custom_category:    string | null;
   location_id:        string | null;
   location_name:      string | null;
   issuing_authority:  string | null;
@@ -53,6 +57,7 @@ export type PermitRow = {
 export type PermitInput = {
   name:               string;
   category:           PermitCategory;
+  custom_category?:   string | null;
   location_id?:       string | null;
   issuing_authority?: string | null;
   price_per_vehicle:  number;
@@ -61,3 +66,9 @@ export type PermitInput = {
   validity_days?:     number | null;
   notes?:             string | null;
 };
+
+// Returns the label to display in the table for a permit's category
+export function displayCategory(row: Pick<PermitRow, "category" | "custom_category">): string {
+  if (row.category === "OTHER" && row.custom_category) return row.custom_category;
+  return CATEGORY_LABELS[row.category];
+}
