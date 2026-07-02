@@ -63,11 +63,37 @@ rows create/merge (`avail=1/1`), price resolves to base ₹3698 for out-of-seaso
 > `prisma generate`). Restart `next dev` to pick up the `hotel_room_availability` model — until
 > then routes/pages that touch it will 500 with `... reading 'findMany'`.
 
-## Remaining (Phase 2 continuation)
+## Reservation engine — `app/lib/hotel-inventory/reservations.ts` ✅
 
-- **Reservation record + source attribution** — a booking row carrying `source/channel`,
-  external ref, commission, net/gross, and a **hold key** so release is exactly-once
-  (idempotent) on webhook retries.
-- **Booking-flow wiring** — a real direct-booking path (connects to the hotel detail page)
-  that calls `holdInventory` on confirm and `releaseInventory` on cancel; and hooking the
-  package/ops flow to decrement too.
+Model `hotel_reservation` (migration `20260702010000_add_hotel_reservation`): stay + `units` +
+`source` (channel) + `external_ref` + money (`gross`/`net`/`commission`) + `hold_key` (unique
+idempotency) + `released_at` (exactly-once guard) + `status` (`HELD`/`CONFIRMED`/`CANCELLED`).
+
+| Function | Guarantee |
+|---|---|
+| `createReservation(input)` | holds inventory **and** writes the row in one transaction; idempotent on `holdKey` (repeat → existing, no double-hold); `P2002` race → dedupe |
+| `confirmReservation(id)` | HELD → CONFIRMED (idempotent) |
+| `cancelReservation(id)` | releases inventory + marks CANCELLED **exactly once** (`released_at` guard) |
+
+Atomicity: a failed hold (sell-out) rolls back the whole transaction → **no orphan reservation**;
+a failed insert rolls back the hold.
+
+**Verified** on the dev DB (room 59, `total=1`, 2 nights):
+
+```
+A create K1:       booked=[1,1]  reservation ✓                         PASS
+B re-create K1:    deduped, booked=[1,1]  (no double-hold)             PASS
+C create K2:       HOLD_CONFLICT, booked=[1,1], no orphan reservation  PASS
+D cancel K1:       booked=[0,0]  (released)                            PASS
+E cancel K1 again: alreadyReleased, booked=[0,0]  (exactly-once)       PASS
+```
+
+Engine refactor: `holdNightsTx` / `releaseNightsTx` extracted from `availability.ts` so the
+hold and the reservation row share one transaction.
+
+## Phase 2 status: ✅ CORE COMPLETE
+
+Engine + resolver + reservation record all shipped & verified. The only remaining item is a
+**consumer**: wiring a real direct-booking UX (hotel detail page → `createReservation`) and
+hooking the package/ops flow to decrement — a product-flow task for when the hotel detail page
+gets real data (it currently uses dummy data), and a natural companion to Phase 3.

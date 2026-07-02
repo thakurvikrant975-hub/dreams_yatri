@@ -184,23 +184,9 @@ export async function holdInventory(
   if (!room) return { ok: false, reason: "Room not found" };
 
   try {
-    await db.$transaction(async (tx) => {
-      await ensureAvailabilityTx(tx, roomId, room.hotel_id, room.num_rooms, nights);
-      for (const night of nights) {
-        const affected = await tx.$executeRaw`
-          UPDATE "hotel_room_availability"
-          SET "booked_units" = "booked_units" + ${units}, "updated_at" = now()
-          WHERE "room_id" = ${roomId}
-            AND "date" = ${night}::date
-            AND "stop_sell" = false
-            AND "booked_units" + ${units} <= "total_units"
-        `;
-        if (affected !== 1) {
-          // Rolls back every night held so far in this transaction.
-          throw new HoldConflict(night);
-        }
-      }
-    });
+    await db.$transaction((tx) =>
+      holdNightsTx(tx, roomId, room.hotel_id, room.num_rooms, nights, units),
+    );
     return { ok: true };
   } catch (err) {
     if (err instanceof HoldConflict) {
@@ -210,16 +196,61 @@ export async function holdInventory(
   }
 }
 
-class HoldConflict extends Error {
+export class HoldConflict extends Error {
   constructor(public night: string) {
     super(`Hold conflict on ${night}`);
   }
 }
 
+type TxClient = Pick<Prisma.TransactionClient, "$executeRaw">;
+
+/**
+ * Transaction-aware hold: ensures rows then guard-updates each night. Throws
+ * {@link HoldConflict} if any night can't be held (caller's tx rolls back).
+ * Use this to hold inventory *and* write a reservation row in one transaction.
+ */
+export async function holdNightsTx(
+  tx: TxClient,
+  roomId: number,
+  hotelId: number,
+  numRooms: number,
+  nights: string[],
+  units: number,
+): Promise<void> {
+  await ensureAvailabilityTx(tx, roomId, hotelId, numRooms, nights);
+  for (const night of nights) {
+    const affected = await tx.$executeRaw`
+      UPDATE "hotel_room_availability"
+      SET "booked_units" = "booked_units" + ${units}, "updated_at" = now()
+      WHERE "room_id" = ${roomId}
+        AND "date" = ${night}::date
+        AND "stop_sell" = false
+        AND "booked_units" + ${units} <= "total_units"
+    `;
+    if (affected !== 1) throw new HoldConflict(night);
+  }
+}
+
+/** Transaction-aware release: never drops below zero. */
+export async function releaseNightsTx(
+  tx: TxClient,
+  roomId: number,
+  nights: string[],
+  units: number,
+): Promise<void> {
+  for (const night of nights) {
+    await tx.$executeRaw`
+      UPDATE "hotel_room_availability"
+      SET "booked_units" = GREATEST(0, "booked_units" - ${units}), "updated_at" = now()
+      WHERE "room_id" = ${roomId} AND "date" = ${night}::date
+    `;
+  }
+}
+
 /**
  * Release `units` back for every night of the stay (on cancellation / no-show).
- * Never drops below zero. Idempotent-safe within reason (see reservation model,
- * follow-up, for exactly-once release keyed by reservation id).
+ * Never drops below zero. For exactly-once release keyed by a reservation, use
+ * the reservation engine (`reservations.ts`) instead of calling this directly.
  */
 export async function releaseInventory(
   roomId: number,
@@ -229,13 +260,5 @@ export async function releaseInventory(
 ): Promise<void> {
   const nights = stayNights(checkIn, checkOut);
   if (nights.length === 0 || units <= 0) return;
-  await db.$transaction(async (tx) => {
-    for (const night of nights) {
-      await tx.$executeRaw`
-        UPDATE "hotel_room_availability"
-        SET "booked_units" = GREATEST(0, "booked_units" - ${units}), "updated_at" = now()
-        WHERE "room_id" = ${roomId} AND "date" = ${night}::date
-      `;
-    }
-  });
+  await db.$transaction((tx) => releaseNightsTx(tx, roomId, nights, units));
 }

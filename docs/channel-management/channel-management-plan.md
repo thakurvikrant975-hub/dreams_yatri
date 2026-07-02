@@ -57,24 +57,24 @@ per-rate-plan cancellation (Phase 4).
 
 ---
 
-## Phase 2 — Booking ↔ Inventory engine  *(overbooking-proof core)*  🟡 CORE COMPLETE
+## Phase 2 — Booking ↔ Inventory engine  *(overbooking-proof core)*  ✅ CORE COMPLETE
 
-**Delivered:** `app/lib/hotel-inventory/availability.ts` — atomic hold/release + read/evaluate
-over the Phase 1 ledger. Holds use a guarded SQL UPDATE (`booked + n <= total AND NOT stop_sell`),
-multi-night in one transaction (all-or-nothing). **Verified under real concurrency** on the dev
-DB: 5 simultaneous holds for 2 rooms → 2 ok / 3 rejected / booked=2, release clamps at 0.
-Details: `phase2-inventory-engine.md`.
+**Delivered & verified** (details: `phase2-inventory-engine.md`):
+- `availability.ts` — atomic hold/release + read/evaluate over the Phase 1 ledger. Guarded SQL
+  UPDATE (`booked + n <= total AND NOT stop_sell`), multi-night all-or-nothing. Verified under
+  real concurrency (5 holds/2 rooms → 2 ok, 3 rejected; release clamps at 0).
+- `rates.ts` — ARI resolver `getRoomARI`/`getStayQuote`; price precedence
+  `override → season(weekend/base) → base → none`, mirroring the existing season engine.
+- `reservations.ts` + `hotel_reservation` — atomic hold+record, **source attribution**, money
+  (gross/net/commission), `hold_key` idempotency, exactly-once release via `released_at`.
+  Verified: idempotent create, oversell-with-no-orphan, exactly-once cancel.
 
-**Remaining (continuation):**
-- Reservation record + **source attribution** (channel, external ref, commission, net/gross) +
-  a **hold key** for exactly-once release on webhook retries.
-- Wire a real **direct-booking flow** (hotel detail page → `holdInventory`) and hook the
-  package/ops flow to decrement too.
-- **ARI price resolver** — combine `price_override` with the existing season engine (deferred to
-  avoid diverging from current pricing logic).
+**Remaining (a consumer, not core):** wire a real **direct-booking flow**
+(hotel detail page → `createReservation`) and hook the package/ops flow to decrement — a
+product-flow task for when the hotel detail page has real data; natural companion to Phase 3.
 
 **Note:** `BookingHotel` is a package component (ops-confirmed), so no sell-against-inventory
-flow existed — the engine was built as a reusable core for direct/package/Channex callers.
+flow existed — the engine is a reusable core for direct/package/Channex callers.
 
 **Depends on:** Phase 1.
 
