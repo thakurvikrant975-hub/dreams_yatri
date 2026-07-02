@@ -91,7 +91,7 @@ const VIEW_TYPES = [
   "Inter-coastal View",
   "Mountain View", "Hill View", "Valley View", "Forest View", "Jungle View",
   "Garden View", "Pool View", "Courtyard View", "Terrace View", "Park View",
-  "Resort View", "Golf Course View",
+  "Resort View", "Golf Course View", "Balcony View",
   "City View", "Landmark View", "Monument View", "Temple View",
   "Palace View", "Desert View", "Countryside View", "Airport View",
 ];
