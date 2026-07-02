@@ -14,8 +14,9 @@ export async function GET(req: NextRequest) {
     // Higher cap for preload requests (e.g. countries list)
     const limit = Math.min(Number(searchParams.get("limit") ?? "8"), 500);
 
-    const destinationsOnly  = searchParams.get("destinationsOnly")  === "true";
-    const excludePricedCabs = searchParams.get("excludePricedCabs") === "true";
+    const destinationsOnly         = searchParams.get("destinationsOnly")         === "true";
+    const excludePricedCabs        = searchParams.get("excludePricedCabs")        === "true";
+    const excludePricedCabsLocation = searchParams.get("excludePricedCabsLocation") === "true";
 
     // Allow type-only queries (no text) so callers can preload all items of a type
     if (q.length < 2 && !types?.length) return NextResponse.json([]);
@@ -51,6 +52,51 @@ export async function GET(req: NextRequest) {
       } catch (e) {
         console.error("[locations/search] Meili error — falling back to Postgres", e);
       }
+    }
+
+    // excludePricedCabsLocation=true → exclude locations that already have a cab_pricing record
+    // (used by the new cab-pricing city picker that goes directly to locations, not destinations)
+    if (excludePricedCabsLocation) {
+      const priced = await db.cab_pricing.findMany({
+        where:    { location_id: { not: null } },
+        select:   { location_id: true },
+        distinct: ["location_id"],
+      });
+      const pricedIds = priced.map((r) => r.location_id!).filter(Boolean);
+      const rows = await db.location.findMany({
+        where: {
+          is_active: true,
+          type: { in: ["CITY", "STATE", "COUNTRY"] as const },
+          OR: q.length >= 2
+            ? [
+                { name:          { contains: q, mode: "insensitive" } },
+                { official_name: { contains: q, mode: "insensitive" } },
+              ]
+            : undefined,
+          ...(pricedIds.length > 0 ? { id: { notIn: pricedIds } } : {}),
+        },
+        select: {
+          id: true, name: true, type: true, slug: true,
+          latitude: true, longitude: true,
+          city:    { select: { name: true } },
+          state:   { select: { name: true } },
+          country: { select: { name: true } },
+        },
+        orderBy: [{ is_featured: "desc" }, { is_popular: "desc" }, { name: "asc" }],
+        take: limit,
+      });
+      return NextResponse.json(rows.map((r) => {
+        const parts = [r.name];
+        if (r.state?.name   && r.state.name   !== r.name) parts.push(r.state.name);
+        if (r.country?.name && r.country.name !== r.name) parts.push(r.country.name);
+        return {
+          source: "local", id: r.id.toString(), name: r.name, type: r.type, slug: r.slug,
+          breadcrumb: parts.join(", "),
+          latitude:  r.latitude  != null ? Number(r.latitude)  : null,
+          longitude: r.longitude != null ? Number(r.longitude) : null,
+          city_name: r.city?.name ?? null, state_name: r.state?.name ?? null, country_name: r.country?.name ?? null,
+        };
+      }));
     }
 
     // Compute location ID filters when destination-scoping is requested.

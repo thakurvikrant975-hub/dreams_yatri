@@ -101,8 +101,10 @@ export async function uploadHotelPhotos(
   const existingCount = await db.hotel_images.count({ where: { hotel_id: hotelId } });
 
   let count = 0;
-  try {
-    for (const file of valid) {
+  const failed: string[] = [];
+
+  for (const file of valid) {
+    try {
       const buffer = Buffer.from(await file.arrayBuffer());
       const { url } = await uploadToR2({
         file: buffer,
@@ -110,6 +112,7 @@ export async function uploadHotelPhotos(
         fileName: file.name,
         contentType: file.type || "image/jpeg",
       });
+      const isPrimary = existingCount === 0 && count === 0;
       await db.hotel_images.create({
         data: {
           hotel_id: hotelId,
@@ -117,16 +120,29 @@ export async function uploadHotelPhotos(
           url,
           tags: [],
           sort_order: existingCount + count,
-          is_primary: existingCount === 0 && count === 0,
+          is_primary: isPrimary,
         },
       });
+      if (isPrimary) {
+        await db.hotels.update({ where: { id: hotelId }, data: { thumbnail: url } });
+      }
       count++;
+    } catch (err) {
+      console.error("[uploadHotelPhotos] file error:", file.name, err);
+      failed.push(file.name);
     }
-    return { count };
-  } catch (err) {
-    console.error("[uploadHotelPhotos]", err);
-    return { error: err instanceof Error ? err.message : "Upload failed." };
   }
+
+  if (count === 0) {
+    return { error: "No photos could be uploaded. Please check the files and try again." };
+  }
+  if (failed.length > 0) {
+    return {
+      count,
+      error: `${count} photo${count > 1 ? "s" : ""} uploaded. ${failed.length} failed — ${failed.join(", ")}`,
+    };
+  }
+  return { count };
 }
 
 export async function setCoverPhoto(
@@ -138,9 +154,14 @@ export async function setCoverPhoto(
   if (!(await assertOwner(hotelId, session.user.id))) return { error: "Property not found." };
 
   try {
+    const image = await db.hotel_images.findUnique({
+      where: { id: imageId },
+      select: { url: true },
+    });
     await db.$transaction([
       db.hotel_images.updateMany({ where: { hotel_id: hotelId }, data: { is_primary: false } }),
       db.hotel_images.update({ where: { id: imageId }, data: { is_primary: true } }),
+      db.hotels.update({ where: { id: hotelId }, data: { thumbnail: image?.url ?? null } }),
     ]);
     return {};
   } catch (err) {
@@ -168,6 +189,46 @@ export async function savePhotoTags(
   }
 }
 
+export async function proceedPhotos(
+  hotelId: number,
+  _prev: { error?: string },
+  _formData: FormData,
+): Promise<{ error?: string }> {
+  const session = await hotelConnectAuth();
+  if (!session) redirect("/hotel-connect/login");
+
+  const hotel = await db.hotels.findFirst({
+    where: { id: hotelId, owner_id: session.user.id },
+    select: { id: true, wizard_step: true, property_category: true },
+  });
+  if (!hotel) return { error: "Property not found." };
+
+  const totalImages = await db.hotel_images.count({ where: { hotel_id: hotelId } });
+  if (totalImages === 0) return { error: "Upload at least one photo before continuing." };
+
+  const allImages = await db.hotel_images.findMany({
+    where: { hotel_id: hotelId },
+    select: { tags: true },
+  });
+  const untaggedCount = allImages.filter((img) => {
+    const tags = img.tags as unknown[];
+    return !Array.isArray(tags) || tags.length === 0;
+  }).length;
+  if (untaggedCount > 0) {
+    return {
+      error: `${untaggedCount} photo${untaggedCount > 1 ? "s are" : " is"} missing a tag. Add at least one tag to each photo.`,
+    };
+  }
+
+  const nextStep = hotel.property_category === "HOMESTAY_VILLA" ? 6 : 6;
+  await db.hotels.update({
+    where: { id: hotelId },
+    data: { wizard_step: Math.max(hotel.wizard_step, nextStep) },
+  });
+
+  redirect(`/hotel-connect/properties/${hotelId}/edit?tab=6`);
+}
+
 export async function deleteHotelPhoto(
   hotelId: number,
   imageId: number,
@@ -179,7 +240,7 @@ export async function deleteHotelPhoto(
   try {
     const image = await db.hotel_images.findFirst({
       where: { id: imageId, hotel_id: hotelId },
-      select: { id: true, url: true },
+      select: { id: true, url: true, is_primary: true },
     });
     if (!image) return { error: "Photo not found." };
 
@@ -196,6 +257,19 @@ export async function deleteHotelPhoto(
     }
 
     await db.hotel_images.delete({ where: { id: imageId } });
+
+    if (image.is_primary) {
+      const next = await db.hotel_images.findFirst({
+        where: { hotel_id: hotelId },
+        orderBy: [{ sort_order: "asc" }],
+        select: { id: true, url: true },
+      });
+      await db.$transaction([
+        ...(next ? [db.hotel_images.update({ where: { id: next.id }, data: { is_primary: true } })] : []),
+        db.hotels.update({ where: { id: hotelId }, data: { thumbnail: next?.url ?? null } }),
+      ]);
+    }
+
     return {};
   } catch (err) {
     console.error("[deleteHotelPhoto]", err);

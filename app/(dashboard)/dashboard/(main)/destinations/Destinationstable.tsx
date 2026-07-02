@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Badge }   from "../components/ui/badge";
 import { Switch }  from "../components/ui/switch";
@@ -149,11 +149,6 @@ export function DestinationsTable({
     const searchParams = useSearchParams();
     const [isPending, startTransition] = useTransition();
 
-    const [localSearch, setLocalSearch] = useState(search);
-    const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-    useEffect(() => { setLocalSearch(search); }, [search]);
-
     // ── URL helpers ────────────────────────────────────────────────────────────
     function updateParam(key: string, value: string) {
         const params = new URLSearchParams(searchParams.toString());
@@ -167,9 +162,7 @@ export function DestinationsTable({
     }
 
     function handleSearch(value: string) {
-        setLocalSearch(value);
-        clearTimeout(searchTimer.current);
-        searchTimer.current = setTimeout(() => updateParam("search", value), 400);
+        updateParam("search", value);
     }
 
     function buildHref(p: number) {
@@ -198,6 +191,7 @@ export function DestinationsTable({
         {
             header: "Destination",
             width: "w-[220px]",
+            sortKey: (dest) => dest.name?.toLowerCase() ?? "",
             cell: (dest) => (
                 <div className="flex items-center gap-3">
                     {dest.thumbnail ? (
@@ -222,6 +216,7 @@ export function DestinationsTable({
         },
         {
             header: "Slug",
+            sortKey: (dest) => dest.slug?.toLowerCase() ?? "",
             cell: (dest) => (
                 <Badge variant="outline" className="font-mono text-xs text-dashboard-neutral/75 border border-dashboard-neutral/75">{dest.slug}</Badge>
             ),
@@ -245,6 +240,7 @@ export function DestinationsTable({
         },
         {
             header: "Region",
+            sortKey: (dest) => dest.region.name?.toLowerCase() ?? "",
             cell: (dest) => (
                 <Badge variant="secondary" className="text-xs bg-dashboard-primary/10 text-dashboard-primary">{dest.region.name}</Badge>
             ),
@@ -276,6 +272,7 @@ export function DestinationsTable({
         },
         {
             header: "Created By",
+            sortKey: (dest) => new Date(dest.created_at).getTime(),
             cell: (dest) => (
                 <div className="space-y-0.5">
                     <p className="text-xs font-medium text-foreground/80 truncate max-w-28">
@@ -330,7 +327,7 @@ export function DestinationsTable({
             {/* Filters + rows-per-page */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                 <TableFilters
-                    search={localSearch}
+                    search={search}
                     onSearchChange={handleSearch}
                     searchPlaceholder="Search destinations..."
                     className="flex-1"

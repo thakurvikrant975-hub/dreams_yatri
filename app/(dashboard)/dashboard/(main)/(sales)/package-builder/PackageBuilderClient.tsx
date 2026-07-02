@@ -205,6 +205,7 @@ export default function PackageBuilderClientPage() {
     const columns: ColumnDef<QueryRow>[] = [
         {
             header: "Client",
+            sortKey: (row) => row.name?.toLowerCase() ?? "",
             cell: (row) => (
                 <div className="flex flex-col gap-0.5">
                     <span className="font-semibold text-sm text-foreground">{row.name}</span>
@@ -216,6 +217,7 @@ export default function PackageBuilderClientPage() {
         },
         {
             header: "Destination",
+            sortKey: (row) => (row.requirements?.journey?.destinations?.join(", ") || row.destination || "").toLowerCase(),
             cell: (row) => (
                 <div className="flex items-center gap-1.5">
                     <MapPin size={13} className="text-primary shrink-0" />
@@ -228,6 +230,10 @@ export default function PackageBuilderClientPage() {
         {
             header: "Travel Date",
             align: "center",
+            sortKey: (row) => {
+                const d = row.requirements?.journey?.travelDate ?? row.travelDate;
+                return d ? new Date(d).getTime() : 0;
+            },
             cell: (row) => (
                 <span className="text-sm">
                     {formatDate(row.requirements?.journey?.travelDate ?? row.travelDate)}
@@ -273,6 +279,7 @@ export default function PackageBuilderClientPage() {
         {
             header: "Waiting Time",
             align: "center",
+            sortKey: (row) => new Date(row.updatedAt).getTime(),
             cell: (row) => {
                 const waiting = getWaitingTime(row.updatedAt);
                 return (

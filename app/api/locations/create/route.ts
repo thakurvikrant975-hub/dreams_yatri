@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/app/lib/db";
 import { LocationType } from "@/app/generated/prisma";
 import { z } from "zod";
+import { createLog } from "@/app/(dashboard)/dashboard/(main)/lib/logger";
 
 const schema = z.object({
   name:        z.string().min(1, "Name is required"),
@@ -38,8 +39,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { name, type, country, state, latitude, longitude, description, slug, is_featured } =
+    const { type, country, state, latitude, longitude, description, slug, is_featured } =
       parsed.data;
+    const name = parsed.data.name.charAt(0).toUpperCase() + parsed.data.name.slice(1);
 
     // ── Slug uniqueness ──────────────────────────────────────────────────────
     const existing = await db.location.findUnique({ where: { slug } });
@@ -103,6 +105,14 @@ export async function POST(req: NextRequest) {
     const parts = [created.name];
     if (state)   parts.push(state);
     if (country) parts.push(country);
+
+    await createLog({
+      action: "CREATE",
+      entity: "Location",
+      entityId: created.id.toString(),
+      entitySlug: created.slug,
+      newData: { name: created.name, slug: created.slug, type: created.type },
+    });
 
     return NextResponse.json({
       id:        created.id.toString(),

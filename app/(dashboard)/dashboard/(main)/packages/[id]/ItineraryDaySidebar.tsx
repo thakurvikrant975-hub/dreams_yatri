@@ -61,6 +61,8 @@ import {
   handleDeleteAttraction,
   handleReorderAttractions,
   handleGetHotelMealPricings,
+  handleGetDaySourceImages,
+  handleAddActivityPrimaryImage,
 } from "@/app/actions/packages/itinerary-builder.actions";
 import type { HotelMealOption } from "@/app/services/itinerary-builder.service";
 import MealsEditor from "./MealsEditor";
@@ -87,7 +89,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "../../components/ui/tooltip";
-import { handleGetDaySourceImages } from "@/app/actions/packages/itinerary-builder.actions";
 import { LocationSearchSelect } from "../../components/location/LocationSearchSelect";
 import type { LocationValue, LocationType } from "../../components/location/location.types";
 import {
@@ -2353,13 +2354,26 @@ export function ItineraryDaySidebar({
     if (!itineraryId) return;
     setPending(true);
     const res = await handleAddActivity(itineraryId, activityId, isOptional, packageId, variantId);
+    if (!res.success) { setPending(false); toast.error(res.message); return; }
+
+    // Auto-add the activity's primary image as an attraction (non-fatal if it fails)
+    const existingKeys = attractions.map((a) => a.image_key);
+    const imgRes = await handleAddActivityPrimaryImage(itineraryId, activityId, packageId, existingKeys);
     setPending(false);
-    if (!res.success) { toast.error(res.message); return; }
     setEditPanel(null);
+
     const refreshed = await handleGetItinerary();
     if (refreshed) setActivities(refreshed.activities);
-    toast.success("Activity added");
-    onSaved(currentDayData());
+
+    if (imgRes.data) {
+      const updated = [...attractions, imgRes.data];
+      setAttractions(updated);
+      onSaved({ ...currentDayData(), attractions: updated });
+      toast.success("Activity added with image");
+    } else {
+      toast.success("Activity added");
+      onSaved(currentDayData());
+    }
   }
 
   async function toggleOptional(id: number, isOptional: boolean) {

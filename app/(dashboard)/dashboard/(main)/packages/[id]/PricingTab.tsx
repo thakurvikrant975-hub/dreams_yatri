@@ -34,9 +34,12 @@ import {
   type FullCabPricingOption,
 } from "@/app/actions/packages/cab-pricing.actions";
 import {
-  createPackagePermit, updatePackagePermit, deletePackagePermit,
-  type PackagePermit,
+  createPackagePermit, updatePackagePermit, deletePackagePermit, getPermitOptions,
 } from "@/app/actions/packages/permit.actions";
+import {
+  PERMIT_PRICE_TYPES,
+  type PackagePermit, type PermitOption, type PermitPriceType,
+} from "@/app/actions/packages/permit.types";
 import { SearchSelect, type Option } from "../../components/dashboard/SearchSelect";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -105,7 +108,7 @@ type PricingTabProps = {
   routes: { id: number; name: string; durationLabel: string }[];
   cabTypes: CabType[];
   permits: PackagePermit[];
-  stopCoords: Array<{ lat: number; lng: number }>;
+  stopCoords: Array<{ lat: number; lng: number; name?: string }>;
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -433,17 +436,23 @@ function CabPricingSearchSelect({
   onSelect,
   disabled,
 }: {
-  stopCoords: Array<{ lat: number; lng: number }>;
+  stopCoords: Array<{ lat: number; lng: number; name?: string }>;
   excludeVehicleIds: number[];
   value: number | null;
   onSelect: (option: FullCabPricingOption | null) => void;
   disabled?: boolean;
 }) {
-  const optionsMapRef = useRef<Map<number, FullCabPricingOption>>(new Map());
-  const coordsRef     = useRef(stopCoords);
-  const excludeRef    = useRef(excludeVehicleIds);
+  const optionsMapRef  = useRef<Map<number, FullCabPricingOption>>(new Map());
+  const coordsRef      = useRef(stopCoords);
+  const excludeRef     = useRef(excludeVehicleIds);
+  const stopNamesRef   = useRef<Set<string>>(new Set());
   useEffect(() => { coordsRef.current = stopCoords; });
   useEffect(() => { excludeRef.current = excludeVehicleIds; });
+  useEffect(() => {
+    stopNamesRef.current = new Set(
+      stopCoords.filter((s) => s.name).map((s) => s.name!.toLowerCase()),
+    );
+  }, [stopCoords]);
 
   const fetchOptions = useCallback(async (query: string): Promise<Option[]> => {
     const res = await getAllCabPricingOptions({
@@ -452,13 +461,16 @@ function CabPricingSearchSelect({
       query:             query || undefined,
     });
     if (!res.success) return [];
+    const stopNames = stopNamesRef.current;
     const map = new Map<number, FullCabPricingOption>();
     const opts = res.data.map((o) => {
       map.set(o.cab_pricing_id, o);
+      const isRouteStop = stopNames.has(o.city_name.toLowerCase());
       return {
         id:          o.cab_pricing_id,
         label:       `${o.vehicle_name}${o.has_ac ? " · AC" : ""} · ${o.passenger_capacity} pax`,
-        description: `${o.destination_name} · ${o.pricing_type === "PER_DAY" ? "Per Day" : "Per Km"} · ₹${fmt(o.price)}`,
+        description: `${o.city_name} · ${o.pricing_type === "PER_DAY" ? "Per Day" : "Per Km"} · ₹${fmt(o.price)}`,
+        ...(isRouteStop ? { badge: "On Route" } : {}),
       };
     });
     optionsMapRef.current = map;
@@ -476,6 +488,81 @@ function CabPricingSearchSelect({
       onChange={handleChange}
       fetchOptions={fetchOptions}
       placeholder="Search vehicle + destination…"
+      disabled={disabled}
+    />
+  );
+}
+
+// ── PermitSearchSelect — permits from library, route stops highlighted ─────
+
+const PERMIT_CATEGORY_LABELS: Record<string, string> = {
+  ENTRY_FEE:     "Entry Fee",
+  MOUNTAIN_PASS: "Mountain Pass",
+  WILDLIFE:      "Wildlife",
+  BORDER_AREA:   "Border Area",
+  NATIONAL_PARK: "National Park",
+  FOREST:        "Forest",
+  OTHER:         "Other",
+};
+
+function PermitSearchSelect({
+  stopCoords,
+  value,
+  onSelect,
+  disabled,
+}: {
+  stopCoords: Array<{ lat: number; lng: number; name?: string }>;
+  value: number | null;
+  onSelect: (option: PermitOption | null) => void;
+  disabled?: boolean;
+}) {
+  const optionsMapRef = useRef<Map<number, PermitOption>>(new Map());
+  const stopNamesRef  = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    stopNamesRef.current = new Set(
+      stopCoords.filter((s) => s.name).map((s) => s.name!.toLowerCase()),
+    );
+  }, [stopCoords]);
+
+  const fetchOptions = useCallback(async (query: string): Promise<Option[]> => {
+    const res = await getPermitOptions(query || undefined);
+    if (!res.success) return [];
+    const stopNames = stopNamesRef.current;
+    const map = new Map<number, PermitOption>();
+    const opts = res.data.map((p) => {
+      map.set(p.id, p);
+      const isRouteStop = p.location_name
+        ? stopNames.has(p.location_name.toLowerCase())
+        : false;
+      const catLabel = (p.custom_category && p.category === "OTHER")
+        ? p.custom_category
+        : (PERMIT_CATEGORY_LABELS[p.category] ?? p.category);
+      const priceParts: string[] = [];
+      if (p.price_per_vehicle > 0) priceParts.push(`₹${fmt(p.price_per_vehicle)}/vehicle`);
+      if (p.price_per_person  > 0) priceParts.push(`₹${fmt(p.price_per_person)}/person`);
+      return {
+        id:          p.id,
+        label:       p.name,
+        description: [catLabel, p.location_name, ...priceParts].filter(Boolean).join(" · "),
+        ...(isRouteStop ? { badge: "On Route" } : {}),
+      };
+    });
+    optionsMapRef.current = map;
+    return opts;
+  }, []);
+
+  function handleChange(val: number | null) {
+    if (val === null) { onSelect(null); return; }
+    onSelect(optionsMapRef.current.get(val) ?? null);
+  }
+
+  return (
+    <SearchSelect
+      value={value}
+      onChange={handleChange}
+      fetchOptions={fetchOptions}
+      placeholder="Search permit library…"
       disabled={disabled}
     />
   );
@@ -512,18 +599,18 @@ function VehiclePricingSearchSelect({
     let data = res.data;
     if (query) {
       const q = query.toLowerCase();
-      data = data.filter((o) => o.destination_name.toLowerCase().includes(q));
+      data = data.filter((o) => o.city_name.toLowerCase().includes(q));
     }
     const map = new Map<number, VehiclePricingMeta>();
     const opts = data.map((o) => {
       map.set(o.cab_pricing_id, {
         pricing_type: o.pricing_type,
         price:        o.price,
-        destination:  { id: o.destination_id, name: o.destination_name },
+        destination:  { id: 0, name: o.city_name },
       });
       return {
         id:          o.cab_pricing_id,
-        label:       o.destination_name,
+        label:       o.city_name,
         description: `${o.pricing_type === "PER_DAY" ? "Per Day" : "Per Km"} · ₹${fmt(o.price)}${
           o.seasons_count > 0 ? ` · ${o.seasons_count} season${o.seasons_count > 1 ? "s" : ""}` : ""
         }`,
@@ -806,7 +893,7 @@ function AddOptionToGroupForm({
   packageId: number;
   duration: { id: number; days: number };
   groupRange: { from: number; to: number };
-  stopCoords: Array<{ lat: number; lng: number }>;
+  stopCoords: Array<{ lat: number; lng: number; name?: string }>;
   existingVehicleIds: Set<number>;
   onAdded: (cabType: CabType) => void;
   onCancel: () => void;
@@ -859,7 +946,7 @@ function AddOptionToGroupForm({
               id:           option.cab_pricing_id,
               pricing_type: option.pricing_type,
               price:        option.price,
-              destination:  { id: option.destination_id, name: option.destination_name },
+              destination:  { id: 0, name: option.city_name },
               seasons:      [],
             },
           }],
@@ -922,7 +1009,7 @@ function CabGroupCard({
   group: CabGroup;
   packageId: number;
   duration: Duration;
-  stopCoords: Array<{ lat: number; lng: number }>;
+  stopCoords: Array<{ lat: number; lng: number; name?: string }>;
   otherGroupRanges: Array<{ from: number; to: number }>;
   onGroupRangeChanged: (groupKey: string, newFrom: number, newTo: number) => void;
   onCabTypeDeleted: (cabTypeId: number) => void;
@@ -1119,7 +1206,7 @@ function AddCabTypeForm({
 }: {
   packageId: number;
   duration: Duration;
-  stopCoords: Array<{ lat: number; lng: number }>;
+  stopCoords: Array<{ lat: number; lng: number; name?: string }>;
   existingVehicleIds: Set<number>;
   occupiedRanges: Array<{ from: number; to: number }>;
   onAdded: (cabTypes: CabType[]) => void;
@@ -1221,7 +1308,7 @@ function AddCabTypeForm({
                 id:           row.option!.cab_pricing_id,
                 pricing_type: row.option!.pricing_type,
                 price:        row.option!.price,
-                destination:  { id: row.option!.destination_id, name: row.option!.destination_name },
+                destination:  { id: 0, name: row.option!.city_name },
                 seasons:      [],
               },
             }],
@@ -1366,7 +1453,7 @@ function CabTypesSection({
   packageId: number;
   duration: Duration;
   initialCabTypes: CabType[];
-  stopCoords: Array<{ lat: number; lng: number }>;
+  stopCoords: Array<{ lat: number; lng: number; name?: string }>;
 }) {
   const [cabTypes,     setCabTypes]     = useState(initialCabTypes);
   const [addingGroup,  setAddingGroup]  = useState(false);
@@ -1446,7 +1533,7 @@ function CabTypesSection({
               packageId={packageId}
               duration={duration}
               stopCoords={stopCoords}
-              existingVehicleIds={new Set(cabTypes.map((ct) => ct.vehicle_id))}
+              existingVehicleIds={new Set()}
               occupiedRanges={allGroupRanges}
               onAdded={(cts) => { setCabTypes((prev) => [...prev, ...cts]); setAddingGroup(false); }}
               onCancel={() => setAddingGroup(false)}
@@ -1497,9 +1584,10 @@ function PermitRow({
   onUpdated: (updated: PackagePermit) => void;
   onDeleted: (id: number) => void;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(permit.name);
-  const [price, setPrice] = useState(String(permit.price));
+  const [editing,   setEditing]   = useState(false);
+  const [name,      setName]      = useState(permit.name);
+  const [price,     setPrice]     = useState(String(permit.price));
+  const [priceType, setPriceType] = useState<PermitPriceType>(permit.price_type);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -1518,6 +1606,7 @@ function PermitRow({
   function startEdit() {
     setName(permit.name);
     setPrice(String(permit.price));
+    setPriceType(permit.price_type);
     setEditing(true);
   }
 
@@ -1525,6 +1614,7 @@ function PermitRow({
     setEditing(false);
     setName(permit.name);
     setPrice(String(permit.price));
+    setPriceType(permit.price_type);
   }
 
   function handleSaveEdit() {
@@ -1532,10 +1622,10 @@ function PermitRow({
     if (!name.trim()) { toast.error("Enter a permit name"); return; }
     if (isNaN(p) || p < 0) { toast.error("Enter a valid non-negative price"); return; }
     startTransition(async () => {
-      const res = await updatePackagePermit(permit.id, packageId, { name: name.trim(), price: p });
+      const res = await updatePackagePermit(permit.id, packageId, { name: name.trim(), price: p, price_type: priceType });
       if (res.success) {
         toast.success("Permit updated");
-        onUpdated({ ...permit, name: name.trim(), price: p });
+        onUpdated({ ...permit, name: name.trim(), price: p, price_type: priceType });
         setEditing(false);
         router.refresh();
       } else {
@@ -1555,46 +1645,66 @@ function PermitRow({
 
       <div className="flex-1 min-w-0">
         {editing ? (
-          <div className="flex items-center gap-1.5">
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="h-7 text-xs flex-1"
-              placeholder="Permit name"
-              disabled={isPending}
-            />
-            <div className="relative w-28 shrink-0">
-              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₹</span>
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-1.5">
               <Input
-                type="number" min="0" step="1"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                className="h-7 text-xs pl-5"
-                placeholder="0"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="h-7 text-xs flex-1"
+                placeholder="Permit name"
                 disabled={isPending}
               />
+              <div className="relative w-28 shrink-0">
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₹</span>
+                <Input
+                  type="number" min="0" step="1"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  className="h-7 text-xs pl-5"
+                  placeholder="0"
+                  disabled={isPending}
+                />
+              </div>
+              <Button
+                type="button" size="sm"
+                className="h-7 px-2.5 text-xs shrink-0 gap-1"
+                onClick={handleSaveEdit}
+                disabled={isPending}
+              >
+                {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Check className="h-3 w-3" />Save</>}
+              </Button>
+              <Button
+                type="button" variant="ghost" size="sm"
+                className="h-7 px-2 shrink-0"
+                onClick={cancelEdit}
+                disabled={isPending}
+              >
+                <X className="h-3 w-3" />
+              </Button>
             </div>
-            <Button
-              type="button" size="sm"
-              className="h-7 px-2.5 text-xs shrink-0 gap-1"
-              onClick={handleSaveEdit}
-              disabled={isPending}
-            >
-              {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Check className="h-3 w-3" />Save</>}
-            </Button>
-            <Button
-              type="button" variant="ghost" size="sm"
-              className="h-7 px-2 shrink-0"
-              onClick={cancelEdit}
-              disabled={isPending}
-            >
-              <X className="h-3 w-3" />
-            </Button>
+            <div className="flex items-center gap-1">
+              {(["FLAT", "PER_PERSON", "PER_VEHICLE"] as const).map((t) => (
+                <button key={t} type="button" disabled={isPending} onClick={() => setPriceType(t)}
+                  className={cn("px-2 py-0.5 rounded text-[10px] font-medium border transition-colors",
+                    priceType === t ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-muted text-muted-foreground border-border hover:bg-muted/70"
+                  )}>
+                  {t === "FLAT" ? "Flat" : t === "PER_PERSON" ? "Per Person" : "Per Vehicle"}
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-sm font-medium leading-tight">{permit.name}</span>
             <span className="text-[11px] text-muted-foreground">₹{fmt(permit.price)}</span>
+            <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0",
+              permit.price_type === "PER_PERSON"  ? "border-blue-200 text-blue-600 bg-blue-50"  :
+              permit.price_type === "PER_VEHICLE" ? "border-orange-200 text-orange-600 bg-orange-50" :
+              "border-muted text-muted-foreground"
+            )}>
+              {permit.price_type === "PER_PERSON" ? "×/person" : permit.price_type === "PER_VEHICLE" ? "×/vehicle" : "flat"}
+            </Badge>
             {!permit.is_included && (
               <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Not included</Badge>
             )}
@@ -1674,19 +1784,37 @@ function PermitRow({
 function AddPermitForm({
   packageId,
   duration,
+  stopCoords,
   onAdded,
   onCancel,
 }: {
   packageId: number;
   duration: { id: number };
+  stopCoords: Array<{ lat: number; lng: number; name?: string }>;
   onAdded: (permit: PackagePermit) => void;
   onCancel: () => void;
 }) {
-  const [name, setName] = useState("");
-  const [price, setPrice] = useState("");
-  const [included, setIncluded] = useState(true);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [name,       setName]       = useState("");
+  const [price,      setPrice]      = useState("");
+  const [priceType,  setPriceType]  = useState<PermitPriceType>("FLAT");
+  const [included,   setIncluded]   = useState(true);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+
+  function handleSelectPermit(option: PermitOption | null) {
+    setSelectedId(option?.id ?? null);
+    if (option) {
+      setName(option.name);
+      if (option.price_per_person > 0) {
+        setPrice(String(option.price_per_person));
+        setPriceType("PER_PERSON");
+      } else {
+        setPrice(String(option.price_per_vehicle));
+        setPriceType(option.price_per_vehicle > 0 ? "PER_VEHICLE" : "FLAT");
+      }
+    }
+  }
 
   const parsedPrice = parseFloat(price);
   const isValid = name.trim().length > 0 && price.trim().length > 0 && !isNaN(parsedPrice) && parsedPrice >= 0;
@@ -1695,10 +1823,11 @@ function AddPermitForm({
     if (!isValid) return;
     startTransition(async () => {
       const res = await createPackagePermit({
-        package_id: packageId,
+        package_id:  packageId,
         duration_id: duration.id,
-        name: name.trim(),
-        price: parsedPrice,
+        name:        name.trim(),
+        price:       parsedPrice,
+        price_type:  priceType,
         is_included: included,
       });
       if (res.success) {
@@ -1712,13 +1841,21 @@ function AddPermitForm({
   }
 
   return (
-    <div className="px-4 py-3 border-t bg-muted/10">
+    <div className="px-4 py-3 border-t bg-muted/10 space-y-2">
+      {/* Permit library dropdown — on select, auto-fills name + price */}
+      <PermitSearchSelect
+        stopCoords={stopCoords}
+        value={selectedId}
+        onSelect={handleSelectPermit}
+        disabled={isPending}
+      />
+
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-2 gap-2">
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Permit name e.g. Wildlife Sanctuary Entry"
+            placeholder="Permit name"
             className="h-8 text-sm"
             disabled={isPending}
           />
@@ -1733,10 +1870,30 @@ function AddPermitForm({
               disabled={isPending}
             />
           </div>
+          {/* Price type */}
+          <div className="sm:col-span-2 flex items-center gap-1.5 flex-wrap">
+            <Label className="text-xs text-muted-foreground shrink-0">Pricing:</Label>
+            {(["FLAT", "PER_PERSON", "PER_VEHICLE"] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                disabled={isPending}
+                onClick={() => setPriceType(t)}
+                className={cn(
+                  "px-2 py-0.5 rounded text-[11px] font-medium border transition-colors",
+                  priceType === t
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-muted text-muted-foreground border-border hover:bg-muted/70",
+                )}
+              >
+                {t === "FLAT" ? "Flat" : t === "PER_PERSON" ? "Per Person" : "Per Vehicle"}
+              </button>
+            ))}
+          </div>
           <div className="flex items-center gap-2 sm:col-span-2">
             <Switch checked={included} onCheckedChange={setIncluded} disabled={isPending} />
             <Label className="text-xs text-muted-foreground">
-              Include permit price in package cost calculation
+              Include in package cost calculation
             </Label>
           </div>
         </div>
@@ -1761,10 +1918,12 @@ function PermitsSection({
   packageId,
   duration,
   initialPermits,
+  stopCoords,
 }: {
   packageId: number;
   duration: Duration;
   initialPermits: PackagePermit[];
+  stopCoords: Array<{ lat: number; lng: number; name?: string }>;
 }) {
   const [permits, setPermits] = useState(initialPermits);
   const [adding, setAdding] = useState(false);
@@ -1817,6 +1976,7 @@ function PermitsSection({
           <AddPermitForm
             packageId={packageId}
             duration={duration}
+            stopCoords={stopCoords}
             onAdded={(p) => { setPermits((prev) => [...prev, p]); setAdding(false); }}
             onCancel={() => setAdding(false)}
           />
@@ -1955,6 +2115,7 @@ export function PricingTab({
             packageId={packageId}
             duration={duration}
             initialPermits={permits.filter((p) => p.duration_id === duration.id)}
+            stopCoords={stopCoords}
           />
         ))}
       </div>

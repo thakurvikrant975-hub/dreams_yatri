@@ -13,6 +13,7 @@ export type Option = {
   label:        string;
   description?: string;
   thumbnail?:   string;
+  badge?:       string;
 };
 
 type SearchSelectProps = {
@@ -171,7 +172,9 @@ export function SearchSelect({
                       "flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors",
                       isSelected
                         ? "bg-primary/10 text-foreground"
-                        : "text-foreground hover:bg-muted/60",
+                        : opt.badge
+                          ? "bg-emerald-50/60 text-foreground hover:bg-emerald-50"
+                          : "text-foreground hover:bg-muted/60",
                     )}
                   >
                     {opt.thumbnail ? (
@@ -191,9 +194,18 @@ export function SearchSelect({
                       <span className="truncate text-xs font-medium leading-tight">
                         {opt.label}
                       </span>
-                      {opt.description && (
-                        <span className="truncate text-[10px] text-muted-foreground">
-                          {opt.description}
+                      {(opt.description || opt.badge) && (
+                        <span className="flex items-center gap-1.5">
+                          {opt.description && (
+                            <span className="truncate text-[10px] text-muted-foreground">
+                              {opt.description}
+                            </span>
+                          )}
+                          {opt.badge && (
+                            <span className="shrink-0 rounded px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide bg-emerald-100 text-emerald-700 border border-emerald-200">
+                              {opt.badge}
+                            </span>
+                          )}
                         </span>
                       )}
                     </span>

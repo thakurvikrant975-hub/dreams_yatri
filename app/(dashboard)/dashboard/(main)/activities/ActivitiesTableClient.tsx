@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -95,11 +95,6 @@ export function ActivitiesTableClient({
     const searchParams = useSearchParams();
     const [isPending, startTransition] = useTransition();
 
-    // Debounced search
-    const [localSearch, setLocalSearch] = useState(search);
-    const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-    useEffect(() => { setLocalSearch(search); }, [search]);
-
     // Delete dialog state
     const [deleteTarget, setDeleteTarget] = useState<ActivityItem | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -118,9 +113,7 @@ export function ActivitiesTableClient({
     }
 
     function handleSearch(value: string) {
-        setLocalSearch(value);
-        clearTimeout(searchTimer.current);
-        searchTimer.current = setTimeout(() => updateParam("search", value), 400);
+        updateParam("search", value);
     }
 
     function buildHref(p: number) {
@@ -175,6 +168,7 @@ export function ActivitiesTableClient({
         {
             header: "Activity",
             width: "w-[440px]",
+            sortKey: (a) => a.name?.toLowerCase() ?? "",
             cell: (a) => (
                 <div className="flex items-center gap-3">
                     <ThumbnailCell activity={a} />
@@ -192,18 +186,21 @@ export function ActivitiesTableClient({
         },
         {
             header: "Category",
+            sortKey: (a) => a.category?.name?.toLowerCase() ?? "",
             cell: (a) => a.category
                 ? <Badge variant="outline" className="text-xs whitespace-nowrap">{a.category.name}</Badge>
                 : <span className="text-xs text-muted-foreground">—</span>,
         },
         {
             header: "Difficulty",
+            sortKey: (a) => a.difficulty?.toLowerCase() ?? "",
             cell: (a) => a.difficulty
                 ? <span className={cn("text-[11px] font-medium px-2 py-0.5 rounded border", DIFFICULTY_COLORS[a.difficulty] ?? "bg-muted text-muted-foreground")}>{a.difficulty}</span>
                 : <span className="text-xs text-muted-foreground">—</span>,
         },
         {
             header: "Duration",
+            sortKey: (a) => a.duration_hours ?? 0,
             cell: (a) => a.duration_hours
                 ? <span className="flex items-center gap-1 text-xs text-muted-foreground"><Clock className="h-3 w-3" />{a.duration_hours}h</span>
                 : <span className="text-xs text-muted-foreground">—</span>,
@@ -211,6 +208,7 @@ export function ActivitiesTableClient({
         {
             header: "Variants",
             align: "center",
+            sortKey: (a) => a._count.variants ?? 0,
             cell: (a) => a._count.variants > 0
                 ? <span className="flex items-center justify-center gap-1 text-xs font-medium"><Zap className="h-3 w-3 text-muted-foreground" />{a._count.variants}</span>
                 : <span className="text-xs text-muted-foreground">—</span>,
@@ -241,6 +239,7 @@ export function ActivitiesTableClient({
         },
         {
             header: "Created By",
+            sortKey: (a) => new Date(a.created_at).getTime(),
             cell: (a) => (
                 <div className="space-y-0.5">
                     <p className="text-xs font-medium text-foreground/80 truncate max-w-30">
@@ -283,7 +282,7 @@ export function ActivitiesTableClient({
             {/* Filters + rows-per-page */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                 <TableFilters
-                    search={localSearch}
+                    search={search}
                     onSearchChange={handleSearch}
                     searchPlaceholder="Search activities…"
                     className="flex-1"

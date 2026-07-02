@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useBooking } from '../PackageBookingProvider';
 import { useBookQuote } from '../useBookQuote';
 import Button, { buttonVariants } from '@/app/components/ui/Button';
@@ -9,11 +11,31 @@ import { SITE_CONFIG } from '@/app/lib/seo/site-config';
 
 const fmt = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 
+function BreakdownRow({ label, value, sub }: { label: string; value: string; sub?: string }) {
+    return (
+        <div className="flex items-start justify-between gap-2 py-1">
+            <div>
+                <span className="text-xs text-neutral-500">{label}</span>
+                {sub && <span className="block text-[10px] text-neutral-400">{sub}</span>}
+            </div>
+            <span className="text-xs text-neutral-600 font-medium shrink-0">{value}</span>
+        </div>
+    );
+}
+
 export default function PricingCard() {
     const { pricing, isPricingLoading, adults, childCount, infants, recentEnquiryCount } = useBooking();
     const { book, booking, error } = useBookQuote();
+    const [showBreakdown, setShowBreakdown] = useState(false);
 
     const totalPax = adults + childCount + infants;
+
+    const hasBreakdown = pricing && (
+        pricing.breakdown.hotelSubtotal > 0 ||
+        pricing.breakdown.mealSubtotal > 0 ||
+        pricing.breakdown.cabSubtotal > 0 ||
+        pricing.breakdown.permitSubtotal > 0
+    );
 
     return (
         <Card className="px-6 py-5">
@@ -55,6 +77,58 @@ export default function PricingCard() {
                         </Text>
                         <Text size="sm" weight="bold" intent="primary">{fmt(pricing.finalPrice)}</Text>
                     </div>
+
+                    {/* Breakdown toggle */}
+                    {hasBreakdown && (
+                        <button
+                            type="button"
+                            onClick={() => setShowBreakdown(v => !v)}
+                            className="mt-2 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 transition-colors"
+                        >
+                            {showBreakdown ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+                            {showBreakdown ? 'Hide' : 'View'} price breakdown
+                        </button>
+                    )}
+
+                    {/* Breakdown panel */}
+                    {showBreakdown && hasBreakdown && (
+                        <div className="mt-2 rounded-lg bg-neutral-50 px-3 py-2 border border-neutral-100 divide-y divide-neutral-100">
+                            {pricing.breakdown.hotelSubtotal > 0 && (
+                                <BreakdownRow label="Hotels" value={fmt(pricing.breakdown.hotelSubtotal)} />
+                            )}
+                            {pricing.breakdown.mealSubtotal > 0 && (
+                                <BreakdownRow label="Meals" value={fmt(pricing.breakdown.mealSubtotal)} />
+                            )}
+                            {pricing.breakdown.activitySubtotal > 0 && (
+                                <BreakdownRow label="Activities" value={fmt(pricing.breakdown.activitySubtotal)} />
+                            )}
+                            {pricing.breakdown.cabSubtotal > 0 && (
+                                <BreakdownRow label="Transport" value={fmt(pricing.breakdown.cabSubtotal)} />
+                            )}
+                            {pricing.permits.length > 0 && pricing.permits.map((p, i) => {
+                                const sub = p.priceType === 'PER_PERSON'
+                                    ? `${fmt(p.unitPrice)} × ${p.quantity} person${p.quantity !== 1 ? 's' : ''}`
+                                    : p.priceType === 'PER_VEHICLE'
+                                    ? `${fmt(p.unitPrice)} × 1 vehicle`
+                                    : undefined;
+                                return (
+                                    <BreakdownRow
+                                        key={i}
+                                        label={p.name}
+                                        value={fmt(p.total)}
+                                        sub={sub}
+                                    />
+                                );
+                            })}
+                            {pricing.breakdown.marginAmount > 0 && (
+                                <BreakdownRow
+                                    label="Service margin"
+                                    value={fmt(pricing.breakdown.marginAmount)}
+                                    sub={`${pricing.breakdown.marginPercentage}% of base`}
+                                />
+                            )}
+                        </div>
+                    )}
                 </>
             )}
 

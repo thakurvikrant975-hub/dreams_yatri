@@ -3,7 +3,7 @@
 // role "Sidebar Access" editor so the two stay in sync.
 import {
   LayoutDashboard, Settings, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound, MessageCircleQuestion, ClockCheck, Mails, Forward, BadgePercent, Banknote, BanknoteArrowDown, BanknoteX, Car, Bed, ChartNoAxesCombined, BellRing, PackagePlus, ChartNoAxesGantt, Star, IndianRupee, X,
-  CirclePile, MapPinned,
+  CirclePile, MapPinned, TicketCheck,
 } from "lucide-react";
 import {
   GlobeHemisphereEastIcon, MapPinIcon, BuildingIcon, TagIcon,
@@ -56,6 +56,7 @@ export const NAV_GROUPS = [
     items: [
       { title: "Vehicle Types", href: "/dashboard/vehicles", icon: Car, phosphor: true },
       { title: "Cab Pricing", href: "/dashboard/cab-pricing", icon: IndianRupee },
+      { title: "Permits", href: "/dashboard/permits", icon: TicketCheck },
       { title: "Cab Drivers", href: "/dashboard/cab-drivers", icon: SteeringWheelIcon, phosphor: true },
       { title: "Verify Cabs", href: "/dashboard/verify-cabs", icon: Car },
       { title: "Assign Drivers", href: "/dashboard/assign-driver", icon: SteeringWheelIcon, phosphor: true },

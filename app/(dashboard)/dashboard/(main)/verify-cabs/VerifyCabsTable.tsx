@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { AlertTriangle, CalendarDays, Car, CheckCircle2, Clock } from "lucide-react";
@@ -85,10 +85,6 @@ export function VerifyCabsTable({
     const router = useRouter();
     const searchParams = useSearchParams();
     const [, startTransition] = useTransition();
-    const [localSearch, setLocalSearch] = useState(search);
-    const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-    useEffect(() => { setLocalSearch(search); }, [search]);
 
     function updateParam(key: string, value: string) {
         const params = new URLSearchParams(searchParams.toString());
@@ -99,9 +95,7 @@ export function VerifyCabsTable({
     }
 
     function handleSearch(value: string) {
-        setLocalSearch(value);
-        clearTimeout(searchTimer.current);
-        searchTimer.current = setTimeout(() => updateParam("search", value), 400);
+        updateParam("search", value);
     }
 
     function buildHref(p: number) {
@@ -118,6 +112,7 @@ export function VerifyCabsTable({
         {
             header: "Booking",
             width: "w-[160px]",
+            sortKey: (b) => b.bookingNumber?.toLowerCase() ?? "",
             cell: (b) => (
                 <div>
                     <Link
@@ -133,6 +128,7 @@ export function VerifyCabsTable({
         },
         {
             header: "Customer",
+            sortKey: (b) => b.user?.name?.toLowerCase() ?? "",
             cell: (b) => (
                 <div>
                     <div className="text-sm font-medium text-dashboard-base-content">{b.user?.name ?? "—"}</div>
@@ -142,6 +138,7 @@ export function VerifyCabsTable({
         },
         {
             header: "Package / Destination",
+            sortKey: (b) => b.package?.title?.toLowerCase() ?? "",
             cell: (b) => (
                 <div>
                     <div className="text-sm text-dashboard-base-content line-clamp-1">{b.package?.title ?? "—"}</div>
@@ -151,6 +148,7 @@ export function VerifyCabsTable({
         },
         {
             header: "Travel Dates",
+            sortKey: (b) => new Date(b.startDate).getTime(),
             cell: (b) => (
                 <div className="whitespace-nowrap">
                     <div className="flex items-center gap-1 text-sm text-dashboard-base-content">
@@ -168,6 +166,7 @@ export function VerifyCabsTable({
         },
         {
             header: "Cab Type",
+            sortKey: (b) => b.cabType?.toLowerCase() ?? "",
             cell: (b) => (
                 <span className="text-xs font-medium text-dashboard-base-content">{titleCase(b.cabType)}</span>
             ),
@@ -175,6 +174,7 @@ export function VerifyCabsTable({
         {
             header: "Amount",
             align: "right",
+            sortKey: (b) => b.totalAmount_paise ?? 0,
             cell: (b) => (
                 <div className="text-right">
                     <div className="text-sm font-semibold tabular-nums text-dashboard-base-content">{fmt(b.totalAmount_paise)}</div>
@@ -260,7 +260,7 @@ export function VerifyCabsTable({
             {/* Filters */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                 <TableFilters
-                    search={localSearch}
+                    search={search}
                     onSearchChange={handleSearch}
                     searchPlaceholder="Search booking #, customer name or email…"
                     className="flex-1"

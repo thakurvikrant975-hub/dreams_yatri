@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
@@ -74,11 +74,6 @@ export function PackageBookingsTable({
     const searchParams = useSearchParams();
     const [isPending, startTransition] = useTransition();
 
-    const [localSearch, setLocalSearch] = useState(search);
-    const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-    useEffect(() => { setLocalSearch(search); }, [search]);
-
     function updateParam(key: string, value: string) {
         const params = new URLSearchParams(searchParams.toString());
         if (value === "all" || value === "") {
@@ -91,9 +86,7 @@ export function PackageBookingsTable({
     }
 
     function handleSearch(value: string) {
-        setLocalSearch(value);
-        clearTimeout(searchTimer.current);
-        searchTimer.current = setTimeout(() => updateParam("search", value), 400);
+        updateParam("search", value);
     }
 
     function buildHref(p: number) {
@@ -110,6 +103,7 @@ export function PackageBookingsTable({
         {
             header: "Booking",
             width: "w-[160px]",
+            sortKey: (b) => b.bookingNumber?.toLowerCase() ?? "",
             cell: (b) => (
                 <div>
                     <Link
@@ -126,6 +120,7 @@ export function PackageBookingsTable({
         },
         {
             header: "Customer",
+            sortKey: (b) => b.user?.name?.toLowerCase() ?? "",
             cell: (b) => (
                 <div>
                     <p className="text-sm font-medium text-dashboard-base-content">
@@ -174,6 +169,7 @@ export function PackageBookingsTable({
         {
             header: "Travel Dates",
             width: "w-[130px]",
+            sortKey: (b) => b.startDate ? new Date(b.startDate).getTime() : 0,
             cell: (b) => (
                 <div className="space-y-1.5">
                     <div>
@@ -191,6 +187,7 @@ export function PackageBookingsTable({
             header: "Pax",
             align: "center",
             width: "w-[70px]",
+            sortKey: (b) => b.travellers ?? 0,
             cell: (b) => (
                 <span className="text-sm font-medium text-dashboard-base-content">{b.travellers}</span>
             ),
@@ -198,6 +195,7 @@ export function PackageBookingsTable({
         {
             header: "Amount",
             align: "right",
+            sortKey: (b) => b.totalAmount_paise ?? 0,
             cell: (b) => (
                 <div className="text-right">
                     <p className="text-sm font-medium text-dashboard-base-content whitespace-nowrap">
@@ -211,10 +209,12 @@ export function PackageBookingsTable({
         },
         {
             header: "Payment",
+            sortKey: (b) => b.paymentStatus?.toLowerCase() ?? "",
             cell: (b) => <PaymentPill status={b.paymentStatus} />,
         },
         {
             header: "Status",
+            sortKey: (b) => b.status?.toLowerCase() ?? "",
             cell: (b) => <StatusPill status={b.status} />,
         },
         {
@@ -238,7 +238,7 @@ export function PackageBookingsTable({
         <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                 <TableFilters
-                    search={localSearch}
+                    search={search}
                     onSearchChange={handleSearch}
                     searchPlaceholder="Search booking #, name, email, phone…"
                     className="flex-1"

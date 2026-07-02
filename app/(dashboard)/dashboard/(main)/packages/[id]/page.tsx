@@ -266,6 +266,7 @@ export default async function PackageBuilderPage({
                 .map((s) => ({
                   lat: s.location!.latitude as number,
                   lng: s.location!.longitude as number,
+                  name: s.location!.name,
                 }))
                 .filter(
                   (c, i, arr) =>
@@ -308,7 +309,7 @@ export default async function PackageBuilderPage({
                   day_to: s.day_to,
                   pricing_type: s.cab_pricing.pricing_type,
                   price: s.cab_pricing.price,
-                  destination_name: s.cab_pricing.destination.name,
+                  destination_name: s.cab_pricing.destination?.name ?? "—",
                   seasons: s.cab_pricing.seasons,
                 })),
               }))}

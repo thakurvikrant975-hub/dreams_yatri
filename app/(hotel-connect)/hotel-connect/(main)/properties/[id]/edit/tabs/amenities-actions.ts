@@ -6,7 +6,7 @@ import { hotelConnectAuth } from "@/app/lib/auth-hotel-connect";
 import { db } from "@/app/lib/db";
 import { ALL_AMENITY_KEYS } from "./amenities-data";
 
-export type AmenitiesState = { error?: string };
+export type AmenitiesState = { ok?: boolean; error?: string };
 
 export async function saveAmenities(
   hotelId: number,
@@ -63,13 +63,18 @@ export async function saveAmenities(
   });
   if (!hotel) return { error: "Property not found." };
 
-  await db.hotels.update({
-    where: { id: hotelId },
-    data: {
-      property_amenities,
-      wizard_step: Math.max(3, hotel.wizard_step),
-    },
-  });
+  try {
+    await db.hotels.update({
+      where: { id: hotelId },
+      data: {
+        property_amenities,
+        wizard_step: Math.max(hotel.wizard_step, 4),
+      },
+    });
+  } catch (err) {
+    console.error("[saveAmenities]", err);
+    return { error: "Failed to save amenities. Please try again." };
+  }
 
   redirect(`/hotel-connect/properties/${hotelId}/edit?tab=4`);
 }

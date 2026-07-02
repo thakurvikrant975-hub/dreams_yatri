@@ -15,6 +15,7 @@ import { cn } from "@/app/lib/utils";
 import { HotelListingStatus, PropertySubType } from "@/app/generated/prisma";
 import Button from "@/app/components/ui/Button";
 import { submitForReview } from "./tabs/review-actions";
+import { WIZARD_TABS, HOMESTAY_WIZARD_TABS } from "./wizard-tab-config";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -27,17 +28,9 @@ type HotelSummary = {
   property_sub_type: PropertySubType | null;
 };
 
-// ── Tab config ────────────────────────────────────────────────────────────────
+// ── Tab config (re-exported from shared config for server-component consumers) ─
 
-export const WIZARD_TABS = [
-  { index: 1, label: "Basic Info" },
-  { index: 2, label: "Location" },
-  { index: 3, label: "Amenities" },
-  { index: 4, label: "Rooms" },
-  { index: 5, label: "Photos" },
-  { index: 6, label: "Policies" },
-  { index: 7, label: "Finance & Legal" },
-];
+export { WIZARD_TABS, HOMESTAY_WIZARD_TABS } from "./wizard-tab-config";
 
 // ── Status badge ──────────────────────────────────────────────────────────────
 
@@ -67,66 +60,58 @@ function TabItem({
   currentTab,
   effectiveWizardStep,
   hotelId,
+  isFirst,
+  isLast,
 }: {
-  tab: (typeof WIZARD_TABS)[0];
+  tab: { index: number; label: string };
   currentTab: number;
   effectiveWizardStep: number;
   hotelId: number;
+  isFirst: boolean;
+  isLast: boolean;
 }) {
   const isCurrent   = tab.index === currentTab;
   const isCompleted = tab.index <= effectiveWizardStep && !isCurrent;
-  const isLocked    = tab.index > effectiveWizardStep + 1;
 
   const baseClass = cn(
     "relative flex-1 flex flex-col items-center gap-3 px-5 py-3.5 whitespace-nowrap transition-colors select-none",
     "after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:transition-colors",
-    tab.index === 1 ? "rounded-tl-xl" : "",
-    tab.index === WIZARD_TABS.length ? "rounded-tr-xl" : "",
+    isFirst ? "rounded-tl-xl" : "",
+    isLast  ? "rounded-tr-xl" : "",
     isCurrent
       ? "bg-white text-primary-500 after:absolute after:bottom-0 after:h-px after:w-full after:bg-white after:translate-y-px"
       : isCompleted
-        ? "text-neutral-600 hover:text-neutral-800 hover:bg-neutral-50 after:bg-transparent hover:after:bg-neutral-200"
-        : isLocked
-          ? "text-neutral-400 bg-neutral-50 cursor-not-allowed after:bg-transparent"
-          : "text-neutral-600 hover:text-neutral-800 bg-neutral-50 hover:bg-neutral-100 after:bg-transparent"
+        ? "text-neutral-900 hover:text-neutral-800 hover:bg-neutral-50 after:bg-transparent hover:after:bg-neutral-200"
+        : "text-neutral-500 hover:text-neutral-600 bg-neutral-50 hover:bg-neutral-100 after:bg-transparent"
   );
 
   const indicator = (
-    <span
+    <div
       className={cn(
         "size-6 rounded-full text-[11px] font-bold flex items-center justify-center shrink-0 font-heading",
         isCurrent
           ? "bg-primary-500 text-white"
           : isCompleted
             ? "bg-emerald-500 text-white"
-            : isLocked
-              ? "bg-neutral-200 text-neutral-400"
-              : "bg-white text-neutral-500/90 ring-1 ring-neutral-200 shadow shadow-neutral-300/80"
+            : "bg-white text-neutral-500/90 ring-1 ring-neutral-200 shadow shadow-neutral-300/80"
       )}
+    
+    
     >
       {isCompleted
         ? <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5-4.5-4.5 1.41-1.41L10 13.67l7.09-7.09L18.5 8l-8.5 8.5z"/></svg>
         : tab.index}
-    </span>
+    </div>
   );
-
-  const label = (
-    <span className="text-xs font-semibold leading-none font-heading">{tab.label}</span>
-  );
-
-  if (isLocked) {
-    return (
-      <div className={baseClass} title="Complete previous steps to unlock" aria-disabled="true">
-        {indicator}
-        {label}
-      </div>
-    );
-  }
 
   return (
-    <Link href={`/hotel-connect/properties/${hotelId}/edit?tab=${tab.index}`} className={baseClass}>
+    <Link
+      href={`/hotel-connect/properties/${hotelId}/edit?tab=${tab.index}`}
+      className={baseClass}
+      prefetch={false}
+    >
       {indicator}
-      {label}
+      <span className="text-xs font-semibold leading-none font-heading ">{tab.label}</span>
     </Link>
   );
 }
@@ -219,25 +204,30 @@ export default function WizardShell({
   currentTab,
   tabFormId,
   effectiveWizardStep,
+  hideNextButton,
   children,
 }: {
   hotel: HotelSummary;
   currentTab: number;
   tabFormId?: string;
   effectiveWizardStep: number;
+  hideNextButton?: boolean;
   children: React.ReactNode;
 }) {
   const router = useRouter();
   const status = STATUS_CONFIG[hotel.listing_status] ?? STATUS_CONFIG.DRAFT;
 
+  const tabs = hotel.property_category === "HOMESTAY_VILLA" ? HOMESTAY_WIZARD_TABS : WIZARD_TABS;
+  const totalTabs = tabs[tabs.length - 1].index;
+
   function goTo(tab: number) {
-    const t = Math.max(1, Math.min(7, tab));
+    const t = Math.max(1, Math.min(totalTabs, tab));
     router.push(`/hotel-connect/properties/${hotel.id}/edit?tab=${t}`);
   }
 
   const isFirstTab = currentTab === 1;
-  const isLastTab = currentTab === 7;
-  const allComplete = effectiveWizardStep >= WIZARD_TABS.length;
+  const isLastTab  = currentTab === totalTabs;
+  const allComplete = effectiveWizardStep >= totalTabs;
   const isDraft = hotel.listing_status === HotelListingStatus.DRAFT;
 
   return (
@@ -284,14 +274,19 @@ export default function WizardShell({
       {/* ── Tab bar ───────────────────────────────────────────────────── */}
       <div className="shrink-0 bg-white overflow-x-auto scrollbar-none py-5">
         <div className="border-b border-neutral-200">
-          <div className="grid grid-cols-7 max-w-4xl m-auto divide-x divide-neutral-200 border border-neutral-200 rounded-t-xl -mb-px">
-            {WIZARD_TABS.map((tab) => (
+          <div
+            className="max-w-4xl m-auto divide-x divide-neutral-200 border border-neutral-200 rounded-t-xl -mb-px"
+            style={{ display: "grid", gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
+          >
+            {tabs.map((tab, i) => (
               <TabItem
                 key={tab.index}
                 tab={tab}
                 currentTab={currentTab}
                 effectiveWizardStep={effectiveWizardStep}
                 hotelId={hotel.id}
+                isFirst={i === 0}
+                isLast={i === tabs.length - 1}
               />
             ))}
           </div>
@@ -346,10 +341,12 @@ export default function WizardShell({
           </button>
 
           <p className="text-xs text-neutral-400 font-medium">
-            Step {currentTab} of {WIZARD_TABS.length}
+            Step {currentTab} of {totalTabs}
           </p>
 
-          {tabFormId ? (
+          {hideNextButton ? (
+            <div />
+          ) : tabFormId ? (
             <Button
               type="submit"
               form={tabFormId}

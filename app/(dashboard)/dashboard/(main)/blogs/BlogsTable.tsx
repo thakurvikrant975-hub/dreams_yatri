@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter, useSearchParams }                  from "next/navigation";
 import Image                                           from "next/image";
 import { toast }                                       from "sonner";
@@ -64,11 +64,6 @@ export function BlogsTable({
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
-  // Local search — debounced push to URL
-  const [localSearch, setLocalSearch] = useState(search);
-  const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => { setLocalSearch(search); }, [search]);
-
   // Review sheet state
   const [sheetPost, setSheetPost] = useState<AdminBlogDetail | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -88,9 +83,7 @@ export function BlogsTable({
   }
 
   function handleSearch(value: string) {
-    setLocalSearch(value);
-    clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => updateParam("search", value), 400);
+    updateParam("search", value);
   }
 
   function buildHref(p: number) {
@@ -142,6 +135,7 @@ export function BlogsTable({
     {
       header: "Post",
       width:  "w-[280px]",
+      sortKey: (row) => row.title?.toLowerCase() ?? "",
       cell: (row) => (
         <div className="flex items-center gap-3 min-w-0">
           <div className="size-10 rounded-lg overflow-hidden bg-dashboard-base-200 border border-dashboard-base-300 shrink-0 flex items-center justify-center">
@@ -167,6 +161,7 @@ export function BlogsTable({
     },
     {
       header: "Author",
+      sortKey: (row) => row.author_name?.toLowerCase() ?? "",
       cell: (row) => (
         <div className="min-w-0">
           <p className="text-sm text-dashboard-base-content truncate max-w-36">{row.author_name ?? "—"}</p>
@@ -176,6 +171,7 @@ export function BlogsTable({
     },
     {
       header: "Status",
+      sortKey: (row) => row.status?.toLowerCase() ?? "",
       cell: (row) => {
         const cfg = STATUS_BADGE[row.status];
         return <Badge variant={cfg.variant}>{cfg.label}</Badge>;
@@ -183,12 +179,14 @@ export function BlogsTable({
     },
     {
       header: "Category",
+      sortKey: (row) => row.category?.toLowerCase() ?? "",
       cell: (row) => row.category
         ? <Badge variant="outline" className="font-normal text-xs">{row.category}</Badge>
         : <span className="text-xs text-dashboard-base-content/30">—</span>,
     },
     {
       header: "Date",
+      sortKey: (row) => new Date(row.submitted_at ?? row.created_at).getTime(),
       cell: (row) => {
         const date = row.submitted_at ?? row.created_at;
         return (
@@ -244,7 +242,7 @@ export function BlogsTable({
         {/* Filters + rows-per-page */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-2">
           <TableFilters
-            search={localSearch}
+            search={search}
             onSearchChange={handleSearch}
             searchPlaceholder="Search title or author…"
             className="flex-1"

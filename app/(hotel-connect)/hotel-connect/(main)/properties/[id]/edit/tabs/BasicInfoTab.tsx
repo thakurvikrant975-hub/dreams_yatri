@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useEffect } from "react";
 import { saveBasicInfo } from "./basic-info-actions";
 import {
   sendEmailOtp, verifyEmailOtp,
@@ -347,6 +347,10 @@ export default function BasicInfoTab({ hotel }: { hotel: HotelBasicInfo }) {
     {}
   );
 
+  useEffect(() => {
+    if (state.ok) window.location.href = `/hotel-connect/properties/${hotel.id}/edit?tab=2`;
+  }, [state.ok, hotel.id]);
+
   // ── Dropdown / checkbox state ──────────────────────────────────────────────
   const [mobileCC,      setMobileCC]      = useState(hotel.contact_mobile_cc ?? "+91");
   const [whatsappCC,    setWhatsappCC]    = useState(hotel.contact_mobile_cc ?? "+91");
@@ -508,15 +512,13 @@ export default function BasicInfoTab({ hotel }: { hotel: HotelBasicInfo }) {
     if (hasChannelMgr && !channelMgr)
       errs.channel_manager_name = ["Please select your channel manager"];
 
-    // Email: format check + must be verified if provided
+    // Email: format check only
     if (emailInput) {
       if (!isValidEmail(emailInput))
         errs.contact_email = ["Enter a valid email address"];
-      else if (emailStep !== "verified")
-        errs.contact_email = ["Please verify your email address"];
     }
 
-    // Mobile: format check + must be verified if provided
+    // Mobile: format check only
     if (mobileInput) {
       if (!isValidMobile(mobileCC, mobileInput))
         errs.contact_mobile = [
@@ -524,8 +526,6 @@ export default function BasicInfoTab({ hotel }: { hotel: HotelBasicInfo }) {
             ? "Enter a valid 10-digit number for India (+91)"
             : "Enter a valid mobile number",
         ];
-      else if (mobileStep !== "verified")
-        errs.contact_mobile = ["Please verify your mobile number"];
     }
 
     return errs;
@@ -690,6 +690,8 @@ export default function BasicInfoTab({ hotel }: { hotel: HotelBasicInfo }) {
       >
 
         {/* ── Email ── */}
+        {/* Hidden input carries the verified value — disabled inputs are excluded from FormData */}
+        {emailStep === "verified" && <input type="hidden" name="contact_email" value={emailInput} />}
         <FieldRow
           label="Business Email"
           error={fe.contact_email}
@@ -729,6 +731,13 @@ export default function BasicInfoTab({ hotel }: { hotel: HotelBasicInfo }) {
         </FieldRow>
 
         {/* ── Mobile ── */}
+        {/* Hidden inputs carry verified values — disabled inputs are excluded from FormData */}
+        {mobileStep === "verified" && (
+          <>
+            <input type="hidden" name="contact_mobile_cc" value={mobileCC} />
+            <input type="hidden" name="contact_mobile" value={mobileInput} />
+          </>
+        )}
         <FieldRow
           label="Primary Mobile"
           error={fe.contact_mobile}

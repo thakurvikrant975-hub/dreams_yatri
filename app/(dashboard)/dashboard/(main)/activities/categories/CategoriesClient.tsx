@@ -317,10 +317,12 @@ export function CategoriesClient({ initialCategories }: Props) {
     const columns: ColumnDef<CategoryRow>[] = [
         {
             header: "Name",
+            sortKey: (cat) => cat.name?.toLowerCase() ?? "",
             cell: (cat) => <span className="font-medium">{cat.name}</span>,
         },
         {
             header: "Slug",
+            sortKey: (cat) => cat.slug?.toLowerCase() ?? "",
             cell: (cat) => (
                 <code className="text-xs text-dashboard-primary bg-dashboard-primary/10 px-1.5 py-0.5 rounded">
                     {cat.slug}
@@ -330,6 +332,7 @@ export function CategoriesClient({ initialCategories }: Props) {
         {
             header: "Activities",
             align: "center",
+            sortKey: (cat) => cat._count.activities ?? 0,
             cell: (cat) => cat._count.activities > 0 ? (
                 <Link
                     href={`/dashboard/activities?category_id=${cat.id}`}
@@ -347,6 +350,7 @@ export function CategoriesClient({ initialCategories }: Props) {
             header: "Order",
             align: "center",
             width: "w-20",
+            sortKey: (cat) => cat.sort_order ?? 0,
             cell: (cat) => <span className="text-xs text-muted-foreground">{cat.sort_order}</span>,
         },
         {

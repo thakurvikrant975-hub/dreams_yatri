@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -95,9 +95,6 @@ export function PackagesTableClient({
   const [packages, setPackages] = useState(initialPackages);
   useEffect(() => { setPackages(initialPackages); }, [initialPackages]);
 
-  const [localSearch, setLocalSearch] = useState(search);
-  const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => { setLocalSearch(search); }, [search]);
 
   const [deleteTarget, setDeleteTarget] = useState<PackageItem | null>(null);
   const [deleteError,  setDeleteError]  = useState<string | null>(null);
@@ -113,9 +110,7 @@ export function PackagesTableClient({
   }
 
   function handleSearch(value: string) {
-    setLocalSearch(value);
-    clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => updateParam("search", value), 400);
+    updateParam("search", value);
   }
 
   function buildHref(p: number) {
@@ -171,6 +166,7 @@ export function PackagesTableClient({
     {
       header: "Package",
       width:  "w-[280px]",
+      sortKey: (pkg) => pkg.title?.toLowerCase() ?? "",
       cell: (pkg) => {
         const url = getWebsiteUrl(pkg);
         return (
@@ -181,10 +177,10 @@ export function PackagesTableClient({
                 alt={pkg.title}
                 width={112}
                 height={84}
-                className="h-21 w-28 rounded-lg object-cover shrink-0 border"
+                className="h-12 w-16 rounded-lg object-cover shrink-0 border"
               />
             ) : (
-              <div className="h-21 w-28 rounded-lg bg-dashboard-base-200 border border-dashboard-base-content/15 flex items-center justify-center shrink-0">
+              <div className="h-12 w-16 rounded-lg bg-dashboard-base-200 border border-dashboard-base-content/15 flex items-center justify-center shrink-0">
                 <Package className="h-5 w-5 text-dashboard-base-content/30" />
               </div>
             )}
@@ -208,6 +204,7 @@ export function PackagesTableClient({
     },
     {
       header: "Destination",
+      sortKey: (pkg) => pkg.destination.name?.toLowerCase() ?? "",
       cell: (pkg) => (
         <div className="space-y-0.5">
           <Badge variant="secondary" className="text-xs font-normal bg-dashboard-primary/10 text-dashboard-primary">
@@ -225,6 +222,7 @@ export function PackagesTableClient({
     {
       header: "Durations",
       align:  "center",
+      sortKey: (pkg) => pkg._count.durations ?? 0,
       cell: (pkg) => (
         <span className="flex items-center justify-center gap-1 text-sm">
           <Timer className="h-3.5 w-3.5 text-dashboard-base-content/40" />
@@ -265,6 +263,7 @@ export function PackagesTableClient({
     },
     {
       header: "Created By",
+      sortKey: (pkg) => new Date(pkg.created_at).getTime(),
       cell: (pkg) => (
         <div className="space-y-0.5">
           <p className="text-xs font-medium text-dashboard-base-content/80 truncate max-w-28">
@@ -319,7 +318,7 @@ export function PackagesTableClient({
       <div className="flex flex-wrap items-center gap-3">
         <TableFilters
           className="flex-1 min-w-0"
-          search={localSearch}
+          search={search}
           onSearchChange={handleSearch}
           searchPlaceholder="Search packages..."
           filters={[

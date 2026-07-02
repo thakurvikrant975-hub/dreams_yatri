@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "../components/ui/badge";
@@ -97,9 +97,6 @@ export function HotelsTableClient({
   const [hotels, setHotels] = useState(initialHotels);
   useEffect(() => { setHotels(initialHotels); }, [initialHotels]);
 
-  const [localSearch, setLocalSearch] = useState(search);
-  const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => { setLocalSearch(search); }, [search]);
 
   const [deleteTarget, setDeleteTarget] = useState<HotelItem | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -120,9 +117,7 @@ export function HotelsTableClient({
   }
 
   function handleSearch(value: string) {
-    setLocalSearch(value);
-    clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => updateParam("search", value), 400);
+    updateParam("search", value);
   }
 
   function buildHref(p: number) {
@@ -196,6 +191,7 @@ export function HotelsTableClient({
     {
       header: "Hotel",
       width: "w-[260px]",
+      sortKey: (h) => h.name?.toLowerCase() ?? "",
       cell: (h) => (
         <div className="flex items-center gap-3">
           {h.thumbnail ? (
@@ -229,10 +225,12 @@ export function HotelsTableClient({
     },
     {
       header: "Destination",
+      sortKey: (h) => h.destination?.name?.toLowerCase() ?? "",
       cell: (h) => h.destination ? <Badge variant="secondary" className="text-xs bg-dashboard-primary/10 text-dashboard-primary">{h.destination.name}</Badge> : <span className="text-muted-foreground text-xs">—</span>,
     },
     {
       header: "Category",
+      sortKey: (h) => h.category?.toLowerCase() ?? "",
       cell: (h) => (
         <span className="text-sm text-muted-foreground">
           {CATEGORY_LABELS[h.category ?? ""] ?? h.category ?? "—"}
@@ -242,6 +240,7 @@ export function HotelsTableClient({
     {
       header: "Rooms",
       align: "center",
+      sortKey: (h) => h._count.hotelRooms ?? 0,
       cell: (h) => (
         <span className="flex items-center justify-center gap-1 text-sm">
           <BedDouble className="h-3.5 w-3.5 text-muted-foreground" />
@@ -272,6 +271,7 @@ export function HotelsTableClient({
     },
     {
       header: "Created By",
+      sortKey: (h) => new Date(h.created_at).getTime(),
       cell: (h) => (
         <div className="space-y-0.5">
           <p className="text-xs font-medium text-foreground/80 truncate max-w-30">
@@ -335,7 +335,7 @@ export function HotelsTableClient({
       <div className="flex flex-wrap items-center gap-3">
         <TableFilters
           className="flex-1 min-w-0"
-          search={localSearch}
+          search={search}
           onSearchChange={handleSearch}
           searchPlaceholder="Search by name, city, state, country…"
           filters={[

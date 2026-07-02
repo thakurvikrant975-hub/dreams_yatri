@@ -15,11 +15,11 @@ export type CabPricingType = "PER_DAY" | "PER_KM";
 export type CabSeason = {
   id:            number;
   pricing_type:  CabPricingType;
-  valid_from:    string;        // YYYY-MM-DD
+  valid_from:    string;
   valid_to:      string;
   weekday_price: number;
   weekday_cost:  number | null;
-  weekend_price: number | null; // null = no weekend override
+  weekend_price: number | null;
   weekend_cost:  number | null;
   is_active:     boolean;
 };
@@ -37,15 +37,17 @@ export type VehiclePricingEntry = {
 };
 
 export type CabPricingGroup = {
-  destination_id:   number;
-  destination_name: string;
-  destination_slug: string;
-  pricings:         VehiclePricingEntry[];
-  active_count:     number;
-  total_count:      number;
-  season_count:     number;
-  updated_at:       Date;
-  updated_by:       string | null;
+  location_id:   string;        // locations.id as string (BigInt)
+  location_name: string;
+  location_slug: string;
+  location_type: string;
+  pricings:      VehiclePricingEntry[];
+  active_count:  number;
+  total_count:   number;
+  season_count:  number;
+  updated_at:    Date;
+  updated_by:    string | null;
+  created_by:    string | null;
 };
 
 export type CabPricingFormState = { success: boolean; message: string };
@@ -73,30 +75,35 @@ export type GetCabPricingsParams = {
 export async function getCabPricings(params: GetCabPricingsParams = {}) {
   const { page = 1, limit = 10, search = "", status = "all" } = params;
 
-  const where = {
-    cabPricings: { some: {} },
-    ...(search ? { name: { contains: search, mode: "insensitive" as const } } : {}),
-  };
+  // Query all active location-based pricing records
+  const allPricings = await db.cab_pricing.findMany({
+    where: {
+      location_id: { not: null },
+      ...(search ? {
+        location: { name: { contains: search, mode: "insensitive" as const } },
+      } : {}),
+    },
+    include: {
+      location: { select: { id: true, name: true, slug: true, type: true } },
+      vehicle:  { select: { id: true, name: true, type: true } },
+      seasons:  { orderBy: { valid_from: "asc" } },
+    },
+    orderBy: [{ location: { name: "asc" } }, { vehicle: { name: "asc" } }],
+  });
 
-  const [destinations, allStats] = await Promise.all([
-    db.destinations.findMany({
-      where,
-      include: {
-        cabPricings: {
-          include: {
-            vehicle:  { select: { id: true, name: true, type: true } },
-            seasons:  { orderBy: { valid_from: "asc" } },
-          },
-          orderBy: { vehicle: { name: "asc" } },
-        },
-      },
-      orderBy: { name: "asc" },
-    }),
-    db.cab_pricing.aggregate({ _count: { id: true } }),
-  ]);
+  // Group by location_id
+  const grouped = new Map<string, typeof allPricings>();
+  for (const cp of allPricings) {
+    if (!cp.location_id || !cp.location) continue;
+    const key = cp.location_id.toString();
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key)!.push(cp);
+  }
 
-  let rows: CabPricingGroup[] = destinations.map((dest) => {
-    const pricings: VehiclePricingEntry[] = dest.cabPricings.map((cp) => ({
+  let rows: CabPricingGroup[] = [];
+  for (const [locationId, pricings] of grouped) {
+    const loc = pricings[0].location!;
+    const entries: VehiclePricingEntry[] = pricings.map((cp) => ({
       vehicle_id:   cp.vehicle_id,
       vehicle_name: cp.vehicle.name,
       vehicle_type: cp.vehicle.type,
@@ -118,30 +125,38 @@ export async function getCabPricings(params: GetCabPricingsParams = {}) {
       })),
     }));
 
-    const latest = dest.cabPricings.reduce(
+    const latest = pricings.reduce(
       (max, cp) => (cp.updated_at > max.updated_at ? cp : max),
-      dest.cabPricings[0],
+      pricings[0],
+    );
+    const oldest = pricings.reduce(
+      (min, cp) => (cp.created_at < min.created_at ? cp : min),
+      pricings[0],
     );
 
-    return {
-      destination_id:   dest.id,
-      destination_name: dest.name,
-      destination_slug: dest.slug,
-      pricings,
-      active_count:  pricings.filter((p) => p.is_active).length,
-      total_count:   pricings.length,
-      season_count:  pricings.reduce((s, p) => s + p.seasons.length, 0),
-      updated_at:    latest?.updated_at ?? new Date(0),
-      updated_by:    latest?.updated_by ?? null,
-    };
-  });
+    rows.push({
+      location_id:   locationId,
+      location_name: loc.name,
+      location_slug: loc.slug,
+      location_type: loc.type,
+      pricings:      entries,
+      active_count:  entries.filter((e) => e.is_active).length,
+      total_count:   entries.length,
+      season_count:  entries.reduce((s, e) => s + e.seasons.length, 0),
+      updated_at:    latest.updated_at,
+      updated_by:    latest.updated_by,
+      created_by:    oldest.created_by,
+    });
+  }
+
+  const allStats = await db.cab_pricing.aggregate({ _count: { id: true } });
 
   if (status === "active")   rows = rows.filter((r) => r.active_count  > 0);
   if (status === "inactive") rows = rows.filter((r) => r.active_count === 0);
 
   rows.sort((a, b) => b.updated_at.getTime() - a.updated_at.getTime());
 
-  const totalPages = Math.ceil(rows.length / limit);
+  const totalPages = Math.max(1, Math.ceil(rows.length / limit));
   const paginated  = rows.slice((page - 1) * limit, page * limit);
 
   return {
@@ -158,20 +173,35 @@ export async function getCabPricings(params: GetCabPricingsParams = {}) {
   };
 }
 
-// ── Search destinations (excludes already-priced when requested) ───────────
+// ── Search city locations (for the city picker) ────────────────────────────
+// Returns CITY, STATE, COUNTRY locations only.
+// Excludes locations already priced (have a cab_pricing record with location_id).
 
-export async function searchDestinations(query: string, excludeAlreadyPriced = false) {
-  const dests = await db.destinations.findMany({
+export async function searchCityLocations(query: string, excludeAlreadyPriced = false) {
+  let excludeIds: bigint[] = [];
+
+  if (excludeAlreadyPriced) {
+    const priced = await db.cab_pricing.findMany({
+      where:  { location_id: { not: null } },
+      select: { location_id: true },
+      distinct: ["location_id"],
+    });
+    excludeIds = priced.map((r) => r.location_id!).filter(Boolean);
+  }
+
+  const locs = await db.location.findMany({
     where: {
       is_active: true,
-      ...(excludeAlreadyPriced ? { cabPricings: { none: {} } } : {}),
+      type: { in: ["CITY", "STATE", "COUNTRY"] },
       ...(query ? { name: { contains: query, mode: "insensitive" as const } } : {}),
+      ...(excludeIds.length > 0 ? { id: { notIn: excludeIds } } : {}),
     },
-    select:  { id: true, name: true, slug: true },
-    orderBy: { name: "asc" },
+    select:  { id: true, name: true, slug: true, type: true },
+    orderBy: [{ is_featured: "desc" }, { is_popular: "desc" }, { name: "asc" }],
     take:    20,
   });
-  return dests.map((d) => ({ id: d.id, label: d.name, description: d.slug }));
+
+  return locs.map((l) => ({ id: l.id.toString(), label: l.name, description: `${l.type} · ${l.slug}` }));
 }
 
 // ── Get active vehicles ────────────────────────────────────────────────────
@@ -184,15 +214,67 @@ export async function getActiveVehicles() {
   });
 }
 
-// ── Upsert vehicle prices + seasons ───────────────────────────────────────
+// ── Find or create a city/state/country Location record ───────────────────
+
+async function _getOrCreateCityLocation(
+  locationId: string,
+  locationName: string,
+  actorName: string,
+): Promise<bigint> {
+  try {
+    const bigId = BigInt(locationId);
+    const existing = await db.location.findUnique({
+      where:  { id: bigId },
+      select: { id: true },
+    });
+    if (existing) return existing.id;
+  } catch { /* invalid BigInt — fall through to create */ }
+
+  // Create a new CITY location if the ID couldn't be resolved
+  const slug = locationName
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .slice(0, 100);
+
+  let finalSlug = slug;
+  let i = 2;
+  while (await db.location.findUnique({ where: { slug: finalSlug }, select: { id: true } })) {
+    finalSlug = `${slug}-${i++}`;
+  }
+
+  const created = await db.location.create({
+    data: {
+      name:         locationName,
+      slug:         finalSlug,
+      type:         "CITY",
+      is_active:    true,
+      is_searchable: true,
+      metadata:     { source: "cab_pricing" },
+    },
+    select: { id: true },
+  });
+
+  await createLog({
+    action:     "CREATE",
+    entity:     "Location",
+    entityId:   created.id.toString(),
+    entitySlug: finalSlug,
+    newData:    { name: locationName, type: "CITY", source: "cab_pricing" },
+  });
+
+  return created.id;
+}
+
+// ── Upsert vehicle prices + seasons for a location ────────────────────────
 
 export type SeasonInput = {
   pricingType:   CabPricingType;
-  validFrom:     string;        // YYYY-MM-DD
+  validFrom:     string;
   validTo:       string;
   weekdayPrice:  number;
   weekdayCost:   number | null;
-  weekendPrice:  number | null; // null = no override
+  weekendPrice:  number | null;
   weekendCost:   number | null;
 };
 
@@ -205,41 +287,52 @@ export type VehicleEntryInput = {
 };
 
 async function _performUpsert(
-  destinationId: number,
+  locationId: bigint,
   entries: VehicleEntryInput[],
   actorName: string,
-  destMeta: { name: string; slug: string } | null,
+  locMeta: { name: string; slug: string },
 ): Promise<CabPricingFormState> {
   await db.$transaction(async (tx) => {
     for (const e of entries) {
-      const record = await tx.cab_pricing.upsert({
-        where: {
-          destination_id_vehicle_id: { destination_id: destinationId, vehicle_id: e.vehicleId },
-        },
-        create: {
-          destination_id: destinationId,
-          vehicle_id:     e.vehicleId,
-          pricing_type:   e.pricingType as never,
-          price:          e.price,
-          cost_price:     e.costPrice,
-          is_active:      true,
-          created_by:     actorName,
-          updated_by:     actorName,
-        },
-        update: {
-          pricing_type: e.pricingType as never,
-          price:        e.price,
-          cost_price:   e.costPrice,
-          updated_by:   actorName,
-        },
+      const existing = await tx.cab_pricing.findFirst({
+        where:  { location_id: locationId, vehicle_id: e.vehicleId },
+        select: { id: true },
       });
 
-      await tx.cab_pricing_season.deleteMany({ where: { pricing_id: record.id } });
+      let recordId: number;
+      if (existing) {
+        await tx.cab_pricing.update({
+          where: { id: existing.id },
+          data: {
+            pricing_type: e.pricingType as never,
+            price:        e.price,
+            cost_price:   e.costPrice,
+            updated_by:   actorName,
+          },
+        });
+        recordId = existing.id;
+      } else {
+        const created = await tx.cab_pricing.create({
+          data: {
+            location_id:  locationId,
+            vehicle_id:   e.vehicleId,
+            pricing_type: e.pricingType as never,
+            price:        e.price,
+            cost_price:   e.costPrice,
+            is_active:    true,
+            created_by:   actorName,
+            updated_by:   actorName,
+          },
+        });
+        recordId = created.id;
+      }
+
+      await tx.cab_pricing_season.deleteMany({ where: { pricing_id: recordId } });
 
       if (e.seasons.length > 0) {
         await tx.cab_pricing_season.createMany({
           data: e.seasons.map((s) => ({
-            pricing_id:    record.id,
+            pricing_id:    recordId,
             pricing_type:  s.pricingType as never,
             valid_from:    new Date(s.validFrom),
             valid_to:      new Date(s.validTo),
@@ -257,9 +350,9 @@ async function _performUpsert(
   await createLog({
     action:      "UPDATE",
     entity:      "CabPricing",
-    entityId:    String(destinationId),
-    entitySlug:  destMeta?.slug,
-    description: `Updated cab pricing for ${destMeta?.name ?? destinationId}`,
+    entityId:    locationId.toString(),
+    entitySlug:  locMeta.slug,
+    description: `Updated cab pricing for ${locMeta.name}`,
     newData: {
       vehicles: entries.length,
       seasons:  entries.reduce((s, e) => s + e.seasons.length, 0),
@@ -270,110 +363,45 @@ async function _performUpsert(
   return { success: true, message: "Pricing saved successfully" };
 }
 
-export async function upsertCabPricingForDestination(
-  destinationId: number,
-  entries: VehicleEntryInput[],
+export async function upsertCabPricingForCity(
+  cityLocationId: string,
+  cityName:       string,
+  entries:        VehicleEntryInput[],
 ): Promise<CabPricingFormState> {
   const { authorized, actorName } = await requireSession();
   if (!authorized) return { success: false, message: "Unauthorized" };
 
   try {
-    const dest = await db.destinations.findUnique({
-      where:  { id: destinationId },
+    const locId = await _getOrCreateCityLocation(cityLocationId, cityName, actorName);
+    const loc   = await db.location.findUnique({
+      where:  { id: locId },
       select: { name: true, slug: true },
     });
-    return await _performUpsert(destinationId, entries, actorName, dest);
+    return await _performUpsert(locId, entries, actorName, loc ?? { name: cityName, slug: "" });
   } catch (e) {
-    console.error("[upsertCabPricing]", e);
+    console.error("[upsertCabPricingForCity]", e);
     return { success: false, message: classifyActionError(e).message };
   }
 }
 
-// ── City-based upsert (looks up or auto-creates destination) ─────────────
-
-async function _findOrCreateDestination(
-  cityLocationId: string,
-  cityName: string,
-  actorName: string,
-): Promise<{ id: number; name: string; slug: string }> {
-  // 1. Match by location_id
-  const byLocationId = await db.destinations.findFirst({
-    where:  { location_id: cityLocationId, is_active: true },
-    select: { id: true, name: true, slug: true },
-  });
-  if (byLocationId) return byLocationId;
-
-  // 2. Match by name (case-insensitive)
-  const byName = await db.destinations.findFirst({
-    where:  { name: { equals: cityName, mode: "insensitive" }, is_active: true },
-    select: { id: true, name: true, slug: true },
-  });
-  if (byName) return byName;
-
-  // 3. Auto-create: look up the location record for its slug + coordinates
-  let locationSlug = cityName.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-  let locationLat: string | null = null;
-  let locationLng: string | null = null;
-
-  try {
-    const locId = BigInt(cityLocationId);
-    const loc = await db.location.findUnique({
-      where:  { id: locId },
-      select: { slug: true, latitude: true, longitude: true },
-    });
-    if (loc) {
-      locationSlug = loc.slug || locationSlug;
-      locationLat  = loc.latitude  != null ? String(loc.latitude)  : null;
-      locationLng  = loc.longitude != null ? String(loc.longitude) : null;
-    }
-  } catch { /* cityLocationId not a valid BigInt — use name-derived slug */ }
-
-  // Ensure slug is unique among destinations
-  let slug = locationSlug;
-  let suffix = 1;
-  while (await db.destinations.findUnique({ where: { slug }, select: { id: true } })) {
-    slug = `${locationSlug}-${suffix++}`;
-  }
-
-  // Use the first active region as the default for auto-created destinations
-  const defaultRegion = await db.custom_regions.findFirst({
-    where:   { is_active: true, is_deleted: false },
-    select:  { id: true },
-    orderBy: { id: "asc" },
-  });
-  if (!defaultRegion) throw new Error("No active region found — cannot auto-create destination.");
-
-  const created = await db.destinations.create({
-    data: {
-      name:        cityName,
-      slug,
-      country:     "India",
-      region_id:   defaultRegion.id,
-      location_id: cityLocationId,
-      latitude:    locationLat != null ? parseFloat(locationLat) : null,
-      longitude:   locationLng != null ? parseFloat(locationLng) : null,
-      is_active:   true,
-      created_by:  actorName,
-    },
-    select: { id: true, name: true, slug: true },
-  });
-
-  return created;
-}
-
-export async function upsertCabPricingForCity(
-  cityLocationId: string,
-  cityName: string,
-  entries: VehicleEntryInput[],
+// Used by the Edit sheet (location is already known)
+export async function upsertCabPricingForLocation(
+  locationId: string,
+  entries:    VehicleEntryInput[],
 ): Promise<CabPricingFormState> {
   const { authorized, actorName } = await requireSession();
   if (!authorized) return { success: false, message: "Unauthorized" };
 
   try {
-    const dest = await _findOrCreateDestination(cityLocationId, cityName, actorName);
-    return await _performUpsert(dest.id, entries, actorName, dest);
+    const locId = BigInt(locationId);
+    const loc   = await db.location.findUnique({
+      where:  { id: locId },
+      select: { name: true, slug: true },
+    });
+    if (!loc) return { success: false, message: "Location not found" };
+    return await _performUpsert(locId, entries, actorName, loc);
   } catch (e) {
-    console.error("[upsertCabPricingForCity]", e);
+    console.error("[upsertCabPricingForLocation]", e);
     return { success: false, message: classifyActionError(e).message };
   }
 }
@@ -381,21 +409,21 @@ export async function upsertCabPricingForCity(
 // ── Toggle active ──────────────────────────────────────────────────────────
 
 export async function toggleCabPricingActive(
-  destinationId: number,
-  isActive: boolean,
+  locationId: string,
+  isActive:   boolean,
 ): Promise<CabPricingFormState> {
   const { authorized } = await requireSession();
   if (!authorized) return { success: false, message: "Unauthorized" };
 
   try {
     await db.cab_pricing.updateMany({
-      where: { destination_id: destinationId },
+      where: { location_id: BigInt(locationId) },
       data:  { is_active: isActive },
     });
     await createLog({
       action:   "UPDATE",
       entity:   "CabPricing",
-      entityId: String(destinationId),
+      entityId: locationId,
       metadata: { operation: "toggle_active", isActive },
       newData:  { isActive },
     });
@@ -408,24 +436,24 @@ export async function toggleCabPricingActive(
 
 // ── Delete ─────────────────────────────────────────────────────────────────
 
-export async function deleteCabPricingForDestination(
-  destinationId: number,
+export async function deleteCabPricingForLocation(
+  locationId: string,
 ): Promise<CabPricingFormState> {
   const { authorized } = await requireSession();
   if (!authorized) return { success: false, message: "Unauthorized" };
 
   try {
-    const dest = await db.destinations.findUnique({
-      where:  { id: destinationId },
+    const loc = await db.location.findUnique({
+      where:  { id: BigInt(locationId) },
       select: { name: true, slug: true },
     });
-    await db.cab_pricing.deleteMany({ where: { destination_id: destinationId } });
+    await db.cab_pricing.deleteMany({ where: { location_id: BigInt(locationId) } });
     await createLog({
       action:      "DELETE",
       entity:      "CabPricing",
-      entityId:    String(destinationId),
-      entitySlug:  dest?.slug,
-      description: `Deleted all cab pricing for ${dest?.name ?? destinationId}`,
+      entityId:    locationId,
+      entitySlug:  loc?.slug,
+      description: `Deleted all cab pricing for ${loc?.name ?? locationId}`,
       severity:    "MEDIUM",
     });
     revalidatePath(PATH);

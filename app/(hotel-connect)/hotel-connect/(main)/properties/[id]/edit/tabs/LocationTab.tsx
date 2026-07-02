@@ -182,7 +182,8 @@ export default function LocationTab({ hotel }: { hotel: HotelLocationInfo }) {
   const [pincode, setPincode] = useState(hotel.pincode ?? "");
 
   // ── Terms checkbox ─────────────────────────────────────────────────────────
-  const [termsChecked, setTermsChecked] = useState(false);
+  // Pre-check if address was previously saved (returning to this tab)
+  const [termsChecked, setTermsChecked] = useState(!!(hotel.address && hotel.city && hotel.state));
 
   // ── Address search autocomplete ────────────────────────────────────────────
   const [searchQuery,     setSearchQuery]     = useState("");

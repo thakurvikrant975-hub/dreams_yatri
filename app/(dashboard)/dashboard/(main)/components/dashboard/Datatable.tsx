@@ -1,6 +1,7 @@
 "use client";
 
-import React from "react";
+import React, { useMemo, useState } from "react";
+import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
 import {
     Table, TableBody, TableCell,
     TableHead, TableHeader, TableRow,
@@ -10,6 +11,7 @@ import {
     PaginationItem, PaginationLink,
     PaginationNext, PaginationPrevious,
 } from "../ui/pagination";
+import { cn } from "@/app/lib/utils";
 
 // ── Column Definition ─────────────────────────────────────────────────────────
 export interface ColumnDef<T> {
@@ -17,6 +19,8 @@ export interface ColumnDef<T> {
     width?: string;
     align?: "left" | "center" | "right";
     cell: (row: T) => React.ReactNode;
+    /** Return a primitive to enable client-side sorting on this column. */
+    sortKey?: (row: T) => string | number | Date | null | undefined;
 }
 
 // ── Pagination ────────────────────────────────────────────────────────────────
@@ -150,33 +154,85 @@ export function DataTable<T>({
     pagination,
 }: DataTableProps<T>) {
     const alignClass = {
-        left: "text-left",
+        left:   "text-left",
         center: "text-center",
-        right: "text-right",
+        right:  "text-right",
     };
 
+    // ── Sort state ─────────────────────────────────────────────────────────────
+    const [sortCol, setSortCol] = useState<number | null>(null);
+    const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+    function handleHeaderClick(colIndex: number) {
+        if (!columns[colIndex].sortKey) return;
+        if (sortCol === colIndex) {
+            setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+        } else {
+            setSortCol(colIndex);
+            setSortDir("asc");
+        }
+    }
+
+    const sortedData = useMemo(() => {
+        if (sortCol === null || !columns[sortCol]?.sortKey) return data;
+        const key = columns[sortCol].sortKey!;
+        return [...data].sort((a, b) => {
+            const va = key(a) ?? "";
+            const vb = key(b) ?? "";
+            let cmp = 0;
+            if (va < vb) cmp = -1;
+            else if (va > vb) cmp = 1;
+            return sortDir === "asc" ? cmp : -cmp;
+        });
+    }, [data, sortCol, sortDir, columns]);
+
+    // ── Render ─────────────────────────────────────────────────────────────────
     return (
         <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 overflow-hidden">
             <Table>
                 <TableHeader>
                     <TableRow className="bg-dashboard-base-200 border-b border-dashboard-base-300 hover:bg-dashboard-base-200">
-                        {columns.map((col, i) => (
-                            <TableHead
-                                key={i}
-                                className={[
-                                    "text-xs font-semibold uppercase tracking-wide text-dashboard-neutral-content bg-dashboard-neutral",
-                                    col.width ?? "",
-                                    col.align ? alignClass[col.align] : "",
-                                ].join(" ")}
-                            >
-                                {col.header}
-                            </TableHead>
-                        ))}
+                        {columns.map((col, i) => {
+                            const sortable  = !!col.sortKey;
+                            const isActive  = sortCol === i;
+                            const SortIcon  = isActive
+                                ? (sortDir === "asc" ? ArrowUp : ArrowDown)
+                                : ChevronsUpDown;
+
+                            return (
+                                <TableHead
+                                    key={i}
+                                    onClick={sortable ? () => handleHeaderClick(i) : undefined}
+                                    className={cn(
+                                        "text-xs font-semibold uppercase tracking-wide text-dashboard-neutral-content bg-dashboard-neutral",
+                                        col.width ?? "",
+                                        col.align ? alignClass[col.align] : "",
+                                        sortable && "cursor-pointer select-none hover:bg-dashboard-neutral/80 transition-colors",
+                                    )}
+                                >
+                                    <span className={cn(
+                                        "inline-flex items-center gap-1.5",
+                                        col.align === "center" && "justify-center w-full",
+                                        col.align === "right"  && "justify-end w-full",
+                                    )}>
+                                        {col.header}
+                                        {sortable && (
+                                            <SortIcon className={cn(
+                                                "h-3 w-3 shrink-0",
+                                                isActive
+                                                    ? "text-dashboard-neutral-content"
+                                                    : "text-dashboard-neutral-content/40",
+                                            )} />
+                                        )}
+                                    </span>
+                                </TableHead>
+                            );
+                        })}
                     </TableRow>
                 </TableHeader>
 
                 <TableBody>
-                    {data.length === 0 ? (
+                    {sortedData.length === 0 ? (
                         <TableRow className="hover:bg-transparent">
                             <TableCell colSpan={columns.length} className="py-16 text-center">
                                 {emptyState ?? (
@@ -187,7 +243,7 @@ export function DataTable<T>({
                             </TableCell>
                         </TableRow>
                     ) : (
-                        data.map((row) => (
+                        sortedData.map((row) => (
                             <React.Fragment key={rowKey(row)}>
                                 <TableRow
                                     className={[

@@ -31,8 +31,8 @@ export type UpdateCabTypeInput = {
 
 export type CabPricingOption = {
   cab_pricing_id: number;
-  destination_id: number;
-  destination_name: string;
+  city_id: string;       // location_id as string (BigInt)
+  city_name: string;
   pricing_type: "PER_DAY" | "PER_KM";
   price: number;
   cost_price: number | null;
@@ -252,25 +252,25 @@ export async function getCabPricingOptionsForVehicle(
 ): Promise<{ success: true; data: CabPricingOption[] } | { success: false; error: string }> {
   try {
     const rows = await db.cab_pricing.findMany({
-      where: { vehicle_id: vehicleId, is_active: true },
-      orderBy: { destination: { name: "asc" } },
+      where: { vehicle_id: vehicleId, is_active: true, location_id: { not: null } },
+      orderBy: { location: { name: "asc" } },
       select: {
         id: true,
-        destination_id: true,
+        location_id: true,
         pricing_type: true,
         price: true,
         cost_price: true,
-        destination: { select: { name: true } },
+        location: { select: { id: true, name: true } },
         _count: { select: { seasons: true } },
       },
     });
 
     return {
       success: true,
-      data: rows.map((r) => ({
+      data: rows.filter((r) => r.location).map((r) => ({
         cab_pricing_id: r.id,
-        destination_id: r.destination_id,
-        destination_name: r.destination.name,
+        city_id:   r.location_id!.toString(),
+        city_name: r.location!.name,
         pricing_type: r.pricing_type as "PER_DAY" | "PER_KM",
         price: Number(r.price),
         cost_price: r.cost_price != null ? Number(r.cost_price) : null,
@@ -292,8 +292,8 @@ export type FullCabPricingOption = {
   vehicle_type: string;
   passenger_capacity: number;
   has_ac: boolean;
-  destination_id: number;
-  destination_name: string;
+  city_id: string;       // location_id as string (BigInt)
+  city_name: string;
   pricing_type: "PER_DAY" | "PER_KM";
   price: number;
   seasons_count: number;
@@ -331,12 +331,13 @@ export async function getAllCabPricingOptions(opts: {
     const rows = await db.cab_pricing.findMany({
       where: {
         is_active: true,
+        location_id: { not: null },
         ...(excludeVehicleIds.length > 0 ? { vehicle_id: { notIn: excludeVehicleIds } } : {}),
         ...(query
           ? {
               OR: [
-                { vehicle: { name: { contains: query, mode: "insensitive" as const } } },
-                { destination: { name: { contains: query, mode: "insensitive" as const } } },
+                { vehicle:  { name: { contains: query, mode: "insensitive" as const } } },
+                { location: { name: { contains: query, mode: "insensitive" as const } } },
               ],
             }
           : {}),
@@ -346,28 +347,28 @@ export async function getAllCabPricingOptions(opts: {
         vehicle_id: true,
         pricing_type: true,
         price: true,
-        destination_id: true,
+        location_id: true,
         vehicle: {
           select: { name: true, type: true, passenger_capacity: true, has_ac: true },
         },
-        destination: {
+        location: {
           select: { name: true, latitude: true, longitude: true },
         },
         _count: { select: { seasons: true } },
       },
-      orderBy: [{ vehicle: { name: "asc" } }, { destination: { name: "asc" } }],
+      orderBy: [{ vehicle: { name: "asc" } }, { location: { name: "asc" } }],
     });
 
     // Compute proximity distance for sorting
-    const withDist = rows.map((r) => {
+    const withDist = rows.filter((r) => r.location).map((r) => {
       let minDist = Infinity;
       if (
         stopCoords.length > 0 &&
-        r.destination.latitude != null &&
-        r.destination.longitude != null
+        r.location!.latitude != null &&
+        r.location!.longitude != null
       ) {
-        const dLat = Number(r.destination.latitude);
-        const dLng = Number(r.destination.longitude);
+        const dLat = Number(r.location!.latitude);
+        const dLng = Number(r.location!.longitude);
         for (const s of stopCoords) {
           const d = haversineKm(s.lat, s.lng, dLat, dLng);
           if (d < minDist) minDist = d;
@@ -389,16 +390,16 @@ export async function getAllCabPricingOptions(opts: {
       success: true,
       data: withDist.map(({ r }) => ({
         cab_pricing_id: r.id,
-        vehicle_id: r.vehicle_id,
-        vehicle_name: r.vehicle.name,
-        vehicle_type: r.vehicle.type,
+        vehicle_id:     r.vehicle_id,
+        vehicle_name:   r.vehicle.name,
+        vehicle_type:   r.vehicle.type,
         passenger_capacity: r.vehicle.passenger_capacity,
-        has_ac: r.vehicle.has_ac,
-        destination_id: r.destination_id,
-        destination_name: r.destination.name,
-        pricing_type: r.pricing_type as "PER_DAY" | "PER_KM",
-        price: Number(r.price),
-        seasons_count: r._count.seasons,
+        has_ac:         r.vehicle.has_ac,
+        city_id:        r.location_id!.toString(),
+        city_name:      r.location!.name,
+        pricing_type:   r.pricing_type as "PER_DAY" | "PER_KM",
+        price:          Number(r.price),
+        seasons_count:  r._count.seasons,
       })),
     };
   } catch (e) {

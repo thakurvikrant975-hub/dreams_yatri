@@ -422,7 +422,7 @@ export default async function HotelConnectBookingsPage({
       <ConnectHeader title="Bookings" />
 
       <div className="flex-1 overflow-y-auto">
-        <div className="p-6 max-w-5xl mx-auto w-full space-y-6">
+        <div className="p-6  mx-auto w-full space-y-6">
 
           {/* Stats strip */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

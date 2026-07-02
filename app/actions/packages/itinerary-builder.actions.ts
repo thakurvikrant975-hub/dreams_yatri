@@ -27,6 +27,7 @@ import {
   deleteStayCategory,
   reorderStayCategories,
   getVehicles,
+  getActivityPrimaryImage,
   addItineraryAttraction,
   bulkAddItineraryAttractions,
   updateItineraryAttraction,
@@ -100,6 +101,27 @@ export async function handleAddActivity(
   } catch (e) {
     console.error(e);
     return { success: false as const, message: "Failed to add activity" };
+  }
+}
+
+export async function handleAddActivityPrimaryImage(
+  itineraryId: number,
+  activityId: number,
+  packageId: number,
+  existingImageKeys: string[],
+) {
+  try {
+    const img = await getActivityPrimaryImage(activityId);
+    if (!img || existingImageKeys.includes(img.url)) {
+      return { success: true as const, data: null };
+    }
+    const caption = img.alt ?? img.label ?? "";
+    const attraction = await addItineraryAttraction(itineraryId, img.url, caption);
+    revalidatePath(p(packageId));
+    return { success: true as const, data: attraction };
+  } catch (e) {
+    console.error(e);
+    return { success: true as const, data: null }; // non-fatal — don't block activity add
   }
 }
 

@@ -24,8 +24,8 @@ import {
 } from "../../components/ui/pricing-range-calendar";
 
 import {
-  upsertCabPricingForDestination,
   upsertCabPricingForCity,
+  upsertCabPricingForLocation,
   type CabPricingGroup,
   type CabPricingType,
   type SeasonInput,
@@ -751,9 +751,9 @@ export function CreateCabPricingSheet({ vehicles }: { vehicles: Vehicle[] }) {
                 <LocationSearchSelect
                   value={cityValue}
                   onChange={(v) => { setCityValue(v); setFormError(null); }}
-                  types={["CITY"]}
-                  placeholder="Search city…"
-                  extraParams={{ destinationsOnly: "true", excludePricedCabs: "true" }}
+                  types={["CITY", "STATE"]}
+                  placeholder="Search city or state…"
+                  extraParams={{ excludePricedCabsLocation: "true" }}
                   disableExternalSearch
                   hideRecent
                 />
@@ -883,13 +883,13 @@ export function EditCabPricingSheet({ row, vehicles }: { row: CabPricingGroup; v
   }
 
   function handleSubmit() {
-    const error = validateForm(row.destination_name, entries, vehicleSeasons);
+    const error = validateForm(row.location_name, entries, vehicleSeasons);
     if (error) { setFormError(error); return; }
     setFormError(null);
 
     const payload = buildPayload(entries, vehicleSeasons);
     startTransition(async () => {
-      const result = await upsertCabPricingForDestination(row.destination_id, payload);
+      const result = await upsertCabPricingForLocation(row.location_id, payload);
       if (result.success) {
         toast.success(result.message);
         setOpen(false);
@@ -920,7 +920,7 @@ export function EditCabPricingSheet({ row, vehicles }: { row: CabPricingGroup; v
 
           <SheetHeader className="px-5 pt-5 pb-4 border-b shrink-0">
             <SheetTitle className="text-base">Edit Cab Pricing</SheetTitle>
-            <p className="text-xs text-muted-foreground mt-0.5">Editing pricing for: {row.destination_name}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Editing pricing for: {row.location_name}</p>
           </SheetHeader>
 
           <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
@@ -935,7 +935,7 @@ export function EditCabPricingSheet({ row, vehicles }: { row: CabPricingGroup; v
               <div className="space-y-1.5">
                 <Label>City</Label>
                 <div className="h-10 rounded-md border bg-muted px-3 flex items-center text-sm text-muted-foreground cursor-not-allowed">
-                  {row.destination_name}
+                  {row.location_name}
                 </div>
                 <p className="text-xs text-muted-foreground">Delete and recreate to change the city.</p>
               </div>

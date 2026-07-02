@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter, useSearchParams }                  from "next/navigation";
 import { Car, CalendarDays } from "lucide-react";
 import { Switch }       from "../../components/ui/switch";
@@ -47,11 +47,6 @@ export function CabPricingTable({
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
-  const [localSearch, setLocalSearch] = useState(search);
-  const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-  useEffect(() => { setLocalSearch(search); }, [search]);
-
   function updateParam(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString());
     if (value === "all" || value === "") {
@@ -64,9 +59,7 @@ export function CabPricingTable({
   }
 
   function handleSearch(value: string) {
-    setLocalSearch(value);
-    clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => updateParam("search", value), 400);
+    updateParam("search", value);
   }
 
   function buildHref(p: number) {
@@ -75,9 +68,9 @@ export function CabPricingTable({
     return `?${params.toString()}`;
   }
 
-  function handleToggle(destinationId: number, current: boolean) {
+  function handleToggle(locationId: string, current: boolean) {
     startTransition(async () => {
-      const res = await toggleCabPricingActive(destinationId, !current);
+      const res = await toggleCabPricingActive(locationId, !current);
       if (res.success) toast.success(res.message);
       else             toast.error(res.message);
     });
@@ -85,22 +78,23 @@ export function CabPricingTable({
 
   const from  = totalCount === 0 ? 0 : (currentPage - 1) * limit + 1;
   const to    = Math.min(currentPage * limit, totalCount);
-  const paginationLabel = `Showing ${from}–${to} of ${totalCount} destination${totalCount !== 1 ? "s" : ""}`;
+  const paginationLabel = `Showing ${from}–${to} of ${totalCount} cit${totalCount !== 1 ? "ies" : "y"}`;
 
   // ── Columns ──────────────────────────────────────────────────────────────
 
   const columns: ColumnDef<CabPricingGroup>[] = [
     {
-      header: "Destination",
+      header: "City",
       width:  "w-[200px]",
+      sortKey: (row) => row.location_name?.toLowerCase() ?? "",
       cell: (row) => (
         <div className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-lg bg-dashboard-primary/10 flex items-center justify-center shrink-0">
             <Car className="h-4 w-4 text-dashboard-primary" />
           </div>
           <div>
-            <p className="font-medium text-sm">{row.destination_name}</p>
-            <p className="text-xs text-muted-foreground font-mono">{row.destination_slug}</p>
+            <p className="font-medium text-sm">{row.location_name}</p>
+            <p className="text-xs text-muted-foreground font-mono">{row.location_slug}</p>
           </div>
         </div>
       ),
@@ -138,6 +132,7 @@ export function CabPricingTable({
       header:  "Vehicles",
       align:   "center",
       width:   "w-[110px]",
+      sortKey: (row) => row.total_count ?? 0,
       cell: (row) => (
         <div className="flex flex-col items-center gap-0.5">
           <div className="flex items-center gap-1 text-sm">
@@ -161,16 +156,26 @@ export function CabPricingTable({
         <Switch
           checked={row.active_count > 0}
           disabled={isPending}
-          onCheckedChange={() => handleToggle(row.destination_id, row.active_count > 0)}
+          onCheckedChange={() => handleToggle(row.location_id, row.active_count > 0)}
         />
+      ),
+    },
+    {
+      header: "Created By",
+      width:  "w-[150px]",
+      cell: (row) => (
+        <p className="text-xs font-medium text-foreground/80 truncate max-w-32">
+          {row.created_by ?? "—"}
+        </p>
       ),
     },
     {
       header: "Updated By",
       width:  "w-[150px]",
+      sortKey: (row) => new Date(row.updated_at).getTime(),
       cell: (row) => (
         <div className="space-y-0.5">
-          <p className="text-xs font-medium text-foreground/80 truncate max-w-32.5">
+          <p className="text-xs font-medium text-foreground/80 truncate max-w-32">
             {row.updated_by ?? "—"}
           </p>
           <p className="text-xs text-muted-foreground">
@@ -187,8 +192,8 @@ export function CabPricingTable({
         <div className="flex items-center justify-end gap-1">
           <EditCabPricingSheet row={row} vehicles={vehicles} />
           <DeleteCabPricingDialog
-            destinationId={row.destination_id}
-            destinationName={row.destination_name}
+            locationId={row.location_id}
+            locationName={row.location_name}
             vehicleCount={row.total_count}
           />
         </div>
@@ -202,7 +207,7 @@ export function CabPricingTable({
       {/* Filters + rows-per-page */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-2">
         <TableFilters
-          search={localSearch}
+          search={search}
           onSearchChange={handleSearch}
           searchPlaceholder="Search destinations…"
           className="flex-1"
@@ -250,7 +255,7 @@ export function CabPricingTable({
       <DataTable
         data={rows}
         columns={columns}
-        rowKey={(r) => r.destination_id}
+        rowKey={(r) => r.location_id}
         emptyState={
           <TableEmptyState
             title="No cab pricing found"

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/app/lib/db";
 import { LocationType } from "@/app/generated/prisma";
 import { z } from "zod";
+import { createLog } from "@/app/(dashboard)/dashboard/(main)/lib/logger";
 
 const schema = z.object({
   mapbox_id:   z.string(),
@@ -143,6 +144,14 @@ export async function POST(req: NextRequest) {
         metadata:   { source: "mapbox", full_name, mapbox_id },
       },
       select: locationSelect,
+    });
+
+    await createLog({
+      action: "CREATE",
+      entity: "Location",
+      entityId: created.id.toString(),
+      entitySlug: created.slug,
+      newData: { name: created.name, slug: created.slug, type: created.type },
     });
 
     return NextResponse.json(toResponse(created, { city_name: place, state_name: region, country_name: country }));

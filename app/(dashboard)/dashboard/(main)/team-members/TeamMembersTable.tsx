@@ -81,6 +81,7 @@ export function TeamMembersTable({ paginated, totalStats, departments, roles, cu
     {
       header: "Member",
       width: "w-64",
+      sortKey: (m) => m.name?.toLowerCase() ?? "",
       cell: (m) => (
         <div className="flex items-center gap-3 min-w-0">
           <div className="h-9 w-9 rounded-full shrink-0 overflow-hidden flex items-center justify-center text-sm font-bold text-purple-100"
@@ -99,14 +100,17 @@ export function TeamMembersTable({ paginated, totalStats, departments, roles, cu
     },
     {
       header: "Work Email",
+      sortKey: (m) => m.email?.toLowerCase() ?? "",
       cell: (m) => <span className="text-xs text-muted-foreground truncate max-w-[160px] block">{m.email}</span>,
     },
     {
       header: "Department",
+      sortKey: (m) => m.department?.name?.toLowerCase() ?? "",
       cell: (m) => <span className="text-sm text-muted-foreground">{m.department?.name ?? "—"}</span>,
     },
     {
       header: "Designation",
+      sortKey: (m) => (m.designation ?? m.role?.name ?? "").toLowerCase(),
       cell: (m) => <span className="text-sm text-muted-foreground">{m.designation ?? m.role?.name ?? "—"}</span>,
     },
     {
@@ -115,6 +119,7 @@ export function TeamMembersTable({ paginated, totalStats, departments, roles, cu
     },
     {
       header: "Joined",
+      sortKey: (m) => m.joiningDate ? new Date(m.joiningDate).getTime() : 0,
       cell: (m) => (
         <span className="text-xs text-muted-foreground">
           {m.joiningDate ? format(new Date(m.joiningDate), "dd MMM yyyy") : "—"}
@@ -123,6 +128,7 @@ export function TeamMembersTable({ paginated, totalStats, departments, roles, cu
     },
     {
       header: "Status",
+      sortKey: (m) => m.isActive ? 0 : 1,
       cell: (m) => (
         <Badge className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border ${m.isActive ? "bg-green-50 text-green-800 border-green-200" : "bg-red-50 text-red-800 border-red-200"}`}>
           <span className={`w-1.5 h-1.5 rounded-full ${m.isActive ? "bg-green-500" : "bg-red-500"}`} />
