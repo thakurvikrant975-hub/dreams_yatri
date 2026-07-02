@@ -105,7 +105,7 @@ type PricingTabProps = {
   routes: { id: number; name: string; durationLabel: string }[];
   cabTypes: CabType[];
   permits: PackagePermit[];
-  stopCoords: Array<{ lat: number; lng: number }>;
+  stopCoords: Array<{ lat: number; lng: number; name?: string }>;
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -433,17 +433,23 @@ function CabPricingSearchSelect({
   onSelect,
   disabled,
 }: {
-  stopCoords: Array<{ lat: number; lng: number }>;
+  stopCoords: Array<{ lat: number; lng: number; name?: string }>;
   excludeVehicleIds: number[];
   value: number | null;
   onSelect: (option: FullCabPricingOption | null) => void;
   disabled?: boolean;
 }) {
-  const optionsMapRef = useRef<Map<number, FullCabPricingOption>>(new Map());
-  const coordsRef     = useRef(stopCoords);
-  const excludeRef    = useRef(excludeVehicleIds);
+  const optionsMapRef  = useRef<Map<number, FullCabPricingOption>>(new Map());
+  const coordsRef      = useRef(stopCoords);
+  const excludeRef     = useRef(excludeVehicleIds);
+  const stopNamesRef   = useRef<Set<string>>(new Set());
   useEffect(() => { coordsRef.current = stopCoords; });
   useEffect(() => { excludeRef.current = excludeVehicleIds; });
+  useEffect(() => {
+    stopNamesRef.current = new Set(
+      stopCoords.filter((s) => s.name).map((s) => s.name!.toLowerCase()),
+    );
+  }, [stopCoords]);
 
   const fetchOptions = useCallback(async (query: string): Promise<Option[]> => {
     const res = await getAllCabPricingOptions({
@@ -452,13 +458,16 @@ function CabPricingSearchSelect({
       query:             query || undefined,
     });
     if (!res.success) return [];
+    const stopNames = stopNamesRef.current;
     const map = new Map<number, FullCabPricingOption>();
     const opts = res.data.map((o) => {
       map.set(o.cab_pricing_id, o);
+      const isRouteStop = stopNames.has(o.city_name.toLowerCase());
       return {
         id:          o.cab_pricing_id,
         label:       `${o.vehicle_name}${o.has_ac ? " · AC" : ""} · ${o.passenger_capacity} pax`,
         description: `${o.city_name} · ${o.pricing_type === "PER_DAY" ? "Per Day" : "Per Km"} · ₹${fmt(o.price)}`,
+        ...(isRouteStop ? { badge: "On Route" } : {}),
       };
     });
     optionsMapRef.current = map;
@@ -806,7 +815,7 @@ function AddOptionToGroupForm({
   packageId: number;
   duration: { id: number; days: number };
   groupRange: { from: number; to: number };
-  stopCoords: Array<{ lat: number; lng: number }>;
+  stopCoords: Array<{ lat: number; lng: number; name?: string }>;
   existingVehicleIds: Set<number>;
   onAdded: (cabType: CabType) => void;
   onCancel: () => void;
@@ -922,7 +931,7 @@ function CabGroupCard({
   group: CabGroup;
   packageId: number;
   duration: Duration;
-  stopCoords: Array<{ lat: number; lng: number }>;
+  stopCoords: Array<{ lat: number; lng: number; name?: string }>;
   otherGroupRanges: Array<{ from: number; to: number }>;
   onGroupRangeChanged: (groupKey: string, newFrom: number, newTo: number) => void;
   onCabTypeDeleted: (cabTypeId: number) => void;
@@ -1119,7 +1128,7 @@ function AddCabTypeForm({
 }: {
   packageId: number;
   duration: Duration;
-  stopCoords: Array<{ lat: number; lng: number }>;
+  stopCoords: Array<{ lat: number; lng: number; name?: string }>;
   existingVehicleIds: Set<number>;
   occupiedRanges: Array<{ from: number; to: number }>;
   onAdded: (cabTypes: CabType[]) => void;
@@ -1366,7 +1375,7 @@ function CabTypesSection({
   packageId: number;
   duration: Duration;
   initialCabTypes: CabType[];
-  stopCoords: Array<{ lat: number; lng: number }>;
+  stopCoords: Array<{ lat: number; lng: number; name?: string }>;
 }) {
   const [cabTypes,     setCabTypes]     = useState(initialCabTypes);
   const [addingGroup,  setAddingGroup]  = useState(false);

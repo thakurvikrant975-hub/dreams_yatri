@@ -266,6 +266,7 @@ export default async function PackageBuilderPage({
                 .map((s) => ({
                   lat: s.location!.latitude as number,
                   lng: s.location!.longitude as number,
+                  name: s.location!.name,
                 }))
                 .filter(
                   (c, i, arr) =>

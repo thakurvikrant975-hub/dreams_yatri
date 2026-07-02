@@ -30,6 +30,7 @@ export const ALL_HREFS = [
   // Cab Management
   "/dashboard/vehicles",
   "/dashboard/cab-pricing",
+  "/dashboard/permits",
   "/dashboard/cab-drivers",
   "/dashboard/verify-cabs",
   "/dashboard/assign-driver",

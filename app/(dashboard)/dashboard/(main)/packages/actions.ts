@@ -106,7 +106,7 @@ export async function getPackageForBuilder(id: number) {
                   sort_order: true,
                   location_id: true,
                   location: {
-                    select: { id: true, latitude: true, longitude: true, type: true, slug: true },
+                    select: { id: true, name: true, latitude: true, longitude: true, type: true, slug: true },
                   },
                 },
               },
@@ -189,6 +189,7 @@ export async function getPackageForBuilder(id: number) {
           location_id: s.location_id ? String(s.location_id) : null,
           location: s.location ? {
             id: String(s.location.id),
+            name: s.location.name,
             latitude: s.location.latitude != null ? Number(s.location.latitude) : null,
             longitude: s.location.longitude != null ? Number(s.location.longitude) : null,
             type: s.location.type,
