@@ -6,7 +6,7 @@ export default function NewPropertyPage() {
     <>
       <ConnectHeader title="New Property" />
 
-      <div className="flex-1 p-6 max-w-4xl mx-auto w-full">
+      <div className="flex-1 p-6 max-w-7xl mx-auto w-full">
         <div className="mb-8">
           <h1 className="text-xl font-bold text-neutral-900 tracking-tight mb-1.5">
             What type of property would you like to list?

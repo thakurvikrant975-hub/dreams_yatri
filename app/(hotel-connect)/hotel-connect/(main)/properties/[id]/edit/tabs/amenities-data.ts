@@ -383,6 +383,296 @@ export type GeneralServicesItemConfig = {
   field2?: MandatorySubField;
 };
 
+// ── Outdoor Sports & Activities category config ───────────────────────────────
+
+const FREE_PAID: MandatorySubField = { label: "Cost", type: "select", options: ["Free", "Paid"] };
+
+export const OUTDOOR_SPORTS_CONFIG: GeneralServicesItemConfig[] = [
+  { name: "Beach",
+    field1: { label: "Type",   type: "multiselect", options: ["Private", "Public"] } },
+  { name: "Golf Course / Mini Golf",  field1: FREE_PAID },
+  { name: "Outdoor sports",
+    field1: { label: "Sports", type: "multiselect", options: [
+      "Volleyball", "Basketball", "Cricket", "Badminton", "Tennis",
+      "Football / Soccer", "Pickle Ball", "Paintball", "Archery",
+      "Cycling", "Rock Climbing", "Ziplining", "High rope course",
+      "Rappelling", "Zorbing", "Wall Climbing", "Bungee Jumping",
+    ] } },
+  { name: "Skiing",                   field1: FREE_PAID },
+  { name: "Cycling",                  field1: FREE_PAID },
+  { name: "Rock Climbing",            field1: FREE_PAID },
+  { name: "Ziplining",                field1: FREE_PAID },
+  { name: "Archery",                  field1: FREE_PAID },
+  { name: "Tennis",                   field1: FREE_PAID },
+  { name: "Basketball court",         field1: FREE_PAID },
+  { name: "Cricket",                  field1: FREE_PAID },
+  { name: "Badminton",                field1: FREE_PAID },
+  { name: "Volley Ball",              field1: FREE_PAID },
+  { name: "High rope course",         field1: FREE_PAID },
+  { name: "Paintball",                field1: FREE_PAID },
+  { name: "Paragliding",              field1: FREE_PAID },
+  { name: "Camping",                  field1: FREE_PAID },
+  { name: "Hot Air Balloon Ride",     field1: FREE_PAID },
+  { name: "Air Rifle Shooting",       field1: FREE_PAID },
+  { name: "Football / Soccer",        field1: FREE_PAID },
+  { name: "Pickle Ball",              field1: FREE_PAID },
+  { name: "ATV or Buggy Ride",        field1: FREE_PAID },
+  { name: "Zorbing",                  field1: FREE_PAID },
+  { name: "Wall Climbing",            field1: FREE_PAID },
+  { name: "Bungee Jumping",           field1: FREE_PAID },
+  { name: "Beach Volley / Football",  field1: FREE_PAID },
+  { name: "Golf Simulator",           field1: FREE_PAID },
+  { name: "Rappelling",               field1: FREE_PAID },
+];
+
+// ── Hands-on Workshops category config ───────────────────────────────────────
+
+export const WORKSHOPS_CONFIG: GeneralServicesItemConfig[] = [
+  { name: "Cooking class",              field1: FREE_PAID },
+  { name: "Pottery Making",             field1: FREE_PAID },
+  { name: "Drawing & Painting",         field1: FREE_PAID },
+  { name: "Craft Activities",           field1: FREE_PAID },
+  { name: "Bangle Making",              field1: FREE_PAID },
+  { name: "Block Painting",             field1: FREE_PAID },
+  { name: "Photography Class",          field1: FREE_PAID },
+  { name: "Heena Art",                  field1: FREE_PAID },
+  { name: "Cocktail Making Workshop",   field1: FREE_PAID },
+  { name: "Environment Activities",     field1: FREE_PAID },
+  { name: "Astrologer Session",         field1: FREE_PAID },
+  { name: "Caricature Drawings",        field1: FREE_PAID },
+];
+
+// ── Rides, Safari, Excursions & Tour category config ─────────────────────────
+
+export const RIDES_SAFARI_CONFIG: GeneralServicesItemConfig[] = [
+  { name: "Bicycle Ride",         field1: FREE_PAID },
+  { name: "Jeep Safari",          field1: FREE_PAID },
+  { name: "Camel Ride",           field1: FREE_PAID },
+  { name: "Horse Ride",           field1: FREE_PAID },
+  { name: "Tractor Ride",         field1: FREE_PAID },
+  { name: "Carriage or Cart Ride", field1: FREE_PAID },
+  { name: "Cable Car Ride",       field1: FREE_PAID },
+  { name: "Shikara Ride",         field1: FREE_PAID },
+  { name: "Gondola Ride",         field1: FREE_PAID },
+  { name: "Desert Safari",        field1: FREE_PAID },
+  { name: "Walking Tours",        field1: FREE_PAID },
+  { name: "Boat Ride or Tour",    field1: FREE_PAID },
+  { name: "Pub Crawls",           field1: FREE_PAID },
+  { name: "Plantation Tour",      field1: FREE_PAID },
+  { name: "Horticulture Tour",    field1: FREE_PAID },
+  { name: "Cycling Trail",        field1: FREE_PAID },
+  { name: "Vintage Car ride",     field1: FREE_PAID },
+  { name: "Hill Trek",            field1: FREE_PAID },
+];
+
+// ── Wildlife & Nature category config ────────────────────────────────────────
+
+export const WILDLIFE_NATURE_CONFIG: GeneralServicesItemConfig[] = [
+  { name: "Jungle Safari",         field1: FREE_PAID },
+  { name: "Wildlife Photography",  field1: FREE_PAID },
+  { name: "Night Safari",          field1: FREE_PAID },
+  { name: "Forest Camping",        field1: FREE_PAID },
+  { name: "Dolphin Watching",      field1: FREE_PAID },
+  { name: "Tiger Safari",          field1: FREE_PAID },
+  { name: "Elephant Safari",       field1: FREE_PAID },
+  { name: "Forest Hiking",         field1: FREE_PAID },
+  { name: "Riverside Trek",        field1: FREE_PAID },
+  { name: "Nature Walk / Hike",    field1: FREE_PAID },
+  { name: "Bird Watching",         field1: FREE_PAID },
+  { name: "Star Gazing",           field1: FREE_PAID },
+  { name: "Trekking",              field1: FREE_PAID },
+];
+
+// ── Live Shows & Music category config ───────────────────────────────────────
+
+export const LIVE_SHOWS_CONFIG: GeneralServicesItemConfig[] = [
+  { name: "Casino",
+    field1: { label: "Entry", type: "multiselect", options: ["Free entry", "Paid entry"] } },
+  { name: "Bonfire",
+    field1: { label: "Availability", type: "select", options: ["On Request"] } },
+  { name: "Live Music",           field1: FREE_PAID },
+  { name: "Cultural Programme",   field1: FREE_PAID },
+  { name: "Movie Screenings",     field1: FREE_PAID },
+  { name: "Karaoke",              field1: FREE_PAID },
+  { name: "Magic Shows",          field1: FREE_PAID },
+  { name: "Puppet Shows",         field1: FREE_PAID },
+  { name: "Live Art Performance", field1: FREE_PAID },
+  { name: "Stand-up Comedy",      field1: FREE_PAID },
+  { name: "Light & Sound Show",   field1: FREE_PAID },
+  { name: "Rain Dance",           field1: FREE_PAID },
+  { name: "DJ Party",             field1: FREE_PAID },
+  { name: "Firework Show",        field1: FREE_PAID },
+  { name: "Dance Performance",    field1: FREE_PAID },
+  { name: "Disco Club",           field1: FREE_PAID },
+  { name: "Aarti Ceremony",       field1: FREE_PAID },
+  { name: "Drone Show",           field1: FREE_PAID },
+];
+
+// ── Indoor Sports & Activities category config ────────────────────────────────
+
+export const INDOOR_SPORTS_CONFIG: GeneralServicesItemConfig[] = [
+  { name: "Library",               field1: FREE_PAID },
+  { name: "Indoor games",
+    field1: { label: "Games", type: "multiselect", options: [
+      "Chess", "Carrom", "Cards", "Ludo", "Scrabble", "Monopoly",
+      "UNO", "Jenga", "Checkers", "Chinese Checkers", "Dominoes",
+    ] } },
+  { name: "Indoor games room",     field1: FREE_PAID },
+  { name: "Table Tennis",          field1: FREE_PAID },
+  { name: "Billiards / pool table", field1: FREE_PAID },
+  { name: "Board Games",           field1: FREE_PAID },
+  { name: "Foosball table",        field1: FREE_PAID },
+  { name: "Air hockey table",      field1: FREE_PAID },
+  { name: "Game Zone / Arcade",    field1: FREE_PAID },
+  { name: "Virtual Gaming / VR Zone", field1: FREE_PAID },
+  { name: "Dart Board",            field1: FREE_PAID },
+  { name: "Bowling",               field1: FREE_PAID },
+  { name: "Squash",                field1: FREE_PAID },
+];
+
+// ── Water Sports & Activities category config ─────────────────────────────────
+
+export const WATER_SPORTS_CONFIG: GeneralServicesItemConfig[] = [
+  { name: "Kayaking",                   field1: FREE_PAID },
+  { name: "Snorkelling",                field1: FREE_PAID },
+  { name: "Water sports",
+    field1: { label: "Activities", type: "multiselect", options: [
+      "Jet Ski", "Banana Boat", "Scuba Diving", "Snorkelling", "Kayaking",
+      "Canoeing", "Paddle Boarding", "Pedal Boats", "Windsurfing",
+      "Water Skiing", "Parasailing", "Surfing", "River Rafting",
+      "Laser Boat", "Glass Bottom Boat", "Dolphin Boat Ride", "Motor Boat ride",
+      "Boat Ride", "Fishing", "Beach Sports",
+    ] } },
+  { name: "Canoeing",                   field1: FREE_PAID },
+  { name: "Water Park (Within Premise)", field1: FREE_PAID },
+  { name: "Scuba Diving",               field1: FREE_PAID },
+  { name: "Jet skiing",                 field1: FREE_PAID },
+  { name: "Paddle Boarding",            field1: FREE_PAID },
+  { name: "Pedal Boats",                field1: FREE_PAID },
+  { name: "Banana Boat Ride",           field1: FREE_PAID },
+  { name: "Fishing",                    field1: FREE_PAID },
+  { name: "Windsurfing",                field1: FREE_PAID },
+  { name: "Beach Volleyball",           field1: FREE_PAID },
+  { name: "Laser Boat",                 field1: FREE_PAID },
+  { name: "Glass Bottom Boat",          field1: FREE_PAID },
+  { name: "Parasailing",                field1: FREE_PAID },
+  { name: "Beach football",             field1: FREE_PAID },
+  { name: "Surfing",                    field1: FREE_PAID },
+  { name: "River Rafting",              field1: FREE_PAID },
+  { name: "Dolphin Boat Ride",          field1: FREE_PAID },
+  { name: "Water Skiing",               field1: FREE_PAID },
+  { name: "Diving",                     field1: FREE_PAID },
+  { name: "Motor Boat ride",            field1: FREE_PAID },
+  { name: "Boat Ride",                  field1: FREE_PAID },
+  { name: "Beach Sports",               field1: FREE_PAID },
+];
+
+// ── Spa & Wellness category config ───────────────────────────────────────────
+
+export const SPA_WELLNESS_CONFIG: GeneralServicesItemConfig[] = [
+  { name: "Massage",                            field1: FREE_PAID },
+  { name: "Salon",                              field1: FREE_PAID },
+  { name: "Steam and Sauna",                    field1: FREE_PAID },
+  { name: "Jacuzzi",                            field1: FREE_PAID },
+  { name: "Activity Centre" },
+  { name: "Yoga",                               field1: FREE_PAID },
+  { name: "Meditation Room",                    field1: FREE_PAID },
+  { name: "Solarium",                           field1: FREE_PAID },
+  { name: "Hot Spring bath (Within Premise)",   field1: FREE_PAID },
+  { name: "Hammam",                             field1: FREE_PAID },
+  { name: "Ayurvedic Treatment (Within Premise)", field1: FREE_PAID },
+];
+
+// ── Family and Kids category config ──────────────────────────────────────────
+
+export const FAMILY_KIDS_CONFIG: GeneralServicesItemConfig[] = [
+  { name: "Kids' Club" },
+  { name: "Babysitting", field1: FREE_PAID },
+  { name: "Crib",        field1: FREE_PAID },
+];
+
+// ── Media and Technology category config ──────────────────────────────────────
+
+export const MEDIA_TECHNOLOGY_CONFIG: GeneralServicesItemConfig[] = [
+  { name: "TV",
+    field1: { label: "Type", type: "multiselect", options: [
+      "LED", "LCD", "Flat screen", "International Channels", "HD Channels",
+      "Satellite TV", "Remote controlled", "Cable", "Smart TV",
+      "Non-Smart LED TV", "Non-Smart LCD TV",
+    ] } },
+];
+
+// ── Entertainment category config ────────────────────────────────────────────
+
+export const ENTERTAINMENT_CONFIG: GeneralServicesItemConfig[] = [
+  { name: "Events",
+    field1: { label: "Type", type: "multiselect", options: [
+      "Live Band", "Live Singer", "Live Ghazal", "Live Music",
+      "Puppet Show", "Magic", "Fire Show", "Karaoke",
+      "Movies", "DJ", "Stand-up Comedy", "Folk Dance",
+    ] } },
+  { name: "Professional Photography" },
+  { name: "Night Club" },
+  { name: "Beach club" },
+  { name: "Movie Room" },
+  { name: "Music System" },
+];
+
+// ── Transfers category config ─────────────────────────────────────────────────
+
+export const TRANSFERS_CONFIG: GeneralServicesItemConfig[] = [
+  { name: "Pickup / Drop",             field1: FREE_PAID },
+  { name: "Shuttle Service",           field1: FREE_PAID },
+  { name: "Railway Station Transfers", field1: FREE_PAID },
+  { name: "Bus Station transfers",     field1: FREE_PAID },
+];
+
+// ── Food and Drink category config ───────────────────────────────────────────
+
+export const FOOD_AND_DRINK_CONFIG: GeneralServicesItemConfig[] = [
+  { name: "Barbeque",
+    field1: { label: "Cost", type: "select", options: ["Free", "Paid"] } },
+  { name: "Dining Area" },
+  { name: "Kid's Menu" },
+  { name: "Breakfast",
+    field1: { label: "Type", type: "multiselect", options: ["Indian veg food", "Jain food", "Continental", "Buffet", "South Indian", "North Indian", "American", "English"] } },
+  { name: "Food Options Available",
+    field1: { label: "Diet types", type: "multiselect", options: ["Veg", "Satvik", "Non-Veg", "Vegan", "Gluten-free"] } },
+  { name: "Indian Chef" },
+  { name: "Cook Service" },
+];
+
+// ── Basic Facilities category config ─────────────────────────────────────────
+
+export const BASIC_FACILITIES_CONFIG: GeneralServicesItemConfig[] = [
+  { name: "LAN" },
+  { name: "Refrigerator" },
+  { name: "Umbrellas" },
+  { name: "Washing Machine" },
+  { name: "Laundromat" },
+  { name: "EV Charging Station (Within Premise)",
+    field1: { label: "Charging type", type: "select", options: ["Slow charging", "Fast charging", "Rapid charging"] } },
+  { name: "Driver's Accommodation",
+    field1: { label: "Cost", type: "select", options: ["Free", "Paid"] } },
+  { name: "Grocery Purchase" },
+  { name: "Utensil Cleaning" },
+];
+
+// ── Security category config ──────────────────────────────────────────────────
+
+export const SECURITY_CONFIG: GeneralServicesItemConfig[] = [
+  { name: "Smoke detector",
+    field1: { label: "Location", type: "multiselect", options: ["In room", "Lobby"] } },
+  { name: "Fire extinguishers" },
+  { name: "Security alarms" },
+  { name: "Security Guard" },
+  { name: "Carbon Monoxide Detector" },
+  { name: "Door-Eye" },
+  { name: "Door Chain" },
+];
+
+// ── General Services category config ─────────────────────────────────────────
+
 export const GENERAL_SERVICES_CONFIG: GeneralServicesItemConfig[] = [
   { name: "Laundry",
     field1: { label: "Cost",             type: "select",      options: ["Free", "Paid"] },

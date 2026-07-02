@@ -6,13 +6,31 @@ import { db } from "@/app/lib/db";
 import { PropertySubType, PropertyCategory } from "@/app/generated/prisma";
 
 const CATEGORY_MAP: Record<PropertySubType, PropertyCategory> = {
+  // Hotel category
   HOTEL:       PropertyCategory.HOTEL,
   RESORT:      PropertyCategory.HOTEL,
+  LODGE:       PropertyCategory.HOTEL,
   GUEST_HOUSE: PropertyCategory.HOTEL,
+  PALACE:      PropertyCategory.HOTEL,
   HOUSEBOAT:   PropertyCategory.HOTEL,
-  HOMESTAY:    PropertyCategory.HOMESTAY_VILLA,
-  VILLA:       PropertyCategory.HOMESTAY_VILLA,
-  APARTMENT:   PropertyCategory.HOMESTAY_VILLA,
+  MOTEL:       PropertyCategory.HOTEL,
+  // Homestays & Villas category
+  VILLA:            PropertyCategory.HOMESTAY_VILLA,
+  HOMESTAY:         PropertyCategory.HOMESTAY_VILLA,
+  COTTAGE:          PropertyCategory.HOMESTAY_VILLA,
+  APARTMENT:        PropertyCategory.HOMESTAY_VILLA,
+  APART_HOTEL:      PropertyCategory.HOMESTAY_VILLA,
+  HOSTEL:           PropertyCategory.HOMESTAY_VILLA,
+  BED_AND_BREAKFAST: PropertyCategory.HOMESTAY_VILLA,
+  FARMHOUSE:        PropertyCategory.HOMESTAY_VILLA,
+  CAMP:             PropertyCategory.HOMESTAY_VILLA,
+  BEACH_HUT:        PropertyCategory.HOMESTAY_VILLA,
+  TREEHOUSE:        PropertyCategory.HOMESTAY_VILLA,
+  DHARAMSHALA:      PropertyCategory.HOMESTAY_VILLA,
+  ASHRAM:           PropertyCategory.HOMESTAY_VILLA,
+  HOLIDAY_HOME:     PropertyCategory.HOMESTAY_VILLA,
+  RV:               PropertyCategory.HOMESTAY_VILLA,
+  LUXURY_CAMPS:     PropertyCategory.HOMESTAY_VILLA,
 };
 
 export async function createDraftProperty(subType: PropertySubType) {

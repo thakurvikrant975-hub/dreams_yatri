@@ -21,7 +21,7 @@ async function main() {
       is_active: true,
     },
   });
-  console.log(`   ✓ Region: ${region.name}`);
+  console.log(` ✓ Region: ${region.name}`);
 
   // ── 2. Destination ─────────────────────────────────────────────────────────
   const destination = await db.destinations.upsert({

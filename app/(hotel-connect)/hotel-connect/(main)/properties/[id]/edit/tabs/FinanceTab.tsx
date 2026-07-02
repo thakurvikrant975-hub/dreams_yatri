@@ -10,6 +10,10 @@ import {
 } from "./finance-actions";
 import { HotelBusinessType } from "@/app/generated/prisma";
 import { cn } from "@/app/lib/utils";
+import { Card } from "@/app/components/ui/Card";
+import { Input } from "../../../../components/ui/input";
+import { Label } from "../../../../components/ui/label";
+import { SearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
 import {
   CheckIcon,
   CaretDownIcon,
@@ -136,38 +140,10 @@ export type FinanceHotelData = {
 
 function FieldLabel({ children, required }: { children: React.ReactNode; required?: boolean }) {
   return (
-    <label className="block text-xs font-medium text-neutral-600 mb-1.5">
+    <Label className="mb-1.5">
       {children}
       {required && <span className="text-red-400 ml-0.5">*</span>}
-    </label>
-  );
-}
-
-function TextInput({
-  value,
-  onChange,
-  placeholder,
-  type = "text",
-  className,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  type?: string;
-  className?: string;
-}) {
-  return (
-    <input
-      type={type}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      className={cn(
-        "w-full h-9 rounded-lg border border-neutral-200 bg-white px-3 text-xs text-neutral-800 placeholder:text-neutral-400",
-        "focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300 transition-colors",
-        className
-      )}
-    />
+    </Label>
   );
 }
 
@@ -190,11 +166,11 @@ function Section({
   complete?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
+    <Card variant="elevated" radius="md" className="overflow-hidden p-px">
       <button
         type="button"
         onClick={onToggle}
-        className="w-full flex items-start gap-4 px-5 py-4 text-left hover:bg-neutral-50/50 transition-colors"
+        className="w-full flex items-start gap-4 px-5 py-4 text-left rounded-t-[inherit] hover:bg-neutral-50/50 transition-colors"
       >
         {/* Number indicator */}
         <div className={cn(
@@ -210,7 +186,7 @@ function Section({
 
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-neutral-800">{title}</p>
-          <p className="text-[11px] text-neutral-400 mt-0.5">{description}</p>
+          <p className="text-xs text-neutral-600/90 mt-0.5">{description}</p>
         </div>
 
         <div className="shrink-0 text-neutral-400 mt-1">
@@ -223,7 +199,7 @@ function Section({
           {children}
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -336,6 +312,8 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
     {}
   );
 
+  // Navigation is handled by server-side redirect in finance-actions.ts
+
   const [expanded, setExpanded] = useState<Set<number>>(new Set([1]));
   function toggle(n: number) {
     setExpanded((prev) => {
@@ -432,18 +410,18 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <FieldLabel required>Bank Account Number</FieldLabel>
-              <TextInput
+              <Input
                 value={accountNumber}
-                onChange={setAccountNumber}
+                onChange={(e) => setAccountNumber(e.target.value)}
                 placeholder="1234567890123456"
                 type="password"
               />
             </div>
             <div>
               <FieldLabel required>Re-Enter Bank Account Number</FieldLabel>
-              <TextInput
+              <Input
                 value={confirmAccountNumber}
-                onChange={setConfirmAccountNumber}
+                onChange={(e) => setConfirmAccountNumber(e.target.value)}
                 placeholder="1234567890123456"
                 className={accountMismatch ? "border-red-300 focus:ring-red-200 focus:border-red-300" : ""}
               />
@@ -460,24 +438,21 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
               <p className="text-[10px] text-neutral-400 mb-1.5 leading-snug">
                 You can find this on your cheque book or bank statement
               </p>
-              <TextInput
+              <Input
                 value={ifscCode}
-                onChange={(v) => setIfscCode(v.toUpperCase())}
+                onChange={(e) => setIfscCode(e.target.value.toUpperCase())}
                 placeholder="HDFC0001234"
               />
             </div>
             <div>
               <FieldLabel required>Bank Name</FieldLabel>
-              <select
+              <SearchSelect
+                options={INDIAN_BANKS}
                 value={bankName}
-                onChange={(e) => setBankName(e.target.value)}
-                className="w-full h-9 rounded-lg border border-neutral-200 bg-white px-3 pr-8 text-xs text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300 appearance-none"
-              >
-                <option value="">Select your bank from the list</option>
-                {INDIAN_BANKS.map((b) => (
-                  <option key={b} value={b}>{b}</option>
-                ))}
-              </select>
+                onChange={setBankName}
+                placeholder="Select your bank"
+                searchPlaceholder="Search bank…"
+              />
             </div>
           </div>
 
@@ -517,9 +492,9 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <FieldLabel required>PAN Number</FieldLabel>
-              <TextInput
+              <Input
                 value={panNumber}
-                onChange={(v) => setPanNumber(v.toUpperCase())}
+                onChange={(e) => setPanNumber(e.target.value.toUpperCase())}
                 placeholder="ABCDE1234F"
               />
             </div>
@@ -542,7 +517,7 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
           <div>
             <div className="flex items-center justify-between mb-3">
               <div>
-                <p className="text-xs font-medium text-neutral-700">GST Registered?</p>
+                <Label>GST Registered?</Label>
                 <p className="text-[10px] text-neutral-400 mt-0.5">Required if your annual turnover exceeds ₹20 lakhs</p>
               </div>
               <div className="flex rounded-lg border border-neutral-200 overflow-hidden text-xs font-medium">
@@ -566,9 +541,9 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
             {gstRegistered === true && (
               <div>
                 <FieldLabel>GSTIN Number</FieldLabel>
-                <TextInput
+                <Input
                   value={gstinNumber}
-                  onChange={(v) => setGstinNumber(v.toUpperCase())}
+                  onChange={(e) => setGstinNumber(e.target.value.toUpperCase())}
                   placeholder="22AAAAA0000A1Z5"
                 />
               </div>
@@ -579,7 +554,7 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
           <div>
             <div className="flex items-center justify-between mb-3">
               <div>
-                <p className="text-xs font-medium text-neutral-700">MSME / Udyam Registered?</p>
+                <Label>MSME / Udyam Registered?</Label>
                 <p className="text-[10px] text-neutral-400 mt-0.5">Optional — helps unlock government scheme benefits</p>
               </div>
               <div className="flex rounded-lg border border-neutral-200 overflow-hidden text-xs font-medium">
@@ -603,9 +578,9 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
             {msmeRegistered === true && (
               <div>
                 <FieldLabel>MSME / Udyam Registration Number</FieldLabel>
-                <TextInput
+                <Input
                   value={msmeNumber}
-                  onChange={setMsmeNumber}
+                  onChange={(e) => setMsmeNumber(e.target.value)}
                   placeholder="UDYAM-XX-00-0000000"
                 />
               </div>
