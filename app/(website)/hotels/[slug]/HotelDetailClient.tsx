@@ -73,7 +73,24 @@ function ScoreBadge({ score, size = "md" }: { score: number; size?: "sm" | "md" 
 
 // ── Sticky search context bar ─────────────────────────────────────────────────
 
-function SearchBar({ hotel }: { hotel: Hotel }) {
+function SearchBar({ hotel, checkIn, checkOut }: { hotel: Hotel; checkIn: string; checkOut: string }) {
+  const router = useRouter();
+  const [ci, setCi] = useState(checkIn);
+  const [co, setCo] = useState(checkOut);
+  const today = new Date().toISOString().slice(0, 10);
+  const nextDay = (d: string) => {
+    const x = new Date(`${d}T00:00:00.000Z`);
+    x.setUTCDate(x.getUTCDate() + 1);
+    return x.toISOString().slice(0, 10);
+  };
+
+  function update() {
+    const out = co > ci ? co : nextDay(ci);
+    router.push(`/hotels/${hotel.slug}?in=${ci}&out=${out}`);
+  }
+
+  const field = "text-sm font-semibold text-neutral-800 bg-transparent outline-none cursor-pointer";
+
   return (
     <div className="sticky top-0 z-30 bg-white border-b border-neutral-200 shadow-sm">
       <div className="screen-space py-3 flex flex-wrap items-center gap-3">
@@ -87,8 +104,15 @@ function SearchBar({ hotel }: { hotel: Hotel }) {
         <div className="flex items-center gap-2 rounded-xl border border-neutral-200 px-3 py-2">
           <CalendarDaysIcon className="w-4 h-4 text-primary-500 shrink-0" />
           <div>
-            <p className="text-[10px] uppercase tracking-wide text-neutral-400 font-semibold">Check-in — Check-out</p>
-            <p className="text-sm font-semibold text-neutral-800">Thu, 22 Feb — Fri, 23 Feb</p>
+            <p className="text-[10px] uppercase tracking-wide text-neutral-400 font-semibold">Check-in</p>
+            <input type="date" value={ci} min={today} onChange={(e) => { setCi(e.target.value); if (co <= e.target.value) setCo(nextDay(e.target.value)); }} className={field} />
+          </div>
+        </div>
+        <div className="flex items-center gap-2 rounded-xl border border-neutral-200 px-3 py-2">
+          <CalendarDaysIcon className="w-4 h-4 text-primary-500 shrink-0" />
+          <div>
+            <p className="text-[10px] uppercase tracking-wide text-neutral-400 font-semibold">Check-out</p>
+            <input type="date" value={co} min={nextDay(ci)} onChange={(e) => setCo(e.target.value)} className={field} />
           </div>
         </div>
         <div className="flex items-center gap-2 rounded-xl border border-neutral-200 px-3 py-2">
@@ -98,7 +122,7 @@ function SearchBar({ hotel }: { hotel: Hotel }) {
             <p className="text-sm font-semibold text-neutral-800">1 Room, 2 Adults</p>
           </div>
         </div>
-        <button className="flex items-center gap-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold px-5 py-2.5 transition-colors">
+        <button onClick={update} className="flex items-center gap-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold px-5 py-2.5 transition-colors">
           <MagnifyingGlassIcon className="w-4 h-4" />
           Update Search
         </button>
@@ -520,7 +544,7 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut }: { hotel:
 
   return (
     <div className="bg-neutral-50 min-h-screen">
-      <SearchBar hotel={hotel} />
+      <SearchBar hotel={hotel} checkIn={checkIn} checkOut={checkOut} />
 
       <main className="screen-space py-5">
         {/* Breadcrumb */}
