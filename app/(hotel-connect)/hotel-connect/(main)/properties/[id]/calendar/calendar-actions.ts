@@ -6,6 +6,7 @@ import { hotelConnectAuth } from "@/app/lib/auth-hotel-connect";
 import { db } from "@/app/lib/db";
 import { getRoomARI, type DailyRate } from "@/app/lib/hotel-inventory/rates";
 import { ensureAvailability, stayNights } from "@/app/lib/hotel-inventory/availability";
+import { enqueueAriPushIfConnected } from "@/app/lib/hotel-inventory/sync";
 
 async function ownsRoom(hotelId: number, roomId: number, ownerId: string): Promise<boolean> {
   const room = await db.hotel_rooms.findFirst({
@@ -79,6 +80,13 @@ export async function saveAvailabilityRange(
     },
     data,
   });
+
+  // Best-effort: queue an ARI push if this hotel has a connected channel.
+  try {
+    await enqueueAriPushIfConnected(hotelId, roomId, fromISO, toISO);
+  } catch (err) {
+    console.error("[saveAvailabilityRange] enqueue ARI push failed:", err);
+  }
 
   revalidatePath(`/hotel-connect/properties/${hotelId}/calendar`);
   return { updated: res.count };

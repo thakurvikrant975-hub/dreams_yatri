@@ -28,11 +28,24 @@
 - fail #1 → FAILED (attempts=1, `next_attempt_at` in the future); fail #2 (≥max) → DEAD.
 - webhook dedup: duplicate `(provider, event_id)` rejected.
 
-## Follow-ups (Phase 7)
+## Consumers wired + full loop proven (mock handler)
 
-- Inject the **Channex handler** into `processOutbox` (turn `ari.push` events into real API calls).
-- **Producers:** call `enqueueAriPush` from `saveAvailabilityRange` / reservation changes for
-  hotels with CONNECTED connections (best-effort).
-- **Reconciliation:** a thin `enqueueFullResync(hotelId)` over `getPushTargets` × horizon.
-- **Cron/worker:** schedule `processOutbox` + a webhook route that calls `recordInboundWebhook`
-  then routes to the reservation engine.
+The whole outbound loop now runs against a stub — Channex drops in as the handler later.
+
+- **Producers:** `saveAvailabilityRange` (calendar) and `createReservation`/`cancelReservation`
+  call `enqueueAriPushIfConnected` (best-effort, wrapped so a sync hiccup never breaks the save).
+  Added `enqueueAriPushIfConnected` (skips hotels with no CONNECTED channel) and `enqueueFullResync`.
+- **Drain worker:** `POST /api/channels/sync` → `processOutbox(mockHandler)` (optional
+  `x-cron-secret`). The mock logs "would push"; **Phase 7 swaps in the real Channex handler.**
+- **Webhook receiver:** `POST /api/channels/webhook/[provider]` → `recordInboundWebhook` (dedup) → 200.
+
+**Verified end-to-end (fresh client, 5/5):** producer skips with no channel; enqueues when
+CONNECTED; drain success → DONE; `enqueueFullResync` enqueues one event per mapping; drain failure
+→ FAILED with backoff.
+
+## Remaining for Phase 7 (needs the real provider)
+
+- The **Channex push handler** (replace `mockHandler`) + **webhook signature verification** +
+  routing booking webhooks into the reservation engine.
+- **Cron** to hit `/api/channels/sync` and nightly `enqueueFullResync`.
+- Channels-tab UI + content standardization (from P5).

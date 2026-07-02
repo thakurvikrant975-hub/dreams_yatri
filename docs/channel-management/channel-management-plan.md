@@ -139,8 +139,13 @@ standardization** (amenity/bed/geo → channel taxonomy). The service is UI-read
 (exponential backoff → DEAD), `processOutbox(handler)`, `recordInboundWebhook`/`markWebhookProcessed`.
 Verified 7/7 incl. concurrent-claim-no-overlap, backoff→DEAD, dedup. Details: `phase6-sync-infra.md`.
 
-**Follow-ups (Phase 7):** inject the Channex handler into `processOutbox`; wire producers
-(`enqueueAriPush` from availability/reservation changes); `enqueueFullResync`; cron + webhook route.
+**Consumers wired + loop proven (mock):** producers (`saveAvailabilityRange`,
+`createReservation`/`cancelReservation` → `enqueueAriPushIfConnected`), `enqueueFullResync`,
+drain worker `POST /api/channels/sync` (`processOutbox(mockHandler)`), webhook receiver
+`POST /api/channels/webhook/[provider]`. Verified end-to-end 5/5.
+
+**Remaining → Phase 7:** swap `mockHandler` for the real Channex push; webhook signature +
+booking→reservation routing; cron scheduling.
 
 **Depends on:** Phases 2, 5.
 

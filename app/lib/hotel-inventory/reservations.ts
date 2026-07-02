@@ -2,6 +2,16 @@ import "server-only";
 import { db } from "@/app/lib/db";
 import { Prisma, type hotel_reservation } from "@/app/generated/prisma/client";
 import { stayNights, holdNightsTx, releaseNightsTx, HoldConflict } from "./availability";
+import { enqueueAriPushIfConnected } from "./sync";
+
+/** Best-effort ARI push after inventory changes — never breaks the reservation. */
+async function pushAri(hotelId: number, roomId: number, checkIn: string, checkOut: string) {
+  try {
+    await enqueueAriPushIfConnected(hotelId, roomId, checkIn, checkOut);
+  } catch (err) {
+    console.error("[reservations] enqueue ARI push failed:", err);
+  }
+}
 
 /**
  * Channel-management Phase 2 — reservation engine.
@@ -96,6 +106,7 @@ export async function createReservation(input: CreateReservationInput): Promise<
       });
       return { reservation, deduped: false };
     });
+    if (!result.deduped) await pushAri(room.hotel_id, input.roomId, input.checkIn, input.checkOut);
     return { ok: true, ...result };
   } catch (err) {
     if (err instanceof HoldConflict) return { ok: false, reason: `No inventory on ${err.night}` };
@@ -143,7 +154,9 @@ export async function cancelReservation(id: string): Promise<CancelReservationRe
       return { reservation: updated, alreadyReleased: false };
     });
     if ("notFound" in result) return { ok: false, reason: "Reservation not found" };
-    return { ok: true, reservation: result.reservation, alreadyReleased: result.alreadyReleased };
+    const r = result.reservation;
+    if (!result.alreadyReleased) await pushAri(r.hotel_id, r.room_id, ymd(r.check_in), ymd(r.check_out));
+    return { ok: true, reservation: r, alreadyReleased: result.alreadyReleased };
   } catch (err) {
     throw err;
   }

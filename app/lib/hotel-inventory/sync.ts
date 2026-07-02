@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/app/lib/db";
 import { Prisma } from "@/app/generated/prisma/client";
+import { getPushTargets } from "./channels";
 
 /**
  * Channel-management Phase 6 — sync reliability backbone (provider-agnostic).
@@ -65,6 +66,53 @@ export function enqueueAriPush(
     type: "ari.push",
     payload: { from: fromISO, to: toISO },
   });
+}
+
+/**
+ * Producer helper: enqueue an ARI push only if the hotel has a CONNECTED channel,
+ * so hotels with no channels don't accumulate outbox rows. Best-effort — callers
+ * wrap this so a sync hiccup never breaks the underlying save.
+ */
+export async function enqueueAriPushIfConnected(
+  hotelId: number,
+  roomId: number,
+  fromISO: string,
+  toISO: string,
+): Promise<boolean> {
+  const connected = await db.hotel_channel_connection.count({
+    where: { hotel_id: hotelId, status: "CONNECTED", is_active: true },
+  });
+  if (connected === 0) return false;
+  await enqueueAriPush(hotelId, roomId, fromISO, toISO);
+  return true;
+}
+
+/**
+ * Reconciliation: enqueue a full ARI push for every mapped room of every
+ * CONNECTED connection, over `[today, today+horizonDays]`. Run nightly (cron).
+ */
+export async function enqueueFullResync(
+  hotelId: number,
+  horizonDays = 90,
+): Promise<{ enqueued: number; from: string; to: string }> {
+  const targets = await getPushTargets(hotelId);
+  const today = new Date();
+  const from = today.toISOString().slice(0, 10);
+  const to = new Date(today.getTime() + horizonDays * 86_400_000).toISOString().slice(0, 10);
+  let enqueued = 0;
+  for (const conn of targets) {
+    for (const m of conn.room_mappings) {
+      await enqueueSyncEvent({
+        hotelId,
+        roomId: m.room_id,
+        connectionId: conn.id,
+        type: "ari.push",
+        payload: { from, to, resync: true },
+      });
+      enqueued++;
+    }
+  }
+  return { enqueued, from, to };
 }
 
 // ── Outbox: worker ────────────────────────────────────────────────────────────
@@ -157,7 +205,7 @@ export async function recordInboundWebhook(input: {
   provider: string;
   eventId: string;
   eventType?: string | null;
-  payload: Prisma.InputJsonValue;
+  payload: unknown;
 }): Promise<{ id: string; duplicate: boolean }> {
   try {
     const row = await db.hotel_channel_webhook.create({
@@ -165,7 +213,7 @@ export async function recordInboundWebhook(input: {
         provider: input.provider,
         event_id: input.eventId,
         event_type: input.eventType ?? null,
-        payload: input.payload,
+        payload: (input.payload ?? {}) as Prisma.InputJsonValue,
       },
       select: { id: true },
     });
