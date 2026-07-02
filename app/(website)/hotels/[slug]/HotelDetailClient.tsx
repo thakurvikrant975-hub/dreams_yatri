@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { cn } from "@/app/lib/utils";
 import { Card } from "@/app/components/ui/Card";
@@ -30,6 +31,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { StarIcon as StarSolid } from "@heroicons/react/24/solid";
 import type { Hotel, Room, RatePlan } from "./dummy";
+import Button from "@/app/components/ui/Button";
 
 const money = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 
@@ -475,15 +477,17 @@ function BookingSummary({
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-export default function HotelDetailClient({ hotel }: { hotel: Hotel }) {
+export default function HotelDetailClient({ hotel, checkIn, checkOut }: { hotel: Hotel; checkIn: string; checkOut: string }) {
+  const router = useRouter();
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [active, setActive] = useState("overview");
   const [landmarkTab, setLandmarkTab] = useState(0);
   const [selected, setSelected] = useState<{ roomId: string; plan: RatePlan } | null>(null);
 
-  const cheapest = hotel.rooms
-    .flatMap((r) => r.ratePlans)
-    .reduce((min, p) => (p.price < min.price ? p : min), hotel.rooms[0].ratePlans[0]);
+  const allRates = hotel.rooms.flatMap((r) => r.ratePlans);
+  const cheapest: RatePlan = allRates.length
+    ? allRates.reduce((min, p) => (p.price < min.price ? p : min))
+    : { id: "", mealPlan: "", inclusions: [], cancellation: "", refundable: false, price: 0, originalPrice: 0, taxes: 0 };
   const current = selected?.plan ?? cheapest;
 
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
@@ -510,6 +514,8 @@ export default function HotelDetailClient({ hotel }: { hotel: Hotel }) {
 
   function selectRate(roomId: string, plan: RatePlan) {
     setSelected({ roomId, plan });
+    const q = new URLSearchParams({ room: roomId, in: checkIn, out: checkOut });
+    router.push(`/hotels/${hotel.slug}/book?${q.toString()}`);
   }
 
   return (
@@ -547,29 +553,27 @@ export default function HotelDetailClient({ hotel }: { hotel: Hotel }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button className="flex items-center gap-1.5 text-sm font-semibold text-neutral-600 border border-neutral-200 rounded-lg px-3 py-2 hover:bg-neutral-50 transition-colors">
+            <Button variant="outline" size="sm" className="flex items-center gap-1.5">
               <ShareIcon className="w-4 h-4" /> Share
-            </button>
-            <button className="flex items-center gap-1.5 text-sm font-semibold text-neutral-600 border border-neutral-200 rounded-lg px-3 py-2 hover:bg-neutral-50 transition-colors">
+            </Button>
+            <Button variant="outline" size="sm" className="flex items-center gap-1.5">
               <HeartIcon className="w-4 h-4" /> Save
-            </button>
+            </Button>
           </div>
         </div>
 
         {/* Top: gallery + booking summary (non-sticky) */}
-        <div className="grid lg:grid-cols-[1fr_360px] gap-5">
+        <div >
           <Gallery images={hotel.images} onOpen={setLightbox} />
-          <div className="hidden lg:block">
-            <BookingSummary hotel={hotel} selected={!!selected} current={current} onBook={() => jump("rooms")} />
-          </div>
         </div>
 
         {/* Content (full width) */}
         <div className="mt-2">
-            <SubNav active={active} onJump={jump} />
+          <SubNav active={active} onJump={jump} />
 
-            {/* Overview */}
-            <section id="overview" className="scroll-mt-32 py-6">
+          {/* Overview */}
+          <section id="overview" className="scroll-mt-32 py-6 grid lg:grid-cols-[1fr_320px] gap-5">
+            <div>
               <h2 className="text-lg font-bold text-neutral-800 mb-2">About this property</h2>
               <p className="text-sm text-neutral-600 leading-relaxed">{hotel.about}</p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
@@ -577,138 +581,143 @@ export default function HotelDetailClient({ hotel }: { hotel: Hotel }) {
                   const Icon = AMENITY_ICONS[a.icon] ?? SparklesIcon;
                   return (
                     <div key={a.label} className="flex items-center gap-2 text-sm text-neutral-700 bg-white border border-neutral-200 rounded-xl px-3 py-2.5">
-                      <Icon className="w-5 h-5 text-primary-500 shrink-0" />
+                      <Icon className="w-5 h-5 text-neutral-400 shrink-0" />
                       {a.label}
                     </div>
                   );
                 })}
               </div>
-            </section>
+            </div>
+            <div className="hidden lg:block">
+              <BookingSummary hotel={hotel} selected={!!selected} current={current} onBook={() => jump("rooms")} />
+            </div>
 
-            {/* Amenities */}
-            <section id="amenities" className="scroll-mt-32 py-6 border-t border-neutral-200">
-              <h2 className="text-lg font-bold text-neutral-800 mb-4">Amenities</h2>
-              <div className="grid sm:grid-cols-2 gap-x-8 gap-y-5">
-                {hotel.allAmenities.map((grp) => (
-                  <div key={grp.group}>
-                    <p className="text-xs font-bold uppercase tracking-wide text-neutral-400 mb-2">{grp.group}</p>
-                    <ul className="space-y-1.5">
-                      {grp.items.map((it) => (
-                        <li key={it} className="flex items-center gap-2 text-sm text-neutral-600">
-                          <CheckCircleIcon className="w-4 h-4 text-emerald-600 shrink-0" /> {it}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-            </section>
+          </section>
 
-            {/* Rooms */}
-            <section id="rooms" className="scroll-mt-32 py-6 border-t border-neutral-200">
-              <h2 className="text-lg font-bold text-neutral-800 mb-4">Choose your room</h2>
-              <div className="space-y-4">
-                {hotel.rooms.map((room) => (
-                  <RoomCard
-                    key={room.id}
-                    room={room}
-                    selectedRate={selected?.roomId === room.id ? selected.plan.id : null}
-                    onSelectRate={selectRate}
-                  />
-                ))}
-              </div>
-            </section>
-
-            {/* Location */}
-            <section id="location" className="scroll-mt-32 py-6 border-t border-neutral-200">
-              <h2 className="text-lg font-bold text-neutral-800 mb-4">Location & Surroundings</h2>
-              <div className="grid sm:grid-cols-[1fr_260px] gap-4">
-                <div className="relative h-64 rounded-2xl overflow-hidden bg-neutral-100 border border-neutral-200">
-                  <Image
-                    src="https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&w=800&h=500&q=80"
-                    alt="Map"
-                    fill
-                    className="object-cover opacity-90"
-                    sizes="60vw"
-                  />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="flex flex-col items-center gap-1 bg-white/90 rounded-xl px-4 py-3 shadow">
-                      <MapPinIcon className="w-6 h-6 text-primary-600" />
-                      <span className="text-xs font-semibold text-neutral-700">{hotel.area}, {hotel.city}</span>
-                    </span>
-                  </div>
-                </div>
-                <div>
-                  <div className="flex gap-1 mb-3 border-b border-neutral-200">
-                    {hotel.landmarks.map((l, i) => (
-                      <button
-                        key={l.category}
-                        onClick={() => setLandmarkTab(i)}
-                        className={cn(
-                          "text-xs font-semibold px-2 py-2 border-b-2 -mb-px transition-colors",
-                          landmarkTab === i ? "border-primary-600 text-primary-600" : "border-transparent text-neutral-500"
-                        )}
-                      >
-                        {l.category}
-                      </button>
-                    ))}
-                  </div>
-                  <ul className="space-y-2.5">
-                    {hotel.landmarks[landmarkTab].items.map((it) => (
-                      <li key={it.name} className="flex items-center justify-between gap-2 text-sm">
-                        <span className="flex items-center gap-1.5 text-neutral-600">
-                          <MapPinIcon className="w-3.5 h-3.5 text-neutral-300" /> {it.name}
-                        </span>
-                        <span className="text-xs font-semibold text-neutral-500 shrink-0">{it.distance}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </section>
-
-            {/* Property rules */}
-            <section className="py-6 border-t border-neutral-200">
-              <h2 className="text-lg font-bold text-neutral-800 mb-4">Property Rules</h2>
-              <div className="flex flex-wrap gap-6 mb-4">
-                <div className="flex items-center gap-2">
-                  <ClockIcon className="w-5 h-5 text-primary-500" />
-                  <div>
-                    <p className="text-[11px] uppercase tracking-wide text-neutral-400 font-semibold">Check-in</p>
-                    <p className="text-sm font-semibold text-neutral-800">{hotel.rules.checkIn}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <ClockIcon className="w-5 h-5 text-primary-500" />
-                  <div>
-                    <p className="text-[11px] uppercase tracking-wide text-neutral-400 font-semibold">Check-out</p>
-                    <p className="text-sm font-semibold text-neutral-800">{hotel.rules.checkOut}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="grid sm:grid-cols-2 gap-5">
-                <div>
-                  <p className="text-sm font-bold text-neutral-700 mb-2">Guest Profile</p>
+          {/* Amenities */}
+          <section id="amenities" className="scroll-mt-32 py-6 border-t border-neutral-200">
+            <h2 className="text-lg font-bold text-neutral-800 mb-4">Amenities</h2>
+            <div className="grid sm:grid-cols-2 gap-x-8 gap-y-5">
+              {hotel.allAmenities.map((grp) => (
+                <div key={grp.group}>
+                  <p className="text-xs font-bold uppercase tracking-wide text-neutral-400 mb-2">{grp.group}</p>
                   <ul className="space-y-1.5">
-                    {hotel.rules.guestProfile.map((g) => (
-                      <li key={g} className="flex items-start gap-2 text-sm text-neutral-600">
-                        <CheckIcon className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" /> {g}
+                    {grp.items.map((it) => (
+                      <li key={it} className="flex items-center gap-2 text-sm text-neutral-600">
+                        <CheckCircleIcon className="w-4 h-4 text-emerald-600 shrink-0" /> {it}
                       </li>
                     ))}
                   </ul>
                 </div>
-                <div>
-                  <p className="text-sm font-bold text-neutral-700 mb-2">Must Read</p>
-                  <ul className="space-y-1.5">
-                    {hotel.rules.mustRead.map((m) => (
-                      <li key={m} className="flex items-start gap-2 text-sm text-neutral-600">
-                        <span className="text-neutral-300 mt-0.5">•</span> {m}
-                      </li>
-                    ))}
-                  </ul>
+              ))}
+            </div>
+          </section>
+
+          {/* Rooms */}
+          <section id="rooms" className="scroll-mt-32 py-6 border-t border-neutral-200">
+            <h2 className="text-lg font-bold text-neutral-800 mb-4">Choose your room</h2>
+            <div className="space-y-4">
+              {hotel.rooms.map((room) => (
+                <RoomCard
+                  key={room.id}
+                  room={room}
+                  selectedRate={selected?.roomId === room.id ? selected.plan.id : null}
+                  onSelectRate={selectRate}
+                />
+              ))}
+            </div>
+          </section>
+
+          {/* Location */}
+          <section id="location" className="scroll-mt-32 py-6 border-t border-neutral-200">
+            <h2 className="text-lg font-bold text-neutral-800 mb-4">Location & Surroundings</h2>
+            <div className="grid sm:grid-cols-[1fr_260px] gap-4">
+              <div className="relative h-64 rounded-2xl overflow-hidden bg-neutral-100 border border-neutral-200">
+                <Image
+                  src="https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&w=800&h=500&q=80"
+                  alt="Map"
+                  fill
+                  className="object-cover opacity-90"
+                  sizes="60vw"
+                />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="flex flex-col items-center gap-1 bg-white/90 rounded-xl px-4 py-3 shadow">
+                    <MapPinIcon className="w-6 h-6 text-primary-600" />
+                    <span className="text-xs font-semibold text-neutral-700">{hotel.area}, {hotel.city}</span>
+                  </span>
                 </div>
               </div>
-            </section>
+              <div>
+                <div className="flex gap-1 mb-3 border-b border-neutral-200">
+                  {hotel.landmarks.map((l, i) => (
+                    <button
+                      key={l.category}
+                      onClick={() => setLandmarkTab(i)}
+                      className={cn(
+                        "text-xs font-semibold px-2 py-2 border-b-2 -mb-px transition-colors",
+                        landmarkTab === i ? "border-primary-600 text-primary-600" : "border-transparent text-neutral-500"
+                      )}
+                    >
+                      {l.category}
+                    </button>
+                  ))}
+                </div>
+                <ul className="space-y-2.5">
+                  {hotel.landmarks[landmarkTab].items.map((it) => (
+                    <li key={it.name} className="flex items-center justify-between gap-2 text-sm">
+                      <span className="flex items-center gap-1.5 text-neutral-600">
+                        <MapPinIcon className="w-3.5 h-3.5 text-neutral-300" /> {it.name}
+                      </span>
+                      <span className="text-xs font-semibold text-neutral-500 shrink-0">{it.distance}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          {/* Property rules */}
+          <section className="py-6 border-t border-neutral-200">
+            <h2 className="text-lg font-bold text-neutral-800 mb-4">Property Rules</h2>
+            <div className="flex flex-wrap gap-6 mb-4">
+              <div className="flex items-center gap-2">
+                <ClockIcon className="w-5 h-5 text-primary-500" />
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-neutral-400 font-semibold">Check-in</p>
+                  <p className="text-sm font-semibold text-neutral-800">{hotel.rules.checkIn}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <ClockIcon className="w-5 h-5 text-primary-500" />
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-neutral-400 font-semibold">Check-out</p>
+                  <p className="text-sm font-semibold text-neutral-800">{hotel.rules.checkOut}</p>
+                </div>
+              </div>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-5">
+              <div>
+                <p className="text-sm font-bold text-neutral-700 mb-2">Guest Profile</p>
+                <ul className="space-y-1.5">
+                  {hotel.rules.guestProfile.map((g) => (
+                    <li key={g} className="flex items-start gap-2 text-sm text-neutral-600">
+                      <CheckIcon className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" /> {g}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <p className="text-sm font-bold text-neutral-700 mb-2">Must Read</p>
+                <ul className="space-y-1.5">
+                  {hotel.rules.mustRead.map((m) => (
+                    <li key={m} className="flex items-start gap-2 text-sm text-neutral-600">
+                      <span className="text-neutral-300 mt-0.5">•</span> {m}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </section>
         </div>
 
         {/* Reviews (full width) */}
