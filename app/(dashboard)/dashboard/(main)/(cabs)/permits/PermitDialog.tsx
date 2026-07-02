@@ -18,12 +18,12 @@ import { cn }    from "@/app/lib/utils";
 import { LocationSearchSelect }  from "../../components/location/LocationSearchSelect";
 import type { LocationValue }    from "../../components/location/location.types";
 
+import { createPermit, updatePermit } from "./actions";
 import {
-  createPermit, updatePermit,
   PERMIT_CATEGORIES, PERMIT_VALIDITY_TYPES,
   CATEGORY_LABELS, VALIDITY_LABELS,
   type PermitRow, type PermitInput, type PermitCategory, type PermitValidityType,
-} from "./actions";
+} from "./permit.types";
 
 // ── Section header ─────────────────────────────────────────────────────────
 

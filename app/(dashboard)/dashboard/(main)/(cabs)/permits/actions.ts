@@ -4,71 +4,9 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/app/lib/db";
 import { dashboardAuth } from "@/app/lib/auth-dashboard";
 import { createLog } from "../../lib/logger";
+import type { PermitCategory, PermitValidityType, PermitRow, PermitInput } from "./permit.types";
 
 const PATH = "/dashboard/permits";
-
-// ── Types ──────────────────────────────────────────────────────────────────
-
-export const PERMIT_CATEGORIES = [
-  "ENTRY_FEE",
-  "MOUNTAIN_PASS",
-  "WILDLIFE",
-  "BORDER_AREA",
-  "NATIONAL_PARK",
-  "FOREST",
-  "OTHER",
-] as const;
-export type PermitCategory = (typeof PERMIT_CATEGORIES)[number];
-
-export const PERMIT_VALIDITY_TYPES = ["SINGLE_TRIP", "PER_DAY", "MULTI_DAY"] as const;
-export type PermitValidityType = (typeof PERMIT_VALIDITY_TYPES)[number];
-
-export const CATEGORY_LABELS: Record<PermitCategory, string> = {
-  ENTRY_FEE:     "Entry Fee",
-  MOUNTAIN_PASS: "Mountain Pass",
-  WILDLIFE:      "Wildlife",
-  BORDER_AREA:   "Border Area",
-  NATIONAL_PARK: "National Park",
-  FOREST:        "Forest",
-  OTHER:         "Other",
-};
-
-export const VALIDITY_LABELS: Record<PermitValidityType, string> = {
-  SINGLE_TRIP: "Single Trip",
-  PER_DAY:     "Per Day",
-  MULTI_DAY:   "Multi Day",
-};
-
-export type PermitRow = {
-  id:                 number;
-  name:               string;
-  category:           PermitCategory;
-  location_id:        string | null;
-  location_name:      string | null;
-  issuing_authority:  string | null;
-  price_per_vehicle:  number;
-  price_per_person:   number | null;
-  validity_type:      PermitValidityType;
-  validity_days:      number | null;
-  notes:              string | null;
-  is_active:          boolean;
-  created_by:         string | null;
-  updated_by:         string | null;
-  created_at:         Date;
-  updated_at:         Date;
-};
-
-export type PermitInput = {
-  name:               string;
-  category:           PermitCategory;
-  location_id?:       string | null;
-  issuing_authority?: string | null;
-  price_per_vehicle:  number;
-  price_per_person?:  number | null;
-  validity_type:      PermitValidityType;
-  validity_days?:     number | null;
-  notes?:             string | null;
-};
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -117,11 +55,11 @@ const INCLUDE = {
 // ── Read ───────────────────────────────────────────────────────────────────
 
 export async function getPermits(opts: {
-  page:   number;
-  limit:  number;
-  search: string;
+  page:     number;
+  limit:    number;
+  search:   string;
   category: string;
-  status: string;
+  status:   string;
 }): Promise<{ rows: PermitRow[]; total: number }> {
   const { page, limit, search, category, status } = opts;
 
@@ -129,14 +67,15 @@ export async function getPermits(opts: {
     ...(search
       ? {
           OR: [
-            { name:               { contains: search, mode: "insensitive" as const } },
-            { issuing_authority:  { contains: search, mode: "insensitive" as const } },
-            { location:           { name: { contains: search, mode: "insensitive" as const } } },
+            { name:              { contains: search, mode: "insensitive" as const } },
+            { issuing_authority: { contains: search, mode: "insensitive" as const } },
+            { location:          { name: { contains: search, mode: "insensitive" as const } } },
           ],
         }
       : {}),
     ...(category && category !== "all" ? { category: category as never } : {}),
-    ...(status === "active" ? { is_active: true } : status === "inactive" ? { is_active: false } : {}),
+    ...(status === "active"   ? { is_active: true  } :
+        status === "inactive" ? { is_active: false } : {}),
   };
 
   const [rows, total] = await Promise.all([
@@ -166,17 +105,17 @@ export async function createPermit(input: PermitInput) {
     const created = await db.permits.create({
       data: {
         name,
-        category:           input.category,
-        location_id:        input.location_id ? BigInt(input.location_id) : null,
-        issuing_authority:  input.issuing_authority?.trim() || null,
-        price_per_vehicle:  input.price_per_vehicle,
-        price_per_person:   input.price_per_person ?? null,
-        validity_type:      input.validity_type,
-        validity_days:      input.validity_type === "MULTI_DAY" ? (input.validity_days ?? null) : null,
-        notes:              input.notes?.trim() || null,
-        is_active:          true,
-        created_by:         actor,
-        updated_by:         actor,
+        category:          input.category,
+        location_id:       input.location_id ? BigInt(input.location_id) : null,
+        issuing_authority: input.issuing_authority?.trim() || null,
+        price_per_vehicle: input.price_per_vehicle,
+        price_per_person:  input.price_per_person ?? null,
+        validity_type:     input.validity_type,
+        validity_days:     input.validity_type === "MULTI_DAY" ? (input.validity_days ?? null) : null,
+        notes:             input.notes?.trim() || null,
+        is_active:         true,
+        created_by:        actor,
+        updated_by:        actor,
       },
       include: INCLUDE,
     });
@@ -208,18 +147,18 @@ export async function updatePermit(id: number, input: PermitInput) {
     if (!name) return { success: false as const, message: "Permit name is required" };
 
     const updated = await db.permits.update({
-      where:  { id },
+      where: { id },
       data: {
         name,
-        category:           input.category,
-        location_id:        input.location_id ? BigInt(input.location_id) : null,
-        issuing_authority:  input.issuing_authority?.trim() || null,
-        price_per_vehicle:  input.price_per_vehicle,
-        price_per_person:   input.price_per_person ?? null,
-        validity_type:      input.validity_type,
-        validity_days:      input.validity_type === "MULTI_DAY" ? (input.validity_days ?? null) : null,
-        notes:              input.notes?.trim() || null,
-        updated_by:         actor,
+        category:          input.category,
+        location_id:       input.location_id ? BigInt(input.location_id) : null,
+        issuing_authority: input.issuing_authority?.trim() || null,
+        price_per_vehicle: input.price_per_vehicle,
+        price_per_person:  input.price_per_person ?? null,
+        validity_type:     input.validity_type,
+        validity_days:     input.validity_type === "MULTI_DAY" ? (input.validity_days ?? null) : null,
+        notes:             input.notes?.trim() || null,
+        updated_by:        actor,
       },
       include: INCLUDE,
     });

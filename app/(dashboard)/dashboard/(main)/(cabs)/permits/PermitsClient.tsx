@@ -22,9 +22,11 @@ import { StatCard, StatGrid }         from "../../components/dashboard/Statcard"
 
 import {
   getPermits, togglePermitActive, deletePermit,
+} from "./actions";
+import {
   PERMIT_CATEGORIES, CATEGORY_LABELS, VALIDITY_LABELS,
   type PermitRow, type PermitCategory,
-} from "./actions";
+} from "./permit.types";
 import { PermitDialog } from "./PermitDialog";
 
 // ── Category badge colors ──────────────────────────────────────────────────
