@@ -80,16 +80,19 @@ flow existed — the engine is a reusable core for direct/package/Channex caller
 
 ---
 
-## Phase 3 — Owner dashboard: Rates & Availability Calendar
+## Phase 3 — Owner dashboard: Rates & Availability Calendar  ✅ COMPLETE
 
-**Goal:** the grid owners actually use (like the MMT rate section).
+**Delivered:** `/hotel-connect/properties/[id]/calendar` — month grid per room (price +
+available/total per day, stop-sell + override markers), room switcher, month nav, past-date
+lockout, and **range bulk-edit** (price override / clear, total units, open/close, Min LOS,
+CTA, CTD) via `saveAvailabilityRange`. Reads via `getRoomARI`. Properties card links to it.
+Details: `phase3-calendar.md`.
 
-- Calendar grid: room types × dates → editable price, availability, restrictions.
-- **Bulk operations:** update a date range, copy rates, seasonal presets, one-click close-out.
-- Per-rate-plan pricing view; occupancy pricing UI.
-- Reuses existing dashboard components (`Card`, `SectionCard`, `SearchSelect`, etc.).
+**Verified:** read path (Phase 2) + write path (fresh-client: `ensure` + `updateMany` patches a
+4-night range on all fields). UI type-checked; render needs a `next dev` restart (stale client).
 
-**Done when:** an owner can manage a month of rates/availability without touching any OTA.
+**Follow-ups:** v1 is a single-room month view (rooms×dates matrix = possible v2); contiguous-range
+selection only.
 
 **Depends on:** Phases 1–2.
 

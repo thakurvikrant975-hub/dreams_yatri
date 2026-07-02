@@ -16,6 +16,7 @@ import {
   ClockIcon,
   ProhibitIcon,
   NotePencilIcon,
+  CalendarBlankIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import { HotelListingStatus, PropertySubType } from "@/app/generated/prisma";
 import { cn } from "@/app/lib/utils";
@@ -236,11 +237,12 @@ export default async function PropertiesPage({
                           Edit Listing
                         </Link>
                         <Link
-                          href={`/hotel-connect/bookings`}
+                          href={`/hotel-connect/properties/${hotel.id}/calendar`}
+                          title="Rates & Availability"
                           className="flex items-center gap-1 py-2 px-3 rounded-lg text-xs font-semibold border border-neutral-200 text-neutral-600/90 hover:bg-neutral-50 transition-colors"
                         >
-                          Bookings
-                          <ArrowRightIcon size={11} weight="bold" className="text-neutral-400" />
+                          <CalendarBlankIcon size={13} weight="fill" className="text-neutral-400" />
+                          Rates
                         </Link>
                       </div>
                     </div>
