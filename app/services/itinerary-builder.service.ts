@@ -839,7 +839,7 @@ export async function getDaySourceImages(
         },
       },
       select: {
-        id: true, url: true, thumbnail: true,
+        id: true, url: true, thumbnail: true, alt: true, label: true,
         activity: { select: { id: true, name: true } },
       },
       orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
@@ -860,9 +860,19 @@ export async function getDaySourceImages(
     ACTIVITY: activityImgs.map((img) => ({
       id: img.id, url: img.url, thumbnail: img.thumbnail,
       group_label: img.activity.name,
-      default_caption: img.activity.name,
+      default_caption: img.alt ?? img.label ?? img.activity.name,
     })),
   };
+}
+
+// ── Auto-image helper ──────────────────────────────────────────────────────
+
+export async function getActivityPrimaryImage(activityId: number) {
+  return db.activity_images.findFirst({
+    where: { activity_id: activityId },
+    orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
+    select: { url: true, alt: true, label: true },
+  });
 }
 
 // ── Attractions ────────────────────────────────────────────────────────────
