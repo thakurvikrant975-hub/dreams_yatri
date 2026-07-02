@@ -57,19 +57,24 @@ per-rate-plan cancellation (Phase 4).
 
 ---
 
-## Phase 2 — Booking ↔ Inventory engine  *(overbooking-proof core)*
+## Phase 2 — Booking ↔ Inventory engine  *(overbooking-proof core)*  🟡 CORE COMPLETE
 
-**Goal:** every booking moves per-date inventory atomically; reservations can come from anywhere.
+**Delivered:** `app/lib/hotel-inventory/availability.ts` — atomic hold/release + read/evaluate
+over the Phase 1 ledger. Holds use a guarded SQL UPDATE (`booked + n <= total AND NOT stop_sell`),
+multi-night in one transaction (all-or-nothing). **Verified under real concurrency** on the dev
+DB: 5 simultaneous holds for 2 rooms → 2 ok / 3 rejected / booked=2, release clamps at 0.
+Details: `phase2-inventory-engine.md`.
 
-- **Atomic decrement/release** on confirm/cancel (transaction + row lock).
-- **Channel/source attribution** on bookings (`direct`, `booking.com`, `mmt`…).
-- **Channel-agnostic reservation path** — create a confirmed booking *without* our Razorpay
-  flow (OTA already collected / pay-at-hotel), storing external ref + commission + net/gross.
-- Wire the **existing booking engine** to consume this so DreamsYatri bookings stop overselling
-  today.
+**Remaining (continuation):**
+- Reservation record + **source attribution** (channel, external ref, commission, net/gross) +
+  a **hold key** for exactly-once release on webhook retries.
+- Wire a real **direct-booking flow** (hotel detail page → `holdInventory`) and hook the
+  package/ops flow to decrement too.
+- **ARI price resolver** — combine `price_override` with the existing season engine (deferred to
+  avoid diverging from current pricing logic).
 
-**Done when:** a booking from any source correctly debits inventory and cannot oversell under
-concurrent load; cancellations release it.
+**Note:** `BookingHotel` is a package component (ops-confirmed), so no sell-against-inventory
+flow existed — the engine was built as a reusable core for direct/package/Channex callers.
 
 **Depends on:** Phase 1.
 
