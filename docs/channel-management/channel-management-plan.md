@@ -116,15 +116,16 @@ to set a rate plan's policy; use `resolveCancellation` in `cancelReservation` re
 
 ---
 
-## Phase 5 — Channel mapping & connection model
+## Phase 5 — Channel mapping & connection model  ✅ DATA LAYER COMPLETE
 
-**Goal:** the data layer that links our entities to external channels.
+**Delivered:** `hotel_channel_connection` (per hotel+channel: provider/external_id/status/
+last_synced/last_error; no OTA secrets) + `hotel_channel_room_mapping` (room+rate ↔ channel codes)
+— migration `20260702030000`. Service `app/lib/hotel-inventory/channels.ts`: `upsertConnection`,
+`setConnectionStatus`, `upsertRoomMapping` (nullable-pricing safe), `getPushTargets` (what a sync
+job iterates). Verified 8/8 (fresh client). Details: `phase5-channel-mapping.md`.
 
-- **Room/rate ↔ channel-code mapping** table (our room+rate ↔ Channex IDs ↔ OTA codes).
-- **Channel connection entity** per hotel: which OTAs, mapping status, sync health.
-- **"Channels" tab** in the dashboard: connect, map rooms/rates, view status.
-
-**Done when:** a hotel's rooms/rate plans can be mapped to a channel (still no live sync).
+**Deferred to Phase 7 (need a real provider):** the **Channels tab UI** and **content
+standardization** (amenity/bed/geo → channel taxonomy). The service is UI-ready.
 
 **Depends on:** Phases 1, 4.
 
