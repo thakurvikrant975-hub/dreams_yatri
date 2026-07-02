@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { AlertTriangle, CalendarDays, Car, CheckCircle2, Truck, UserCheck } from "lucide-react";
@@ -59,10 +59,6 @@ export function AssignDriverTable({
     const router = useRouter();
     const searchParams = useSearchParams();
     const [, startTransition] = useTransition();
-    const [localSearch, setLocalSearch] = useState(search);
-    const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-    useEffect(() => { setLocalSearch(search); }, [search]);
 
     function updateParam(key: string, value: string) {
         const params = new URLSearchParams(searchParams.toString());
@@ -73,9 +69,7 @@ export function AssignDriverTable({
     }
 
     function handleSearch(value: string) {
-        setLocalSearch(value);
-        clearTimeout(searchTimer.current);
-        searchTimer.current = setTimeout(() => updateParam("search", value), 400);
+        updateParam("search", value);
     }
 
     function buildHref(p: number) {
@@ -234,7 +228,7 @@ export function AssignDriverTable({
             {/* Filters */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                 <TableFilters
-                    search={localSearch}
+                    search={search}
                     onSearchChange={handleSearch}
                     searchPlaceholder="Search booking #, customer name or email…"
                     className="flex-1"

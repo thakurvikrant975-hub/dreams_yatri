@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FileText, Pencil, Trash2, Package, Search } from "lucide-react";
 import { Badge } from "../components/ui/badge";
@@ -78,10 +78,8 @@ export function PoliciesTableClient({
     const searchParams = useSearchParams();
     const [isPending, startTransition] = useTransition();
 
-    // Local search state — debounced push to URL
-    const [localSearch, setLocalSearch] = useState(search);
-    const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-    useEffect(() => { setLocalSearch(search); }, [search]);
+    const [inputValue, setInputValue] = useState(search);
+    useEffect(() => { setInputValue(search); }, [search]);
 
     // Edit state
     const [editTarget, setEditTarget] = useState<Policy | null>(null);
@@ -104,9 +102,7 @@ export function PoliciesTableClient({
     }
 
     function handleSearch(value: string) {
-        setLocalSearch(value);
-        clearTimeout(searchTimer.current);
-        searchTimer.current = setTimeout(() => updateParam("search", value), 400);
+        updateParam("search", value);
     }
 
     function buildHref(p: number) {
@@ -281,8 +277,9 @@ export function PoliciesTableClient({
                     <Input
                         className="pl-9"
                         placeholder="Search by title..."
-                        value={localSearch}
-                        onChange={e => handleSearch(e.target.value)}
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleSearch(inputValue.trim())}
                     />
                 </div>
 

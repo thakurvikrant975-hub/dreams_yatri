@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter, useSearchParams }                  from "next/navigation";
 import Image                                           from "next/image";
 import { toast }                                       from "sonner";
@@ -64,11 +64,6 @@ export function BlogsTable({
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
-  // Local search — debounced push to URL
-  const [localSearch, setLocalSearch] = useState(search);
-  const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => { setLocalSearch(search); }, [search]);
-
   // Review sheet state
   const [sheetPost, setSheetPost] = useState<AdminBlogDetail | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -88,9 +83,7 @@ export function BlogsTable({
   }
 
   function handleSearch(value: string) {
-    setLocalSearch(value);
-    clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => updateParam("search", value), 400);
+    updateParam("search", value);
   }
 
   function buildHref(p: number) {
@@ -244,7 +237,7 @@ export function BlogsTable({
         {/* Filters + rows-per-page */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-2">
           <TableFilters
-            search={localSearch}
+            search={search}
             onSearchChange={handleSearch}
             searchPlaceholder="Search title or author…"
             className="flex-1"

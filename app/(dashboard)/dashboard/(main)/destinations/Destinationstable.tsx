@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Badge }   from "../components/ui/badge";
 import { Switch }  from "../components/ui/switch";
@@ -149,11 +149,6 @@ export function DestinationsTable({
     const searchParams = useSearchParams();
     const [isPending, startTransition] = useTransition();
 
-    const [localSearch, setLocalSearch] = useState(search);
-    const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-    useEffect(() => { setLocalSearch(search); }, [search]);
-
     // ── URL helpers ────────────────────────────────────────────────────────────
     function updateParam(key: string, value: string) {
         const params = new URLSearchParams(searchParams.toString());
@@ -167,9 +162,7 @@ export function DestinationsTable({
     }
 
     function handleSearch(value: string) {
-        setLocalSearch(value);
-        clearTimeout(searchTimer.current);
-        searchTimer.current = setTimeout(() => updateParam("search", value), 400);
+        updateParam("search", value);
     }
 
     function buildHref(p: number) {
@@ -330,7 +323,7 @@ export function DestinationsTable({
             {/* Filters + rows-per-page */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                 <TableFilters
-                    search={localSearch}
+                    search={search}
                     onSearchChange={handleSearch}
                     searchPlaceholder="Search destinations..."
                     className="flex-1"

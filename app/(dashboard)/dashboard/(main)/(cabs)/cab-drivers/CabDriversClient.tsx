@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { format, isPast, differenceInDays } from "date-fns";
@@ -632,13 +632,10 @@ export function CabDriversClient({
   const [isPending, startTransition] = useTransition();
 
   const [data, setData]       = useState(initialData);
-  const [localSearch, setLocalSearch] = useState(initSearch);
   const [viewDriver, setViewDriver]   = useState<CabDriverFull | null>(null);
   const [viewOpen,   setViewOpen]     = useState(false);
-  const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => { setData(initialData); }, [initialData]);
-  useEffect(() => { setLocalSearch(initSearch); }, [initSearch]);
 
   // ── URL helpers ─────────────────────────────────────────────────────────────
   function updateParam(key: string, value: string) {
@@ -650,9 +647,7 @@ export function CabDriversClient({
   }
 
   function handleSearch(value: string) {
-    setLocalSearch(value);
-    clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => updateParam("search", value), 400);
+    updateParam("search", value);
   }
 
   function buildHref(p: number) {
@@ -896,7 +891,7 @@ export function CabDriversClient({
       {/* Filters + rows-per-page */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-2">
         <TableFilters
-          search={localSearch}
+          search={initSearch}
           onSearchChange={handleSearch}
           searchPlaceholder="Search by name, mobile or city…"
           className="flex-1"

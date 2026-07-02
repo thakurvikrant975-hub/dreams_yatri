@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "../components/ui/badge";
@@ -97,9 +97,6 @@ export function HotelsTableClient({
   const [hotels, setHotels] = useState(initialHotels);
   useEffect(() => { setHotels(initialHotels); }, [initialHotels]);
 
-  const [localSearch, setLocalSearch] = useState(search);
-  const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => { setLocalSearch(search); }, [search]);
 
   const [deleteTarget, setDeleteTarget] = useState<HotelItem | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -120,9 +117,7 @@ export function HotelsTableClient({
   }
 
   function handleSearch(value: string) {
-    setLocalSearch(value);
-    clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => updateParam("search", value), 400);
+    updateParam("search", value);
   }
 
   function buildHref(p: number) {
@@ -335,7 +330,7 @@ export function HotelsTableClient({
       <div className="flex flex-wrap items-center gap-3">
         <TableFilters
           className="flex-1 min-w-0"
-          search={localSearch}
+          search={search}
           onSearchChange={handleSearch}
           searchPlaceholder="Search by name, city, state, country…"
           filters={[

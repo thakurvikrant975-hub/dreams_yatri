@@ -327,7 +327,8 @@ function LocationForm({
                     id="loc-name"
                     value={data.name}
                     onChange={(e) => {
-                        const name = e.target.value;
+                        const raw = e.target.value;
+                        const name = raw.length > 0 ? raw.charAt(0).toUpperCase() + raw.slice(1) : raw;
                         setData({
                             ...data, name,
                             ...(slugManual ? {} : { slug: slugWithSuffix(name, data.type) }),

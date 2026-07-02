@@ -39,8 +39,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { name, type, country, state, latitude, longitude, description, slug, is_featured } =
+    const { type, country, state, latitude, longitude, description, slug, is_featured } =
       parsed.data;
+    const name = parsed.data.name.charAt(0).toUpperCase() + parsed.data.name.slice(1);
 
     // ── Slug uniqueness ──────────────────────────────────────────────────────
     const existing = await db.location.findUnique({ where: { slug } });

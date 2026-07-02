@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
@@ -74,11 +74,6 @@ export function PackageBookingsTable({
     const searchParams = useSearchParams();
     const [isPending, startTransition] = useTransition();
 
-    const [localSearch, setLocalSearch] = useState(search);
-    const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-    useEffect(() => { setLocalSearch(search); }, [search]);
-
     function updateParam(key: string, value: string) {
         const params = new URLSearchParams(searchParams.toString());
         if (value === "all" || value === "") {
@@ -91,9 +86,7 @@ export function PackageBookingsTable({
     }
 
     function handleSearch(value: string) {
-        setLocalSearch(value);
-        clearTimeout(searchTimer.current);
-        searchTimer.current = setTimeout(() => updateParam("search", value), 400);
+        updateParam("search", value);
     }
 
     function buildHref(p: number) {
@@ -238,7 +231,7 @@ export function PackageBookingsTable({
         <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                 <TableFilters
-                    search={localSearch}
+                    search={search}
                     onSearchChange={handleSearch}
                     searchPlaceholder="Search booking #, name, email, phone…"
                     className="flex-1"

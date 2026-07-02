@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -95,11 +95,6 @@ export function ActivitiesTableClient({
     const searchParams = useSearchParams();
     const [isPending, startTransition] = useTransition();
 
-    // Debounced search
-    const [localSearch, setLocalSearch] = useState(search);
-    const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-    useEffect(() => { setLocalSearch(search); }, [search]);
-
     // Delete dialog state
     const [deleteTarget, setDeleteTarget] = useState<ActivityItem | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -118,9 +113,7 @@ export function ActivitiesTableClient({
     }
 
     function handleSearch(value: string) {
-        setLocalSearch(value);
-        clearTimeout(searchTimer.current);
-        searchTimer.current = setTimeout(() => updateParam("search", value), 400);
+        updateParam("search", value);
     }
 
     function buildHref(p: number) {
@@ -283,7 +276,7 @@ export function ActivitiesTableClient({
             {/* Filters + rows-per-page */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                 <TableFilters
-                    search={localSearch}
+                    search={search}
                     onSearchChange={handleSearch}
                     searchPlaceholder="Search activities…"
                     className="flex-1"

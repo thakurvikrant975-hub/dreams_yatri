@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Badge }              from "../components/ui/badge";
 import { Switch }             from "@/app/(dashboard)/dashboard/(main)/components/ui/switch";
@@ -65,13 +65,6 @@ export function RegionsTable({
   const searchParams  = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
-  // Local search state — debounced push to URL to avoid one fetch per keystroke
-  const [localSearch, setLocalSearch] = useState(search);
-  const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-  // Sync when server-side search param changes (e.g. browser back/forward)
-  useEffect(() => { setLocalSearch(search); }, [search]);
-
   // ── URL helpers ───────────────────────────────────────────────────────────
   function updateParam(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -85,9 +78,7 @@ export function RegionsTable({
   }
 
   function handleSearch(value: string) {
-    setLocalSearch(value);
-    clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => updateParam("search", value), 400);
+    updateParam("search", value);
   }
 
   function buildHref(p: number) {
@@ -241,7 +232,7 @@ export function RegionsTable({
       {/* Filters + rows-per-page */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-2">
         <TableFilters
-          search={localSearch}
+          search={search}
           onSearchChange={handleSearch}
           searchPlaceholder="Search regions..."
           className="flex-1"
