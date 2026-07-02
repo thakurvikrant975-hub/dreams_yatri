@@ -34,10 +34,12 @@ import {
   type FullCabPricingOption,
 } from "@/app/actions/packages/cab-pricing.actions";
 import {
-  createPackagePermit, updatePackagePermit, deletePackagePermit,
-  getPermitOptions, PERMIT_PRICE_TYPES,
-  type PackagePermit, type PermitOption, type PermitPriceType,
+  createPackagePermit, updatePackagePermit, deletePackagePermit, getPermitOptions,
 } from "@/app/actions/packages/permit.actions";
+import {
+  PERMIT_PRICE_TYPES,
+  type PackagePermit, type PermitOption, type PermitPriceType,
+} from "@/app/actions/packages/permit.types";
 import { SearchSelect, type Option } from "../../components/dashboard/SearchSelect";
 
 // ── Types ──────────────────────────────────────────────────────────────────
