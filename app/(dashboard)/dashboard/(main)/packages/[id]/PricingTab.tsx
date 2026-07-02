@@ -1446,7 +1446,7 @@ function CabTypesSection({
               packageId={packageId}
               duration={duration}
               stopCoords={stopCoords}
-              existingVehicleIds={new Set(cabTypes.map((ct) => ct.vehicle_id))}
+              existingVehicleIds={new Set()}
               occupiedRanges={allGroupRanges}
               onAdded={(cts) => { setCabTypes((prev) => [...prev, ...cts]); setAddingGroup(false); }}
               onCancel={() => setAddingGroup(false)}
