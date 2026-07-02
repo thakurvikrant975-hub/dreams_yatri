@@ -103,6 +103,7 @@ export function PackageBookingsTable({
         {
             header: "Booking",
             width: "w-[160px]",
+            sortKey: (b) => b.bookingNumber?.toLowerCase() ?? "",
             cell: (b) => (
                 <div>
                     <Link
@@ -119,6 +120,7 @@ export function PackageBookingsTable({
         },
         {
             header: "Customer",
+            sortKey: (b) => b.user?.name?.toLowerCase() ?? "",
             cell: (b) => (
                 <div>
                     <p className="text-sm font-medium text-dashboard-base-content">
@@ -167,6 +169,7 @@ export function PackageBookingsTable({
         {
             header: "Travel Dates",
             width: "w-[130px]",
+            sortKey: (b) => b.startDate ? new Date(b.startDate).getTime() : 0,
             cell: (b) => (
                 <div className="space-y-1.5">
                     <div>
@@ -184,6 +187,7 @@ export function PackageBookingsTable({
             header: "Pax",
             align: "center",
             width: "w-[70px]",
+            sortKey: (b) => b.travellers ?? 0,
             cell: (b) => (
                 <span className="text-sm font-medium text-dashboard-base-content">{b.travellers}</span>
             ),
@@ -191,6 +195,7 @@ export function PackageBookingsTable({
         {
             header: "Amount",
             align: "right",
+            sortKey: (b) => b.totalAmount_paise ?? 0,
             cell: (b) => (
                 <div className="text-right">
                     <p className="text-sm font-medium text-dashboard-base-content whitespace-nowrap">
@@ -204,10 +209,12 @@ export function PackageBookingsTable({
         },
         {
             header: "Payment",
+            sortKey: (b) => b.paymentStatus?.toLowerCase() ?? "",
             cell: (b) => <PaymentPill status={b.paymentStatus} />,
         },
         {
             header: "Status",
+            sortKey: (b) => b.status?.toLowerCase() ?? "",
             cell: (b) => <StatusPill status={b.status} />,
         },
         {

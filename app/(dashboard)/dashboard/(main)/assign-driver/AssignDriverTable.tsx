@@ -86,6 +86,7 @@ export function AssignDriverTable({
         {
             header: "Booking",
             width: "w-[160px]",
+            sortKey: (b) => b.bookingNumber?.toLowerCase() ?? "",
             cell: (b) => (
                 <div>
                     <Link
@@ -100,6 +101,7 @@ export function AssignDriverTable({
         },
         {
             header: "Customer",
+            sortKey: (b) => b.user?.name?.toLowerCase() ?? "",
             cell: (b) => (
                 <div>
                     <div className="text-sm font-medium text-dashboard-base-content">{b.user?.name ?? "—"}</div>
@@ -118,6 +120,7 @@ export function AssignDriverTable({
         },
         {
             header: "Travel Dates",
+            sortKey: (b) => new Date(b.startDate).getTime(),
             cell: (b) => (
                 <div className="whitespace-nowrap">
                     <div className="flex items-center gap-1 text-sm text-dashboard-base-content">
@@ -135,6 +138,7 @@ export function AssignDriverTable({
         },
         {
             header: "Cab Type",
+            sortKey: (b) => b.cabType?.toLowerCase() ?? "",
             cell: (b) => (
                 <span className="text-xs font-medium text-dashboard-base-content">{titleCase(b.cabType)}</span>
             ),
@@ -142,6 +146,7 @@ export function AssignDriverTable({
         {
             header: "Amount",
             align: "right",
+            sortKey: (b) => b.totalAmount_paise ?? 0,
             cell: (b) => (
                 <div className="text-right">
                     <div className="text-sm font-semibold tabular-nums text-dashboard-base-content">{fmt(b.totalAmount_paise)}</div>

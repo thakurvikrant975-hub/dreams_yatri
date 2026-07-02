@@ -226,6 +226,7 @@ export function QueriesTable({ queries, reasons }: Props) {
         {
             header: "Lead",
             width: "w-[220px]",
+            sortKey: (q) => q.name?.toLowerCase() ?? "",
             cell: (q) => (
                 <div className="space-y-0.5">
                     <div className="flex items-center gap-1.5">
@@ -306,8 +307,9 @@ export function QueriesTable({ queries, reasons }: Props) {
                 </div>
             ),
         },
-        { 
+        {
             header: "Status",
+            sortKey: (q) => q.status?.toLowerCase() ?? "",
             cell: (q) => (
                 <div className="space-y-1.5">
                     <QueryStatusBadge status={q.status} />
@@ -321,6 +323,7 @@ export function QueriesTable({ queries, reasons }: Props) {
         },
         {
             header: "Source",
+            sortKey: (q) => q.source?.toLowerCase() ?? "",
             cell: (q) => <QuerySourceBadge source={q.source} />,
         },
         {
@@ -338,6 +341,7 @@ export function QueriesTable({ queries, reasons }: Props) {
         {
             header: "Notes",
             align: "center",
+            sortKey: (q) => q._count.notes ?? 0,
             cell: (q) => (
                 <div className="flex items-center justify-center gap-1 text-xs text-dashboard-base-content/75">
                     <StickyNote className="h-3 w-3" />
@@ -347,6 +351,7 @@ export function QueriesTable({ queries, reasons }: Props) {
         },
 {
     header: "Received",
+    sortKey: (q) => new Date(q.createdAt).getTime(),
     cell: (q) => (
         <div className="flex flex-col">
             <span className="text-xs text-dashboard-base-content/75">

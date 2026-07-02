@@ -191,6 +191,7 @@ export function HotelsTableClient({
     {
       header: "Hotel",
       width: "w-[260px]",
+      sortKey: (h) => h.name?.toLowerCase() ?? "",
       cell: (h) => (
         <div className="flex items-center gap-3">
           {h.thumbnail ? (
@@ -224,10 +225,12 @@ export function HotelsTableClient({
     },
     {
       header: "Destination",
+      sortKey: (h) => h.destination?.name?.toLowerCase() ?? "",
       cell: (h) => h.destination ? <Badge variant="secondary" className="text-xs bg-dashboard-primary/10 text-dashboard-primary">{h.destination.name}</Badge> : <span className="text-muted-foreground text-xs">—</span>,
     },
     {
       header: "Category",
+      sortKey: (h) => h.category?.toLowerCase() ?? "",
       cell: (h) => (
         <span className="text-sm text-muted-foreground">
           {CATEGORY_LABELS[h.category ?? ""] ?? h.category ?? "—"}
@@ -237,6 +240,7 @@ export function HotelsTableClient({
     {
       header: "Rooms",
       align: "center",
+      sortKey: (h) => h._count.hotelRooms ?? 0,
       cell: (h) => (
         <span className="flex items-center justify-center gap-1 text-sm">
           <BedDouble className="h-3.5 w-3.5 text-muted-foreground" />
@@ -267,6 +271,7 @@ export function HotelsTableClient({
     },
     {
       header: "Created By",
+      sortKey: (h) => new Date(h.created_at).getTime(),
       cell: (h) => (
         <div className="space-y-0.5">
           <p className="text-xs font-medium text-foreground/80 truncate max-w-30">

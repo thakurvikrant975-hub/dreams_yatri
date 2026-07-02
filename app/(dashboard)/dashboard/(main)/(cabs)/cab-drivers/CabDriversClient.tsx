@@ -690,6 +690,7 @@ export function CabDriversClient({
     {
       header: "Driver",
       width:  "w-[220px]",
+      sortKey: (d) => d.name?.toLowerCase() ?? "",
       cell: (d) => (
         <button
           className="flex items-center gap-3 text-left w-full hover:opacity-80 transition-opacity"
@@ -714,6 +715,7 @@ export function CabDriversClient({
     },
     {
       header: "Vehicle",
+      sortKey: (d) => d.vehicle?.name?.toLowerCase() ?? "",
       cell: (d) =>
         d.vehicle ? (
           <div className="flex items-center gap-2">
@@ -800,6 +802,7 @@ export function CabDriversClient({
       header: "Rating",
       align:  "center",
       width:  "w-[100px]",
+      sortKey: (d) => d.avg_rating ?? 0,
       cell: (d) =>
         d.avg_rating != null ? (
           <div className="flex flex-col items-center gap-0.5">

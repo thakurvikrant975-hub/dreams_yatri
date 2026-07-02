@@ -112,6 +112,7 @@ export function VerifyCabsTable({
         {
             header: "Booking",
             width: "w-[160px]",
+            sortKey: (b) => b.bookingNumber?.toLowerCase() ?? "",
             cell: (b) => (
                 <div>
                     <Link
@@ -127,6 +128,7 @@ export function VerifyCabsTable({
         },
         {
             header: "Customer",
+            sortKey: (b) => b.user?.name?.toLowerCase() ?? "",
             cell: (b) => (
                 <div>
                     <div className="text-sm font-medium text-dashboard-base-content">{b.user?.name ?? "—"}</div>
@@ -136,6 +138,7 @@ export function VerifyCabsTable({
         },
         {
             header: "Package / Destination",
+            sortKey: (b) => b.package?.title?.toLowerCase() ?? "",
             cell: (b) => (
                 <div>
                     <div className="text-sm text-dashboard-base-content line-clamp-1">{b.package?.title ?? "—"}</div>
@@ -145,6 +148,7 @@ export function VerifyCabsTable({
         },
         {
             header: "Travel Dates",
+            sortKey: (b) => new Date(b.startDate).getTime(),
             cell: (b) => (
                 <div className="whitespace-nowrap">
                     <div className="flex items-center gap-1 text-sm text-dashboard-base-content">
@@ -162,6 +166,7 @@ export function VerifyCabsTable({
         },
         {
             header: "Cab Type",
+            sortKey: (b) => b.cabType?.toLowerCase() ?? "",
             cell: (b) => (
                 <span className="text-xs font-medium text-dashboard-base-content">{titleCase(b.cabType)}</span>
             ),
@@ -169,6 +174,7 @@ export function VerifyCabsTable({
         {
             header: "Amount",
             align: "right",
+            sortKey: (b) => b.totalAmount_paise ?? 0,
             cell: (b) => (
                 <div className="text-right">
                     <div className="text-sm font-semibold tabular-nums text-dashboard-base-content">{fmt(b.totalAmount_paise)}</div>

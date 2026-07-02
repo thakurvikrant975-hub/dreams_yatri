@@ -253,6 +253,7 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
         {
             header: "Lead",
             width: "w-[200px]",
+            sortKey: (q) => q.name?.toLowerCase() ?? "",
             cell: (q) => (
                 <div className="space-y-0.5">
                     <div className="flex items-center gap-1.5">
@@ -299,6 +300,7 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
         },
         {
             header: "Status",
+            sortKey: (q) => q.status?.toLowerCase() ?? "",
             cell: (q) => (
                 <div className="space-y-1">
                     <SalesQueryStatusBadge status={q.status as SalesQueryStatus} />
@@ -333,6 +335,7 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
         {
             header: "Follow-Ups",
             align: "center" as const,
+            sortKey: (q) => q._count.queryFollowUps ?? 0,
             cell: (q) => (
                 <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
                     <StickyNote className="h-3 w-3" />
@@ -342,6 +345,7 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
         },
         {
             header: "Next Follow-Up",
+            sortKey: (q) => q.nextFollowUpAt ? new Date(q.nextFollowUpAt).getTime() : 0,
             cell: (q) => (
                 <div className="text-xs">
                     {q.nextFollowUpAt ? (
@@ -359,6 +363,7 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
         },
         {
             header: "Assigned",
+            sortKey: (q) => q.assignedAt ? new Date(q.assignedAt).getTime() : 0,
             cell: (q) => (
                 <div className="space-y-0.5 text-xs text-muted-foreground">
                     {q.assignedAt ? (

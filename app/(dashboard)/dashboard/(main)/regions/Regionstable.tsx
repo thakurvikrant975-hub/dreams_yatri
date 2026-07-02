@@ -109,6 +109,7 @@ export function RegionsTable({
     {
       header: "Region",
       width:  "w-[220px]",
+      sortKey: (region) => region.name?.toLowerCase() ?? "",
       cell: (region) => (
         <div className="flex items-center gap-2">
           {region.thumbnail ? (
@@ -137,6 +138,7 @@ export function RegionsTable({
     },
     {
       header: "Slug",
+      sortKey: (region) => region.slug?.toLowerCase() ?? "",
       cell: (region) => (
         <Badge variant="outline" className="font-mono text-xs border border-dashboard-neutral/75">{region.slug}</Badge>
       ),
@@ -161,6 +163,7 @@ export function RegionsTable({
     },
     {
       header: "Country",
+      sortKey: (region) => region.country?.toLowerCase() ?? "",
       cell: (region) => (
         <span className="text-sm text-muted-foreground">{region.country}</span>
       ),
@@ -168,6 +171,7 @@ export function RegionsTable({
     {
       header: "Destinations",
       align:  "center",
+      sortKey: (region) => region._count.destinations ?? 0,
       cell: (region) => (
         <div className="flex items-center justify-center gap-1 text-sm">
           <MapPin className="h-3 w-3 text-muted-foreground" />
@@ -188,6 +192,7 @@ export function RegionsTable({
     },
     {
       header: "Created By",
+      sortKey: (region) => new Date(region.created_at).getTime(),
       cell: (region) => (
         <div className="space-y-0.5">
           <p className="text-xs font-medium text-foreground/80 truncate max-w-30">

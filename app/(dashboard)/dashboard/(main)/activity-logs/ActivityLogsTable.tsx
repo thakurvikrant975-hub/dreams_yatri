@@ -121,6 +121,7 @@ export function ActivityLogsTable({ paginated, stats, currentPage }: Props) {
     {
       header: "Actor",
       width: "w-52",
+      sortKey: (l) => l.userName?.toLowerCase() ?? "",
       cell: (l) => (
         <div className="min-w-0">
           <p className="font-medium text-sm truncate">{l.userName ?? "—"}</p>
@@ -133,10 +134,12 @@ export function ActivityLogsTable({ paginated, stats, currentPage }: Props) {
     },
     {
       header: "Action",
+      sortKey: (l) => l.action?.toLowerCase() ?? "",
       cell: (l) => <ActionBadge action={l.action} />,
     },
     {
       header: "Entity",
+      sortKey: (l) => l.entity?.toLowerCase() ?? "",
       cell: (l) => (
         <div>
           <p className="text-sm font-medium">{l.entity}</p>
@@ -146,6 +149,7 @@ export function ActivityLogsTable({ paginated, stats, currentPage }: Props) {
     },
     {
       header: "Status",
+      sortKey: (l) => l.status?.toLowerCase() ?? "",
       cell: (l) => (
         <div className="space-y-1">
           <StatusBadge status={l.status} />
@@ -159,6 +163,7 @@ export function ActivityLogsTable({ paginated, stats, currentPage }: Props) {
     },
     {
       header: "Severity",
+      sortKey: (l) => l.severity?.toLowerCase() ?? "",
       cell: (l) => <SeverityBadge severity={l.severity} isSuspicious={l.isSuspicious} />,
     },
     {
@@ -172,6 +177,7 @@ export function ActivityLogsTable({ paginated, stats, currentPage }: Props) {
     },
     {
       header: "Time",
+      sortKey: (l) => new Date(l.actionAt).getTime(),
       cell: (l) => (
         <span className="text-xs text-muted-foreground whitespace-nowrap">
           {format(new Date(l.actionAt), "dd MMM yyyy, HH:mm:ss")}

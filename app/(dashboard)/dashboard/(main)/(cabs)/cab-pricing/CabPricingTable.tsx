@@ -86,6 +86,7 @@ export function CabPricingTable({
     {
       header: "City",
       width:  "w-[200px]",
+      sortKey: (row) => row.location_name?.toLowerCase() ?? "",
       cell: (row) => (
         <div className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-lg bg-dashboard-primary/10 flex items-center justify-center shrink-0">
@@ -131,6 +132,7 @@ export function CabPricingTable({
       header:  "Vehicles",
       align:   "center",
       width:   "w-[110px]",
+      sortKey: (row) => row.total_count ?? 0,
       cell: (row) => (
         <div className="flex flex-col items-center gap-0.5">
           <div className="flex items-center gap-1 text-sm">
@@ -170,6 +172,7 @@ export function CabPricingTable({
     {
       header: "Updated By",
       width:  "w-[150px]",
+      sortKey: (row) => new Date(row.updated_at).getTime(),
       cell: (row) => (
         <div className="space-y-0.5">
           <p className="text-xs font-medium text-foreground/80 truncate max-w-32">

@@ -120,6 +120,7 @@ export function VerifyHotelsTable({
         {
             header: "Booking",
             width: "w-[160px]",
+            sortKey: (b) => b.bookingNumber?.toLowerCase() ?? "",
             cell: (b) => (
                 <div>
                     <Link
@@ -135,6 +136,7 @@ export function VerifyHotelsTable({
         },
         {
             header: "Customer",
+            sortKey: (b) => b.user?.name?.toLowerCase() ?? "",
             cell: (b) => (
                 <div>
                     <div className="text-sm font-medium text-dashboard-base-content">{b.user?.name ?? "—"}</div>
@@ -144,6 +146,7 @@ export function VerifyHotelsTable({
         },
         {
             header: "Package / Destination",
+            sortKey: (b) => b.package?.title?.toLowerCase() ?? "",
             cell: (b) => (
                 <div>
                     <div className="text-sm text-dashboard-base-content line-clamp-1">{b.package?.title ?? "—"}</div>
@@ -153,6 +156,7 @@ export function VerifyHotelsTable({
         },
         {
             header: "Travel Dates",
+            sortKey: (b) => new Date(b.startDate).getTime(),
             cell: (b) => (
                 <div className="whitespace-nowrap">
                     <div className="flex items-center gap-1 text-sm text-dashboard-base-content">
@@ -172,6 +176,7 @@ export function VerifyHotelsTable({
             header: "Pax",
             align: "center",
             width: "w-[60px]",
+            sortKey: (b) => b.travellers ?? 0,
             cell: (b) => (
                 <span className="text-sm font-medium text-dashboard-base-content">{b.travellers}</span>
             ),
@@ -179,6 +184,7 @@ export function VerifyHotelsTable({
         {
             header: "Amount",
             align: "right",
+            sortKey: (b) => b.totalAmount_paise ?? 0,
             cell: (b) => (
                 <div className="text-right">
                     <div className="text-sm font-semibold tabular-nums text-dashboard-base-content">{fmt(b.totalAmount_paise)}</div>

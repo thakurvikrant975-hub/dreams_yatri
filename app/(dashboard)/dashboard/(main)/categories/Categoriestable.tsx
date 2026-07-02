@@ -291,6 +291,7 @@ export function CategoriesTable({
         {
             header: "Category",
             width:  "w-[240px]",
+            sortKey: (cat) => cat.name?.toLowerCase() ?? "",
             cell: (cat) => {
                 const hasChildren = cat.children.length > 0;
                 const isTopLevel  = cat.parent_id === null;
@@ -324,12 +325,14 @@ export function CategoriesTable({
         },
         {
             header: "Slug",
+            sortKey: (cat) => cat.slug?.toLowerCase() ?? "",
             cell: (cat) => (
                 <Badge variant="outline" className="text-xs bg-dashboard-primary/10 text-dashboard-primary hover:underline cursor-pointer">{cat.slug}</Badge>
             ),
         },
         {
             header: "Parent",
+            sortKey: (cat) => (cat.parent?.name ?? "").toLowerCase(),
             cell: (cat) => (
                 <Badge variant="secondary" className="text-xs bg-dashboard-secondary/10 text-dashboard-secondary">
                     {cat.parent?.name ?? "Top Level"}
@@ -339,6 +342,7 @@ export function CategoriesTable({
         {
             header: "Subcategories",
             align:  "center",
+            sortKey: (cat) => cat._count.children ?? 0,
             cell: (cat) => {
                 const hasChildren = cat.children.length > 0;
                 const isTopLevel  = cat.parent_id === null;
@@ -360,6 +364,7 @@ export function CategoriesTable({
         {
             header: "Packages",
             align:  "center",
+            sortKey: (cat) => cat._count.packages ?? 0,
             cell: (cat) => (
                 <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
                     <Package className="h-3 w-3" /> {cat._count.packages}
@@ -379,12 +384,14 @@ export function CategoriesTable({
         },
         {
             header: "Order",
+            sortKey: (cat) => cat.sort_order ?? 0,
             cell: (cat) => (
                 <span className="text-xs text-muted-foreground">#{cat.sort_order}</span>
             ),
         },
         {
             header: "Created By",
+            sortKey: (cat) => new Date(cat.created_at).getTime(),
             cell: (cat) => (
                 <div className="space-y-0.5">
                     <p className="text-xs font-medium text-foreground/80 truncate max-w-28">

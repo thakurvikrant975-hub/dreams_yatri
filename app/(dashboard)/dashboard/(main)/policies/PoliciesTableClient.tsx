@@ -160,10 +160,12 @@ export function PoliciesTableClient({
         {
             header: "Title",
             width: "w-[200px]",
+            sortKey: (p) => p.title?.toLowerCase() ?? "",
             cell: (p) => <p className="font-medium text-sm">{p.title}</p>,
         },
         {
             header: "Type",
+            sortKey: (p) => p.type?.toLowerCase() ?? "",
             cell: (p) => (
                 <span className={`text-[11px] font-medium px-2 py-1 rounded border ${POLICY_TYPE_COLORS[p.type]}`}>
                     {POLICY_TYPE_LABELS[p.type]}
@@ -178,6 +180,7 @@ export function PoliciesTableClient({
         {
             header: "Points",
             align: "center",
+            sortKey: (p) => p.points.filter(pt => pt.trim()).length,
             cell: (p) => (
                 <span className="text-sm font-medium">
                     {p.points.filter(pt => pt.trim()).length}
@@ -187,6 +190,7 @@ export function PoliciesTableClient({
         {
             header: "Packages",
             align: "center",
+            sortKey: (p) => p._count.packages ?? 0,
             cell: (p) => p._count.packages > 0 ? (
                 <Badge variant="secondary" className="text-xs">{p._count.packages}</Badge>
             ) : (
@@ -206,6 +210,7 @@ export function PoliciesTableClient({
         },
         {
             header: "Updated",
+            sortKey: (p) => new Date(p.updated_at).getTime(),
             cell: (p) => (
                 <span className="text-xs text-muted-foreground">
                     {format(new Date(p.updated_at), "dd MMM yyyy")}

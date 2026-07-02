@@ -187,6 +187,7 @@ export function LocationsTable({
         {
             header: "Location",
             width: "w-[260px]",
+            sortKey: (loc) => loc.name.toLowerCase(),
             cell: (loc) => (
                 <div>
                     <div className="flex items-center gap-1.5">
@@ -205,6 +206,7 @@ export function LocationsTable({
         },
         {
             header: "Type",
+            sortKey: (loc) => loc.type,
             cell: (loc) => (
                 <Badge variant="secondary" className="text-xs bg-dashboard-primary/10 text-dashboard-primary">
                     {loc.type.replace(/_/g, " ")}
@@ -232,6 +234,7 @@ export function LocationsTable({
         {
             header: "Linked",
             align: "center",
+            sortKey: (loc) => loc.linkedCount,
             cell: (loc) => (
                 <LinkedItemsSheet locationId={loc.id} locationName={loc.name} linkedCount={loc.linkedCount} />
             ),
@@ -239,6 +242,7 @@ export function LocationsTable({
         {
             header: "Status",
             align: "center",
+            sortKey: (loc) => (loc.is_active ? 0 : 1),
             cell: (loc) => (
                 <Switch
                     checked={loc.is_active}
@@ -249,6 +253,7 @@ export function LocationsTable({
         },
         {
             header: "Created By",
+            sortKey: (loc) => new Date(loc.created_at).getTime(),
             cell: (loc) => (
                 <div className="space-y-0.5">
                     <p className="text-xs font-medium text-foreground/80 truncate max-w-28">
@@ -262,6 +267,7 @@ export function LocationsTable({
         },
         {
             header: "Updated By",
+            sortKey: (loc) => new Date(loc.updated_at).getTime(),
             cell: (loc) => (
                 <div className="space-y-0.5">
                     <p className="text-xs font-medium text-foreground/80 truncate max-w-28">

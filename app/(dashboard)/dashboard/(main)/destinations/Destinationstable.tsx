@@ -191,6 +191,7 @@ export function DestinationsTable({
         {
             header: "Destination",
             width: "w-[220px]",
+            sortKey: (dest) => dest.name?.toLowerCase() ?? "",
             cell: (dest) => (
                 <div className="flex items-center gap-3">
                     {dest.thumbnail ? (
@@ -215,6 +216,7 @@ export function DestinationsTable({
         },
         {
             header: "Slug",
+            sortKey: (dest) => dest.slug?.toLowerCase() ?? "",
             cell: (dest) => (
                 <Badge variant="outline" className="font-mono text-xs text-dashboard-neutral/75 border border-dashboard-neutral/75">{dest.slug}</Badge>
             ),
@@ -238,6 +240,7 @@ export function DestinationsTable({
         },
         {
             header: "Region",
+            sortKey: (dest) => dest.region.name?.toLowerCase() ?? "",
             cell: (dest) => (
                 <Badge variant="secondary" className="text-xs bg-dashboard-primary/10 text-dashboard-primary">{dest.region.name}</Badge>
             ),
@@ -269,6 +272,7 @@ export function DestinationsTable({
         },
         {
             header: "Created By",
+            sortKey: (dest) => new Date(dest.created_at).getTime(),
             cell: (dest) => (
                 <div className="space-y-0.5">
                     <p className="text-xs font-medium text-foreground/80 truncate max-w-28">

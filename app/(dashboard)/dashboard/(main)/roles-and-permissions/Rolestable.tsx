@@ -202,6 +202,7 @@ export function RolesTable({ roles }: { roles: Role[] }) {
         {
             header: "Role",
             width: "w-[240px]",
+            sortKey: (role) => role.name?.toLowerCase() ?? "",
             cell: (role) => (
                 <div className="flex items-center gap-3">
                     <div className="h-9 w-9 rounded-lg bg-dashboard-primary/10 flex items-center justify-center shrink-0">
@@ -227,6 +228,7 @@ export function RolesTable({ roles }: { roles: Role[] }) {
         {
             header: "Members",
             align: "center",
+            sortKey: (role) => role._count.members ?? 0,
             cell: (role) => (
                 <span className="flex items-center justify-center gap-1.5 text-sm text-dashboard-base-content/75">
                     <Users className="h-3.5 w-3.5" /> {role._count.members}
@@ -235,6 +237,7 @@ export function RolesTable({ roles }: { roles: Role[] }) {
         },
         {
             header: "Last Updated",
+            sortKey: (role) => new Date(role.updatedAt).getTime(),
             cell: (role) => (
                 <span className="text-xs text-dashboard-base-content/75">
                     {formatDistanceToNow(new Date(role.updatedAt), { addSuffix: true })}
