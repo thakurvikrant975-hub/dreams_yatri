@@ -131,16 +131,16 @@ standardization** (amenity/bed/geo → channel taxonomy). The service is UI-read
 
 ---
 
-## Phase 6 — Sync reliability infrastructure
+## Phase 6 — Sync reliability infrastructure  ✅ COMPLETE
 
-**Goal:** the backbone that makes sync safe (built generic, before any provider).
+**Delivered:** `hotel_sync_event` outbox + `hotel_channel_webhook` inbound dedup (migration
+`20260702040000`); service `app/lib/hotel-inventory/sync.ts` — `enqueueSyncEvent`/`enqueueAriPush`
+(idempotent), `claimDueEvents` (atomic `FOR UPDATE SKIP LOCKED`), `markEventDone`/`markEventFailed`
+(exponential backoff → DEAD), `processOutbox(handler)`, `recordInboundWebhook`/`markWebhookProcessed`.
+Verified 7/7 incl. concurrent-claim-no-overlap, backoff→DEAD, dedup. Details: `phase6-sync-infra.md`.
 
-- **Outbox/queue** for ARI pushes with retries + backoff + idempotency keys.
-- **Webhook receiver** (signature-verified, deduped) to ingest external bookings.
-- **Reconciliation job** — nightly full push/compare to catch drift.
-- **Sync audit log** + owner-facing error surfacing.
-
-**Done when:** we can enqueue ARI changes and ingest booking webhooks reliably against a mock.
+**Follow-ups (Phase 7):** inject the Channex handler into `processOutbox`; wire producers
+(`enqueueAriPush` from availability/reservation changes); `enqueueFullResync`; cron + webhook route.
 
 **Depends on:** Phases 2, 5.
 

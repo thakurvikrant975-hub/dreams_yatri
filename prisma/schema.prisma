@@ -1424,6 +1424,58 @@ enum ChannelConnectionStatus {
   PAUSED
 }
 
+// ── Channel-management Phase 6: sync reliability ──────────────────────────────
+// Outbox of ARI pushes (and other outbound sync work). A worker claims due rows
+// (FOR UPDATE SKIP LOCKED), calls the provider, and marks DONE / retries with
+// backoff / DEAD after max_attempts. Provider-agnostic; the handler is injected.
+model hotel_sync_event {
+  id              String          @id @default(cuid())
+  hotel_id        Int
+  connection_id   String?
+  room_id         Int?
+  type            String
+  payload         Json
+  status          SyncEventStatus @default(PENDING)
+  attempts        Int             @default(0)
+  max_attempts    Int             @default(8)
+  next_attempt_at DateTime        @default(now())
+  last_error      String?
+  idempotency_key String?         @unique
+  created_at      DateTime        @default(now())
+  updated_at      DateTime        @updatedAt
+  processed_at    DateTime?
+
+  @@index([status, next_attempt_at])
+  @@index([hotel_id])
+  @@map("hotel_sync_event")
+}
+
+enum SyncEventStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+  DEAD
+}
+
+// Inbound channel webhooks (e.g. Channex booking notifications). Dedup on
+// (provider, event_id) so a re-delivered webhook is processed exactly once.
+model hotel_channel_webhook {
+  id           String    @id @default(cuid())
+  provider     String
+  event_id     String
+  event_type   String?
+  payload      Json
+  processed    Boolean   @default(false)
+  error        String?
+  received_at  DateTime  @default(now())
+  processed_at DateTime?
+
+  @@unique([provider, event_id])
+  @@index([processed])
+  @@map("hotel_channel_webhook")
+}
+
 model hotel_child_policies {
   id          Int      @id @default(autoincrement())
   hotel_id    Int
