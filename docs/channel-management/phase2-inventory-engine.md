@@ -41,6 +41,28 @@ date, then cleaned up:
 release (2x over-release): booked_units = 0  PASS ✅ (clamped)
 ```
 
+## ARI resolver — `app/lib/hotel-inventory/rates.ts` ✅
+
+Read path combining availability + pricing into `(room, date) → { available, price, restrictions }`:
+
+| Function | Purpose |
+|---|---|
+| `getRoomARI(roomId, in, out, occupancy?)` | per-night `DailyRate` = availability + resolved price + `priceSource` |
+| `getStayQuote(roomId, in, out, occupancy?)` | `{ nights, total, allAvailable }` for a stay |
+
+Price precedence per night: **`price_override` → season (weekend/base) → base rate plan → none.**
+Season resolution **mirrors** `app/services/package-pricing.service.ts` (`resolveHotelSeasonPricing`):
+year-agnostic month/day match (wrap-around supported), weekend = Sat/Sun `weekend_price_per_night`,
+occupancy overrides from season else base. Resolves the room's **lead** plan (lowest `sort_order`)
+at `occupancy ?? base_adults`. Per-rate-plan channel pricing is refined in Phase 5.
+
+**Verified** on real data (room 59, fresh client): model accessor resolves, availability
+rows create/merge (`avail=1/1`), price resolves to base ₹3698 for out-of-season nights, cleanup ok.
+
+> ⚠️ The already-running dev server caches the **old** Prisma client (started before
+> `prisma generate`). Restart `next dev` to pick up the `hotel_room_availability` model — until
+> then routes/pages that touch it will 500 with `... reading 'findMany'`.
+
 ## Remaining (Phase 2 continuation)
 
 - **Reservation record + source attribution** — a booking row carrying `source/channel`,
@@ -49,8 +71,3 @@ release (2x over-release): booked_units = 0  PASS ✅ (clamped)
 - **Booking-flow wiring** — a real direct-booking path (connects to the hotel detail page)
   that calls `holdInventory` on confirm and `releaseInventory` on cancel; and hooking the
   package/ops flow to decrement too.
-- **ARI price resolver** — combine `price_override` with the existing season/weekend/occupancy
-  engine into a single `(room, date) → { available, price, restrictions }`. Deferred to avoid
-  re-implementing (and diverging from) the existing pricing logic.
-
-Pricing is intentionally NOT resolved in the engine — only `price_override` is surfaced.
