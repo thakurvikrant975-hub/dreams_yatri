@@ -5,6 +5,15 @@ import { revalidatePath } from "next/cache";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
+export type PermitOption = {
+  id:              number;
+  name:            string;
+  price:           number;
+  location_name:   string | null;
+  category:        string;
+  custom_category: string | null;
+};
+
 export type PackagePermit = {
   id: number;
   duration_id: number;
@@ -13,6 +22,45 @@ export type PackagePermit = {
   is_included: boolean;
   sort_order: number;
 };
+
+// ── Permit library lookup (for package builder dropdown) ──────────────────
+
+export async function getPermitOptions(query?: string): Promise<{
+  success: true; data: PermitOption[];
+} | { success: false }> {
+  try {
+    const permits = await db.permits.findMany({
+      where: {
+        is_active: true,
+        ...(query
+          ? {
+              OR: [
+                { name:     { contains: query, mode: "insensitive" as const } },
+                { location: { name: { contains: query, mode: "insensitive" as const } } },
+              ],
+            }
+          : {}),
+      },
+      include: { location: { select: { name: true } } },
+      orderBy: { name: "asc" },
+      take: 60,
+    });
+    return {
+      success: true,
+      data: permits.map((p) => ({
+        id:              p.id,
+        name:            p.name,
+        price:           Number(p.price_per_vehicle),
+        location_name:   p.location?.name ?? null,
+        category:        p.category,
+        custom_category: p.custom_category,
+      })),
+    };
+  } catch (e) {
+    console.error("getPermitOptions:", e);
+    return { success: false };
+  }
+}
 
 // ── Create ─────────────────────────────────────────────────────────────────
 

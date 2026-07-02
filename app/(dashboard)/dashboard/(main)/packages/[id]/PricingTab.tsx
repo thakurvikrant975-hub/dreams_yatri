@@ -35,7 +35,8 @@ import {
 } from "@/app/actions/packages/cab-pricing.actions";
 import {
   createPackagePermit, updatePackagePermit, deletePackagePermit,
-  type PackagePermit,
+  getPermitOptions,
+  type PackagePermit, type PermitOption,
 } from "@/app/actions/packages/permit.actions";
 import { SearchSelect, type Option } from "../../components/dashboard/SearchSelect";
 
@@ -485,6 +486,79 @@ function CabPricingSearchSelect({
       onChange={handleChange}
       fetchOptions={fetchOptions}
       placeholder="Search vehicle + destination…"
+      disabled={disabled}
+    />
+  );
+}
+
+// ── PermitSearchSelect — permits from library, route stops highlighted ─────
+
+const PERMIT_CATEGORY_LABELS: Record<string, string> = {
+  ENTRY_FEE:     "Entry Fee",
+  MOUNTAIN_PASS: "Mountain Pass",
+  WILDLIFE:      "Wildlife",
+  BORDER_AREA:   "Border Area",
+  NATIONAL_PARK: "National Park",
+  FOREST:        "Forest",
+  OTHER:         "Other",
+};
+
+function PermitSearchSelect({
+  stopCoords,
+  value,
+  onSelect,
+  disabled,
+}: {
+  stopCoords: Array<{ lat: number; lng: number; name?: string }>;
+  value: number | null;
+  onSelect: (option: PermitOption | null) => void;
+  disabled?: boolean;
+}) {
+  const optionsMapRef = useRef<Map<number, PermitOption>>(new Map());
+  const stopNamesRef  = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    stopNamesRef.current = new Set(
+      stopCoords.filter((s) => s.name).map((s) => s.name!.toLowerCase()),
+    );
+  }, [stopCoords]);
+
+  const fetchOptions = useCallback(async (query: string): Promise<Option[]> => {
+    const res = await getPermitOptions(query || undefined);
+    if (!res.success) return [];
+    const stopNames = stopNamesRef.current;
+    const map = new Map<number, PermitOption>();
+    const opts = res.data.map((p) => {
+      map.set(p.id, p);
+      const isRouteStop = p.location_name
+        ? stopNames.has(p.location_name.toLowerCase())
+        : false;
+      const catLabel = (p.custom_category && p.category === "OTHER")
+        ? p.custom_category
+        : (PERMIT_CATEGORY_LABELS[p.category] ?? p.category);
+      return {
+        id:          p.id,
+        label:       p.name,
+        description: [catLabel, p.location_name, `₹${fmt(p.price)}`]
+          .filter(Boolean).join(" · "),
+        ...(isRouteStop ? { badge: "On Route" } : {}),
+      };
+    });
+    optionsMapRef.current = map;
+    return opts;
+  }, []);
+
+  function handleChange(val: number | null) {
+    if (val === null) { onSelect(null); return; }
+    onSelect(optionsMapRef.current.get(val) ?? null);
+  }
+
+  return (
+    <SearchSelect
+      value={value}
+      onChange={handleChange}
+      fetchOptions={fetchOptions}
+      placeholder="Search permit library…"
       disabled={disabled}
     />
   );
@@ -1683,19 +1757,30 @@ function PermitRow({
 function AddPermitForm({
   packageId,
   duration,
+  stopCoords,
   onAdded,
   onCancel,
 }: {
   packageId: number;
   duration: { id: number };
+  stopCoords: Array<{ lat: number; lng: number; name?: string }>;
   onAdded: (permit: PackagePermit) => void;
   onCancel: () => void;
 }) {
-  const [name, setName] = useState("");
-  const [price, setPrice] = useState("");
-  const [included, setIncluded] = useState(true);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [name, setName]             = useState("");
+  const [price, setPrice]           = useState("");
+  const [included, setIncluded]     = useState(true);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+
+  function handleSelectPermit(option: PermitOption | null) {
+    setSelectedId(option?.id ?? null);
+    if (option) {
+      setName(option.name);
+      setPrice(String(option.price));
+    }
+  }
 
   const parsedPrice = parseFloat(price);
   const isValid = name.trim().length > 0 && price.trim().length > 0 && !isNaN(parsedPrice) && parsedPrice >= 0;
@@ -1704,10 +1789,10 @@ function AddPermitForm({
     if (!isValid) return;
     startTransition(async () => {
       const res = await createPackagePermit({
-        package_id: packageId,
+        package_id:  packageId,
         duration_id: duration.id,
-        name: name.trim(),
-        price: parsedPrice,
+        name:        name.trim(),
+        price:       parsedPrice,
         is_included: included,
       });
       if (res.success) {
@@ -1721,13 +1806,21 @@ function AddPermitForm({
   }
 
   return (
-    <div className="px-4 py-3 border-t bg-muted/10">
+    <div className="px-4 py-3 border-t bg-muted/10 space-y-2">
+      {/* Permit library dropdown — on select, auto-fills name + price */}
+      <PermitSearchSelect
+        stopCoords={stopCoords}
+        value={selectedId}
+        onSelect={handleSelectPermit}
+        disabled={isPending}
+      />
+
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-2 gap-2">
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Permit name e.g. Wildlife Sanctuary Entry"
+            placeholder="Permit name"
             className="h-8 text-sm"
             disabled={isPending}
           />
@@ -1770,10 +1863,12 @@ function PermitsSection({
   packageId,
   duration,
   initialPermits,
+  stopCoords,
 }: {
   packageId: number;
   duration: Duration;
   initialPermits: PackagePermit[];
+  stopCoords: Array<{ lat: number; lng: number; name?: string }>;
 }) {
   const [permits, setPermits] = useState(initialPermits);
   const [adding, setAdding] = useState(false);
@@ -1826,6 +1921,7 @@ function PermitsSection({
           <AddPermitForm
             packageId={packageId}
             duration={duration}
+            stopCoords={stopCoords}
             onAdded={(p) => { setPermits((prev) => [...prev, p]); setAdding(false); }}
             onCancel={() => setAdding(false)}
           />
@@ -1964,6 +2060,7 @@ export function PricingTab({
             packageId={packageId}
             duration={duration}
             initialPermits={permits.filter((p) => p.duration_id === duration.id)}
+            stopCoords={stopCoords}
           />
         ))}
       </div>
