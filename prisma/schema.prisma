@@ -1893,6 +1893,7 @@ model package_permits {
   duration_id Int
   name        String
   price       Decimal           @default(0) @db.Decimal(10, 2)
+  price_type  String            @default("FLAT")
   is_included Boolean           @default(true)
   sort_order  Int               @default(0)
   created_at  DateTime          @default(now())

@@ -59,7 +59,7 @@ export async function getPackageForBuilder(id: number) {
       },
       permits: {
         orderBy: [{ duration_id: "asc" }, { sort_order: "asc" }],
-        select: { id: true, duration_id: true, name: true, price: true, is_included: true, sort_order: true },
+        select: { id: true, duration_id: true, name: true, price: true, price_type: true, is_included: true, sort_order: true },
       },
       cabTypes: {
         orderBy: [{ duration_id: "asc" }, { sort_order: "asc" }],
@@ -136,12 +136,13 @@ export async function getPackageForBuilder(id: number) {
       gst_percentage: Number(p.gst_percentage),
     })),
     permits: pkg.permits.map((p) => ({
-      id: p.id,
+      id:          p.id,
       duration_id: p.duration_id,
-      name: p.name,
-      price: Number(p.price),
+      name:        p.name,
+      price:       Number(p.price),
+      price_type:  (p.price_type ?? "FLAT") as "FLAT" | "PER_PERSON" | "PER_VEHICLE",
       is_included: p.is_included,
-      sort_order: p.sort_order,
+      sort_order:  p.sort_order,
     })),
     cabTypes: pkg.cabTypes.map((ct) => ({
       id: ct.id,

@@ -125,6 +125,10 @@ export function PermitDialog({
     setError(null);
   }
 
+  function capFirst(s: string) {
+    return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  }
+
   const isCustomCategory = form.categorySelection === CUSTOM_CATEGORY_VALUE;
 
   function buildInput(): PermitInput | null {
@@ -221,7 +225,7 @@ export function PermitDialog({
                 <Label>Permit Name <span className="text-destructive">*</span></Label>
                 <Input
                   value={form.name}
-                  onChange={(e) => set("name", e.target.value)}
+                  onChange={(e) => set("name", capFirst(e.target.value))}
                   placeholder="e.g. Rohtang Pass Permit, Wildlife Entry Fee"
                 />
               </div>
@@ -298,7 +302,7 @@ export function PermitDialog({
                 </Label>
                 <Input
                   value={form.issuing_authority}
-                  onChange={(e) => set("issuing_authority", e.target.value)}
+                  onChange={(e) => set("issuing_authority", capFirst(e.target.value))}
                   placeholder="e.g. District Administration Manali, Forest Department"
                 />
               </div>
@@ -399,7 +403,7 @@ export function PermitDialog({
             />
             <Textarea
               value={form.notes}
-              onChange={(e) => set("notes", e.target.value)}
+              onChange={(e) => set("notes", capFirst(e.target.value))}
               placeholder="e.g. Required for all vehicles entering Rohtang Pass between May–November. Booking required online 2 days in advance."
               rows={3}
               className="resize-none"

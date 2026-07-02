@@ -15,11 +15,32 @@ import type { CabTypeOption } from '@/app/actions/packages/fetch-page-data';
 
 // ── Safe pricing — only these fields reach the browser ──────────────────────
 
+export interface SafePricingBreakdown {
+    hotelSubtotal:    number;
+    mealSubtotal:     number;
+    activitySubtotal: number;
+    cabSubtotal:      number;
+    permitSubtotal:   number;
+    baseCost:         number;
+    marginAmount:     number;
+    marginPercentage: number;
+}
+
+export interface SafePermit {
+    name:       string;
+    unitPrice:  number;
+    priceType:  string;
+    quantity:   number;
+    total:      number;
+}
+
 export interface SafePricing {
     pricePerAdult: number;
     finalPrice:    number;
     gstAmount:     number;
     gstPercentage: number;
+    breakdown:     SafePricingBreakdown;
+    permits:       SafePermit[];
 }
 
 // ── Cab group — cabs sharing the same day range ───────────────────────────
@@ -240,6 +261,23 @@ export function PackageBookingProvider({
                             finalPrice:    Math.round(res.data.final_price),
                             gstAmount:     Math.round(res.data.gst_amount),
                             gstPercentage: res.data.gst_percentage,
+                            breakdown: {
+                                hotelSubtotal:    Math.round(res.data.hotel_subtotal),
+                                mealSubtotal:     Math.round(res.data.meal_subtotal),
+                                activitySubtotal: Math.round(res.data.activity_subtotal),
+                                cabSubtotal:      Math.round(res.data.cab_subtotal),
+                                permitSubtotal:   Math.round(res.data.permit_subtotal),
+                                baseCost:         Math.round(res.data.base_cost),
+                                marginAmount:     Math.round(res.data.margin_amount),
+                                marginPercentage: res.data.margin_percentage,
+                            },
+                            permits: res.data.permits.map((p) => ({
+                                name:      p.name,
+                                unitPrice: p.unit_price,
+                                priceType: p.price_type,
+                                quantity:  p.quantity,
+                                total:     Math.round(p.total),
+                            })),
                         });
                     }
                 }

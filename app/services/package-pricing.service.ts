@@ -124,7 +124,7 @@ export type FullPricingBreakdown = {
   cab_subtotal: number;
   cab_segments: CabSegmentBreakdown[];
   permit_subtotal: number;
-  permits: { name: string; price: number }[];
+  permits: { name: string; unit_price: number; price_type: string; quantity: number; total: number }[];
   base_cost: number;
   margin_percentage: number;
   margin_amount: number;
@@ -467,7 +467,7 @@ export async function computePackagePrice(
     db.package_permits.findMany({
       where: { package_id, duration_id, is_included: true },
       orderBy: { sort_order: "asc" },
-      select: { name: true, price: true },
+      select: { name: true, price: true, price_type: true },
     }),
   ]);
 
@@ -980,8 +980,14 @@ export async function computePackagePrice(
     }
   }
 
-  const permits = includedPermits.map((p) => ({ name: p.name, price: Number(p.price) }));
-  const permit_subtotal = permits.reduce((sum, p) => sum + p.price, 0);
+  const pax_count = adults + children;
+  const permits = includedPermits.map((p) => {
+    const unit_price = Number(p.price);
+    const price_type = (p.price_type ?? "FLAT") as string;
+    const quantity   = price_type === "PER_PERSON" ? pax_count : 1;
+    return { name: p.name, unit_price, price_type, quantity, total: unit_price * quantity };
+  });
+  const permit_subtotal = permits.reduce((sum, p) => sum + p.total, 0);
 
   const base_cost = hotel_subtotal + meal_subtotal + activity_subtotal + cab_subtotal + permit_subtotal;
   const margin_amount = Math.round((base_cost * margin_percentage) / 100 * 100) / 100;

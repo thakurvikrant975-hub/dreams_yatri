@@ -35,8 +35,8 @@ import {
 } from "@/app/actions/packages/cab-pricing.actions";
 import {
   createPackagePermit, updatePackagePermit, deletePackagePermit,
-  getPermitOptions,
-  type PackagePermit, type PermitOption,
+  getPermitOptions, PERMIT_PRICE_TYPES,
+  type PackagePermit, type PermitOption, type PermitPriceType,
 } from "@/app/actions/packages/permit.actions";
 import { SearchSelect, type Option } from "../../components/dashboard/SearchSelect";
 
@@ -536,11 +536,13 @@ function PermitSearchSelect({
       const catLabel = (p.custom_category && p.category === "OTHER")
         ? p.custom_category
         : (PERMIT_CATEGORY_LABELS[p.category] ?? p.category);
+      const priceParts: string[] = [];
+      if (p.price_per_vehicle > 0) priceParts.push(`₹${fmt(p.price_per_vehicle)}/vehicle`);
+      if (p.price_per_person  > 0) priceParts.push(`₹${fmt(p.price_per_person)}/person`);
       return {
         id:          p.id,
         label:       p.name,
-        description: [catLabel, p.location_name, `₹${fmt(p.price)}`]
-          .filter(Boolean).join(" · "),
+        description: [catLabel, p.location_name, ...priceParts].filter(Boolean).join(" · "),
         ...(isRouteStop ? { badge: "On Route" } : {}),
       };
     });
@@ -1580,9 +1582,10 @@ function PermitRow({
   onUpdated: (updated: PackagePermit) => void;
   onDeleted: (id: number) => void;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(permit.name);
-  const [price, setPrice] = useState(String(permit.price));
+  const [editing,   setEditing]   = useState(false);
+  const [name,      setName]      = useState(permit.name);
+  const [price,     setPrice]     = useState(String(permit.price));
+  const [priceType, setPriceType] = useState<PermitPriceType>(permit.price_type);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -1601,6 +1604,7 @@ function PermitRow({
   function startEdit() {
     setName(permit.name);
     setPrice(String(permit.price));
+    setPriceType(permit.price_type);
     setEditing(true);
   }
 
@@ -1608,6 +1612,7 @@ function PermitRow({
     setEditing(false);
     setName(permit.name);
     setPrice(String(permit.price));
+    setPriceType(permit.price_type);
   }
 
   function handleSaveEdit() {
@@ -1615,10 +1620,10 @@ function PermitRow({
     if (!name.trim()) { toast.error("Enter a permit name"); return; }
     if (isNaN(p) || p < 0) { toast.error("Enter a valid non-negative price"); return; }
     startTransition(async () => {
-      const res = await updatePackagePermit(permit.id, packageId, { name: name.trim(), price: p });
+      const res = await updatePackagePermit(permit.id, packageId, { name: name.trim(), price: p, price_type: priceType });
       if (res.success) {
         toast.success("Permit updated");
-        onUpdated({ ...permit, name: name.trim(), price: p });
+        onUpdated({ ...permit, name: name.trim(), price: p, price_type: priceType });
         setEditing(false);
         router.refresh();
       } else {
@@ -1638,46 +1643,66 @@ function PermitRow({
 
       <div className="flex-1 min-w-0">
         {editing ? (
-          <div className="flex items-center gap-1.5">
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="h-7 text-xs flex-1"
-              placeholder="Permit name"
-              disabled={isPending}
-            />
-            <div className="relative w-28 shrink-0">
-              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₹</span>
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-1.5">
               <Input
-                type="number" min="0" step="1"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                className="h-7 text-xs pl-5"
-                placeholder="0"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="h-7 text-xs flex-1"
+                placeholder="Permit name"
                 disabled={isPending}
               />
+              <div className="relative w-28 shrink-0">
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₹</span>
+                <Input
+                  type="number" min="0" step="1"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  className="h-7 text-xs pl-5"
+                  placeholder="0"
+                  disabled={isPending}
+                />
+              </div>
+              <Button
+                type="button" size="sm"
+                className="h-7 px-2.5 text-xs shrink-0 gap-1"
+                onClick={handleSaveEdit}
+                disabled={isPending}
+              >
+                {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Check className="h-3 w-3" />Save</>}
+              </Button>
+              <Button
+                type="button" variant="ghost" size="sm"
+                className="h-7 px-2 shrink-0"
+                onClick={cancelEdit}
+                disabled={isPending}
+              >
+                <X className="h-3 w-3" />
+              </Button>
             </div>
-            <Button
-              type="button" size="sm"
-              className="h-7 px-2.5 text-xs shrink-0 gap-1"
-              onClick={handleSaveEdit}
-              disabled={isPending}
-            >
-              {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Check className="h-3 w-3" />Save</>}
-            </Button>
-            <Button
-              type="button" variant="ghost" size="sm"
-              className="h-7 px-2 shrink-0"
-              onClick={cancelEdit}
-              disabled={isPending}
-            >
-              <X className="h-3 w-3" />
-            </Button>
+            <div className="flex items-center gap-1">
+              {(["FLAT", "PER_PERSON", "PER_VEHICLE"] as const).map((t) => (
+                <button key={t} type="button" disabled={isPending} onClick={() => setPriceType(t)}
+                  className={cn("px-2 py-0.5 rounded text-[10px] font-medium border transition-colors",
+                    priceType === t ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-muted text-muted-foreground border-border hover:bg-muted/70"
+                  )}>
+                  {t === "FLAT" ? "Flat" : t === "PER_PERSON" ? "Per Person" : "Per Vehicle"}
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-sm font-medium leading-tight">{permit.name}</span>
             <span className="text-[11px] text-muted-foreground">₹{fmt(permit.price)}</span>
+            <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0",
+              permit.price_type === "PER_PERSON"  ? "border-blue-200 text-blue-600 bg-blue-50"  :
+              permit.price_type === "PER_VEHICLE" ? "border-orange-200 text-orange-600 bg-orange-50" :
+              "border-muted text-muted-foreground"
+            )}>
+              {permit.price_type === "PER_PERSON" ? "×/person" : permit.price_type === "PER_VEHICLE" ? "×/vehicle" : "flat"}
+            </Badge>
             {!permit.is_included && (
               <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Not included</Badge>
             )}
@@ -1768,9 +1793,10 @@ function AddPermitForm({
   onCancel: () => void;
 }) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [name, setName]             = useState("");
-  const [price, setPrice]           = useState("");
-  const [included, setIncluded]     = useState(true);
+  const [name,       setName]       = useState("");
+  const [price,      setPrice]      = useState("");
+  const [priceType,  setPriceType]  = useState<PermitPriceType>("FLAT");
+  const [included,   setIncluded]   = useState(true);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -1778,7 +1804,13 @@ function AddPermitForm({
     setSelectedId(option?.id ?? null);
     if (option) {
       setName(option.name);
-      setPrice(String(option.price));
+      if (option.price_per_person > 0) {
+        setPrice(String(option.price_per_person));
+        setPriceType("PER_PERSON");
+      } else {
+        setPrice(String(option.price_per_vehicle));
+        setPriceType(option.price_per_vehicle > 0 ? "PER_VEHICLE" : "FLAT");
+      }
     }
   }
 
@@ -1793,6 +1825,7 @@ function AddPermitForm({
         duration_id: duration.id,
         name:        name.trim(),
         price:       parsedPrice,
+        price_type:  priceType,
         is_included: included,
       });
       if (res.success) {
@@ -1835,10 +1868,30 @@ function AddPermitForm({
               disabled={isPending}
             />
           </div>
+          {/* Price type */}
+          <div className="sm:col-span-2 flex items-center gap-1.5 flex-wrap">
+            <Label className="text-xs text-muted-foreground shrink-0">Pricing:</Label>
+            {(["FLAT", "PER_PERSON", "PER_VEHICLE"] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                disabled={isPending}
+                onClick={() => setPriceType(t)}
+                className={cn(
+                  "px-2 py-0.5 rounded text-[11px] font-medium border transition-colors",
+                  priceType === t
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-muted text-muted-foreground border-border hover:bg-muted/70",
+                )}
+              >
+                {t === "FLAT" ? "Flat" : t === "PER_PERSON" ? "Per Person" : "Per Vehicle"}
+              </button>
+            ))}
+          </div>
           <div className="flex items-center gap-2 sm:col-span-2">
             <Switch checked={included} onCheckedChange={setIncluded} disabled={isPending} />
             <Label className="text-xs text-muted-foreground">
-              Include permit price in package cost calculation
+              Include in package cost calculation
             </Label>
           </div>
         </div>

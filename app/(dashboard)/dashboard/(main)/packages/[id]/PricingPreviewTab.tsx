@@ -473,7 +473,9 @@ function CabBreakdown({ segments }: { segments: CabSegmentBreakdown[] }) {
 
 // ── Permit breakdown ──────────────────────────────────────────────────────
 
-function PermitBreakdown({ permits }: { permits: { name: string; price: number }[] }) {
+function PermitBreakdown({ permits }: {
+  permits: { name: string; unit_price: number; price_type: string; quantity: number; total: number }[];
+}) {
   const [open, setOpen] = useState(false);
   if (permits.length === 0) return null;
 
@@ -490,9 +492,16 @@ function PermitBreakdown({ permits }: { permits: { name: string; price: number }
       {open && (
         <div className="mt-2 space-y-1.5 pl-2 border-l-2 border-teal-200">
           {permits.map((p, i) => (
-            <div key={i} className="flex items-center justify-between">
-              <span className="text-[11px] text-foreground/80">{p.name}</span>
-              <span className="text-xs font-semibold text-teal-700">₹{fmt(p.price)}</span>
+            <div key={i} className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <span className="text-[11px] text-foreground/80">{p.name}</span>
+                {p.price_type !== "FLAT" && (
+                  <span className="ml-1.5 text-[10px] text-muted-foreground">
+                    ₹{fmt(p.unit_price)} × {p.quantity} {p.price_type === "PER_PERSON" ? "pax" : "vehicle"}
+                  </span>
+                )}
+              </div>
+              <span className="text-xs font-semibold text-teal-700 shrink-0">₹{fmt(p.total)}</span>
             </div>
           ))}
         </div>
