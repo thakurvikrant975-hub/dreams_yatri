@@ -4,7 +4,11 @@ This is the top-level reference for the Dreams Yatri codebase: what it is, how i
 structured, how auth/RBAC work, the data model, and how to run it locally. For the
 booking & payment flow specifically, see [`docs/booking/booking-system.md`](./booking/booking-system.md)
 (and the per-phase logs alongside it) — that subsystem is documented in depth there
-and is only summarized here. For a full endpoint-by-endpoint and
+and is only summarized here. For the admin travel-packages feature (package CRUD, route
+builder, itinerary builder, stay tiers, pricing engine) — schema, admin UI, server actions,
+and pricing-calculation logic — see
+[`docs/packages/admin-package-itinerary-builder.md`](./packages/admin-package-itinerary-builder.md).
+For a full endpoint-by-endpoint and
 action-by-action reference (every `app/api/**/route.ts` handler and every
 `app/actions/**` Server Action/service function — auth requirements, request/response
 shapes, side effects), see [`docs/API_REFERENCE.md`](./API_REFERENCE.md).
@@ -255,6 +259,7 @@ scripts/                   # one-off + recurring scripts (reindex, reconcile, e2
   `activity_variant_season_pricing`, `activity_addons`.
 
 ### Travel packages
+Fully documented in [`docs/packages/admin-package-itinerary-builder.md`](./packages/admin-package-itinerary-builder.md).
 - `packages`, `package_images`, `package_durations`, `package_tags`,
   `package_categories`.
 - Routing: `package_routes`, `route_stops`, `transfer_routes`,

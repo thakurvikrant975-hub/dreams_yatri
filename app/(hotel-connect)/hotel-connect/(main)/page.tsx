@@ -170,7 +170,7 @@ export default async function HotelConnectDashboard() {
       <ConnectHeader title="Dashboard" />
 
       <div className="flex-1 overflow-y-auto">
-        <div className="p-6 max-w-5xl mx-auto w-full space-y-6">
+        <div className="p-6  mx-auto w-full space-y-6">
 
           {/* Greeting */}
           <div className="flex items-end justify-between gap-4">

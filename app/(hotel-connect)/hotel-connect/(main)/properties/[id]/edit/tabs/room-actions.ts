@@ -21,7 +21,8 @@ export type RoomEditPayload = {
   meal_plan: string;
   base_rate: string; extra_adult_charge: string; paid_child_charge: string;
   rate_start_date: string; rate_end_date: string;
-  room_amenities: string[];
+  room_amenities:       string[];
+  room_amenity_details: Record<string, string | string[]>;
 };
 
 function slugify(text: string): string {
@@ -108,7 +109,7 @@ export async function createRoom(
       child_cot_available: d.child_cot_available,
       bathroom:            d.bathrooms as Prisma.InputJsonValue,
       meal_plan:           d.meal_plan,
-      amenities:           d.room_amenities as Prisma.InputJsonValue,
+      amenities:           { selected: d.room_amenities, details: d.room_amenity_details } as Prisma.InputJsonValue,
       room_wizard_step:    5,
     },
     select: { id: true },
@@ -194,7 +195,16 @@ export async function fetchRoomForEdit(
       paid_child_charge:  pricing?.extra_child_rate?.toString() ?? "",
       rate_start_date:    pricing?.valid_from?.toISOString().split("T")[0] ?? "",
       rate_end_date:      pricing?.valid_to?.toISOString().split("T")[0]   ?? "",
-      room_amenities:     (room.amenities as string[] | null) ?? [],
+      room_amenities:     (() => {
+        const raw = room.amenities as string[] | { selected?: string[]; details?: Record<string, string | string[]> } | null;
+        if (Array.isArray(raw)) return raw;
+        return (raw?.selected as string[]) ?? [];
+      })(),
+      room_amenity_details: (() => {
+        const raw = room.amenities as string[] | { selected?: string[]; details?: Record<string, string | string[]> } | null;
+        if (Array.isArray(raw) || !raw) return {};
+        return (raw.details as Record<string, string | string[]>) ?? {};
+      })(),
     };
 
     return { payload };
@@ -259,7 +269,7 @@ export async function updateRoom(
         child_cot_available: d.child_cot_available,
         bathroom:            d.bathrooms    as Prisma.InputJsonValue,
         meal_plan:           d.meal_plan,
-        amenities:           d.room_amenities as Prisma.InputJsonValue,
+        amenities:           { selected: d.room_amenities, details: d.room_amenity_details } as Prisma.InputJsonValue,
       },
     });
 

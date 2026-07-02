@@ -5,7 +5,7 @@ import { hotelConnectAuth } from "@/app/lib/auth-hotel-connect";
 import { db } from "@/app/lib/db";
 import { HotelCancellationPolicy } from "@/app/generated/prisma";
 
-export type PolicyState = { error?: string };
+export type PolicyState = { ok?: boolean; error?: string };
 
 function parseBool(v: FormDataEntryValue | null): boolean | null {
   if (v === "yes") return true;
@@ -67,41 +67,78 @@ export async function savePolicies(
   const infant_free_occupancy      = parseBool(formData.get("infant_free_occupancy"));
   const infant_complimentary_food  = parseBool(formData.get("infant_complimentary_food"));
   const extra_bed_included         = parseBool(formData.get("extra_bed_included"));
-  const provide_bed_extra_adults   = parseBool(formData.get("provide_bed_extra_adults"));
-  const provide_bed_extra_kids     = parseBool(formData.get("provide_bed_extra_kids"));
 
-  await db.hotels.update({
-    where: { id: hotelId },
-    data: {
-      check_in_time,
-      check_out_time,
-      cancellation_policy,
-      allow_unmarried_couples,
-      show_couple_tag,
-      allow_guests_below_18,
-      allow_male_only_groups,
-      allow_same_city_id,
-      smoking_allowed,
-      parties_events_allowed,
-      wheelchair_accessible,
-      allow_outside_visitors,
-      pets_on_property,
-      pets_allowed,
-      allowed_pet_types,
-      pet_extra_charges,
-      pets_restricted_areas,
-      pets_without_leash,
-      pet_food_available,
-      checkin_24_hours,
-      acceptable_id_proofs,
-      infant_free_occupancy,
-      infant_complimentary_food,
-      extra_bed_included,
-      provide_bed_extra_adults,
-      provide_bed_extra_kids,
-      wizard_step: Math.max(hotel.wizard_step, 6),
-    },
-  });
+  const extra_bed_adults_avail  = (formData.get("extra_bed_adults_avail") as string | null) || null;
+  const extra_bed_adults_types  = extra_bed_adults_avail === "yes" ? parseStrArray(formData.get("extra_bed_adults_types")) : [];
+  const extra_cot_charge_adult  = extra_bed_adults_avail === "yes" ? (formData.get("extra_cot_charge_adult") as string | null) || null : null;
+  const extra_mattress_charge_adult = extra_bed_adults_avail === "yes" ? (formData.get("extra_mattress_charge_adult") as string | null) || null : null;
+  const extra_sofa_charge_adult = extra_bed_adults_avail === "yes" ? (formData.get("extra_sofa_charge_adult") as string | null) || null : null;
+
+  const extra_bed_kids_avail    = (formData.get("extra_bed_kids_avail") as string | null) || null;
+  const extra_bed_kids_types    = extra_bed_kids_avail === "yes" ? parseStrArray(formData.get("extra_bed_kids_types")) : [];
+  const extra_cot_charge_child  = extra_bed_kids_avail === "yes" ? (formData.get("extra_cot_charge_child") as string | null) || null : null;
+  const extra_mattress_charge_child = extra_bed_kids_avail === "yes" ? (formData.get("extra_mattress_charge_child") as string | null) || null : null;
+  const extra_sofa_charge_child = extra_bed_kids_avail === "yes" ? (formData.get("extra_sofa_charge_child") as string | null) || null : null;
+  const extra_crib_charge_child = extra_bed_kids_avail === "yes" ? (formData.get("extra_crib_charge_child") as string | null) || null : null;
+
+  const provide_bed_extra_adults = extra_bed_adults_avail === "yes" ? true : extra_bed_adults_avail === "no" ? false : null;
+  const provide_bed_extra_kids   = extra_bed_kids_avail   === "yes" ? true : extra_bed_kids_avail   === "no" ? false : null;
+
+  const meal_price_breakfast = (formData.get("meal_price_breakfast") as string | null) || null;
+  const meal_price_lunch     = (formData.get("meal_price_lunch")     as string | null) || null;
+  const meal_price_dinner    = (formData.get("meal_price_dinner")    as string | null) || null;
+
+  try {
+    await db.hotels.update({
+      where: { id: hotelId },
+      data: {
+        check_in_time,
+        check_out_time,
+        cancellation_policy,
+        allow_unmarried_couples,
+        show_couple_tag,
+        allow_guests_below_18,
+        allow_male_only_groups,
+        allow_same_city_id,
+        smoking_allowed,
+        parties_events_allowed,
+        wheelchair_accessible,
+        allow_outside_visitors,
+        pets_on_property,
+        pets_allowed,
+        allowed_pet_types,
+        pet_extra_charges,
+        pets_restricted_areas,
+        pets_without_leash,
+        pet_food_available,
+        checkin_24_hours,
+        acceptable_id_proofs,
+        infant_free_occupancy,
+        infant_complimentary_food,
+        extra_bed_included,
+        provide_bed_extra_adults,
+        provide_bed_extra_kids,
+        extra_bed_adults_avail,
+        extra_bed_adults_types,
+        extra_cot_charge_adult,
+        extra_mattress_charge_adult,
+        extra_sofa_charge_adult,
+        extra_bed_kids_avail,
+        extra_bed_kids_types,
+        extra_cot_charge_child,
+        extra_mattress_charge_child,
+        extra_sofa_charge_child,
+        extra_crib_charge_child,
+        meal_price_breakfast,
+        meal_price_lunch,
+        meal_price_dinner,
+        wizard_step: Math.max(hotel.wizard_step, 6),
+      },
+    });
+  } catch (err) {
+    console.error("[savePolicies]", err);
+    return { error: "Failed to save policies. Please try again." };
+  }
 
   redirect(`/hotel-connect/properties/${hotelId}/edit?tab=7`);
 }
