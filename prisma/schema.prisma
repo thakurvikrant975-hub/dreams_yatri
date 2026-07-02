@@ -872,175 +872,176 @@ model HotelOwner {
 }
 
 model hotels {
-  id                      Int                      @id @default(autoincrement())
-  name                    String
-  slug                    String                   @unique
-  description             String?
-  meta_title              String?
-  meta_desc               String?
-  destination_id          Int?
-  address                 String?
-  category                String?
-  stay_type               String?
-  check_in_time           String?
-  check_out_time          String?
-  is_active               Boolean                  @default(true)
-  created_at              DateTime                 @default(now())
-  updated_at              DateTime                 @updatedAt
-  thumbnail               String?
-  city                    String?
-  state                   String?
-  country                 String?
-  pincode                 String?
-  business_phone          String?
-  business_email          String?
-  whatsapp_number         String?
-  b2b_email               String?
-  location_id             BigInt?
-  margin_percentage       Decimal                  @default(10) @db.Decimal(5, 2)
-  gst_percentage          Decimal                  @default(18) @db.Decimal(5, 2)
-  created_by              String?
-  updated_by              String?
-  owner_id                String?
-  listing_status          HotelListingStatus       @default(DRAFT)
-  submitted_at            DateTime?
-  approved_at             DateTime?
-  approved_by_id          String?
-  rejection_reason        String?
+  id                          Int                       @id @default(autoincrement())
+  name                        String
+  slug                        String                    @unique
+  description                 String?
+  meta_title                  String?
+  meta_desc                   String?
+  destination_id              Int?
+  address                     String?
+  category                    String?
+  stay_type                   String?
+  check_in_time               String?
+  check_out_time              String?
+  is_active                   Boolean                   @default(true)
+  created_at                  DateTime                  @default(now())
+  updated_at                  DateTime                  @updatedAt
+  thumbnail                   String?
+  city                        String?
+  state                       String?
+  country                     String?
+  pincode                     String?
+  business_phone              String?
+  business_email              String?
+  whatsapp_number             String?
+  b2b_email                   String?
+  location_id                 BigInt?
+  margin_percentage           Decimal                   @default(10) @db.Decimal(5, 2)
+  gst_percentage              Decimal                   @default(18) @db.Decimal(5, 2)
+  created_by                  String?
+  updated_by                  String?
+  owner_id                    String?
+  listing_status              HotelListingStatus        @default(DRAFT)
+  submitted_at                DateTime?
+  approved_at                 DateTime?
+  approved_by_id              String?
+  rejection_reason            String?
   // ── Wizard fields ──────────────────────────────────────────────────────────
-  property_category       PropertyCategory?
-  property_sub_type       PropertySubType?
-  star_rating             Int?
-  year_built              Int?
-  booking_since_year      Int?
-  has_channel_manager     Boolean                  @default(false)
-  channel_manager_name    String?
-  contact_email           String?
-  contact_mobile_cc       String?                  @default("+91")
-  contact_mobile          String?
-  whatsapp_same_as_mobile Boolean                  @default(false)
-  contact_whatsapp        String?
-  contact_landline        String?
+  property_category           PropertyCategory?
+  property_sub_type           PropertySubType?
+  star_rating                 Int?
+  year_built                  Int?
+  booking_since_year          Int?
+  has_channel_manager         Boolean                   @default(false)
+  channel_manager_name        String?
+  contact_email               String?
+  contact_mobile_cc           String?                   @default("+91")
+  contact_mobile              String?
+  whatsapp_same_as_mobile     Boolean                   @default(false)
+  contact_whatsapp            String?
+  contact_landline            String?
   // ── Location wizard fields ─────────────────────────────────────────────────
-  latitude                Decimal?                 @db.Decimal(10, 7)
-  longitude               Decimal?                 @db.Decimal(10, 7)
-  landmark                String?
+  latitude                    Decimal?                  @db.Decimal(10, 7)
+  longitude                   Decimal?                  @db.Decimal(10, 7)
+  landmark                    String?
   // ── Amenities wizard field ─────────────────────────────────────────────────
-  property_amenities      Json?
+  property_amenities          Json?
   // ── Policy wizard fields ───────────────────────────────────────────────────
-  cancellation_policy       HotelCancellationPolicy?
-  allow_unmarried_couples   Boolean?
-  show_couple_tag           Boolean?
-  allow_guests_below_18     Boolean?
-  allow_male_only_groups    Boolean?
-  allow_same_city_id        Boolean?
-  smoking_allowed           Boolean?
-  parties_events_allowed    Boolean?
-  wheelchair_accessible     Boolean?
-  allow_outside_visitors    Boolean?
-  pets_on_property          Boolean?
-  pets_allowed              Boolean?
-  allowed_pet_types         String[]                 @default([])
-  pet_extra_charges         Boolean?
-  pets_restricted_areas     String?
-  pets_without_leash        Boolean?
-  pet_food_available        Boolean?
-  checkin_24_hours          Boolean?
-  acceptable_id_proofs      String[]                 @default([])
-  infant_free_occupancy     Boolean?
-  infant_complimentary_food  Boolean?
-  extra_bed_included         Boolean?
-  provide_bed_extra_adults   Boolean?
-  provide_bed_extra_kids     Boolean?
+  cancellation_policy         HotelCancellationPolicy?
+  allow_unmarried_couples     Boolean?
+  show_couple_tag             Boolean?
+  allow_guests_below_18       Boolean?
+  allow_male_only_groups      Boolean?
+  allow_same_city_id          Boolean?
+  smoking_allowed             Boolean?
+  parties_events_allowed      Boolean?
+  wheelchair_accessible       Boolean?
+  allow_outside_visitors      Boolean?
+  pets_on_property            Boolean?
+  pets_allowed                Boolean?
+  allowed_pet_types           String[]                  @default([])
+  pet_extra_charges           Boolean?
+  pets_restricted_areas       String?
+  pets_without_leash          Boolean?
+  pet_food_available          Boolean?
+  checkin_24_hours            Boolean?
+  acceptable_id_proofs        String[]                  @default([])
+  infant_free_occupancy       Boolean?
+  infant_complimentary_food   Boolean?
+  extra_bed_included          Boolean?
+  provide_bed_extra_adults    Boolean?
+  provide_bed_extra_kids      Boolean?
   // ── Extra bed detail fields ────────────────────────────────────────────────
-  extra_bed_adults_avail     String?
-  extra_bed_adults_types     String[]  @default([])
-  extra_cot_charge_adult     String?
-  extra_mattress_charge_adult  String?
-  extra_sofa_charge_adult    String?
-  extra_bed_kids_avail       String?
-  extra_bed_kids_types       String[]  @default([])
-  extra_cot_charge_child     String?
-  extra_mattress_charge_child  String?
-  extra_sofa_charge_child    String?
-  extra_crib_charge_child    String?
+  extra_bed_adults_avail      String?
+  extra_bed_adults_types      String[]                  @default([])
+  extra_cot_charge_adult      String?
+  extra_mattress_charge_adult String?
+  extra_sofa_charge_adult     String?
+  extra_bed_kids_avail        String?
+  extra_bed_kids_types        String[]                  @default([])
+  extra_cot_charge_child      String?
+  extra_mattress_charge_child String?
+  extra_sofa_charge_child     String?
+  extra_crib_charge_child     String?
   // ── Meal rack prices ──────────────────────────────────────────────────────
-  meal_price_breakfast       String?
-  meal_price_lunch           String?
-  meal_price_dinner          String?
+  meal_price_breakfast        String?
+  meal_price_lunch            String?
+  meal_price_dinner           String?
   // ── Homestay-specific wizard fields ──────────────────────────────────────
-  hosted_as                  String?
-  host_lives_at_property     Boolean?
+  hosted_as                   String?
+  host_lives_at_property      Boolean?
   // ── Homestay Rooms & Spaces ────────────────────────────────────────────────
-  hs_bedrooms                Int?
-  hs_bathrooms               Int?
-  hs_has_kitchen             Boolean?
-  hs_additional_spaces       Json?
-  hs_bedroom_details         Json?
-  hs_bathroom_details        Json?
-  hs_kitchen_details         Json?
-  hs_space_items             Json?
+  hs_bedrooms                 Int?
+  hs_bathrooms                Int?
+  hs_has_kitchen              Boolean?
+  hs_additional_spaces        Json?
+  hs_bedroom_details          Json?
+  hs_bathroom_details         Json?
+  hs_kitchen_details          Json?
+  hs_space_items              Json?
   // ── Homestay Finance wizard fields ────────────────────────────────────────
-  ownership_type         String?
-  has_registration_doc   Boolean?
-  relationship_doc_type  String?
-  id_proof_type          String?
-  tan_number             String?
+  ownership_type              String?
+  has_registration_doc        Boolean?
+  relationship_doc_type       String?
+  id_proof_type               String?
+  tan_number                  String?
   // ── Homestay Policy wizard fields ─────────────────────────────────────────
-  has_check_in_end_time    Boolean?
-  check_in_end_time        String?
-  smoking_areas            String?
-  entry_exit_restrictions  Boolean?
-  noise_policy             String?
-  pet_charge_amount        String?
-  pet_count                Int?
-  food_kitchen_available   Boolean?
-  caretaker_stays          Boolean?
-  caretaker_details        String?
-  caretaker_availability   String?
-  caretaker_services       String[]   @default([])
-  caretaker_knowledge      String[]   @default([])
-  caretaker_helps_cleaning Boolean?
-  self_checkin_smart_door  Boolean?
-  host_greets_helps        Boolean?
-  caretaker_greets_helps   Boolean?
-  building_staff_keys      Boolean?
-  custom_policy            String?
+  has_check_in_end_time       Boolean?
+  check_in_end_time           String?
+  smoking_areas               String?
+  entry_exit_restrictions     Boolean?
+  noise_policy                String?
+  pet_charge_amount           String?
+  pet_count                   Int?
+  food_kitchen_available      Boolean?
+  caretaker_stays             Boolean?
+  caretaker_details           String?
+  caretaker_availability      String?
+  caretaker_services          String[]                  @default([])
+  caretaker_knowledge         String[]                  @default([])
+  caretaker_helps_cleaning    Boolean?
+  self_checkin_smart_door     Boolean?
+  host_greets_helps           Boolean?
+  caretaker_greets_helps      Boolean?
+  building_staff_keys         Boolean?
+  custom_policy               String?
   // ── Meals, Pricing & Availability wizard fields ───────────────────────────
-  prop_num_units      Int?
-  prop_meal_option    String?
-  prop_base_occupancy Int?
-  prop_max_adults     Int?
-  prop_max_children   Int?
-  prop_max_occupancy  Int?
-  prop_avail_from     DateTime?
-  prop_avail_to       DateTime?
-  prop_base_rate      Decimal?    @db.Decimal(10, 2)
-  prop_extra_adult    Decimal?    @db.Decimal(10, 2)
-  prop_child_rate     Decimal?    @db.Decimal(10, 2)
+  prop_num_units              Int?
+  prop_meal_option            String?
+  prop_base_occupancy         Int?
+  prop_max_adults             Int?
+  prop_max_children           Int?
+  prop_max_occupancy          Int?
+  prop_avail_from             DateTime?
+  prop_avail_to               DateTime?
+  prop_base_rate              Decimal?                  @db.Decimal(10, 2)
+  prop_extra_adult            Decimal?                  @db.Decimal(10, 2)
+  prop_child_rate             Decimal?                  @db.Decimal(10, 2)
   // ── Finance & Legal wizard fields ─────────────────────────────────────────
-  bank_account_number     String?
-  bank_ifsc_code          String?
-  bank_name               String?
-  bank_consent_given      Boolean                  @default(false)
-  gstin_number            String?
-  pan_number              String?
-  business_type           HotelBusinessType?
-  msme_number             String?
-  property_documents      Json?
-  wizard_step             Int                      @default(0)
-  bookingHotels           BookingHotel[]
-  childPolicies           hotel_child_policies[]
-  image_categories        hotel_image_categories[]
-  images                  hotel_images[]
-  room_pricing            hotel_room_pricing[]
-  meal_pricing            hotel_meal_pricing[]
-  addons                  hotel_addons[]
-  hotelRooms              hotel_rooms[]
-  destination             destinations?            @relation(fields: [destination_id], references: [id])
-  location                Location?                @relation(fields: [location_id], references: [id])
-  packageBookings         PackageBookingHotel[]
-  owner                   HotelOwner?              @relation(fields: [owner_id], references: [id])
+  bank_account_number         String?
+  bank_ifsc_code              String?
+  bank_name                   String?
+  bank_consent_given          Boolean                   @default(false)
+  gstin_number                String?
+  pan_number                  String?
+  business_type               HotelBusinessType?
+  msme_number                 String?
+  property_documents          Json?
+  wizard_step                 Int                       @default(0)
+  bookingHotels               BookingHotel[]
+  childPolicies               hotel_child_policies[]
+  image_categories            hotel_image_categories[]
+  images                      hotel_images[]
+  room_pricing                hotel_room_pricing[]
+  meal_pricing                hotel_meal_pricing[]
+  addons                      hotel_addons[]
+  hotelRooms                  hotel_rooms[]
+  room_availability           hotel_room_availability[]
+  destination                 destinations?             @relation(fields: [destination_id], references: [id])
+  location                    Location?                 @relation(fields: [location_id], references: [id])
+  packageBookings             PackageBookingHotel[]
+  owner                       HotelOwner?               @relation(fields: [owner_id], references: [id])
 
   @@index([destination_id, is_active])
   @@index([location_id])
@@ -1083,41 +1084,42 @@ model hotel_images {
 }
 
 model hotel_rooms {
-  id                  Int                  @id @default(autoincrement())
+  id                  Int                       @id @default(autoincrement())
   hotel_id            Int
   name                String
   slug                String
   area_sqft           Int?
   bed_type            String?
   view_type           String?
-  max_occupancy       Int                  @default(3)
+  max_occupancy       Int                       @default(3)
   amenities           Json?
   features            Json?
   bathroom            Json?
   facilities          Json?
   description         String?
-  is_active           Boolean              @default(true)
-  sort_order          Int                  @default(0)
-  created_at          DateTime             @default(now())
-  updated_at          DateTime             @updatedAt
-  extra_bed_capacity  Int                  @default(0)
-  max_adults          Int                  @default(2)
-  max_children        Int                  @default(1)
-  bed_count           Int                  @default(1)
-  child_cot_available Boolean              @default(false)
-  area_unit           String?              @default("sqft")
-  base_adults         Int                  @default(2)
-  base_children       Int                  @default(0)
+  is_active           Boolean                   @default(true)
+  sort_order          Int                       @default(0)
+  created_at          DateTime                  @default(now())
+  updated_at          DateTime                  @updatedAt
+  extra_bed_capacity  Int                       @default(0)
+  max_adults          Int                       @default(2)
+  max_children        Int                       @default(1)
+  bed_count           Int                       @default(1)
+  child_cot_available Boolean                   @default(false)
+  area_unit           String?                   @default("sqft")
+  base_adults         Int                       @default(2)
+  base_children       Int                       @default(0)
   beds                Json?
   meal_plan           String?
   num_bedrooms        Int?
   num_living_rooms    Int?
-  num_rooms           Int                  @default(1)
+  num_rooms           Int                       @default(1)
   room_type           String?
-  room_wizard_step    Int                  @default(0)
+  room_wizard_step    Int                       @default(0)
   images              hotel_room_images[]
   pricing             hotel_room_pricing[]
-  hotel               hotels               @relation(fields: [hotel_id], references: [id])
+  availability        hotel_room_availability[]
+  hotel               hotels                    @relation(fields: [hotel_id], references: [id])
 
   @@unique([hotel_id, slug])
   @@index([hotel_id])
@@ -1285,6 +1287,37 @@ model hotel_room_occupancy_prices {
 
   @@unique([pricing_id, occupancy])
   @@index([pricing_id])
+}
+
+// ── Channel-management Phase 1: per-date ARI ledger ───────────────────────────
+// One row per room-type per calendar date. Carries Availability (units),
+// an optional Rate override, and Inventory restrictions. The base nightly price
+// still comes from the existing season/weekend/occupancy pricing engine
+// (hotel_room_pricing → seasons); `price_override` pins a single date when set.
+// available = stop_sell ? 0 : max(0, total_units - booked_units)
+model hotel_room_availability {
+  id                  Int         @id @default(autoincrement())
+  hotel_id            Int
+  room_id             Int
+  date                DateTime    @db.Date
+  total_units         Int
+  booked_units        Int         @default(0)
+  stop_sell           Boolean     @default(false)
+  price_override      Decimal?    @db.Decimal(10, 2)
+  min_los             Int?
+  max_los             Int?
+  closed_to_arrival   Boolean     @default(false)
+  closed_to_departure Boolean     @default(false)
+  note                String?
+  created_at          DateTime    @default(now())
+  updated_at          DateTime    @updatedAt
+  room                hotel_rooms @relation(fields: [room_id], references: [id], onDelete: Cascade)
+  hotel               hotels      @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
+
+  @@unique([room_id, date])
+  @@index([hotel_id, date])
+  @@index([room_id, date])
+  @@map("hotel_room_availability")
 }
 
 model hotel_child_policies {

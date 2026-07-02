@@ -1,0 +1,177 @@
+# Dreams Yatri — Channel Management System (Phased Plan)
+
+The roadmap for turning the current flat-pricing hotel setup into a proper channel-ready
+platform, culminating in **Channex.io** integration for live multi-OTA sync. Built in
+independent phases — each ships value on its own and is a prerequisite for the next.
+
+Channex is deliberately the **last** step. Phases 1–6 give us a real-time calendar and an
+overbooking-proof booking engine *of our own*, in the exact shape Channex later syncs to —
+so nothing is wasted work.
+
+---
+
+## Guiding principles (apply to every phase)
+
+1. **Date-indexed source of truth.** Availability, rates, and restrictions live per
+   `room_type × date` (and rate plan). No more single static counts / windows.
+2. **Server-authoritative & atomic.** Inventory only moves inside transactions with locking.
+   A booking never oversells. Retries/double-webhooks are idempotent no-ops.
+3. **Channel-agnostic core.** The inventory + reservation engine knows nothing about Channex
+   or any OTA. Channels are an adapter layer on top.
+4. **Snapshot immutably.** A confirmed reservation freezes its price/policy; later rate edits
+   never change past bookings (same rule as the booking system).
+5. **Everything observable.** Every sync push/pull is logged, retryable, and surfaced to the
+   owner ("Agoda rejected this rate").
+
+---
+
+## Current state (baseline)
+
+- ✅ Hotels, room types (`hotelRooms`), tagged images, amenities JSON, location, policies.
+- ✅ Booking engine (quote → checkout → Razorpay, Phases 1–9) — but coupled to our own payment.
+- 🟡 Flat per-property pricing (`prop_base_rate`, meal prices), single `cancellation_policy`.
+- ❌ No per-date inventory, no rate plans, no restrictions, no channel/sync concept.
+
+---
+
+## Phase 1 — Per-date Inventory & Restrictions  *(foundation)* ✅ COMPLETE
+
+**Scope correction:** a **season-based pricing engine already exists** (`hotel_room_pricing`
+= rate plans, `hotel_room_pricing_season` = date-range + weekend, occupancy tiers, meal/addon
+pricing, child policies). So Phase 1 did **not** rebuild rate plans/pricing — only the genuinely
+missing per-date **availability + restrictions** layer. Details: `phase1-inventory.md`.
+
+**Delivered:** `hotel_room_availability` — one ARI row per `room × date`:
+- Availability: `total_units`, `booked_units`, `stop_sell` (`available = stop_sell ? 0 : max(0, total-booked)`).
+- Rate override: optional `price_override` (base price still from the season engine).
+- Restrictions: `min_los`, `max_los`, `closed_to_arrival`, `closed_to_departure`.
+
+Deferred (already exist or later phases): rate plans/pricing (exist), structured GST slabs &
+per-rate-plan cancellation (Phase 4).
+
+⚠️ **Migration drift:** local `prisma/migrations` is out of sync with the Neon DB, so
+`migrate dev` wants to reset. Table was shipped via hand-written SQL + `db execute` +
+`migrate resolve --applied`. History needs reconciling before normal `migrate dev` works.
+
+**Depends on:** nothing. **Unblocks:** everything.
+
+---
+
+## Phase 2 — Booking ↔ Inventory engine  *(overbooking-proof core)*
+
+**Goal:** every booking moves per-date inventory atomically; reservations can come from anywhere.
+
+- **Atomic decrement/release** on confirm/cancel (transaction + row lock).
+- **Channel/source attribution** on bookings (`direct`, `booking.com`, `mmt`…).
+- **Channel-agnostic reservation path** — create a confirmed booking *without* our Razorpay
+  flow (OTA already collected / pay-at-hotel), storing external ref + commission + net/gross.
+- Wire the **existing booking engine** to consume this so DreamsYatri bookings stop overselling
+  today.
+
+**Done when:** a booking from any source correctly debits inventory and cannot oversell under
+concurrent load; cancellations release it.
+
+**Depends on:** Phase 1.
+
+---
+
+## Phase 3 — Owner dashboard: Rates & Availability Calendar
+
+**Goal:** the grid owners actually use (like the MMT rate section).
+
+- Calendar grid: room types × dates → editable price, availability, restrictions.
+- **Bulk operations:** update a date range, copy rates, seasonal presets, one-click close-out.
+- Per-rate-plan pricing view; occupancy pricing UI.
+- Reuses existing dashboard components (`Card`, `SectionCard`, `SearchSelect`, etc.).
+
+**Done when:** an owner can manage a month of rates/availability without touching any OTA.
+
+**Depends on:** Phases 1–2.
+
+---
+
+## Phase 4 — Content standardization & structured cancellation
+
+**Goal:** make our content OTA-shaped before mapping to channels.
+
+- Standardized **amenity/facility codes, bed types, occupancy definitions, geolocation**.
+- **Per-rate-plan cancellation policies** with penalty windows + amounts (move off the
+  hotel-level enum).
+- Photo categories already strong (enforced tagging) — map to OTA photo taxonomy.
+
+**Done when:** every listing exposes structured, channel-mappable content + policies.
+
+**Depends on:** Phase 1 (rate plans exist).
+
+---
+
+## Phase 5 — Channel mapping & connection model
+
+**Goal:** the data layer that links our entities to external channels.
+
+- **Room/rate ↔ channel-code mapping** table (our room+rate ↔ Channex IDs ↔ OTA codes).
+- **Channel connection entity** per hotel: which OTAs, mapping status, sync health.
+- **"Channels" tab** in the dashboard: connect, map rooms/rates, view status.
+
+**Done when:** a hotel's rooms/rate plans can be mapped to a channel (still no live sync).
+
+**Depends on:** Phases 1, 4.
+
+---
+
+## Phase 6 — Sync reliability infrastructure
+
+**Goal:** the backbone that makes sync safe (built generic, before any provider).
+
+- **Outbox/queue** for ARI pushes with retries + backoff + idempotency keys.
+- **Webhook receiver** (signature-verified, deduped) to ingest external bookings.
+- **Reconciliation job** — nightly full push/compare to catch drift.
+- **Sync audit log** + owner-facing error surfacing.
+
+**Done when:** we can enqueue ARI changes and ingest booking webhooks reliably against a mock.
+
+**Depends on:** Phases 2, 5.
+
+---
+
+## Phase 7 — Channex.io integration
+
+**Goal:** wire the real provider into the layers above.
+
+- Channex account + sandbox; map our mapping/connection model to Channex properties/rooms/rates.
+- Push ARI from Phase 1 calendars via Phase 6 outbox → Channex → OTAs.
+- Consume Channex booking **webhooks** → Phase 2 reservation path → inventory decrement.
+- White-label so owners see "DreamsYatri," not Channex.
+
+**Done when:** a rate/availability change in our dashboard reaches an OTA, and an OTA booking
+appears in our calendar with inventory decremented — end to end in sandbox.
+
+**Depends on:** Phases 1–6.
+
+---
+
+## Phase 8 — Multi-channel pricing, parity & go-live
+
+**Goal:** production hardening + commercial layer.
+
+- **Channel-specific pricing** (markup/commission per channel), rate-parity handling.
+- Overbooking incident handling, monitoring/alerts, load testing.
+- Onboarding flow (help hotels connect their OTA accounts); ops runbook.
+- India compliance: GST invoicing on channel bookings, C-form/FRRO for foreign guests.
+
+**Done when:** live with real hotels on ≥1 OTA, with parity + monitoring + an ops process.
+
+**Depends on:** Phase 7.
+
+---
+
+## Dependency map
+
+```
+P1 ─┬─► P2 ─┬─► P3
+    │       └─► P6 ──► P7 ──► P8
+    └─► P4 ─────► P5 ─┘
+```
+
+Build order: **P1 → P2 → P3 → P4 → P5 → P6 → P7 → P8.**
+(P3 can run in parallel with P4/P5 once P2 lands, since it only needs the calendar model.)
