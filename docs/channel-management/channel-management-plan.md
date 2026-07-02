@@ -98,16 +98,19 @@ selection only.
 
 ---
 
-## Phase 4 — Content standardization & structured cancellation
+## Phase 4 — Structured cancellation (content standardization → P5)  ✅ CANCELLATION DONE
 
-**Goal:** make our content OTA-shaped before mapping to channels.
+**Delivered:** per-rate-plan cancellation — `hotel_room_pricing.cancellation_policy` (falls back
+to hotel-level) + a **pure resolver** `app/lib/hotel-inventory/cancellation.ts`
+(`resolveCancellation`, `effectivePolicy`, `cancellationLabel`). Verified 11/11 via `tsx`.
+Details: `phase4-cancellation.md`.
 
-- Standardized **amenity/facility codes, bed types, occupancy definitions, geolocation**.
-- **Per-rate-plan cancellation policies** with penalty windows + amounts (move off the
-  hotel-level enum).
-- Photo categories already strong (enforced tagging) — map to OTA photo taxonomy.
+**Deferred to Phase 5:** amenity/facility/bed-type/geo **content standardization** — it's only
+needed once a channel's target taxonomy is known (doing it now would be speculative). Photo
+categories already strong (enforced tagging).
 
-**Done when:** every listing exposes structured, channel-mappable content + policies.
+**Follow-ups (consumers):** surface cancellation in `getRoomARI`/calendar/hotel-detail; owner UI
+to set a rate plan's policy; use `resolveCancellation` in `cancelReservation` refund math.
 
 **Depends on:** Phase 1 (rate plans exist).
 

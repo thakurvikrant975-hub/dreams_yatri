@@ -1159,6 +1159,7 @@ model hotel_room_pricing {
   valid_to             DateTime?
   gst_percentage       Decimal                       @default(18) @db.Decimal(5, 2)
   extra_child_rate     Decimal?                      @db.Decimal(10, 2)
+  cancellation_policy  HotelCancellationPolicy?
   hotelImageCategories hotel_image_categories[]
   occupancy_prices     hotel_room_occupancy_prices[]
   diet_type            diet_types?                   @relation(fields: [diet_type_id], references: [id])
