@@ -142,7 +142,7 @@ export async function getRegions(params: GetRegionsParams = {}) {
     filtered.flatMap((r) => [r.created_by, r.updated_by]).filter(Boolean) as string[]
   )];
   const members = actorIds.length > 0
-    ? await db.team_members.findMany({
+    ? await db.teamMember.findMany({
         where:  { id: { in: actorIds } },
         select: { id: true, name: true },
       })

@@ -259,7 +259,7 @@ export async function getPackages(params: GetPackagesParams = {}) {
 
   const actorIds = [...new Set(rows.flatMap((r) => [r.created_by, r.updated_by]).filter(Boolean) as string[])];
   const members = actorIds.length > 0
-    ? await db.team_members.findMany({ where: { id: { in: actorIds } }, select: { id: true, name: true } })
+    ? await db.teamMember.findMany({ where: { id: { in: actorIds } }, select: { id: true, name: true } })
     : [];
   const memberNames: Record<string, string> = Object.fromEntries(members.map((m) => [m.id, m.name]));
 

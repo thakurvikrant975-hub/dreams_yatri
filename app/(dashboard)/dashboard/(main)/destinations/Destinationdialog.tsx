@@ -18,9 +18,9 @@ import {
 } from "../components/dashboard/MultiStepSheet";
 
 import {
-  ImagePicker,
-  type PickedImage,
-} from "../components/dashboard/ImagePicker";
+  ImageUploadWithCrop,
+  type UploadedImage,
+} from "../components/dashboard/ImageUploadWithCrop";
 
 import { LocationSearchSelect } from "../components/location/LocationSearchSelect";
 import type { LocationType, LocationValue } from "../components/location/location.types";
@@ -93,19 +93,11 @@ function buildInitialData(dest: Destination): Record<string, Record<string, unkn
     },
     images: {
       cover: dest.cover_image
-        ? ([{
-            id: "existing-cover", key: dest.cover_image,
-            url: `${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${dest.cover_image}`,
-            name: "cover", size: 0, status: "uploaded", is_primary: true,
-          }] as PickedImage[])
-        : [],
+        ? ({ key: dest.cover_image, url: `${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${dest.cover_image}` } as UploadedImage)
+        : null,
       thumbnail: dest.thumbnail
-        ? ([{
-            id: "existing-thumb", key: dest.thumbnail,
-            url: `${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${dest.thumbnail}`,
-            name: "thumbnail", size: 0, status: "uploaded", is_primary: true,
-          }] as PickedImage[])
-        : [],
+        ? ({ key: dest.thumbnail, url: `${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${dest.thumbnail}` } as UploadedImage)
+        : null,
     },
     details: {
       description: dest.description ?? "",
@@ -158,8 +150,8 @@ const DEST_STEPS: SheetStep[] = [
     description: "Thumbnail (required) and cover photo",
     icon:        <ImageIcon className="h-4 w-4" />,
     validate: (data) => {
-      const thumbs = data.thumbnail as PickedImage[] | undefined;
-      if (!thumbs?.[0]?.key) return "Thumbnail image is required";
+      const thumb = data.thumbnail as UploadedImage | null | undefined;
+      if (!thumb?.key) return "Thumbnail image is required";
       return null;
     },
   },
@@ -405,10 +397,10 @@ function BasicInfoStep({
 
 function ImagesStep() {
   const { stepData, setStepData } = useMultiStepSheet();
-  const data        = stepData["images"] ?? {};
-  const coverImages = (data.cover     as PickedImage[]) ?? [];
-  const thumbImages = (data.thumbnail as PickedImage[]) ?? [];
-  const thumbMissing = thumbImages.length === 0 || !thumbImages[0]?.key;
+  const data      = stepData["images"] ?? {};
+  const thumbImg  = (data.thumbnail as UploadedImage | null) ?? null;
+  const coverImg  = (data.cover     as UploadedImage | null) ?? null;
+  const thumbMissing = !thumbImg?.key;
 
   return (
     <div className="space-y-6">
@@ -419,17 +411,17 @@ function ImagesStep() {
             Thumbnail <span className="text-destructive">*</span>
           </Label>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Card image shown in listings · 400×250 recommended
+            Card image shown in listings · will be cropped to 400 × 250 px
           </p>
         </div>
-        <ImagePicker
+        <ImageUploadWithCrop
+          name="_thumb_unused"
           folder="destinations"
-          value={thumbImages}
-          onChange={(imgs) => setStepData("images", { ...data, thumbnail: imgs })}
-          maxFiles={1}
+          value={thumbImg}
+          onChange={(img) => setStepData("images", { ...data, thumbnail: img })}
           label="Upload Thumbnail"
-          hint="JPG, PNG, WebP"
-          previewAspect="aspect-3/4"
+          aspectRatio="video"
+          crop={{ width: 400, height: 250 }}
         />
         {thumbMissing && (
           <p className="flex items-center gap-1.5 text-xs text-destructive">
@@ -447,16 +439,17 @@ function ImagesStep() {
             <span className="ml-1.5 text-[10px] font-normal text-muted-foreground">(optional)</span>
           </Label>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Hero banner on the destination page · 1920×600 recommended
+            Hero banner on the destination page · will be cropped to 1920 × 600 px
           </p>
         </div>
-        <ImagePicker
+        <ImageUploadWithCrop
+          name="_cover_unused"
           folder="destinations"
-          value={coverImages}
-          onChange={(imgs) => setStepData("images", { ...data, cover: imgs })}
-          maxFiles={1}
+          value={coverImg}
+          onChange={(img) => setStepData("images", { ...data, cover: img })}
           label="Upload Cover Image"
-          hint="Wide banner · JPG, PNG, WebP"
+          aspectRatio="wide"
+          crop={{ width: 1920, height: 600 }}
         />
       </div>
     </div>
@@ -648,8 +641,8 @@ export function CreateDestinationDialog({ regions }: { regions: Region[] }) {
       formData.append("country",     (data.country     as string) ?? "India");
       formData.append("region_id",   (data.region_id   as string) ?? "");
       formData.append("location_id", (data.location_id as string) ?? "");
-      formData.append("thumbnail",   ((data.thumbnail  as PickedImage[])?.[0]?.key) ?? "");
-      formData.append("cover_image", ((data.cover      as PickedImage[])?.[0]?.key) ?? "");
+      formData.append("thumbnail",   (data.thumbnail  as UploadedImage | null)?.key ?? "");
+      formData.append("cover_image", (data.cover      as UploadedImage | null)?.key ?? "");
       formData.append("description", (data.description as string) ?? "");
       formData.append("is_active",   String(data.is_active ?? true));
       formData.append("meta_title",  (data.meta_title  as string) ?? "");
@@ -718,8 +711,8 @@ export function EditDestinationDialog({
       formData.append("country",     (data.country     as string) ?? destination.country);
       formData.append("region_id",   (data.region_id   as string) ?? String(destination.region_id));
       formData.append("location_id", (data.location_id as string) ?? destination.location_id ?? "");
-      formData.append("thumbnail",   ((data.thumbnail  as PickedImage[])?.[0]?.key) ?? destination.thumbnail   ?? "");
-      formData.append("cover_image", ((data.cover      as PickedImage[])?.[0]?.key) ?? destination.cover_image ?? "");
+      formData.append("thumbnail",   (data.thumbnail as UploadedImage | null)?.key ?? destination.thumbnail   ?? "");
+      formData.append("cover_image", (data.cover     as UploadedImage | null)?.key ?? destination.cover_image ?? "");
       formData.append("description", (data.description as string) ?? destination.description ?? "");
       formData.append("is_active",   String(data.is_active ?? destination.is_active));
       formData.append("meta_title",  (data.meta_title  as string) ?? destination.meta_title  ?? "");

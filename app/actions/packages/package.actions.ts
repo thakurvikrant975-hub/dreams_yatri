@@ -8,10 +8,10 @@ import { revalidatePath } from "next/cache";
 import { dashboardAuth } from "@/app/lib/auth-dashboard";
 import { createLog } from "@/app/(dashboard)/dashboard/(main)/lib/logger";
 
-async function getActorName(): Promise<string | undefined> {
+async function getActorId(): Promise<string | undefined> {
   const session = await dashboardAuth();
   if (!session?.user?.email) return undefined;
-  return session.user.name ?? session.user.email;
+  return session.user.id ?? undefined;
 }
 
 export async function createPackage(data: createPackagesTypes) {
@@ -27,7 +27,7 @@ export async function createPackage(data: createPackagesTypes) {
   }
 
   try {
-    const actor = await getActorName();
+    const actor = await getActorId();
     const res = await createPackages(parsed.data, actor);
 
     await createLog({
