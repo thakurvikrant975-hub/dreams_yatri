@@ -52,7 +52,7 @@ export async function recordInclusionExclusionUsage(
   if (!text) return;
 
   const session = await dashboardAuth();
-  const actor = session?.user?.name ?? session?.user?.email ?? undefined;
+  const actor = session?.user?.id ?? undefined;
 
   await db.inclusion_exclusion_options.upsert({
     where: { type_text: { type, text } },

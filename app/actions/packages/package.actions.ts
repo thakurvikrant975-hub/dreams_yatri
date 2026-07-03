@@ -95,7 +95,7 @@ export async function updatePackageBasicInfo(id: number, data: createPackagesTyp
   }
 
   try {
-    const actor = await getActorName();
+    const actor = await getActorId();
 
     // Upsert tags and categories so new names auto-create records
     const tagRecords = await Promise.all(

@@ -14,8 +14,9 @@ import { createLog } from "../lib/logger";
 
 async function requireSession() {
   const session = await dashboardAuth();
+  const actorId   = session?.user?.id   ?? null;
   const actorName = session?.user?.name ?? session?.user?.email ?? null;
-  return { session, actorName };
+  return { session, actorId, actorName };
 }
 
 const SAFE_HOTEL_SCALARS = {
@@ -165,8 +166,15 @@ export async function getHotels(params: GetHotelsParams = {}) {
     gst_percentage:    Number(h.gst_percentage),
   }));
 
+  const actorIds = [...new Set(hotels.flatMap((h) => [h.created_by, h.updated_by]).filter(Boolean) as string[])];
+  const members = actorIds.length > 0
+    ? await db.teamMember.findMany({ where: { id: { in: actorIds } }, select: { id: true, name: true } })
+    : [];
+  const memberNames: Record<string, string> = Object.fromEntries(members.map((m) => [m.id, m.name]));
+
   return {
     hotels,
+    memberNames,
     totalCount,
     stats: { total: statsTotal, active: statsActive, totalRooms },
   };
@@ -452,7 +460,7 @@ export async function createHotel(
   _prev: HotelFormState,
   formData: FormData,
 ): Promise<HotelFormState> {
-  const { session, actorName } = await requireSession();
+  const { session, actorId, actorName } = await requireSession();
 
   const raw = {
     name: formData.get("name"),
@@ -496,7 +504,7 @@ export async function createHotel(
 
     const newHotel = await db.$transaction(async (tx) => {
       const hotel = await tx.hotels.create({
-        data: { ...parsed.data, created_by: actorName, updated_by: actorName },
+        data: { ...parsed.data, created_by: actorId, updated_by: actorId },
         select: { id: true, name: true, slug: true },
       });
       await tx.hotel_image_categories.createMany({
@@ -517,7 +525,7 @@ export async function createHotel(
       entity:    "Hotel",
       entityId:  String(newHotel.id),
       entitySlug: newHotel.slug,
-      newData:   { name: newHotel.name, created_by: actorName },
+      newData:   { name: newHotel.name },
       userName:  actorName ?? undefined,
       userEmail: session?.user?.email ?? undefined,
     });
@@ -537,7 +545,7 @@ export async function updateHotelDetails(
   _prev: HotelFormState,
   formData: FormData,
 ): Promise<HotelFormState> {
-  const { session, actorName } = await requireSession();
+  const { session, actorId, actorName } = await requireSession();
 
   const raw = {
     name: formData.get("name"),
@@ -584,7 +592,7 @@ export async function updateHotelDetails(
 
     await db.hotels.update({
       where: { id },
-      data: { ...parsed.data, updated_by: actorName },
+      data: { ...parsed.data, updated_by: actorId },
     });
 
     await createLog({
@@ -593,7 +601,7 @@ export async function updateHotelDetails(
       entityId:  String(id),
       entitySlug: current?.slug,
       previousData: { name: current?.name },
-      newData:   { name: parsed.data.name, updated_by: actorName },
+      newData:   { name: parsed.data.name },
       userName:  actorName ?? undefined,
       userEmail: session?.user?.email ?? undefined,
     });
@@ -639,8 +647,8 @@ export async function updateHotelSeo(
 // ── Toggle Active ─────────────────────────────────────────────────────────
 
 export async function toggleHotelActive(id: number, is_active: boolean) {
-  const { session, actorName } = await requireSession();
-  await db.hotels.update({ where: { id }, data: { is_active, updated_by: actorName } });
+  const { session, actorId, actorName } = await requireSession();
+  await db.hotels.update({ where: { id }, data: { is_active, updated_by: actorId } });
   await createLog({
     action:   "UPDATE",
     entity:   "Hotel",

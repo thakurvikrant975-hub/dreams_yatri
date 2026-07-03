@@ -3,7 +3,7 @@
 import { useState, useTransition, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { format, isPast, differenceInDays } from "date-fns";
+import { format, isPast, differenceInDays, formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import {
   Car, Users, UserCheck, UserX, Phone, MapPin, Pencil, Trash2,
@@ -39,10 +39,11 @@ import {
   BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "../../components/ui/breadcrumb";
 
+import { HistorySheet } from "../../components/dashboard/HistorySheet";
 import { CreateDriverSheet, EditDriverSheet } from "./CabDriverSheet";
 import {
   getCabDrivers, toggleDriverActive, toggleDriverVerified, deleteCabDriver,
-  type CabDriverFull, type CabDriverVehicle,
+  getCabDriverHistory, type CabDriverFull, type CabDriverVehicle,
 } from "./actions";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -673,7 +674,7 @@ export function CabDriversClient({
     });
   }
 
-  const { rows, total, totalPages, currentPage, limit } = data;
+  const { rows, memberNames, total, totalPages, currentPage, limit } = data;
 
   // ── Page-level stats ─────────────────────────────────────────────────────────
   const activeCount   = rows.filter((d) => d.is_active).length;
@@ -828,6 +829,20 @@ export function CabDriversClient({
         ),
     },
     {
+      header: "Created By",
+      sortKey: (d) => new Date(d.created_at).getTime(),
+      cell: (d) => (
+        <div className="space-y-0.5">
+          <p className="text-xs font-medium text-foreground/80 truncate max-w-28">
+            {d.created_by ? (memberNames[d.created_by] ?? d.created_by) : "—"}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {formatDistanceToNow(new Date(d.created_at), { addSuffix: true })}
+          </p>
+        </div>
+      ),
+    },
+    {
       header: "Active",
       align:  "center",
       cell: (d) => (
@@ -841,9 +856,19 @@ export function CabDriversClient({
     {
       header: "Actions",
       align:  "right",
-      width:  "w-[100px]",
+      width:  "w-[140px]",
       cell: (d) => (
         <div className="flex items-center justify-end gap-1">
+          <HistorySheet
+            id={d.id}
+            title={d.name}
+            entityLabel="cab driver"
+            fetchHistory={getCabDriverHistory}
+            createdBy={d.created_by ? (memberNames[d.created_by] ?? d.created_by) : null}
+            createdAt={d.created_at}
+            updatedBy={d.updated_by ? (memberNames[d.updated_by] ?? d.updated_by) : null}
+            updatedAt={d.updated_at}
+          />
           <Button
             variant="ghost"
             size="sm"

@@ -46,6 +46,8 @@ export type CabDriverFull = {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  created_by: string | null;
+  updated_by: string | null;
 };
 
 export type CabDriverInput = {
@@ -86,6 +88,7 @@ function serializeDriver(d: {
   salary_type: string | null; salary_amount: { toNumber(): number } | null;
   is_verified: boolean; avg_rating: { toNumber(): number } | null; rating_count: number;
   is_active: boolean; created_at: Date; updated_at: Date;
+  created_by: string | null; updated_by: string | null;
 }): CabDriverFull {
   return {
     id: d.id, name: d.name, mobile: d.mobile, mobile_secondary: d.mobile_secondary,
@@ -109,6 +112,8 @@ function serializeDriver(d: {
     is_active: d.is_active,
     created_at: d.created_at.toISOString(),
     updated_at: d.updated_at.toISOString(),
+    created_by: d.created_by,
+    updated_by: d.updated_by,
   };
 }
 
@@ -150,13 +155,43 @@ export async function getCabDrivers(params: {
     db.cab_drivers.count({ where }),
   ]);
 
+  const rows = drivers.map(serializeDriver);
+  const actorIds = [...new Set(rows.flatMap((d) => [d.created_by, d.updated_by]).filter(Boolean) as string[])];
+  const members = actorIds.length > 0
+    ? await db.teamMember.findMany({ where: { id: { in: actorIds } }, select: { id: true, name: true } })
+    : [];
+  const memberNames: Record<string, string> = Object.fromEntries(members.map((m) => [m.id, m.name]));
+
   return {
-    rows: drivers.map(serializeDriver),
+    rows,
+    memberNames,
     total,
     totalPages: Math.ceil(total / limit),
     currentPage: page,
     limit,
   };
+}
+
+// ── History ────────────────────────────────────────────────────────────────
+
+export async function getCabDriverHistory(id: number) {
+  return db.activityLog.findMany({
+    where:   { entity: "CabDriver", entityId: String(id) },
+    orderBy: { actionAt: "desc" },
+    select: {
+      id:           true,
+      action:       true,
+      description:  true,
+      userName:     true,
+      userEmail:    true,
+      previousData: true,
+      newData:      true,
+      metadata:     true,
+      status:       true,
+      actionAt:     true,
+    },
+    take: 50,
+  });
 }
 
 export async function getActiveVehiclesForDriver() {
@@ -172,7 +207,7 @@ export async function getActiveVehiclesForDriver() {
 export async function createCabDriver(data: CabDriverInput) {
   const session = await dashboardAuth();
   if (!session?.user) return { success: false as const, message: "Unauthorized" };
-  const actorName = session.user.name ?? session.user.email ?? null;
+  const actorId = session.user.id ?? null;
 
   try {
     const created = await db.cab_drivers.create({
@@ -183,7 +218,9 @@ export async function createCabDriver(data: CabDriverInput) {
         profile_image_key: data.profile_image_key ?? null,
         city: data.city ?? null,
         state: data.state ?? null,
-        vehicle_id: data.vehicle_id ?? null,
+        ...(data.vehicle_id
+          ? { vehicle: { connect: { id: data.vehicle_id } } }
+          : {}),
         license_number: data.license_number ?? null,
         license_expiry: toDate(data.license_expiry),
         license_image_key: data.license_image_key ?? null,
@@ -199,7 +236,8 @@ export async function createCabDriver(data: CabDriverInput) {
         salary_type: (data.salary_type as never) ?? null,
         salary_amount: data.salary_amount ?? null,
         is_active: data.is_active ?? true,
-        created_by: actorName,
+        created_by: actorId,
+        updated_by: actorId,
       },
       include: { vehicle: { select: { id: true, name: true, type: true, image_key: true } } },
     });
@@ -209,7 +247,7 @@ export async function createCabDriver(data: CabDriverInput) {
       entity:     "CabDriver",
       entityId:   String(created.id),
       entitySlug: created.name,
-      newData:    { name: created.name, mobile: created.mobile, created_by: actorName },
+      newData:    { name: created.name, mobile: created.mobile },
     });
     return { success: true as const, message: "Driver added", driver: serializeDriver(created) };
   } catch (e) {
@@ -223,6 +261,7 @@ export async function createCabDriver(data: CabDriverInput) {
 export async function updateCabDriver(id: number, data: CabDriverInput) {
   const session = await dashboardAuth();
   if (!session?.user) return { success: false as const, message: "Unauthorized" };
+  const actorId = session.user.id ?? null;
 
   try {
     const updated = await db.cab_drivers.update({
@@ -234,7 +273,9 @@ export async function updateCabDriver(id: number, data: CabDriverInput) {
         profile_image_key: data.profile_image_key ?? null,
         city: data.city ?? null,
         state: data.state ?? null,
-        vehicle_id: data.vehicle_id ?? null,
+        vehicle: data.vehicle_id
+          ? { connect: { id: data.vehicle_id } }
+          : { disconnect: true },
         license_number: data.license_number ?? null,
         license_expiry: toDate(data.license_expiry),
         license_image_key: data.license_image_key ?? null,
@@ -251,6 +292,7 @@ export async function updateCabDriver(id: number, data: CabDriverInput) {
         salary_amount: data.salary_amount ?? null,
         is_active: data.is_active,
         updated_at: new Date(),
+        updated_by: actorId,
       },
       include: { vehicle: { select: { id: true, name: true, type: true, image_key: true } } },
     });
@@ -271,8 +313,11 @@ export async function updateCabDriver(id: number, data: CabDriverInput) {
 // ── Toggle active ──────────────────────────────────────────────────────────
 
 export async function toggleDriverActive(id: number, value: boolean) {
+  const session = await dashboardAuth();
+  const actorId = session?.user?.id ?? null;
+
   try {
-    const updated = await db.cab_drivers.update({ where: { id }, data: { is_active: value, updated_at: new Date() } });
+    const updated = await db.cab_drivers.update({ where: { id }, data: { is_active: value, updated_at: new Date(), updated_by: actorId } });
     revalidatePath(PATH);
     await createLog({
       action:     "UPDATE",
@@ -294,9 +339,10 @@ export async function toggleDriverActive(id: number, value: boolean) {
 export async function toggleDriverVerified(id: number, value: boolean) {
   const session = await dashboardAuth();
   if (!session?.user) return { success: false as const, message: "Unauthorized" };
+  const actorId = session.user.id ?? null;
 
   try {
-    const updated = await db.cab_drivers.update({ where: { id }, data: { is_verified: value, updated_at: new Date() } });
+    const updated = await db.cab_drivers.update({ where: { id }, data: { is_verified: value, updated_at: new Date(), updated_by: actorId } });
     revalidatePath(PATH);
     await createLog({
       action:     "UPDATE",

@@ -63,9 +63,10 @@ export async function getPermits(opts: {
   category: string;
   status:   string;
 }): Promise<{
-  rows:       PermitRow[];
-  total:      number;
-  totalPages: number;
+  rows:        PermitRow[];
+  memberNames: Record<string, string>;
+  total:       number;
+  totalPages:  number;
   stats: { total: number; active: number; inactive: number; withLocation: number };
 }> {
   const { page, limit, search, category, status } = opts;
@@ -206,6 +207,28 @@ export async function updatePermit(id: number, input: PermitInput) {
     console.error("[updatePermit]", e);
     return { success: false as const, message: "Failed to update permit" };
   }
+}
+
+// ── History ────────────────────────────────────────────────────────────────
+
+export async function getPermitHistory(id: number) {
+  return db.activityLog.findMany({
+    where:   { entity: "Permit", entityId: String(id) },
+    orderBy: { actionAt: "desc" },
+    select: {
+      id:           true,
+      action:       true,
+      description:  true,
+      userName:     true,
+      userEmail:    true,
+      previousData: true,
+      newData:      true,
+      metadata:     true,
+      status:       true,
+      actionAt:     true,
+    },
+    take: 50,
+  });
 }
 
 // ── Toggle Active ──────────────────────────────────────────────────────────

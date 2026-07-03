@@ -47,7 +47,7 @@ function TableSkeleton() {
 // ── Async data component ──────────────────────────────────────────────────
 
 async function HotelsData({ params }: { params: GetHotelsParams }) {
-    const [{ hotels: rawHotels, totalCount, stats }, destinations] = await Promise.all([
+    const [{ hotels: rawHotels, memberNames, totalCount, stats }, destinations] = await Promise.all([
         getHotels(params),
         getDestinationsForHotelFilter(),
     ]);
@@ -68,6 +68,7 @@ async function HotelsData({ params }: { params: GetHotelsParams }) {
 
             <HotelsTableClient
                 hotels={hotels}
+                memberNames={memberNames}
                 destinations={destinations}
                 totalCount={totalCount}
                 limit={params.limit ?? 20}

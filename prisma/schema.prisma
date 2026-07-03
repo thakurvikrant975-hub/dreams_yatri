@@ -1914,6 +1914,7 @@ model cab_drivers {
   is_verified         Boolean     @default(false)
   rating_count        Int         @default(0)
   created_by          String?
+  updated_by          String?
   vehicle             vehicles?   @relation(fields: [vehicle_id], references: [id])
 
   @@index([vehicle_id])

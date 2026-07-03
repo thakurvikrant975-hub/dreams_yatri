@@ -71,6 +71,7 @@ type HotelItem = {
 
 export function HotelsTableClient({
   hotels: initialHotels,
+  memberNames,
   destinations,
   totalCount,
   limit,
@@ -81,6 +82,7 @@ export function HotelsTableClient({
   status,
 }: {
   hotels: HotelItem[];
+  memberNames: Record<string, string>;
   destinations: Destination[];
   totalCount: number;
   limit: number;
@@ -275,7 +277,7 @@ export function HotelsTableClient({
       cell: (h) => (
         <div className="space-y-0.5">
           <p className="text-xs font-medium text-foreground/80 truncate max-w-30">
-            {h.created_by || "—"}
+            {h.created_by ? (memberNames[h.created_by] ?? h.created_by) : "—"}
           </p>
           <p className="text-xs text-muted-foreground">
             {formatDistanceToNow(new Date(h.created_at), { addSuffix: true })}
@@ -294,9 +296,9 @@ export function HotelsTableClient({
             title={h.name}
             entityLabel="hotel"
             fetchHistory={getHotelHistory}
-            createdBy={h.created_by}
+            createdBy={h.created_by ? (memberNames[h.created_by] ?? h.created_by) : null}
             createdAt={h.created_at}
-            updatedBy={h.updated_by}
+            updatedBy={h.updated_by ? (memberNames[h.updated_by] ?? h.updated_by) : null}
             updatedAt={h.updated_at}
           />
           <Button

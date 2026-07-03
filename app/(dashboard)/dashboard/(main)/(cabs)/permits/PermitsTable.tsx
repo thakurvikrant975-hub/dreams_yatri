@@ -19,7 +19,8 @@ import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable"
 import { TableFilters }               from "../../components/dashboard/Tablefilters";
 import { TableEmptyState }            from "../../components/dashboard/TableEmptyState";
 
-import { togglePermitActive, deletePermit } from "./actions";
+import { togglePermitActive, deletePermit, getPermitHistory } from "./actions";
+import { HistorySheet } from "../../components/dashboard/HistorySheet";
 import {
   PERMIT_CATEGORIES, CATEGORY_LABELS, VALIDITY_LABELS, displayCategory,
   type PermitRow, type PermitCategory,
@@ -231,9 +232,19 @@ export function PermitsTable({
     {
       header: "Actions",
       align:  "right",
-      width:  "w-[80px]",
+      width:  "w-[120px]",
       cell: (r) => (
         <div className="flex items-center justify-end gap-1">
+          <HistorySheet
+            id={r.id}
+            title={r.name}
+            entityLabel="permit"
+            fetchHistory={getPermitHistory}
+            createdBy={r.created_by ? (memberNames[r.created_by] ?? r.created_by) : null}
+            createdAt={r.created_at}
+            updatedBy={r.updated_by ? (memberNames[r.updated_by] ?? r.updated_by) : null}
+            updatedAt={r.updated_at}
+          />
           <Button
             variant="ghost" size="icon" className="h-8 w-8"
             onClick={() => openEdit(r)}
