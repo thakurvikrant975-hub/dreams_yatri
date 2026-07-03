@@ -10,10 +10,13 @@ import { actionError }         from "@/app/lib/action-error";
 
 // ── Auth helper ───────────────────────────────────────────────────────────────
 
-async function requireActor(): Promise<string | null> {
+async function requireActor(): Promise<{ actorId: string; actorName: string } | null> {
   const session = await dashboardAuth();
   if (!session?.user?.email) return null;
-  return session.user.name ?? session.user.email;
+  return {
+    actorId:   session.user.id,
+    actorName: session.user.name ?? session.user.email,
+  };
 }
 
 export type DestinationFormState = {
@@ -84,13 +87,30 @@ export async function getDestinations(params: GetDestinationsParams = {}) {
     for (const loc of locs) locationMeta[loc.id.toString()] = loc.type;
   }
 
+  const destinations = rows.map((d) => ({
+    ...d,
+    location_type: d.location_id ? (locationMeta[d.location_id] ?? null) : null,
+    latitude:  d.latitude  != null ? Number(d.latitude)  : null,
+    longitude: d.longitude != null ? Number(d.longitude) : null,
+  }));
+
+  // Resolve created_by / updated_by IDs to team member names
+  const actorIds = [...new Set(
+    destinations.flatMap((d) => [d.created_by, d.updated_by]).filter(Boolean) as string[]
+  )];
+  const members = actorIds.length > 0
+    ? await db.team_members.findMany({
+        where:  { id: { in: actorIds } },
+        select: { id: true, name: true },
+      })
+    : [];
+  const memberNames: Record<string, string> = Object.fromEntries(
+    members.map((m) => [m.id, m.name])
+  );
+
   return {
-    destinations: rows.map((d) => ({
-      ...d,
-      location_type: d.location_id ? (locationMeta[d.location_id] ?? null) : null,
-      latitude:  d.latitude  != null ? Number(d.latitude)  : null,
-      longitude: d.longitude != null ? Number(d.longitude) : null,
-    })),
+    destinations,
+    memberNames,
     totalCount,
     stats: {
       total:    totalCount_all,
@@ -150,8 +170,9 @@ export async function createDestination(
   _prev: DestinationFormState,
   formData: FormData,
 ): Promise<DestinationFormState> {
-  const actor = await requireActor();
-  if (!actor) return { success: false, message: "Unauthorized" };
+  const actorResult = await requireActor();
+  if (!actorResult) return { success: false, message: "Unauthorized" };
+  const { actorId, actorName } = actorResult;
 
   const raw = {
     name:        formData.get("name")        as string,
@@ -190,8 +211,8 @@ export async function createDestination(
           is_deleted:  false,
           deleted_by:  null,
           deleted_at:  null,
-          created_by:  actor,
-          updated_by:  actor,
+          created_by:  actorId,
+          updated_by:  actorId,
         },
       });
 
@@ -200,7 +221,7 @@ export async function createDestination(
         entity:      "destination",
         entityId:    String(restored.id),
         entitySlug:  restored.slug,
-        description: `${actor} restored previously deleted destination [${restored.slug}]`,
+        description: `${actorName} restored previously deleted destination [${restored.slug}]`,
         previousData: { is_deleted: true, is_active: false, deleted_by: existing.deleted_by },
         newData:      { name: restored.name, slug: restored.slug, country: restored.country, is_active: restored.is_active },
         metadata:    { operation: "restore" },
@@ -215,7 +236,7 @@ export async function createDestination(
         ...parsed.data,
         location_id: parsed.data.location_id ?? null,
         cover_image: parsed.data.cover_image  ?? null,
-        created_by:  actor,
+        created_by:  actorId,
       },
     });
 
@@ -242,8 +263,9 @@ export async function updateDestination(
   _prev: DestinationFormState,
   formData: FormData,
 ): Promise<DestinationFormState> {
-  const actor = await requireActor();
-  if (!actor) return { success: false, message: "Unauthorized" };
+  const actorResult = await requireActor();
+  if (!actorResult) return { success: false, message: "Unauthorized" };
+  const { actorId } = actorResult;
 
   const current = await db.destinations.findUnique({ where: { id } });
   if (!current) return { success: false, message: "Destination not found" };
@@ -292,7 +314,7 @@ export async function updateDestination(
         ...parsed.data,
         location_id: parsed.data.location_id ?? null,
         cover_image:  parsed.data.cover_image  ?? null,
-        updated_by:  actor,
+        updated_by:  actorId,
       },
     });
 
@@ -316,8 +338,9 @@ export async function updateDestination(
 // ── Delete ────────────────────────────────────────────────────────────────────
 
 export async function deleteDestination(id: number): Promise<DestinationFormState> {
-  const actor = await requireActor();
-  if (!actor) return { success: false, message: "Unauthorized" };
+  const actorResult = await requireActor();
+  if (!actorResult) return { success: false, message: "Unauthorized" };
+  const { actorId } = actorResult;
 
   try {
     const destination = await db.destinations.findUnique({
@@ -348,7 +371,7 @@ export async function deleteDestination(id: number): Promise<DestinationFormStat
     // Soft-delete: stamp audit fields, preserve data for audit history
     await db.destinations.update({
       where: { id },
-      data: { is_deleted: true, deleted_by: actor, deleted_at: new Date(), is_active: false },
+      data: { is_deleted: true, deleted_by: actorId, deleted_at: new Date(), is_active: false },
     });
 
     await createLog({
@@ -399,8 +422,9 @@ export async function toggleDestinationActive(
   id: number,
   is_active: boolean,
 ): Promise<DestinationFormState> {
-  const actor = await requireActor();
-  if (!actor) return { success: false, message: "Unauthorized" };
+  const actorResult = await requireActor();
+  if (!actorResult) return { success: false, message: "Unauthorized" };
+  const { actorId } = actorResult;
 
   try {
     const row = await db.destinations.findUnique({
@@ -415,7 +439,7 @@ export async function toggleDestinationActive(
       };
     }
 
-    await db.destinations.update({ where: { id }, data: { is_active, updated_by: actor } });
+    await db.destinations.update({ where: { id }, data: { is_active, updated_by: actorId } });
 
     await createLog({
       action:     "UPDATE",

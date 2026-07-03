@@ -56,7 +56,7 @@ async function CabPricingData({
     getActiveVehicles(),
   ]);
 
-  const { rows, totalPages, currentPage, totalCount, limit: lim, stats } = data;
+  const { rows, totalPages, currentPage, totalCount, limit: lim, stats, memberNames } = data;
 
   return (
     <>
@@ -80,6 +80,7 @@ async function CabPricingData({
 
       <CabPricingTable
         rows={rows}
+        memberNames={memberNames}
         vehicles={vehicles}
         currentPage={currentPage}
         totalPages={totalPages}

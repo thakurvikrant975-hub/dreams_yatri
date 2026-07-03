@@ -61,11 +61,12 @@ async function DestinationsData({
     regions: Awaited<ReturnType<typeof getRegionsForSelect>>;
     params:  GetDestinationsParams;
 }) {
-    const { destinations, totalCount, stats } = await getDestinations(params);
+    const { destinations, totalCount, stats, memberNames } = await getDestinations(params);
 
     return (
         <DestinationsTable
             destinations={destinations}
+            memberNames={memberNames}
             regions={regions}
             totalCount={totalCount}
             limit={params.limit ?? 10}

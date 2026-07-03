@@ -51,7 +51,7 @@ function TableSkeleton() {
 // ── Async data component ──────────────────────────────────────────────────
 
 async function PackagesData({ params }: { params: GetPackagesParams }) {
-    const [{ packages, totalCount, stats }, destinations] = await Promise.all([
+    const [{ packages, totalCount, stats, memberNames }, destinations] = await Promise.all([
         getPackages(params),
         getDestinationsForPackageFilter(),
     ]);
@@ -66,6 +66,7 @@ async function PackagesData({ params }: { params: GetPackagesParams }) {
 
             <PackagesTableClient
                 packages={packages}
+                memberNames={memberNames}
                 destinations={destinations}
                 totalCount={totalCount}
                 limit={params.limit ?? 20}

@@ -126,6 +126,7 @@ function DeleteDestinationDialog({ id, name, linkedCount }: {
 
 export function DestinationsTable({
     destinations,
+    memberNames,
     regions,
     totalCount,
     limit,
@@ -136,6 +137,7 @@ export function DestinationsTable({
     currentPage,
 }: {
     destinations:  Destination[];
+    memberNames:   Record<string, string>;
     regions:       Region[];
     totalCount:    number;
     limit:         number;
@@ -276,7 +278,9 @@ export function DestinationsTable({
             cell: (dest) => (
                 <div className="space-y-0.5">
                     <p className="text-xs font-medium text-foreground/80 truncate max-w-28">
-                        {dest.created_by ?? "—"}
+                        {dest.created_by
+                            ? (memberNames[dest.created_by] ?? dest.created_by)
+                            : "—"}
                     </p>
                     <p className="text-xs text-muted-foreground">
                         {formatDistanceToNow(new Date(dest.created_at), { addSuffix: true })}
@@ -297,9 +301,9 @@ export function DestinationsTable({
                             title={dest.name}
                             entityLabel="destination"
                             fetchHistory={getDestinationHistory}
-                            createdBy={dest.created_by}
+                            createdBy={dest.created_by ? (memberNames[dest.created_by] ?? dest.created_by) : null}
                             createdAt={dest.created_at}
-                            updatedBy={dest.updated_by}
+                            updatedBy={dest.updated_by ? (memberNames[dest.updated_by] ?? dest.updated_by) : null}
                             updatedAt={dest.updated_at}
                         />
                         <EditDestinationDialog destination={dest} regions={regions} />

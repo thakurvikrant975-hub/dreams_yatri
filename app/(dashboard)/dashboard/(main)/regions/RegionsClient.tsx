@@ -50,7 +50,7 @@ async function RegionsData({
   page: number; limit: number; search: string; country: string;
   status: Status; destCount: DestCount;
 }) {
-  const { regions, totalPages, currentPage, stats, totalCount, limit: lim } =
+  const { regions, totalPages, currentPage, stats, totalCount, limit: lim, memberNames } =
     await getRegions({ page, limit, search, country, status, destCount });
 
   return (
@@ -63,6 +63,7 @@ async function RegionsData({
       </StatGrid>
       <RegionsTable
         regions={regions}
+        memberNames={memberNames}
         currentPage={currentPage}
         totalPages={totalPages}
         totalCount={totalCount}

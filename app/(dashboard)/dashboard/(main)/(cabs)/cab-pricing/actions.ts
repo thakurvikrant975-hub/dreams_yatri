@@ -59,7 +59,7 @@ async function requireSession() {
   if (!session?.user?.email) return { authorized: false as const, actorName: null };
   return {
     authorized: true as const,
-    actorName:  session.user.name ?? session.user.email,
+    actorName:  session.user.id,
   };
 }
 
@@ -159,8 +159,15 @@ export async function getCabPricings(params: GetCabPricingsParams = {}) {
   const totalPages = Math.max(1, Math.ceil(rows.length / limit));
   const paginated  = rows.slice((page - 1) * limit, page * limit);
 
+  const actorIds = [...new Set(paginated.flatMap((r) => [r.created_by, r.updated_by]).filter(Boolean) as string[])];
+  const members = actorIds.length > 0
+    ? await db.team_members.findMany({ where: { id: { in: actorIds } }, select: { id: true, name: true } })
+    : [];
+  const memberNames: Record<string, string> = Object.fromEntries(members.map((m) => [m.id, m.name]));
+
   return {
     rows:        paginated,
+    memberNames,
     totalPages,
     currentPage: page,
     limit,

@@ -48,7 +48,7 @@ async function PermitsData({
   page: number; limit: number; search: string;
   category: string; status: string;
 }) {
-  const { rows, total, totalPages, stats } = await getPermits({
+  const { rows, total, totalPages, stats, memberNames } = await getPermits({
     page, limit, search, category, status,
   });
 
@@ -63,6 +63,7 @@ async function PermitsData({
 
       <PermitsTable
         permits={rows}
+        memberNames={memberNames}
         totalCount={total}
         currentPage={page}
         totalPages={totalPages}

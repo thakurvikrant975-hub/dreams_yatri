@@ -13,7 +13,7 @@ import { createLog }           from "../lib/logger";
 async function requireActor(): Promise<string | null> {
     const session = await dashboardAuth();
     if (!session?.user?.email) return null;
-    return session.user.name ?? session.user.email;
+    return session.user.id;
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -199,12 +199,28 @@ export async function getActivities(params: GetActivitiesParams = {}) {
             db.activities.count({ where: { variants: { some: {} } } }),
         ]);
 
+    const mapped = activities.map(({ location_id, ...a }) => ({
+        ...a,
+        duration_hours: a.duration_hours ? Number(a.duration_hours) : null,
+        has_location: location_id != null,
+    })) as ActivityItem[];
+
+    const actorIds = [...new Set(
+        mapped.flatMap((a) => [a.created_by]).filter(Boolean) as string[]
+    )];
+    const members = actorIds.length > 0
+        ? await db.team_members.findMany({
+              where:  { id: { in: actorIds } },
+              select: { id: true, name: true },
+          })
+        : [];
+    const memberNames: Record<string, string> = Object.fromEntries(
+        members.map((m) => [m.id, m.name])
+    );
+
     return {
-        activities: activities.map(({ location_id, ...a }) => ({
-            ...a,
-            duration_hours: a.duration_hours ? Number(a.duration_hours) : null,
-            has_location: location_id != null,
-        })) as ActivityItem[],
+        activities: mapped,
+        memberNames,
         totalCount,
         isFiltering,
         stats: {
@@ -394,7 +410,7 @@ export async function createActivity(
         if (existing) {
             if (!existing.is_active) {
                 // Reactivate and update the soft-deleted / inactive record
-                await db.activities.update({ where: { id: existing.id }, data: parsed.data });
+                await db.activities.update({ where: { id: existing.id }, data: { ...parsed.data, updated_by: actor } });
                 revalidatePath("/dashboard/activities");
                 await createLog({
                     action:     "UPDATE",
@@ -470,7 +486,7 @@ export async function updateActivity(
         const current = await db.activities.findUnique({ where: { id } });
         if (!current) return { success: false, message: "Activity not found" };
 
-        await db.activities.update({ where: { id }, data: parsed.data });
+        await db.activities.update({ where: { id }, data: { ...parsed.data, updated_by: actor } });
         revalidatePath("/dashboard/activities");
         revalidatePath(`/dashboard/activities/${id}`);
         await createLog({
@@ -497,7 +513,7 @@ export async function toggleActivityActive(
     if (!actor) return { success: false, message: "Unauthorized" };
 
     try {
-        const updated = await db.activities.update({ where: { id }, data: { is_active } });
+        const updated = await db.activities.update({ where: { id }, data: { is_active, updated_by: actor } });
         revalidatePath("/dashboard/activities");
         await createLog({
             action:     "UPDATE",

@@ -1546,6 +1546,7 @@ model activities {
   location_id          BigInt?
   included_meals       String[]
   created_by           String?
+  updated_by           String?
   category             activity_categories?   @relation(fields: [category_id], references: [id])
   destination          destinations?          @relation(fields: [destination_id], references: [id])
   location             Location?              @relation(fields: [location_id], references: [id])
@@ -1870,10 +1871,12 @@ model vehicles {
   description        String?
   is_active          Boolean               @default(true)
   created_at         DateTime              @default(now())
+  updated_at         DateTime              @updatedAt
   has_ac             Boolean               @default(false)
   image_key          String?
   fuel_type          FuelType?
   created_by         String?
+  updated_by         String?
   drivers            cab_drivers[]
   cabDestPricings    cab_pricing[]
   transfers          itinerary_transfers[]

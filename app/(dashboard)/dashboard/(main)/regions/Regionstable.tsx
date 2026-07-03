@@ -42,6 +42,7 @@ type Region = {
 // ── Component ─────────────────────────────────────────────────────────────────
 export function RegionsTable({
   regions,
+  memberNames,
   currentPage,
   totalPages,
   totalCount,
@@ -52,6 +53,7 @@ export function RegionsTable({
   destCount,
 }: {
   regions:     Region[];
+  memberNames: Record<string, string>;
   currentPage: number;
   totalPages:  number;
   totalCount:  number;
@@ -196,7 +198,9 @@ export function RegionsTable({
       cell: (region) => (
         <div className="space-y-0.5">
           <p className="text-xs font-medium text-foreground/80 truncate max-w-30">
-            {region.created_by ?? "—"}
+            {region.created_by
+              ? (memberNames[region.created_by] ?? region.created_by)
+              : "—"}
           </p>
           <p className="text-xs text-muted-foreground">
             {formatDistanceToNow(new Date(region.created_at), { addSuffix: true })}
@@ -215,9 +219,9 @@ export function RegionsTable({
             title={region.name}
             entityLabel="region"
             fetchHistory={getRegionHistory}
-            createdBy={region.created_by}
+            createdBy={region.created_by ? (memberNames[region.created_by] ?? region.created_by) : null}
             createdAt={region.created_at}
-            updatedBy={region.updated_by}
+            updatedBy={region.updated_by ? (memberNames[region.updated_by] ?? region.updated_by) : null}
             updatedAt={region.updated_at}
           />
           <EditRegionSheet region={region} />

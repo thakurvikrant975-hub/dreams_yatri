@@ -72,6 +72,7 @@ function ThumbnailCell({ activity }: { activity: ActivityItem }) {
 
 export function ActivitiesTableClient({
     activities,
+    memberNames,
     categories,
     totalCount,
     limit,
@@ -82,6 +83,7 @@ export function ActivitiesTableClient({
     status,
 }: {
     activities: ActivityItem[];
+    memberNames: Record<string, string>;
     categories: CategoryOption[];
     totalCount: number;
     limit: number;
@@ -243,7 +245,9 @@ export function ActivitiesTableClient({
             cell: (a) => (
                 <div className="space-y-0.5">
                     <p className="text-xs font-medium text-foreground/80 truncate max-w-30">
-                        {a.created_by ?? "—"}
+                        {a.created_by
+                            ? (memberNames[a.created_by] ?? a.created_by)
+                            : "—"}
                     </p>
                     <p className="text-xs text-muted-foreground">
                         {formatDistanceToNow(new Date(a.created_at), { addSuffix: true })}

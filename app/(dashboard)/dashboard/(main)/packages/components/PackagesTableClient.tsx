@@ -71,6 +71,7 @@ const base = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
 
 export function PackagesTableClient({
   packages: initialPackages,
+  memberNames,
   destinations,
   totalCount,
   limit,
@@ -80,6 +81,7 @@ export function PackagesTableClient({
   status,
 }: {
   packages:     PackageItem[];
+  memberNames:  Record<string, string>;
   destinations: Destination[];
   totalCount:   number;
   limit:        number;
@@ -267,7 +269,7 @@ export function PackagesTableClient({
       cell: (pkg) => (
         <div className="space-y-0.5">
           <p className="text-xs font-medium text-dashboard-base-content/80 truncate max-w-28">
-            {pkg.created_by ?? "—"}
+            {pkg.created_by ? (memberNames[pkg.created_by] ?? pkg.created_by) : "—"}
           </p>
           <p className="text-xs text-dashboard-base-content/50">
             {formatDistanceToNow(new Date(pkg.created_at), { addSuffix: true })}
@@ -286,9 +288,9 @@ export function PackagesTableClient({
             title={pkg.title}
             entityLabel="package"
             fetchHistory={getPackageHistory}
-            createdBy={pkg.created_by}
+            createdBy={pkg.created_by ? (memberNames[pkg.created_by] ?? pkg.created_by) : null}
             createdAt={pkg.created_at}
-            updatedBy={pkg.updated_by}
+            updatedBy={pkg.updated_by ? (memberNames[pkg.updated_by] ?? pkg.updated_by) : null}
             updatedAt={pkg.updated_at}
           />
           <Button variant="ghost" size="icon" className="h-8 w-8 text-dashboard-base-content/50 hover:text-dashboard-primary hover:bg-dashboard-primary/10 cursor-pointer" asChild>

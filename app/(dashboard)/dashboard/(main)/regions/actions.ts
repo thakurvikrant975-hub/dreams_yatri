@@ -21,10 +21,11 @@ export type RegionFormState = {
 async function requireSession() {
   const session = await dashboardAuth();
   if (!session?.user?.email) {
-    return { session: null, actorName: null, error: Result.unauthorized() };
+    return { session: null, actorId: null, actorName: null, error: Result.unauthorized() };
   }
+  const actorId   = session.user.id;
   const actorName = session.user.name ?? session.user.email;
-  return { session, actorName, error: null };
+  return { session, actorId, actorName, error: null };
 }
 
 // ── Internal helper: FormData → raw object ────────────────────────────────────
@@ -88,6 +89,7 @@ export async function getRegions(params: GetRegionsParams = {}) {
     currentPage: params.page ?? 1,
     limit:       params.limit ?? 10,
     totalCount:  0,
+    memberNames: {} as Record<string, string>,
     stats:       { total: 0, active: 0, inactive: 0, destinations: 0 },
   };
 
@@ -135,12 +137,27 @@ export async function getRegions(params: GetRegionsParams = {}) {
     return true;
   });
 
+  // Resolve created_by / updated_by IDs to team member names
+  const actorIds = [...new Set(
+    filtered.flatMap((r) => [r.created_by, r.updated_by]).filter(Boolean) as string[]
+  )];
+  const members = actorIds.length > 0
+    ? await db.team_members.findMany({
+        where:  { id: { in: actorIds } },
+        select: { id: true, name: true },
+      })
+    : [];
+  const memberNames: Record<string, string> = Object.fromEntries(
+    members.map((m) => [m.id, m.name])
+  );
+
   return {
     regions: filtered,
     totalPages:  Math.ceil(filteredCount / limit),
     currentPage: page,
     limit,
     totalCount:  filteredCount,
+    memberNames,
     stats: {
       total:        totalCount,
       active:       activeCount,
@@ -177,7 +194,7 @@ export async function createRegion(
   _prev: RegionFormState,
   formData: FormData,
 ): Promise<RegionFormState> {
-  const { actorName, error } = await requireSession();
+  const { actorId, error } = await requireSession();
   if (error) return toFormState(error);
 
   const parsed = RegionSchema.safeParse(extractRegionFields(formData));
@@ -189,13 +206,13 @@ export async function createRegion(
     };
   }
 
-  const result = await createRegionRecord(parsed.data, actorName!);
+  const result = await createRegionRecord(parsed.data, actorId!);
   return toFormState(result);
 }
 
 async function createRegionRecord(
   data: RegionInput,
-  actorName: string,
+  actorId: string,
 ): Promise<Result<string>> {
   try {
     const existing = await db.custom_regions.findUnique({ where: { slug: data.slug } });
@@ -212,8 +229,8 @@ async function createRegionRecord(
         is_active:   data.is_active,
         thumbnail:   data.thumbnail,
         cover_image: data.cover_image ?? null,
-        created_by:  actorName,
-        updated_by:  actorName,
+        created_by:  actorId,
+        updated_by:  actorId,
       },
     });
 
@@ -239,7 +256,7 @@ export async function updateRegion(
   _prev: RegionFormState,
   formData: FormData,
 ): Promise<RegionFormState> {
-  const { actorName, error } = await requireSession();
+  const { actorId, error } = await requireSession();
   if (error) return toFormState(error);
 
   const parsed = RegionSchema.safeParse(extractRegionFields(formData));
@@ -251,14 +268,14 @@ export async function updateRegion(
     };
   }
 
-  const result = await updateRegionRecord(id, parsed.data, actorName!);
+  const result = await updateRegionRecord(id, parsed.data, actorId!);
   return toFormState(result);
 }
 
 async function updateRegionRecord(
   id: number,
   data: RegionInput,
-  actorName: string,
+  actorId: string,
 ): Promise<Result<string>> {
   try {
     const slugConflict = await db.custom_regions.findFirst({
@@ -281,7 +298,7 @@ async function updateRegionRecord(
         is_active:   data.is_active,
         thumbnail:   data.thumbnail,
         cover_image: data.cover_image ?? null,
-        updated_by:  actorName,
+        updated_by:  actorId,
       },
     });
 
@@ -312,16 +329,16 @@ async function updateRegionRecord(
 
 // ── Delete ────────────────────────────────────────────────────────────────────
 export async function deleteRegion(id: number): Promise<RegionFormState> {
-  const { actorName, error } = await requireSession();
+  const { actorId, error } = await requireSession();
   if (error) return toFormState(error);
 
-  const result = await deleteRegionRecord(id, actorName!);
+  const result = await deleteRegionRecord(id, actorId!);
   return toFormState(result);
 }
 
 async function deleteRegionRecord(
   id: number,
-  actorName: string,
+  actorId: string,
 ): Promise<Result<string>> {
   try {
     const region = await db.custom_regions.findUnique({
@@ -343,7 +360,7 @@ async function deleteRegionRecord(
     // Stamp audit fields before hard delete
     await db.custom_regions.update({
       where: { id },
-      data:  { deleted_by: actorName, deleted_at: new Date(), is_deleted: true },
+      data:  { deleted_by: actorId, deleted_at: new Date(), is_deleted: true },
     });
 
     if (region.thumbnail)   await deleteFromR2(region.thumbnail).catch(console.error);
@@ -373,7 +390,7 @@ export async function toggleRegionActive(
   id: number,
   is_active: boolean,
 ): Promise<RegionFormState> {
-  const { actorName, error } = await requireSession();
+  const { actorId, error } = await requireSession();
   if (error) return toFormState(error);
 
   try {
@@ -390,7 +407,7 @@ export async function toggleRegionActive(
 
     await db.custom_regions.update({
       where: { id },
-      data:  { is_active, updated_by: actorName },
+      data:  { is_active, updated_by: actorId },
     });
 
     await createLog({

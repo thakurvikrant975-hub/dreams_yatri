@@ -57,7 +57,7 @@ function TableSkeleton() {
 // ── Async data component ──────────────────────────────────────────────────
 
 async function ActivitiesData({ params }: { params: GetActivitiesParams }) {
-    const [{ activities, totalCount, isFiltering, stats }, categories] = await Promise.all([
+    const [{ activities, totalCount, isFiltering, stats, memberNames }, categories] = await Promise.all([
         getActivities(params),
         getCategoriesForSelect(),
     ]);
@@ -73,6 +73,7 @@ async function ActivitiesData({ params }: { params: GetActivitiesParams }) {
 
             <ActivitiesTableClient
                 activities={activities}
+                memberNames={memberNames}
                 categories={categories}
                 totalCount={totalCount}
                 limit={params.limit ?? 10}

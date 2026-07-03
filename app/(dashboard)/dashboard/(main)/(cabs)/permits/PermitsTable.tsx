@@ -58,6 +58,7 @@ function ValidityCell({ row }: { row: PermitRow }) {
 
 export function PermitsTable({
   permits,
+  memberNames,
   totalCount,
   currentPage,
   totalPages,
@@ -67,6 +68,7 @@ export function PermitsTable({
   status,
 }: {
   permits:     PermitRow[];
+  memberNames: Record<string, string>;
   totalCount:  number;
   currentPage: number;
   totalPages:  number;
@@ -218,7 +220,7 @@ export function PermitsTable({
       cell: (r) => (
         <div className="space-y-0.5">
           <p className="text-xs font-medium text-foreground/80 truncate max-w-28">
-            {r.created_by ?? "—"}
+            {r.created_by ? (memberNames[r.created_by] ?? r.created_by) : "—"}
           </p>
           <p className="text-xs text-muted-foreground">
             {formatDistanceToNow(new Date(r.created_at), { addSuffix: true })}

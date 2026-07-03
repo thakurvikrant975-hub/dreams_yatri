@@ -26,6 +26,7 @@ type Vehicle = { id: number; name: string; type: string };
 
 export function CabPricingTable({
   rows,
+  memberNames,
   vehicles,
   currentPage,
   totalPages,
@@ -35,6 +36,7 @@ export function CabPricingTable({
   status,
 }: {
   rows:        CabPricingGroup[];
+  memberNames: Record<string, string>;
   vehicles:    Vehicle[];
   currentPage: number;
   totalPages:  number;
@@ -165,7 +167,7 @@ export function CabPricingTable({
       width:  "w-[150px]",
       cell: (row) => (
         <p className="text-xs font-medium text-foreground/80 truncate max-w-32">
-          {row.created_by ?? "—"}
+          {row.created_by ? (memberNames[row.created_by] ?? row.created_by) : "—"}
         </p>
       ),
     },
@@ -176,7 +178,7 @@ export function CabPricingTable({
       cell: (row) => (
         <div className="space-y-0.5">
           <p className="text-xs font-medium text-foreground/80 truncate max-w-32">
-            {row.updated_by ?? "—"}
+            {row.updated_by ? (memberNames[row.updated_by] ?? row.updated_by) : "—"}
           </p>
           <p className="text-xs text-muted-foreground">
             {formatDistanceToNow(new Date(row.updated_at), { addSuffix: true })}
