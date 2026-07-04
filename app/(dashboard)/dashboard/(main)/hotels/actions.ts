@@ -153,6 +153,38 @@ export async function getHotels(params: GetHotelsParams = {}) {
   };
 }
 
+export async function getAllHotelsForOverview() {
+  const rows = await db.hotels.findMany({
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      thumbnail: true,
+      category: true,
+      stay_type: true,
+      star_rating: true,
+      city: true,
+      state: true,
+      country: true,
+      is_active: true,
+      destination: { select: { name: true, latitude: true, longitude: true } },
+      location: { select: { latitude: true, longitude: true, name: true } },
+      _count: { select: { hotelRooms: true, images: true } },
+    },
+    orderBy: { name: "asc" },
+  });
+
+  return rows.map((h) => ({
+    ...h,
+    lat: h.location?.latitude   ? Number(h.location.latitude)
+       : h.destination?.latitude ? Number(h.destination.latitude)
+       : null,
+    lng: h.location?.longitude   ? Number(h.location.longitude)
+       : h.destination?.longitude ? Number(h.destination.longitude)
+       : null,
+  }));
+}
+
 export async function getDestinationsForHotelFilter() {
   return db.destinations.findMany({
     orderBy: { name: "asc" },
