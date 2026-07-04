@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type DragEvent } from "react";
+import { useState, useEffect, useRef, type DragEvent } from "react";
 import { toast } from "sonner";
 import { ImagePickerWithCrop, type PickedImage } from "../../components/dashboard/ImagePickerWithCrop";
 import { Button } from "../../components/ui/button";
@@ -62,30 +62,36 @@ export function ImagesTab({
   const [isSettingPrimary, setIsSettingPrimary] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const allUploaded =
-    staged.length > 0 && staged.every((i) => i.status === "uploaded");
+  // Auto-save: fire once all staged uploads finish
+  const autoSaveRef = useRef(false);
+  useEffect(() => {
+    if (staged.length === 0) { autoSaveRef.current = false; return; }
+    if (staged.some(i => i.status === "uploading")) return;
+    const uploaded = staged.filter(i => i.status === "uploaded" && i.key);
+    if (uploaded.length === 0) return;
+    if (autoSaveRef.current) return;
+    autoSaveRef.current = true;
+    const urls = uploaded.map(i => i.key!);
+    setIsAdding(true);
+    handleAddImages(packageId, urls)
+      .then(res => {
+        if (!res.success) { toast.error(res.message); autoSaveRef.current = false; return; }
+        toast.success(`${urls.length} image${urls.length > 1 ? "s" : ""} added`);
+        setStaged([]);
+        setOrderChanged(false);
+        return refreshImages();
+      })
+      .catch(() => { autoSaveRef.current = false; })
+      .finally(() => setIsAdding(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [staged]);
 
   async function refreshImages() {
     const res = await handleGetPackageImages(packageId);
     if (res.success) setDbImages(res.data as DBImage[]);
   }
 
-  async function handleAdd() {
-    const urls = staged.map((i) => i.key!);
-    setIsAdding(true);
-    try {
-      const res = await handleAddImages(packageId, urls);
-      if (!res.success) { toast.error(res.message); return; }
-      toast.success(`${urls.length} image${urls.length > 1 ? "s" : ""} added to pool`);
-      setStaged([]);
-      setOrderChanged(false);
-      await refreshImages();
-    } finally {
-      setIsAdding(false);
-    }
-  }
-
-  async function handleSetPrimary(imageId: number) {
+async function handleSetPrimary(imageId: number) {
     setIsSettingPrimary(true);
     try {
       const res = await handleSetPrimaryImage(imageId, packageId);
@@ -152,24 +158,11 @@ export function ImagesTab({
 
       {/* ── Section 1: Upload Staging ──────────────────────────────────── */}
       <div className="space-y-3">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h3 className="text-sm font-semibold">Upload Images</h3>
-            <p className="text-xs text-muted-foreground">
-              Select and upload images, then add them to the pool.
-            </p>
-          </div>
-          {staged.length > 0 && (
-            <Button
-              size="sm"
-              disabled={!allUploaded || isAdding}
-              onClick={handleAdd}
-              className="shrink-0"
-            >
-              {isAdding && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Add {staged.length} to Pool
-            </Button>
-          )}
+        <div>
+          <h3 className="text-sm font-semibold">Upload Images</h3>
+          <p className="text-xs text-muted-foreground">
+            Crop and upload images — they save to the pool automatically.
+          </p>
         </div>
 
         <ImagePickerWithCrop
@@ -181,6 +174,11 @@ export function ImagesTab({
           label="Upload package images"
           hint="JPG, PNG, WebP · Each image opens the crop tool"
         />
+        {isAdding && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground justify-end">
+            <Loader2 className="h-3 w-3 animate-spin" /> Saving to pool…
+          </div>
+        )}
       </div>
 
       {/* ── Section 2: Asset Pool ──────────────────────────────────────── */}

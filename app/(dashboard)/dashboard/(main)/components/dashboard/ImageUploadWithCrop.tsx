@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { deleteR2Keys } from "@/app/actions/r2";
 import Cropper from "react-easy-crop";
 import type { Area, Point } from "react-easy-crop";
 import { Slider } from "radix-ui";
@@ -548,7 +549,9 @@ export function ImageUploadWithCrop({
   const [error,       setError]       = useState<string | null>(null);
   const [pendingSrc,  setPendingSrc]  = useState<string | null>(null);
 
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef       = useRef<HTMLInputElement>(null);
+  // Tracks R2 keys uploaded in this session so we can delete orphans on replace/clear
+  const sessionKeyRef  = useRef<string | null>(null);
 
   const aspectClass = {
     square: "aspect-square",
@@ -559,6 +562,7 @@ export function ImageUploadWithCrop({
   async function uploadFile(file: File) {
     setError(null);
     setUploading(true);
+    const prevSessionKey = sessionKeyRef.current;
     try {
       const body = new FormData();
       body.append("file", file);
@@ -566,6 +570,9 @@ export function ImageUploadWithCrop({
       const res  = await fetch("/api/upload", { method: "POST", body });
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? "Upload failed"); return; }
+      // Delete the previous session-upload if user replaced it before saving
+      if (prevSessionKey) deleteR2Keys([prevSessionKey]).catch(console.error);
+      sessionKeyRef.current = data.key;
       onChange?.({ key: data.key, url: data.url });
     } catch {
       setError("Upload failed. Please try again.");
@@ -624,7 +631,13 @@ export function ImageUploadWithCrop({
           </button>
           <button
             type="button"
-            onClick={() => onChange?.(null)}
+            onClick={() => {
+              if (sessionKeyRef.current) {
+                deleteR2Keys([sessionKeyRef.current]).catch(console.error);
+                sessionKeyRef.current = null;
+              }
+              onChange?.(null);
+            }}
             className="absolute top-2 right-2 h-7 w-7 rounded-full bg-black/60 hover:bg-destructive/80 flex items-center justify-center transition-colors"
           >
             <X className="h-3.5 w-3.5 text-white" />

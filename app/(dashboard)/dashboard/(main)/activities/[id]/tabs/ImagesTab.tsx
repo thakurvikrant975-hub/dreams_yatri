@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import { Star, Trash2, Loader2, ImageIcon, Save, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { Button }   from "../../../components/ui/button";
 import { Badge }    from "../../../components/ui/badge";
@@ -155,6 +155,35 @@ export function ImagesTab({
     const dirtyLabels = images.filter(img => (labelDraft[img.id] ?? "") !== (img.label ?? ""));
     const hasDirtyLabels = dirtyLabels.length > 0;
 
+    // Auto-save: fire once all staged uploads finish
+    const autoSaveRef = useRef(false);
+    useEffect(() => {
+        if (newPicks.length === 0) { autoSaveRef.current = false; return; }
+        if (newPicks.some(p => p.status === "uploading")) return;
+        const uploaded = newPicks.filter(p => p.status === "uploaded" && p.key);
+        if (uploaded.length === 0) return;
+        if (autoSaveRef.current) return;
+        autoSaveRef.current = true;
+        startTransition(async () => {
+            const result = await addActivityImages(
+                activityId,
+                uploaded.map(p => ({ url: p.key!, thumbnail: p.key })),
+            );
+            if (result.success && result.images) {
+                toast.success(result.message);
+                setNewPicks([]);
+                const newLabels: Record<number, string> = {};
+                result.images.forEach(img => { newLabels[img.id] = img.label ?? ""; });
+                setLabelDraft(prev => ({ ...prev, ...newLabels }));
+                setImages(prev => [...prev, ...result.images!]);
+            } else {
+                toast.error(result.message);
+                autoSaveRef.current = false;
+            }
+        });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [newPicks]);
+
     function handleLabelChange(id: number, value: string) {
         const v = value.length > 0 ? value[0].toUpperCase() + value.slice(1) : value;
         setLabelDraft(prev => ({ ...prev, [id]: v }));
@@ -188,36 +217,6 @@ export function ImagesTab({
         });
     }
 
-    function handleSaveImages() {
-        const uploaded = newPicks.filter(p => p.status === "uploaded" && p.key);
-        if (uploaded.length === 0) {
-            toast.error("Wait for uploads to complete");
-            return;
-        }
-        if (images.length + uploaded.length < MIN_IMAGES) {
-            toast.error(`At least ${MIN_IMAGES} photos required — you have ${images.length + uploaded.length} so far`);
-            return;
-        }
-
-        startTransition(async () => {
-            const result = await addActivityImages(
-                activityId,
-                uploaded.map(p => ({ url: p.key!, thumbnail: p.key })),
-            );
-
-            if (result.success && result.images) {
-                toast.success(result.message);
-                setNewPicks([]);
-                // Use real DB IDs returned from server — avoids Int overflow from Date.now()
-                const newLabels: Record<number, string> = {};
-                result.images.forEach(img => { newLabels[img.id] = img.label ?? ""; });
-                setLabelDraft(prev => ({ ...prev, ...newLabels }));
-                setImages(prev => [...prev, ...result.images!]);
-            } else {
-                toast.error(result.message);
-            }
-        });
-    }
 
     return (
         <Card className="rounded-2xl">
@@ -299,20 +298,9 @@ export function ImagesTab({
                         label="Upload Activity Photos"
                         hint="JPG, PNG, WebP · Each image opens the crop tool"
                     />
-                    {newPicks.length > 0 && (
-                        <div className="flex justify-end">
-                            <Button
-                                type="button"
-                                size="sm"
-                                onClick={handleSaveImages}
-                                disabled={isPending || newPicks.some(p => p.status === "uploading")}
-                                className="gap-1.5"
-                            >
-                                {isPending
-                                    ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Saving…</>
-                                    : <>Save {newPicks.filter(p => p.status === "uploaded").length} Photo{newPicks.filter(p => p.status === "uploaded").length !== 1 ? "s" : ""}</>
-                                }
-                            </Button>
+                    {isPending && (
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground justify-end">
+                            <Loader2 className="h-3 w-3 animate-spin" /> Saving photos…
                         </div>
                     )}
                 </div>

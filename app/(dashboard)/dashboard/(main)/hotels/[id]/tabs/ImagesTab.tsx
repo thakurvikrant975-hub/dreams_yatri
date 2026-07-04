@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition }  from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import { Button }                   from "../../../components/ui/button";
 import { Input }                    from "../../../components/ui/input";
 import { Badge }                    from "../../../components/ui/badge";
@@ -144,36 +144,21 @@ function CategoryBlock({
 
   const missingRequired = category.is_required && images.length === 0;
 
-  function handleImageDelete(id: number) {
-    const updated = images.filter(img => img.id !== id);
-    setImages(updated);
-    onUpdate(updated, category.id);
-  }
-
-  function handleSetPrimary(id: number) {
-    const updated = images.map(img => ({ ...img, is_primary: img.id === id }));
-    setImages(updated);
-    onUpdate(updated, category.id);
-  }
-
-  function handleSaveNew() {
+  // Auto-save: fire once all staged uploads finish
+  const autoSaveRef = useRef(false);
+  useEffect(() => {
+    if (newPicks.length === 0) { autoSaveRef.current = false; return; }
+    if (newPicks.some(p => p.status === "uploading")) return;
     const uploaded = newPicks.filter(p => p.status === "uploaded" && p.key);
-    if (uploaded.length === 0) {
-      toast.error("Wait for uploads to finish");
-      return;
-    }
-
+    if (uploaded.length === 0) return;
+    if (autoSaveRef.current) return;
+    autoSaveRef.current = true;
     startTransition(async () => {
       const result = await addHotelImages(
         hotel_id,
         category.id,
-        uploaded.map(p => ({
-          url:       p.key!,
-          thumbnail: p.key,
-          alt:       p.name,
-        }))
+        uploaded.map(p => ({ url: p.key!, thumbnail: p.key, alt: p.name }))
       );
-
       if (result.success) {
         toast.success(result.message);
         setNewPicks([]);
@@ -191,9 +176,24 @@ function CategoryBlock({
         onUpdate(updated, category.id);
       } else {
         toast.error(result.message);
+        autoSaveRef.current = false;
       }
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newPicks]);
+
+  function handleImageDelete(id: number) {
+    const updated = images.filter(img => img.id !== id);
+    setImages(updated);
+    onUpdate(updated, category.id);
   }
+
+  function handleSetPrimary(id: number) {
+    const updated = images.map(img => ({ ...img, is_primary: img.id === id }));
+    setImages(updated);
+    onUpdate(updated, category.id);
+  }
+
 
   return (
     <div className={cn(
@@ -285,15 +285,9 @@ function CategoryBlock({
             hint="JPG, PNG, WebP · Each image opens the crop tool"
           />
 
-          {newPicks.length > 0 && (
-            <div className="flex justify-end">
-              <Button type="button" size="sm" onClick={handleSaveNew}
-                disabled={isPending || newPicks.some(p => p.status === "uploading")}
-                className="gap-1.5 bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90 cursor-pointer">
-                {isPending
-                  ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Saving...</>
-                  : <>Save {newPicks.filter(p => p.status === "uploaded").length} Photo{newPicks.length !== 1 ? "s" : ""}</>}
-              </Button>
+          {isPending && (
+            <div className="flex items-center gap-1.5 text-xs text-dashboard-base-content/50 justify-end">
+              <Loader2 className="h-3 w-3 animate-spin" /> Saving photos…
             </div>
           )}
         </div>

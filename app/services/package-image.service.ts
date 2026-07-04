@@ -45,6 +45,10 @@ export async function reorderImages(
     );
 }
 
+export async function getImageById(id: number) {
+    return db.package_images.findUnique({ where: { id } });
+}
+
 export async function deleteImage(id: number) {
   return db.package_images.delete({
     where: { id },

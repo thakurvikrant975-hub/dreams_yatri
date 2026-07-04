@@ -6,8 +6,10 @@ import {
   setPrimaryImage,
   reorderImages,
   deleteImage,
+  getImageById,
 } from "@/app/services/package-image.service";
 import { revalidatePath } from "next/cache";
+import { deleteFromR2 } from "@/app/lib/r2/r2delete";
 
 export async function handleGetPackageImages(packageId: number) {
   try {
@@ -57,8 +59,11 @@ export async function handleReorderImages(
 
 export async function handleDeleteImage(imageId: number, packageId: number) {
   try {
+    const img = await getImageById(imageId);
     const res = await deleteImage(imageId);
     revalidatePath(`/dashboard/packages/${packageId}`);
+    if (img?.url) await deleteFromR2(img.url).catch(console.error);
+    if (img?.thumbnail && img.thumbnail !== img.url) await deleteFromR2(img.thumbnail).catch(console.error);
     return { success: true, data: res };
   } catch (e) {
     console.error(e);

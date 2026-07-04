@@ -7,6 +7,7 @@ import { ImageIcon, X, Upload, Loader2, Star, AlertCircle, GripVertical } from "
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { cn } from "@/app/lib/utils";
+import { deleteR2Keys } from "@/app/actions/r2";
 
 export type { PickedImage };
 
@@ -277,6 +278,7 @@ export function ImagePickerWithCrop({
     function removeImage(id: string) {
         const img = value.find(i => i.id === id);
         if (img?.url.startsWith("blob:")) URL.revokeObjectURL(img.url);
+        if (img?.key) deleteR2Keys([img.key]).catch(console.error);
         const remaining = value.filter(i => i.id !== id);
         if (img?.is_primary && remaining.length > 0) remaining[0] = { ...remaining[0], is_primary: true };
         onChange(remaining);
@@ -415,8 +417,10 @@ export function ImagePickerWithCrop({
                         type="button"
                         className="text-destructive hover:underline"
                         onClick={() => {
+                            const keysToDelete = value.filter(i => i.key).map(i => i.key!);
                             value.forEach(img => { if (img.url.startsWith("blob:")) URL.revokeObjectURL(img.url); });
                             cropQueue.forEach(q => URL.revokeObjectURL(q.src));
+                            if (keysToDelete.length > 0) deleteR2Keys(keysToDelete).catch(console.error);
                             onChange([]);
                             setCropQueue([]);
                         }}
