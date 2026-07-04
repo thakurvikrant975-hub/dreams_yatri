@@ -3,7 +3,7 @@
 // role "Sidebar Access" editor so the two stay in sync.
 import {
   LayoutDashboard, Settings, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound, MessageCircleQuestion, ClockCheck, Mails, Forward, BadgePercent, Banknote, BanknoteArrowDown, BanknoteX, Car, Bed, ChartNoAxesCombined, BellRing, PackagePlus, ChartNoAxesGantt, Star, IndianRupee, X,
-  CirclePile, MapPinned, TicketCheck,
+  CirclePile, MapPinned, TicketCheck, ClipboardList,
 } from "lucide-react";
 import {
   GlobeHemisphereEastIcon, MapPinIcon, BuildingIcon, TagIcon,
@@ -16,6 +16,7 @@ export const NAV_GROUPS = [
     items: [
       { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
       { title: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
+      { title: "Reports", href: "/dashboard/reports", icon: ClipboardList },
       { title: "Locations", href: "/dashboard/locations", icon: MapPinned },
     ],
   },
