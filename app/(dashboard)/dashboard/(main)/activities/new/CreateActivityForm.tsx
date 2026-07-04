@@ -200,8 +200,7 @@ export function CreateActivityForm({ categories }: { categories: CategoryOption[
     // ── Handlers ─────────────────────────────────────────────────────────
 
     function handleNameChange(raw: string) {
-        // Title-case every word's first letter
-        const val = raw.replace(/\b\w/g, c => c.toUpperCase());
+        const val = raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : raw;
 
         setName(val);
         setSlug(

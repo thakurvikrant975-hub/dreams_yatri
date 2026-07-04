@@ -228,9 +228,8 @@ export function CropDialog({
     img.src    = imageSrc;
   }, [imageSrc]);
 
-  // Once the Cropper has loaded the image, snap zoom=1 so the image exactly
-  // covers the crop area (react-easy-crop: zoom=1 = fill, not natural size).
-  // This ensures the correct state regardless of dialog open/image-load ordering.
+  // On load, zoom=1 with objectFit="contain" means the full image fits inside
+  // the crop area — no overflow, no black bars at baseline zoom.
   function handleMediaLoaded() {
     setZoom(1);
     setCrop({ x: 0, y: 0 });
@@ -329,7 +328,7 @@ export function CropDialog({
         {/* ── Crop canvas ─────────────────────────────────────────────── */}
         <div
           className="relative w-full bg-black/90"
-          style={{ height: 460 }}
+          style={{ height: 400, overflow: "hidden" }}
         >
           <Cropper
             image={imageSrc}
@@ -343,7 +342,7 @@ export function CropDialog({
             onCropComplete={onCropComplete}
             onMediaLoaded={handleMediaLoaded}
             showGrid
-            objectFit="cover"
+            objectFit="contain"
             style={{
               containerStyle: { borderRadius: 0 },
               mediaStyle: { filter: filterString },
