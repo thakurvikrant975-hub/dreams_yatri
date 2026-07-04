@@ -3,8 +3,10 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
 import { StayTiersSection } from "./StayTiersSection";
 import { ItineraryDaySidebar } from "./ItineraryDaySidebar";
+import { CopyFromRouteDialog } from "./CopyFromRouteDialog";
 import { handleGetItineraryData } from "@/app/actions/packages/itinerary-builder.actions";
 import type { DayData, StayCategoryFull } from "@/app/services/itinerary-builder.service";
 import {
@@ -18,6 +20,7 @@ import {
   ChevronRight,
   Camera,
   MapPin,
+  Copy,
 } from "lucide-react";
 
 import { cn } from "@/app/lib/utils";
@@ -231,6 +234,7 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [openDay, setOpenDay] = useState<DayData | null>(null);
+  const [copyStop, setCopyStop] = useState<{ name: string; startDay: number; endDay: number } | null>(null);
 
   const selectedDuration = durations.find((d) => d.id === selectedDurationId) ?? null;
   const selectedRoute = selectedDuration?.routes.find((r) => r.id === selectedRouteId) ?? null;
@@ -411,6 +415,13 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
               <div className="space-y-5">
                 {computeStopGroups(selectedRoute.stops).map((group) => {
                   const stopDays = days.filter((d) => d.day >= group.startDay && d.day <= group.endDay);
+                  // Show copy button only if another route in any duration has the same stop
+                  const hasCopySource = durations.some((dur) =>
+                    dur.routes.some((r) =>
+                      !(r.id === selectedRouteId && dur.id === selectedDurationId) &&
+                      r.stops?.some((s) => s.place_name === group.name)
+                    )
+                  );
                   return (
                     <div key={`${group.name}-${group.startDay}`}>
                       <div className="flex items-center gap-2 mb-2">
@@ -421,6 +432,17 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
                             ? `Day ${group.startDay}`
                             : `Days ${group.startDay}–${group.endDay}`}
                         </span>
+                        {hasCopySource && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="ml-auto h-6 px-2 text-[10px] text-muted-foreground hover:text-primary gap-1"
+                            onClick={() => setCopyStop(group)}
+                          >
+                            <Copy className="h-3 w-3" /> Copy from route
+                          </Button>
+                        )}
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                         {stopDays.map((day) => (
@@ -456,6 +478,24 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
             )
           ) : null}
         </div>
+      )}
+
+      {/* Copy from route dialog */}
+      {copyStop && selectedDurationId && selectedRouteId && days && (
+        <CopyFromRouteDialog
+          open={!!copyStop}
+          onClose={() => setCopyStop(null)}
+          packageId={packageId}
+          durations={durations}
+          targetDurationId={selectedDurationId}
+          targetRouteId={selectedRouteId}
+          stopName={copyStop.name}
+          targetStopDays={days.filter((d) => d.day >= copyStop.startDay && d.day <= copyStop.endDay)}
+          onCopied={(updatedDays) => {
+            setDays(updatedDays);
+            setCopyStop(null);
+          }}
+        />
       )}
 
       {/* Day sidebar */}

@@ -1061,6 +1061,211 @@ export type HotelMealOption = {
   weekend_price: number | null;
 };
 
+// ── Copy itinerary days ────────────────────────────────────────────────────
+
+export type CopyDayMapping = {
+  targetDay: number;
+  sourceDays: number[]; // multiple source days can be merged into one target day
+};
+
+export type CopyFields = {
+  title: boolean;
+  description: boolean;
+  activities: boolean;
+  stays: boolean;
+  notes: boolean;
+  transfers: boolean;
+  attractions: boolean;
+};
+
+export async function copyItineraryDays(
+  packageId: number,
+  sourceDurationId: number,
+  sourceRouteId: number,
+  targetDurationId: number,
+  targetRouteId: number,
+  mappings: CopyDayMapping[],
+  fields: CopyFields,
+  mode: "replace" | "append",
+): Promise<void> {
+  const allSourceDayNums = [...new Set(mappings.flatMap((m) => m.sourceDays))];
+
+  const sourceRecords = await db.package_itineraries.findMany({
+    where: {
+      package_id: packageId,
+      duration_id: sourceDurationId,
+      route_id: sourceRouteId,
+      day: { in: allSourceDayNums },
+    },
+    include: {
+      itinerary_activities:  { orderBy: { sort_order: "asc" } },
+      itinerary_notes:       { orderBy: { sort_order: "asc" } },
+      itinerary_attractions: { orderBy: { sort_order: "asc" } },
+      itineraryStays:        { orderBy: { sort_order: "asc" } },
+      itinerary_transfers:   { orderBy: { sort_order: "asc" } },
+    },
+  });
+
+  const srcMap = new Map(sourceRecords.map((r) => [r.day, r]));
+
+  for (const { targetDay, sourceDays } of mappings) {
+    if (sourceDays.length === 0) continue;
+
+    // Primary source = first available source day
+    const primary = sourceDays.map((d) => srcMap.get(d)).find(Boolean);
+    if (!primary) continue;
+
+    // ── 1. Upsert the target itinerary record ────────────────────────────
+    const existing = await db.package_itineraries.findFirst({
+      where: { package_id: packageId, duration_id: targetDurationId, route_id: targetRouteId, day: targetDay },
+      select: { id: true },
+    });
+
+    let targetId: number;
+    if (existing) {
+      await db.package_itineraries.update({
+        where: { id: existing.id },
+        data: {
+          ...(fields.title       && { title:       primary.title }),
+          ...(fields.description && { description: primary.description }),
+        },
+      });
+      targetId = existing.id;
+    } else {
+      const created = await db.package_itineraries.create({
+        data: {
+          package_id:    packageId,
+          duration_id:   targetDurationId,
+          route_id:      targetRouteId,
+          day:           targetDay,
+          title:         fields.title ? primary.title : `Day ${targetDay}`,
+          description:   fields.description ? primary.description : null,
+          meals:         primary.meals ?? [],
+          excluded_meals: primary.excluded_meals ?? [],
+        },
+      });
+      targetId = created.id;
+    }
+
+    // ── 2. Activities ────────────────────────────────────────────────────
+    if (fields.activities) {
+      if (mode === "replace") {
+        await db.itinerary_activities.deleteMany({ where: { itinerary_id: targetId } });
+      }
+      const currentMax = await db.itinerary_activities.aggregate({
+        where: { itinerary_id: targetId }, _max: { sort_order: true },
+      });
+      let so = (currentMax._max.sort_order ?? -1) + 1;
+      for (const srcDay of sourceDays) {
+        const src = srcMap.get(srcDay);
+        if (!src) continue;
+        for (const act of src.itinerary_activities) {
+          await db.itinerary_activities.create({
+            data: { itinerary_id: targetId, activity_id: act.activity_id, sort_order: so++, is_optional: act.is_optional, variant_id: act.variant_id },
+          });
+        }
+      }
+    }
+
+    // ── 3. Stays ─────────────────────────────────────────────────────────
+    if (fields.stays) {
+      if (mode === "replace") {
+        await db.itinerary_stays.deleteMany({ where: { itinerary_id: targetId } });
+      }
+      for (const srcDay of sourceDays) {
+        const src = srcMap.get(srcDay);
+        if (!src) continue;
+        for (const stay of src.itineraryStays) {
+          await db.itinerary_stays.upsert({
+            where: { itinerary_id_stay_category_id: { itinerary_id: targetId, stay_category_id: stay.stay_category_id } },
+            create: {
+              itinerary_id: targetId, stay_category_id: stay.stay_category_id,
+              room_pricing_id: stay.room_pricing_id, sort_order: stay.sort_order,
+              occupancy: stay.occupancy, rooms_count: stay.rooms_count,
+              num_nights: stay.num_nights, active_meals: stay.active_meals,
+            },
+            update: {
+              room_pricing_id: stay.room_pricing_id, sort_order: stay.sort_order,
+              occupancy: stay.occupancy, rooms_count: stay.rooms_count,
+              num_nights: stay.num_nights, active_meals: stay.active_meals,
+            },
+          });
+        }
+      }
+    }
+
+    // ── 4. Notes ─────────────────────────────────────────────────────────
+    if (fields.notes) {
+      if (mode === "replace") {
+        await db.itinerary_notes.deleteMany({ where: { itinerary_id: targetId } });
+      }
+      const currentMax = await db.itinerary_notes.aggregate({
+        where: { itinerary_id: targetId }, _max: { sort_order: true },
+      });
+      let so = (currentMax._max.sort_order ?? -1) + 1;
+      for (const srcDay of sourceDays) {
+        const src = srcMap.get(srcDay);
+        if (!src) continue;
+        for (const note of src.itinerary_notes) {
+          await db.itinerary_notes.create({
+            data: {
+              itinerary_id: targetId, message: note.message,
+              type: note.type, position: note.position,
+              optional_link_text: note.optional_link_text,
+              optional_link_url:  note.optional_link_url,
+              sort_order: so++,
+            },
+          });
+        }
+      }
+    }
+
+    // ── 5. Transfers ─────────────────────────────────────────────────────
+    if (fields.transfers) {
+      if (mode === "replace") {
+        await db.itinerary_transfers.deleteMany({ where: { itinerary_id: targetId } });
+      }
+      const currentMax = await db.itinerary_transfers.aggregate({
+        where: { itinerary_id: targetId }, _max: { sort_order: true },
+      });
+      let so = (currentMax._max.sort_order ?? -1) + 1;
+      for (const srcDay of sourceDays) {
+        const src = srcMap.get(srcDay);
+        if (!src) continue;
+        for (const t of src.itinerary_transfers) {
+          await db.itinerary_transfers.create({
+            data: {
+              itinerary_id: targetId, route_id: t.route_id,
+              vehicle_id: t.vehicle_id, num_vehicles: t.num_vehicles,
+              notes: t.notes, sort_order: so++, km_override: t.km_override,
+            },
+          });
+        }
+      }
+    }
+
+    // ── 6. Attractions ───────────────────────────────────────────────────
+    if (fields.attractions) {
+      if (mode === "replace") {
+        await db.itinerary_attractions.deleteMany({ where: { itinerary_id: targetId } });
+      }
+      const currentMax = await db.itinerary_attractions.aggregate({
+        where: { itinerary_id: targetId }, _max: { sort_order: true },
+      });
+      let so = (currentMax._max.sort_order ?? -1) + 1;
+      for (const srcDay of sourceDays) {
+        const src = srcMap.get(srcDay);
+        if (!src) continue;
+        for (const attr of src.itinerary_attractions) {
+          await db.itinerary_attractions.create({
+            data: { itinerary_id: targetId, image_key: attr.image_key, caption: attr.caption, sort_order: so++ },
+          });
+        }
+      }
+    }
+  }
+}
+
 export async function getHotelMealPricings(hotelId: number): Promise<HotelMealOption[]> {
   const rows = await db.hotel_meal_pricing.findMany({
     where: { hotel_id: hotelId, is_active: true },

@@ -36,11 +36,14 @@ import {
   getDaySourceImages,
   checkItineraryDaysHaveContent,
   getHotelMealPricings,
+  copyItineraryDays,
   type TransferInput,
   type NoteInput,
   type ReorderItem,
   type StayCategoryInput,
   type HotelMealOption,
+  type CopyDayMapping,
+  type CopyFields,
 } from "@/app/services/itinerary-builder.service";
 
 function p(packageId: number) {
@@ -480,5 +483,29 @@ export async function handleGetHotelMealPricings(hotelId: number) {
   } catch (e) {
     console.error(e);
     return { success: false as const, data: [] as HotelMealOption[], message: "Failed to load meal pricings" };
+  }
+}
+
+export async function handleCopyItineraryDays(
+  packageId: number,
+  sourceDurationId: number,
+  sourceRouteId: number,
+  targetDurationId: number,
+  targetRouteId: number,
+  mappings: CopyDayMapping[],
+  fields: CopyFields,
+  mode: "replace" | "append",
+) {
+  try {
+    await copyItineraryDays(
+      packageId, sourceDurationId, sourceRouteId,
+      targetDurationId, targetRouteId,
+      mappings, fields, mode,
+    );
+    revalidatePath(p(packageId));
+    return { success: true as const };
+  } catch (e) {
+    console.error(e);
+    return { success: false as const, message: "Failed to copy days" };
   }
 }
