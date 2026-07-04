@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Star, Trash2, Loader2, ImageIcon, Save } from "lucide-react";
+import { Star, Trash2, Loader2, ImageIcon, Save, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { Button }   from "../../../components/ui/button";
 import { Badge }    from "../../../components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../../components/ui/card";
@@ -23,6 +23,7 @@ import {
 } from "../../actions";
 
 const BASE = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
+const MIN_IMAGES = 3;
 
 // ── Single image thumb ─────────────────────────────────────────────────────
 
@@ -33,13 +34,15 @@ function ImageThumb({
     onLabelChange,
     onDelete,
     onSetPrimary,
+    willDropBelowMin,
 }: {
-    image:         ActivityImage;
-    activityId:    number;
-    label:         string;
-    onLabelChange: (id: number, value: string) => void;
-    onDelete:      () => void;
-    onSetPrimary:  () => void;
+    image:             ActivityImage;
+    activityId:        number;
+    label:             string;
+    onLabelChange:     (id: number, value: string) => void;
+    onDelete:          () => void;
+    onSetPrimary:      () => void;
+    willDropBelowMin?: boolean;
 }) {
     const [isPending, startTransition] = useTransition();
 
@@ -92,6 +95,12 @@ function ImageThumb({
                                     Permanently deletes from R2 storage too.
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
+                            {willDropBelowMin && (
+                                <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center gap-1.5">
+                                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                                    Deleting this will drop below the {MIN_IMAGES}-photo minimum.
+                                </p>
+                            )}
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                                 <AlertDialogAction
@@ -185,6 +194,10 @@ export function ImagesTab({
             toast.error("Wait for uploads to complete");
             return;
         }
+        if (images.length + uploaded.length < MIN_IMAGES) {
+            toast.error(`At least ${MIN_IMAGES} photos required — you have ${images.length + uploaded.length} so far`);
+            return;
+        }
 
         startTransition(async () => {
             const result = await addActivityImages(
@@ -214,8 +227,22 @@ export function ImagesTab({
                         <CardTitle className="text-base flex items-center gap-2">
                             <ImageIcon className="h-4 w-4" /> Highlights &amp; Images
                         </CardTitle>
-                        <CardDescription className="mt-1">
-                            {images.length} photo{images.length !== 1 ? "s" : ""} · First image is used as thumbnail for {activityName}
+                        <CardDescription className="mt-1 flex items-center gap-2 flex-wrap">
+                            <span>
+                                {images.length} photo{images.length !== 1 ? "s" : ""} · First image is used as thumbnail for {activityName}
+                            </span>
+                            <span className={cn(
+                                "inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full border",
+                                images.length >= MIN_IMAGES
+                                    ? "bg-green-50 text-green-700 border-green-200"
+                                    : "bg-amber-50 text-amber-700 border-amber-200",
+                            )}>
+                                {images.length >= MIN_IMAGES
+                                    ? <CheckCircle2 className="h-3 w-3" />
+                                    : <AlertTriangle className="h-3 w-3" />
+                                }
+                                {images.length}/{MIN_IMAGES} minimum
+                            </span>
                         </CardDescription>
                     </div>
                     {hasDirtyLabels && (
@@ -249,6 +276,7 @@ export function ImagesTab({
                                     onLabelChange={handleLabelChange}
                                     onDelete={() => handleDelete(img.id)}
                                     onSetPrimary={() => handleSetPrimary(img.id)}
+                                    willDropBelowMin={images.length - 1 < MIN_IMAGES}
                                 />
                             ))}
                     </div>
