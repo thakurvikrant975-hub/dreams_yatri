@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { cn } from "@/app/lib/utils";
 import { toggleActivityActive, deleteActivity, type ActivityItem } from "./actions";
 import { DataTable, type ColumnDef } from "../components/dashboard/Datatable";
+import { ActivityPackagesSheet } from "./ActivityPackagesSheet";
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
@@ -226,6 +227,18 @@ export function ActivitiesTableClient({
                     <ImageIcon className="h-3 w-3" />
                     {a._count.images}
                 </Link>
+            ),
+        },
+        {
+            header: "In Packages",
+            align: "center",
+            sortKey: (a) => a._count.itinerary_activities,
+            cell: (a) => (
+                <ActivityPackagesSheet
+                    activityId={a.id}
+                    activityName={a.name}
+                    usageCount={a._count.itinerary_activities}
+                />
             ),
         },
         {

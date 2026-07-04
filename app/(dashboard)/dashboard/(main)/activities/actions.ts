@@ -63,7 +63,7 @@ export type ActivityItem = {
     created_by:     string | null;
     category:       ActivityCategory | null;
     images:         ActivityImage[];
-    _count:         { images: number; variants: number };
+    _count:         { images: number; variants: number; itinerary_activities: number };
 };
 
 export type ActivityVariantSeasonPricing = {
@@ -151,7 +151,7 @@ const ACTIVITY_INCLUDE = {
         orderBy: { sort_order: "asc" as const },
         select:  { id: true, url: true, thumbnail: true, is_primary: true, sort_order: true, label: true },
     },
-    _count: { select: { images: true, variants: true } },
+    _count: { select: { images: true, variants: true, itinerary_activities: true } },
     location: { select: { name: true, city: { select: { name: true } }, state: { select: { name: true } }, country: { select: { name: true } } } },
 } as const;
 
@@ -1248,4 +1248,84 @@ export async function deleteAddon(
         console.error("[deleteAddon]", e);
         return actionError(e);
     }
+}
+
+// ── Package usage ─────────────────────────────────────────────────────────
+
+export type ActivityPackageUsage = {
+    packageId:     number;
+    packageTitle:  string;
+    packageSlug:   string;
+    isActive:      boolean;
+    thumbnail:     string | null;
+    destination:   string | null;
+    durationCount: number;
+    usages: {
+        durationLabel: string;
+        days:          number;
+        nights:        number;
+        day:           number;
+        itineraryTitle: string;
+    }[];
+};
+
+export async function getActivityPackageUsage(activityId: number): Promise<ActivityPackageUsage[]> {
+    const rows = await db.itinerary_activities.findMany({
+        where: { activity_id: activityId },
+        select: {
+            itinerary: {
+                select: {
+                    day:        true,
+                    title:      true,
+                    package_id: true,
+                    package: {
+                        select: {
+                            id:        true,
+                            title:     true,
+                            slug:      true,
+                            is_active: true,
+                            thumbnail: true,
+                            destination: { select: { name: true } },
+                            _count:    { select: { durations: true } },
+                        },
+                    },
+                    duration: {
+                        select: { label: true, days: true, nights: true },
+                    },
+                },
+            },
+        },
+    });
+
+    const pkgMap = new Map<number, ActivityPackageUsage>();
+
+    for (const row of rows) {
+        const it  = row.itinerary;
+        const pkg = it.package;
+
+        if (!pkgMap.has(pkg.id)) {
+            pkgMap.set(pkg.id, {
+                packageId:     pkg.id,
+                packageTitle:  pkg.title,
+                packageSlug:   pkg.slug,
+                isActive:      pkg.is_active,
+                thumbnail:     pkg.thumbnail,
+                destination:   pkg.destination?.name ?? null,
+                durationCount: pkg._count.durations,
+                usages:        [],
+            });
+        }
+
+        pkgMap.get(pkg.id)!.usages.push({
+            durationLabel:  it.duration.label,
+            days:           it.duration.days,
+            nights:         it.duration.nights,
+            day:            it.day,
+            itineraryTitle: it.title,
+        });
+    }
+
+    return [...pkgMap.values()].sort((a, b) =>
+        a.packageTitle.localeCompare(b.packageTitle),
+    );
 }
