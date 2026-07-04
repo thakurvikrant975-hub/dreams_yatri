@@ -279,7 +279,7 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
               <Label>WhatsApp Number</Label> 
               <Input
                 type="tel"
-                placeholder="+919876543210"
+                placeholder="+919876543210"  
                 value={whatsappNumber}
                 onChange={e => setWhatsappNumber(e.target.value)}
               />
