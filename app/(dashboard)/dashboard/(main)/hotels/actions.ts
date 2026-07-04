@@ -162,7 +162,6 @@ export async function getAllHotelsForOverview() {
       thumbnail: true,
       category: true,
       stay_type: true,
-      star_rating: true,
       city: true,
       state: true,
       country: true,

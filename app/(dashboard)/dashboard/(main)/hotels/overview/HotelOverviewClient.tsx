@@ -19,7 +19,6 @@ type Hotel = {
   thumbnail: string | null;
   category: string | null;
   stay_type: string | null;
-  star_rating: number | null;
   city: string | null;
   state: string | null;
   country: string | null;
@@ -46,14 +45,8 @@ function catLabel(value: string | null) {
   return CATEGORIES.find((c) => c.value === value)?.label ?? value;
 }
 
-function starLabel(st: string | null, sr: number | null): string {
-  if (sr) return `${sr} Star`;
-  if (st) return st;
-  return "Unrated";
-}
-
-function starVal(st: string | null, sr: number | null): string {
-  return starLabel(st, sr);
+function starLabel(st: string | null): string {
+  return st ?? "Unrated";
 }
 
 const STAR_ORDER = ["1 Star", "2 Star", "3 Star", "4 Star", "5 Star", "Unrated"];
@@ -140,7 +133,7 @@ function HotelMap({
       withCoords.forEach((h) => {
         const color = categoryColor(h.category);
         const imgUrl = thumb(h.thumbnail);
-        const stars  = starLabel(h.stay_type, h.star_rating);
+        const stars  = starLabel(h.stay_type);
 
         const iconHtml = `
           <div style="
@@ -226,7 +219,7 @@ function HotelCard({
   onClick: () => void;
 }) {
   const imgUrl = thumb(hotel.thumbnail);
-  const stars  = starLabel(hotel.stay_type, hotel.star_rating);
+  const stars  = starLabel(hotel.stay_type);
   const color  = categoryColor(hotel.category);
 
   return (
@@ -396,7 +389,7 @@ export function HotelOverviewClient({ hotels }: { hotels: Hotel[] }) {
   }, [hotels, selCountry, selState]);
   const categories = useMemo(() => [...new Set(hotels.map((h) => h.category).filter(Boolean) as string[])].sort(), [hotels]);
   const stars      = useMemo(() => {
-    const vals = [...new Set(hotels.map((h) => starVal(h.stay_type, h.star_rating)))];
+    const vals = [...new Set(hotels.map((h) => starLabel(h.stay_type)))];
     return vals.sort((a, b) => STAR_ORDER.indexOf(a) - STAR_ORDER.indexOf(b));
   }, [hotels]);
 
@@ -418,7 +411,7 @@ export function HotelOverviewClient({ hotels }: { hotels: Hotel[] }) {
     if (selState)    list = list.filter((h) => h.state    === selState);
     if (selCity)     list = list.filter((h) => h.city     === selCity);
     if (selCategory) list = list.filter((h) => h.category === selCategory);
-    if (selStar)     list = list.filter((h) => starVal(h.stay_type, h.star_rating) === selStar);
+    if (selStar)     list = list.filter((h) => starLabel(h.stay_type) === selStar);
     return list;
   }, [hotels, search, selCountry, selState, selCity, selCategory, selStar]);
 
@@ -441,7 +434,7 @@ export function HotelOverviewClient({ hotels }: { hotels: Hotel[] }) {
       if (dim === "state")    return h.state    === val;
       if (dim === "city")     return h.city     === val;
       if (dim === "category") return h.category === val;
-      if (dim === "star")     return starVal(h.stay_type, h.star_rating) === val;
+      if (dim === "star")     return starLabel(h.stay_type) === val;
       return false;
     }).length;
   }
