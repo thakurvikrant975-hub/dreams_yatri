@@ -276,7 +276,7 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label>WhatsApp Number</Label>
+              <Label>WhatsApp Number</Label> 
               <Input
                 type="tel"
                 placeholder="+919876543210"
