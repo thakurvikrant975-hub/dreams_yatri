@@ -31,7 +31,7 @@ import {
   Info,
   Lock,
 } from "lucide-react";
-import { cn, toTitleCase, capitalizeWords } from "@/app/lib/utils";
+import { cn } from "@/app/lib/utils";
 import { InclusionExclusionField } from "./InclusionExclusionField";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -204,7 +204,7 @@ export function PackageForm({
   }
 
   function handleTitleChange(rawTitle: string) {
-    const title = capitalizeWords(rawTitle);
+    const title = rawTitle ? rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1) : rawTitle;
     setErrors((prev) => ({ ...prev, title: undefined, slug: undefined }));
     setData((prev) => {
       const next: PackageFormData = {
@@ -298,7 +298,7 @@ export function PackageForm({
             className={`${inputCls(!!errors.title)} border border-dashboard-base-content/40`}
             value={data.title}
             onChange={(e) => handleTitleChange(e.target.value)}
-            onBlur={(e) => update("title", toTitleCase(e.target.value))}
+            onBlur={(e) => { const v = e.target.value; update("title", v ? v.charAt(0).toUpperCase() + v.slice(1) : v); }}
             placeholder="e.g. Kerala Backwaters Tour"
           />
         </Field>

@@ -116,7 +116,7 @@ export function DetailsTab({
               <Input
                 name="name"
                 value={hotelName}
-                onChange={(e) => setHotelName(e.target.value.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()))}
+                onChange={(e) => { const v = e.target.value; setHotelName(v ? v.charAt(0).toUpperCase() + v.slice(1) : v); }}
                 required
                 className="bg-dashboard-base-100 border-dashboard-base-content/20"
               />

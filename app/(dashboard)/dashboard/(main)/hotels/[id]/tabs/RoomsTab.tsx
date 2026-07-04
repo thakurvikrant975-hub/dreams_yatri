@@ -21,7 +21,7 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
 } from "../../../components/ui/alert-dialog";
-import { ImagePicker, type PickedImage } from "../../../components/dashboard/ImagePicker";
+import { ImagePickerWithCrop, type PickedImage } from "../../../components/dashboard/ImagePickerWithCrop";
 import {
   Plus, Pencil, Trash2, Star, Loader2, ChevronDown, ChevronUp, ChevronRight, Images,
   Check, ChevronsUpDown, Search, X as XIcon,
@@ -900,7 +900,9 @@ function RoomForm({
           <Label className="text-sm text-dashboard-base-content">
             Room Photos <span className="text-xs text-dashboard-base-content/50">(optional)</span>
           </Label>
-          <ImagePicker folder="hotels" value={form.images} onChange={(imgs) => update("images", imgs)}
+          <ImagePickerWithCrop
+            folder="hotels" value={form.images} onChange={(imgs) => update("images", imgs)}
+            crop={{ width: 1200, height: 800, label: "1200 × 800" }}
             maxFiles={8} label="Add Room Photos" hint="JPG, PNG, WebP" />
         </div>
       )}
@@ -1075,10 +1077,11 @@ function RoomImagesSection({
         </div>
       )}
 
-      <ImagePicker
+      <ImagePickerWithCrop
         folder="hotels"
         value={picks}
         onChange={setPicks}
+        crop={{ width: 1200, height: 800, label: "1200 × 800" }}
         maxFiles={10}
         label="Add Room Photos"
         hint="JPG, PNG, WebP"
