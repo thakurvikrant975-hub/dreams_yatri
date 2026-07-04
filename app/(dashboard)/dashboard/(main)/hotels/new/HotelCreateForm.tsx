@@ -18,6 +18,7 @@ import { CATEGORIES, STAY_TYPES } from "../constants";
 import { toast } from "sonner";
 import { Hotel, Search, Loader2, ClipboardPaste } from "lucide-react";
 import { COUNTRY_CODES, DEFAULT_COUNTRY } from "@/app/lib/assets/country-codes";
+import { cn } from "@/app/lib/utils";
 
 type Destination = {
   id: number;
@@ -117,6 +118,7 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
   const [metaDesc, setMetaDesc] = useState("");
   const [metaTitleManual, setMetaTitleManual] = useState(false);
   const [metaDescManual, setMetaDescManual] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   // Keep SEO fields in sync with name/description until user manually edits them
   useEffect(() => {
@@ -181,10 +183,29 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
       const result = await createHotel({ success: false, message: "" }, formData);
 
       if (result.success && result.id) {
+        setFieldErrors({});
         toast.success(result.message);
         router.push(`/dashboard/hotels/${result.id}`);
       } else {
-        toast.error(result.message);
+        const errs: Record<string, string> = {};
+        if (result.errors) {
+          for (const [key, msgs] of Object.entries(result.errors)) {
+            if (msgs?.[0]) errs[key] = msgs[0];
+          }
+        }
+        setFieldErrors(errs);
+        const errorCount = Object.keys(errs).length;
+        toast.error(
+          errorCount > 0
+            ? `${result.message} — ${errorCount} field${errorCount !== 1 ? "s" : ""} need attention`
+            : result.message,
+        );
+        if (errorCount > 0) {
+          const firstKey = Object.keys(errs)[0];
+          setTimeout(() => {
+            document.getElementById(`field-${firstKey}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+          }, 50);
+        }
       }
     });
   }
@@ -203,27 +224,31 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
+            <div id="field-name" className="space-y-1.5">
               <Label>Hotel Name <span className="text-destructive">*</span></Label>
               <Input
                 placeholder="Grand Houseboat Srinagar"
                 value={name}
                 onChange={handleNameChange}
                 autoComplete="off"
+                className={cn(fieldErrors.name && "border-destructive focus-visible:ring-destructive")}
               />
+              {fieldErrors.name && <p className="text-xs text-destructive">{fieldErrors.name}</p>}
             </div>
-            <div className="space-y-1.5">
+            <div id="field-slug" className="space-y-1.5">
               <Label>Slug <span className="text-destructive">*</span></Label>
               <Input
                 placeholder="grand-houseboat-srinagar"
                 value={slug}
                 onChange={e => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))}
+                className={cn(fieldErrors.slug && "border-destructive focus-visible:ring-destructive")}
               />
+              {fieldErrors.slug && <p className="text-xs text-destructive">{fieldErrors.slug}</p>}
             </div>
           </div>
 
           <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-1.5">
+            <div id="field-destination_id" className="space-y-1.5">
               <Label>Destination <span className="text-destructive">*</span></Label>
               <SearchSelect
                 value={destinationId}
@@ -239,6 +264,7 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
                 }}
                 placeholder="Search destination…"
               />
+              {fieldErrors.destination_id && <p className="text-xs text-destructive">{fieldErrors.destination_id}</p>}
             </div>
 
             <div className="space-y-1.5">
@@ -326,36 +352,53 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
+            <div id="field-business_phone" className="space-y-1.5">
               <Label>Business Phone</Label>
-              <PhoneField
-                cc={businessPhoneCC} setCC={setBusinessPhoneCC}
-                num={businessPhoneNum} setNum={setBusinessPhoneNum}
-              />
+              <div className={cn(fieldErrors.business_phone && "rounded-md ring-1 ring-destructive")}>
+                <PhoneField
+                  cc={businessPhoneCC} setCC={setBusinessPhoneCC}
+                  num={businessPhoneNum} setNum={setBusinessPhoneNum}
+                />
+              </div>
+              {fieldErrors.business_phone && <p className="text-xs text-destructive">{fieldErrors.business_phone}</p>}
             </div>
-            <div className="space-y-1.5">
+            <div id="field-business_email" className="space-y-1.5">
               <Label>Business Email</Label>
-              <Input type="email" placeholder="hotel@example.com" value={businessEmail} onChange={e => setBusinessEmail(e.target.value)} />
+              <Input
+                type="email"
+                placeholder="hotel@example.com"
+                value={businessEmail}
+                onChange={e => setBusinessEmail(e.target.value)}
+                className={cn(fieldErrors.business_email && "border-destructive focus-visible:ring-destructive")}
+              />
+              {fieldErrors.business_email && <p className="text-xs text-destructive">{fieldErrors.business_email}</p>}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
+            <div id="field-whatsapp_number" className="space-y-1.5">
               <Label>WhatsApp Number</Label>
-              <PhoneField
-                cc={whatsappCC} setCC={setWhatsappCC}
-                num={whatsappNum} setNum={setWhatsappNum}
-              />
+              <div className={cn(fieldErrors.whatsapp_number && "rounded-md ring-1 ring-destructive")}>
+                <PhoneField
+                  cc={whatsappCC} setCC={setWhatsappCC}
+                  num={whatsappNum} setNum={setWhatsappNum}
+                />
+              </div>
+              {fieldErrors.whatsapp_number && <p className="text-xs text-destructive">{fieldErrors.whatsapp_number}</p>}
             </div>
-            <div className="space-y-1.5">
+            <div id="field-b2b_email" className="space-y-1.5">
               <Label>B2B / Reservations Email</Label>
               <Input
                 type="email"
                 placeholder="reservations@hotel.com"
                 value={b2bEmail}
                 onChange={e => setB2bEmail(e.target.value)}
+                className={cn(fieldErrors.b2b_email && "border-destructive focus-visible:ring-destructive")}
               />
-              <p className="text-xs text-muted-foreground">Used for booking vouchers &amp; amendments</p>
+              {fieldErrors.b2b_email
+                ? <p className="text-xs text-destructive">{fieldErrors.b2b_email}</p>
+                : <p className="text-xs text-muted-foreground">Used for booking vouchers &amp; amendments</p>
+              }
             </div>
           </div>
 
@@ -419,7 +462,7 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
           <CardDescription>Optional — improves Google search visibility</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-1.5">
+          <div id="field-meta_title" className="space-y-1.5">
             <div className="flex items-center justify-between">
               <Label>Meta Title</Label>
               <span className={`text-xs ${metaTitle.length > 60 ? "text-destructive" : "text-muted-foreground"}`}>
@@ -430,9 +473,11 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
               placeholder="Grand Houseboat Srinagar | Dreams Yatri Hotels"
               value={metaTitle}
               onChange={e => { setMetaTitle(e.target.value); setMetaTitleManual(true); }}
+              className={cn(fieldErrors.meta_title && "border-destructive focus-visible:ring-destructive")}
             />
+            {fieldErrors.meta_title && <p className="text-xs text-destructive">{fieldErrors.meta_title}</p>}
           </div>
-          <div className="space-y-1.5">
+          <div id="field-meta_desc" className="space-y-1.5">
             <div className="flex items-center justify-between">
               <Label>Meta Description</Label>
               <span className={`text-xs ${metaDesc.length > 160 ? "text-destructive" : "text-muted-foreground"}`}>
@@ -444,7 +489,9 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
               value={metaDesc}
               onChange={e => { setMetaDesc(e.target.value); setMetaDescManual(true); }}
               rows={3}
+              className={cn(fieldErrors.meta_desc && "border-destructive focus-visible:ring-destructive")}
             />
+            {fieldErrors.meta_desc && <p className="text-xs text-destructive">{fieldErrors.meta_desc}</p>}
           </div>
         </CardContent>
       </Card>
