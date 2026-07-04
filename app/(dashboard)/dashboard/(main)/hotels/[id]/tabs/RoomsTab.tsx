@@ -318,12 +318,14 @@ function SearchableSelect({
   onChange,
   placeholder = "Select…",
   searchPlaceholder = "Search…",
+  allowCustom = false,
 }: {
-  options:           string[];
-  value:             string;
-  onChange:          (v: string) => void;
-  placeholder?:      string;
-  searchPlaceholder?: string;
+  options:             string[];
+  value:               string;
+  onChange:            (v: string) => void;
+  placeholder?:        string;
+  searchPlaceholder?:  string;
+  allowCustom?:        boolean;
 }) {
   const [open,   setOpen]   = useState(false);
   const [query,  setQuery]  = useState("");
@@ -331,6 +333,17 @@ function SearchableSelect({
   const filtered = query.trim()
     ? options.filter(o => o.toLowerCase().includes(query.toLowerCase()))
     : options;
+
+  const trimmed = query.trim();
+  const capitalized = trimmed ? trimmed.charAt(0).toUpperCase() + trimmed.slice(1) : "";
+  const isExactMatch = options.some(o => o.toLowerCase() === trimmed.toLowerCase());
+  const showAddOption = allowCustom && trimmed.length > 0 && !isExactMatch;
+
+  function handleAddCustom() {
+    onChange(capitalized);
+    setOpen(false);
+    setQuery("");
+  }
 
   return (
     <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQuery(""); }}>
@@ -354,12 +367,12 @@ function SearchableSelect({
         style={{ width: "var(--radix-popover-trigger-width)" }}
         className="p-0 rounded-xl border border-dashboard-base-content/20 bg-dashboard-base-100 shadow-lg"
       >
-        {/* Search input */}
+        {/* Search / type input */}
         <div className="flex items-center gap-2 px-3 py-2 border-b border-dashboard-base-content/10">
           <Search className="h-3.5 w-3.5 shrink-0 text-dashboard-base-content/40" />
           <input
             autoFocus
-            placeholder={searchPlaceholder}
+            placeholder={allowCustom ? "Search or type custom…" : searchPlaceholder}
             value={query}
             onChange={e => setQuery(e.target.value)}
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-dashboard-base-content/30 text-dashboard-base-content"
@@ -374,7 +387,7 @@ function SearchableSelect({
 
         {/* Scrollable list */}
         <div className="max-h-56 overflow-y-auto py-1">
-          {filtered.length === 0 ? (
+          {filtered.length === 0 && !showAddOption ? (
             <p className="px-3 py-4 text-center text-xs text-dashboard-base-content/40">No match</p>
           ) : filtered.map(opt => (
             <button
@@ -392,6 +405,23 @@ function SearchableSelect({
               {opt}
             </button>
           ))}
+
+          {/* Custom entry row */}
+          {showAddOption && (
+            <>
+              {filtered.length > 0 && (
+                <div className="mx-3 my-1 border-t border-dashboard-base-content/10" />
+              )}
+              <button
+                type="button"
+                onClick={handleAddCustom}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left cursor-pointer transition-colors hover:bg-dashboard-primary/8 text-dashboard-primary"
+              >
+                <Plus className="h-3.5 w-3.5 shrink-0" />
+                Add &ldquo;{capitalized}&rdquo;
+              </button>
+            </>
+          )}
         </div>
       </PopoverContent>
     </Popover>
@@ -782,6 +812,7 @@ function RoomForm({
             onChange={(v) => update("view_type", v)}
             placeholder="Select view…"
             searchPlaceholder="Search view…"
+            allowCustom
           />
         </div>
         <div className="w-32 space-y-1.5">
