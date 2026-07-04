@@ -16,13 +16,76 @@ import { SearchSelect } from "../../components/dashboard/SearchSelect";
 import { createHotel } from "../actions";
 import { CATEGORIES, STAY_TYPES } from "../constants";
 import { toast } from "sonner";
-import { Hotel, Search, Loader2, MessageCircle } from "lucide-react";
+import { Hotel, Search, Loader2, ClipboardPaste } from "lucide-react";
+import { COUNTRY_CODES, DEFAULT_COUNTRY } from "@/app/lib/assets/country-codes";
 
 type Destination = {
   id: number;
   name: string;
-  region: { name: string };  
+  region: { name: string };
 };
+
+// ── Inline phone field (country code + number + paste) ────────────────────
+
+function PhoneField({
+  cc, setCC, num, setNum, placeholder = "98765 43210",
+}: {
+  cc: string;
+  setCC: (v: string) => void;
+  num: string;
+  setNum: (v: string) => void;
+  placeholder?: string;
+}) {
+  async function handlePaste() {
+    try {
+      const text    = await navigator.clipboard.readText();
+      let cleaned   = text.replace(/[\s\-().]/g, "");
+      const without = cleaned.startsWith("+") ? cleaned.slice(1) : cleaned;
+      const matched = [...COUNTRY_CODES]
+        .sort((a, b) => b.dial.length - a.dial.length)
+        .find(c => without.startsWith(c.dial.replace("+", "")));
+      if (matched) {
+        setCC(matched.code);
+        cleaned = without.slice(matched.dial.replace("+", "").length);
+      } else {
+        cleaned = without;
+      }
+      setNum(cleaned);
+      toast.success("Number pasted");
+    } catch {
+      toast.error("Could not read clipboard — paste manually");
+    }
+  }
+
+  return (
+    <div className="flex gap-1.5 items-center">
+      <select
+        value={cc}
+        onChange={e => setCC(e.target.value)}
+        className="h-9 w-22.5 shrink-0 rounded-md border border-input bg-background px-2 text-xs font-medium cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring"
+      >
+        {COUNTRY_CODES.map(c => (
+          <option key={c.code} value={c.code}>{c.flag} {c.dial}</option>
+        ))}
+      </select>
+      <Input
+        value={num}
+        onChange={e => setNum(e.target.value.replace(/[^\d\s]/g, ""))}
+        placeholder={placeholder}
+        inputMode="numeric"
+        className="flex-1 min-w-0"
+      />
+      <Button
+        type="button" variant="outline" size="icon"
+        className="shrink-0 h-9 w-9"
+        onClick={handlePaste}
+        title="Paste number from clipboard"
+      >
+        <ClipboardPaste className="h-3.5 w-3.5" />
+      </Button>
+    </div>
+  );
+}
 
 export function HotelCreateForm({ destinations }: { destinations: Destination[] }) {
   const router = useRouter();
@@ -40,9 +103,11 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
   const [state, setState] = useState("");
   const [country, setCountry] = useState("");
   const [pincode, setPincode] = useState("");
-  const [businessPhone, setBusinessPhone] = useState("");
+  const [businessPhoneCC, setBusinessPhoneCC] = useState(DEFAULT_COUNTRY.code);
+  const [businessPhoneNum, setBusinessPhoneNum] = useState("");
   const [businessEmail, setBusinessEmail] = useState("");
-  const [whatsappNumber, setWhatsappNumber] = useState("");
+  const [whatsappCC, setWhatsappCC] = useState(DEFAULT_COUNTRY.code);
+  const [whatsappNum, setWhatsappNum] = useState("");
   const [b2bEmail, setB2bEmail] = useState("");
   const [location, setLocation] = useState<LocationValue | null>(null);
   const [description, setDescription] = useState("");
@@ -101,9 +166,11 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
       formData.append("state", state);
       formData.append("country", country);
       formData.append("pincode", pincode);
-      formData.append("business_phone", businessPhone);
+      const bpDial = COUNTRY_CODES.find(c => c.code === businessPhoneCC)?.dial ?? "+91";
+      const waDial = COUNTRY_CODES.find(c => c.code === whatsappCC)?.dial ?? "+91";
+      formData.append("business_phone", businessPhoneNum ? `${bpDial} ${businessPhoneNum}`.trim() : "");
       formData.append("business_email", businessEmail);
-      formData.append("whatsapp_number", whatsappNumber);
+      formData.append("whatsapp_number", whatsappNum ? `${waDial} ${whatsappNum}`.trim() : "");
       formData.append("b2b_email", b2bEmail);
       formData.append("location_id", location?.id ?? "");
       formData.append("description", description);
@@ -261,7 +328,10 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Business Phone</Label>
-              <Input type="tel" placeholder="+91 9876543210" value={businessPhone} onChange={e => setBusinessPhone(e.target.value)} />
+              <PhoneField
+                cc={businessPhoneCC} setCC={setBusinessPhoneCC}
+                num={businessPhoneNum} setNum={setBusinessPhoneNum}
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Business Email</Label>
@@ -272,13 +342,10 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>WhatsApp Number</Label>
-              <Input
-                type="tel"
-                placeholder="+919876543210"
-                value={whatsappNumber}
-                onChange={e => setWhatsappNumber(e.target.value)}
+              <PhoneField
+                cc={whatsappCC} setCC={setWhatsappCC}
+                num={whatsappNum} setNum={setWhatsappNum}
               />
-              <p className="text-xs text-muted-foreground">International format with country code</p>
             </div>
             <div className="space-y-1.5">
               <Label>B2B / Reservations Email</Label>
