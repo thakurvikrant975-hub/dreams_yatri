@@ -22,7 +22,7 @@ export type UploadedImage = {
   url: string;
 };
 
-type CropConfig = {
+export type CropConfig = {
   width: number;
   height: number;
   label?: string;
@@ -192,18 +192,20 @@ function AdjSlider({
 
 const DEFAULT_ADJ: Adjustments = { brightness: 100, contrast: 100, saturation: 100, sharpness: 0 };
 
-function CropDialog({
+export function CropDialog({
   open,
   imageSrc,
   cropConfig,
   onConfirm,
   onCancel,
+  queuePosition,
 }: {
-  open:       boolean;
-  imageSrc:   string;
-  cropConfig: CropConfig;
-  onConfirm:  (f: File) => void;
-  onCancel:   () => void;
+  open:           boolean;
+  imageSrc:       string;
+  cropConfig:     CropConfig;
+  onConfirm:      (f: File) => void;
+  onCancel:       () => void;
+  queuePosition?: { index: number; total: number };
 }) {
   const [crop,        setCrop]        = useState<Point>({ x: 0, y: 0 });
   const [zoom,        setZoom]        = useState(1);
@@ -301,6 +303,11 @@ function CropDialog({
             <DialogTitle className="flex items-center gap-2 text-base">
               <Crop className="h-4 w-4 text-primary" />
               Crop &amp; Edit
+              {queuePosition && (
+                <span className="text-xs font-normal text-muted-foreground">
+                  ({queuePosition.index} of {queuePosition.total})
+                </span>
+              )}
             </DialogTitle>
             <div className="flex items-center gap-2 flex-wrap">
               {imgSize && (

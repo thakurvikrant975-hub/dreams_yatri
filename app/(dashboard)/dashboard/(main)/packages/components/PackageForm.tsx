@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { ImageUpload, type UploadedImage } from "../../components/dashboard/ImageUpload";
+import { ImageUploadWithCrop, type UploadedImage } from "../../components/dashboard/ImageUploadWithCrop";
 import { SearchSelect } from "../../components/dashboard/SearchSelect";
 import { MultiSearchSelect } from "../../components/dashboard/MultiSearchSelect";
 import {
@@ -352,16 +352,16 @@ export function PackageForm({
     <div className="flex flex-col gap-4 rounded-2xl border bg-dashboard-base-100 p-5 border-dashboard-base-content/20">
       <SectionLabel icon={<ImageIcon className="h-3.5 w-3.5" />}>Thumbnail image</SectionLabel>
       <div className="w-full">
-        <ImageUpload
+        <ImageUploadWithCrop
           name="thumbnail"
           label="Upload Thumbnail"
           folder="packages"
-          aspectRatio="wide"
           value={thumbnailImage}
           onChange={(img) => {
             setThumbnailImage(img);
             update("thumbnail", img?.key ?? null);
           }}
+          crop={{ width: 1920, height: 600, label: "1920 × 600" }}
         />
       </div>
       <FieldError message={errors.thumbnail} />

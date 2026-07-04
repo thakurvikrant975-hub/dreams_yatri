@@ -6,7 +6,7 @@ import { Input }                    from "../../../components/ui/input";
 import { Badge }                    from "../../../components/ui/badge";
 import { OPTIONAL_HOTEL_CATEGORIES } from "@/app/lib/hotelImageCategories";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../../components/ui/card";
-import { ImagePicker, type PickedImage } from "../../../components/dashboard/ImagePicker";
+import { ImagePickerWithCrop, type PickedImage } from "../../../components/dashboard/ImagePickerWithCrop";
 import {
   Star, Trash2, Loader2, Plus, X,
   AlertTriangle, CheckCircle2, ChevronDown, ChevronUp,
@@ -275,8 +275,15 @@ function CategoryBlock({
             </div>
           )}
 
-          <ImagePicker folder="hotels" value={newPicks} onChange={setNewPicks}
-            maxFiles={10} label={`Add ${category.name} Photos`} hint="JPG, PNG, WebP" />
+          <ImagePickerWithCrop
+            folder="hotels"
+            value={newPicks}
+            onChange={setNewPicks}
+            crop={{ width: 1200, height: 800, label: "1200 × 800" }}
+            maxFiles={10}
+            label={`Add ${category.name} Photos`}
+            hint="JPG, PNG, WebP · Each image opens the crop tool"
+          />
 
           {newPicks.length > 0 && (
             <div className="flex justify-end">

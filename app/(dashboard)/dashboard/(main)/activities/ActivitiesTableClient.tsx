@@ -62,9 +62,10 @@ function ThumbnailCell({ activity }: { activity: ActivityItem }) {
         <Image
             src={`${BASE}/${primary.thumbnail ?? primary.url}`}
             alt={activity.name}
-            width={56}
-            height={40}
-            className="h-10 w-14 rounded-lg object-cover shrink-0 border"
+            width={0}
+            height={0}
+            sizes="80px"
+            className="h-auto max-h-10 w-auto max-w-20 rounded-lg shrink-0 border"
         />
     );
 }

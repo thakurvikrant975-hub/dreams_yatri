@@ -118,9 +118,10 @@ export function RegionsTable({
             <Image
               src={`${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${region.thumbnail}`}
               alt={region.name}
-              width={56}
-              height={40}
-              className="h-10 w-14 rounded-lg object-cover shrink-0"
+              width={0}
+              height={0}
+              sizes="80px"
+              className="h-auto max-h-10 w-auto max-w-20 rounded-lg shrink-0"
             />
           ) : (
             <div className="h-10 w-14 rounded-lg bg-muted border flex items-center justify-center shrink-0">
@@ -152,10 +153,11 @@ export function RegionsTable({
         region.cover_image ? (
           <Image
             src={`${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${region.cover_image}`}
-            width={56}
-            height={40}
+            width={0}
+            height={0}
+            sizes="120px"
             alt={`${region.name} cover`}
-            className="h-10 w-14 rounded-lg object-cover shrink-0"
+            className="h-auto max-h-10 w-auto max-w-28 rounded-lg shrink-0"
           />
         ) : (
           <div className="h-10 w-14 rounded-lg bg-muted border flex items-center justify-center shrink-0">

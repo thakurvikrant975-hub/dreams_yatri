@@ -177,9 +177,10 @@ export function PackagesTableClient({
               <Image
                 src={`${base}/${pkg.thumbnail}`}
                 alt={pkg.title}
-                width={112}
-                height={84}
-                className="h-12 w-16 rounded-lg object-cover shrink-0 border"
+                width={0}
+                height={0}
+                sizes="130px"
+                className="h-auto max-h-10 w-auto max-w-32 rounded-lg shrink-0 border"
               />
             ) : (
               <div className="h-12 w-16 rounded-lg bg-dashboard-base-200 border border-dashboard-base-content/15 flex items-center justify-center shrink-0">

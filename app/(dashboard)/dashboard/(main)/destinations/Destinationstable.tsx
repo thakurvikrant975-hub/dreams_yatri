@@ -200,9 +200,10 @@ export function DestinationsTable({
                         <Image
                             src={`${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${dest.thumbnail}`}
                             alt={dest.name}
-                            width={56}
-                            height={40}
-                            className="h-10 w-14 rounded-lg object-cover shrink-0 border"
+                            width={0}
+                            height={0}
+                            sizes="80px"
+                            className="h-auto max-h-10 w-auto max-w-20 rounded-lg shrink-0 border"
                         />
                     ) : (
                         <div className="h-10 w-14 rounded-lg bg-muted border flex items-center justify-center shrink-0">
@@ -230,9 +231,10 @@ export function DestinationsTable({
                     <Image
                         src={`${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${dest.cover_image}`}
                         alt={dest.name}
-                        width={56}
-                        height={40}
-                        className="h-10 w-14 rounded-lg object-cover shrink-0 border"
+                        width={0}
+                        height={0}
+                        sizes="130px"
+                        className="h-auto max-h-10 w-auto max-w-32 rounded-lg shrink-0 border"
                     />
                 ) : (
                     <div className="h-10 w-14 rounded-lg bg-muted border flex items-center justify-center shrink-0">

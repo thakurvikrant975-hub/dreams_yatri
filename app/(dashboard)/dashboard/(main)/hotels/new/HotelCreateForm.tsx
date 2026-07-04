@@ -9,7 +9,7 @@ import { Button } from "../../components/ui/button";
 import { Switch } from "../../components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card";
 import {Select, SelectContent, SelectItem,SelectTrigger, SelectValue,} from "../../components/ui/select";
-import { ImagePicker, type PickedImage } from "../../components/dashboard/ImagePicker";
+import { ImageUploadWithCrop, type UploadedImage } from "../../components/dashboard/ImageUploadWithCrop";
 import { LocationSearchSelect } from "../../components/location/LocationSearchSelect";
 import type { LocationValue } from "../../components/location/location.types";
 import { SearchSelect } from "../../components/dashboard/SearchSelect";
@@ -113,7 +113,7 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
   const [location, setLocation] = useState<LocationValue | null>(null);
   const [description, setDescription] = useState("");
   const [isActive, setIsActive] = useState(true);
-  const [thumbnail, setThumbnail] = useState<PickedImage[]>([]);
+  const [thumbnail, setThumbnail] = useState<UploadedImage | null>(null);
   const [metaTitle, setMetaTitle] = useState("");
   const [metaDesc, setMetaDesc] = useState("");
   const [metaTitleManual, setMetaTitleManual] = useState(false);
@@ -148,17 +148,13 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
       return;
     }
 
-    if (thumbnail.length > 0 && thumbnail[0].status !== "uploaded") {
-      toast.error("Please wait for thumbnail to finish uploading");
-      return;
-    }
 
     startTransition(async () => {
       const formData = new FormData();
       formData.append("name", name);
       formData.append("slug", slug);
       formData.append("destination_id", destinationId ? String(destinationId) : "");
-      formData.append("thumbnail", thumbnail[0]?.key ?? "");
+      formData.append("thumbnail", thumbnail?.key ?? "");
       formData.append("category", CATEGORIES.find(c => c.id === categoryId)?.value ?? "");
       formData.append("stay_type", stayType);
       formData.append("check_in_time", checkIn);
@@ -417,15 +413,15 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
           <div className="space-y-1.5">
             <Label>Thumbnail</Label>
             <p className="text-xs text-muted-foreground">
-              Used in package cards and listing pages · 400×250 recommended
+              Used in hotel cards and listing pages · 800 × 534 recommended
             </p>
-            <ImagePicker
+            <ImageUploadWithCrop
+              name="thumbnail"
               folder="hotels"
               value={thumbnail}
               onChange={setThumbnail}
-              maxFiles={1}
               label="Upload Thumbnail"
-              hint="Small card image · JPG, PNG, WebP"
+              crop={{ width: 800, height: 534, label: "800 × 534" }}
             />
           </div>
 

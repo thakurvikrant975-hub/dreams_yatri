@@ -200,9 +200,10 @@ export function HotelsTableClient({
             <Image
               src={`${base}/${h.thumbnail}`}
               alt={h.name}
-              width={64}
-              height={48}
-              className="h-12 w-16 rounded-lg object-cover shrink-0 border"
+              width={0}
+              height={0}
+              sizes="80px"
+              className="h-auto max-h-12 w-auto max-w-20 rounded-lg shrink-0 border"
             />
           ) : (
             <div className="h-12 w-16 rounded-lg bg-muted border flex items-center justify-center shrink-0">
