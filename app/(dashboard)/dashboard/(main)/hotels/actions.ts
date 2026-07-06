@@ -239,6 +239,7 @@ export async function getHotelHistory(id: number) {
 }
 
 export async function getHotelById(id: number) {
+  if (!Number.isInteger(id) || id <= 0) return null;
   // Guarantee required system categories exist (handles hotels created via seed or
   // before this feature was added — idempotent: only inserts what is missing).
   const existingSystemNames = await db.hotel_image_categories
@@ -1584,6 +1585,7 @@ export type MealPricingInput = {
 };
 
 export async function getMealPricings(hotel_id: number): Promise<HotelMealPricing[]> {
+  if (!Number.isInteger(hotel_id) || hotel_id <= 0) return [];
   try {
     const rows = await db.hotel_meal_pricing.findMany({
       where: { hotel_id },
@@ -1784,6 +1786,7 @@ export type AddonInput = {
 };
 
 export async function getHotelAddons(hotel_id: number): Promise<HotelAddon[]> {
+  if (!Number.isInteger(hotel_id) || hotel_id <= 0) return [];
   try {
     const rows = await db.hotel_addons.findMany({
       where: { hotel_id },

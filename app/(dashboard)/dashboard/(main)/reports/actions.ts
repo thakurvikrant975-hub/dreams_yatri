@@ -94,6 +94,52 @@ export type HotelReportData = {
   byMember: MemberHotelWork[];
 };
 
+// ── New rich hotel-dept types ──────────────────────────────────────────────
+
+export type HotelRowDetail = {
+  id: number;
+  name: string;
+  thumbnail: string | null;
+  city: string | null;
+  state: string | null;
+  isActive: boolean;
+  createdAt: string;
+  imagesCount: number;
+  roomsCount: number;
+  pricingCount: number;
+};
+
+export type HotelDeptMember = {
+  id: string;
+  name: string;
+  profilePicUrl: string | null;
+  designation: string | null;
+  isActive: boolean;
+  hotelsAdded: number;
+  roomsAdded: number;
+  imagesAdded: number;
+  pricingAdded: number;
+  hotels: HotelRowDetail[];
+};
+
+export type DailyHotelPoint = {
+  date: string;
+  total: number;
+  [memberId: string]: number | string;
+};
+
+export type HotelDeptReportData = {
+  summary: {
+    hotelsAdded: number;
+    roomsAdded: number;
+    imagesAdded: number;
+    pricingAdded: number;
+    hotelsWithoutRooms: number;
+  };
+  members: HotelDeptMember[];
+  dailyChart: DailyHotelPoint[];
+};
+
 export type CabReportData = {
   pricingAdded: number;
   driversAdded: number;
@@ -113,12 +159,149 @@ export type TravelReportData = {
 
 export type ReportsData = {
   hotel: HotelReportData;
+  hotelDept: HotelDeptReportData;
   cab: CabReportData;
   travel: TravelReportData;
   period: TimePeriod;
   fromStr: string;
   toStr: string;
 };
+
+// ── Hotel dept full report ─────────────────────────────────────────────────
+
+async function getHotelDeptReport(range: { gte: Date; lte: Date }): Promise<HotelDeptReportData> {
+  // 1. Find hotel department (case-insensitive name match)
+  const hotelDept = await db.department.findFirst({
+    where: { name: { contains: "hotel", mode: "insensitive" } },
+    select: { id: true },
+  });
+
+  // 2. All members in hotel dept + summary stats in parallel
+  const [allMembers, hotelsAdded, roomsAdded, imagesAdded, pricingAdded, hotelsWithoutRooms] =
+    await Promise.all([
+      hotelDept
+        ? db.teamMember.findMany({
+            where: { departmentId: hotelDept.id },
+            select: { id: true, name: true, profilePicUrl: true, designation: true, isActive: true },
+            orderBy: { name: "asc" },
+          })
+        : ([] as { id: string; name: string; profilePicUrl: string | null; designation: string | null; isActive: boolean }[]),
+      db.hotels.count({ where: { created_at: range } }),
+      db.hotel_rooms.count({ where: { created_at: range } }),
+      db.hotel_images.count({ where: { created_at: range } }),
+      db.hotel_room_pricing.count({ where: { created_at: range } }),
+      db.hotels.count({ where: { created_at: range, hotelRooms: { none: {} } } }),
+    ]);
+
+  // 3. All hotels in period with image + room counts
+  const hotelsInPeriod = await db.hotels.findMany({
+    where: { created_at: range },
+    select: {
+      id: true, name: true, thumbnail: true, city: true, state: true,
+      is_active: true, created_at: true, created_by: true,
+      _count: { select: { images: true, hotelRooms: true } },
+    },
+    orderBy: { created_at: "desc" },
+  });
+
+  // 4. Pricing count per hotel
+  const hotelIds = hotelsInPeriod.map((h) => h.id);
+  const pricingByHotel =
+    hotelIds.length > 0
+      ? await db.hotel_room_pricing.groupBy({
+          by: ["hotel_id"],
+          where: { hotel_id: { in: hotelIds } },
+          _count: { id: true },
+        })
+      : [];
+  const pricingHotelMap = new Map(pricingByHotel.map((p) => [p.hotel_id, p._count.id]));
+
+  // 5. Build hotel rows indexed by creator
+  const hotelsByCreator = new Map<string, HotelRowDetail[]>();
+  for (const h of hotelsInPeriod) {
+    const key = h.created_by ?? "__unknown__";
+    if (!hotelsByCreator.has(key)) hotelsByCreator.set(key, []);
+    hotelsByCreator.get(key)!.push({
+      id: h.id,
+      name: h.name,
+      thumbnail: h.thumbnail,
+      city: h.city,
+      state: h.state,
+      isActive: h.is_active,
+      createdAt: h.created_at.toISOString().split("T")[0],
+      imagesCount: h._count.images,
+      roomsCount: h._count.hotelRooms,
+      pricingCount: pricingHotelMap.get(h.id) ?? 0,
+    });
+  }
+
+  // 6. Merge dept members + any non-dept members who still created hotels
+  const deptMemberIds = new Set(allMembers.map((m) => m.id));
+  const extraIds = [...hotelsByCreator.keys()].filter(
+    (id) => id !== "__unknown__" && !deptMemberIds.has(id),
+  );
+  const extraMembers =
+    extraIds.length > 0
+      ? await db.teamMember.findMany({
+          where: { id: { in: extraIds } },
+          select: { id: true, name: true, profilePicUrl: true, designation: true, isActive: true },
+        })
+      : [];
+
+  const memberList = [...allMembers, ...extraMembers];
+
+  const members: HotelDeptMember[] = memberList
+    .map((m) => {
+      const hotels = hotelsByCreator.get(m.id) ?? [];
+      return {
+        id: m.id,
+        name: m.name,
+        profilePicUrl: m.profilePicUrl ?? null,
+        designation: m.designation ?? null,
+        isActive: m.isActive,
+        hotelsAdded: hotels.length,
+        roomsAdded: hotels.reduce((s, h) => s + h.roomsCount, 0),
+        imagesAdded: hotels.reduce((s, h) => s + h.imagesCount, 0),
+        pricingAdded: hotels.reduce((s, h) => s + h.pricingCount, 0),
+        hotels,
+      };
+    })
+    .sort((a, b) => b.hotelsAdded - a.hotelsAdded);
+
+  // 7. Daily chart — one entry per calendar day in range
+  const dailyRaw = new Map<string, Record<string, number>>();
+  for (const h of hotelsInPeriod) {
+    const d = h.created_at.toISOString().split("T")[0];
+    if (!dailyRaw.has(d)) dailyRaw.set(d, {});
+    const slot = dailyRaw.get(d)!;
+    const mid = h.created_by ?? "__unknown__";
+    slot[mid] = (slot[mid] ?? 0) + 1;
+    slot.__total__ = (slot.__total__ ?? 0) + 1;
+  }
+
+  const dailyChart: DailyHotelPoint[] = [];
+  const cur = new Date(range.gte);
+  cur.setHours(0, 0, 0, 0);
+  const end = new Date(range.lte);
+  end.setHours(23, 59, 59, 999);
+  while (cur <= end) {
+    const iso = cur.toISOString().split("T")[0];
+    const slot = dailyRaw.get(iso) ?? {};
+    const fmtLabel = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" }).format(
+      new Date(iso),
+    );
+    const point: DailyHotelPoint = { date: fmtLabel, total: slot.__total__ ?? 0 };
+    for (const m of members) point[m.id] = slot[m.id] ?? 0;
+    dailyChart.push(point);
+    cur.setDate(cur.getDate() + 1);
+  }
+
+  return {
+    summary: { hotelsAdded, roomsAdded, imagesAdded, pricingAdded, hotelsWithoutRooms },
+    members,
+    dailyChart,
+  };
+}
 
 // ── Main fetch ─────────────────────────────────────────────────────────────
 
@@ -131,12 +314,14 @@ export async function getReportsData(
 
   // ── Hotel ────────────────────────────────────────────────────────────────
   const [
+    hotelDept,
     hotelsAdded,
     roomsAdded,
     imagesAdded,
     hotelsWithoutRooms,
     hotelsByMember,
   ] = await Promise.all([
+    getHotelDeptReport(range),
     db.hotels.count({ where: { created_at: range } }),
     db.hotel_rooms.count({ where: { created_at: range } }),
     db.hotel_images.count({ where: { created_at: range } }),
@@ -328,6 +513,7 @@ export async function getReportsData(
       hotelsWithoutRooms,
       byMember: hotelByMember,
     },
+    hotelDept,
     cab: {
       pricingAdded,
       driversAdded,

@@ -4,14 +4,15 @@ import { useRouter, usePathname } from "next/navigation";
 import { useCallback, useState, useTransition } from "react";
 import {
   Building2, Car, TreePalm, Users, AlertTriangle,
-  ImageIcon, LayoutList, CheckCircle2, Loader2,
+  CheckCircle2, Loader2,
   MapPin, Route, Layers, IndianRupee, Activity as ActivityIcon,
   Package, CalendarRange, TrendingUp,
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
+import { HotelReportTab } from "./HotelReportTab";
 import type {
-  ReportsData, TimePeriod, MemberHotelWork, MemberCabWork, MemberTravelWork,
+  ReportsData, TimePeriod, MemberCabWork, MemberTravelWork,
 } from "./actions";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -146,15 +147,6 @@ function MemberStat({ value, label }: { value: number; label: string }) {
 
 // ── Specific Member Cards ──────────────────────────────────────────────────
 
-function HotelMemberCard({ m }: { m: MemberHotelWork }) {
-  return (
-    <MemberCardShell name={m.memberName} dept="Hotel Department" accentColor="text-dashboard-primary" total={m.hotelsAdded + m.roomsForTheirHotels}>
-      <MemberStat value={m.hotelsAdded} label="Hotels Added" />
-      <MemberStat value={m.roomsForTheirHotels} label="Rooms (their hotels)" />
-    </MemberCardShell>
-  );
-}
-
 function CabMemberCard({ m }: { m: MemberCabWork }) {
   return (
     <MemberCardShell name={m.memberName} dept="Cab Department" accentColor="text-dashboard-info" total={m.pricingAdded + m.driversAdded}>
@@ -244,7 +236,7 @@ export function ReportsClient({
     if (customFrom && customTo) navigate("custom", customFrom, customTo);
   }
 
-  const { hotel, cab, travel } = data;
+  const { cab, travel } = data;
 
   const dateLabel =
     data.fromStr === data.toStr
@@ -330,34 +322,8 @@ export function ReportsClient({
         </TabsList>
 
         {/* ── Hotel ──────────────────────────────────────────────────────── */}
-        <TabsContent value="hotel" className="mt-5 space-y-5">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard label="Hotels Added"         value={hotel.hotelsAdded}        icon={Building2}    iconBg="bg-dashboard-primary/10" iconColor="text-dashboard-primary" />
-            <StatCard label="Rooms Added"           value={hotel.roomsAdded}         icon={LayoutList}   iconBg="bg-dashboard-primary/10" iconColor="text-dashboard-primary" />
-            <StatCard label="Images Added"          value={hotel.imagesAdded}        icon={ImageIcon}    iconBg="bg-dashboard-info/10"    iconColor="text-dashboard-info" />
-            <StatCard label="Hotels Without Rooms"  value={hotel.hotelsWithoutRooms} icon={AlertTriangle} iconBg="bg-dashboard-warning/10" iconColor="text-dashboard-warning" warning />
-          </div>
-
-          {hotel.hotelsWithoutRooms > 0 && (
-            <div className="flex items-start gap-3 rounded-xl border border-dashboard-warning/40 bg-dashboard-warning/8 px-4 py-3">
-              <AlertTriangle className="h-4 w-4 text-dashboard-warning mt-0.5 shrink-0" />
-              <div>
-                <p className="text-sm font-semibold text-dashboard-warning">
-                  {hotel.hotelsWithoutRooms} hotel{hotel.hotelsWithoutRooms > 1 ? "s" : ""} added without rooms
-                </p>
-                <p className="text-xs text-dashboard-base-content/60 mt-0.5">
-                  Hotels need at least one room to be bookable. Notify the team to complete setup.
-                </p>
-              </div>
-            </div>
-          )}
-
-          <MemberSectionHeader count={hotel.byMember.length} iconColor="text-dashboard-primary" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {hotel.byMember.length === 0
-              ? <EmptyState label="hotel" />
-              : hotel.byMember.map((m) => <HotelMemberCard key={m.memberId} m={m} />)}
-          </div>
+        <TabsContent value="hotel" className="mt-5">
+          <HotelReportTab data={data.hotelDept} />
         </TabsContent>
 
         {/* ── Cab ────────────────────────────────────────────────────────── */}

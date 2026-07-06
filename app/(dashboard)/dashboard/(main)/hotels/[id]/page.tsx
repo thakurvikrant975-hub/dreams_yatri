@@ -25,7 +25,9 @@ import { MealsAndAddonsTab } from "./tabs/MealsAndAddonsTab";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
     const { id: idStr } = await params;
-    const hotel = await getHotelById(Number(idStr));
+    const id = Number(idStr);
+    if (!Number.isInteger(id) || id <= 0) return { title: "Hotel" };
+    const hotel = await getHotelById(id);
     return { title: hotel ? `${hotel.name} — Hotels` : "Hotel" };
 }
 
@@ -36,6 +38,7 @@ export default async function HotelEditPage({
 }) {
     const { id: idStr } = await params;
     const id = Number(idStr);
+    if (!Number.isInteger(id) || id <= 0) notFound();
 
     const [hotel, destinations, mealTypes, dietTypes, mealPricings, addons] = await Promise.all([
         getHotelById(id),
