@@ -379,6 +379,7 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
                 <PhoneField
                   cc={whatsappCC} setCC={setWhatsappCC}
                   num={whatsappNum} setNum={setWhatsappNum}
+                  placeholder="98765 43210"
                 />
               </div>
               {fieldErrors.whatsapp_number && <p className="text-xs text-destructive">{fieldErrors.whatsapp_number}</p>}

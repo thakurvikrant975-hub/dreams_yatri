@@ -2,8 +2,11 @@
 // Single source of truth for the dashboard sidebar — also used by the
 // role "Sidebar Access" editor so the two stay in sync.
 import {
-  LayoutDashboard, Settings, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound, MessageCircleQuestion, ClockCheck, Mails, Forward, BadgePercent, Banknote, BanknoteArrowDown, BanknoteX, Car, Bed, ChartNoAxesCombined, BellRing, PackagePlus, ChartNoAxesGantt, Star, IndianRupee, X,
-  CirclePile, MapPinned, TicketCheck, ClipboardList,
+  LayoutDashboard, Settings, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound,
+  MessageCircleQuestion, ClockCheck, Mails, Forward, BadgePercent, Banknote,
+  ChartSpline, BanknoteArrowDown, BanknoteX, Car, Bed, ChartNoAxesCombined,
+  BellRing, PackagePlus, ChartNoAxesGantt, Star, IndianRupee,
+  X, Map, CirclePile, MapPinned, TicketCheck, ClipboardList,
 } from "lucide-react";
 import {
   GlobeHemisphereEastIcon, MapPinIcon, BuildingIcon, TagIcon,
@@ -47,6 +50,7 @@ export const NAV_GROUPS = [
     id: "hotels", label: "Hotels",
     items: [
       { title: "Hotels", href: "/dashboard/hotels", icon: BuildingIcon, phosphor: true },
+      { title: "Hotel Directory", href: "/dashboard/hotels/overview", icon: Map },
       { title: "Meal Types", href: "/dashboard/hotels/meal-types", icon: KeyRound },
       { title: "Diet Types", href: "/dashboard/hotels/diet-types", icon: IdCardLanyard },
       { title: "Verify Hotels", href: "/dashboard/verify-hotels", icon: Bed },

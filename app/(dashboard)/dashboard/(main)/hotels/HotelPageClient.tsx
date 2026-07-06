@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { Building2, Hotel, Plus } from "lucide-react";
+import { Building2, Hotel, Plus, Map } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Skeleton } from "../components/ui/skeleton";
 import {
@@ -116,13 +116,22 @@ export async function HotelsPageServer({
                 description="Add and Manage hotel properties"
                 icon={Hotel}
                 actions={
-                    <Button asChild size="lg"
-                        className="gap-2 bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90 rounded-md transition-all duration-200 hover:scale-[1.02] shadow-sm">
-                        <Link href="/dashboard/hotels/new">
-                            <Plus />
-                            Add Hotel
-                        </Link>
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <Button asChild size="lg" variant="outline"
+                            className="gap-2 rounded-md">
+                            <Link href="/dashboard/hotels/overview">
+                                <Map className="h-4 w-4" />
+                                Hotel Directory
+                            </Link>
+                        </Button>
+                        <Button asChild size="lg"
+                            className="gap-2 bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90 rounded-md transition-all duration-200 hover:scale-[1.02] shadow-sm">
+                            <Link href="/dashboard/hotels/new">
+                                <Plus />
+                                Add Hotel
+                            </Link>
+                        </Button>
+                    </div>
                 }
             />
 
