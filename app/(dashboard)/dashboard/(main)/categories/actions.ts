@@ -319,7 +319,7 @@ export async function deleteCategory(id: number): Promise<CategoryFormState> {
 
 // ── History ───────────────────────────────────────────────────────────────────
 
-export async function getCategoryHistory(id: number) {
+export async function getCategoryHistory(id: number | string) {
     return db.activityLog.findMany({
         where:   { entity: "category", entityId: String(id) },
         orderBy: { actionAt: "desc" },

@@ -37,12 +37,16 @@ import {
   checkItineraryDaysHaveContent,
   getHotelMealPricings,
   copyItineraryDays,
+  searchPackagesForCopy,
+  getPackageDurationsForCopy,
   type TransferInput,
   type NoteInput,
   type ReorderItem,
   type StayCategoryInput,
   type HotelMealOption,
   type CopyDayMapping,
+  type PackageForCopy,
+  type DurationForCopy,
   type CopyFields,
 } from "@/app/services/itinerary-builder.service";
 
@@ -507,5 +511,25 @@ export async function handleCopyItineraryDays(
   } catch (e) {
     console.error(e);
     return { success: false as const, message: "Failed to copy days" };
+  }
+}
+
+export async function handleSearchPackagesForCopy(query: string) {
+  try {
+    const data = await searchPackagesForCopy(query);
+    return { success: true as const, data };
+  } catch (e) {
+    console.error(e);
+    return { success: false as const, data: [] as PackageForCopy[] };
+  }
+}
+
+export async function handleGetPackageDurationsForCopy(packageId: number) {
+  try {
+    const data = await getPackageDurationsForCopy(packageId);
+    return { success: true as const, data };
+  } catch (e) {
+    console.error(e);
+    return { success: false as const, data: [] as DurationForCopy[] };
   }
 }

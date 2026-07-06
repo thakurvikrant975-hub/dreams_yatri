@@ -1266,6 +1266,40 @@ export async function copyItineraryDays(
   }
 }
 
+// ── Cross-package copy helpers ─────────────────────────────────────────────
+
+export type PackageForCopy = { id: number; title: string; destination: string };
+
+export async function searchPackagesForCopy(query: string): Promise<PackageForCopy[]> {
+  const rows = await db.packages.findMany({
+    where: query.trim() ? { title: { contains: query.trim(), mode: "insensitive" } } : {},
+    select: { id: true, title: true, destination: { select: { name: true } } },
+    orderBy: { created_at: "desc" },
+    take: 20,
+  });
+  return rows.map((p) => ({ id: p.id, title: p.title ?? `Package ${p.id}`, destination: p.destination?.name ?? "" }));
+}
+
+export type DurationForCopy = {
+  id: number;
+  label: string;
+  days: number;
+  is_default: boolean;
+  routes: { id: number; name: string }[];
+};
+
+export async function getPackageDurationsForCopy(packageId: number): Promise<DurationForCopy[]> {
+  const rows = await db.package_durations.findMany({
+    where: { package_id: packageId },
+    orderBy: { days: "asc" },
+    select: {
+      id: true, label: true, days: true, is_default: true,
+      routes: { orderBy: { sort_order: "asc" }, select: { id: true, name: true } },
+    },
+  });
+  return rows;
+}
+
 export async function getHotelMealPricings(hotelId: number): Promise<HotelMealOption[]> {
   const rows = await db.hotel_meal_pricing.findMany({
     where: { hotel_id: hotelId, is_active: true },

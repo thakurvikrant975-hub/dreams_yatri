@@ -218,7 +218,7 @@ export async function getDestinationsForHotelFilter() {
   });
 }
 
-export async function getHotelHistory(id: number) {
+export async function getHotelHistory(id: number | string) {
   return db.activityLog.findMany({
     where:   { entity: "Hotel", entityId: String(id) },
     orderBy: { actionAt: "desc" },

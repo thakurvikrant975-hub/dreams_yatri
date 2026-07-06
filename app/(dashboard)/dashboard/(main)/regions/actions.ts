@@ -169,7 +169,7 @@ export async function getRegions(params: GetRegionsParams = {}) {
 
 // ── History ───────────────────────────────────────────────────────────────────
 
-export async function getRegionHistory(id: number) {
+export async function getRegionHistory(id: number | string) {
   return db.activityLog.findMany({
     where:   { entity: "Region", entityId: String(id) },
     orderBy: { actionAt: "desc" },

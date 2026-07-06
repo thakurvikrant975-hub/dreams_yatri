@@ -174,7 +174,7 @@ export async function getCabDrivers(params: {
 
 // ── History ────────────────────────────────────────────────────────────────
 
-export async function getCabDriverHistory(id: number) {
+export async function getCabDriverHistory(id: number | string) {
   return db.activityLog.findMany({
     where:   { entity: "CabDriver", entityId: String(id) },
     orderBy: { actionAt: "desc" },

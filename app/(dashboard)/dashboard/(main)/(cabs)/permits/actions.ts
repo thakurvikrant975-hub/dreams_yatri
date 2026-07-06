@@ -211,7 +211,7 @@ export async function updatePermit(id: number, input: PermitInput) {
 
 // ── History ────────────────────────────────────────────────────────────────
 
-export async function getPermitHistory(id: number) {
+export async function getPermitHistory(id: number | string) {
   return db.activityLog.findMany({
     where:   { entity: "Permit", entityId: String(id) },
     orderBy: { actionAt: "desc" },

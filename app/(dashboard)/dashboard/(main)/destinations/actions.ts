@@ -396,7 +396,7 @@ export async function deleteDestination(id: number): Promise<DestinationFormStat
 
 // ── History ───────────────────────────────────────────────────────────────────
 
-export async function getDestinationHistory(id: number) {
+export async function getDestinationHistory(id: number | string) {
   return db.activityLog.findMany({
     where:   { entity: "destination", entityId: String(id) },
     orderBy: { actionAt: "desc" },

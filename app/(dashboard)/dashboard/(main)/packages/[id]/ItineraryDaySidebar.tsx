@@ -66,6 +66,7 @@ import {
 } from "@/app/actions/packages/itinerary-builder.actions";
 import type { HotelMealOption } from "@/app/services/itinerary-builder.service";
 import MealsEditor from "./MealsEditor";
+import { CopyFromPackageDialog } from "./CopyFromPackageDialog";
 import type {
   DayData,
   ActivityItem,
@@ -2198,6 +2199,7 @@ export function ItineraryDaySidebar({
   const [editPanel, setEditPanel] = useState<EditPanelState>(null);
   const [activeDragKind, setActiveDragKind] = useState<string | null>(null);
   const [attractionsOpen, setAttractionsOpen] = useState(false);
+  const [copyPkgOpen, setCopyPkgOpen] = useState(false);
   const mealsRef = useRef<HTMLDivElement>(null);
 
 
@@ -2548,13 +2550,23 @@ export function ItineraryDaySidebar({
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Title</Label>
-                      <button
-                        type="button"
-                        onClick={async () => { try { setTitle(await navigator.clipboard.readText()); } catch {} }}
-                        className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors cursor-pointer"
-                      >
-                        <ClipboardPaste className="h-3 w-3" /> Paste
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setCopyPkgOpen(true)}
+                          className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                          title="Copy title & description from another package's day"
+                        >
+                          <Package className="h-3 w-3" /> Copy from package
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => { try { setTitle(await navigator.clipboard.readText()); } catch {} }}
+                          className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                        >
+                          <ClipboardPaste className="h-3 w-3" /> Paste
+                        </button>
+                      </div>
                     </div>
                     <Input value={title} onChange={(e) => setTitle(e.target.value)} className="h-9" placeholder={`Day ${initialDay.day}`} />
                   </div>
@@ -2926,6 +2938,16 @@ export function ItineraryDaySidebar({
             hasActivity={activities.length > 0}
           />
         )}
+
+        {/* Copy from package dialog */}
+        <CopyFromPackageDialog
+          open={copyPkgOpen}
+          onClose={() => setCopyPkgOpen(false)}
+          onSelect={(t, d) => {
+            setTitle(t);
+            if (d !== null) setDescription(d);
+          }}
+        />
       </SheetContent>
     </Sheet>
   );
