@@ -158,16 +158,17 @@ export async function getPlatformManagerAnalytics(
       where: { userRole: { in: TRACKED_ROLES }, actionAt: { gte: from, lte: to } },
       orderBy: { actionAt: "desc" },
       select: {
-        id: true, userName: true, userRole: true, action: true,
+        id: true, userId: true, userName: true, userRole: true, action: true,
         entity: true, entitySlug: true, description: true, actionAt: true,
       },
     }),
   ]);
 
   // Seed from roster so employees with zero actions in range still show up.
+  // Keyed by team member ID (not name) — two members can share a display name.
   const byEmployee = new Map<string, EmployeeWork>();
   for (const m of roster) {
-    byEmployee.set(m.name, {
+    byEmployee.set(m.id, {
       id: m.id, name: m.name, role: m.teamRole?.name ?? "—",
       departmentLabel: "—", departmentKeys: [],
       total: 0, create: 0, update: 0, delete: 0,
@@ -180,16 +181,19 @@ export async function getPlatformManagerAnalytics(
   const actionCounts = new Map<string, number>();
 
   for (const log of logs) {
+    // userId is the reliable join key; fall back to name only for legacy log
+    // rows written before userId was tracked on every entry.
+    const empKey = log.userId ?? log.userName ?? "unknown";
     const name = log.userName ?? "Unknown";
-    let emp = byEmployee.get(name);
+    let emp = byEmployee.get(empKey);
     if (!emp) {
       emp = {
-        id: name, name, role: log.userRole ?? "—",
+        id: empKey, name, role: log.userRole ?? "—",
         departmentLabel: "—", departmentKeys: [],
         total: 0, create: 0, update: 0, delete: 0,
         hotelActions: 0, cabActions: 0, entries: [],
       };
-      byEmployee.set(name, emp);
+      byEmployee.set(empKey, emp);
     }
     emp.total += 1;
     if (log.action === "CREATE") emp.create += 1;

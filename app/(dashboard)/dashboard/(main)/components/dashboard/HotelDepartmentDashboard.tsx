@@ -111,7 +111,7 @@ function ContributionBar({ label, mine, total, color }: { label: string; mine: n
 // ── Main async content ────────────────────────────────────────────────────────
 
 async function HotelDepartmentDashboardContent({ member }: { member: CurrentMember }) {
-  const d = await getHotelDepartmentDashboardData(member.name);
+  const d = await getHotelDepartmentDashboardData(member.id);
 
   const attentionCount = d.mine.inactive + d.mine.noRooms + d.mine.rejected;
 

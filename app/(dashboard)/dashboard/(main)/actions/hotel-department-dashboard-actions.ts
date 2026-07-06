@@ -45,14 +45,14 @@ export const HOTEL_CATEGORY_LABEL = (cat: string | null) =>
   cat ? (CATEGORY_LABELS[cat] ?? cat) : "—";
 
 export async function getHotelDepartmentDashboardData(
-  actorName: string,
+  actorId: string,
 ): Promise<HotelDepartmentDashboardData> {
   const weekStart = new Date();
   weekStart.setDate(weekStart.getDate() - 7);
   weekStart.setHours(0, 0, 0, 0);
 
-  const byMe = { created_by: actorName };
-  const byMeThisWeek = { created_by: actorName, created_at: { gte: weekStart } };
+  const byMe = { created_by: actorId };
+  const byMeThisWeek = { created_by: actorId, created_at: { gte: weekStart } };
 
   const [
     myTotal,

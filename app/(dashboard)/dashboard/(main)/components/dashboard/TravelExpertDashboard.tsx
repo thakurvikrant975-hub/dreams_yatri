@@ -93,7 +93,7 @@ function ContributionBar({
 // ── Main async content ────────────────────────────────────────────────────────
 
 async function TravelExpertDashboardContent({ member }: { member: CurrentMember }) {
-  const d = await getTravelExpertDashboardData(member.name);
+  const d = await getTravelExpertDashboardData(member.id);
 
   const myAttention = d.mine.inactivePackages + d.mine.packagesNoThumb;
   const myWeekTotal = d.mineThisWeek.packages + d.mineThisWeek.regions + d.mineThisWeek.destinations + d.mineThisWeek.hotels;

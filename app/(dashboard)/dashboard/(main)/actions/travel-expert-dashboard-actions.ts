@@ -59,14 +59,14 @@ export interface TravelExpertDashboardData {
 }
 
 export async function getTravelExpertDashboardData(
-  actorName: string,
+  actorId: string,
 ): Promise<TravelExpertDashboardData> {
   const weekStart = new Date();
   weekStart.setDate(weekStart.getDate() - 7);
   weekStart.setHours(0, 0, 0, 0);
 
-  const byMe = { created_by: actorName };
-  const byMeThisWeek = { created_by: actorName, created_at: { gte: weekStart } };
+  const byMe = { created_by: actorId };
+  const byMeThisWeek = { created_by: actorId, created_at: { gte: weekStart } };
 
   const [
     // ── Mine ──────────────────────────────────────────────────────────────

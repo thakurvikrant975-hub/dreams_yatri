@@ -63,7 +63,7 @@ export interface PlatformManagerDashboardData {
   }[];
 }
 
-function countByName(rows: { created_by: string | null; _count: { _all: number } }[]): Map<string, number> {
+function countById(rows: { created_by: string | null; _count: { _all: number } }[]): Map<string, number> {
   const map = new Map<string, number>();
   for (const r of rows) {
     if (r.created_by) map.set(r.created_by, r._count._all);
@@ -85,12 +85,12 @@ export async function getPlatformManagerDashboardData(): Promise<PlatformManager
 
   const inventoryMembers = roster.filter((m) => m.teamRole?.name === INVENTORY_ROLE);
   const travelMembers = roster.filter((m) => m.teamRole?.name === TRAVEL_ROLE);
-  const inventoryNames = inventoryMembers.map((m) => m.name);
-  const travelNames = travelMembers.map((m) => m.name);
-  const allNames = [...inventoryNames, ...travelNames];
+  const inventoryIds = inventoryMembers.map((m) => m.id);
+  const travelIds = travelMembers.map((m) => m.id);
+  const allIds = [...inventoryIds, ...travelIds];
 
-  const byName = (names: string[]) => ({ created_by: { in: names } });
-  const byNameThisWeek = (names: string[]) => ({ created_by: { in: names }, created_at: { gte: weekStart } });
+  const byId = (ids: string[]) => ({ created_by: { in: ids } });
+  const byIdThisWeek = (ids: string[]) => ({ created_by: { in: ids }, created_at: { gte: weekStart } });
 
   const [
     // global totals
@@ -140,20 +140,20 @@ export async function getPlatformManagerDashboardData(): Promise<PlatformManager
     db.packages.count({ where: { is_active: false } }),
     db.activities.count({ where: { is_active: false } }),
 
-    db.hotels.groupBy({ by: ["created_by"], where: byName(inventoryNames), _count: { _all: true } }),
-    db.cab_pricing.groupBy({ by: ["created_by"], where: byName(inventoryNames), _count: { _all: true } }),
-    db.vehicles.groupBy({ by: ["created_by"], where: byName(inventoryNames), _count: { _all: true } }),
-    db.cab_drivers.groupBy({ by: ["created_by"], where: byName(inventoryNames), _count: { _all: true } }),
-    db.packages.groupBy({ by: ["created_by"], where: byName(travelNames), _count: { _all: true } }),
-    db.activities.groupBy({ by: ["created_by"], where: byName(travelNames), _count: { _all: true } }),
-    db.destinations.groupBy({ by: ["created_by"], where: { ...byName(travelNames), is_deleted: false }, _count: { _all: true } }),
-    db.custom_regions.groupBy({ by: ["created_by"], where: { ...byName(travelNames), is_deleted: false }, _count: { _all: true } }),
+    db.hotels.groupBy({ by: ["created_by"], where: byId(inventoryIds), _count: { _all: true } }),
+    db.cab_pricing.groupBy({ by: ["created_by"], where: byId(inventoryIds), _count: { _all: true } }),
+    db.vehicles.groupBy({ by: ["created_by"], where: byId(inventoryIds), _count: { _all: true } }),
+    db.cab_drivers.groupBy({ by: ["created_by"], where: byId(inventoryIds), _count: { _all: true } }),
+    db.packages.groupBy({ by: ["created_by"], where: byId(travelIds), _count: { _all: true } }),
+    db.activities.groupBy({ by: ["created_by"], where: byId(travelIds), _count: { _all: true } }),
+    db.destinations.groupBy({ by: ["created_by"], where: { ...byId(travelIds), is_deleted: false }, _count: { _all: true } }),
+    db.custom_regions.groupBy({ by: ["created_by"], where: { ...byId(travelIds), is_deleted: false }, _count: { _all: true } }),
 
-    db.hotels.groupBy({ by: ["created_by"], where: byNameThisWeek(inventoryNames), _count: { _all: true } }),
-    db.packages.groupBy({ by: ["created_by"], where: byNameThisWeek(travelNames), _count: { _all: true } }),
+    db.hotels.groupBy({ by: ["created_by"], where: byIdThisWeek(inventoryIds), _count: { _all: true } }),
+    db.packages.groupBy({ by: ["created_by"], where: byIdThisWeek(travelIds), _count: { _all: true } }),
 
-    allNames.length > 0
-      ? db.activityLog.groupBy({ by: ["userName"], where: { userName: { in: allNames } }, _max: { actionAt: true } })
+    allIds.length > 0
+      ? db.activityLog.groupBy({ by: ["userId"], where: { userId: { in: allIds } }, _max: { actionAt: true } })
       : Promise.resolve([]),
 
     db.activityLog.findMany({
@@ -169,20 +169,20 @@ export async function getPlatformManagerDashboardData(): Promise<PlatformManager
 
   const lastActiveMap = new Map<string, Date>();
   for (const r of lastActiveByEmployee) {
-    if (r.userName && r._max.actionAt) lastActiveMap.set(r.userName, r._max.actionAt);
+    if (r.userId && r._max.actionAt) lastActiveMap.set(r.userId, r._max.actionAt);
   }
 
-  const hotelsMap = countByName(hotelsByEmployee);
-  const cabPricingMap = countByName(cabPricingByEmployee);
-  const vehiclesMap = countByName(vehiclesByEmployee);
-  const driversMap = countByName(driversByEmployee);
-  const hotelsWeekMap = countByName(hotelsByEmployeeWeek);
+  const hotelsMap = countById(hotelsByEmployee);
+  const cabPricingMap = countById(cabPricingByEmployee);
+  const vehiclesMap = countById(vehiclesByEmployee);
+  const driversMap = countById(driversByEmployee);
+  const hotelsWeekMap = countById(hotelsByEmployeeWeek);
 
-  const packagesMap = countByName(packagesByEmployee);
-  const activitiesMap = countByName(activitiesByEmployee);
-  const destinationsMap = countByName(destinationsByEmployee);
-  const regionsMap = countByName(regionsByEmployee);
-  const packagesWeekMap = countByName(packagesByEmployeeWeek);
+  const packagesMap = countById(packagesByEmployee);
+  const activitiesMap = countById(activitiesByEmployee);
+  const destinationsMap = countById(destinationsByEmployee);
+  const regionsMap = countById(regionsByEmployee);
+  const packagesWeekMap = countById(packagesByEmployeeWeek);
 
   return {
     global: {
@@ -197,22 +197,22 @@ export async function getPlatformManagerDashboardData(): Promise<PlatformManager
     inventoryManagers: inventoryMembers.map((m) => ({
       id: m.id,
       name: m.name,
-      hotels: hotelsMap.get(m.name) ?? 0,
-      hotelsThisWeek: hotelsWeekMap.get(m.name) ?? 0,
-      cabPricing: cabPricingMap.get(m.name) ?? 0,
-      vehicles: vehiclesMap.get(m.name) ?? 0,
-      drivers: driversMap.get(m.name) ?? 0,
-      lastActiveAt: lastActiveMap.get(m.name) ?? null,
+      hotels: hotelsMap.get(m.id) ?? 0,
+      hotelsThisWeek: hotelsWeekMap.get(m.id) ?? 0,
+      cabPricing: cabPricingMap.get(m.id) ?? 0,
+      vehicles: vehiclesMap.get(m.id) ?? 0,
+      drivers: driversMap.get(m.id) ?? 0,
+      lastActiveAt: lastActiveMap.get(m.id) ?? null,
     })),
     travelExperts: travelMembers.map((m) => ({
       id: m.id,
       name: m.name,
-      packages: packagesMap.get(m.name) ?? 0,
-      packagesThisWeek: packagesWeekMap.get(m.name) ?? 0,
-      activities: activitiesMap.get(m.name) ?? 0,
-      destinations: destinationsMap.get(m.name) ?? 0,
-      regions: regionsMap.get(m.name) ?? 0,
-      lastActiveAt: lastActiveMap.get(m.name) ?? null,
+      packages: packagesMap.get(m.id) ?? 0,
+      packagesThisWeek: packagesWeekMap.get(m.id) ?? 0,
+      activities: activitiesMap.get(m.id) ?? 0,
+      destinations: destinationsMap.get(m.id) ?? 0,
+      regions: regionsMap.get(m.id) ?? 0,
+      lastActiveAt: lastActiveMap.get(m.id) ?? null,
     })),
     recentActivity: recentActivityRaw.map((a) => ({
       id: a.id,

@@ -110,7 +110,7 @@ function ContributionBar({ label, mine, total, color }: { label: string; mine: n
 // ── Main async content ────────────────────────────────────────────────────────
 
 async function CabDepartmentDashboardContent({ member }: { member: CurrentMember }) {
-  const d = await getCabDepartmentDashboardData(member.name);
+  const d = await getCabDepartmentDashboardData(member.id);
 
   const attentionCount =
     d.mine.vehiclesNoRates +

@@ -53,14 +53,14 @@ function isColumnMissingError(e: unknown): boolean {
 }
 
 export async function getInventoryManagerDashboardData(
-  actorName: string,
+  actorId: string,
 ): Promise<InventoryManagerDashboardData> {
   const weekStart = new Date();
   weekStart.setDate(weekStart.getDate() - 7);
   weekStart.setHours(0, 0, 0, 0);
 
-  const byMe         = { created_by: actorName };
-  const byMeThisWeek = { created_by: actorName, created_at: { gte: weekStart } };
+  const byMe         = { created_by: actorId };
+  const byMeThisWeek = { created_by: actorId, created_at: { gte: weekStart } };
 
   // ── 1. Always-safe queries: hotel personalisation + global hotel/cab-pricing ──
   // vehicles and cab_drivers are intentionally excluded here because their schema

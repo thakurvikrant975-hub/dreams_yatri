@@ -57,14 +57,14 @@ function isColumnMissingError(e: unknown): boolean {
 }
 
 export async function getCabDepartmentDashboardData(
-  actorName: string,
+  actorId: string,
 ): Promise<CabDepartmentDashboardData> {
   const weekStart = new Date();
   weekStart.setDate(weekStart.getDate() - 7);
   weekStart.setHours(0, 0, 0, 0);
 
-  const byMe = { created_by: actorName };
-  const byMeThisWeek = { created_by: actorName, created_at: { gte: weekStart } };
+  const byMe = { created_by: actorId };
+  const byMeThisWeek = { created_by: actorId, created_at: { gte: weekStart } };
 
   let totalVehicles = 0;
   let activeVehicles = 0;
@@ -165,7 +165,7 @@ export async function getCabDepartmentDashboardData(
   }
 
   const [pricingRoutesMine, globalPricingRoutes] = await Promise.all([
-    db.cab_pricing.count({ where: { created_by: actorName, is_active: true } }),
+    db.cab_pricing.count({ where: { created_by: actorId, is_active: true } }),
     db.cab_pricing.count({ where: { is_active: true } }),
   ]);
 

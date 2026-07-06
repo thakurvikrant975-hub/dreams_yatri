@@ -86,7 +86,7 @@ function ContributionBar({ label, mine, total, color }: { label: string; mine: n
 // ── Main async content ────────────────────────────────────────────────────────
 
 async function InventoryManagerDashboardContent({ member }: { member: CurrentMember }) {
-  const d = await getInventoryManagerDashboardData(member.name);
+  const d = await getInventoryManagerDashboardData(member.id);
 
   const myAttention =
     d.mine.inactiveHotels +

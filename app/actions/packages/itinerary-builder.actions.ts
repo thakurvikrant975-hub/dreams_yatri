@@ -491,9 +491,10 @@ export async function handleGetHotelMealPricings(hotelId: number) {
 }
 
 export async function handleCopyItineraryDays(
-  packageId: number,
+  sourcePackageId: number,
   sourceDurationId: number,
   sourceRouteId: number,
+  targetPackageId: number,
   targetDurationId: number,
   targetRouteId: number,
   mappings: CopyDayMapping[],
@@ -502,11 +503,11 @@ export async function handleCopyItineraryDays(
 ) {
   try {
     await copyItineraryDays(
-      packageId, sourceDurationId, sourceRouteId,
-      targetDurationId, targetRouteId,
+      sourcePackageId, sourceDurationId, sourceRouteId,
+      targetPackageId, targetDurationId, targetRouteId,
       mappings, fields, mode,
     );
-    revalidatePath(p(packageId));
+    revalidatePath(p(targetPackageId));
     return { success: true as const };
   } catch (e) {
     console.error(e);
@@ -514,9 +515,13 @@ export async function handleCopyItineraryDays(
   }
 }
 
-export async function handleSearchPackagesForCopy(query: string) {
+export async function handleSearchPackagesForCopy(
+  query: string,
+  destinationId?: number,
+  excludePackageId?: number,
+) {
   try {
-    const data = await searchPackagesForCopy(query);
+    const data = await searchPackagesForCopy(query, destinationId, excludePackageId);
     return { success: true as const, data };
   } catch (e) {
     console.error(e);

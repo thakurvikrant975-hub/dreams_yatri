@@ -2555,7 +2555,7 @@ export function ItineraryDaySidebar({
                           type="button"
                           onClick={() => setCopyPkgOpen(true)}
                           className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors cursor-pointer"
-                          title="Copy title & description from another package's day"
+                          title="Copy activities, hotel, transfers, notes & photos from another package's day"
                         >
                           <Package className="h-3 w-3" /> Copy from package
                         </button>
@@ -2943,9 +2943,24 @@ export function ItineraryDaySidebar({
         <CopyFromPackageDialog
           open={copyPkgOpen}
           onClose={() => setCopyPkgOpen(false)}
-          onSelect={(t, d) => {
-            setTitle(t);
-            if (d !== null) setDescription(d);
+          destinationId={destinationId}
+          currentPackageId={packageId}
+          targetDurationId={durationId}
+          targetRouteId={routeId}
+          targetDay={initialDay.day}
+          onCopied={(day) => {
+            if (day.id !== null) setItineraryId(day.id);
+            setTitle(day.title);
+            setDescription(day.description ?? "");
+            setMeals(day.meals ?? []);
+            setExcludedMeals(day.excluded_meals ?? []);
+            setTransfers(day.transfers);
+            setActivities(day.activities);
+            setNotes(day.notes);
+            setStays(day.stays);
+            setAttractions(day.attractions);
+            setStayBlockOrder(day.stays[0]?.sort_order ?? 100);
+            onSaved(day);
           }}
         />
       </SheetContent>

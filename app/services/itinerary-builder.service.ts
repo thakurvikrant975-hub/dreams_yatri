@@ -1079,9 +1079,10 @@ export type CopyFields = {
 };
 
 export async function copyItineraryDays(
-  packageId: number,
+  sourcePackageId: number,
   sourceDurationId: number,
   sourceRouteId: number,
+  targetPackageId: number,
   targetDurationId: number,
   targetRouteId: number,
   mappings: CopyDayMapping[],
@@ -1092,7 +1093,7 @@ export async function copyItineraryDays(
 
   const sourceRecords = await db.package_itineraries.findMany({
     where: {
-      package_id: packageId,
+      package_id: sourcePackageId,
       duration_id: sourceDurationId,
       route_id: sourceRouteId,
       day: { in: allSourceDayNums },
@@ -1101,12 +1102,25 @@ export async function copyItineraryDays(
       itinerary_activities:  { orderBy: { sort_order: "asc" } },
       itinerary_notes:       { orderBy: { sort_order: "asc" } },
       itinerary_attractions: { orderBy: { sort_order: "asc" } },
-      itineraryStays:        { orderBy: { sort_order: "asc" } },
+      itineraryStays:        { orderBy: { sort_order: "asc" }, include: { stay_category: { select: { label: true } } } },
       itinerary_transfers:   { orderBy: { sort_order: "asc" } },
     },
   });
 
   const srcMap = new Map(sourceRecords.map((r) => [r.day, r]));
+
+  // package_stay_categories belong to a single package — when copying across
+  // packages, remap by label (e.g. "Deluxe" → "Deluxe") since the source's
+  // stay_category_id would otherwise point at the wrong package's tier.
+  const crossPackage = sourcePackageId !== targetPackageId;
+  const targetStayCatByLabel = crossPackage
+    ? new Map(
+        (await db.package_stay_categories.findMany({
+          where: { package_id: targetPackageId },
+          select: { id: true, label: true },
+        })).map((c) => [c.label.trim().toLowerCase(), c.id]),
+      )
+    : null;
 
   for (const { targetDay, sourceDays } of mappings) {
     if (sourceDays.length === 0) continue;
@@ -1117,7 +1131,7 @@ export async function copyItineraryDays(
 
     // ── 1. Upsert the target itinerary record ────────────────────────────
     const existing = await db.package_itineraries.findFirst({
-      where: { package_id: packageId, duration_id: targetDurationId, route_id: targetRouteId, day: targetDay },
+      where: { package_id: targetPackageId, duration_id: targetDurationId, route_id: targetRouteId, day: targetDay },
       select: { id: true },
     });
 
@@ -1134,7 +1148,7 @@ export async function copyItineraryDays(
     } else {
       const created = await db.package_itineraries.create({
         data: {
-          package_id:    packageId,
+          package_id:    targetPackageId,
           duration_id:   targetDurationId,
           route_id:      targetRouteId,
           day:           targetDay,
@@ -1176,10 +1190,16 @@ export async function copyItineraryDays(
         const src = srcMap.get(srcDay);
         if (!src) continue;
         for (const stay of src.itineraryStays) {
+          let stayCategoryId = stay.stay_category_id;
+          if (targetStayCatByLabel) {
+            const matched = targetStayCatByLabel.get(stay.stay_category.label.trim().toLowerCase());
+            if (!matched) continue; // target package has no equivalent stay tier — skip
+            stayCategoryId = matched;
+          }
           await db.itinerary_stays.upsert({
-            where: { itinerary_id_stay_category_id: { itinerary_id: targetId, stay_category_id: stay.stay_category_id } },
+            where: { itinerary_id_stay_category_id: { itinerary_id: targetId, stay_category_id: stayCategoryId } },
             create: {
-              itinerary_id: targetId, stay_category_id: stay.stay_category_id,
+              itinerary_id: targetId, stay_category_id: stayCategoryId,
               room_pricing_id: stay.room_pricing_id, sort_order: stay.sort_order,
               occupancy: stay.occupancy, rooms_count: stay.rooms_count,
               num_nights: stay.num_nights, active_meals: stay.active_meals,
@@ -1270,9 +1290,17 @@ export async function copyItineraryDays(
 
 export type PackageForCopy = { id: number; title: string; destination: string };
 
-export async function searchPackagesForCopy(query: string): Promise<PackageForCopy[]> {
+export async function searchPackagesForCopy(
+  query: string,
+  destinationId?: number,
+  excludePackageId?: number,
+): Promise<PackageForCopy[]> {
   const rows = await db.packages.findMany({
-    where: query.trim() ? { title: { contains: query.trim(), mode: "insensitive" } } : {},
+    where: {
+      ...(query.trim() ? { title: { contains: query.trim(), mode: "insensitive" } } : {}),
+      ...(destinationId ? { destination_id: destinationId } : {}),
+      ...(excludePackageId ? { id: { not: excludePackageId } } : {}),
+    },
     select: { id: true, title: true, destination: { select: { name: true } } },
     orderBy: { created_at: "desc" },
     take: 20,

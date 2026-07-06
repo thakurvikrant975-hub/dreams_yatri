@@ -191,7 +191,7 @@ export function CopyFromRouteDialog({
     setCopying(true);
     const res = await handleCopyItineraryDays(
       packageId, opt.durationId, opt.routeId,
-      targetDurationId, targetRouteId,
+      packageId, targetDurationId, targetRouteId,
       mappings, fields, mode,
     );
     setCopying(false);
