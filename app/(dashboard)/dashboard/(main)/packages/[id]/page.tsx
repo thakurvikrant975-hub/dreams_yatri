@@ -52,10 +52,8 @@ type TabValue = typeof VALID_TABS[number];
 
 export default async function PackageBuilderPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
 }) {
   const [{ id: idParam }, { tab: tabParam }] = await Promise.all([params, searchParams]);
   const defaultTab: TabValue = (VALID_TABS as readonly string[]).includes(tabParam ?? "")
@@ -86,6 +84,11 @@ export default async function PackageBuilderPage({
     pkg.is_active && defaultDuration && defaultRoute && defaultStay
       ? `/packages/${pkg.slug}/${defaultDuration.slug}/${defaultRoute.slug}/${defaultStay.slug}`
       : null;
+
+  const serializedActivities = activities.map(a => ({
+  ...a,
+  duration_hours: a.duration_hours ? Number(a.duration_hours) : null,
+}));
 
   return (
     <div className="space-y-6">
