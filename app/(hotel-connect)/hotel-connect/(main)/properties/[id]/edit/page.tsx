@@ -43,6 +43,7 @@ export default async function EditPropertyPage({
     select: {
       id: true,
       name: true,
+      slug: true,
       listing_status: true,
       wizard_step: true,
       property_category: true,

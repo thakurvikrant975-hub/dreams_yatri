@@ -6,7 +6,6 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   FloppyDiskIcon,
-  PaperPlaneTiltIcon,
   CheckCircleIcon,
   ClockIcon,
   SealCheckIcon,
@@ -14,7 +13,7 @@ import {
 import { cn } from "@/app/lib/utils";
 import { HotelListingStatus, PropertySubType } from "@/app/generated/prisma";
 import Button from "@/app/components/ui/Button";
-import { submitForReview } from "./tabs/review-actions";
+import SubmitReviewStrip from "./SubmitReviewStrip";
 import { WIZARD_TABS, HOMESTAY_WIZARD_TABS } from "./wizard-tab-config";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -22,6 +21,7 @@ import { WIZARD_TABS, HOMESTAY_WIZARD_TABS } from "./wizard-tab-config";
 type HotelSummary = {
   id: number;
   name: string;
+  slug: string;
   listing_status: HotelListingStatus;
   wizard_step: number;
   property_category: string | null;
@@ -118,7 +118,7 @@ function TabItem({
 
 // ── Review status banner ──────────────────────────────────────────────────────
 
-function ReviewBanner({ listing_status }: { listing_status: HotelListingStatus }) {
+function ReviewBanner({ listing_status, slug }: { listing_status: HotelListingStatus; slug: string }) {
   if (listing_status === HotelListingStatus.SUBMITTED || listing_status === HotelListingStatus.UNDER_REVIEW) {
     const isUnderReview = listing_status === HotelListingStatus.UNDER_REVIEW;
     return (
@@ -165,13 +165,29 @@ function ReviewBanner({ listing_status }: { listing_status: HotelListingStatus }
   }
 
   if (listing_status === HotelListingStatus.APPROVED || listing_status === HotelListingStatus.LIVE) {
+    const url = `/hotels/${slug}`;
     return (
       <div className="px-4 pt-5 pb-1 max-w-4xl mx-auto w-full">
-        <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-5 flex items-center gap-3">
-          <SealCheckIcon size={22} weight="fill" className="text-emerald-500 shrink-0" />
-          <div>
-            <p className="text-sm font-semibold text-emerald-800">Property Approved & Live</p>
-            <p className="text-xs text-emerald-600 mt-0.5">Your property is live and visible to travellers on Yatri.</p>
+        <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-5">
+          <div className="flex items-center gap-3">
+            <SealCheckIcon size={22} weight="fill" className="text-emerald-500 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-emerald-800">Property Approved &amp; Live</p>
+              <p className="text-xs text-emerald-600 mt-0.5">Your property is live and visible to travellers.</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg bg-white border border-emerald-200 px-3 py-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600 shrink-0">Live URL</span>
+            <Link href={url} target="_blank" className="text-sm font-medium text-primary-600 hover:underline truncate">
+              {url}
+            </Link>
+            <Link
+              href={url}
+              target="_blank"
+              className="ml-auto shrink-0 inline-flex items-center gap-1 text-xs font-semibold text-white bg-emerald-500 hover:bg-emerald-600 rounded-lg px-3 py-1.5 transition-colors"
+            >
+              View live page
+            </Link>
           </div>
         </div>
       </div>
@@ -296,31 +312,13 @@ export default function WizardShell({
       {/* ── Scrollable content ────────────────────────────────────────── */}
       <div className="relative flex-1 overflow-y-auto bg-neutral-100 after:content-[''] after:absolute after:top-0 after:left-0 after:w-full after:h-25 after:bg-white after:border-b after:border-neutral-200 after:-z-10 isolate mb-6">
         <div className="max-w-4xl mx-auto w-full ">
-          <ReviewBanner listing_status={hotel.listing_status} />
+          <ReviewBanner listing_status={hotel.listing_status} slug={hotel.slug} />
           {children}
         </div>
       </div>
 
       {/* ── Submit for Review strip ───────────────────────────────────── */}
-      {allComplete && isDraft && (
-        <div className="shrink-0 bg-emerald-50 border-t-2 border-emerald-200 px-6 py-3.5">
-          <div className="flex items-center justify-between gap-6 max-w-4xl mx-auto">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <CheckCircleIcon size={18} weight="fill" className="text-emerald-500 shrink-0" />
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-emerald-800 leading-none">All sections complete!</p>
-                <p className="text-xs text-emerald-600 mt-0.5 truncate">Your property is ready to be submitted for review.</p>
-              </div>
-            </div>
-            <form action={submitForReview.bind(null, hotel.id)}>
-              <Button type="submit" variant="primary" size="sm" className="bg-emerald-500 hover:bg-emerald-600 border-emerald-500 hover:border-emerald-600 shrink-0">
-                <PaperPlaneTiltIcon size={14} weight="bold" />
-                Submit for Review
-              </Button>
-            </form>
-          </div>
-        </div>
-      )}
+      {allComplete && isDraft && <SubmitReviewStrip hotelId={hotel.id} />}
 
       {/* ── Bottom navigation ─────────────────────────────────────────── */}
       <footer className="shrink-0 bg-white border-t border-neutral-200 py-3.5">

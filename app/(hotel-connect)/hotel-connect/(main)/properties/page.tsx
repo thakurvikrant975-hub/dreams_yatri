@@ -26,6 +26,7 @@ import { cn } from "@/app/lib/utils";
 type PropertyCard = {
   id: number;
   name: string;
+  slug: string;
   listing_status: HotelListingStatus;
   city: string | null;
   state: string | null;
@@ -73,7 +74,7 @@ export default async function PropertiesPage({
   const raw = await db.hotels.findMany({
     where: { owner_id: ownerId },
     select: {
-      id: true, name: true, listing_status: true,
+      id: true, name: true, slug: true, listing_status: true,
       city: true, state: true, thumbnail: true,
       property_sub_type: true, star_rating: true,
       _count: { select: { hotelRooms: true } },
@@ -89,6 +90,7 @@ export default async function PropertiesPage({
   const all: PropertyCard[] = raw.map((h) => ({
     id:                h.id,
     name:              h.name,
+    slug:              h.slug,
     listing_status:    h.listing_status,
     city:              h.city,
     state:             h.state,
@@ -244,6 +246,17 @@ export default async function PropertiesPage({
                           <CalendarBlankIcon size={13} weight="fill" className="text-neutral-400" />
                           Rates
                         </Link>
+                        {hotel.listing_status === "LIVE" && (
+                          <Link
+                            href={`/hotels/${hotel.slug}`}
+                            target="_blank"
+                            title="View live page"
+                            className="flex items-center gap-1 py-2 px-3 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors ring-1 ring-inset ring-emerald-200"
+                          >
+                            <ArrowRightIcon size={12} weight="bold" />
+                            Live
+                          </Link>
+                        )}
                       </div>
                     </div>
                   </Card>
