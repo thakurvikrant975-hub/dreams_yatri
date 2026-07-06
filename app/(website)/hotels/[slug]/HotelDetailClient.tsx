@@ -35,6 +35,8 @@ import type { Hotel, Room, RatePlan } from "./dummy";
 import Button from "@/app/components/ui/Button";
 import DatePickerField from "@/app/components/ui/DatePickerField";
 import TravellersField, { type TravellersValue } from "@/app/components/ui/TravellersField";
+import LocationSearchSelect, { type LocationValue } from "@/app/components/ui/LocationSearchSelect";
+import type { LocationType } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";
 
 const money = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 
@@ -101,13 +103,24 @@ function SearchBar({ hotel, checkIn, checkOut }: { hotel: Hotel; checkIn: string
   const [ci, setCi] = useState<Date | null>(toDate(checkIn));
   const [co, setCo] = useState<Date | null>(toDate(checkOut));
   const [guests, setGuests] = useState<TravellersValue>({ adults: 2, childrenAges: [] });
+  const [city, setCity] = useState<LocationValue | null>(
+    hotel.city ? { id: hotel.city, name: hotel.city, type: "CITY" as LocationType, breadcrumb: hotel.city, slug: "" } : null,
+  );
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   function search() {
     const inD = ci ?? today;
     const outD = co && co > inD ? co : new Date(inD.getTime() + 86_400_000);
-    router.push(`/hotels/${hotel.slug}?in=${toISO(inD)}&out=${toISO(outD)}`);
+    const qs = `in=${toISO(inD)}&out=${toISO(outD)}`;
+
+    // A different city than this hotel's own — jump to the listing page filtered
+    // by that city instead of trying to show it on this hotel's URL.
+    if (city && city.name && city.name !== hotel.city) {
+      router.push(`/hotels?city=${encodeURIComponent(city.name)}&${qs}`);
+      return;
+    }
+    router.push(`/hotels/${hotel.slug}?${qs}`);
   }
 
   return (
@@ -121,10 +134,7 @@ function SearchBar({ hotel, checkIn, checkOut }: { hotel: Hotel; checkIn: string
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1.2fr_1fr_1fr_1fr_auto] gap-2.5 items-end">
             <div className="flex flex-col gap-1" role="group" aria-labelledby="label-city">
               <FieldLabel id="label-city">City</FieldLabel>
-              <div className="h-10.5 flex items-center gap-2 rounded-lg bg-white px-3">
-                <MapPinIcon className="w-4 h-4 text-primary-500 shrink-0" />
-                <span className="text-sm font-semibold text-neutral-800 truncate">{hotel.city}</span>
-              </div>
+              <LocationSearchSelect value={city} onChange={setCity} placeholder="Where are you going?" showCurrentLocation />
             </div>
 
             <div className="flex flex-col gap-1" role="group" aria-labelledby="label-in">
