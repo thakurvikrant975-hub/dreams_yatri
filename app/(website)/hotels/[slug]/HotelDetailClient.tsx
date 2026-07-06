@@ -17,7 +17,6 @@ import {
   ChevronRightIcon,
   MagnifyingGlassIcon,
   CalendarDaysIcon,
-  UserGroupIcon,
   ShieldCheckIcon,
   WifiIcon,
   TruckIcon,
@@ -29,7 +28,9 @@ import {
   ArrowRightIcon,
   HandThumbUpIcon,
 } from "@heroicons/react/24/outline";
-import { StarIcon as StarSolid } from "@heroicons/react/24/solid";
+import { StarIcon as StarSolid, UserGroupIcon, } from "@heroicons/react/24/solid";
+import { PencilRulerIcon, BedIcon, EyeIcon } from "@phosphor-icons/react";
+
 import type { Hotel, Room, RatePlan } from "./dummy";
 import Button from "@/app/components/ui/Button";
 
@@ -339,14 +340,14 @@ function RoomCard({
         {/* Room info */}
         <div className="p-4 md:border-r border-neutral-100 bg-neutral-50/40">
           <RoomImageCarousel images={room.images} name={room.name} />
-          <h3 className="text-[15px] font-bold text-neutral-900 mt-3 leading-snug">{room.name}</h3>
-          <span className="inline-flex items-center gap-1 mt-1 text-[11px] font-medium text-neutral-500">
-            <UserGroupIcon className="w-3.5 h-3.5" /> {room.occupancy}
+          <h3 className="text-lg font-bold text-neutral-900 mt-3 leading-snug">{room.name}</h3>
+          <span className="inline-flex items-center gap-1.5 mt-0.5 text-[11px] font-medium text-neutral-600/90">
+             {room.occupancy}
           </span>
-          <div className="mt-2 space-y-1 text-xs text-neutral-600">
-            {room.size && <p>📐 {room.size}</p>}
-            {room.bed && <p>🛏 {room.bed}</p>}
-            {room.view && <p>🌆 {room.view}</p>}
+          <div className="mt-2 space-y-1 text-sm text-neutral-600">
+            {room.size && <p className="flex gap-3 items-center font-medium"><PencilRulerIcon className="size-5 text-neutral-400" /> {room.size}</p>}
+            {room.bed && <p className="flex gap-3 items-center font-medium"><BedIcon className="size-5 text-neutral-400" /> {room.bed}</p>}
+            {room.view && <p className="flex gap-3 items-center font-medium"><EyeIcon className="size-5 text-neutral-400" /> {room.view}</p>}
           </div>
           {room.amenities.length > 0 && (
             <div className="mt-2.5 flex flex-wrap gap-1">

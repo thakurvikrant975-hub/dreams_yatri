@@ -51,6 +51,56 @@ function nightsBetween(checkIn: string, checkOut: string): number {
   return Math.max(1, Math.round((Date.parse(checkOut) - Date.parse(checkIn)) / 86_400_000));
 }
 
+export type HotelCard = {
+  id: number;
+  slug: string;
+  name: string;
+  city: string | null;
+  state: string | null;
+  starRating: number | null;
+  image: string;
+  priceFrom: number | null;
+  amenities: string[];
+};
+
+/** Search LIVE hotels for the listing page, optionally filtered by city. */
+export async function searchHotels(opts: { city?: string }): Promise<HotelCard[]> {
+  const hotels = await db.hotels.findMany({
+    where: {
+      listing_status: "LIVE",
+      ...(opts.city ? { city: { contains: opts.city, mode: "insensitive" as const } } : {}),
+    },
+    orderBy: [{ star_rating: "desc" }, { id: "desc" }],
+    take: 48,
+    select: {
+      id: true, slug: true, name: true, city: true, state: true,
+      star_rating: true, property_amenities: true,
+      images: { orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }], take: 1, select: { url: true } },
+      hotelRooms: {
+        where: { is_active: true },
+        select: {
+          pricing: { where: { is_active: true }, orderBy: { price_per_night: "asc" }, take: 1, select: { price_per_night: true } },
+        },
+      },
+    },
+  });
+
+  return hotels.map((h) => {
+    const prices = h.hotelRooms.flatMap((r) => r.pricing.map((p) => Number(p.price_per_night)));
+    return {
+      id: h.id,
+      slug: h.slug,
+      name: h.name,
+      city: h.city,
+      state: h.state,
+      starRating: h.star_rating,
+      image: imageUrl(h.images[0]?.url) ?? FALLBACK_IMG,
+      priceFrom: prices.length ? Math.min(...prices) : null,
+      amenities: amenityLabels(h.property_amenities).slice(0, 4),
+    };
+  });
+}
+
 export type RoomBookingContext = {
   hotelId: number;
   hotelName: string;
