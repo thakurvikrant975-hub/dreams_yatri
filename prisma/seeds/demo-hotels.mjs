@@ -121,13 +121,24 @@ for (const h of HOTELS) {
       },
       select: { id: true },
     });
-    await db.hotel_room_pricing.create({
-      data: {
-        hotel_id: hotel.id, room_id: room.id, plan_name: r.plan, price_per_night: r.price,
-        original_price: r.original, gst_percentage: r.gst, cancellation_policy: r.cancel,
-        is_active: true, sort_order: 0,
-      },
-    });
+    // 3 rate plans per room (Room Only / With Breakfast / With Breakfast + Dinner).
+    const plans = [
+      { plan: "Room Only", mult: 1.0, cancel: "NON_REFUNDABLE" },
+      { plan: "Room with Breakfast", mult: 1.12, cancel: "FREE_TILL_48H" },
+      { plan: "Room with Breakfast + Dinner", mult: 1.25, cancel: "FREE_TILL_CHECKIN" },
+    ];
+    for (let pi = 0; pi < plans.length; pi++) {
+      const pl = plans[pi];
+      await db.hotel_room_pricing.create({
+        data: {
+          hotel_id: hotel.id, room_id: room.id, plan_name: pl.plan,
+          price_per_night: Math.round(r.price * pl.mult),
+          original_price: Math.round(r.original * pl.mult),
+          gst_percentage: r.gst, cancellation_policy: pl.cancel,
+          is_active: true, sort_order: pi,
+        },
+      });
+    }
     await db.hotel_room_images.createMany({
       data: r.imgs.map((id, i) => ({ room_id: room.id, url: IMG(id, 800, 600), is_primary: i === 0, sort_order: i })),
     });

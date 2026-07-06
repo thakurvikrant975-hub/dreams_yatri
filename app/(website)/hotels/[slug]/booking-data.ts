@@ -129,14 +129,14 @@ export async function getHotelForBooking(
         orderBy: { sort_order: "asc" },
         select: {
           id: true, name: true, area_sqft: true, area_unit: true, bed_type: true,
-          view_type: true, base_adults: true, max_children: true, amenities: true,
+          view_type: true, base_adults: true, max_adults: true, max_children: true,
+          max_occupancy: true, amenities: true,
           images: { orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }], select: { url: true } },
           pricing: {
             where: { is_active: true },
-            orderBy: { sort_order: "asc" },
-            take: 1,
+            orderBy: { price_per_night: "asc" },
             select: {
-              price_per_night: true, original_price: true, gst_percentage: true,
+              id: true, price_per_night: true, original_price: true, gst_percentage: true,
               plan_name: true, cancellation_policy: true, meal_type: { select: { name: true } },
             },
           },
@@ -152,41 +152,51 @@ export async function getHotelForBooking(
   const rooms: Room[] = await Promise.all(
     h.hotelRooms.map(async (r): Promise<Room> => {
       const ari = await getRoomARI(r.id, checkIn, checkOut);
-      const allAvailable = ari.length > 0 && ari.every((n) => n.available > 0);
-      const lead = r.pricing[0];
-      const nightly = ari[0]?.price ?? (lead ? Number(lead.price_per_night) : 0);
-      const gst = lead ? Number(lead.gst_percentage) : 12;
-      const originalPrice = lead?.original_price ? Number(lead.original_price) : Math.round(nightly * 1.15);
-      const policy = effectivePolicy(
-        (lead?.cancellation_policy as CancellationPolicy | null) ?? null,
-        (h.cancellation_policy as CancellationPolicy | null) ?? null,
-      );
-      const cancel = resolveCancellation(policy, checkIn);
       const roomAmenities = Array.isArray(r.amenities) ? (r.amenities as string[]).map(String) : amenityLabels(r.amenities);
       const roomImages = r.images.map((i) => imageUrl(i.url)).filter((u): u is string => !!u);
 
-      const plan: RatePlan = {
-        id: `${r.id}-lead`,
-        mealPlan: lead?.plan_name || r.pricing[0]?.meal_type?.name || "Room Only",
-        inclusions: cancel.refundable ? ["Free cancellation"] : ["No meals included"],
-        cancellation: cancel.label,
-        refundable: cancel.refundable,
-        price: nightly,
-        originalPrice,
-        taxes: Math.round(nightly * (gst / 100)),
-        badge: allAvailable ? undefined : "Sold out",
-      };
+      // One rate plan per active pricing row (Room Only, With Breakfast, …).
+      const rows = r.pricing.length > 0 ? r.pricing : [null];
+      const ratePlans: RatePlan[] = rows.map((p, idx) => {
+        const nightly = p ? Number(p.price_per_night) : ari[0]?.price ?? 0;
+        const gst = p ? Number(p.gst_percentage) : 12;
+        const original = p?.original_price ? Number(p.original_price) : Math.round(nightly * 1.15);
+        const label = p?.plan_name || p?.meal_type?.name || "Room Only";
+        const policy = effectivePolicy(
+          (p?.cancellation_policy as CancellationPolicy | null) ?? null,
+          (h.cancellation_policy as CancellationPolicy | null) ?? null,
+        );
+        const cancel = resolveCancellation(policy, checkIn);
+        const text = `${label} ${p?.meal_type?.name ?? ""}`.toLowerCase();
+        const inclusions: string[] = [];
+        if (/breakfast|all meal|full board/.test(text)) inclusions.push("Free breakfast");
+        if (/lunch|all meal|full board/.test(text)) inclusions.push("Free lunch");
+        if (/dinner|all meal|full board/.test(text)) inclusions.push("Free dinner");
+        if (inclusions.length === 0) inclusions.push("No meals included");
+        return {
+          id: p ? String(p.id) : `${r.id}-base`,
+          mealPlan: prettify(label),
+          inclusions,
+          cancellation: cancel.label,
+          refundable: cancel.refundable,
+          price: nightly,
+          originalPrice: original,
+          taxes: Math.round(nightly * (gst / 100)),
+          badge: rows.length > 1 && idx === 0 ? "Lowest Price" : undefined,
+        };
+      });
 
+      const maxGuests = r.max_occupancy ?? r.max_adults + (r.max_children ?? 0);
       return {
         id: String(r.id),
         name: r.name,
         images: roomImages.length ? roomImages : hotelImages.length ? hotelImages.slice(0, 3) : [FALLBACK_IMG],
-        size: r.area_sqft ? `${r.area_sqft} ${r.area_unit ?? "sq.ft"}` : "—",
-        bed: r.bed_type ?? "—",
-        view: r.view_type ?? "—",
-        occupancy: `${r.base_adults} Adults${r.max_children ? ` + ${r.max_children} Child` : ""}`,
+        size: r.area_sqft ? `${r.area_sqft} ${r.area_unit ?? "sq.ft"}` : "",
+        bed: r.bed_type ?? "",
+        view: r.view_type ?? "",
+        occupancy: `Max ${maxGuests} guest${maxGuests === 1 ? "" : "s"}`,
         amenities: roomAmenities,
-        ratePlans: [plan],
+        ratePlans,
       };
     }),
   );

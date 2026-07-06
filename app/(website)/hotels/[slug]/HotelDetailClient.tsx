@@ -229,26 +229,34 @@ function SubNav({ active, onJump }: { active: string; onJump: (id: string) => vo
 
 function RoomImageCarousel({ images, name }: { images: string[]; name: string }) {
   const [i, setI] = useState(0);
+  const multi = images.length > 1;
   return (
-    <div className="relative h-44 sm:h-full min-h-[176px] rounded-xl overflow-hidden group">
+    <div className="relative h-44 rounded-xl overflow-hidden group">
       <Image src={images[i]} alt={name} fill className="object-cover" sizes="(max-width:640px) 100vw, 33vw" />
-      <button
-        onClick={() => setI((v) => (v - 1 + images.length) % images.length)}
-        className="absolute left-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/85 hover:bg-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-      >
-        <ChevronLeftIcon className="w-4 h-4 text-neutral-700" />
-      </button>
-      <button
-        onClick={() => setI((v) => (v + 1) % images.length)}
-        className="absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/85 hover:bg-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-      >
-        <ChevronRightIcon className="w-4 h-4 text-neutral-700" />
-      </button>
-      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
-        {images.map((_, k) => (
-          <span key={k} className={cn("w-1.5 h-1.5 rounded-full transition-colors", k === i ? "bg-white" : "bg-white/50")} />
-        ))}
-      </div>
+      {multi && (
+        <>
+          <button
+            onClick={() => setI((v) => (v - 1 + images.length) % images.length)}
+            className="absolute left-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/85 hover:bg-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <ChevronLeftIcon className="w-4 h-4 text-neutral-700" />
+          </button>
+          <button
+            onClick={() => setI((v) => (v + 1) % images.length)}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/85 hover:bg-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <ChevronRightIcon className="w-4 h-4 text-neutral-700" />
+          </button>
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+            {images.map((_, k) => (
+              <span key={k} className={cn("w-1.5 h-1.5 rounded-full transition-colors", k === i ? "bg-white" : "bg-white/50")} />
+            ))}
+          </div>
+        </>
+      )}
+      <span className="absolute top-2 left-2 text-[10px] font-semibold text-white bg-black/55 rounded-full px-2 py-0.5 backdrop-blur-[1px]">
+        {images.length} Photo{images.length === 1 ? "" : "s"}
+      </span>
     </div>
   );
 }
@@ -331,23 +339,27 @@ function RoomCard({
         {/* Room info */}
         <div className="p-4 md:border-r border-neutral-100 bg-neutral-50/40">
           <RoomImageCarousel images={room.images} name={room.name} />
-          <h3 className="text-sm font-bold text-neutral-800 mt-3 leading-snug">{room.name}</h3>
-          <div className="mt-2 grid grid-cols-2 gap-1.5 text-[11px] text-neutral-600">
-            <span>📐 {room.size}</span>
-            <span>🛏 {room.bed}</span>
-            <span>🌆 {room.view}</span>
-            <span>👥 {room.occupancy}</span>
+          <h3 className="text-[15px] font-bold text-neutral-900 mt-3 leading-snug">{room.name}</h3>
+          <span className="inline-flex items-center gap-1 mt-1 text-[11px] font-medium text-neutral-500">
+            <UserGroupIcon className="w-3.5 h-3.5" /> {room.occupancy}
+          </span>
+          <div className="mt-2 space-y-1 text-xs text-neutral-600">
+            {room.size && <p>📐 {room.size}</p>}
+            {room.bed && <p>🛏 {room.bed}</p>}
+            {room.view && <p>🌆 {room.view}</p>}
           </div>
-          <div className="mt-2.5 flex flex-wrap gap-1">
-            {room.amenities.slice(0, 4).map((a) => (
-              <span key={a} className="text-[10px] text-neutral-500 bg-white border border-neutral-200 rounded-full px-2 py-0.5">
-                {a}
-              </span>
-            ))}
-            {room.amenities.length > 4 && (
-              <span className="text-[10px] font-semibold text-primary-600">+{room.amenities.length - 4} more</span>
-            )}
-          </div>
+          {room.amenities.length > 0 && (
+            <div className="mt-2.5 flex flex-wrap gap-1">
+              {room.amenities.slice(0, 6).map((a) => (
+                <span key={a} className="text-[10px] text-neutral-600 bg-white border border-neutral-200 rounded-full px-2 py-0.5">
+                  {a}
+                </span>
+              ))}
+              {room.amenities.length > 6 && (
+                <span className="text-[10px] font-semibold text-primary-600">+{room.amenities.length - 6} more</span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Rate plans */}
