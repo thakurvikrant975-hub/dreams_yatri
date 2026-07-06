@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { hotelConnectAuth } from "@/app/lib/auth-hotel-connect";
 import { db } from "@/app/lib/db";
+import { ensureHomestayRoom } from "@/app/lib/hotel-inventory/homestay-room-sync";
 
 /**
  * DEV auto-approve: a validly-submitted property goes straight to LIVE (simulating
@@ -120,6 +121,11 @@ export async function submitForReview(
       listing_status: AUTO_APPROVE ? "LIVE" : "SUBMITTED",
     },
   });
+
+  // Homestay/Villa wizard never creates a hotel_rooms row (it's edited as a
+  // single unit) — provision the canonical "Entire Property" room + pricing
+  // so it's bookable through the same pipeline as a hotel room.
+  await ensureHomestayRoom(hotelId);
 
   revalidatePath(`/hotel-connect/properties/${hotelId}/edit`);
   revalidatePath("/hotel-connect/properties");
