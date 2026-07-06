@@ -170,7 +170,13 @@ export default async function PackageBuilderPage({
           <RouteBuilderTab
             packageId={pkg.id}
             packageTitle={pkg.title}
-            initialData={pkg.durations as never}
+            initialData={pkg.durations.map((d) => ({
+              ...d,
+              routes: d.routes.map((r) => ({
+                ...r,
+                itineraryCount: r._count.itineraries,
+              })),
+            })) as never}
             packageImages={pkg.images.map(img => ({ id: img.id, url: img.url, is_primary: img.is_primary }))}
             destinationCoords={
               pkg.destination.latitude != null && pkg.destination.longitude != null

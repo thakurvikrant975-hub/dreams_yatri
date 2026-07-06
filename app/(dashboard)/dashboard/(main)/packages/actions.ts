@@ -97,6 +97,7 @@ export async function getPackageForBuilder(id: number) {
           routes: {
             orderBy: { sort_order: "asc" },
             include: {
+              _count: { select: { itineraries: true } },
               stops: {
                 orderBy: { sort_order: "asc" },
                 select: {

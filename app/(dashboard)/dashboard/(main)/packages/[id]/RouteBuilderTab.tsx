@@ -60,6 +60,7 @@ type RouteRow = {
   meta_desc: string | null;
   sort_order: number;
   is_active: boolean;
+  itineraryCount: number;
   stops: RouteStop[];
 };
 
@@ -95,7 +96,7 @@ function DurationCard({
 }: {
   duration: Duration;
   onEdit: (route: EditingRoute) => void;
-  onDelete: (routeId: number) => void;
+  onDelete: (route: RouteRow) => void;
   onSetDefault: (durationId: number) => void;
   deleting: number | null;
   settingDefault: number | null;
@@ -201,7 +202,7 @@ function DurationCard({
                     variant="ghost"
                     className="h-7 w-7 p-0 rounded-md text-dashboard-base-content/60 hover:text-dashboard-error hover:bg-dashboard-error/10"
                     disabled={deleting === route.id}
-                    onClick={() => onDelete(route.id)}
+                    onClick={() => onDelete(route)}
                   >
                     {deleting === route.id ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -226,7 +227,7 @@ export function RouteBuilderTab({ packageId, packageTitle, initialData, packageI
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [editingRoute, setEditingRoute] = useState<EditingRoute | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ routeId: number; itineraryCount: number } | null>(null);
   const [settingDefaultId, setSettingDefaultId] = useState<number | null>(null);
   const [, startDeleting] = useTransition();
   const [, startSettingDefault] = useTransition();
@@ -259,17 +260,17 @@ export function RouteBuilderTab({ packageId, packageTitle, initialData, packageI
     });
   }
 
-  function handleDeleteClick(routeId: number) {
-    setConfirmDeleteId(routeId);
+  function handleDeleteClick(route: RouteRow) {
+    setConfirmDelete({ routeId: route.id, itineraryCount: route.itineraryCount ?? 0 });
   }
 
-  function confirmDelete() {
-    if (!confirmDeleteId) return;
-    const id = confirmDeleteId;
-    setConfirmDeleteId(null);
-    setDeletingId(id);
+  function handleConfirmDelete() {
+    if (!confirmDelete) return;
+    const { routeId } = confirmDelete;
+    setConfirmDelete(null);
+    setDeletingId(routeId);
     startDeleting(async () => {
-      const res = await handleDeleteRouteVariant(id, packageId);
+      const res = await handleDeleteRouteVariant(routeId, packageId);
       setDeletingId(null);
       if (!res.success) { toast.error(res.message); return; }
       toast.success("Route deleted");
@@ -345,21 +346,28 @@ export function RouteBuilderTab({ packageId, packageTitle, initialData, packageI
 
       {/* Delete confirm */}
       <AlertDialog
-        open={confirmDeleteId !== null}
-        onOpenChange={(open) => !open && setConfirmDeleteId(null)}
+        open={confirmDelete !== null}
+        onOpenChange={(open) => !open && setConfirmDelete(null)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete route variant?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will also delete all stops. If this is the only route under its duration, the
-              duration will be removed too.
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>This will permanently delete the route and all its stops.</p>
+                {confirmDelete && confirmDelete.itineraryCount > 0 && (
+                  <p className="text-dashboard-error font-medium">
+                    ⚠️ This route has {confirmDelete.itineraryCount} built itinerary day{confirmDelete.itineraryCount !== 1 ? "s" : ""}. Deleting the route will also delete all of those itinerary entries.
+                  </p>
+                )}
+                <p>If this is the only route under its duration, the duration will also be removed.</p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={confirmDelete}
+              onClick={handleConfirmDelete}
               className="bg-dashboard-error text-dashboard-error-content hover:bg-dashboard-error/90"
             >
               Delete

@@ -104,6 +104,7 @@ export async function getPackageRouteData(packageId: number) {
       routes: {
         orderBy: { sort_order: "asc" },
         include: {
+          _count: { select: { itineraries: true } },
           stops: {
             orderBy: { sort_order: "asc" },
             select: {
@@ -126,6 +127,7 @@ export async function getPackageRouteData(packageId: number) {
     ...d,
     routes: d.routes.map((r) => ({
       ...r,
+      itineraryCount: r._count.itineraries,
       stops: r.stops.map((s) => ({
         id: s.id,
         place_name: s.place_name,
@@ -256,16 +258,12 @@ export async function upsertRouteVariant(
 export async function deleteRouteVariant(routeId: number) {
   const route = await db.package_routes.findUnique({
     where: { id: routeId },
-    select: { duration_id: true, _count: { select: { itineraries: true } } },
+    select: { duration_id: true },
   });
   if (!route) throw new Error("Route not found");
 
-  if (route._count.itineraries > 0) {
-    const n = route._count.itineraries;
-    throw new Error(
-      `Cannot delete — this route has ${n} built itinerary day${n !== 1 ? "s" : ""}. Clear the itinerary first.`,
-    );
-  }
+  // Delete itineraries first (no cascade on route_id FK); their children cascade automatically
+  await db.package_itineraries.deleteMany({ where: { route_id: routeId } });
 
   await db.package_routes.delete({ where: { id: routeId } });
   await cleanOrphanDuration(route.duration_id);
