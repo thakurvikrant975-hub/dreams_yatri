@@ -347,12 +347,11 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
     if (IFSC_BANK_MAP[prefix]) setBankName(IFSC_BANK_MAP[prefix]);
   }
 
-  // Auto-fill PAN from GSTIN (chars 2-11)
+  // Auto-fill PAN from GSTIN (chars 2-11) — convenience only; PAN stays freely editable.
   function handleGstin(v: string) {
     const upper = v.toUpperCase().slice(0, 15);
     setGstin(upper);
     if (upper.length >= 12) setPanNumber(upper.slice(2, 12));
-    else setPanNumber("");
   }
 
   // Completeness checks for section indicators
@@ -363,7 +362,9 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
       : !!docs["registration_doc"]
   );
   const sec2Complete = !!idProofType && !!docs["id_proof"];
-  const sec3Complete = !!accountNo && !!ifsc && !!bankName;
+  // PAN is required to submit for review (see review-actions.submitForReview),
+  // so it must factor into this section's own "complete" indicator too.
+  const sec3Complete = !!accountNo && !!ifsc && !!bankName && !!panNumber;
 
   // Property address string for the upload note
   const addressParts = [hotel.address, hotel.city, hotel.state, hotel.country].filter(Boolean);
@@ -597,12 +598,26 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
 
             <div className="h-px bg-neutral-100" />
 
-            {/* GSTIN / PAN */}
+            {/* PAN — always required for payouts/tax reporting, regardless of GSTIN */}
+            <div>
+              <FieldLabel required>PAN Number</FieldLabel>
+              <TextInput
+                value={panNumber}
+                onChange={(v) => setPanNumber(v.toUpperCase().slice(0, 10))}
+                placeholder="ABCDE1234F"
+                maxLength={10}
+                className="uppercase"
+              />
+            </div>
+
+            <div className="h-px bg-neutral-100" />
+
+            {/* GSTIN (optional) */}
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-4">
                 <p className="text-xs font-medium text-neutral-700">Do you have a GSTIN?</p>
                 <div className="flex rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
-                  <button type="button" onClick={() => { setHasGstin(false); setGstin(""); setPanNumber(""); }}
+                  <button type="button" onClick={() => { setHasGstin(false); setGstin(""); }}
                     className={cn("px-4 py-1.5 transition-colors",
                       !hasGstin ? "bg-neutral-700 text-white" : "text-neutral-500 hover:bg-neutral-50")}>
                     No
@@ -617,26 +632,16 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
               </div>
 
               {hasGstin && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-0">
-                  <div>
-                    <FieldLabel>Enter GSTIN</FieldLabel>
-                    <TextInput
-                      value={gstin}
-                      onChange={handleGstin}
-                      placeholder="Enter the 15-digit GSTIN"
-                      maxLength={15}
-                      className="uppercase"
-                    />
-                  </div>
-                  <div>
-                    <FieldLabel>Enter PAN</FieldLabel>
-                    <TextInput
-                      value={panNumber}
-                      placeholder="Your PAN will be filled in automatically"
-                      disabled
-                      className="uppercase"
-                    />
-                  </div>
+                <div>
+                  <FieldLabel>Enter GSTIN</FieldLabel>
+                  <TextInput
+                    value={gstin}
+                    onChange={handleGstin}
+                    placeholder="Enter the 15-digit GSTIN"
+                    maxLength={15}
+                    className="uppercase"
+                  />
+                  <p className="text-[11px] text-neutral-400 mt-1">This will auto-fill your PAN above — you can still edit it.</p>
                 </div>
               )}
             </div>
