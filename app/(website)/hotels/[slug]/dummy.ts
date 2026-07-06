@@ -13,6 +13,15 @@ export type RatePlan = {
   badge?: string;
 };
 
+export type BedroomLayout = {
+  name: string;
+  bed: string;
+  view: string;
+  attachedBathroom: boolean;
+  size: string;
+  amenities: string[];
+};
+
 export type Room = {
   id: string;
   name: string;
@@ -70,6 +79,15 @@ export type Hotel = {
     mustRead: string[];
   };
   rooms: Room[];
+  // Present only for HOMESTAY_VILLA properties — MMT/Goibibo-style "Property
+  // Layout" showing the physical bedrooms rather than sellable hotel rooms.
+  homestay?: {
+    bedroomCount: number;
+    bathroomCount: number;
+    managedBy: string;
+    managedByNote: string;
+    layout: BedroomLayout[];
+  };
   reviews: {
     overall: number;
     label: string;

@@ -27,9 +27,11 @@ import {
   ClockIcon,
   ArrowRightIcon,
   HandThumbUpIcon,
+  UserCircleIcon,
 } from "@heroicons/react/24/outline";
 import { StarIcon as StarSolid, UserGroupIcon, } from "@heroicons/react/24/solid";
-import { PencilRulerIcon, BedIcon, EyeIcon } from "@phosphor-icons/react";
+import { PencilRulerIcon, BedIcon, EyeIcon, BathtubIcon } from "@phosphor-icons/react";
+import type { BedroomLayout } from "./dummy";
 
 import type { Hotel, Room, RatePlan } from "./dummy";
 import Button from "@/app/components/ui/Button";
@@ -258,6 +260,78 @@ function SubNav({ active, onJump }: { active: string; onJump: (id: string) => vo
           >
             {s.label}
           </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Homestay: property info strip + bedroom layout (MMT/Goibibo-style) ───────
+
+function HomestayInfoStrip({ homestay }: { homestay: NonNullable<Hotel["homestay"]> }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-3 mb-4">
+      <div className="flex items-center gap-4 text-sm text-neutral-700">
+        <span className="flex items-center gap-1.5">
+          <BedIcon className="size-5 text-neutral-400" />
+          {homestay.bedroomCount} Bedroom{homestay.bedroomCount === 1 ? "" : "s"}
+        </span>
+        {homestay.bathroomCount > 0 && (
+          <span className="flex items-center gap-1.5">
+            <BathtubIcon className="size-5 text-neutral-400" />
+            {homestay.bathroomCount} Bathroom{homestay.bathroomCount === 1 ? "" : "s"}
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-2 text-right">
+        <UserCircleIcon className="w-5 h-5 text-neutral-400 shrink-0" />
+        <div>
+          <p className="text-xs font-semibold text-neutral-800 leading-tight">{homestay.managedBy}</p>
+          <p className="text-[11px] text-neutral-400 leading-tight">{homestay.managedByNote}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BedroomCard({ bedroom, fallbackImage }: { bedroom: BedroomLayout; fallbackImage: string }) {
+  return (
+    <Card variant="elevated" radius="md" className="overflow-hidden p-px">
+      <div className="relative h-32 overflow-hidden rounded-t-[inherit]">
+        <Image src={fallbackImage} alt={bedroom.name} fill className="object-cover" sizes="(max-width:640px) 100vw, 25vw" />
+      </div>
+      <div className="p-3">
+        <p className="text-sm font-bold text-neutral-800">{bedroom.name}</p>
+        <div className="mt-1.5 space-y-1 text-xs text-neutral-600">
+          <p className="flex items-center gap-1.5"><BedIcon className="size-4 text-neutral-400 shrink-0" /> {bedroom.bed}</p>
+          {bedroom.view && <p className="flex items-center gap-1.5"><EyeIcon className="size-4 text-neutral-400 shrink-0" /> {bedroom.view} View</p>}
+        </div>
+        <div className="flex flex-wrap gap-1 mt-2">
+          {bedroom.attachedBathroom && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
+              <BathtubIcon className="size-3" /> Attached Bathroom
+            </span>
+          )}
+          {bedroom.size && (
+            <span className="text-[10px] font-medium text-neutral-500 bg-neutral-50 border border-neutral-200 rounded-full px-2 py-0.5">
+              {bedroom.size}
+            </span>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function PropertyLayoutSection({ homestay, fallbackImage }: { homestay: NonNullable<Hotel["homestay"]>; fallbackImage: string }) {
+  if (homestay.layout.length === 0) return null;
+  return (
+    <div className="mt-5">
+      <h3 className="text-sm font-bold text-neutral-800">Property Layout</h3>
+      <p className="text-xs text-neutral-400 mb-3">Room Options ({homestay.layout.length})</p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {homestay.layout.map((b, i) => (
+          <BedroomCard key={`${b.name}-${i}`} bedroom={b} fallbackImage={fallbackImage} />
         ))}
       </div>
     </div>
@@ -637,6 +711,8 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut }: { hotel:
           </div>
         </div>
 
+        {hotel.homestay && <HomestayInfoStrip homestay={hotel.homestay} />}
+
         {/* Top: gallery + booking summary (non-sticky) */}
         <div >
           <Gallery images={hotel.images} onOpen={setLightbox} />
@@ -662,6 +738,9 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut }: { hotel:
                   );
                 })}
               </div>
+              {hotel.homestay && (
+                <PropertyLayoutSection homestay={hotel.homestay} fallbackImage={hotel.images[0]} />
+              )}
             </div>
             <div className="hidden lg:block">
               <BookingSummary hotel={hotel} selected={!!selected} current={current} onBook={() => jump("rooms")} />

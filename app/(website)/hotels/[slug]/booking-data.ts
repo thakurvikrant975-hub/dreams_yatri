@@ -2,7 +2,7 @@ import "server-only";
 import { db } from "@/app/lib/db";
 import { getRoomARI } from "@/app/lib/hotel-inventory/rates";
 import { resolveCancellation, effectivePolicy, type CancellationPolicy } from "@/app/lib/hotel-inventory/cancellation";
-import type { Hotel, Room, RatePlan } from "./dummy";
+import type { Hotel, Room, RatePlan, BedroomLayout } from "./dummy";
 
 const FALLBACK_IMG =
   "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&h=800&q=80";
@@ -49,6 +49,25 @@ function amenityLabels(raw: unknown): string[] {
 
 function nightsBetween(checkIn: string, checkOut: string): number {
   return Math.max(1, Math.round((Date.parse(checkOut) - Date.parse(checkIn)) / 86_400_000));
+}
+
+type BedroomDetail = {
+  name?: string;
+  beds?: Record<string, number>;
+  has_bathroom?: boolean;
+  view?: string;
+  size_value?: number | null;
+  size_unit?: string;
+  amenities?: string[];
+};
+
+/** "2 King Beds, 1 Sofa Cum Bed" from a { king_bed: 2, sofa_cum_bed: 1 } map. */
+function bedsLabel(beds: Record<string, number> | undefined): string {
+  if (!beds) return "";
+  return Object.entries(beds)
+    .filter(([, n]) => n > 0)
+    .map(([key, n]) => `${n} ${prettify(key)}${n > 1 ? "s" : ""}`)
+    .join(", ");
 }
 
 export type HotelCard = {
@@ -173,6 +192,8 @@ export async function getHotelForBooking(
       check_in_time: true, check_out_time: true, cancellation_policy: true,
       allow_unmarried_couples: true, allow_guests_below_18: true, smoking_allowed: true,
       acceptable_id_proofs: true, pets_allowed: true,
+      property_category: true, hs_bedrooms: true, hs_bathrooms: true,
+      hs_bedroom_details: true, host_lives_at_property: true, caretaker_stays: true,
       images: { orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }], select: { url: true } },
       hotelRooms: {
         where: { is_active: true },
@@ -253,6 +274,38 @@ export async function getHotelForBooking(
 
   const rule = (v: boolean | null, yes: string, no: string) => (v ? yes : no);
 
+  // Homestay/Villa: MMT/Goibibo-style "Property Layout" showing the physical
+  // bedrooms (from the wizard's per-bedroom JSON) instead of sellable rooms.
+  let homestay: Hotel["homestay"];
+  if (h.property_category === "HOMESTAY_VILLA") {
+    const bedroomDetails = Array.isArray(h.hs_bedroom_details) ? (h.hs_bedroom_details as BedroomDetail[]) : [];
+    const layout: BedroomLayout[] = bedroomDetails.map((b, i) => ({
+      name: b.name || `Bedroom ${i + 1}`,
+      bed: bedsLabel(b.beds) || "Bed details not added",
+      view: b.view ? prettify(b.view) : "",
+      attachedBathroom: !!b.has_bathroom,
+      size: b.size_value ? `${b.size_value} ${b.size_unit ?? "sqft"}` : "",
+      amenities: Array.isArray(b.amenities) ? b.amenities.map(prettify) : [],
+    }));
+    const managedBy = h.host_lives_at_property
+      ? "Managed by Host"
+      : h.caretaker_stays
+        ? "Managed by Caretaker/Staff"
+        : "Remotely Managed";
+    const managedByNote = h.host_lives_at_property
+      ? "Host lives at the property"
+      : h.caretaker_stays
+        ? "For ensuring a smooth and comfortable stay"
+        : "Self check-in available";
+    homestay = {
+      bedroomCount: h.hs_bedrooms ?? layout.length,
+      bathroomCount: h.hs_bathrooms ?? 0,
+      managedBy,
+      managedByNote,
+      layout,
+    };
+  }
+
   return {
     slug: h.slug,
     name: h.name,
@@ -286,6 +339,7 @@ export async function getHotelForBooking(
       ],
     },
     rooms,
+    homestay,
     reviews: { overall: 0, label: "New", count: 0, categories: [], distribution: [], items: [] },
     similar: [],
     nights: nightsBetween(checkIn, checkOut),
