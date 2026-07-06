@@ -5,6 +5,10 @@ import { saveMealsPricing, type MealsPricingState } from "./meals-pricing-action
 import { WarningIcon, MinusIcon, PlusIcon } from "@phosphor-icons/react/dist/ssr";
 import DatePickerField from "@/app/components/ui/DatePickerField";
 import { cn } from "@/app/lib/utils";
+import { Card } from "@/app/components/ui/Card";
+import { Input } from "../../../../components/ui/input";
+import { Label } from "../../../../components/ui/label";
+import { SearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -45,13 +49,13 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
-      <div className="px-5 py-3.5 border-b border-neutral-100 bg-neutral-50">
+    <Card variant="elevated" radius="md" className="overflow-hidden p-px">
+      <div className="px-5 py-3.5 border-b border-neutral-200 bg-linear-to-b bg-neutral-50 rounded-t-[inherit]">
         <p className="text-sm font-semibold text-neutral-800">{title}</p>
-        {description && <p className="text-xs text-neutral-400 mt-0.5">{description}</p>}
+        {description && <p className="text-xs text-neutral-600/90 mt-0.5">{description}</p>}
       </div>
       <div className="p-5 space-y-5">{children}</div>
-    </div>
+    </Card>
   );
 }
 
@@ -67,13 +71,13 @@ function FieldLabel({
   optional?: boolean;
 }) {
   return (
-    <label htmlFor={htmlFor} className="block mb-1.5">
-      <span className="text-sm font-medium text-neutral-700">
+    <div className="mb-1.5">
+      <Label htmlFor={htmlFor}>
         {label}
-        {optional && <span className="ml-1 text-xs font-normal text-neutral-400">(Optional)</span>}
-      </span>
-      {hint && <span className="block text-xs text-neutral-400 mt-0.5">{hint}</span>}
-    </label>
+        {optional && <span className="ml-1 normal-case tracking-normal font-normal text-neutral-400">(Optional)</span>}
+      </Label>
+      {hint && <span className="block text-xs text-neutral-500 mt-1 normal-case tracking-normal font-normal">{hint}</span>}
+    </div>
   );
 }
 
@@ -161,8 +165,8 @@ function CurrencyInput({
   placeholder?: string;
 }) {
   return (
-    <div className="flex items-center rounded-input border border-neutral-200 bg-white shadow-sm overflow-hidden focus-within:border-primary-400 focus-within:ring-[0.11em] focus-within:ring-primary-100 transition-all">
-      <span className="pl-3 pr-2 text-sm text-neutral-400 font-medium select-none">₹</span>
+    <div className="flex items-center h-10 rounded-lg border border-neutral-300 bg-white shadow-sm overflow-hidden transition-colors focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-500/20">
+      <span className="pl-3 pr-1.5 text-sm text-neutral-400 font-medium select-none">₹</span>
       <input
         id={id}
         name={name}
@@ -172,7 +176,7 @@ function CurrencyInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder ?? "Add Rate"}
-        className="flex-1 py-2.5 pr-3 text-sm text-neutral-800 outline-none bg-transparent placeholder:text-neutral-300"
+        className="flex-1 h-full pr-3 text-sm text-neutral-900 outline-none bg-transparent placeholder:text-neutral-400"
       />
     </div>
   );
@@ -218,7 +222,7 @@ export default function MealsPricingTab({ hotel }: { hotel: MealsPricingHotelDat
 
   return (
     <>
-      <form id="wizard-form" action={formAction}>
+      <form id="wizard-form" action={formAction} className="space-y-5 py-5">
         {/* Hidden controlled fields */}
         <input type="hidden" name="prop_num_units"      value={numUnits} />
         <input type="hidden" name="prop_meal_option"    value={mealOption} />
@@ -244,13 +248,12 @@ export default function MealsPricingTab({ hotel }: { hotel: MealsPricingHotelDat
                 htmlFor="prop_num_units_input"
                 hint="How many identical units are available"
               />
-              <input
+              <Input
                 id="prop_num_units_input"
                 type="number"
                 min="1"
                 value={numUnits}
                 onChange={(e) => setNumUnits(Math.max(1, parseInt(e.target.value) || 1))}
-                className="w-full rounded-input border border-neutral-200 bg-white px-3 py-2.5 text-sm shadow-sm outline-none focus:border-primary-400 focus:ring-[0.11em] focus:ring-primary-100 transition-all"
               />
             </div>
             <div>
@@ -258,16 +261,13 @@ export default function MealsPricingTab({ hotel }: { hotel: MealsPricingHotelDat
                 label="Meal Option (applies to all units)"
                 htmlFor="meal_option_select"
               />
-              <select
-                id="meal_option_select"
+              <SearchSelect
+                options={MEAL_OPTIONS}
                 value={mealOption}
-                onChange={(e) => setMealOption(e.target.value)}
-                className="w-full rounded-input border border-neutral-200 bg-white px-3 py-2.5 text-sm shadow-sm outline-none focus:border-primary-400 focus:ring-[0.11em] focus:ring-primary-100 transition-all appearance-none"
-              >
-                {MEAL_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
+                onChange={setMealOption}
+                placeholder="Select meal option"
+                searchPlaceholder="Search meal option…"
+              />
             </div>
           </div>
           <p className="text-xs text-neutral-400">

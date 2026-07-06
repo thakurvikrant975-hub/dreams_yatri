@@ -4,7 +4,15 @@ import { useActionState, useState } from "react";
 import { saveHomestayPolicy, type HomestayPolicyState } from "./homestay-policy-actions";
 import { HotelCancellationPolicy } from "@/app/generated/prisma";
 import { cn } from "@/app/lib/utils";
-import { MultiSearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
+import { SearchSelect, MultiSearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
+import { Card } from "@/app/components/ui/Card";
+import { Input } from "../../../../components/ui/input";
+import { Label } from "../../../../components/ui/label";
+import { Textarea } from "../../../../components/ui/textarea";
+
+function PLabel({ className, ...props }: React.ComponentProps<"label">) {
+  return <Label className={cn("normal-case tracking-normal", className)} {...props} />;
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -119,13 +127,13 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
-      <div className="px-5 py-3.5 border-b border-neutral-100 bg-neutral-50">
+    <Card variant="elevated" radius="md" className="overflow-hidden p-px">
+      <div className="px-5 py-3.5 border-b border-neutral-200 bg-linear-to-b bg-neutral-50 rounded-t-[inherit]">
         <p className="text-sm font-semibold text-neutral-800">{title}</p>
-        {description && <p className="text-[11px] text-neutral-400 mt-0.5">{description}</p>}
+        {description && <p className="text-xs text-neutral-600/90 mt-0.5">{description}</p>}
       </div>
       <div className="divide-y divide-neutral-100">{children}</div>
-    </div>
+    </Card>
   );
 }
 
@@ -185,7 +193,7 @@ function PolicyRow({
   return (
     <div>
       <div className="flex items-center justify-between gap-6 px-5 py-3.5">
-        <p className="text-xs text-neutral-700 leading-snug flex-1">{label}</p>
+        <PLabel className="flex-1">{label}</PLabel>
         <YesNoButtons value={value} onChange={onChange} />
       </div>
       {value === true && children && (
@@ -208,14 +216,14 @@ function SubRow({
 }) {
   return (
     <div className="flex items-center justify-between gap-6 py-1.5">
-      <p className="text-xs text-neutral-600 leading-snug flex-1">{label}</p>
+      <PLabel className="flex-1">{label}</PLabel>
       <YesNoButtons value={value} onChange={onChange} />
     </div>
   );
 }
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
-  return <p className="text-xs text-neutral-500 mb-1.5 leading-snug">{children}</p>;
+  return <PLabel className="mb-1.5">{children}</PLabel>;
 }
 
 function SelectField({
@@ -230,16 +238,13 @@ function SelectField({
   placeholder?: string;
 }) {
   return (
-    <select
+    <SearchSelect
+      options={options}
       value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="w-full h-9 rounded-lg border border-neutral-200 bg-white px-3 pr-8 text-xs text-neutral-700 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300 appearance-none"
-    >
-      <option value="">{placeholder ?? "Select…"}</option>
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>{o.label}</option>
-      ))}
-    </select>
+      onChange={onChange}
+      placeholder={placeholder ?? "Select…"}
+      searchPlaceholder="Search…"
+    />
   );
 }
 
@@ -355,7 +360,7 @@ export default function HomestayPoliciesTab({ hotel }: { hotel: HomestayPolicies
 
   return (
     <>
-      <form id="wizard-form" action={formAction}>
+      <form id="wizard-form" action={formAction} className="space-y-5 py-5">
         {/* ── Hidden serialised state ─────────────────────────────────────────── */}
         <input type="hidden" name="check_in_time"           value={checkInTime} />
         <input type="hidden" name="check_out_time"          value={checkOutTime} />
@@ -408,26 +413,24 @@ export default function HomestayPoliciesTab({ hotel }: { hotel: HomestayPolicies
         <SectionCard title="Check-in & Check-out Time">
           <div className="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
-              <label className="block text-xs font-medium text-neutral-600 mb-1.5">Check-in Time</label>
-              <select
+              <PLabel className="mb-1.5">Check-in Time</PLabel>
+              <SearchSelect
+                options={TIME_OPTIONS}
                 value={checkInTime}
-                onChange={(e) => setCheckInTime(e.target.value)}
-                className="w-full h-9 rounded-lg border border-neutral-200 bg-white px-3 pr-8 text-xs text-neutral-700 focus:outline-none focus:ring-2 focus:ring-primary-300 appearance-none"
-              >
-                <option value="">Select time</option>
-                {TIME_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
+                onChange={setCheckInTime}
+                placeholder="Select time"
+                searchPlaceholder="Search time…"
+              />
             </div>
             <div>
-              <label className="block text-xs font-medium text-neutral-600 mb-1.5">Check-out Time</label>
-              <select
+              <PLabel className="mb-1.5">Check-out Time</PLabel>
+              <SearchSelect
+                options={TIME_OPTIONS}
                 value={checkOutTime}
-                onChange={(e) => setCheckOutTime(e.target.value)}
-                className="w-full h-9 rounded-lg border border-neutral-200 bg-white px-3 pr-8 text-xs text-neutral-700 focus:outline-none focus:ring-2 focus:ring-primary-300 appearance-none"
-              >
-                <option value="">Select time</option>
-                {TIME_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
+                onChange={setCheckOutTime}
+                placeholder="Select time"
+                searchPlaceholder="Search time…"
+              />
             </div>
           </div>
           <div className="px-5 pb-4 space-y-3">
@@ -442,15 +445,14 @@ export default function HomestayPoliciesTab({ hotel }: { hotel: HomestayPolicies
             </label>
             {hasEndTime && (
               <div className="max-w-xs ml-6">
-                <label className="block text-xs font-medium text-neutral-600 mb-1.5">Check-in End Time</label>
-                <select
+                <PLabel className="mb-1.5">Check-in End Time</PLabel>
+                <SearchSelect
+                  options={TIME_OPTIONS}
                   value={checkInEndTime}
-                  onChange={(e) => setCheckInEndTime(e.target.value)}
-                  className="w-full h-9 rounded-lg border border-neutral-200 bg-white px-3 pr-8 text-xs text-neutral-700 focus:outline-none focus:ring-2 focus:ring-primary-300 appearance-none"
-                >
-                  <option value="">Select time</option>
-                  {TIME_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </select>
+                  onChange={setCheckInEndTime}
+                  placeholder="Select time"
+                  searchPlaceholder="Search time…"
+                />
               </div>
             )}
           </div>
@@ -499,7 +501,7 @@ export default function HomestayPoliciesTab({ hotel }: { hotel: HomestayPolicies
           <PolicyRow label="Groups with only male guests allowed?" value={maleOnlyGroups} onChange={setMaleOnlyGroups} />
 
           <div className="px-5 py-3.5 space-y-3">
-            <p className="text-xs text-neutral-700">Acceptable Identity Proofs</p>
+            <PLabel>Acceptable Identity Proofs</PLabel>
             <MultiSearchSelect
               options={ID_PROOF_OPTIONS}
               value={idProofs}
@@ -526,13 +528,12 @@ export default function HomestayPoliciesTab({ hotel }: { hotel: HomestayPolicies
           <PolicyRow label="Can guests invite outside visitors?" value={outsideVisitors} onChange={setOutsideVisitors} />
 
           <div className="px-5 py-3.5">
-            <label className="block text-xs font-medium text-neutral-600 mb-1.5">Music / Noise Policy</label>
-            <input
+            <PLabel className="mb-1.5">Music / Noise Policy</PLabel>
+            <Input
               type="text"
               value={noisePolicy}
               onChange={(e) => setNoisePolicy(e.target.value)}
               placeholder="e.g. No loud music after 10 PM"
-              className="w-full h-9 rounded-lg border border-neutral-200 bg-white px-3 text-xs text-neutral-700 focus:outline-none focus:ring-2 focus:ring-primary-300 placeholder:text-neutral-300"
             />
           </div>
         </SectionCard>
@@ -568,13 +569,13 @@ export default function HomestayPoliciesTab({ hotel }: { hotel: HomestayPolicies
                 <FieldLabel>Charges in INR</FieldLabel>
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs text-neutral-400 font-medium">₹</span>
-                  <input
+                  <Input
                     type="number"
                     min="0"
                     value={petChargeAmount}
                     onChange={(e) => setPetChargeAmount(e.target.value)}
                     placeholder="Enter amount"
-                    className="w-32 h-8 rounded-md border border-neutral-200 bg-white px-2.5 text-xs text-neutral-700 focus:outline-none focus:ring-1 focus:ring-primary-300 placeholder:text-neutral-300"
+                    className="w-32"
                   />
                 </div>
               </div>
@@ -583,7 +584,7 @@ export default function HomestayPoliciesTab({ hotel }: { hotel: HomestayPolicies
           </PolicyRow>
 
           <div className="px-5 py-3.5 space-y-3">
-            <p className="text-xs text-neutral-700">Pets restricted in these areas</p>
+            <PLabel>Pets restricted in these areas</PLabel>
             <MultiSearchSelect
               options={PET_AREA_OPTIONS}
               value={petsRestrictAreas ? petsRestrictAreas.split(",").map((s) => s.trim()).filter(Boolean) : []}
@@ -595,14 +596,14 @@ export default function HomestayPoliciesTab({ hotel }: { hotel: HomestayPolicies
           <PolicyRow label="Are pets allowed to roam without leash?" value={petsWithoutLeash} onChange={setPetsWithoutLeash} />
 
           <div className="px-5 py-3.5">
-            <label className="block text-xs font-medium text-neutral-600 mb-1.5">No. of pets allowed</label>
-            <input
+            <PLabel className="mb-1.5">No. of pets allowed</PLabel>
+            <Input
               type="number"
               min="0"
               value={petCount}
               onChange={(e) => setPetCount(e.target.value)}
               placeholder="Enter number"
-              className="w-28 h-9 rounded-lg border border-neutral-200 bg-white px-3 text-xs text-neutral-700 focus:outline-none focus:ring-2 focus:ring-primary-300 placeholder:text-neutral-300"
+              className="w-28"
             />
           </div>
         </SectionCard>
@@ -616,17 +617,16 @@ export default function HomestayPoliciesTab({ hotel }: { hotel: HomestayPolicies
         <SectionCard title="Caretaker Information">
           <PolicyRow label="Does the caretaker stay at the property?" value={caretakerStays} onChange={(v) => { setCaretakerStays(v); if (!v) setCaretakerDetails(""); }}>
             <FieldLabel>Caretaker details</FieldLabel>
-            <textarea
+            <Textarea
               value={caretakerDetails}
               onChange={(e) => setCaretakerDetails(e.target.value)}
               rows={3}
               placeholder="Describe the caretaker and their role…"
-              className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs text-neutral-700 focus:outline-none focus:ring-2 focus:ring-primary-300 placeholder:text-neutral-300 resize-none"
             />
           </PolicyRow>
 
           <div className="px-5 py-3.5">
-            <label className="block text-xs font-medium text-neutral-600 mb-1.5">Caretaker availability</label>
+            <PLabel className="mb-1.5">Caretaker availability</PLabel>
             <SelectField
               value={caretakerAvail}
               onChange={setCaretakerAvail}
@@ -636,7 +636,7 @@ export default function HomestayPoliciesTab({ hotel }: { hotel: HomestayPolicies
           </div>
 
           <div className="px-5 py-3.5 space-y-2">
-            <p className="text-xs font-medium text-neutral-600">Caretaker services</p>
+            <PLabel>Caretaker services</PLabel>
             <CheckboxGroup
               options={CARETAKER_SERVICES}
               selected={caretakerSvcs}
@@ -645,7 +645,7 @@ export default function HomestayPoliciesTab({ hotel }: { hotel: HomestayPolicies
           </div>
 
           <div className="px-5 py-3.5 space-y-2">
-            <p className="text-xs font-medium text-neutral-600">Caretaker knowledge</p>
+            <PLabel>Caretaker knowledge</PLabel>
             <CheckboxGroup
               options={CARETAKER_KNOWLEDGE}
               selected={caretakerKnow}
@@ -672,12 +672,11 @@ export default function HomestayPoliciesTab({ hotel }: { hotel: HomestayPolicies
         {/* ── 9. Custom Policy ──────────────────────────────────────────── */}
         <SectionCard title="Custom Policy">
           <div className="px-5 py-4">
-            <textarea
+            <Textarea
               value={customPolicy}
               onChange={(e) => setCustomPolicy(e.target.value)}
               rows={4}
               placeholder="Add any additional policies specific to your property…"
-              className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2.5 text-xs text-neutral-700 focus:outline-none focus:ring-2 focus:ring-primary-300 placeholder:text-neutral-300 resize-none"
             />
           </div>
         </SectionCard>
