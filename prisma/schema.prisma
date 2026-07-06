@@ -574,7 +574,6 @@ model TeamRole {
   pageAccess  Json         @default("[]")
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
-  pageAccess  Json         @default("[]")
   members     TeamMember[]
 
   @@map("team_roles")

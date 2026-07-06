@@ -5,11 +5,11 @@ import {
     BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "../../components/ui/breadcrumb";
 import { PageHeader } from "../../components/dashboard/PageHeader";
-import { getRolesWithPageAccess } from "../actions";
+import { getRoles } from "../actions";
 import { PageAccessEditor } from "./PageAccessEditor";
 
 export default async function PageAccessPage() {
-    const roles = await getRolesWithPageAccess();
+    const roles = await getRoles();
 
     return (
         <div className="space-y-6">

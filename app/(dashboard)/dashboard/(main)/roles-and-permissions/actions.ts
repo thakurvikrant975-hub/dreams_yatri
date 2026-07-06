@@ -157,6 +157,31 @@ export async function updateRoleAccess(
     }
 }
 
+// ── Update Page Access only ──────────────────────────────────────────────────
+// Used by the dedicated Page Access tab, which only edits sidebar visibility
+// and must leave the role's data permissions untouched.
+
+export async function updateRolePageAccess(
+    id: string,
+    pageAccess: string[],
+): Promise<RoleFormState> {
+    try {
+        const role = await db.teamRole.findUnique({ where: { id } });
+        if (!role) return { success: false, message: "Role not found" };
+
+        await db.teamRole.update({
+            where: { id },
+            data: { pageAccess: pageAccess as unknown as never },
+        });
+
+        revalidatePath(REVALIDATE_PATH);
+        return { success: true, message: "Page access saved successfully" };
+    } catch (e) {
+        console.error("[updateRolePageAccess]", e);
+        return { success: false, message: `DB error: ${(e as Error).message}` };
+    }
+}
+
 // ── Delete ────────────────────────────────────────────────────────────────────
 
 export async function deleteRole(id: string): Promise<RoleFormState> {
