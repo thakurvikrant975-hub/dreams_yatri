@@ -77,7 +77,7 @@ export async function createVehicle(data: {
   description?: string | null;
 }) {
   const session = await dashboardAuth();
-  const actorName = session?.user?.name ?? session?.user?.email ?? null;
+  const actorName = session?.user?.id ?? null;
 
   try {
     const created = await db.vehicles.create({

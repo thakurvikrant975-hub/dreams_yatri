@@ -148,6 +148,50 @@ export type CabReportData = {
   byMember: MemberCabWork[];
 };
 
+// ── New rich cab-dept types ─────────────────────────────────────────────────
+
+export type DriverRowDetail = {
+  id: number;
+  name: string;
+  mobile: string;
+  city: string | null;
+  state: string | null;
+  hasVehicle: boolean;
+  isVerified: boolean;
+  isActive: boolean;
+  createdAt: string;
+};
+
+export type CabDeptMember = {
+  id: string;
+  name: string;
+  profilePicUrl: string | null;
+  designation: string | null;
+  isActive: boolean;
+  driversAdded: number;
+  driversVerified: number;
+  driversWithVehicle: number;
+  pricingAdded: number;
+  drivers: DriverRowDetail[];
+};
+
+export type DailyCabPoint = {
+  date: string;
+  total: number;
+  [memberId: string]: number | string;
+};
+
+export type CabDeptReportData = {
+  summary: {
+    driversAdded: number;
+    driversVerified: number;
+    driversWithVehicle: number;
+    pricingAdded: number;
+  };
+  members: CabDeptMember[];
+  dailyChart: DailyCabPoint[];
+};
+
 export type TravelReportData = {
   activitiesAdded: number;
   packagesAdded: number;
@@ -157,11 +201,62 @@ export type TravelReportData = {
   byMember: MemberTravelWork[];
 };
 
+// ── New rich travel-dept types ─────────────────────────────────────────────
+
+export type PackageRowDetail = {
+  id: number;
+  title: string;
+  thumbnail: string | null;
+  destination: string | null;
+  isActive: boolean;
+  createdAt: string;
+  routesCount: number;
+  daysCount: number;
+  stayCategoriesCount: number;
+  pricingCount: number;
+};
+
+export type TravelDeptMember = {
+  id: string;
+  name: string;
+  profilePicUrl: string | null;
+  designation: string | null;
+  isActive: boolean;
+  activitiesAdded: number;
+  packagesAdded: number;
+  routesAdded: number;
+  daysAdded: number;
+  stayCategoriesAdded: number;
+  pricingAdded: number;
+  packages: PackageRowDetail[];
+};
+
+export type DailyTravelPoint = {
+  date: string;
+  total: number;
+  [memberId: string]: number | string;
+};
+
+export type TravelDeptReportData = {
+  summary: {
+    activitiesAdded: number;
+    packagesAdded: number;
+    routesAdded: number;
+    daysAdded: number;
+    stayCategoriesAdded: number;
+    pricingAdded: number;
+  };
+  members: TravelDeptMember[];
+  dailyChart: DailyTravelPoint[];
+};
+
 export type ReportsData = {
   hotel: HotelReportData;
   hotelDept: HotelDeptReportData;
   cab: CabReportData;
+  cabDept: CabDeptReportData;
   travel: TravelReportData;
+  travelDept: TravelDeptReportData;
   period: TimePeriod;
   fromStr: string;
   toStr: string;
@@ -303,6 +398,315 @@ async function getHotelDeptReport(range: { gte: Date; lte: Date }): Promise<Hote
   };
 }
 
+// ── Travel dept full report ────────────────────────────────────────────────
+
+async function getTravelDeptReport(range: { gte: Date; lte: Date }): Promise<TravelDeptReportData> {
+  // 1. Find travel-expert department
+  const travelDept = await db.department.findFirst({
+    where: { name: { contains: "travel", mode: "insensitive" } },
+    select: { id: true },
+  });
+
+  // 2. Dept members + packages + activities in parallel
+  const [allMembers, packagesInPeriod, activityDailyRaw] = await Promise.all([
+    travelDept
+      ? db.teamMember.findMany({
+          where: { departmentId: travelDept.id },
+          select: { id: true, name: true, profilePicUrl: true, designation: true, isActive: true },
+          orderBy: { name: "asc" },
+        })
+      : ([] as { id: string; name: string; profilePicUrl: string | null; designation: string | null; isActive: boolean }[]),
+    db.packages.findMany({
+      where: { created_at: range },
+      select: {
+        id: true,
+        title: true,
+        thumbnail: true,
+        is_active: true,
+        created_at: true,
+        created_by: true,
+        destination: { select: { name: true } },
+        durations: { select: { _count: { select: { routes: true } } } },
+        _count: { select: { itineraries: true, stay_categories: true, packagePricings: true } },
+      },
+      orderBy: { created_at: "desc" },
+    }),
+    db.activities.findMany({
+      where: { created_at: range },
+      select: { created_at: true, created_by: true },
+    }),
+  ]);
+
+  // 3. Activity count by creator
+  const activityCreatorMap = new Map<string, number>();
+  for (const a of activityDailyRaw) {
+    const mid = a.created_by ?? "__unknown__";
+    activityCreatorMap.set(mid, (activityCreatorMap.get(mid) ?? 0) + 1);
+  }
+
+  // 4. Compute summary
+  const activitiesAdded = activityDailyRaw.length;
+  const packagesAdded = packagesInPeriod.length;
+  let routesAdded = 0, daysAdded = 0, stayCategoriesAdded = 0, pricingAdded = 0;
+  for (const p of packagesInPeriod) {
+    routesAdded += p.durations.reduce((s, d) => s + d._count.routes, 0);
+    daysAdded += p._count.itineraries;
+    stayCategoriesAdded += p._count.stay_categories;
+    pricingAdded += p._count.packagePricings;
+  }
+
+  // 5. Build package rows by creator
+  const packagesByCreator = new Map<string, PackageRowDetail[]>();
+  for (const p of packagesInPeriod) {
+    const key = p.created_by ?? "__unknown__";
+    if (!packagesByCreator.has(key)) packagesByCreator.set(key, []);
+    packagesByCreator.get(key)!.push({
+      id: p.id,
+      title: p.title,
+      thumbnail: p.thumbnail ?? null,
+      destination: p.destination.name,
+      isActive: p.is_active,
+      createdAt: p.created_at.toISOString().split("T")[0],
+      routesCount: p.durations.reduce((s, d) => s + d._count.routes, 0),
+      daysCount: p._count.itineraries,
+      stayCategoriesCount: p._count.stay_categories,
+      pricingCount: p._count.packagePricings,
+    });
+  }
+
+  // 6. Merge dept members + any non-dept members who created packages/activities
+  const deptMemberIds = new Set(allMembers.map((m) => m.id));
+  const allCreatorIds = new Set([
+    ...packagesByCreator.keys(),
+    ...activityCreatorMap.keys(),
+  ]);
+  const extraIds = [...allCreatorIds].filter(
+    (id) => id !== "__unknown__" && !deptMemberIds.has(id),
+  );
+  const extraMembers =
+    extraIds.length > 0
+      ? await db.teamMember.findMany({
+          where: { id: { in: extraIds } },
+          select: { id: true, name: true, profilePicUrl: true, designation: true, isActive: true },
+        })
+      : [];
+
+  const memberList = [...allMembers, ...extraMembers];
+
+  const members: TravelDeptMember[] = memberList
+    .map((m) => {
+      const pkgs = packagesByCreator.get(m.id) ?? [];
+      return {
+        id: m.id,
+        name: m.name,
+        profilePicUrl: m.profilePicUrl ?? null,
+        designation: m.designation ?? null,
+        isActive: m.isActive,
+        activitiesAdded: activityCreatorMap.get(m.id) ?? 0,
+        packagesAdded: pkgs.length,
+        routesAdded: pkgs.reduce((s, p) => s + p.routesCount, 0),
+        daysAdded: pkgs.reduce((s, p) => s + p.daysCount, 0),
+        stayCategoriesAdded: pkgs.reduce((s, p) => s + p.stayCategoriesCount, 0),
+        pricingAdded: pkgs.reduce((s, p) => s + p.pricingCount, 0),
+        packages: pkgs,
+      };
+    })
+    .sort(
+      (a, b) =>
+        b.activitiesAdded + b.packagesAdded - (a.activitiesAdded + a.packagesAdded),
+    );
+
+  // 7. Daily chart — packages + activities combined per member per day
+  const dailyRaw = new Map<string, Record<string, number>>();
+  for (const p of packagesInPeriod) {
+    const d = p.created_at.toISOString().split("T")[0];
+    if (!dailyRaw.has(d)) dailyRaw.set(d, {});
+    const slot = dailyRaw.get(d)!;
+    const mid = p.created_by ?? "__unknown__";
+    slot[mid] = (slot[mid] ?? 0) + 1;
+    slot.__total__ = (slot.__total__ ?? 0) + 1;
+  }
+  for (const a of activityDailyRaw) {
+    const d = a.created_at.toISOString().split("T")[0];
+    if (!dailyRaw.has(d)) dailyRaw.set(d, {});
+    const slot = dailyRaw.get(d)!;
+    const mid = a.created_by ?? "__unknown__";
+    slot[mid] = (slot[mid] ?? 0) + 1;
+    slot.__total__ = (slot.__total__ ?? 0) + 1;
+  }
+
+  const dailyChart: DailyTravelPoint[] = [];
+  const cur = new Date(range.gte);
+  cur.setHours(0, 0, 0, 0);
+  const end = new Date(range.lte);
+  end.setHours(23, 59, 59, 999);
+  while (cur <= end) {
+    const iso = cur.toISOString().split("T")[0];
+    const slot = dailyRaw.get(iso) ?? {};
+    const fmtLabel = new Intl.DateTimeFormat("en-IN", {
+      day: "numeric", month: "short",
+    }).format(new Date(iso));
+    const point: DailyTravelPoint = { date: fmtLabel, total: slot.__total__ ?? 0 };
+    for (const m of members) point[m.id] = slot[m.id] ?? 0;
+    dailyChart.push(point);
+    cur.setDate(cur.getDate() + 1);
+  }
+
+  return {
+    summary: { activitiesAdded, packagesAdded, routesAdded, daysAdded, stayCategoriesAdded, pricingAdded },
+    members,
+    dailyChart,
+  };
+}
+
+// ── Cab dept full report ───────────────────────────────────────────────────
+
+async function getCabDeptReport(range: { gte: Date; lte: Date }): Promise<CabDeptReportData> {
+  // 1. Find cab department
+  const cabDept = await db.department.findFirst({
+    where: { name: { contains: "cab", mode: "insensitive" } },
+    select: { id: true },
+  });
+
+  // 2. Dept members + drivers in period + pricing counts in parallel
+  const [allMembers, driversInPeriod, pricingByCreator] = await Promise.all([
+    cabDept
+      ? db.teamMember.findMany({
+          where: { departmentId: cabDept.id },
+          select: { id: true, name: true, profilePicUrl: true, designation: true, isActive: true },
+          orderBy: { name: "asc" },
+        })
+      : ([] as { id: string; name: string; profilePicUrl: string | null; designation: string | null; isActive: boolean }[]),
+    db.cab_drivers.findMany({
+      where: { created_at: range },
+      select: {
+        id: true, name: true, mobile: true, city: true, state: true,
+        vehicle_id: true, is_verified: true, is_active: true,
+        created_at: true, created_by: true,
+      },
+      orderBy: { created_at: "desc" },
+    }),
+    db.cab_pricing.groupBy({
+      by: ["created_by"],
+      where: { created_at: range, created_by: { not: null } },
+      _count: { id: true },
+    }),
+  ]);
+
+  // 3. Summary
+  const driversAdded = driversInPeriod.length;
+  const driversVerified = driversInPeriod.filter((d) => d.is_verified).length;
+  const driversWithVehicle = driversInPeriod.filter((d) => d.vehicle_id !== null).length;
+  const pricingAdded = pricingByCreator.reduce((s, r) => s + r._count.id, 0);
+
+  // 4. Pricing by creator map
+  const pricingCreatorMap = new Map<string, number>(
+    pricingByCreator.map((r) => [r.created_by as string, r._count.id]),
+  );
+
+  // 5. Build driver rows by creator
+  const driversByCreator = new Map<string, DriverRowDetail[]>();
+  for (const d of driversInPeriod) {
+    const key = d.created_by ?? "__unknown__";
+    if (!driversByCreator.has(key)) driversByCreator.set(key, []);
+    driversByCreator.get(key)!.push({
+      id: d.id,
+      name: d.name,
+      mobile: d.mobile,
+      city: d.city ?? null,
+      state: d.state ?? null,
+      hasVehicle: d.vehicle_id !== null,
+      isVerified: d.is_verified,
+      isActive: d.is_active,
+      createdAt: d.created_at.toISOString().split("T")[0],
+    });
+  }
+
+  // 6. Merge dept members + any extra creators
+  const deptMemberIds = new Set(allMembers.map((m) => m.id));
+  const allCreatorIds = new Set([
+    ...driversByCreator.keys(),
+    ...pricingCreatorMap.keys(),
+  ]);
+  const extraIds = [...allCreatorIds].filter(
+    (id) => id !== "__unknown__" && !deptMemberIds.has(id),
+  );
+  const extraMembers =
+    extraIds.length > 0
+      ? await db.teamMember.findMany({
+          where: { id: { in: extraIds } },
+          select: { id: true, name: true, profilePicUrl: true, designation: true, isActive: true },
+        })
+      : [];
+
+  const memberList = [...allMembers, ...extraMembers];
+
+  const members: CabDeptMember[] = memberList
+    .map((m) => {
+      const drivers = driversByCreator.get(m.id) ?? [];
+      return {
+        id: m.id,
+        name: m.name,
+        profilePicUrl: m.profilePicUrl ?? null,
+        designation: m.designation ?? null,
+        isActive: m.isActive,
+        driversAdded: drivers.length,
+        driversVerified: drivers.filter((d) => d.isVerified).length,
+        driversWithVehicle: drivers.filter((d) => d.hasVehicle).length,
+        pricingAdded: pricingCreatorMap.get(m.id) ?? 0,
+        drivers,
+      };
+    })
+    .sort((a, b) => b.driversAdded + b.pricingAdded - (a.driversAdded + a.pricingAdded));
+
+  // 7. Daily chart — drivers + pricing combined per member per day
+  const dailyRaw = new Map<string, Record<string, number>>();
+  for (const d of driversInPeriod) {
+    const day = d.created_at.toISOString().split("T")[0];
+    if (!dailyRaw.has(day)) dailyRaw.set(day, {});
+    const slot = dailyRaw.get(day)!;
+    const mid = d.created_by ?? "__unknown__";
+    slot[mid] = (slot[mid] ?? 0) + 1;
+    slot.__total__ = (slot.__total__ ?? 0) + 1;
+  }
+  // pricing daily (fetch separately since groupBy doesn't give date)
+  const pricingDailyRaw = await db.cab_pricing.findMany({
+    where: { created_at: range },
+    select: { created_at: true, created_by: true },
+  });
+  for (const p of pricingDailyRaw) {
+    const day = p.created_at.toISOString().split("T")[0];
+    if (!dailyRaw.has(day)) dailyRaw.set(day, {});
+    const slot = dailyRaw.get(day)!;
+    const mid = p.created_by ?? "__unknown__";
+    slot[mid] = (slot[mid] ?? 0) + 1;
+    slot.__total__ = (slot.__total__ ?? 0) + 1;
+  }
+
+  const dailyChart: DailyCabPoint[] = [];
+  const cur = new Date(range.gte);
+  cur.setHours(0, 0, 0, 0);
+  const end = new Date(range.lte);
+  end.setHours(23, 59, 59, 999);
+  while (cur <= end) {
+    const iso = cur.toISOString().split("T")[0];
+    const slot = dailyRaw.get(iso) ?? {};
+    const fmtLabel = new Intl.DateTimeFormat("en-IN", {
+      day: "numeric", month: "short",
+    }).format(new Date(iso));
+    const point: DailyCabPoint = { date: fmtLabel, total: slot.__total__ ?? 0 };
+    for (const m of members) point[m.id] = slot[m.id] ?? 0;
+    dailyChart.push(point);
+    cur.setDate(cur.getDate() + 1);
+  }
+
+  return {
+    summary: { driversAdded, driversVerified, driversWithVehicle, pricingAdded },
+    members,
+    dailyChart,
+  };
+}
+
 // ── Main fetch ─────────────────────────────────────────────────────────────
 
 export async function getReportsData(
@@ -312,9 +716,11 @@ export async function getReportsData(
 ): Promise<ReportsData> {
   const range = toDateRange(period, customFrom, customTo);
 
-  // ── Hotel ────────────────────────────────────────────────────────────────
+  // ── Hotel + Cab + Travel dept (run in parallel with everything else) ───────
   const [
     hotelDept,
+    cabDept,
+    travelDept,
     hotelsAdded,
     roomsAdded,
     imagesAdded,
@@ -322,6 +728,8 @@ export async function getReportsData(
     hotelsByMember,
   ] = await Promise.all([
     getHotelDeptReport(range),
+    getCabDeptReport(range),
+    getTravelDeptReport(range),
     db.hotels.count({ where: { created_at: range } }),
     db.hotel_rooms.count({ where: { created_at: range } }),
     db.hotel_images.count({ where: { created_at: range } }),
@@ -514,6 +922,7 @@ export async function getReportsData(
       byMember: hotelByMember,
     },
     hotelDept,
+    cabDept,
     cab: {
       pricingAdded,
       driversAdded,
@@ -529,6 +938,7 @@ export async function getReportsData(
       pricingSectionsAdded,
       byMember: travelByMember,
     },
+    travelDept,
     period,
     fromStr: fmt(range.gte),
     toStr: fmt(range.lte),

@@ -222,14 +222,14 @@ export function HistorySheet({
     updatedBy,
     updatedAt,
 }: {
-    /** Numeric primary key of the entity */
-    id: number;
+    /** Primary key of the entity (number for int PKs, string for BigInt PKs) */
+    id: number | string;
     /** Display name shown in the sheet header, e.g. the package title */
     title: string;
     /** Lowercase singular noun used in empty-state copy, e.g. "package" */
     entityLabel: string;
     /** Server action returning ActivityLog rows for this entity */
-    fetchHistory: (id: number) => Promise<HistoryEntry[]>;
+    fetchHistory: (id: number | string) => Promise<HistoryEntry[]>;
     createdBy?: string | null;
     createdAt?: Date | string | null;
     updatedBy?: string | null;

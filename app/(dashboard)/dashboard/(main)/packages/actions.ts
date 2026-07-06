@@ -363,7 +363,7 @@ export async function togglePackageActive(
 
 // ── History ───────────────────────────────────────────────────────────────
 
-export async function getPackageHistory(id: number) {
+export async function getPackageHistory(id: number | string) {
   return db.activityLog.findMany({
     where:   { entity: "package", entityId: String(id) },
     orderBy: { actionAt: "desc" },

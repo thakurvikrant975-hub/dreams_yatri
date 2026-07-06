@@ -180,6 +180,28 @@ export async function getCabPricings(params: GetCabPricingsParams = {}) {
   };
 }
 
+// ── History ────────────────────────────────────────────────────────────────
+
+export async function getCabPricingHistory(locationId: string | number) {
+  return db.activityLog.findMany({
+    where:   { entity: "CabPricing", entityId: String(locationId) },
+    orderBy: { actionAt: "desc" },
+    select: {
+      id:           true,
+      action:       true,
+      description:  true,
+      userName:     true,
+      userEmail:    true,
+      previousData: true,
+      newData:      true,
+      metadata:     true,
+      status:       true,
+      actionAt:     true,
+    },
+    take: 50,
+  });
+}
+
 // ── Search city locations (for the city picker) ────────────────────────────
 // Returns CITY, STATE, COUNTRY locations only.
 // Excludes locations already priced (have a cab_pricing record with location_id).

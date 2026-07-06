@@ -13,10 +13,11 @@ import { TableFilters }              from "../../components/dashboard/Tablefilte
 import { TableEmptyState }           from "../../components/dashboard/TableEmptyState";
 import { EditCabPricingSheet }       from "./CabPricingSheet";
 import { DeleteCabPricingDialog }    from "./DeleteCabPricingDialog";
-import { toggleCabPricingActive }    from "./actions";
+import { toggleCabPricingActive, getCabPricingHistory } from "./actions";
 import { toast }                     from "sonner";
 import { formatDistanceToNow }       from "date-fns";
 import type { CabPricingGroup }      from "./actions";
+import { HistorySheet }              from "../../components/dashboard/HistorySheet";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -192,6 +193,15 @@ export function CabPricingTable({
       width:  "w-[100px]",
       cell: (row) => (
         <div className="flex items-center justify-end gap-1">
+          <HistorySheet
+            id={row.location_id}
+            title={row.location_name}
+            entityLabel="cab pricing"
+            fetchHistory={getCabPricingHistory}
+            createdBy={row.created_by ? (memberNames[row.created_by] ?? row.created_by) : null}
+            updatedBy={row.updated_by ? (memberNames[row.updated_by] ?? row.updated_by) : null}
+            updatedAt={row.updated_at}
+          />
           <EditCabPricingSheet row={row} vehicles={vehicles} />
           <DeleteCabPricingDialog
             locationId={row.location_id}
