@@ -33,6 +33,8 @@ import { PencilRulerIcon, BedIcon, EyeIcon } from "@phosphor-icons/react";
 
 import type { Hotel, Room, RatePlan } from "./dummy";
 import Button from "@/app/components/ui/Button";
+import DatePickerField from "@/app/components/ui/DatePickerField";
+import TravellersField, { type TravellersValue } from "@/app/components/ui/TravellersField";
 
 const money = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 
@@ -72,61 +74,87 @@ function ScoreBadge({ score, size = "md" }: { score: number; size?: "sm" | "md" 
   );
 }
 
-// ── Sticky search context bar ─────────────────────────────────────────────────
+// ── Search filter bar (below header, styled like PackagesSearchBar) ──────────
+
+function FieldLabel({ id, children }: { id: string; children: React.ReactNode }) {
+  return (
+    <span id={id} className="pl-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/55">
+      {children}
+    </span>
+  );
+}
+
+function toDate(iso: string): Date | null {
+  const d = new Date(`${iso}T00:00:00`);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function toISO(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 function SearchBar({ hotel, checkIn, checkOut }: { hotel: Hotel; checkIn: string; checkOut: string }) {
   const router = useRouter();
-  const [ci, setCi] = useState(checkIn);
-  const [co, setCo] = useState(checkOut);
-  const today = new Date().toISOString().slice(0, 10);
-  const nextDay = (d: string) => {
-    const x = new Date(`${d}T00:00:00.000Z`);
-    x.setUTCDate(x.getUTCDate() + 1);
-    return x.toISOString().slice(0, 10);
-  };
+  const [ci, setCi] = useState<Date | null>(toDate(checkIn));
+  const [co, setCo] = useState<Date | null>(toDate(checkOut));
+  const [guests, setGuests] = useState<TravellersValue>({ adults: 2, childrenAges: [] });
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-  function update() {
-    const out = co > ci ? co : nextDay(ci);
-    router.push(`/hotels/${hotel.slug}?in=${ci}&out=${out}`);
+  function search() {
+    const inD = ci ?? today;
+    const outD = co && co > inD ? co : new Date(inD.getTime() + 86_400_000);
+    router.push(`/hotels/${hotel.slug}?in=${toISO(inD)}&out=${toISO(outD)}`);
   }
 
-  const field = "text-sm font-semibold text-neutral-800 bg-transparent outline-none cursor-pointer";
-
   return (
-    <div className="sticky top-0 z-30 bg-white border-b border-neutral-200 shadow-sm">
-      <div className="screen-space py-3 flex flex-wrap items-center gap-3">
-        <div className="flex-1 min-w-[160px] flex items-center gap-2 rounded-xl border border-neutral-200 px-3 py-2">
-          <MapPinIcon className="w-4 h-4 text-primary-500 shrink-0" />
-          <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-wide text-neutral-400 font-semibold">City</p>
-            <p className="text-sm font-semibold text-neutral-800 truncate">{hotel.city}</p>
+    <div className="bg-neutral-900">
+      <div className="screen-space py-3">
+        <form
+          role="search"
+          aria-label="Update stay search"
+          onSubmit={(e) => { e.preventDefault(); search(); }}
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1.2fr_1fr_1fr_1fr_auto] gap-2.5 items-end">
+            <div className="flex flex-col gap-1" role="group" aria-labelledby="label-city">
+              <FieldLabel id="label-city">City</FieldLabel>
+              <div className="h-10.5 flex items-center gap-2 rounded-lg bg-white px-3">
+                <MapPinIcon className="w-4 h-4 text-primary-500 shrink-0" />
+                <span className="text-sm font-semibold text-neutral-800 truncate">{hotel.city}</span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1" role="group" aria-labelledby="label-in">
+              <FieldLabel id="label-in">Check-in</FieldLabel>
+              <DatePickerField value={ci} onChange={(d) => { setCi(d); if (d && co && co <= d) setCo(null); }} minDate={today} placeholder="Add date" />
+            </div>
+
+            <div className="flex flex-col gap-1" role="group" aria-labelledby="label-out">
+              <FieldLabel id="label-out">Check-out</FieldLabel>
+              <DatePickerField value={co} onChange={setCo} minDate={ci ? new Date(ci.getTime() + 86_400_000) : today} placeholder="Add date" />
+            </div>
+
+            <div className="flex flex-col gap-1" role="group" aria-labelledby="label-guests">
+              <FieldLabel id="label-guests">Guests</FieldLabel>
+              <TravellersField value={guests} onChange={setGuests} />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <span className="hidden lg:block text-[10px] leading-3.5" aria-hidden="true">&nbsp;</span>
+              <Button
+                type="submit"
+                variant="premium"
+                className="h-10.5 w-full lg:w-auto rounded-lg px-7 font-bold flex items-center justify-center gap-2"
+              >
+                <MagnifyingGlassIcon className="size-4" aria-hidden="true" />
+                Update Search
+              </Button>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2 rounded-xl border border-neutral-200 px-3 py-2">
-          <CalendarDaysIcon className="w-4 h-4 text-primary-500 shrink-0" />
-          <div>
-            <p className="text-[10px] uppercase tracking-wide text-neutral-400 font-semibold">Check-in</p>
-            <input type="date" value={ci} min={today} onChange={(e) => { setCi(e.target.value); if (co <= e.target.value) setCo(nextDay(e.target.value)); }} className={field} />
-          </div>
-        </div>
-        <div className="flex items-center gap-2 rounded-xl border border-neutral-200 px-3 py-2">
-          <CalendarDaysIcon className="w-4 h-4 text-primary-500 shrink-0" />
-          <div>
-            <p className="text-[10px] uppercase tracking-wide text-neutral-400 font-semibold">Check-out</p>
-            <input type="date" value={co} min={nextDay(ci)} onChange={(e) => setCo(e.target.value)} className={field} />
-          </div>
-        </div>
-        <div className="flex items-center gap-2 rounded-xl border border-neutral-200 px-3 py-2">
-          <UserGroupIcon className="w-4 h-4 text-primary-500 shrink-0" />
-          <div>
-            <p className="text-[10px] uppercase tracking-wide text-neutral-400 font-semibold">Guests</p>
-            <p className="text-sm font-semibold text-neutral-800">1 Room, 2 Adults</p>
-          </div>
-        </div>
-        <button onClick={update} className="flex items-center gap-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold px-5 py-2.5 transition-colors">
-          <MagnifyingGlassIcon className="w-4 h-4" />
-          Update Search
-        </button>
+        </form>
       </div>
     </div>
   );
