@@ -9,7 +9,7 @@ import { Button } from "../../components/ui/button";
 import { Switch } from "../../components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card";
 import {Select, SelectContent, SelectItem,SelectTrigger, SelectValue,} from "../../components/ui/select";
-import { ImageUploadWithCrop, type UploadedImage } from "../../components/dashboard/ImageUploadWithCrop";
+import { ImageUpload, type UploadedImage } from "../../components/dashboard/ImageUpload";
 import { LocationSearchSelect } from "../../components/location/LocationSearchSelect";
 import type { LocationValue } from "../../components/location/location.types";
 import { SearchSelect } from "../../components/dashboard/SearchSelect";
@@ -417,13 +417,12 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
             <p className="text-xs text-muted-foreground">
               Used in hotel cards and listing pages · 800 × 534 recommended
             </p>
-            <ImageUploadWithCrop
+            <ImageUpload
               name="thumbnail"
               folder="hotels"
               value={thumbnail}
               onChange={setThumbnail}
               label="Upload Thumbnail"
-              crop={{ width: 800, height: 534, label: "800 × 534" }}
             />
           </div>
 

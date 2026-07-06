@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, type DragEvent } from "react";
 import { toast } from "sonner";
-import { ImagePickerWithCrop, type PickedImage } from "../../components/dashboard/ImagePickerWithCrop";
+import { ImagePicker, type PickedImage } from "../../components/dashboard/ImagePicker";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import {
@@ -165,14 +165,13 @@ async function handleSetPrimary(imageId: number) {
           </p>
         </div>
 
-        <ImagePickerWithCrop
+        <ImagePicker
           folder="packages"
           value={staged}
           onChange={setStaged}
-          crop={{ width: 1200, height: 800, label: "1200 × 800" }}
           maxFiles={20}
           label="Upload package images"
-          hint="JPG, PNG, WebP · Each image opens the crop tool"
+          hint="JPG, PNG, WebP"
         />
         {isAdding && (
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground justify-end">

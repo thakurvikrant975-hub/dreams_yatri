@@ -18,9 +18,9 @@ import {
 } from "../components/dashboard/MultiStepSheet";
 
 import {
-  ImageUploadWithCrop,
+  ImageUpload,
   type UploadedImage,
-} from "../components/dashboard/ImageUploadWithCrop";
+} from "../components/dashboard/ImageUpload";
 
 import { LocationSearchSelect } from "../components/location/LocationSearchSelect";
 import type { LocationType, LocationValue } from "../components/location/location.types";
@@ -414,14 +414,13 @@ function ImagesStep() {
             Card image shown in listings · will be cropped to 400 × 250 px
           </p>
         </div>
-        <ImageUploadWithCrop
+        <ImageUpload
           name="_thumb_unused"
           folder="destinations"
           value={thumbImg}
           onChange={(img) => setStepData("images", { ...data, thumbnail: img })}
           label="Upload Thumbnail"
           aspectRatio="video"
-          crop={{ width: 400, height: 250 }}
         />
         {thumbMissing && (
           <p className="flex items-center gap-1.5 text-xs text-destructive">
@@ -442,14 +441,13 @@ function ImagesStep() {
             Hero banner on the destination page · will be cropped to 1920 × 600 px
           </p>
         </div>
-        <ImageUploadWithCrop
+        <ImageUpload
           name="_cover_unused"
           folder="destinations"
           value={coverImg}
           onChange={(img) => setStepData("images", { ...data, cover: img })}
           label="Upload Cover Image"
           aspectRatio="wide"
-          crop={{ width: 1920, height: 600 }}
         />
       </div>
     </div>

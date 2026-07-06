@@ -11,7 +11,7 @@ import {
     AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
     AlertDialogTrigger,
 } from "../../../components/ui/alert-dialog";
-import { ImagePickerWithCrop, type PickedImage } from "../../../components/dashboard/ImagePickerWithCrop";
+import { ImagePicker, type PickedImage } from "../../../components/dashboard/ImagePicker";
 import { toast } from "sonner";
 import { cn }   from "@/app/lib/utils";
 import {
@@ -289,14 +289,13 @@ export function ImagesTab({
 
                 <div className="space-y-3">
                     <p className="text-sm font-medium">Add Photos</p>
-                    <ImagePickerWithCrop
+                    <ImagePicker
                         folder="activities"
                         value={newPicks}
                         onChange={setNewPicks}
-                        crop={{ width: 1200, height: 800, label: "1200 × 800" }}
                         maxFiles={10}
                         label="Upload Activity Photos"
-                        hint="JPG, PNG, WebP · Each image opens the crop tool"
+                        hint="JPG, PNG, WebP"
                     />
                     {isPending && (
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground justify-end">
