@@ -251,6 +251,8 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
 
     const inProgress = queries.filter(q => isActiveStatus(q.status as SalesQueryStatus)).length;
 
+    const followUpCount = queries.filter(q => q.status === "FOLLOW_UP").length;
+
     const submitted = queries.filter(q => q.status === "SUBMITTED").length;
 
     const closedCount = queries.filter(q => isClosedStatus(q.status as SalesQueryStatus)).length;
@@ -409,7 +411,7 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
         <>
             <div className="space-y-4">
                 {/* Stats — matches requested: total, new today, in progress, closed, booked, conv% */}
-                <StatGrid cols={6}>
+                <StatGrid cols={7}>
                     <StatCard
                         label="Total Queries"
                         value={totalCount}
@@ -428,6 +430,13 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
                         value={inProgress}
                         icon={Clock}
                         iconText="text-dashboard-warning"
+                    />
+                    <StatCard
+                        label="Follow Up"
+                        value={followUpCount}
+                        icon={CalendarClock}
+                        iconText="text-amber-600"
+                        muted={followUpCount === 0}
                     />
                     <StatCard
                         label="Closed"
@@ -469,6 +478,7 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
                             options: [
                                 { label: "All Queries", value: "all" },
                                 { label: "In Progress", value: "IN_PROGRESS" },
+                                { label: "Follow Up", value: "FOLLOW_UP" },
                                 { label: "Package Sent", value: "PACKAGE_SENT" },
                                 { label: "Client Accepted", value: "CLIENT_ACCEPTED" },
                                 { label: "Client Declined", value: "CLIENT_DECLINED" },

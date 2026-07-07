@@ -272,6 +272,10 @@ type Props = {
     children: React.ReactNode;
     onDone?: () => void;
     initialRequirements?: PackageRequirements | null;
+    /** Optional controlled open state — e.g. for deep-opening from the
+     * follow-up reminder popup. Falls back to internal state when omitted. */
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
 };
 
 export function PackageDetailsDialog({
@@ -279,8 +283,12 @@ export function PackageDetailsDialog({
     children,
     onDone,
     initialRequirements,
+    open: controlledOpen,
+    onOpenChange: setControlledOpen,
 }: Props) {
-    const [open, setOpen] = useState(false);
+    const [internalOpen, setInternalOpen] = useState(false);
+    const open = controlledOpen ?? internalOpen;
+    const setOpen = setControlledOpen ?? setInternalOpen;
     const [activeTab, setActiveTab] = useState<TabId>("travellers");
     const [isPending, startTransition] = useTransition();
     const [reqs, setReqs] = useState<PackageRequirements>(() =>

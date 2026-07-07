@@ -6,6 +6,7 @@ import { Prisma } from "@/app/generated/prisma";
 const ACTIVE_PIPELINE_STATUSES = [
   "ASSIGNED",
   "IN_PROGRESS",
+  "FOLLOW_UP",
   "PACKAGE_SENT",
   "CLIENT_ACCEPTED",
   "CLIENT_DECLINED",

@@ -32,6 +32,20 @@ type Props = {
     onDone?: () => void;
 };
 
+// Formats a Date into the value a `datetime-local` input expects (local time,
+// no timezone suffix) — e.g. "2026-07-07T14:45".
+function toDatetimeLocalValue(d: Date): string {
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
+const QUICK_FOLLOWUP_OPTIONS = [
+    { label: "10 min", ms: 10 * 60 * 1000 },
+    { label: "30 min", ms: 30 * 60 * 1000 },
+    { label: "1 hr", ms: 60 * 60 * 1000 },
+    { label: "6 hr", ms: 6 * 60 * 60 * 1000 },
+    { label: "1 day", ms: 24 * 60 * 60 * 1000 },
+];
+
 export function AddFollowUpDialog({ salesQueryId, leadName, children, onDone }: Props) {
     const [open, setOpen] = useState(false);
     const [isPending, startTransition] = useTransition();
@@ -39,6 +53,7 @@ export function AddFollowUpDialog({ salesQueryId, leadName, children, onDone }: 
     const [isLoading, setIsLoading] = useState(false);
     const [errors, setErrors] = useState<Record<string, string[]>>({});
     const [existing, setExisting] = useState<FollowUpData | null>(null);
+    const [followUpAtValue, setFollowUpAtValue] = useState("");
     const formRef = useRef<HTMLFormElement>(null);
 
     // Load existing follow-up when dialog opens
@@ -52,11 +67,17 @@ export function AddFollowUpDialog({ salesQueryId, leadName, children, onDone }: 
                     note: fu.note,
                     followUpAt: fu.followUpAt ? new Date(fu.followUpAt) : null,
                 });
+                setFollowUpAtValue(fu.followUpAt ? toDatetimeLocalValue(new Date(fu.followUpAt)) : "");
             } else {
                 setExisting(null);
+                setFollowUpAtValue("");
             }
         }).finally(() => setIsLoading(false));
     }, [open, salesQueryId]);
+
+    function setQuickFollowUp(ms: number) {
+        setFollowUpAtValue(toDatetimeLocalValue(new Date(Date.now() + ms)));
+    }
 
     function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
@@ -92,13 +113,6 @@ export function AddFollowUpDialog({ salesQueryId, leadName, children, onDone }: 
             }
         });
     }
-
-    // Format existing date for datetime-local input (YYYY-MM-DDTHH:mm)
-    const existingDateValue = existing?.followUpAt
-        ? new Date(existing.followUpAt.getTime() - existing.followUpAt.getTimezoneOffset() * 60000)
-            .toISOString()
-            .slice(0, 16)
-        : "";
 
     const isUpdate = Boolean(existing);
 
@@ -154,10 +168,22 @@ export function AddFollowUpDialog({ salesQueryId, leadName, children, onDone }: 
                                 name="followUpAt"
                                 type="datetime-local"
                                 className="text-sm"
-                                // Pre-fill with existing scheduled date if updating
-                                defaultValue={existingDateValue}
+                                value={followUpAtValue}
+                                onChange={(e) => setFollowUpAtValue(e.target.value)}
                                 min={new Date().toISOString().slice(0, 16)}
                             />
+                            <div className="flex flex-wrap gap-1.5 pt-0.5">
+                                {QUICK_FOLLOWUP_OPTIONS.map((opt) => (
+                                    <button
+                                        key={opt.label}
+                                        type="button"
+                                        onClick={() => setQuickFollowUp(opt.ms)}
+                                        className="px-2.5 py-1 rounded-full border text-xs font-medium text-muted-foreground hover:text-foreground hover:border-primary/50 hover:bg-primary/5 transition-colors"
+                                    >
+                                        +{opt.label}
+                                    </button>
+                                ))}
+                            </div>
                             <p className="text-xs text-muted-foreground">
                                 You'll get a reminder notification when this time arrives.
                             </p>

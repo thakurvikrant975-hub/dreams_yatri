@@ -18,6 +18,7 @@ export type ActionResult<T = void> =
 export type QueryStatus =
     | "SUBMITTED"
     | "IN_PROGRESS"
+    | "FOLLOW_UP"
     | "VERIFIED"
     | "REJECTED"
     | "ASSIGNED"
@@ -306,6 +307,7 @@ export async function getSalesMembers(): Promise<SalesMember[]> {
                     in: [
                         "ASSIGNED",
                         "IN_PROGRESS",
+                        "FOLLOW_UP",
                         "PACKAGE_SENT",
                         "CLIENT_ACCEPTED",
                         "CLIENT_DECLINED",

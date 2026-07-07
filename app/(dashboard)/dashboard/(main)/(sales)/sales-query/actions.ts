@@ -202,11 +202,24 @@ export async function addFollowUp(packageQueryId: string, formData: FormData): P
             });
         }
 
-        // ASSIGNED → IN_PROGRESS when exec first engages
+        // Move the query into FOLLOW_UP so the team can see it's being worked at a
+        // glance — but never downgrade a query that's already further along the
+        // funnel (e.g. package already sent, payment started, closed).
         const currentQuery = await db.package_queries.findUnique({
             where:  { id: packageQueryId },
             select: { status: true },
         });
+
+        const terminalOrLaterStatuses = [
+            "PACKAGE_SENT", "CLIENT_ACCEPTED", "CLIENT_DECLINED",
+            "PAYMENT_INITIATED", "CONVERTED", "CLOSED",
+        ];
+        if (currentQuery && !terminalOrLaterStatuses.includes(currentQuery.status)) {
+            await db.package_queries.update({
+                where: { id: packageQueryId },
+                data:  { status: "FOLLOW_UP" },
+            });
+        }
 
         await logTimeline(
             packageQueryId,

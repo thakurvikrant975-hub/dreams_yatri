@@ -1,11 +1,34 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { CalendarClock } from "lucide-react";
-import { getMyFollowUps } from "./actions";
+import { CalendarClock, ClipboardList, Loader2 } from "lucide-react";
+import {
+    Dialog, DialogContent, DialogHeader,
+    DialogTitle, DialogDescription, DialogFooter,
+} from "../../components/ui/dialog";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import { Label } from "../../components/ui/label";
+import { getMyFollowUps, addFollowUp, getSalesQueryById } from "./actions";
+import { PackageDetailsDialog } from "./Packagedetailsdialog";
+import type { PackageQueryType, PackageRequirements } from "../../(marketing)/queries/actions";
 
 const CHECK_INTERVAL_MS = 30 * 1000; // Check every 30s instead of 60s
+
+// Formats a Date into the value a `datetime-local` input expects (local time,
+// no timezone suffix) — e.g. "2026-07-07T14:45".
+function toDatetimeLocalValue(d: Date): string {
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
+const QUICK_FOLLOWUP_OPTIONS = [
+    { label: "10 min", ms: 10 * 60 * 1000 },
+    { label: "30 min", ms: 30 * 60 * 1000 },
+    { label: "1 hr", ms: 60 * 60 * 1000 },
+    { label: "6 hr", ms: 6 * 60 * 60 * 1000 },
+    { label: "1 day", ms: 24 * 60 * 60 * 1000 },
+];
 
 type FollowUp = {
     id: string;
@@ -25,6 +48,18 @@ export function FollowUpReminderProvider() {
     const notifiedKeys = useRef<Set<string>>(new Set());
     // On mount, seed notifiedKeys from sessionStorage so remounts don't re-fire
     const seeded = useRef(false);
+
+    // ── Reminder popup state ─────────────────────────────────────────────────
+    const [dueFollowUp, setDueFollowUp] = useState<FollowUp | null>(null);
+    const [mode, setMode] = useState<"prompt" | "reschedule">("prompt");
+    const [rescheduleAt, setRescheduleAt] = useState("");
+    const [isRescheduling, startReschedule] = useTransition();
+
+    // ── Deep-opened Package Requirements dialog ─────────────────────────────
+    const [reqQuery, setReqQuery] = useState<PackageQueryType | null>(null);
+    const [reqInitial, setReqInitial] = useState<PackageRequirements | null>(null);
+    const [reqOpen, setReqOpen] = useState(false);
+    const [loadingReq, setLoadingReq] = useState(false);
 
     useEffect(() => {
         if (!seeded.current) {
@@ -79,7 +114,7 @@ export function FollowUpReminderProvider() {
                 const msUntilDue = dueAt - now;
                 const msOverdue = now - dueAt;
 
-                // ── Due notification ──────────────────────────────────────────
+                // ── Due — open the interactive reminder popup ─────────────────
                 // Fire if: past due AND not more than 10 minutes late
                 // (wide window ensures we don't miss it even if a check is delayed)
                 if (
@@ -88,20 +123,8 @@ export function FollowUpReminderProvider() {
                     !notifiedKeys.current.has(dueKey)
                 ) {
                     markNotified(dueKey);
-                    toast(`📞 Follow-up due: ${fu.packageQuery.name}`, {
-                        description:
-                            fu.note.length > 80
-                                ? fu.note.slice(0, 80) + "…"
-                                : fu.note,
-                        duration: 12000,
-                        icon: <CalendarClock className="h-4 w-4 text-amber-500" />,
-                        action: {
-                            label: "View",
-                            onClick: () => {
-                                window.location.href = `/dashboard/sales-query`;
-                            },
-                        },
-                    });
+                    setDueFollowUp(fu);
+                    setMode("prompt");
                 }
 
                 // ── Upcoming warning (5 min before) ──────────────────────────
@@ -148,5 +171,162 @@ export function FollowUpReminderProvider() {
         };
     }, []);
 
-    return null;
+    function closeReminder() {
+        setDueFollowUp(null);
+        setMode("prompt");
+    }
+
+    async function handleFillRequirements() {
+        if (!dueFollowUp) return;
+        setLoadingReq(true);
+        try {
+            const full = await getSalesQueryById(dueFollowUp.packageQuery.id);
+            if (full) {
+                setReqQuery(full as unknown as PackageQueryType);
+                setReqInitial((full as { requirements?: unknown }).requirements as PackageRequirements | null ?? null);
+                setReqOpen(true);
+                closeReminder();
+            } else {
+                toast.error("Couldn't load this query — it may have been deleted.");
+            }
+        } finally {
+            setLoadingReq(false);
+        }
+    }
+
+    function handleStartReschedule() {
+        setMode("reschedule");
+        // Prefill with 1 hour from now as a sensible default
+        setRescheduleAt(toDatetimeLocalValue(new Date(Date.now() + 60 * 60 * 1000)));
+    }
+
+    function setQuickReschedule(ms: number) {
+        setRescheduleAt(toDatetimeLocalValue(new Date(Date.now() + ms)));
+    }
+
+    function handleConfirmReschedule() {
+        if (!dueFollowUp || !rescheduleAt) return;
+        startReschedule(async () => {
+            const fd = new FormData();
+            fd.set("note", dueFollowUp.note); // preserve the existing note
+            fd.set("followUpAt", rescheduleAt);
+            const result = await addFollowUp(dueFollowUp.packageQuery.id, fd);
+            if (result.success) {
+                toast.success("Follow-up rescheduled");
+                closeReminder();
+            } else {
+                toast.error(result.message);
+            }
+        });
+    }
+
+    return (
+        <>
+            {/* ── Reminder popup ───────────────────────────────────────────────── */}
+            <Dialog open={!!dueFollowUp} onOpenChange={(v) => { if (!v) closeReminder(); }}>
+                <DialogContent className="sm:max-w-md">
+                    {dueFollowUp && (
+                        <>
+                            <DialogHeader>
+                                <DialogTitle className="flex items-center gap-2 text-amber-600">
+                                    <CalendarClock className="h-4 w-4" />
+                                    Follow-Up Due
+                                </DialogTitle>
+                                <DialogDescription>
+                                    Your follow-up with{" "}
+                                    <span className="font-semibold text-foreground">{dueFollowUp.packageQuery.name}</span>{" "}
+                                    is due now.
+                                    {dueFollowUp.packageQuery.destination && (
+                                        <> — {dueFollowUp.packageQuery.destination}</>
+                                    )}
+                                </DialogDescription>
+                            </DialogHeader>
+
+                            {dueFollowUp.note && (
+                                <div className="rounded-lg bg-muted/50 border px-3 py-2 text-sm">
+                                    {dueFollowUp.note}
+                                </div>
+                            )}
+
+                            {mode === "prompt" ? (
+                                <DialogFooter className="flex-col sm:flex-row gap-2 pt-1">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="gap-2"
+                                        onClick={handleStartReschedule}
+                                    >
+                                        <CalendarClock className="h-3.5 w-3.5" />
+                                        Reschedule Follow-Up
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        className="gap-2"
+                                        onClick={handleFillRequirements}
+                                        disabled={loadingReq}
+                                    >
+                                        {loadingReq
+                                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                            : <ClipboardList className="h-3.5 w-3.5" />}
+                                        Fill Package Requirements
+                                    </Button>
+                                </DialogFooter>
+                            ) : (
+                                <div className="space-y-4 pt-1">
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="reschedule-time">New follow-up time</Label>
+                                        <Input
+                                            id="reschedule-time"
+                                            type="datetime-local"
+                                            value={rescheduleAt}
+                                            onChange={(e) => setRescheduleAt(e.target.value)}
+                                            min={new Date().toISOString().slice(0, 16)}
+                                        />
+                                        <div className="flex flex-wrap gap-1.5 pt-0.5">
+                                            {QUICK_FOLLOWUP_OPTIONS.map((opt) => (
+                                                <button
+                                                    key={opt.label}
+                                                    type="button"
+                                                    onClick={() => setQuickReschedule(opt.ms)}
+                                                    className="px-2.5 py-1 rounded-full border text-xs font-medium text-muted-foreground hover:text-foreground hover:border-primary/50 hover:bg-primary/5 transition-colors"
+                                                >
+                                                    +{opt.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <DialogFooter>
+                                        <Button type="button" variant="outline" onClick={() => setMode("prompt")}>
+                                            Back
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            onClick={handleConfirmReschedule}
+                                            disabled={isRescheduling || !rescheduleAt}
+                                        >
+                                            {isRescheduling ? "Saving..." : "Confirm Reschedule"}
+                                        </Button>
+                                    </DialogFooter>
+                                </div>
+                            )}
+                        </>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            {/* ── Package Requirements, deep-opened from the reminder ─────────── */}
+            {reqQuery && (
+                <PackageDetailsDialog
+                    key={reqQuery.id}
+                    query={reqQuery}
+                    initialRequirements={reqInitial}
+                    open={reqOpen}
+                    onOpenChange={setReqOpen}
+                    onDone={() => setReqOpen(false)}
+                >
+                    <span />
+                </PackageDetailsDialog>
+            )}
+        </>
+    );
 }

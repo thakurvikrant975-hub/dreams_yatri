@@ -40,6 +40,7 @@ const STATUS_FILTER_OPTIONS = [
     { label: "Rejected", value: "REJECTED" },
     { label: "Assigned", value: "ASSIGNED" },
     { label: "In Progress", value: "IN_PROGRESS" },
+    { label: "Follow Up", value: "FOLLOW_UP" },
     { label: "Package Sent", value: "PACKAGE_SENT" },
     { label: "Client Accepted", value: "CLIENT_ACCEPTED" },
     { label: "Client Declined", value: "CLIENT_DECLINED" },
