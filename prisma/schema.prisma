@@ -2874,3 +2874,14 @@ model permits {
   @@index([is_active])
   @@map("permits")
 }
+
+// Generic key-value store for small, global toggles (e.g. "is auto-assign on?")
+// that don't warrant their own dedicated table.
+model SystemSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  @@map("system_settings")
+}

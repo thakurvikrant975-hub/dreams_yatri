@@ -21,6 +21,7 @@ import {
   type QueryDetail,
   type DayItinerary,
 } from "../action";
+import { PackagePreviewDialog } from "./PackagePreviewDialog";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -366,6 +367,7 @@ export default function PackageBuilderDetailPage() {
   const [sideOpen, setSideOpen] = useState(false);
   const [packageId, setPackageId] = useState<string | null>(null);
   const [savedOk, setSavedOk] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const [isSaving, startSave] = useTransition();
   const [isSending, startSend] = useTransition();
@@ -440,8 +442,6 @@ export default function PackageBuilderDetailPage() {
         pricePerPerson: form.pricePerPerson ? parseFloat(form.pricePerPerson) : null,
         totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
         status,
-        builtBy: "current-user-id",
-        builtByName: "Sales Executive",
       });
       if (result.success) {
         setPackageId(result.id);
@@ -462,8 +462,6 @@ export default function PackageBuilderDetailPage() {
           pricePerPerson: form.pricePerPerson ? parseFloat(form.pricePerPerson) : null,
           totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
           status: "READY",
-          builtBy: "current-user-id",
-          builtByName: "Sales Executive",
         });
         if (!result.success) return;
         pkgId = result.id;
@@ -595,7 +593,7 @@ export default function PackageBuilderDetailPage() {
             <Button
               size="sm"
               className="h-8 gap-1.5 bg-dashboard-secondary text-dashboard-secondary-content hover:bg-dashboard-secondary/90 rounded-md"
-              onClick={handleSend}
+              onClick={() => setPreviewOpen(true)}
             >
               <Eye size={13} />
               <span className="hidden sm:inline text-xs">Live Preview</span>
@@ -845,7 +843,7 @@ export default function PackageBuilderDetailPage() {
               </Button>
               <Button
                 className="gap-2 bg-dashboard-secondary text-dashboard-secondary-content hover:bg-dashboard-secondary/90"
-                onClick={handleSend}
+                onClick={() => setPreviewOpen(true)}
               >
                 <Eye size={14} />
                 Live Preview
@@ -871,6 +869,8 @@ export default function PackageBuilderDetailPage() {
           </div>
         </main>
       </div>
+
+      <PackagePreviewDialog open={previewOpen} onOpenChange={setPreviewOpen} form={form} />
     </div>
   );
 }

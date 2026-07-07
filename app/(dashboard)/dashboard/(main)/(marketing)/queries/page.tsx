@@ -8,9 +8,10 @@ import {
     Breadcrumb, BreadcrumbItem, BreadcrumbLink,
     BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "../../components/ui/breadcrumb";
-import { getQueries, getRejectionReasons } from "./actions";
+import { getQueries, getRejectionReasons, getAutoAssignSetting } from "./actions";
 import { QueriesTable } from "./Queriestable";
 import { AddQueryDialog } from "./Addquerydialog";
+import { AutoAssignToggle } from "./AutoAssignToggle";
 import type { Metadata } from "next";
 import { PageHeader } from "../../components/dashboard/PageHeader";
 
@@ -74,7 +75,9 @@ async function QueriesData() {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-export default function QueriesPage() {
+export default async function QueriesPage() {
+    const autoAssignEnabled = await getAutoAssignSetting();
+
     return (
         <div className="space-y-6">
 
@@ -90,12 +93,17 @@ export default function QueriesPage() {
                     </BreadcrumbItem>
                 </BreadcrumbList>
             </Breadcrumb>
-  
+
             <PageHeader
                 title="Lead Queries"
                 description="Manage, verify, and action all incoming enquiries"
                 icon={Inbox}
-                actions={<AddQueryDialog />}
+                actions={
+                    <div className="flex items-center gap-3">
+                        <AutoAssignToggle initialEnabled={autoAssignEnabled} />
+                        <AddQueryDialog />
+                    </div>
+                }
             />
 
             {/* Data of data */}

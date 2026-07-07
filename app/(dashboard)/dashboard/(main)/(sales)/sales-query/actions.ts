@@ -9,6 +9,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/app/lib/db";
 import { z } from "zod";
 import { Prisma } from "@/app/generated/prisma";
+import { tryCreateBookingFromConvertedQuery } from "@/app/lib/bookings/create-from-query";
 
 // ── Import shared types from marketing actions ────────────────────────────────
 // Types are erased at runtime so this import is safe even across route groups.
@@ -306,8 +307,16 @@ export async function closeSalesQuery(packageQueryId: string, formData: FormData
             teamMemberName ?? undefined,
         );
 
+        let convertedMessage = "Marked as Converted!";
+        if (isConverted) {
+            const bookingResult = await tryCreateBookingFromConvertedQuery(packageQueryId, teamMemberId, teamMemberName);
+            convertedMessage = bookingResult.created
+                ? `Marked as Converted! Booking ${bookingResult.bookingNumber} created — pending ops review.`
+                : `Marked as Converted! Booking couldn't be auto-created (${bookingResult.reason}) — create it manually via Package Bookings.`;
+        }
+
         revalidatePath("/dashboard/sales-query");
-        return { success: true, data: undefined, message: isConverted ? "Marked as Converted!" : "Closed successfully" };
+        return { success: true, data: undefined, message: isConverted ? convertedMessage : "Closed successfully" };
     } catch (err) {
         console.error("closeSalesQuery error:", err);
         return { success: false, message: "Failed to close query" };

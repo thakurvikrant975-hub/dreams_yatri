@@ -67,8 +67,6 @@ export interface PackageInput {
   exclusions:     string[];
   termsNotes:     string;
   status:         "DRAFT" | "READY";
-  builtBy:        string;
-  builtByName:    string;
   itineraries:    DayItinerary[];
 }
 
@@ -163,32 +161,32 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
       requirements:   true,
       status:         true,
       message:        true,
-      // Uncomment once you've added the relation in your schema:
-      // custom_packages: {
-      //   take: 1,
-      //   orderBy: { createdAt: "desc" },
-      //   select: {
-      //     id:             true,
-      //     status:         true,
-      //     title:          true,
-      //     pricePerPerson: true,
-      //     totalPrice:     true,
-      //     itineraries: {
-      //       orderBy: { day: "asc" },
-      //       select: {
-      //         id:            true,
-      //         day:           true,
-      //         title:         true,
-      //         description:   true,
-      //         activities:    true,
-      //         meals:         true,
-      //         accommodation: true,
-      //         transport:     true,
-      //         notes:         true,
-      //       },
-      //     },
-      //   },
-      // },
+      // custom_packages is a singular 1:1 relation (queryId is @unique on
+      // custom_packages), so no take/orderBy here — those only apply to
+      // to-many relations.
+      custom_packages: {
+        select: {
+          id:             true,
+          status:         true,
+          title:          true,
+          pricePerPerson: true,
+          totalPrice:     true,
+          itineraries: {
+            orderBy: { day: "asc" },
+            select: {
+              id:            true,
+              day:           true,
+              title:         true,
+              description:   true,
+              activities:    true,
+              meals:         true,
+              accommodation: true,
+              transport:     true,
+              notes:         true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -196,8 +194,7 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
 
   return {
     ...(query as any),
-    customPackage: null,
-    // customPackage: query.custom_packages?.[0] ?? null,
+    customPackage: query.custom_packages ?? null,
   } as QueryDetail;
 }
 
@@ -210,8 +207,12 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
       queryId, title, destination, startingPoint,
       totalDays, totalNights, travelDate, adults, children, infants,
       pricePerPerson, totalPrice, currency, inclusions, exclusions,
-      termsNotes, status, builtBy, builtByName, itineraries,
+      termsNotes, status, itineraries,
     } = input;
+
+    const { teamMemberId, teamMemberName } = await getCurrentActor();
+    const builtBy = teamMemberId ?? "unknown";
+    const builtByName = teamMemberName ?? "Sales Executive";
 
     // Upsert the custom package (unique on queryId)
     const pkg = await (Prisma as any).custom_packages.upsert({

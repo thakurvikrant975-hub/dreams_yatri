@@ -153,7 +153,7 @@ async function SalesDashboardContent({ member }: { member: CurrentMember }) {
               {data.todayFollowUps.map((q) => (
                 <a
                   key={q.id}
-                  href={`/dashboard/queries/${q.id}`}
+                  href="/dashboard/sales-query"
                   className="flex items-center gap-3 px-4 py-3 border-t border-dashboard-base-300 hover:bg-dashboard-base-200 transition-colors"
                 >
                   <div
@@ -186,7 +186,7 @@ async function SalesDashboardContent({ member }: { member: CurrentMember }) {
               <p className="text-sm font-semibold">Recently assigned</p>
             </div>
             <a
-              href="/dashboard/queries"
+              href="/dashboard/sales-query"
               className="flex items-center gap-1 text-xs text-dashboard-base-content/45 hover:text-dashboard-primary transition-colors"
             >
               View all <ArrowRight className="h-3 w-3" />
@@ -206,7 +206,7 @@ async function SalesDashboardContent({ member }: { member: CurrentMember }) {
               {data.recentQueries.map((q) => (
                 <a
                   key={q.id}
-                  href={`/dashboard/queries/${q.id}`}
+                  href="/dashboard/sales-query"
                   className="flex items-center gap-3 px-4 py-3 border-t border-dashboard-base-300 hover:bg-dashboard-base-200 transition-colors"
                 >
                   <div className="flex-1 min-w-0">
@@ -260,10 +260,10 @@ async function SalesDashboardContent({ member }: { member: CurrentMember }) {
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {[
-            { href: "/dashboard/queries",      icon: Inbox,      label: "All queries",   iconColor: "bg-dashboard-info/15",      iconText: "text-dashboard-info" },
-            { href: "/dashboard/follow-ups",   icon: Clock,      label: "Follow-ups",    iconColor: "bg-dashboard-warning/15",   iconText: "text-dashboard-warning" },
-            { href: "/dashboard/packages/new", icon: Zap,        label: "Build package", iconColor: "bg-dashboard-secondary/15", iconText: "text-dashboard-secondary" },
-            { href: "/dashboard/packages",     icon: TrendingUp, label: "My packages",   iconColor: "bg-dashboard-success/15",   iconText: "text-dashboard-success" },
+            { href: "/dashboard/sales-query",    icon: Inbox,      label: "All queries",   iconColor: "bg-dashboard-info/15",      iconText: "text-dashboard-info" },
+            { href: "/dashboard/follow-ups",     icon: Clock,      label: "Follow-ups",    iconColor: "bg-dashboard-warning/15",   iconText: "text-dashboard-warning" },
+            { href: "/dashboard/package-builder", icon: Zap,        label: "Build package", iconColor: "bg-dashboard-secondary/15", iconText: "text-dashboard-secondary" },
+            { href: "/dashboard/package-library", icon: TrendingUp, label: "My packages",   iconColor: "bg-dashboard-success/15",   iconText: "text-dashboard-success" },
           ].map(({ href, icon: Icon, label, iconColor, iconText }) => (
             <a
               key={label}

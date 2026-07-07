@@ -7,7 +7,7 @@ import {
     Breadcrumb, BreadcrumbItem, BreadcrumbLink,
     BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "../../components/ui/breadcrumb";
-import { getSalesQueries, getCloseReasons } from "./actions";
+import { getSalesQueries, getCloseReasons, getRejectionReasons } from "./actions";
 import { PackageQueryType } from "../../(marketing)/queries/actions";
 import { SalesQueriesTable } from "./Salesqueriestable";
 import type { Metadata } from "next";
@@ -58,11 +58,18 @@ function TableSkeleton() {
 }
 
 async function SalesQueriesData() {
-    const [queries, closeReasons] = await Promise.all([
+    const [queries, closeReasons, rejectionReasons] = await Promise.all([
         getSalesQueries(),
         getCloseReasons(),
+        getRejectionReasons(),
     ]);
-    return <SalesQueriesTable queries={queries as PackageQueryType[]} closeReasons={closeReasons} />;
+    return (
+        <SalesQueriesTable
+            queries={queries as PackageQueryType[]}
+            closeReasons={closeReasons}
+            rejectionReasons={rejectionReasons}
+        />
+    );
 }
 
 export default function SalesQueryPage() {

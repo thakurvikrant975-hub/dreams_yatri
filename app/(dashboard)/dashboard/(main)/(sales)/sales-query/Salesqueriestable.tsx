@@ -22,7 +22,7 @@ import { AddFollowUpDialog } from "./Addfollowupdialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { SalesQueryDetailSheet } from "./Salesquerydetailsheet";
 import { reopenSalesQuery, getSalesQueryById } from "./actions";
-import type { PackageQueryType, CloseReason, PackageRequirements } from "../../(marketing)/queries/actions";
+import type { PackageQueryType, CloseReason, RejectionReason, PackageRequirements } from "../../(marketing)/queries/actions";
 import { SalesQueryStatus } from "./query-status";
 import { StatCard, StatGrid } from "../../components/dashboard/Statcard";
 import Image from "next/image";
@@ -46,6 +46,7 @@ type SalesQueryWithDetails = PackageQueryType & {
 type Props = {
     queries: PackageQueryType[];
     closeReasons: CloseReason[];
+    rejectionReasons: RejectionReason[];
 };
 
 const PAGE_SIZE = 10;
@@ -153,7 +154,7 @@ function ActionCell({
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export function SalesQueriesTable({ queries, closeReasons }: Props) {
+export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: Props) {
     const [search, setSearch] = useState("");
     const [filterStatus, setFilterStatus] = useState<"all" | SalesQueryStatus>("all");
     const [page, setPage] = useState(1);
@@ -513,6 +514,7 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
             <SalesQueryDetailSheet
                 query={loadingDetail ? null : detailQuery}
                 closeReasons={closeReasons}
+                rejectionReasons={rejectionReasons}
                 open={sheetOpen}
                 onOpenChange={setSheetOpen}
                 onRefresh={() => openDetail(detailQuery as PackageQueryType)}

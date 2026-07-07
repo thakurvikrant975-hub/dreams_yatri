@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/app/lib/db";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@/app/generated/prisma";
+import { getBoolSetting, SETTINGS_KEYS } from "@/app/lib/system-settings";
 
 const ACTIVE_PIPELINE_STATUSES = [
   "ASSIGNED",
@@ -25,6 +26,20 @@ export type AutoAssignResult =
  * instead of always landing on the same first member.
  */
 export async function autoAssignLead(queryId: string): Promise<AutoAssignResult> {
+  // Global on/off switch — controllable from /dashboard/queries. Defaults to
+  // on so behavior is unchanged for anyone who never touches the toggle.
+  const enabled = await getBoolSetting(SETTINGS_KEYS.autoAssignQueries, true);
+  if (!enabled) {
+    await db.queryTimeline.create({
+      data: {
+        queryId,
+        event: "Auto-assignment skipped — turned off, awaiting manual assignment",
+        actorName: "System",
+      },
+    });
+    return { assigned: false, reason: "Auto-assign is turned off" };
+  }
+
   const members = await db.teamMember.findMany({
     where: {
       teamRole: { name: { equals: "Sales Executive", mode: "insensitive" } },

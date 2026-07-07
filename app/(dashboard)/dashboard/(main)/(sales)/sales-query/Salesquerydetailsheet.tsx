@@ -20,10 +20,11 @@ import {
   QueryStatusBadge, QuerySourceBadge,  type QueryStatus,} from "../../components/dashboard/CustomBadges";
 import { AddFollowUpDialog } from "./Addfollowupdialog";
 import { CloseQueryDialog } from "./Closequerydialog";
+import { RejectQueryDialog } from "./Rejectquerydialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { reopenSalesQuery } from "./actions";
 import { PackageRequirements } from "../../(marketing)/queries/actions";
-import { CloseReason } from "../../(marketing)/queries/actions";
+import { CloseReason, RejectionReason } from "../../(marketing)/queries/actions";
 
 type FollowUpItem = {
     id: string;
@@ -42,6 +43,7 @@ type SalesQueryWithDetails = SalesQuery & {
 type Props = {
     query: SalesQueryWithDetails | null;
     closeReasons: CloseReason[];
+    rejectionReasons: RejectionReason[];
     open: boolean;
     onOpenChange: (v: boolean) => void;
     onRefresh?: () => void;
@@ -97,6 +99,7 @@ function InfoRow({
 export function SalesQueryDetailSheet({
     query,
     closeReasons,
+    rejectionReasons,
     open,
     onOpenChange,
     onRefresh,
@@ -185,6 +188,21 @@ export function SalesQueryDetailSheet({
                                     <XCircle className="h-3.5 w-3.5" /> Close Query
                                 </Button>
                             </CloseQueryDialog>
+
+                            <RejectQueryDialog
+                                queryId={query.id}
+                                leadName={query.name}
+                                reasons={rejectionReasons}
+                                onDone={onRefresh}
+                            >
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
+                                >
+                                    <XCircle className="h-3.5 w-3.5" /> Reject Query
+                                </Button>
+                            </RejectQueryDialog>
                         </div>
                     )}
 
