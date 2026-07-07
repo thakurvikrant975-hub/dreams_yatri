@@ -15,6 +15,7 @@ import { TableFilters } from "../../components/dashboard/Tablefilters";
 import { StatCard, StatGrid } from "../../components/dashboard/Statcard";
 import { QueryStatusBadge, QuerySourceBadge } from "../../components/dashboard/CustomBadges";
 import { QueryDetailSheet } from "./Querydetailsheet";
+import { QueryTimelineSheet } from "./QueryTimelineSheet";
 import { getQueryById } from "./actions";
 import type { PackageQuery, RejectionReason } from "./actions";
 import { Pencil } from "lucide-react";
@@ -68,6 +69,16 @@ function ActionCell({
     return (
         <TooltipProvider delayDuration={300}>
             <div className="flex items-center justify-end gap-1">
+
+                {/* Timeline */}
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <span onClick={(e) => e.stopPropagation()}>
+                            <QueryTimelineSheet queryId={query.id} leadName={query.name} />
+                        </span>
+                    </TooltipTrigger>
+                    <TooltipContent>View Timeline</TooltipContent>
+                </Tooltip>
 
                 {/* Edit */}
                 <Tooltip>

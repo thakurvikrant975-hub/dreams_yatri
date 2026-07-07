@@ -127,7 +127,8 @@ export function AddFollowUpDialog({ salesQueryId, leadName, children, onDone }: 
                     <form ref={formRef} onSubmit={handleSubmit} className="space-y-4 pt-2">
                         <div className="space-y-1.5">
                             <Label htmlFor="note">
-                                Follow-Up Note <span className="text-destructive">*</span>
+                                Follow-Up Note{" "}
+                                <span className="text-muted-foreground text-xs font-normal">(optional)</span>
                             </Label>
                             <Textarea
                                 id="note"

@@ -151,7 +151,7 @@ export async function getMyFollowUps(packageQueryId?: string) {
 // ── Follow-up — upsert (one per exec per query) ───────────────────────────────
 
 const followUpSchema = z.object({
-    note:       z.string().min(1, "Note is required").max(2000, "Note too long"),
+    note:       z.string().max(2000, "Note too long").optional(),
     followUpAt: z.string().optional(),
 });
 
@@ -179,7 +179,7 @@ export async function addFollowUp(packageQueryId: string, formData: FormData): P
             await db.queryFollowUp.update({
                 where: { id: existing.id },
                 data: {
-                    note:       parsed.data.note,
+                    note:       parsed.data.note ?? "",
                     followUpAt: parsed.data.followUpAt ? new Date(parsed.data.followUpAt) : null,
                 },
             });
@@ -187,7 +187,7 @@ export async function addFollowUp(packageQueryId: string, formData: FormData): P
             await db.queryFollowUp.create({
                 data: {
                     packageQueryId,
-                    note:          parsed.data.note,
+                    note:          parsed.data.note ?? "",
                     followUpAt:    parsed.data.followUpAt ? new Date(parsed.data.followUpAt) : null,
                     createdById:   teamMemberId,
                     createdByName: teamMemberName,
@@ -359,6 +359,7 @@ const packageRequirementsSchema = z.object({
         required:       z.boolean(),
         cabTypes:       z.array(z.string()),
         includeFlights: z.boolean(),
+        includeTrain:   z.boolean(),
         specialDemands: z.string().optional(),
     }),
     activities: z.object({

@@ -988,6 +988,7 @@ function ClientDetailsSidebar({ query, j, t, b, s, tr, ac }: {
             } />
           )}
           <InfoRow label="Flights" value={tr.includeFlights ? "Yes" : "No"} />
+          <InfoRow label="Train" value={tr.includeTrain ? "Yes" : "No"} />
           <SpecialNote text={tr.specialDemands} />
         </SectionCard>
       )}

@@ -22,6 +22,7 @@ import { AddFollowUpDialog } from "./Addfollowupdialog";
 import { CloseQueryDialog } from "./Closequerydialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { SalesQueryDetailSheet } from "./Salesquerydetailsheet";
+import { QueryTimelineSheet } from "../../(marketing)/queries/QueryTimelineSheet";
 import { reopenSalesQuery, getSalesQueryById } from "./actions";
 import type { PackageQueryType, CloseReason, PackageRequirements } from "../../(marketing)/queries/actions";
 import { SalesQueryStatus } from "./query-status";
@@ -91,6 +92,17 @@ function ActionCell({
     return (
         <TooltipProvider delayDuration={300}>
             <div className="flex items-center justify-end gap-1">
+
+                {/* Timeline */}
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <span onClick={(e) => e.stopPropagation()}>
+                            <QueryTimelineSheet queryId={query.id} leadName={query.name} fetchQuery={getSalesQueryById} />
+                        </span>
+                    </TooltipTrigger>
+                    <TooltipContent>View Timeline</TooltipContent>
+                </Tooltip>
+
                 {!closed && !converted && (
                     <>
 

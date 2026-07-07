@@ -323,6 +323,9 @@ export function SalesQueryDetailSheet({
                                             {reqs.transport.includeFlights && (
                                                 <Badge variant="secondary" className="text-xs">✈ Flights</Badge>
                                             )}
+                                            {reqs.transport.includeTrain && (
+                                                <Badge variant="secondary" className="text-xs">🚆 Train</Badge>
+                                            )}
                                         </div>
                                         {reqs.journey.destinations.length > 0 && (
                                             <div className="flex items-center gap-1 text-xs text-muted-foreground">

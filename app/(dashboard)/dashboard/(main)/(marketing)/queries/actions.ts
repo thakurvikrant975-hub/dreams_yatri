@@ -75,6 +75,7 @@ export type PackageRequirements = {
         required: boolean;
         cabTypes: string[];
         includeFlights: boolean;
+        includeTrain: boolean;
         specialDemands?: string;
     };
     activities: {
@@ -282,7 +283,7 @@ export async function getSalesMembers(): Promise<SalesMember[]> {
     // FIX 1: Only active sales team members
     const members = await db.teamMember.findMany({
         where: {
-            teamRole: { name: { equals: "Sales", mode: "insensitive" } },
+            teamRole: { name: { equals: "Sales Executive", mode: "insensitive" } },
             isActive: true, // ← was missing; was returning inactive members too
         },
         select: { id: true, name: true, email: true, profilePicUrl: true },
@@ -397,8 +398,8 @@ export async function assignQuery(
             data: {
                 queryId,
                 event: memberId
-                    ? `👤 Assigned to ${assigneeName ?? "team member"}`
-                    : `👤 Assignment removed`,
+                    ? `Assigned to ${assigneeName ?? "team member"}`
+                    : `Assignment removed`,
                 actorId: actorId ?? null,
                 actorName: actorName ?? null,
                 meta: { assignedTo: memberId, assigneeName } as Prisma.InputJsonValue,

@@ -121,6 +121,7 @@ function defaultRequirements(query: PackageQueryType): PackageRequirements {
             required: true,
             cabTypes: [],
             includeFlights: false,
+            includeTrain: false,
             specialDemands: "",
         },
         activities: {
@@ -814,6 +815,24 @@ export function PackageDetailsDialog({
                                                     onClick={() => update("transport", { includeFlights: true })}
                                                 >
                                                     Include Flights
+                                                </ToggleButton>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label>Train Ticket</Label>
+                                            <div className="flex gap-2">
+                                                <ToggleButton
+                                                    selected={reqs.transport.includeTrain === false}
+                                                    onClick={() => update("transport", { includeTrain: false })}
+                                                >
+                                                    No Train
+                                                </ToggleButton>
+                                                <ToggleButton
+                                                    selected={reqs.transport.includeTrain === true}
+                                                    onClick={() => update("transport", { includeTrain: true })}
+                                                >
+                                                    Train Ticket Required
                                                 </ToggleButton>
                                             </div>
                                         </div>

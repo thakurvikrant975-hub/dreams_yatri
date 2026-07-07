@@ -79,7 +79,7 @@ export default async function DashboardLayout({
   }
 
   // Sales badge / toggle always belong to the real logged-in member.
-  const isSales = realMember.teamRole?.name?.toLowerCase() === "sales";
+  const isSales = realMember.teamRole?.name?.toLowerCase() === "sales executive";
 
   // "Viewing as" banner info: derive from the effective member when impersonating.
   const viewingAs = isImpersonating
