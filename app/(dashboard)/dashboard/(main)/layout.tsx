@@ -13,6 +13,7 @@ import { resolveNavHref } from "./lib/rbac/nav-hrefs";
 import { Toaster } from "sonner";
 import { SalesStatusToggle } from "./components/dashboard/Salesstatustoggle";
 import { OfflineDetector } from "./components/dashboard/OfflineDetector";
+import { FollowUpReminderProvider } from "./(sales)/sales-query/Followupreminderprovider";
 
 function parsePageAccess(raw: unknown): string[] {
   return Array.isArray(raw) ? raw.filter((href): href is string => typeof href === "string") : [];
@@ -125,6 +126,7 @@ export default async function DashboardLayout({
 
       <Toaster position="top-center" />
       <OfflineDetector />
+      {isSales && <FollowUpReminderProvider />}
     </SidebarProvider>
   );
 }
