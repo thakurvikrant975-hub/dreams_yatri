@@ -88,7 +88,8 @@ export async function fetchHotelPhotos(hotelId: number): Promise<{
 export async function uploadHotelPhotos(
   hotelId: number,
   formData: FormData,
-): Promise<{ error?: string; count?: number }> {
+  tags: string[] = [],
+): Promise<{ error?: string; count?: number; photos?: HotelPhoto[] }> {
   const session = await hotelConnectAuth();
   if (!session) redirect("/hotel-connect/login");
   if (!(await assertOwner(hotelId, session.user.id))) return { error: "Property not found." };
@@ -102,6 +103,7 @@ export async function uploadHotelPhotos(
 
   let count = 0;
   const failed: string[] = [];
+  const created: HotelPhoto[] = [];
 
   for (const file of valid) {
     try {
@@ -113,12 +115,12 @@ export async function uploadHotelPhotos(
         contentType: file.type || "image/jpeg",
       });
       const isPrimary = existingCount === 0 && count === 0;
-      await db.hotel_images.create({
+      const image = await db.hotel_images.create({
         data: {
           hotel_id: hotelId,
           category_id: categoryId,
           url,
-          tags: [],
+          tags,
           sort_order: existingCount + count,
           is_primary: isPrimary,
         },
@@ -126,6 +128,15 @@ export async function uploadHotelPhotos(
       if (isPrimary) {
         await db.hotels.update({ where: { id: hotelId }, data: { thumbnail: url } });
       }
+      created.push({
+        id: image.id,
+        url: image.url,
+        thumbnail: image.thumbnail,
+        tags: image.tags,
+        is_primary: image.is_primary,
+        category_id: image.category_id,
+        sort_order: image.sort_order,
+      });
       count++;
     } catch (err) {
       console.error("[uploadHotelPhotos] file error:", file.name, err);
@@ -139,10 +150,32 @@ export async function uploadHotelPhotos(
   if (failed.length > 0) {
     return {
       count,
+      photos: created,
       error: `${count} photo${count > 1 ? "s" : ""} uploaded. ${failed.length} failed — ${failed.join(", ")}`,
     };
   }
-  return { count };
+  return { count, photos: created };
+}
+
+export async function getPhotosByTag(hotelId: number, tag: string): Promise<HotelPhoto[]> {
+  const session = await hotelConnectAuth();
+  if (!session) redirect("/hotel-connect/login");
+  if (!(await assertOwner(hotelId, session.user.id))) return [];
+
+  const images = await db.hotel_images.findMany({
+    where: { hotel_id: hotelId, tags: { has: tag } },
+    orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
+  });
+
+  return images.map((img) => ({
+    id: img.id,
+    url: img.url,
+    thumbnail: img.thumbnail,
+    tags: img.tags,
+    is_primary: img.is_primary,
+    category_id: img.category_id,
+    sort_order: img.sort_order,
+  }));
 }
 
 export async function setCoverPhoto(

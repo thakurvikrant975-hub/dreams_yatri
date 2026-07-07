@@ -324,7 +324,7 @@ function MandatoryAmenityRow({
             type="button"
             onClick={onOpenPool}
             disabled={disabled}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg border-2 border-dashed border-primary-300 text-primary-500 text-sm font-medium hover:border-primary-400 hover:bg-primary-50 transition-all"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg border-2 border-dashed border-neutral-300 text-neutral-600 hover:text-primary-500 text-sm font-medium hover:border-primary-400 hover:bg-primary-50 transition-all"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -1304,6 +1304,7 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
           // flow (initial stays null each time) so stale form state doesn't
           // carry over from the previous pool.
           key={poolModal.editingPool?.id ?? `new-${getPools(amenities["Swimming Pool"]).length}`}
+          hotelId={hotel.id}
           initial={poolModal.editingPool}
           poolNumber={
             poolModal.editingPool

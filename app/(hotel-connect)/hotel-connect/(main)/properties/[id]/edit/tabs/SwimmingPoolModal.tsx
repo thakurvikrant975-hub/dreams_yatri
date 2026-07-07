@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { cn } from "@/app/lib/utils";
 import { Input } from "../../../../components/ui/input";
 import { Label } from "../../../../components/ui/label";
@@ -13,6 +14,7 @@ import {
   WEEK_DAYS,
   makeTimeOptions,
 } from "./amenities-data";
+import { uploadHotelPhotos, deleteHotelPhoto, getPhotosByTag, type HotelPhoto } from "./photo-actions";
 import {
   SwimmingPoolIcon,
   HouseIcon,
@@ -27,11 +29,14 @@ import {
   XIcon,
   MinusIcon,
   PlusIcon,
+  TrashIcon,
 } from "@phosphor-icons/react/dist/ssr";
 
 const TIME_OPTIONS = makeTimeOptions();
+const POOL_PHOTO_TAG = "Swimming Pool";
 
 type Props = {
+  hotelId: number;
   initial: PoolConfig | null; // null = creating new pool
   poolNumber: number; // 1-based position, for the header ("Pool 2")
   poolTarget?: number; // if set, we're mid guided-add flow ("Pool 2 of 3")
@@ -117,11 +122,53 @@ function OptionCard({
 
 // ── Modal ────────────────────────────────────────────────────────────────────
 
-export default function SwimmingPoolModal({ initial, poolNumber, poolTarget, onSave, onClose }: Props) {
+export default function SwimmingPoolModal({ hotelId, initial, poolNumber, poolTarget, onSave, onClose }: Props) {
   const [pool, setPool] = useState<PoolConfig>(() =>
     initial ? { ...initial } : makeEmptyPool()
   );
   const [errors, setErrors] = useState<Partial<Record<keyof PoolConfig, string>>>({});
+
+  // ── Pool photos — shared "Swimming Pool" tag bucket, visible in Photos tab too ──
+  const [photos, setPhotos] = useState<HotelPhoto[]>([]);
+  const [photosLoading, setPhotosLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getPhotosByTag(hotelId, POOL_PHOTO_TAG).then((result) => {
+      if (!cancelled) setPhotos(result);
+    }).finally(() => {
+      if (!cancelled) setPhotosLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [hotelId]);
+
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files?.length) return;
+    setUploading(true);
+    setPhotoError(null);
+    const fd = new FormData();
+    for (const f of files) fd.append("photos", f);
+    try {
+      const result = await uploadHotelPhotos(hotelId, fd, [POOL_PHOTO_TAG]);
+      if (result.photos?.length) setPhotos((prev) => [...prev, ...result.photos!]);
+      if (result.error) setPhotoError(result.error);
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : "Upload failed.");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  }
+
+  async function handlePhotoDelete(photoId: number) {
+    setPhotos((prev) => prev.filter((p) => p.id !== photoId));
+    const result = await deleteHotelPhoto(hotelId, photoId);
+    if (result.error) setPhotoError(result.error);
+  }
 
   // Esc to close
   useEffect(() => {
@@ -285,15 +332,76 @@ export default function SwimmingPoolModal({ initial, poolNumber, poolTarget, onS
               </div>
             </div>
 
-            {/* Pool Photos placeholder */}
+            {/* Pool Photos */}
             <div>
-              <Label className="mb-1.5 block">
-                Pool Photos &amp; Videos
-                <span className="ml-1 normal-case tracking-normal font-normal text-neutral-400">(min. 2 required)</span>
-              </Label>
-              <div className="border-2 border-dashed border-neutral-200 rounded-xl p-6 text-center bg-neutral-50/60">
-                <ImageIcon size={26} className="text-neutral-300 mx-auto mb-2" />
-                <p className="text-xs text-neutral-400">Photo upload is handled in the Photos tab</p>
+              <div className="flex items-center justify-between mb-1.5">
+                <Label className="block">
+                  Pool Photos &amp; Videos
+                  <span className="ml-1 normal-case tracking-normal font-normal text-neutral-400">(min. 2 required)</span>
+                </Label>
+                <span className={cn(
+                  "text-[11px] font-semibold rounded-full px-2 py-0.5",
+                  photos.length >= 2 ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
+                )}>
+                  {photos.length}/2
+                </span>
+              </div>
+              <p className="text-xs text-neutral-400 mb-2.5">
+                These photos are automatically tagged &quot;Swimming Pool&quot; and also show up in the Photos step.
+              </p>
+
+              {photoError && (
+                <p className="text-xs text-red-500 mb-2">{photoError}</p>
+              )}
+
+              <div className="flex flex-wrap gap-3">
+                {photosLoading ? (
+                  <div className="w-20 h-16 rounded-lg bg-neutral-100 animate-pulse" />
+                ) : (
+                  photos.map((photo) => (
+                    <div key={photo.id} className="relative group w-20 h-16 rounded-lg overflow-hidden bg-neutral-100 shrink-0">
+                      {photo.url ? (
+                        <Image src={photo.url} alt="Pool photo" fill className="object-cover" />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <ImageIcon size={16} className="text-neutral-300" />
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handlePhotoDelete(photo.id)}
+                        className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white"
+                        title="Remove photo"
+                      >
+                        <TrashIcon size={16} />
+                      </button>
+                    </div>
+                  ))
+                )}
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,video/*"
+                  multiple
+                  className="hidden"
+                  onChange={handlePhotoUpload}
+                />
+                <button
+                  type="button"
+                  disabled={uploading}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex flex-col items-center justify-center gap-0.5 w-20 h-16 rounded-lg border-2 border-dashed border-neutral-300 text-neutral-400 hover:border-primary-300 hover:text-primary-500 transition-colors disabled:opacity-60 shrink-0"
+                >
+                  {uploading ? (
+                    <span className="text-[10px] font-medium">…</span>
+                  ) : (
+                    <>
+                      <PlusIcon size={16} weight="bold" />
+                      <span className="text-[9px] font-semibold">Add</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
 
