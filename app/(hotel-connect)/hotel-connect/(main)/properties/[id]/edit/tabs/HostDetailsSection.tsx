@@ -593,7 +593,7 @@ export default function HostDetailsSection({ owner, locked = false, onSaved }: {
               <button
                 type="submit"
                 disabled={isPending}
-                className="h-10 px-6 rounded-xl text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="h-10 px-6 rounded-xl text-sm font-semibold text-white bg-primary-500 hover:bg-primary-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isPending ? "Saving…" : "Save Host Details"}
               </button>

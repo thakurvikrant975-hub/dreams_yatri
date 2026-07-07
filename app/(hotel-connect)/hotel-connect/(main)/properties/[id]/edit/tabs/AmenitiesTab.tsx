@@ -1263,6 +1263,11 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
       {poolModal && (
         <SwimmingPoolModal
           initial={poolModal.editingPool}
+          poolNumber={
+            poolModal.editingPool
+              ? getPools(amenities["Swimming Pool"]).findIndex((p) => p.id === poolModal.editingPool!.id) + 1
+              : getPools(amenities["Swimming Pool"]).length + 1
+          }
           onSave={handleSavePool}
           onClose={() => setPoolModal(null)}
         />

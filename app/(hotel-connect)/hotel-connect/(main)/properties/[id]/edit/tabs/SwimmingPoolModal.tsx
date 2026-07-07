@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "@/app/lib/utils";
+import { Input } from "../../../../components/ui/input";
+import { Label } from "../../../../components/ui/label";
+import { SearchSelect } from "../../../../components/ui/search-select";
 import type { PoolConfig } from "./amenities-data";
 import {
   POOL_FEATURES,
@@ -10,11 +13,25 @@ import {
   WEEK_DAYS,
   makeTimeOptions,
 } from "./amenities-data";
+import {
+  SwimmingPoolIcon,
+  HouseIcon,
+  SunIcon,
+  UsersThreeIcon,
+  BabyIcon,
+  UserIcon,
+  SnowflakeIcon,
+  ClockIcon,
+  RulerIcon,
+  ImageIcon,
+  XIcon,
+} from "@phosphor-icons/react/dist/ssr";
 
 const TIME_OPTIONS = makeTimeOptions();
 
 type Props = {
   initial: PoolConfig | null; // null = creating new pool
+  poolNumber: number; // 1-based position, for the header ("Pool 2")
   onSave: (pool: PoolConfig) => void;
   onClose: () => void;
 };
@@ -36,6 +53,12 @@ function makeEmptyPool(): PoolConfig {
   };
 }
 
+// ── Shared bits ────────────────────────────────────────────────────────────────
+
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return <Label className="mb-2.5 block">{children}</Label>;
+}
+
 function TagToggle({
   label,
   active,
@@ -50,10 +73,10 @@ function TagToggle({
       type="button"
       onClick={onClick}
       className={cn(
-        "px-3 py-1.5 rounded-full border text-xs font-medium transition-all",
+        "px-3 py-1.5 rounded-full border text-xs font-medium transition-colors",
         active
           ? "bg-primary-500 border-primary-500 text-white"
-          : "bg-white border-neutral-300 text-neutral-600 hover:border-primary-400"
+          : "bg-white border-neutral-300 text-neutral-600 hover:border-primary-400 hover:bg-primary-50/40"
       )}
     >
       {label}
@@ -61,11 +84,50 @@ function TagToggle({
   );
 }
 
-export default function SwimmingPoolModal({ initial, onSave, onClose }: Props) {
+function OptionCard({
+  icon,
+  label,
+  active,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex-1 flex flex-col items-center gap-1.5 py-3 rounded-xl border-2 text-sm font-semibold transition-all",
+        active
+          ? "border-primary-500 bg-primary-50 text-primary-600"
+          : "border-neutral-200 text-neutral-500 hover:border-neutral-300 hover:bg-neutral-50"
+      )}
+    >
+      <span className={cn(active ? "text-primary-500" : "text-neutral-400")}>{icon}</span>
+      {label}
+    </button>
+  );
+}
+
+// ── Modal ────────────────────────────────────────────────────────────────────
+
+export default function SwimmingPoolModal({ initial, poolNumber, onSave, onClose }: Props) {
   const [pool, setPool] = useState<PoolConfig>(() =>
     initial ? { ...initial } : makeEmptyPool()
   );
   const [errors, setErrors] = useState<Partial<Record<keyof PoolConfig, string>>>({});
+
+  // Esc to close
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   function update<K extends keyof PoolConfig>(key: K, val: PoolConfig[K]) {
     setPool((prev) => ({ ...prev, [key]: val }));
@@ -88,6 +150,11 @@ export default function SwimmingPoolModal({ initial, onSave, onClose }: Props) {
     if (!pool.type) errs.type = "Select pool type.";
     if (!pool.suitableFor) errs.suitableFor = "Select suitable age group.";
     setErrors(errs);
+    if (Object.keys(errs).length > 0) {
+      requestAnimationFrame(() => {
+        document.querySelector("[data-pool-error]")?.scrollIntoView({ block: "center", behavior: "smooth" });
+      });
+    }
     return Object.keys(errs).length === 0;
   }
 
@@ -95,27 +162,36 @@ export default function SwimmingPoolModal({ initial, onSave, onClose }: Props) {
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/40 z-[60] backdrop-blur-sm"
+        className="fixed inset-0 bg-neutral-900/50 z-60 backdrop-blur-sm"
         onClick={onClose}
       />
 
       {/* Modal */}
-      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden pointer-events-auto">
+      <div className="fixed inset-0 z-60 flex items-center justify-center p-4 pointer-events-none">
+        <div className="bg-white rounded-2xl shadow-2xl shadow-black/20 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden pointer-events-auto ring-1 ring-neutral-200">
 
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200 shrink-0">
-            <h2 className="text-base font-bold text-neutral-800">
-              {initial ? "Edit Pool" : "Add Swimming Pool"}
-            </h2>
+          <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-neutral-200 bg-linear-to-b bg-neutral-50 shrink-0">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="flex items-center justify-center size-9 rounded-xl bg-primary-50 text-primary-500 ring-1 ring-inset ring-primary-100 shrink-0">
+                <SwimmingPoolIcon size={19} weight="fill" />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-sm font-bold text-neutral-800 truncate">
+                  {initial ? `Edit Pool ${poolNumber}` : `Add Pool ${poolNumber}`}
+                </h2>
+                <p className="text-xs text-neutral-500 mt-0.5">
+                  Your hotel can list more than one pool — each with its own details.
+                </p>
+              </div>
+            </div>
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-neutral-100 text-neutral-400 hover:text-neutral-600 transition-colors"
+              className="p-1.5 rounded-lg hover:bg-neutral-200/70 text-neutral-400 hover:text-neutral-600 transition-colors shrink-0"
+              aria-label="Close"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <XIcon size={18} weight="bold" />
             </button>
           </div>
 
@@ -123,95 +199,60 @@ export default function SwimmingPoolModal({ initial, onSave, onClose }: Props) {
           <div className="overflow-y-auto flex-1 px-6 py-5 space-y-6">
 
             {/* Pool Name */}
-            <div>
-              <label className="block text-xs font-semibold text-neutral-600 mb-1.5">
+            <div data-pool-error={errors.name ? "" : undefined}>
+              <Label className="mb-1.5 block">
                 Pool Name <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
+              </Label>
+              <Input
                 value={pool.name}
                 onChange={(e) => update("name", e.target.value)}
                 placeholder="e.g. Rooftop Infinity Pool"
-                className={cn(
-                  "w-full border rounded-lg px-3 py-2.5 text-sm outline-none transition-colors",
-                  errors.name
-                    ? "border-red-400 focus:border-red-500"
-                    : "border-neutral-300 focus:border-primary-500"
-                )}
+                aria-invalid={!!errors.name}
               />
               {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
             </div>
 
             {/* Pool Type */}
-            <div>
-              <label className="block text-xs font-semibold text-neutral-600 mb-2">
+            <div data-pool-error={errors.type ? "" : undefined}>
+              <Label className="mb-2 block">
                 Pool Type <span className="text-red-500">*</span>
-              </label>
+              </Label>
               <div className="flex gap-3">
-                {(["Indoor", "Outdoor"] as const).map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => update("type", t)}
-                    className={cn(
-                      "flex-1 py-2.5 rounded-xl border-2 text-sm font-semibold transition-all",
-                      pool.type === t
-                        ? "border-primary-500 bg-primary-50 text-primary-600"
-                        : "border-neutral-200 text-neutral-500 hover:border-neutral-400"
-                    )}
-                  >
-                    {t}
-                  </button>
-                ))}
+                <OptionCard icon={<HouseIcon size={18} weight="duotone" />} label="Indoor" active={pool.type === "Indoor"} onClick={() => update("type", "Indoor")} />
+                <OptionCard icon={<SunIcon size={18} weight="duotone" />} label="Outdoor" active={pool.type === "Outdoor"} onClick={() => update("type", "Outdoor")} />
               </div>
               {errors.type && <p className="text-xs text-red-500 mt-1">{errors.type}</p>}
             </div>
 
             {/* Suitable For */}
-            <div>
-              <label className="block text-xs font-semibold text-neutral-600 mb-2">
+            <div data-pool-error={errors.suitableFor ? "" : undefined}>
+              <Label className="mb-2 block">
                 Suitable For <span className="text-red-500">*</span>
-              </label>
+              </Label>
               <div className="flex gap-3">
-                {(["All ages", "Kid's only", "Adult only"] as const).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => update("suitableFor", s)}
-                    className={cn(
-                      "flex-1 py-2.5 rounded-xl border-2 text-sm font-semibold transition-all",
-                      pool.suitableFor === s
-                        ? "border-primary-500 bg-primary-50 text-primary-600"
-                        : "border-neutral-200 text-neutral-500 hover:border-neutral-400"
-                    )}
-                  >
-                    {s}
-                  </button>
-                ))}
+                <OptionCard icon={<UsersThreeIcon size={18} weight="duotone" />} label="All ages" active={pool.suitableFor === "All ages"} onClick={() => update("suitableFor", "All ages")} />
+                <OptionCard icon={<BabyIcon size={18} weight="duotone" />} label="Kid's only" active={pool.suitableFor === "Kid's only"} onClick={() => update("suitableFor", "Kid's only")} />
+                <OptionCard icon={<UserIcon size={18} weight="duotone" />} label="Adult only" active={pool.suitableFor === "Adult only"} onClick={() => update("suitableFor", "Adult only")} />
               </div>
               {errors.suitableFor && <p className="text-xs text-red-500 mt-1">{errors.suitableFor}</p>}
             </div>
 
+            <div className="h-px bg-neutral-100" />
+
             {/* Pool Features */}
             <div>
-              <label className="block text-xs font-semibold text-neutral-600 mb-2">
-                Pool Features & Characteristics
-              </label>
+              <SectionHeading>Pool Features &amp; Characteristics</SectionHeading>
               <div className="flex flex-wrap gap-2">
                 {POOL_FEATURES.map((f) => (
-                  <TagToggle
-                    key={f}
-                    label={f}
-                    active={pool.features.includes(f)}
-                    onClick={() => toggleArray("features", f)}
-                  />
+                  <TagToggle key={f} label={f} active={pool.features.includes(f)} onClick={() => toggleArray("features", f)} />
                 ))}
               </div>
             </div>
 
             {/* Seasonal Access */}
-            <div className="bg-neutral-50 rounded-xl p-4 border border-neutral-200">
-              <p className="text-sm font-medium text-neutral-700 mb-3">
+            <div className="rounded-xl border border-neutral-200 bg-neutral-50/60 p-4">
+              <p className="flex items-center gap-2 text-sm font-medium text-neutral-700 mb-3">
+                <SnowflakeIcon size={16} className="text-neutral-400" />
                 Is the pool accessible during the winter season?
               </p>
               <div className="flex gap-3">
@@ -226,7 +267,7 @@ export default function SwimmingPoolModal({ initial, onSave, onClose }: Props) {
                         ? val
                           ? "bg-emerald-600 border-emerald-600 text-white"
                           : "bg-neutral-700 border-neutral-700 text-white"
-                        : "bg-white border-neutral-300 text-neutral-500 hover:border-neutral-500"
+                        : "bg-white border-neutral-300 text-neutral-500 hover:border-neutral-400"
                     )}
                   >
                     {val ? "Yes" : "No"}
@@ -237,70 +278,59 @@ export default function SwimmingPoolModal({ initial, onSave, onClose }: Props) {
 
             {/* Pool Photos placeholder */}
             <div>
-              <label className="block text-xs font-semibold text-neutral-600 mb-1.5">
-                Pool Photos & Videos
-                <span className="ml-1 text-neutral-400 font-normal">(min. 2 required)</span>
-              </label>
-              <div className="border-2 border-dashed border-neutral-300 rounded-xl p-6 text-center bg-neutral-50">
-                <svg
-                  className="w-8 h-8 text-neutral-300 mx-auto mb-2"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-                </svg>
+              <Label className="mb-1.5 block">
+                Pool Photos &amp; Videos
+                <span className="ml-1 normal-case tracking-normal font-normal text-neutral-400">(min. 2 required)</span>
+              </Label>
+              <div className="border-2 border-dashed border-neutral-200 rounded-xl p-6 text-center bg-neutral-50/60">
+                <ImageIcon size={26} className="text-neutral-300 mx-auto mb-2" />
                 <p className="text-xs text-neutral-400">Photo upload is handled in the Photos tab</p>
               </div>
             </div>
 
+            <div className="h-px bg-neutral-100" />
+
             {/* Facilities (Optional) */}
             <div>
-              <label className="block text-xs font-semibold text-neutral-600 mb-2">
+              <SectionHeading>
                 Facilities Provided
-                <span className="ml-1 text-neutral-400 font-normal">(Optional)</span>
-              </label>
+                <span className="ml-1 normal-case tracking-normal font-normal text-neutral-400">(Optional)</span>
+              </SectionHeading>
               <div className="flex flex-wrap gap-2">
                 {POOL_FACILITIES.map((f) => (
-                  <TagToggle
-                    key={f}
-                    label={f}
-                    active={pool.facilities.includes(f)}
-                    onClick={() => toggleArray("facilities", f)}
-                  />
+                  <TagToggle key={f} label={f} active={pool.facilities.includes(f)} onClick={() => toggleArray("facilities", f)} />
                 ))}
               </div>
             </div>
 
             {/* Timing (Optional) */}
             <div>
-              <label className="block text-xs font-semibold text-neutral-600 mb-2">
-                Timing
-                <span className="ml-1 text-neutral-400 font-normal">(Optional)</span>
-              </label>
-              <div className="grid grid-cols-2 gap-3 mb-3">
+              <SectionHeading>
+                <span className="inline-flex items-center gap-1.5">
+                  <ClockIcon size={14} className="text-neutral-400" /> Timing
+                </span>
+                <span className="ml-1 normal-case tracking-normal font-normal text-neutral-400">(Optional)</span>
+              </SectionHeading>
+              <div className="grid grid-cols-2 gap-3 mb-4">
                 <div>
-                  <p className="text-[11px] text-neutral-500 mb-1">Opening Time</p>
-                  <select
+                  <p className="text-[11px] text-neutral-500 mb-1.5">Opening Time</p>
+                  <SearchSelect
+                    options={TIME_OPTIONS}
                     value={pool.openTime}
-                    onChange={(e) => update("openTime", e.target.value)}
-                    className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-primary-500"
-                  >
-                    <option value="">Select</option>
-                    {TIME_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
-                  </select>
+                    onChange={(v) => update("openTime", v)}
+                    placeholder="Select"
+                    searchPlaceholder="Search time…"
+                  />
                 </div>
                 <div>
-                  <p className="text-[11px] text-neutral-500 mb-1">Closing Time</p>
-                  <select
+                  <p className="text-[11px] text-neutral-500 mb-1.5">Closing Time</p>
+                  <SearchSelect
+                    options={TIME_OPTIONS}
                     value={pool.closeTime}
-                    onChange={(e) => update("closeTime", e.target.value)}
-                    className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-primary-500"
-                  >
-                    <option value="">Select</option>
-                    {TIME_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
-                  </select>
+                    onChange={(v) => update("closeTime", v)}
+                    placeholder="Select"
+                    searchPlaceholder="Search time…"
+                  />
                 </div>
               </div>
               <div>
@@ -327,18 +357,21 @@ export default function SwimmingPoolModal({ initial, onSave, onClose }: Props) {
 
             {/* Depth (Optional) */}
             <div>
-              <label className="block text-xs font-semibold text-neutral-600 mb-2">
-                Pool Depth
-                <span className="ml-1 text-neutral-400 font-normal">(Optional)</span>
-              </label>
-              <select
-                value={pool.depth}
-                onChange={(e) => update("depth", e.target.value)}
-                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-primary-500 mb-2"
-              >
-                <option value="">Select Depth</option>
-                {POOL_DEPTHS.map((d) => <option key={d} value={d}>{d}</option>)}
-              </select>
+              <SectionHeading>
+                <span className="inline-flex items-center gap-1.5">
+                  <RulerIcon size={14} className="text-neutral-400" /> Pool Depth
+                </span>
+                <span className="ml-1 normal-case tracking-normal font-normal text-neutral-400">(Optional)</span>
+              </SectionHeading>
+              <div className="mb-3">
+                <SearchSelect
+                  options={POOL_DEPTHS}
+                  value={pool.depth}
+                  onChange={(v) => update("depth", v)}
+                  placeholder="Select Depth"
+                  searchPlaceholder="Search depth…"
+                />
+              </div>
               <label className="flex items-center gap-2.5 cursor-pointer">
                 <input
                   type="checkbox"
@@ -357,16 +390,16 @@ export default function SwimmingPoolModal({ initial, onSave, onClose }: Props) {
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2 rounded-lg border border-neutral-300 text-sm font-medium text-neutral-600 hover:bg-neutral-100 transition-colors"
+              className="px-5 py-2 rounded-lg border border-neutral-300 bg-white text-sm font-medium text-neutral-600 hover:bg-neutral-100 transition-colors"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={() => { if (validate()) onSave(pool); }}
-              className="px-5 py-2 rounded-lg bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 transition-colors"
+              className="px-5 py-2 rounded-lg bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 transition-colors shadow-sm shadow-primary-500/30"
             >
-              Save Pool
+              {initial ? "Save Changes" : "Add Pool"}
             </button>
           </div>
 
