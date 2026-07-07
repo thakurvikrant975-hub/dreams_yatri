@@ -10,6 +10,20 @@ import { HotelBusinessType, Prisma } from "@/app/generated/prisma";
 
 export type FinanceState = { ok?: boolean; error?: string };
 
+/** Sniffs the actual file signature instead of trusting client-supplied file.type. */
+function sniffDocumentType(buf: Buffer): string | null {
+  if (buf.length >= 4 && buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46) {
+    return "application/pdf"; // %PDF
+  }
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
+    return "image/jpeg";
+  }
+  if (buf.length >= 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) {
+    return "image/png"; // \x89PNG
+  }
+  return null;
+}
+
 export async function saveFinance(
   hotelId: number,
   _prev: FinanceState,
@@ -37,6 +51,21 @@ export async function saveFinance(
       ? (btRaw as HotelBusinessType)
       : null;
   const msme_number = (formData.get("msme_number") as string | null)?.trim() || null;
+
+  // Format validation — mirrors homestay-finance-actions.ts's rules so both
+  // wizard paths agree on what a valid bank account/IFSC/GSTIN/PAN looks like.
+  if (bank_account_number && !/^\d{6,20}$/.test(bank_account_number)) {
+    return { error: "Bank account number must be 6-20 digits, numbers only." };
+  }
+  if (bank_ifsc_code && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(bank_ifsc_code)) {
+    return { error: "Invalid IFSC code format. Example: SBIN0001234" };
+  }
+  if (gstin_number && !/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(gstin_number)) {
+    return { error: "Invalid GSTIN format. Example: 27AAPFU0939F1ZV" };
+  }
+  if (pan_number && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan_number)) {
+    return { error: "Invalid PAN format. Example: ABCDE1234F" };
+  }
 
   try {
     await db.hotels.update({
@@ -83,11 +112,20 @@ export async function uploadFinanceDocument(
 
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
+
+    // Don't trust the client-supplied file.type — sniff the actual bytes so
+    // an arbitrary file can't be uploaded and served from R2 under a
+    // "trusted" document key just by spoofing its declared content type.
+    const kind = sniffDocumentType(buffer);
+    if (!kind) {
+      return { error: "Only JPG, PNG, or PDF files are allowed for documents." };
+    }
+
     const { url } = await uploadToR2({
       file: buffer,
       folder: "hotel-docs",
       fileName: file.name,
-      contentType: file.type || "application/octet-stream",
+      contentType: kind,
     });
 
     const existing = (hotel.property_documents as Record<string, string> | null) ?? {};
