@@ -242,6 +242,7 @@ model Booking {
   payments                Payment[]
   replacementOffers       ReplacementOffer[]
   documents               TripDocument[]
+  conversations           conversation[]
 
   @@index([userId])
   @@index([packageId])
@@ -288,6 +289,41 @@ model BookingHotel {
   @@index([bookingId])
   @@index([hotelId])
   @@map("booking_hotels")
+}
+
+enum ConversationSender {
+  HOST
+  GUEST
+  SYSTEM
+}
+
+// One thread per (booking, hotel) pair — a multi-city package booking can
+// touch several hotels owned by different hosts, so scoping by booking alone
+// would leak one owner's messages to another.
+model conversation {
+  id         Int                    @id @default(autoincrement())
+  booking_id String
+  hotel_id   Int
+  created_at DateTime               @default(now())
+  updated_at DateTime               @updatedAt
+  booking    Booking                @relation(fields: [booking_id], references: [id], onDelete: Cascade)
+  hotel      hotels                 @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
+  messages   conversation_message[]
+
+  @@unique([booking_id, hotel_id])
+  @@index([hotel_id])
+}
+
+model conversation_message {
+  id              Int                @id @default(autoincrement())
+  conversation_id Int
+  sender          ConversationSender
+  body            String
+  read_by_host    Boolean            @default(false)
+  created_at      DateTime           @default(now())
+  conversation    conversation       @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+
+  @@index([conversation_id])
 }
 
 model BookingCab {
@@ -1040,6 +1076,7 @@ model hotels {
   room_availability           hotel_room_availability[]
   reservations                hotel_reservation[]
   channel_connections         hotel_channel_connection[]
+  conversations                conversation[]
   destination                 destinations?              @relation(fields: [destination_id], references: [id])
   location                    Location?                  @relation(fields: [location_id], references: [id])
   packageBookings             PackageBookingHotel[]
