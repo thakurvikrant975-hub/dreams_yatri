@@ -18,6 +18,13 @@ function parseStrArray(v: FormDataEntryValue | null): string[] {
   return v.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
+// <input type="time"> submits 24h "HH:MM" — reject anything else so a
+// malformed/hand-crafted value can't be persisted and later mis-render.
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+function isValidTime(v: string | null): boolean {
+  return v === null || TIME_RE.test(v);
+}
+
 export async function savePolicies(
   hotelId: number,
   _prev: PolicyState,
@@ -34,6 +41,10 @@ export async function savePolicies(
 
   const check_in_time  = (formData.get("check_in_time")  as string | null) || null;
   const check_out_time = (formData.get("check_out_time") as string | null) || null;
+
+  if (!isValidTime(check_in_time) || !isValidTime(check_out_time)) {
+    return { error: "Check-in/check-out time must be a valid time." };
+  }
 
   const cpRaw = formData.get("cancellation_policy") as string | null;
   const cancellation_policy =

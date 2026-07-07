@@ -18,6 +18,13 @@ function parseStrArray(v: FormDataEntryValue | null): string[] {
   return v.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
+// <input type="time"> submits 24h "HH:MM" — reject anything else so a
+// malformed/hand-crafted value can't be persisted and later mis-render.
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+function isValidTime(v: string | null): boolean {
+  return v === null || TIME_RE.test(v);
+}
+
 export async function saveHomestayPolicy(
   hotelId: number,
   _prev: HomestayPolicyState,
@@ -31,6 +38,13 @@ export async function saveHomestayPolicy(
     select: { id: true, wizard_step: true },
   });
   if (!hotel) return { error: "Property not found." };
+
+  const check_in_time     = (formData.get("check_in_time")     as string | null) || null;
+  const check_out_time    = (formData.get("check_out_time")    as string | null) || null;
+  const check_in_end_time = (formData.get("check_in_end_time") as string | null) || null;
+  if (!isValidTime(check_in_time) || !isValidTime(check_out_time) || !isValidTime(check_in_end_time)) {
+    return { error: "Check-in/check-out time must be a valid time." };
+  }
 
   const cpRaw = formData.get("cancellation_policy") as string | null;
   const cancellation_policy =
@@ -62,13 +76,11 @@ export async function saveHomestayPolicy(
       where: { id: hotelId },
       data: {
         // Check-in/out times
-        check_in_time:         (formData.get("check_in_time")  as string | null) || null,
-        check_out_time:        (formData.get("check_out_time") as string | null) || null,
+        check_in_time,
+        check_out_time,
         has_check_in_end_time,
         // Only save end time when the toggle is on
-        check_in_end_time: has_check_in_end_time === true
-          ? (formData.get("check_in_end_time") as string | null) || null
-          : null,
+        check_in_end_time: has_check_in_end_time === true ? check_in_end_time : null,
         // Cancellation
         cancellation_policy,
         // Guest profile

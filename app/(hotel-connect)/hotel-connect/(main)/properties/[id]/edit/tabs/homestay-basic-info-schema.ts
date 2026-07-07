@@ -35,15 +35,24 @@ export const homestayBasicInfoSchema = z.object({
 
   contact_mobile_cc: z.string().default("+91"),
 
-  contact_mobile: z
-    .string()
-    .regex(/^\d{10}$/, "Enter a valid 10-digit number")
-    .optional()
-    .or(z.literal("")),
+  // Format depends on contact_mobile_cc — checked in superRefine below since
+  // a bare regex here can't see the sibling country-code field.
+  contact_mobile: z.string().optional().or(z.literal("")),
 
   whatsapp_same_as_mobile: z.boolean().default(false),
   contact_whatsapp: z.string().optional().or(z.literal("")),
   contact_landline: z.string().optional().or(z.literal("")),
+}).superRefine((data, ctx) => {
+  if (!data.contact_mobile) return;
+  const isIndia = data.contact_mobile_cc === "+91";
+  const valid = isIndia ? /^\d{10}$/.test(data.contact_mobile) : /^\d{5,15}$/.test(data.contact_mobile);
+  if (!valid) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["contact_mobile"],
+      message: isIndia ? "Enter a valid 10-digit number" : "Enter a valid mobile number",
+    });
+  }
 });
 
 export type HomestayBasicInfoValues = z.infer<typeof homestayBasicInfoSchema>;
