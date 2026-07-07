@@ -133,6 +133,11 @@ export default function SwimmingPoolModal({ hotelId, initial, poolNumber, poolTa
   const [photosLoading, setPhotosLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [photoCountError, setPhotoCountError] = useState<string | null>(null);
+  // Photos uploaded during this modal session, not yet attached to a saved
+  // pool — cleaned up if the host cancels instead of saving, so they don't
+  // linger permanently tagged "Swimming Pool" with nothing pointing at them.
+  const [sessionUploadedIds, setSessionUploadedIds] = useState<number[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -154,7 +159,11 @@ export default function SwimmingPoolModal({ hotelId, initial, poolNumber, poolTa
     for (const f of files) fd.append("photos", f);
     try {
       const result = await uploadHotelPhotos(hotelId, fd, [POOL_PHOTO_TAG]);
-      if (result.photos?.length) setPhotos((prev) => [...prev, ...result.photos!]);
+      if (result.photos?.length) {
+        setPhotos((prev) => [...prev, ...result.photos!]);
+        setSessionUploadedIds((prev) => [...prev, ...result.photos!.map((p) => p.id)]);
+        setPhotoCountError(null);
+      }
       if (result.error) setPhotoError(result.error);
     } catch (err) {
       setPhotoError(err instanceof Error ? err.message : "Upload failed.");
@@ -166,18 +175,29 @@ export default function SwimmingPoolModal({ hotelId, initial, poolNumber, poolTa
 
   async function handlePhotoDelete(photoId: number) {
     setPhotos((prev) => prev.filter((p) => p.id !== photoId));
+    setSessionUploadedIds((prev) => prev.filter((id) => id !== photoId));
     const result = await deleteHotelPhoto(hotelId, photoId);
     if (result.error) setPhotoError(result.error);
+  }
+
+  function handleCancel() {
+    // Photos uploaded this session were never attached to a saved pool —
+    // don't leave them orphaned in the Photos tab.
+    for (const id of sessionUploadedIds) {
+      deleteHotelPhoto(hotelId, id).catch(() => {});
+    }
+    onClose();
   }
 
   // Esc to close
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") handleCancel();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionUploadedIds, onClose]);
 
   function update<K extends keyof PoolConfig>(key: K, val: PoolConfig[K]) {
     setPool((prev) => ({ ...prev, [key]: val }));
@@ -200,12 +220,16 @@ export default function SwimmingPoolModal({ hotelId, initial, poolNumber, poolTa
     if (!pool.type) errs.type = "Select pool type.";
     if (!pool.suitableFor) errs.suitableFor = "Select suitable age group.";
     setErrors(errs);
-    if (Object.keys(errs).length > 0) {
+
+    const photosOk = photosLoading || photos.length >= 2;
+    setPhotoCountError(photosOk ? null : "Add at least 2 photos of this pool.");
+
+    if (Object.keys(errs).length > 0 || !photosOk) {
       requestAnimationFrame(() => {
         document.querySelector("[data-pool-error]")?.scrollIntoView({ block: "center", behavior: "smooth" });
       });
     }
-    return Object.keys(errs).length === 0;
+    return Object.keys(errs).length === 0 && photosOk;
   }
 
   return (
@@ -213,7 +237,7 @@ export default function SwimmingPoolModal({ hotelId, initial, poolNumber, poolTa
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-neutral-900/50 z-60 backdrop-blur-sm"
-        onClick={onClose}
+        onClick={handleCancel}
       />
 
       {/* Modal */}
@@ -243,7 +267,7 @@ export default function SwimmingPoolModal({ hotelId, initial, poolNumber, poolTa
             </div>
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleCancel}
               className="p-1.5 rounded-lg hover:bg-neutral-200/70 text-neutral-400 hover:text-neutral-600 transition-colors shrink-0"
               aria-label="Close"
             >
@@ -333,7 +357,7 @@ export default function SwimmingPoolModal({ hotelId, initial, poolNumber, poolTa
             </div>
 
             {/* Pool Photos */}
-            <div>
+            <div data-pool-error={photoCountError ? "" : undefined}>
               <div className="flex items-center justify-between mb-1.5">
                 <Label className="block">
                   Pool Photos &amp; Videos
@@ -352,6 +376,9 @@ export default function SwimmingPoolModal({ hotelId, initial, poolNumber, poolTa
 
               {photoError && (
                 <p className="text-xs text-red-500 mb-2">{photoError}</p>
+              )}
+              {photoCountError && (
+                <p className="text-xs text-red-500 mb-2">{photoCountError}</p>
               )}
 
               <div className="flex flex-wrap gap-3">
@@ -506,14 +533,14 @@ export default function SwimmingPoolModal({ hotelId, initial, poolNumber, poolTa
           <div className="px-6 py-4 border-t border-neutral-200 flex justify-end gap-3 shrink-0 bg-neutral-50">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleCancel}
               className="px-5 py-2 rounded-lg border border-neutral-300 bg-white text-sm font-medium text-neutral-600 hover:bg-neutral-100 transition-colors"
             >
               Cancel
             </button>
             <button
               type="button"
-              onClick={() => { if (validate()) onSave(pool); }}
+              onClick={() => { if (validate()) { setSessionUploadedIds([]); onSave(pool); } }}
               className="px-5 py-2 rounded-lg bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 transition-colors shadow-sm shadow-primary-500/30"
             >
               {initial
