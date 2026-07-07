@@ -56,6 +56,7 @@ function validate(h: {
   roomsWithPricing: number;
   imageCount: number;
   roomTaggedImageCount: number;
+  ownerEmailVerified: boolean;
 }): string[] {
   const m: string[] = [];
   const isHomestay = h.property_category === "HOMESTAY_VILLA";
@@ -81,6 +82,7 @@ function validate(h: {
   if (!h.cancellation_policy) m.push("Cancellation policy");
   if (!h.bank_account_number || !h.bank_ifsc_code) m.push("Bank account details");
   if (!h.pan_number) m.push("PAN number");
+  if (!h.ownerEmailVerified) m.push("Verify your account email (check your inbox for the verification link)");
   return m;
 }
 
@@ -106,6 +108,7 @@ export async function submitForReview(
         select: { id: true, pricing: { where: { is_active: true }, select: { id: true }, take: 1 } },
       },
       images: { select: { tags: true } },
+      owner: { select: { email_verified: true } },
     },
   });
   if (!h) return { ok: false, missing: ["Property not found"] };
@@ -120,6 +123,7 @@ export async function submitForReview(
     roomsWithPricing: h.hotelRooms.filter((r) => r.pricing.length > 0).length,
     imageCount: h.images.length,
     roomTaggedImageCount: h.images.filter((img) => img.tags.includes(ROOM_TAG)).length,
+    ownerEmailVerified: h.owner?.email_verified ?? false,
   });
   if (missing.length > 0) return { ok: false, missing };
 

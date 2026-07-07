@@ -923,6 +923,11 @@ model HotelOwner {
   phone_cc             String?          @default("+91")
   property_count       Int              @default(1)
   whatsapp_cc          String?          @default("+91")
+  email_verified              Boolean   @default(false)
+  email_verification_token    String?   @unique
+  email_verification_expires  DateTime?
+  password_reset_token        String?   @unique
+  password_reset_expires      DateTime?
   hotels               hotels[]
 
   @@index([email])

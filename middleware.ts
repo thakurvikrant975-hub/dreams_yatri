@@ -31,9 +31,18 @@ export default async function middleware(req: NextRequest) {
   }
 
   if (pathname.startsWith("/hotel-connect")) {
+    // Redirect away to the dashboard if already logged in.
     const isAuthPage =
       pathname === "/hotel-connect/login" ||
       pathname === "/hotel-connect/signup";
+
+    // Token-gated (not session-gated) pages — accessible whether or not the
+    // visitor happens to have an active session, since they're reached via a
+    // one-time emailed link, not by being logged in.
+    const isTokenPage =
+      pathname === "/hotel-connect/forgot-password" ||
+      pathname === "/hotel-connect/reset-password" ||
+      pathname === "/hotel-connect/verify-email";
 
     const token = await getToken({
       req,
@@ -45,7 +54,7 @@ export default async function middleware(req: NextRequest) {
       return NextResponse.redirect(new URL("/hotel-connect", req.url));
     }
 
-    if (!isAuthPage && !token) {
+    if (!isAuthPage && !isTokenPage && !token) {
       return NextResponse.redirect(new URL("/hotel-connect/login", req.url));
     }
   }
