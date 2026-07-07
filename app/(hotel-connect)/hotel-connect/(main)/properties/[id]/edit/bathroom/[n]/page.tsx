@@ -22,7 +22,7 @@ export default async function BathroomEditPage({
   const hotel = await db.hotels.findFirst({
     where: { id: hotelId, owner_id: ownerId },
     select: {
-      id: true, name: true, slug: true, listing_status: true, wizard_step: true,
+      id: true, name: true, slug: true, listing_status: true, rejection_reason: true, wizard_step: true,
       property_category: true, property_sub_type: true,
       hs_bathrooms: true, hs_bathroom_details: true, hs_bedroom_details: true,
     },

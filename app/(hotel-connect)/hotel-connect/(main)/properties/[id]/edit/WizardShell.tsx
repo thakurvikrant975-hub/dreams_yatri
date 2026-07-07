@@ -24,6 +24,7 @@ type HotelSummary = {
   name: string;
   slug: string;
   listing_status: HotelListingStatus;
+  rejection_reason: string | null;
   wizard_step: number;
   property_category: string | null;
   property_sub_type: PropertySubType | null;
@@ -135,7 +136,13 @@ function TabItem({
 
 // ── Review status banner ──────────────────────────────────────────────────────
 
-function ReviewBanner({ listing_status, slug }: { listing_status: HotelListingStatus; slug: string }) {
+function ReviewBanner({
+  listing_status, slug, rejection_reason,
+}: {
+  listing_status: HotelListingStatus;
+  slug: string;
+  rejection_reason: string | null;
+}) {
   if (listing_status === HotelListingStatus.SUBMITTED || listing_status === HotelListingStatus.UNDER_REVIEW) {
     const isUnderReview = listing_status === HotelListingStatus.UNDER_REVIEW;
     return (
@@ -214,14 +221,22 @@ function ReviewBanner({ listing_status, slug }: { listing_status: HotelListingSt
   if (listing_status === HotelListingStatus.REJECTED) {
     return (
       <div className="px-4 pt-5 pb-1 max-w-4xl mx-auto w-full">
-        <div className="rounded-xl bg-red-50 border border-red-200 p-5 flex items-center gap-3">
-          <div className="size-8 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-            <span className="text-red-500 font-bold text-sm">✕</span>
+        <div className="rounded-xl bg-red-50 border border-red-200 p-5">
+          <div className="flex items-center gap-3">
+            <div className="size-8 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+              <span className="text-red-500 font-bold text-sm">✕</span>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-red-800">Review Rejected</p>
+              <p className="text-xs text-red-600 mt-0.5">Please correct the flagged issues and resubmit your property for review.</p>
+            </div>
           </div>
-          <div>
-            <p className="text-sm font-semibold text-red-800">Review Rejected</p>
-            <p className="text-xs text-red-600 mt-0.5">Please correct the flagged issues and resubmit your property for review.</p>
-          </div>
+          {rejection_reason && (
+            <div className="mt-3 rounded-lg bg-white border border-red-200 px-3.5 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-red-500">Reason from our team</p>
+              <p className="text-sm text-red-800 mt-1 leading-relaxed">{rejection_reason}</p>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -329,7 +344,7 @@ export default function WizardShell({
       {/* ── Scrollable content ────────────────────────────────────────── */}
       <div className="relative flex-1 overflow-y-auto bg-neutral-100 after:content-[''] after:absolute after:top-0 after:left-0 after:w-full after:h-25 after:bg-white after:border-b after:border-neutral-200 after:-z-10 isolate mb-6">
         <div className="max-w-4xl mx-auto w-full ">
-          <ReviewBanner listing_status={hotel.listing_status} slug={hotel.slug} />
+          <ReviewBanner listing_status={hotel.listing_status} slug={hotel.slug} rejection_reason={hotel.rejection_reason} />
           {children}
         </div>
       </div>

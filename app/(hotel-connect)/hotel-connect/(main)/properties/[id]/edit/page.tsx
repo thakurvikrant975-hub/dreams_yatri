@@ -48,6 +48,7 @@ export default async function EditPropertyPage({
       name: true,
       slug: true,
       listing_status: true,
+      rejection_reason: true,
       wizard_step: true,
       property_category: true,
       property_sub_type: true,
