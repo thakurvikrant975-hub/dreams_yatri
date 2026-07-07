@@ -1,6 +1,3 @@
-// app/(dashboard)/dashboard/(main)/lib/rbac/nav-items.ts
-// Single source of truth for the dashboard sidebar — also used by the
-// role "Sidebar Access" editor so the two stay in sync.
 import {
   LayoutDashboard, Settings, BookOpen, BarChart3, Activity, IdCardLanyard, KeyRound,
   MessageCircleQuestion, ClockCheck, Mails, Forward, BadgePercent, Banknote,
@@ -72,7 +69,6 @@ export const NAV_GROUPS = [
     items: [
       { title: "Queries", href: "/dashboard/queries", icon: MessageCircleQuestion },
       { title: "Email Marketing", href: "/dashboard/email-marketing", icon: Mails },
-      { title: "Follow ups", href: "/dashboard/follow-ups", icon: ClockCheck },
       { title: "References", href: "/dashboard/references", icon: Forward },
       { title: "Coupons and offers", href: "/dashboard/coupons", icon: BadgePercent },
       { title: "Reviews", href: "/dashboard/reviews", icon: Star },
@@ -83,7 +79,7 @@ export const NAV_GROUPS = [
   {
     id: "sales", label: "Sales",
     items: [
-      { title: "Queries Management", href: "/dashboard/sales-query", icon: ChartNoAxesGantt },
+      { title: "Queries", href: "/dashboard/sales-query", icon: ChartNoAxesGantt },
       { title: "Analytics", href: "/dashboard/sale-analytics", icon: ChartNoAxesCombined },
       { title: "Follow ups", href: "/dashboard/follow-ups", icon: BellRing },
       { title: "Package Builder", href: "/dashboard/package-builder", icon: PackagePlus },

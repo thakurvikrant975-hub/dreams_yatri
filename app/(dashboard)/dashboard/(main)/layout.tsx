@@ -1,11 +1,13 @@
 // app/(dashboard)/layout.tsx
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { ShieldAlert } from "lucide-react";
 import { AppSidebar } from "./components/dashboard/AppSidebar";
 import { SidebarProvider, SidebarTrigger } from "./components/ui/sidebar";
 import AvatarName from "./components/dashboard/AvatarName";
 import { SalesTargetBadge } from "./components/dashboard/SalesTargetBadge";
 import { dashboardAuth } from "@/app/lib/auth-dashboard";
+import { signOutEmployee } from "@/app/lib/auth-dashboard-actions";
 import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
 import { resolveNavHref } from "./lib/rbac/nav-hrefs";
 import { Toaster } from "sonner";
@@ -28,6 +30,36 @@ export default async function DashboardLayout({
   if (!ctx) redirect("/dashboard/login");
 
   const { realMember, member, isImpersonating } = ctx;
+
+  // A member with no team role has no page access, no permissions, and no
+  // department context to fall back on — block the entire dashboard (no
+  // sidebar, no page content) until an admin assigns one, rather than
+  // rendering a broken/empty shell.
+  if (!realMember.teamRole) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-dashboard-base-200 px-6">
+        <div className="max-w-md w-full text-center space-y-4 rounded-2xl border border-dashboard-base-300 bg-dashboard-base-100 px-8 py-10 shadow-sm">
+          <div className="mx-auto h-14 w-14 rounded-full bg-dashboard-warning/10 flex items-center justify-center">
+            <ShieldAlert className="h-7 w-7 text-dashboard-warning" />
+          </div>
+          <div className="space-y-1.5">
+            <h1 className="text-lg font-semibold text-dashboard-base-content">Access Not Configured</h1>
+            <p className="text-sm text-dashboard-base-content/60">
+              Team role and department not specified. Please contact Admin.
+            </p>
+          </div>
+          <form action={signOutEmployee}>
+            <button
+              type="submit"
+              className="mt-2 w-full rounded-lg bg-dashboard-primary text-dashboard-primary-content text-sm font-medium py-2.5 hover:bg-dashboard-primary/90 transition-colors cursor-pointer"
+            >
+              Sign out
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   // Sidebar and page-access enforcement use the EFFECTIVE member's permissions,
   // so when FSD views as another member they see that member's restricted nav.
