@@ -36,7 +36,7 @@ import {
   getF2,
   getF2s,
 } from "./amenities-data";
-import SwimmingPoolModal from "./SwimmingPoolModal";
+import SwimmingPoolModal, { PoolCountPrompt } from "./SwimmingPoolModal";
 import { SearchSelect, MultiSearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
 import { cn } from "@/app/lib/utils";
 
@@ -410,6 +410,10 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
   const [activeCategory, setActiveCategory] = useState(AMENITY_CATEGORIES[0].label);
   const [search, setSearch] = useState("");
   const [poolModal, setPoolModal] = useState<{ editingPool: PoolConfig | null } | null>(null);
+  const [poolCountPrompt, setPoolCountPrompt] = useState(false);
+  // Set only while guiding the host through adding their stated number of
+  // pools back-to-back; cleared once that many pools exist or the flow is cancelled.
+  const [pendingPoolCount, setPendingPoolCount] = useState<number | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [showMandatoryErrors, setShowMandatoryErrors] = useState(false);
 
@@ -874,6 +878,21 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
     });
   }
 
+  function handleOpenPoolFlow() {
+    const existing = getPools(amenities["Swimming Pool"]);
+    if (existing.length === 0) {
+      setPoolCountPrompt(true);
+    } else {
+      setPoolModal({ editingPool: null });
+    }
+  }
+
+  function handlePoolCountConfirm(count: number) {
+    setPendingPoolCount(count);
+    setPoolCountPrompt(false);
+    setPoolModal({ editingPool: null });
+  }
+
   function handleSavePool(pool: PoolConfig) {
     const existing = getPools(amenities["Swimming Pool"]);
     const isEdit = existing.some((p) => p.id === pool.id);
@@ -881,6 +900,18 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
       ? existing.map((p) => (p.id === pool.id ? pool : p))
       : [...existing, pool];
     setAmenityValue("Swimming Pool", { yes: true, pools: newPools });
+
+    // Guided flow: keep opening a fresh pool form until the host's stated count is reached.
+    if (!isEdit && pendingPoolCount !== null && newPools.length < pendingPoolCount) {
+      setPoolModal({ editingPool: null });
+    } else {
+      setPendingPoolCount(null);
+      setPoolModal(null);
+    }
+  }
+
+  function handleClosePoolModal() {
+    setPendingPoolCount(null);
     setPoolModal(null);
   }
 
@@ -1061,7 +1092,7 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
                     value={amenities[config.name]}
                     onNoYes={(val) => handleNoYes(config, val)}
                     onFieldChange={(field, val) => handleMandatoryFieldChange(config.name, field, val)}
-                    onOpenPool={() => setPoolModal({ editingPool: null })}
+                    onOpenPool={handleOpenPoolFlow}
                     onDeletePool={handleDeletePool}
                     onEditPool={(pool) => setPoolModal({ editingPool: pool })}
                     disabled={isPending}
@@ -1260,16 +1291,28 @@ export default function AmenitiesTab({ hotel }: { hotel: HotelAmenitiesInfo }) {
         )} {/* end sq ternary */}
       </form>
 
+      {poolCountPrompt && (
+        <PoolCountPrompt
+          onConfirm={handlePoolCountConfirm}
+          onClose={() => setPoolCountPrompt(false)}
+        />
+      )}
+
       {poolModal && (
         <SwimmingPoolModal
+          // Force a remount between successive "new pool" forms in the guided
+          // flow (initial stays null each time) so stale form state doesn't
+          // carry over from the previous pool.
+          key={poolModal.editingPool?.id ?? `new-${getPools(amenities["Swimming Pool"]).length}`}
           initial={poolModal.editingPool}
           poolNumber={
             poolModal.editingPool
               ? getPools(amenities["Swimming Pool"]).findIndex((p) => p.id === poolModal.editingPool!.id) + 1
               : getPools(amenities["Swimming Pool"]).length + 1
           }
+          poolTarget={poolModal.editingPool ? undefined : (pendingPoolCount ?? undefined)}
           onSave={handleSavePool}
-          onClose={() => setPoolModal(null)}
+          onClose={handleClosePoolModal}
         />
       )}
     </>

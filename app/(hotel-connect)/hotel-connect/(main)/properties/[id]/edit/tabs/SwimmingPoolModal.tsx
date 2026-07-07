@@ -25,6 +25,8 @@ import {
   RulerIcon,
   ImageIcon,
   XIcon,
+  MinusIcon,
+  PlusIcon,
 } from "@phosphor-icons/react/dist/ssr";
 
 const TIME_OPTIONS = makeTimeOptions();
@@ -32,6 +34,7 @@ const TIME_OPTIONS = makeTimeOptions();
 type Props = {
   initial: PoolConfig | null; // null = creating new pool
   poolNumber: number; // 1-based position, for the header ("Pool 2")
+  poolTarget?: number; // if set, we're mid guided-add flow ("Pool 2 of 3")
   onSave: (pool: PoolConfig) => void;
   onClose: () => void;
 };
@@ -114,7 +117,7 @@ function OptionCard({
 
 // ── Modal ────────────────────────────────────────────────────────────────────
 
-export default function SwimmingPoolModal({ initial, poolNumber, onSave, onClose }: Props) {
+export default function SwimmingPoolModal({ initial, poolNumber, poolTarget, onSave, onClose }: Props) {
   const [pool, setPool] = useState<PoolConfig>(() =>
     initial ? { ...initial } : makeEmptyPool()
   );
@@ -178,10 +181,16 @@ export default function SwimmingPoolModal({ initial, poolNumber, onSave, onClose
               </span>
               <div className="min-w-0">
                 <h2 className="text-sm font-bold text-neutral-800 truncate">
-                  {initial ? `Edit Pool ${poolNumber}` : `Add Pool ${poolNumber}`}
+                  {initial
+                    ? `Edit Pool ${poolNumber}`
+                    : poolTarget
+                      ? `Add Pool ${poolNumber} of ${poolTarget}`
+                      : `Add Pool ${poolNumber}`}
                 </h2>
                 <p className="text-xs text-neutral-500 mt-0.5">
-                  Your hotel can list more than one pool — each with its own details.
+                  {poolTarget
+                    ? "Fill in this pool's details, then continue to the next."
+                    : "Your hotel can list more than one pool — each with its own details."}
                 </p>
               </div>
             </div>
@@ -399,10 +408,98 @@ export default function SwimmingPoolModal({ initial, poolNumber, onSave, onClose
               onClick={() => { if (validate()) onSave(pool); }}
               className="px-5 py-2 rounded-lg bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 transition-colors shadow-sm shadow-primary-500/30"
             >
-              {initial ? "Save Changes" : "Add Pool"}
+              {initial
+                ? "Save Changes"
+                : poolTarget && poolNumber < poolTarget
+                  ? "Save & Continue"
+                  : "Add Pool"}
             </button>
           </div>
 
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── Pool count prompt ────────────────────────────────────────────────────────
+// Asked once, before the very first pool is added, so the guided flow can
+// walk the host through creating exactly that many pools back-to-back.
+
+export function PoolCountPrompt({
+  onConfirm,
+  onClose,
+}: {
+  onConfirm: (count: number) => void;
+  onClose: () => void;
+}) {
+  const [count, setCount] = useState(1);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+      if (e.key === "Enter") onConfirm(count);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [count, onClose]);
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-neutral-900/50 z-60 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 z-60 flex items-center justify-center p-4 pointer-events-none">
+        <div className="bg-white rounded-2xl shadow-2xl shadow-black/20 w-full max-w-sm pointer-events-auto ring-1 ring-neutral-200 overflow-hidden">
+          <div className="flex items-center gap-3 px-6 pt-6">
+            <span className="flex items-center justify-center size-9 rounded-xl bg-primary-50 text-primary-500 ring-1 ring-inset ring-primary-100 shrink-0">
+              <SwimmingPoolIcon size={19} weight="fill" />
+            </span>
+            <h2 className="text-sm font-bold text-neutral-800">
+              How many swimming pools does this property have?
+            </h2>
+          </div>
+          <p className="px-6 pt-2 text-xs text-neutral-500">
+            We&apos;ll walk you through adding details for each pool, one at a time.
+          </p>
+
+          <div className="flex items-center justify-center gap-5 px-6 py-6">
+            <button
+              type="button"
+              onClick={() => setCount((c) => Math.max(1, c - 1))}
+              disabled={count <= 1}
+              className="flex items-center justify-center size-10 rounded-full border border-neutral-300 text-neutral-500 hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              aria-label="Decrease"
+            >
+              <MinusIcon size={16} weight="bold" />
+            </button>
+            <span className="text-3xl font-bold text-neutral-800 w-12 text-center tabular-nums">{count}</span>
+            <button
+              type="button"
+              onClick={() => setCount((c) => Math.min(10, c + 1))}
+              disabled={count >= 10}
+              className="flex items-center justify-center size-10 rounded-full border border-neutral-300 text-neutral-500 hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              aria-label="Increase"
+            >
+              <PlusIcon size={16} weight="bold" />
+            </button>
+          </div>
+
+          <div className="px-6 py-4 border-t border-neutral-200 flex justify-end gap-3 bg-neutral-50">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-5 py-2 rounded-lg border border-neutral-300 bg-white text-sm font-medium text-neutral-600 hover:bg-neutral-100 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => onConfirm(count)}
+              className="px-5 py-2 rounded-lg bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 transition-colors shadow-sm shadow-primary-500/30"
+            >
+              Continue
+            </button>
+          </div>
         </div>
       </div>
     </>
