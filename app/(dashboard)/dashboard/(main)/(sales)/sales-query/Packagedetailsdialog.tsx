@@ -1004,17 +1004,17 @@ export function PackageDetailsDialog({
                                     <div className="rounded-lg bg-violet-200/60 border border-primary/20 px-4 py-3">
                                         <p className="text-xs text-violet-700 mb-0.5">Budget Range</p>
                                         <p className="text-lg font-semibold text-primary">
-                                            ₹{(reqs.budget.min ?? 0).toLocaleString("en-IN")}
-                                            {" — "}
-                                            ₹{(reqs.budget.max ?? 0).toLocaleString("en-IN")}
+                                            {reqs.budget.min ? `₹${reqs.budget.min.toLocaleString("en-IN")}` : null}
+                                            {reqs.budget.min && reqs.budget.max ? " — " : null}
+                                            {reqs.budget.max ? `₹${reqs.budget.max.toLocaleString("en-IN")}` : null}
                                         </p>
                                         <p className="text-xs text-violet-700 mt-0.5">
                                             {reqs.budget.type === "PER_PERSON" ? "per person" : "total for the group"}
                                             {reqs.budget.type === "PER_PERSON" && totalPax > 0 && (
                                                 <span className="ml-1">
-                                                    (≈ ₹{((reqs.budget.min ?? 0) * totalPax).toLocaleString("en-IN")}
-                                                    {" — "}
-                                                    ₹{((reqs.budget.max ?? 0) * totalPax).toLocaleString("en-IN")} total)
+                                                    (≈ {reqs.budget.min ? `₹${(reqs.budget.min * totalPax).toLocaleString("en-IN")}` : null}
+                                                    {reqs.budget.min && reqs.budget.max ? " — " : null}
+                                                    {reqs.budget.max ? `₹${(reqs.budget.max * totalPax).toLocaleString("en-IN")}` : null} total)
                                                 </span>
                                             )}
                                         </p>

@@ -37,7 +37,6 @@ type FollowUpItem = {
 type SalesQueryWithDetails = SalesQuery & {
     followUps: FollowUpItem[];
     notes: Array<{ id: string; content: string; createdAt: Date }>;
-    timeline: Array<{ id: string; actorName: string | null; event: string; createdAt: Date }>;
 };
 
 type Props = {
@@ -93,16 +92,6 @@ function InfoRow({
             </div>
         </div>
     );
-}
-
-function timelineDot(event: string) {
-    if (event.includes("✅") || event.includes("Verified")) return "bg-green-500";
-    if (event.includes("❌") || event.includes("Closed")) return "bg-destructive";
-    if (event.includes("📞") || event.includes("Follow")) return "bg-amber-500";
-    if (event.includes("📋") || event.includes("requirements")) return "bg-primary";
-    if (event.includes("📝") || event.includes("Note")) return "bg-blue-500";
-    if (event.includes("🔄") || event.includes("Reopen")) return "bg-green-500";
-    return "bg-muted-foreground/40";
 }
 
 export function SalesQueryDetailSheet({
@@ -424,37 +413,6 @@ export function SalesQueryDetailSheet({
                                     </Button>
                                 </AddFollowUpDialog>
                             )}
-                        </section>
-
-                        <Separator />
-
-                        {/* Activity Timeline */}
-                        <section className="pb-6">
-                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">
-                                Activity Timeline
-                            </h3>
-                            <div className="relative pl-4 space-y-4">
-                                <div className="absolute left-1.5 top-1 bottom-1 w-px bg-border" />
-                                {(query.timeline ?? []).map((t) => (
-                                    <div key={t.id} className="relative flex gap-3 items-start">
-                                        <div
-                                            className={`absolute -left-3 top-1.5 h-2.5 w-2.5 rounded-full border-2 border-background shrink-0 ${timelineDot(t.event)}`}
-                                        />
-                                        <div className="min-w-0 pl-1 space-y-0.5">
-                                            <p className="text-sm leading-snug">{t.event}</p>
-                                            <p className="text-[10px] text-muted-foreground">
-                                                {formatDistanceToNow(new Date(t.createdAt), { addSuffix: true })}
-                                                {t.actorName && (
-                                                    <span className="ml-1 font-medium">by {t.actorName}</span>
-                                                )}
-                                            </p>
-                                        </div>
-                                    </div>
-                                ))}
-                                {(query.timeline ?? []).length === 0 && (
-                                    <p className="text-xs text-muted-foreground italic pl-1">No activity yet</p>
-                                )}
-                            </div>
                         </section>
 
                     </div>

@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { format, formatDistanceToNow, isToday } from "date-fns";
 import {
-    CalendarClock, XCircle, Eye, Phone, Mail,
+    CalendarClock, Eye, Phone, Mail,
     MapPin, Users, Calendar, StickyNote, TrendingUp,
     RotateCcw, ClipboardList, Inbox, Send, Clock, UserCheck, CheckCircle2,
     CircleX
@@ -19,10 +19,8 @@ import { TableFilters } from "../../components/dashboard/Tablefilters";
 import { Stats } from "../../components/dashboard/Stats";
 import { SalesQueryStatusBadge } from "./Salesquerybadges";
 import { AddFollowUpDialog } from "./Addfollowupdialog";
-import { CloseQueryDialog } from "./Closequerydialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { SalesQueryDetailSheet } from "./Salesquerydetailsheet";
-import { QueryTimelineSheet } from "../../(marketing)/queries/QueryTimelineSheet";
 import { reopenSalesQuery, getSalesQueryById } from "./actions";
 import type { PackageQueryType, CloseReason, PackageRequirements } from "../../(marketing)/queries/actions";
 import { SalesQueryStatus } from "./query-status";
@@ -43,7 +41,6 @@ type SalesQueryWithDetails = PackageQueryType & {
         createdByName: string | null;
     }>;
     notes: Array<{ id: string; content: string; createdAt: Date }>;
-    timeline: Array<{ id: string; actorName: string | null; event: string; createdAt: Date }>;
 };
 
 type Props = {
@@ -70,11 +67,9 @@ function isConvertedStatus(status: SalesQueryStatus) {
 
 function ActionCell({
     query,
-    closeReasons,
     onView,
 }: {
     query: PackageQueryType;
-    closeReasons: CloseReason[];
     onView: () => void;
 }) {
     const [isPendingReopen, startReopen] = useTransition();
@@ -92,16 +87,6 @@ function ActionCell({
     return (
         <TooltipProvider delayDuration={300}>
             <div className="flex items-center justify-end gap-1">
-
-                {/* Timeline */}
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <span onClick={(e) => e.stopPropagation()}>
-                            <QueryTimelineSheet queryId={query.id} leadName={query.name} fetchQuery={getSalesQueryById} />
-                        </span>
-                    </TooltipTrigger>
-                    <TooltipContent>View Timeline</TooltipContent>
-                </Tooltip>
 
                 {!closed && !converted && (
                     <>
@@ -141,27 +126,6 @@ function ActionCell({
                                         </span>
                                     </TooltipTrigger>
                                     <TooltipContent>Add Follow-Up</TooltipContent>
-                                </Tooltip>
-
-                                {/* Close Query */}
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <span onClick={(e) => e.stopPropagation()}>
-                                            <CloseQueryDialog
-                                                salesQueryId={query.id}
-                                                leadName={query.name}
-                                                closeReasons={closeReasons}
-                                            >
-                                                <Button
-                                                    variant="ghost" size="icon"
-                                                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                >
-                                                    <XCircle className="h-3.5 w-3.5" />
-                                                </Button>
-                                            </CloseQueryDialog>
-                                        </span>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Close Query</TooltipContent>
                                 </Tooltip>
                             </>
                 )}
@@ -212,7 +176,6 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
                 // Map queryFollowUps → followUps for the detail sheet
                 followUps: (full as any).queryFollowUps ?? [],
                 notes: (full as any).notes ?? [],
-                timeline: (full as any).timeline ?? [],
             };
 
             setDetailQuery(normalized);
@@ -412,7 +375,6 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
             cell: (q) => (
                 <ActionCell
                     query={q}
-                    closeReasons={closeReasons}
                     onView={() => openDetail(q)}
                 />
             ),
