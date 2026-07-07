@@ -1,13 +1,17 @@
 "use client";
 
-import { Eye, EyeOff } from "lucide-react";
+import { useState } from "react";
+import { Eye, EyeOff, AlertTriangle } from "lucide-react";
 import { Checkbox } from "../components/ui/checkbox";
 import { Switch } from "../components/ui/switch";
-import { NAV_GROUPS, ALL_HREFS } from "../lib/rbac/nav-items";
+import { NAV_GROUPS } from "../lib/rbac/nav-items";
 
 // ── Main Editor ───────────────────────────────────────────────────────────────
 // `value` = list of sidebar hrefs visible to this role.
-// Empty array means "no restriction" — the full sidebar is shown.
+// Empty array means "no restriction" — the full sidebar is shown. Because of
+// that, "restricted" can't be derived purely from value.length (an empty,
+// freshly-restricted list would be indistinguishable from "not restricted"),
+// so it's tracked as its own piece of state, seeded from the saved value.
 
 export function SidebarAccessEditor({
     value,
@@ -16,12 +20,15 @@ export function SidebarAccessEditor({
     value: string[];
     onChange: (next: string[]) => void;
 }) {
-    const restricted = value.length > 0;
+    const [restricted, setRestricted] = useState(value.length > 0);
 
     function toggleRestricted(on: boolean) {
-        // Start a fresh restriction from "everything visible" so nothing
-        // disappears from the sidebar until the admin unchecks something.
-        onChange(on ? [...ALL_HREFS] : []);
+        setRestricted(on);
+        // Turning restriction off always means "full sidebar" again.
+        // Turning it on starts from an empty checklist — the admin picks
+        // exactly which pages this role should see, instead of everything
+        // being pre-granted and needing to be unchecked one by one.
+        if (!on) onChange([]);
     }
 
     function toggleItem(href: string) {
@@ -63,6 +70,17 @@ export function SidebarAccessEditor({
                 </div>
                 <Switch checked={restricted} onCheckedChange={toggleRestricted} />
             </div>
+
+            {/* ── Empty-restriction warning ─────────────────────────────────── */}
+            {restricted && value.length === 0 && (
+                <div className="flex items-start gap-2.5 rounded-xl border border-dashboard-warning/40 bg-dashboard-warning/5 px-4 py-3">
+                    <AlertTriangle className="h-4 w-4 text-dashboard-warning mt-0.5 shrink-0" />
+                    <p className="text-xs text-dashboard-warning">
+                        No pages selected yet — saving now will leave this role with the full sidebar,
+                        since an empty selection means "no restriction." Check at least one page below first.
+                    </p>
+                </div>
+            )}
 
             {/* ── Per-section checklist ────────────────────────────────────── */}
             <div className={["space-y-3", restricted ? "" : "opacity-50 pointer-events-none"].join(" ")}>
