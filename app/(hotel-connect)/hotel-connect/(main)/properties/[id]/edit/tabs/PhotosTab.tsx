@@ -661,12 +661,22 @@ export default function PhotosTab({
   }
 
   async function handleDelete(photoId: number) {
-    // Optimistic: remove immediately so the UI responds instantly
+    // Optimistic: remove immediately so the UI responds instantly, but keep a
+    // copy so we can put it back if the server call fails.
+    const removed = photosState.find((p) => p.id === photoId);
+    const removedIndex = photosState.findIndex((p) => p.id === photoId);
     setPhotosState((prev) => prev.filter((p) => p.id !== photoId));
     const result = await deleteHotelPhoto(hotelId, photoId);
     if (result.error) {
-      // Restore by re-syncing from the server
       setUploadError(result.error);
+      if (removed) {
+        setPhotosState((prev) => {
+          if (prev.some((p) => p.id === photoId)) return prev; // already restored via refresh
+          const next = [...prev];
+          next.splice(Math.min(removedIndex, next.length), 0, removed);
+          return next;
+        });
+      }
     }
     router.refresh(); // always refresh to keep server and UI in sync
   }
