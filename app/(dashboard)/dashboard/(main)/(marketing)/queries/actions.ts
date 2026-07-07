@@ -10,7 +10,6 @@ import { Prisma } from "@/app/generated/prisma";
 import { actionError } from "@/app/lib/action-error";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
 export type ActionResult<T = void> =
     | { success: true; data: T; message: string }
     | { success: false; data?: never; message: string; errors?: Record<string, string[]> };

@@ -251,7 +251,23 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange, onRefresh
                                 <InfoRow icon={Phone}    label="Phone"       value={query.phone} />
                                 <InfoRow icon={Mail}     label="Email"       value={query.email} />
                                 <InfoRow icon={MapPin}   label="Destination" value={query.destination} />
-                                <InfoRow icon={Globe}    label="Package"     value={query.packageName} />
+                                <InfoRow
+                                    icon={Globe}
+                                    label="Package"
+                                    value={
+                                        query.packageName && query.packageUrl ? (
+                                            <a
+                                                href={query.packageUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="text-primary hover:underline"
+                                            >
+                                                {query.packageName}
+                                            </a>
+                                        ) : query.packageName
+                                    }
+                                />
                                 <InfoRow icon={Users}    label="Group Size"  value={query.groupSize ? `${query.groupSize} people` : null} />
                                 <InfoRow icon={Calendar} label="Travel Date" value={query.travelDate ? format(new Date(query.travelDate), "dd MMM yyyy") : null} />
                             </div>

@@ -304,7 +304,19 @@ export function SalesQueriesTable({ queries, closeReasons }: Props) {
                         </div>
                     )}
                     {q.packageName && (
-                        <p className="text-xs text-muted-foreground truncate max-w-[160px]">{q.packageName}</p>
+                        q.packageUrl ? (
+                            <a
+                                href={q.packageUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-xs text-primary hover:underline truncate max-w-40 block"
+                            >
+                                {q.packageName}
+                            </a>
+                        ) : (
+                            <p className="text-xs text-muted-foreground truncate max-w-40">{q.packageName}</p>
+                        )
                     )}
                     {!q.destination && !q.packageName && (
                         <span className="text-xs text-muted-foreground italic">—</span>

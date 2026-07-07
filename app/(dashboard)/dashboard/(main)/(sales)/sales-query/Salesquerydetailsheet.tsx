@@ -56,6 +56,7 @@ export type SalesQuery = {
   email: string | null;
   destination: string | null;
   packageName: string | null;
+  packageUrl: string | null;
   groupSize: number | null;
   travelDate: Date | null;
   message: string | null;
@@ -261,7 +262,23 @@ export function SalesQueryDetailSheet({
                                 <InfoRow icon={Phone} label="Phone" value={query.phone} />
                                 <InfoRow icon={Mail} label="Email" value={query.email} />
                                 <InfoRow icon={MapPin} label="Destination" value={query.destination} />
-                                <InfoRow icon={Globe} label="Package" value={query.packageName} />
+                                <InfoRow
+                                    icon={Globe}
+                                    label="Package"
+                                    value={
+                                        query.packageName && query.packageUrl ? (
+                                            <a
+                                                href={query.packageUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="text-primary hover:underline"
+                                            >
+                                                {query.packageName}
+                                            </a>
+                                        ) : query.packageName
+                                    }
+                                />
                                 <InfoRow
                                     icon={Users}
                                     label="Group Size"
