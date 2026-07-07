@@ -243,6 +243,7 @@ model Booking {
   replacementOffers       ReplacementOffer[]
   documents               TripDocument[]
   conversations           conversation[]
+  reviews                 hotel_review[]
 
   @@index([userId])
   @@index([packageId])
@@ -324,6 +325,27 @@ model conversation_message {
   conversation    conversation       @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
 
   @@index([conversation_id])
+}
+
+// One review per (booking, hotel) pair — same reasoning as conversation:
+// a multi-city package booking can touch several hotels owned by different
+// hosts, so a guest reviews each stay separately, not the whole trip at once.
+model hotel_review {
+  id               Int       @id @default(autoincrement())
+  hotel_id         Int
+  booking_id       String
+  user_id          String
+  rating           Int
+  comment          String?
+  guest_name       String
+  host_response    String?
+  host_response_at DateTime?
+  created_at       DateTime  @default(now())
+  hotel            hotels    @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
+  booking          Booking   @relation(fields: [booking_id], references: [id], onDelete: Cascade)
+
+  @@unique([booking_id, hotel_id])
+  @@index([hotel_id])
 }
 
 model BookingCab {
@@ -1077,6 +1099,7 @@ model hotels {
   reservations                hotel_reservation[]
   channel_connections         hotel_channel_connection[]
   conversations                conversation[]
+  reviews                     hotel_review[]
   destination                 destinations?              @relation(fields: [destination_id], references: [id])
   location                    Location?                  @relation(fields: [location_id], references: [id])
   packageBookings             PackageBookingHotel[]
