@@ -93,7 +93,7 @@ function defaultRequirements(query: PackageQueryType): PackageRequirements {
     return {
         travellers: {
             leadName: query.name,
-            adults: query.groupSize ?? 2,
+            adults: query.groupSize ?? 1,
             children: 0,
             infants: 0,
             specialDemands: "",
