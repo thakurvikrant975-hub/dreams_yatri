@@ -32,6 +32,11 @@ export async function saveHomestayBasicInfo(
   });
   if (!hotel) redirect("/hotel-connect");
 
+  // First-ever save unlocks the Host Details accordion in place — don't
+  // navigate away before the owner has had a chance to see/use it. Only
+  // advance to Location once basic info has already been saved before.
+  const alreadySaved = hotel.wizard_step >= 2;
+
   try {
     await db.hotels.update({
       where: { id: hotelId },
@@ -57,5 +62,5 @@ export async function saveHomestayBasicInfo(
     return { error: "Failed to save basic info. Please try again." };
   }
 
-  redirect(`/hotel-connect/properties/${hotelId}/edit?tab=2`);
+  redirect(`/hotel-connect/properties/${hotelId}/edit?tab=${alreadySaved ? 2 : 1}`);
 }

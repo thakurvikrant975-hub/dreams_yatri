@@ -10,6 +10,7 @@ import { Input } from "../../../../components/ui/input";
 import { Label } from "../../../../components/ui/label";
 import { SearchSelect } from "../../../../components/ui/search-select";
 import { MultiSearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
+import { Card } from "@/app/components/ui/Card";
 import { cn } from "@/app/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -351,24 +352,24 @@ export default function HostDetailsSection({ owner, locked = false, onSaved }: {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
+    <Card variant="elevated" radius="md" className="overflow-hidden p-px">
 
-      {/* ── Accordion header ── */}
+      {/* ── Accordion header — same Card/gradient treatment as Property Details & Contact Information ── */}
       <button
         type="button"
         onClick={() => { if (!locked) setOpen((v) => !v); }}
         className={cn(
-          "w-full flex items-center justify-between px-6 py-4 transition-colors",
-          locked ? "cursor-default opacity-60" : "hover:bg-neutral-50"
+          "w-full flex items-center justify-between gap-4 px-5 py-3.5 border-b border-neutral-200 bg-linear-to-b bg-neutral-50 rounded-t-[inherit] transition-colors",
+          locked ? "cursor-default opacity-60" : "hover:bg-neutral-100"
         )}
       >
-        <div className="text-left">
-          <p className="text-sm font-semibold text-neutral-900">Host Details</p>
-          <p className="text-xs text-neutral-500 mt-0.5">
+        <div className="text-left min-w-0">
+          <h3 className="text-sm font-semibold text-neutral-800">Host Details</h3>
+          <p className="text-xs text-neutral-600/90 mt-0.5">
             {locked ? "Complete property details above to unlock" : "Update your details here"}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 shrink-0">
           {!locked && (
             <span className="text-xs text-primary-500 font-medium hover:underline" onClick={(e) => e.stopPropagation()}>
               How guests will see your profile? Preview
@@ -601,6 +602,6 @@ export default function HostDetailsSection({ owner, locked = false, onSaved }: {
           </form>
         </div>
       )}
-    </div>
+    </Card>
   );
 }
