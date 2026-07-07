@@ -8,10 +8,11 @@ import { ensureHomestayRoom } from "@/app/lib/hotel-inventory/homestay-room-sync
 
 /**
  * DEV auto-approve: a validly-submitted property goes straight to LIVE (simulating
- * a successful backend review) and gets a public URL. Flip to a real review queue
- * by setting HOTEL_AUTO_APPROVE=false — then it goes to SUBMITTED for the team.
+ * a successful backend review) and gets a public URL. Fails closed by design — an
+ * unset/misconfigured env var must never accidentally skip human review in
+ * production. Opt in explicitly per-environment with HOTEL_AUTO_APPROVE=true.
  */
-const AUTO_APPROVE = process.env.HOTEL_AUTO_APPROVE !== "false";
+const AUTO_APPROVE = process.env.HOTEL_AUTO_APPROVE === "true";
 
 export type PublishResult = { ok: boolean; missing?: string[]; url?: string };
 
@@ -23,6 +24,13 @@ function slugify(s: string): string {
     .replace(/^-+|-+$/g, "")
     .slice(0, 50);
 }
+
+// Mirrors photo-actions.ts's proceedPhotos gate — kept in sync so a host can't
+// slip past the wizard's photo tab and then delete photos back down before
+// hitting Save & Continue on the final Submit step.
+const MIN_TOTAL_PHOTOS = 6;
+const MIN_ROOM_TAGGED_PHOTOS = 2;
+const ROOM_TAG = "Bedroom";
 
 /** Field-level completeness check before a property can go live. */
 function validate(h: {
@@ -47,6 +55,7 @@ function validate(h: {
   prop_base_rate: unknown;
   roomsWithPricing: number;
   imageCount: number;
+  roomTaggedImageCount: number;
 }): string[] {
   const m: string[] = [];
   const isHomestay = h.property_category === "HOMESTAY_VILLA";
@@ -63,7 +72,11 @@ function validate(h: {
     m.push("At least one room with a price");
   }
 
-  if (h.imageCount === 0) m.push("At least one photo");
+  if (h.imageCount < MIN_TOTAL_PHOTOS) {
+    m.push(`At least ${MIN_TOTAL_PHOTOS} photos (currently ${h.imageCount})`);
+  } else if (h.roomTaggedImageCount < MIN_ROOM_TAGGED_PHOTOS) {
+    m.push(`At least ${MIN_ROOM_TAGGED_PHOTOS} photos tagged "${ROOM_TAG}"`);
+  }
   if (!h.check_in_time || !h.check_out_time) m.push("Check-in / check-out times");
   if (!h.cancellation_policy) m.push("Cancellation policy");
   if (!h.bank_account_number || !h.bank_ifsc_code) m.push("Bank account details");
@@ -92,7 +105,7 @@ export async function submitForReview(
         where: { is_active: true },
         select: { id: true, pricing: { where: { is_active: true }, select: { id: true }, take: 1 } },
       },
-      _count: { select: { images: true } },
+      images: { select: { tags: true } },
     },
   });
   if (!h) return { ok: false, missing: ["Property not found"] };
@@ -105,7 +118,8 @@ export async function submitForReview(
   const missing = validate({
     ...h,
     roomsWithPricing: h.hotelRooms.filter((r) => r.pricing.length > 0).length,
-    imageCount: h._count.images,
+    imageCount: h.images.length,
+    roomTaggedImageCount: h.images.filter((img) => img.tags.includes(ROOM_TAG)).length,
   });
   if (missing.length > 0) return { ok: false, missing };
 
