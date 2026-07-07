@@ -80,8 +80,8 @@ export const NAV_GROUPS = [
     id: "sales", label: "Sales",
     items: [
       { title: "Queries", href: "/dashboard/sales-query", icon: ChartNoAxesGantt },
-      { title: "Analytics", href: "/dashboard/sale-analytics", icon: ChartNoAxesCombined },
       { title: "Follow ups", href: "/dashboard/follow-ups", icon: BellRing },
+      { title: "Package Library", href: "/dashboard/package-library", icon: BookOpen },
       { title: "Package Builder", href: "/dashboard/package-builder", icon: PackagePlus },
     ],
   },
