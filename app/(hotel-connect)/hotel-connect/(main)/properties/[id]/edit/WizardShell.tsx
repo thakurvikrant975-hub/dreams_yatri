@@ -9,6 +9,7 @@ import {
   CheckCircleIcon,
   ClockIcon,
   SealCheckIcon,
+  LockSimpleIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import { cn } from "@/app/lib/utils";
 import { HotelListingStatus, PropertySubType } from "@/app/generated/prisma";
@@ -72,6 +73,9 @@ function TabItem({
 }) {
   const isCurrent   = tab.index === currentTab;
   const isCompleted = tab.index <= effectiveWizardStep && !isCurrent;
+  // Can revisit any completed tab (or the current one) freely, but can't skip
+  // ahead past the next step that hasn't actually been validated yet.
+  const isLocked    = tab.index > effectiveWizardStep + 1 && !isCurrent;
 
   const baseClass = cn(
     "relative flex-1 flex flex-col items-center gap-3 px-5 py-3.5 whitespace-nowrap transition-colors select-none",
@@ -82,7 +86,9 @@ function TabItem({
       ? "bg-white text-primary-500 after:absolute after:bottom-0 after:h-px after:w-full after:bg-white after:translate-y-px"
       : isCompleted
         ? "text-neutral-900 hover:text-neutral-800 hover:bg-neutral-50 after:bg-transparent hover:after:bg-neutral-200"
-        : "text-neutral-500 hover:text-neutral-600 bg-neutral-50 hover:bg-neutral-100 after:bg-transparent"
+        : isLocked
+          ? "text-neutral-300 bg-neutral-50 after:bg-transparent cursor-not-allowed"
+          : "text-neutral-500 hover:text-neutral-600 bg-neutral-50 hover:bg-neutral-100 after:bg-transparent"
   );
 
   const indicator = (
@@ -95,14 +101,25 @@ function TabItem({
             ? "bg-emerald-500 text-white"
             : "bg-white text-neutral-500/90 ring-1 ring-neutral-200 shadow shadow-neutral-300/80"
       )}
-    
-    
+
+
     >
       {isCompleted
         ? <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5-4.5-4.5 1.41-1.41L10 13.67l7.09-7.09L18.5 8l-8.5 8.5z"/></svg>
-        : tab.index}
+        : isLocked
+          ? <LockSimpleIcon size={11} weight="bold" />
+          : tab.index}
     </div>
   );
+
+  if (isLocked) {
+    return (
+      <div className={baseClass} aria-disabled title="Complete the previous step first">
+        {indicator}
+        <span className="text-xs font-semibold leading-none font-heading">{tab.label}</span>
+      </div>
+    );
+  }
 
   return (
     <Link

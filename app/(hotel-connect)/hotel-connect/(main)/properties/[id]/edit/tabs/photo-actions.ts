@@ -222,6 +222,10 @@ export async function savePhotoTags(
   }
 }
 
+const MIN_TOTAL_PHOTOS = 6;
+const MIN_ROOM_TAGGED_PHOTOS = 2;
+const ROOM_TAG = "Bedroom";
+
 export async function proceedPhotos(
   hotelId: number,
   _prev: { error?: string },
@@ -238,6 +242,9 @@ export async function proceedPhotos(
 
   const totalImages = await db.hotel_images.count({ where: { hotel_id: hotelId } });
   if (totalImages === 0) return { error: "Upload at least one photo before continuing." };
+  if (totalImages < MIN_TOTAL_PHOTOS) {
+    return { error: `At least ${MIN_TOTAL_PHOTOS} photos are required. You've uploaded ${totalImages}.` };
+  }
 
   const allImages = await db.hotel_images.findMany({
     where: { hotel_id: hotelId },
@@ -250,6 +257,15 @@ export async function proceedPhotos(
   if (untaggedCount > 0) {
     return {
       error: `${untaggedCount} photo${untaggedCount > 1 ? "s are" : " is"} missing a tag. Add at least one tag to each photo.`,
+    };
+  }
+
+  const roomTaggedCount = allImages.filter((img) =>
+    (img.tags as string[]).includes(ROOM_TAG)
+  ).length;
+  if (roomTaggedCount < MIN_ROOM_TAGGED_PHOTOS) {
+    return {
+      error: `At least ${MIN_ROOM_TAGGED_PHOTOS} photos tagged "${ROOM_TAG}" are required (currently ${roomTaggedCount}).`,
     };
   }
 

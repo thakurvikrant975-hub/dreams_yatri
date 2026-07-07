@@ -45,6 +45,9 @@ const GUEST_HOUSE_PHOTO_TAGS = [
   "Outside View", "Facade",
 ];
 const MAX_TAGS = 3;
+const MIN_TOTAL_PHOTOS = 6;
+const MIN_ROOM_TAGGED_PHOTOS = 2;
+const ROOM_TAG = "Bedroom";
 
 function groupPhotosByTag(photos: HotelPhoto[]): { tag: string; photos: HotelPhoto[] }[] {
   const map = new Map<string, HotelPhoto[]>();
@@ -532,7 +535,7 @@ function UploadButton({
         disabled={isDisabled}
         onClick={() => ref.current?.click()}
         className={cn(
-          "flex items-center gap-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-60",
+          "flex items-center justify-center gap-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-60",
           variant === "primary" && "h-8 px-4 bg-primary-500 hover:bg-primary-600 text-white",
           variant === "ghost" && "h-7 px-3 border border-neutral-200 text-neutral-600 hover:bg-neutral-50",
           variant === "dashed" && "h-16 w-16 flex-col border-2 border-dashed border-neutral-300 text-neutral-400 hover:border-primary-300 hover:text-primary-500 rounded-xl gap-0.5",
@@ -610,9 +613,9 @@ export default function PhotosTab({
   }, [untagged.length, showTagError]);
 
   function handleFormSubmit(e: React.FormEvent<HTMLFormElement>) {
-    if (total === 0) {
+    if (total < MIN_TOTAL_PHOTOS) {
       e.preventDefault();
-      setTagError("Upload at least one photo before continuing.");
+      setTagError(`At least ${MIN_TOTAL_PHOTOS} photos are required. You've uploaded ${total}.`);
       setShowTagError(true);
       return;
     }
@@ -623,6 +626,15 @@ export default function PhotosTab({
       );
       setShowTagError(true);
       untaggedRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    const roomTaggedCount = photosState.filter((p) => p.tags.includes(ROOM_TAG)).length;
+    if (roomTaggedCount < MIN_ROOM_TAGGED_PHOTOS) {
+      e.preventDefault();
+      setTagError(
+        `At least ${MIN_ROOM_TAGGED_PHOTOS} photos tagged "${ROOM_TAG}" are required (currently ${roomTaggedCount}).`
+      );
+      setShowTagError(true);
       return;
     }
     setTagError(null);

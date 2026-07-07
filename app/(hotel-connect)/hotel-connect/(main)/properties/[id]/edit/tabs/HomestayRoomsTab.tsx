@@ -341,6 +341,13 @@ function ListEditView({ hotel }: { hotel: HomestayRoomsData }) {
       {/* Hidden form — WizardShell "Save & Continue" footer submits this */}
       <form id="wizard-form" action={formAction} className="hidden" />
 
+      {state.error && (
+        <div className="flex items-start gap-2.5 rounded-lg px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
+          <WarningIcon size={15} className="shrink-0 mt-0.5" />
+          <span className="flex-1">{state.error}</span>
+        </div>
+      )}
+
       {/* ── Bedrooms ── */}
       <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
         <SectionHeader

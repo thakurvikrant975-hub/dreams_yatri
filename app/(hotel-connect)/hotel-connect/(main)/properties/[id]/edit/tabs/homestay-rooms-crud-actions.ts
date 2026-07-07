@@ -96,7 +96,7 @@ export async function saveHomestayRoomCounts(
     },
   });
 
-  redirect(`/hotel-connect/properties/${hotelId}/edit?tab=3`);
+  redirect(`/hotel-connect/properties/${hotelId}/edit?tab=4`);
 }
 
 // ── Bedroom CRUD ───────────────────────────────────────────────────────────
