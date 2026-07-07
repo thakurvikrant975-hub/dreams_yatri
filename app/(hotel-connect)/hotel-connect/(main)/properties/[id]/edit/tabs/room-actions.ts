@@ -314,10 +314,15 @@ export async function deleteRoom(
   });
   if (!hotel) return { error: "Property not found." };
 
-  await db.hotel_rooms.update({
-    where: { id: roomId, hotel_id: hotelId },
-    data:  { is_active: false },
-  });
+  try {
+    await db.hotel_rooms.update({
+      where: { id: roomId, hotel_id: hotelId },
+      data:  { is_active: false },
+    });
+  } catch (err) {
+    console.error("[deleteRoom]", err);
+    return { error: "Failed to delete room. It may have already been removed." };
+  }
 
   return {};
 }

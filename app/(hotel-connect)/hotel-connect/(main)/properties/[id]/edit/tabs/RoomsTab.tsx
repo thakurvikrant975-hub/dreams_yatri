@@ -523,7 +523,13 @@ function Section2({ data, onChange, errors }: {
   }
 
   function setOcc(key: "base_adults" | "max_adults" | "base_children" | "max_children" | "max_occupancy", v: number) {
-    const updated = { ...data, [key]: v };
+    // Max can never be reduced below the bed-computed base — otherwise a
+    // manual edit here can reach the DB inconsistent with room-schema's own
+    // max_adults >= base_adults / max_children >= base_children rule.
+    const clamped = key === "max_adults" ? Math.max(v, data.base_adults)
+      : key === "max_children" ? Math.max(v, data.base_children)
+      : v;
+    const updated = { ...data, [key]: clamped };
     if (key === "max_adults" || key === "max_children") {
       updated.max_occupancy = updated.max_adults + updated.max_children;
     }
@@ -1467,16 +1473,22 @@ function RoomsList({
 }) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function handleDelete(roomId: number) {
     setDeletingId(roomId);
-    await deleteRoom(hotelId, roomId);
+    setDeleteError(null);
+    const result = await deleteRoom(hotelId, roomId);
+    if (result.error) setDeleteError(result.error);
     router.refresh();
     setDeletingId(null);
   }
 
   return (
     <SectionCard title="Room Types" desc="Add and manage the room types available at your property">
+      {deleteError && (
+        <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-2">{deleteError}</p>
+      )}
       <div className="flex items-center justify-between -mt-1 mb-1">
         <p className="text-xs text-neutral-500">{rooms.length} room type{rooms.length !== 1 ? "s" : ""} added</p>
         <button type="button" onClick={onAdd}
