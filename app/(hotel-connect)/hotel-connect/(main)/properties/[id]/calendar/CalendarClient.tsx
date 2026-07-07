@@ -89,6 +89,11 @@ export default function CalendarClient({
     const toExclusive = new Date(Date.UTC(y, m0 + 1, 1)).toISOString().slice(0, 10);
     startLoad(async () => {
       const res = await fetchRoomCalendar(hotelId, rId, from, toExclusive);
+      if (res.error) {
+        setDays([]);
+        setMsg(res.error);
+        return;
+      }
       setDays(res.days ?? []);
     });
   }
@@ -281,14 +286,14 @@ function EditPanel({
           <div className="space-y-3">
             <div>
               <label className={label}>Price / night (₹)</label>
-              <input type="number" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Leave blank to keep" className={input} />
+              <input type="number" min={1} step="1" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Leave blank to keep" className={input} />
               {price.trim() !== "" && (
                 <button onClick={() => setPrice("")} className="text-[10px] text-neutral-400 hover:text-primary-600 mt-1">clear override → use season price</button>
               )}
             </div>
             <div>
               <label className={label}>Rooms available (total)</label>
-              <input type="number" value={units} onChange={(e) => setUnits(e.target.value)} placeholder="Leave blank to keep" className={input} />
+              <input type="number" min={0} step="1" value={units} onChange={(e) => setUnits(e.target.value)} placeholder="Leave blank to keep" className={input} />
             </div>
             <div>
               <label className={label}>Availability</label>
@@ -301,7 +306,7 @@ function EditPanel({
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <label className={label}>Min LOS</label>
-                <input type="number" value={minLos} onChange={(e) => setMinLos(e.target.value)} placeholder="—" className={input} />
+                <input type="number" min={1} step="1" value={minLos} onChange={(e) => setMinLos(e.target.value)} placeholder="—" className={input} />
               </div>
               <div>
                 <label className={label}>CTA</label>

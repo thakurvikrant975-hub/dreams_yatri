@@ -129,7 +129,10 @@ export async function getRoomARI(
   const occ = occupancy ?? room?.base_adults ?? null;
 
   return nights.map((n) => {
-    if (n.priceOverride != null) {
+    // Defense in depth: a positive override is required going forward
+    // (saveAvailabilityRange validates this), but never trust legacy/raw
+    // data enough to quote a guest a zero or negative price.
+    if (n.priceOverride != null && Number(n.priceOverride) > 0) {
       return { ...n, price: n.priceOverride, priceSource: "override", planName: lead?.plan_name ?? null };
     }
     if (!lead) return { ...n, price: null, priceSource: "none", planName: null };
