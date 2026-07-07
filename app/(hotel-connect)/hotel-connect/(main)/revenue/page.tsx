@@ -1,5 +1,6 @@
 import { hotelConnectAuth } from "@/app/lib/auth-hotel-connect";
 import { db } from "@/app/lib/db";
+import type { BookingStatus } from "@/app/generated/prisma";
 import ConnectHeader from "../components/ConnectHeader";
 import { Card } from "@/app/components/ui/Card";
 import {
@@ -41,46 +42,56 @@ async function getRevenueData(ownerId: string) {
   if (!links.length) return zero;
 
   const bookingIds = links.map((l) => l.bookingId);
-
-  const bookings = await db.booking.findMany({
-    where: { id: { in: bookingIds } },
-    select: { status: true, totalAmount: true, createdAt: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const baseWhere = { id: { in: bookingIds } };
+  const earnedStatus = { notIn: ["CANCELLED", "REJECTED", "PENDING_REVIEW"] as BookingStatus[] };
 
   const now       = new Date();
   const msStart   = new Date(now.getFullYear(), now.getMonth(), 1);
   const lmsStart  = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const lmsEnd    = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
 
-  const earned = (b: typeof bookings[0]) =>
-    !(["CANCELLED", "REJECTED", "PENDING_REVIEW"] as string[]).includes(b.status);
+  // Every figure here is computed via DB-side aggregation (count/sum with a
+  // WHERE clause) instead of loading every booking row into memory — stays
+  // cheap regardless of how many bookings an owner accumulates over time.
+  const monthWindows = Array.from({ length: 6 }, (_, idx) => {
+    const i = 5 - idx;
+    const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const end   = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
+    return {
+      monthKey:   `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}`,
+      monthLabel: start.toLocaleDateString("en-IN", { month: "short", year: "numeric" }),
+      start, end,
+    };
+  });
 
-  const total      = bookings.filter(earned).reduce((s, b) => s + Number(b.totalAmount), 0);
-  const thisMonth  = bookings.filter((b) => earned(b) && new Date(b.createdAt) >= msStart).reduce((s, b) => s + Number(b.totalAmount), 0);
-  const lastMonth  = bookings.filter((b) => earned(b) && new Date(b.createdAt) >= lmsStart && new Date(b.createdAt) <= lmsEnd).reduce((s, b) => s + Number(b.totalAmount), 0);
-  const upcoming   = bookings.filter((b) => (["UPCOMING", "CONFIRMED"] as string[]).includes(b.status)).reduce((s, b) => s + Number(b.totalAmount), 0);
+  const [totalAgg, thisMonthAgg, lastMonthAgg, upcomingAgg, monthlyAggs] = await Promise.all([
+    db.booking.aggregate({ where: { ...baseWhere, status: earnedStatus }, _sum: { totalAmount: true } }),
+    db.booking.aggregate({ where: { ...baseWhere, status: earnedStatus, createdAt: { gte: msStart } }, _sum: { totalAmount: true } }),
+    db.booking.aggregate({ where: { ...baseWhere, status: earnedStatus, createdAt: { gte: lmsStart, lte: lmsEnd } }, _sum: { totalAmount: true } }),
+    db.booking.aggregate({ where: { ...baseWhere, status: { in: ["UPCOMING", "CONFIRMED"] } }, _sum: { totalAmount: true } }),
+    Promise.all(monthWindows.map((w) => Promise.all([
+      db.booking.count({ where: { ...baseWhere, createdAt: { gte: w.start, lte: w.end } } }),
+      db.booking.aggregate({
+        where: { ...baseWhere, status: earnedStatus, createdAt: { gte: w.start, lte: w.end } },
+        _sum: { totalAmount: true },
+      }),
+    ]))),
+  ]);
 
-  // Last 6 months breakdown
-  const monthly: MonthlyRow[] = [];
-  for (let i = 5; i >= 0; i--) {
-    const d     = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const dEnd  = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
-    const key   = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const label = d.toLocaleDateString("en-IN", { month: "short", year: "numeric" });
-    const slice = bookings.filter((b) => {
-      const bc = new Date(b.createdAt);
-      return bc >= d && bc <= dEnd;
-    });
-    monthly.push({
-      monthLabel: label,
-      monthKey:   key,
-      bookings:   slice.length,
-      revenue:    slice.filter(earned).reduce((s, b) => s + Number(b.totalAmount), 0),
-    });
-  }
+  const monthly: MonthlyRow[] = monthWindows.map((w, idx) => ({
+    monthLabel: w.monthLabel,
+    monthKey:   w.monthKey,
+    bookings:   monthlyAggs[idx]?.[0] ?? 0,
+    revenue:    Number(monthlyAggs[idx]?.[1]?._sum?.totalAmount ?? 0),
+  }));
 
-  return { total, thisMonth, lastMonth, upcoming, monthly };
+  return {
+    total:     Number(totalAgg._sum?.totalAmount ?? 0),
+    thisMonth: Number(thisMonthAgg._sum?.totalAmount ?? 0),
+    lastMonth: Number(lastMonthAgg._sum?.totalAmount ?? 0),
+    upcoming:  Number(upcomingAgg._sum?.totalAmount ?? 0),
+    monthly,
+  };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
