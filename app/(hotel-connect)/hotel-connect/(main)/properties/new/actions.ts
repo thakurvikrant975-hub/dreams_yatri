@@ -33,7 +33,9 @@ const CATEGORY_MAP: Record<PropertySubType, PropertyCategory> = {
   LUXURY_CAMPS:     PropertyCategory.HOMESTAY_VILLA,
 };
 
-export async function createDraftProperty(subType: PropertySubType) {
+export async function createDraftProperty(
+  subType: PropertySubType,
+): Promise<{ error?: string }> {
   const session = await hotelConnectAuth();
   if (!session) redirect("/hotel-connect/login");
 
@@ -47,18 +49,25 @@ export async function createDraftProperty(subType: PropertySubType) {
 
   const slug = `draft-${ownerId.slice(-8)}-${Date.now()}`;
 
-  const hotel = await db.hotels.create({
-    data: {
-      name: "My Property",
-      slug,
-      owner_id: ownerId,
-      property_sub_type: subType,
-      property_category: CATEGORY_MAP[subType],
-      listing_status: "DRAFT",
-      wizard_step: 1,
-    },
-    select: { id: true },
-  });
+  let hotelId: number;
+  try {
+    const hotel = await db.hotels.create({
+      data: {
+        name: "My Property",
+        slug,
+        owner_id: ownerId,
+        property_sub_type: subType,
+        property_category: CATEGORY_MAP[subType],
+        listing_status: "DRAFT",
+        wizard_step: 1,
+      },
+      select: { id: true },
+    });
+    hotelId = hotel.id;
+  } catch (err) {
+    console.error("[createDraftProperty]", err);
+    return { error: "Failed to create your listing. Please try again." };
+  }
 
-  redirect(`/hotel-connect/properties/${hotel.id}/edit`);
+  redirect(`/hotel-connect/properties/${hotelId}/edit`);
 }
