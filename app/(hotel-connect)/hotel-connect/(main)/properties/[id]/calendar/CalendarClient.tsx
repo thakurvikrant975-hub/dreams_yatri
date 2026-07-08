@@ -278,11 +278,49 @@ export default function CalendarClient({
             onClear={() => { setSelStart(null); setSelEnd(null); }}
             onSave={(patch) => {
               if (roomId == null || !rangeLo || !rangeHi) return;
+              const targetRoomId = roomId;
+              const lo = rangeLo, hi = rangeHi;
+
+              // Optimistic update — reflect the new values on the cells
+              // immediately instead of leaving stale prices/availability on
+              // screen for the round-trip. Snapshot first so a failure can
+              // undo cleanly; a success is quietly reconciled with the
+              // server's authoritative values right after (cheap now that
+              // ensureAvailability is a single batched query).
+              const snapshot = days;
+              setDays((prev) => prev.map((d) => {
+                if (d.date < lo || d.date > hi) return d;
+                const next = { ...d };
+                if (patch.totalUnits !== undefined) next.totalUnits = patch.totalUnits;
+                if (patch.stopSell !== undefined) next.stopSell = patch.stopSell;
+                if (patch.minLos !== undefined) next.minLos = patch.minLos;
+                if (patch.maxLos !== undefined) next.maxLos = patch.maxLos;
+                if (patch.closedToArrival !== undefined) next.closedToArrival = patch.closedToArrival;
+                if (patch.closedToDeparture !== undefined) next.closedToDeparture = patch.closedToDeparture;
+                if (patch.priceOverride !== undefined) {
+                  next.priceOverride = patch.priceOverride;
+                  // A cleared override (null) needs the season/base price
+                  // resolver to know the real new price — leave price/
+                  // priceSource alone here and let the post-save reload
+                  // correct it rather than guessing.
+                  if (patch.priceOverride != null) {
+                    next.price = patch.priceOverride;
+                    next.priceSource = "override";
+                  }
+                }
+                next.available = next.stopSell ? 0 : Math.max(0, next.totalUnits - next.bookedUnits);
+                return next;
+              }));
+              setSelStart(null); setSelEnd(null);
+
               startSave(async () => {
-                const res = await saveAvailabilityRange(hotelId, roomId, rangeLo, rangeHi, patch);
-                if (res.error) { setMsg(res.error); return; }
-                setSelStart(null); setSelEnd(null);
-                loadYear(roomId, year);
+                const res = await saveAvailabilityRange(hotelId, targetRoomId, lo, hi, patch);
+                if (res.error) {
+                  setDays(snapshot); // undo the optimistic change
+                  setMsg(res.error);
+                  return;
+                }
+                loadYear(targetRoomId, year);
                 setMsg(`Updated ${res.updated} night${res.updated === 1 ? "" : "s"}.`);
               });
             }}
