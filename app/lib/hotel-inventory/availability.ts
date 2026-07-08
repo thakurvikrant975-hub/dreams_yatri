@@ -83,13 +83,15 @@ async function ensureAvailabilityTx(
   totalUnits: number,
   nights: string[],
 ): Promise<void> {
-  for (const night of nights) {
-    await tx.$executeRaw`
-      INSERT INTO "hotel_room_availability" ("hotel_id", "room_id", "date", "total_units", "booked_units", "updated_at")
-      VALUES (${hotelId}, ${roomId}, ${night}::date, ${totalUnits}, 0, now())
-      ON CONFLICT ("room_id", "date") DO NOTHING
-    `;
-  }
+  if (nights.length === 0) return;
+  // One round-trip for the whole range instead of one per night — a
+  // month-plus bulk edit was previously N sequential inserts against a
+  // remote DB, which is where "bulk update feels slow" came from.
+  await tx.$executeRaw`
+    INSERT INTO "hotel_room_availability" ("hotel_id", "room_id", "date", "total_units", "booked_units", "updated_at")
+    SELECT ${hotelId}, ${roomId}, unnest(${nights}::date[]), ${totalUnits}, 0, now()
+    ON CONFLICT ("room_id", "date") DO NOTHING
+  `;
 }
 
 // ── Read availability ─────────────────────────────────────────────────────────
