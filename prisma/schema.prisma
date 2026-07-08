@@ -1168,6 +1168,10 @@ model hotel_rooms {
   facilities          Json?
   description         String?
   is_active           Boolean                      @default(true)
+  // Owner-facing "Open for sale" toggle — distinct from is_active, which is a
+  // soft-delete flag. Checked in availability resolution alongside per-date
+  // stop_sell, not a substitute for it.
+  is_bookable         Boolean                      @default(true)
   sort_order          Int                          @default(0)
   created_at          DateTime                     @default(now())
   updated_at          DateTime                     @updatedAt

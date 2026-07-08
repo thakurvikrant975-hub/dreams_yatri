@@ -104,15 +104,21 @@ export async function getRoomAvailability(
   if (nights.length === 0) return [];
   await ensureAvailability(roomId, nights);
 
-  const rows = await db.hotel_room_availability.findMany({
-    where: { room_id: roomId, date: { gte: toUtcDate(checkIn), lt: toUtcDate(checkOut) } },
-    orderBy: { date: "asc" },
-  });
+  const [room, rows] = await Promise.all([
+    db.hotel_rooms.findUnique({ where: { id: roomId }, select: { is_bookable: true } }),
+    db.hotel_room_availability.findMany({
+      where: { room_id: roomId, date: { gte: toUtcDate(checkIn), lt: toUtcDate(checkOut) } },
+      orderBy: { date: "asc" },
+    }),
+  ]);
+  // A room closed for sale (owner toggle) shows zero availability regardless
+  // of what any individual date row says — distinct from per-date stop_sell.
+  const roomClosed = room?.is_bookable === false;
 
   return rows.map((r) => {
     const total = r.total_units;
     const booked = r.booked_units;
-    const available = r.stop_sell ? 0 : Math.max(0, total - booked);
+    const available = roomClosed || r.stop_sell ? 0 : Math.max(0, total - booked);
     return {
       date: ymd(r.date),
       totalUnits: total,
@@ -179,9 +185,10 @@ export async function holdInventory(
 
   const room = await db.hotel_rooms.findUnique({
     where: { id: roomId },
-    select: { hotel_id: true, num_rooms: true },
+    select: { hotel_id: true, num_rooms: true, is_bookable: true },
   });
   if (!room) return { ok: false, reason: "Room not found" };
+  if (!room.is_bookable) return { ok: false, reason: "Room is closed for sale" };
 
   // holdNightsTx only guards unit-count + stop-sell — check the real
   // min/max-LOS and CTA/CTD restrictions before holding (mirrors the same

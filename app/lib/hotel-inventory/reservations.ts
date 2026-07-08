@@ -68,7 +68,7 @@ export async function createReservation(input: CreateReservationInput): Promise<
 
   const room = await db.hotel_rooms.findUnique({
     where: { id: input.roomId },
-    select: { hotel_id: true, num_rooms: true },
+    select: { hotel_id: true, num_rooms: true, is_bookable: true },
   });
   if (!room) return { ok: false, reason: "Room not found" };
 
@@ -81,6 +81,7 @@ export async function createReservation(input: CreateReservationInput): Promise<
   // invalidate a booking that already succeeded).
   const alreadyExists = await db.hotel_reservation.findUnique({ where: { hold_key: input.holdKey } });
   if (!alreadyExists) {
+    if (!room.is_bookable) return { ok: false, reason: "Room is closed for sale" };
     const nightsAvail = await getRoomAvailability(input.roomId, input.checkIn, input.checkOut);
     const evalResult = evaluateStay(nightsAvail, units);
     if (!evalResult.ok) return { ok: false, reason: evalResult.reason! };
