@@ -1291,6 +1291,8 @@ model hotel_meal_pricing {
   label         String
   price         Decimal                     @db.Decimal(10, 2)
   weekend_price Decimal?                    @db.Decimal(10, 2)
+  veg_price     Decimal?                    @db.Decimal(10, 2)
+  non_veg_price Decimal?                    @db.Decimal(10, 2)
   is_active     Boolean                     @default(true)
   sort_order    Int                         @default(0)
   created_at    DateTime                    @default(now())
