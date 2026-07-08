@@ -6,6 +6,7 @@ import {
   HomeIcon,
   BuildingOffice2Icon,
   CalendarDaysIcon,
+  TableCellsIcon,
   CurrencyRupeeIcon,
   StarIcon,
   ChatBubbleLeftRightIcon,
@@ -25,6 +26,7 @@ const navItems: {
 }[] = [
   { href: "/hotel-connect",            label: "Dashboard",     icon: HomeIcon, exact: true },
   { href: "/hotel-connect/properties", label: "My Properties", icon: BuildingOffice2Icon },
+  { href: "/hotel-connect/calendar",   label: "Rates & Availability", icon: TableCellsIcon },
   { href: "/hotel-connect/bookings",   label: "Bookings",      icon: CalendarDaysIcon },
   { href: "/hotel-connect/revenue",    label: "Revenue",       icon: CurrencyRupeeIcon },
   { href: "/hotel-connect/reviews",    label: "Reviews",       icon: StarIcon },
