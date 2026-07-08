@@ -30,6 +30,8 @@ export interface QueryDetail extends QueryRow {
     id:              string;
     status:          string;
     title:           string;
+    description:     string | null;
+    coverImage:      string | null;
     pricePerPerson:  number | null;
     totalPrice:      number | null;
     flightsIncluded: boolean;
@@ -64,6 +66,8 @@ export interface DayItinerary {
 export interface PackageInput {
   queryId:         string;
   title:           string;
+  description:     string;
+  coverImage:      string;
   destination:     string;
   startingPoint:   string;
   totalDays:       number;
@@ -157,7 +161,28 @@ export async function getPackageBuilderQueries({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 2. Get single query detail (with existing custom package if any)
+// 2. Look up a destination's catalog cover photo by name (exact, then fuzzy),
+//    so a new package can default to a real photo instead of a blank header.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function getDestinationCoverImage(destinationName: string): Promise<string | null> {
+  const name = destinationName.split(",")[0]?.trim();
+  if (!name) return null;
+
+  const destination =
+    (await db.destinations.findFirst({
+      where: { name: { equals: name, mode: "insensitive" } },
+      select: { cover_image: true, thumbnail: true },
+    })) ??
+    (await db.destinations.findFirst({
+      where: { name: { contains: name, mode: "insensitive" } },
+      select: { cover_image: true, thumbnail: true },
+    }));
+
+  return destination?.cover_image ?? destination?.thumbnail ?? null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3. Get single query detail (with existing custom package if any)
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getQueryDetail(queryId: string): Promise<QueryDetail | null> {
   const query = await db.package_queries.findUnique({
@@ -185,6 +210,8 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
           id:              true,
           status:          true,
           title:           true,
+          description:     true,
+          coverImage:      true,
           pricePerPerson:  true,
           totalPrice:      true,
           flightsIncluded: true,
@@ -225,12 +252,12 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 3. Save (create or update) a custom package with itineraries
+// 4. Save (create or update) a custom package with itineraries
 // ─────────────────────────────────────────────────────────────────────────────
 export async function saveCustomPackage(input: PackageInput): Promise<{ id: string; success: boolean; error?: string }> {
   try {
     const {
-      queryId, title, destination, startingPoint,
+      queryId, title, description, coverImage, destination, startingPoint,
       totalDays, totalNights, travelDate, adults, children, infants,
       pricePerPerson, totalPrice, currency, inclusions, exclusions,
       termsNotes, flightsIncluded, flightNotes, trainIncluded, trainNotes,
@@ -247,6 +274,8 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
       create: {
         queryId,
         title,
+        description:     description || null,
+        coverImage:      coverImage || null,
         destination,
         startingPoint:   startingPoint || null,
         totalDays,
@@ -271,6 +300,8 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
       },
       update: {
         title,
+        description:     description || null,
+        coverImage:      coverImage || null,
         destination,
         startingPoint:   startingPoint || null,
         totalDays,
@@ -342,7 +373,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 4. Mark package as SENT → update query status → return WhatsApp URL
+// 5. Mark package as SENT → update query status → return WhatsApp URL
 // ─────────────────────────────────────────────────────────────────────────────
 export async function sendPackageToClient(packageId: string): Promise<{
   success:      boolean;

@@ -8,6 +8,7 @@ import {
   Save, Send, CheckCircle, AlertCircle, Loader2,
   Package, User, Info, IndianRupee, ArrowLeft,
   Eye, EyeOff, ListChecks, Plane, TrainFront, LogIn, LogOut,
+  Image as ImageIcon,
 } from "lucide-react";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
@@ -20,11 +21,12 @@ import {
   getQueryDetail,
   saveCustomPackage,
   sendPackageToClient,
+  getDestinationCoverImage,
   type QueryDetail,
   type DayItinerary,
   type ActivityInput,
 } from "../action";
-import { PackagePreviewContent } from "./PackagePreviewContent";
+import { ItineraryDocument } from "./ItineraryDocument";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -417,6 +419,8 @@ function DayCard({ day, data, onChange, onRemove }: {
 // ─────────────────────────────────────────────────────────────────────────────
 interface PackageForm {
   title: string;
+  description: string;
+  coverImage: string;
   destination: string;
   startingPoint: string;
   totalDays: number;
@@ -457,12 +461,13 @@ export default function PackageBuilderDetailPage() {
   const [activeTab, setActiveTab] = useState("client");
   const [packageId, setPackageId] = useState<string | null>(null);
   const [savedOk, setSavedOk] = useState(false);
+  const [isFetchingCover, setIsFetchingCover] = useState(false);
 
   const [isSaving, startSave] = useTransition();
   const [isSending, startSend] = useTransition();
 
   const [form, setForm] = useState<PackageForm>({
-    title: "", destination: "", startingPoint: "",
+    title: "", description: "", coverImage: "", destination: "", startingPoint: "",
     totalDays: 3, totalNights: 2, travelDate: "",
     adults: 1, children: 0, infants: 0,
     pricePerPerson: "", totalPrice: "",
@@ -508,6 +513,8 @@ export default function PackageBuilderDetailPage() {
         setForm((f) => ({
           ...f,
           title: cp.title,
+          description: cp.description ?? "",
+          coverImage: cp.coverImage ?? "",
           pricePerPerson: cp.pricePerPerson?.toString() ?? "",
           totalPrice: cp.totalPrice?.toString() ?? "",
           flightsIncluded: cp.flightsIncluded,
@@ -516,6 +523,14 @@ export default function PackageBuilderDetailPage() {
           trainNotes: cp.trainNotes ?? "",
           itineraries: cp.itineraries.length > 0 ? cp.itineraries : f.itineraries,
         }));
+      } else {
+        // No package built yet — suggest the destination's catalog photo as
+        // the default cover so the header isn't blank from the first draft.
+        const destinationName = j?.destinations?.[0] ?? data.destination;
+        if (destinationName) {
+          const suggested = await getDestinationCoverImage(destinationName);
+          if (suggested) setForm((f) => ({ ...f, coverImage: suggested }));
+        }
       }
 
       setLoading(false);
@@ -604,6 +619,17 @@ export default function PackageBuilderDetailPage() {
   function field<K extends keyof PackageForm>(key: K) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm((f) => ({ ...f, [key]: e.target.value }));
+  }
+
+  async function useDestinationPhoto() {
+    if (!form.destination) return;
+    setIsFetchingCover(true);
+    try {
+      const url = await getDestinationCoverImage(form.destination);
+      if (url) setForm((f) => ({ ...f, coverImage: url }));
+    } finally {
+      setIsFetchingCover(false);
+    }
   }
 
   // ── Loading / not found ────────────────────────────────────────────────────
@@ -707,23 +733,23 @@ export default function PackageBuilderDetailPage() {
       <div className="flex relative h-[calc(100vh-3.5rem)]">
 
         {/* ── LEFT: Live Preview (persistent on desktop) ───────────────────────── */}
-        <aside className="hidden lg:block flex-1 border-r border-dashboard-base-300 overflow-y-auto h-full">
-          <div className="px-5 py-5">
-            <PackagePreviewContent form={form} />
+        <aside className="hidden lg:block flex-1 border-r border-dashboard-base-300 overflow-auto h-full bg-dashboard-base-200">
+          <div className="px-6 py-8">
+            <ItineraryDocument form={form} />
           </div>
         </aside>
 
         {/* Mobile preview overlay */}
         {mobilePreviewOpen && (
-          <div className="lg:hidden fixed inset-0 z-30 bg-dashboard-base-100 overflow-y-auto">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-dashboard-base-300 sticky top-0 bg-dashboard-base-100 z-10">
+          <div className="lg:hidden fixed inset-0 z-30 bg-dashboard-base-200 overflow-auto">
+            <div className="no-print flex items-center justify-between px-4 py-3 border-b border-dashboard-base-300 sticky top-0 bg-dashboard-base-100 z-10">
               <span className="text-sm font-semibold text-dashboard-base-content">Live Preview</span>
               <button onClick={() => setMobilePreviewOpen(false)}>
                 <EyeOff size={16} className="text-dashboard-base-content/50" />
               </button>
             </div>
-            <div className="px-4 py-5">
-              <PackagePreviewContent form={form} />
+            <div className="px-4 py-6">
+              <ItineraryDocument form={form} />
             </div>
           </div>
         )}
@@ -769,6 +795,48 @@ export default function PackageBuilderDetailPage() {
                         placeholder="e.g. Manali Adventure Package"
                         className="text-sm border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
                       />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">Package Description</label>
+                      <Textarea
+                        value={form.description}
+                        onChange={field("description")}
+                        placeholder="A short intro shown under the title on the itinerary — e.g. Experience the magic of Manali on this specially curated 5-day adventure…"
+                        rows={2}
+                        className="text-sm resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-xs font-medium text-dashboard-base-content/90">Cover Image</label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={useDestinationPhoto}
+                          disabled={isFetchingCover || !form.destination}
+                          className="h-6 px-2 text-[11px] gap-1 border-dashboard-base-300 rounded-md"
+                        >
+                          {isFetchingCover ? <Loader2 size={11} className="animate-spin" /> : <ImageIcon size={11} />}
+                          Use destination photo
+                        </Button>
+                      </div>
+                      <div className="flex gap-2">
+                        <Input
+                          value={form.coverImage}
+                          onChange={field("coverImage")}
+                          placeholder="https://…"
+                          className="text-sm h-9 flex-1 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                        />
+                        {form.coverImage && (
+                          // eslint-disable-next-line @next/next/no-img-element -- arbitrary external URL, not a static app asset
+                          <img
+                            src={form.coverImage}
+                            alt=""
+                            className="h-9 w-14 rounded-md object-cover border border-dashboard-base-300 shrink-0"
+                          />
+                        )}
+                      </div>
                     </div>
                     <div>
                       <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">Destination(s)</label>

@@ -2268,6 +2268,8 @@ model custom_packages {
   id             String               @id @default(cuid())
   queryId        String               @unique
   title          String
+  description    String?
+  coverImage     String?
   destination    String
   startingPoint  String?
   totalDays      Int
