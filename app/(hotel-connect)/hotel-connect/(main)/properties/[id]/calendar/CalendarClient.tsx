@@ -1,11 +1,9 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { cn } from "@/app/lib/utils";
 import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
   NoSymbolIcon,
   TagIcon,
   ListBulletIcon,
@@ -36,39 +34,27 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const money = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 const todayISO = new Date().toISOString().slice(0, 10);
 
-export default function CalendarClient({
-  hotelId,
-  hotelName,
-  rooms,
-  initialRoomId,
-  initialYear,
-  initialMonth0,
-  initialDays,
+function yearBounds(year: number) {
+  return { from: `${year}-01-01`, toExclusive: `${year + 1}-01-01` };
+}
+
+// ── One month's grid — no per-month weekday header, that's rendered once ──────
+
+function MonthGrid({
+  year,
+  month0,
+  byDate,
+  rangeLo,
+  rangeHi,
+  onClickDay,
 }: {
-  hotelId: number;
-  hotelName: string;
-  rooms: Room[];
-  initialRoomId: number | null;
-  initialYear: number;
-  initialMonth0: number;
-  initialDays: DayCell[];
+  year: number;
+  month0: number;
+  byDate: Map<string, DayCell>;
+  rangeLo: string | null;
+  rangeHi: string | null;
+  onClickDay: (date: string) => void;
 }) {
-  const [roomId, setRoomId] = useState<number | null>(initialRoomId);
-  const [year, setYear] = useState(initialYear);
-  const [month0, setMonth0] = useState(initialMonth0);
-  const [days, setDays] = useState<DayCell[]>(initialDays);
-  const [selStart, setSelStart] = useState<string | null>(null);
-  const [selEnd, setSelEnd] = useState<string | null>(null);
-  const [loading, startLoad] = useTransition();
-  const [saving, startSave] = useTransition();
-  const [msg, setMsg] = useState<string | null>(null);
-
-  const byDate = useMemo(() => {
-    const m = new Map<string, DayCell>();
-    for (const d of days) m.set(d.date, d);
-    return m;
-  }, [days]);
-
   const daysInMonth = new Date(Date.UTC(year, month0 + 1, 0)).getUTCDate();
   const firstWeekday = new Date(Date.UTC(year, month0, 1)).getUTCDay();
   const cells: (string | null)[] = [
@@ -76,40 +62,106 @@ export default function CalendarClient({
     ...Array.from({ length: daysInMonth }, (_, i) => `${year}-${pad(month0 + 1)}-${pad(i + 1)}`),
   ];
 
-  const [rangeLo, rangeHi] = selStart && selEnd
-    ? selStart <= selEnd ? [selStart, selEnd] : [selEnd, selStart]
-    : selStart ? [selStart, selStart] : [null, null];
-
   function inRange(date: string) {
     return rangeLo != null && rangeHi != null && date >= rangeLo && date <= rangeHi;
   }
 
-  function loadMonth(rId: number | null, y: number, m0: number) {
-    setSelStart(null); setSelEnd(null); setMsg(null);
-    if (rId == null) { setDays([]); return; }
-    const from = new Date(Date.UTC(y, m0, 1)).toISOString().slice(0, 10);
-    const toExclusive = new Date(Date.UTC(y, m0 + 1, 1)).toISOString().slice(0, 10);
+  return (
+    <div>
+      <p className="text-sm font-semibold text-neutral-800 px-4 pt-4 pb-2">{MONTHS[month0]} {year}</p>
+      <div className="grid grid-cols-7">
+        {cells.map((date, i) => {
+          if (!date) return <div key={`b${i}`} className="aspect-square border-b border-r border-neutral-50" />;
+          const cell = byDate.get(date);
+          const dayNum = Number(date.slice(8, 10));
+          const past = date < todayISO;
+          const selected = inRange(date);
+          const soldOut = cell ? cell.available <= 0 || cell.stopSell : false;
+          return (
+            <button
+              key={date}
+              onClick={() => onClickDay(date)}
+              disabled={past}
+              className={cn(
+                "aspect-square border-b border-r border-neutral-100 p-1.5 text-left flex flex-col transition-colors relative",
+                past ? "bg-neutral-50/60 text-neutral-300 cursor-not-allowed" : "hover:bg-primary-50/40",
+                selected && "bg-primary-100/70 ring-1 ring-inset ring-primary-300",
+              )}
+            >
+              <span className={cn("text-[11px] font-semibold", !past && "text-neutral-600")}>{dayNum}</span>
+              {cell && !past && (
+                <>
+                  <span className={cn("mt-auto text-[11px] font-bold leading-tight", soldOut ? "text-red-500" : "text-neutral-800")}>
+                    {cell.price != null ? money(cell.price) : "—"}
+                  </span>
+                  <span className={cn("text-[9px] leading-tight flex items-center gap-0.5", soldOut ? "text-red-400" : "text-neutral-400")}>
+                    {cell.stopSell ? <><NoSymbolIcon className="w-2.5 h-2.5" /> closed</> : `${cell.available}/${cell.totalUnits} left`}
+                    {cell.priceOverride != null && <TagIcon className="w-2.5 h-2.5 text-primary-500" />}
+                  </span>
+                </>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export default function CalendarClient({
+  hotelId,
+  hotelName,
+  rooms,
+  initialRoomId,
+  initialYear,
+  initialDays,
+}: {
+  hotelId: number;
+  hotelName: string;
+  rooms: Room[];
+  initialRoomId: number | null;
+  initialYear: number;
+  initialDays: DayCell[];
+}) {
+  const [roomId, setRoomId] = useState<number | null>(initialRoomId);
+  const [loadedYears, setLoadedYears] = useState<number[]>([initialYear]);
+  const [days, setDays] = useState<DayCell[]>(initialDays);
+  const [selStart, setSelStart] = useState<string | null>(null);
+  const [selEnd, setSelEnd] = useState<string | null>(null);
+  const [loading, startLoad] = useTransition();
+  const [saving, startSave] = useTransition();
+  const [msg, setMsg] = useState<string | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  const byDate = useMemo(() => {
+    const m = new Map<string, DayCell>();
+    for (const d of days) m.set(d.date, d);
+    return m;
+  }, [days]);
+
+  const [rangeLo, rangeHi] = selStart && selEnd
+    ? selStart <= selEnd ? [selStart, selEnd] : [selEnd, selStart]
+    : selStart ? [selStart, selStart] : [null, null];
+
+  function loadYear(rId: number | null, y: number) {
+    if (rId == null) return;
+    const { from, toExclusive } = yearBounds(y);
     startLoad(async () => {
       const res = await fetchRoomCalendar(hotelId, rId, from, toExclusive);
       if (res.error) {
-        setDays([]);
         setMsg(res.error);
         return;
       }
-      setDays(res.days ?? []);
+      setDays((prev) => [...prev.filter((d) => !d.date.startsWith(String(y))), ...(res.days ?? [])]);
     });
-  }
-
-  function changeMonth(delta: number) {
-    let y = year, m = month0 + delta;
-    if (m < 0) { m = 11; y--; } else if (m > 11) { m = 0; y++; }
-    setYear(y); setMonth0(m);
-    loadMonth(roomId, y, m);
   }
 
   function pickRoom(rId: number) {
     setRoomId(rId);
-    loadMonth(rId, year, month0);
+    setSelStart(null); setSelEnd(null); setMsg(null);
+    setDays([]);
+    setLoadedYears([initialYear]);
+    loadYear(rId, initialYear);
   }
 
   function clickDay(date: string) {
@@ -118,6 +170,27 @@ export default function CalendarClient({
     else setSelEnd(date);
     setMsg(null);
   }
+
+  // Scrolling to the bottom of the loaded months loads the next year — this
+  // is the only way further-out months become available, replacing the old
+  // per-month Prev/Next buttons that reset any in-progress selection.
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && !loading) {
+          const nextYear = Math.max(...loadedYears) + 1;
+          setLoadedYears((prev) => [...prev, nextYear]);
+          loadYear(roomId, nextYear);
+        }
+      },
+      { rootMargin: "400px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadedYears, roomId, loading]);
 
   return (
     <div className="space-y-5">
@@ -155,58 +228,30 @@ export default function CalendarClient({
         </div>
       ) : (
         <div className="grid lg:grid-cols-[1fr_300px] gap-5">
-          {/* Calendar */}
+          {/* Calendar — all loaded months stacked, scroll for more */}
           <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100">
-              <button onClick={() => changeMonth(-1)} className="w-8 h-8 rounded-lg hover:bg-neutral-100 flex items-center justify-center">
-                <ChevronLeftIcon className="w-4 h-4 text-neutral-600" />
-              </button>
-              <p className="text-sm font-semibold text-neutral-800">
-                {MONTHS[month0]} {year} {loading && <span className="text-neutral-400 font-normal">· loading…</span>}
-              </p>
-              <button onClick={() => changeMonth(1)} className="w-8 h-8 rounded-lg hover:bg-neutral-100 flex items-center justify-center">
-                <ChevronRightIcon className="w-4 h-4 text-neutral-600" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-7 text-center text-[10px] font-semibold uppercase tracking-wide text-neutral-400 border-b border-neutral-100">
+            <div className="grid grid-cols-7 text-center text-[10px] font-semibold uppercase tracking-wide text-neutral-400 border-b border-neutral-100 sticky top-0 bg-white z-10">
               {WEEKDAYS.map((w) => <div key={w} className="py-2">{w}</div>)}
             </div>
 
-            <div className="grid grid-cols-7">
-              {cells.map((date, i) => {
-                if (!date) return <div key={`b${i}`} className="aspect-square border-b border-r border-neutral-50" />;
-                const cell = byDate.get(date);
-                const dayNum = Number(date.slice(8, 10));
-                const past = date < todayISO;
-                const selected = inRange(date);
-                const soldOut = cell ? cell.available <= 0 || cell.stopSell : false;
-                return (
-                  <button
-                    key={date}
-                    onClick={() => clickDay(date)}
-                    disabled={past}
-                    className={cn(
-                      "aspect-square border-b border-r border-neutral-100 p-1.5 text-left flex flex-col transition-colors relative",
-                      past ? "bg-neutral-50/60 text-neutral-300 cursor-not-allowed" : "hover:bg-primary-50/40",
-                      selected && "bg-primary-100/70 ring-1 ring-inset ring-primary-300",
-                    )}
-                  >
-                    <span className={cn("text-[11px] font-semibold", !past && "text-neutral-600")}>{dayNum}</span>
-                    {cell && !past && (
-                      <>
-                        <span className={cn("mt-auto text-[11px] font-bold leading-tight", soldOut ? "text-red-500" : "text-neutral-800")}>
-                          {cell.price != null ? money(cell.price) : "—"}
-                        </span>
-                        <span className={cn("text-[9px] leading-tight flex items-center gap-0.5", soldOut ? "text-red-400" : "text-neutral-400")}>
-                          {cell.stopSell ? <><NoSymbolIcon className="w-2.5 h-2.5" /> closed</> : `${cell.available}/${cell.totalUnits} left`}
-                          {cell.priceOverride != null && <TagIcon className="w-2.5 h-2.5 text-primary-500" />}
-                        </span>
-                      </>
-                    )}
-                  </button>
-                );
-              })}
+            <div className="max-h-[75vh] overflow-y-auto divide-y divide-neutral-100">
+              {loadedYears.map((y) =>
+                Array.from({ length: 12 }, (_, month0) => (
+                  <MonthGrid
+                    key={`${y}-${month0}`}
+                    year={y}
+                    month0={month0}
+                    byDate={byDate}
+                    rangeLo={rangeLo}
+                    rangeHi={rangeHi}
+                    onClickDay={clickDay}
+                  />
+                )),
+              )}
+              <div ref={sentinelRef} className="h-4" />
+              {loading && (
+                <p className="text-center text-xs text-neutral-400 py-3">Loading more months…</p>
+              )}
             </div>
 
             <div className="flex flex-wrap gap-3 px-4 py-2.5 border-t border-neutral-100 text-[10px] text-neutral-400">
@@ -230,10 +275,10 @@ export default function CalendarClient({
               startSave(async () => {
                 const res = await saveAvailabilityRange(hotelId, roomId, rangeLo, rangeHi, patch);
                 if (res.error) { setMsg(res.error); return; }
-                // loadMonth() clears msg as part of its own reset — set the
-                // success message *after* calling it, not before, or it gets
-                // wiped in the same tick and is never actually visible.
-                loadMonth(roomId, year, month0);
+                setSelStart(null); setSelEnd(null);
+                // Refresh every currently-loaded year so the range's new
+                // values show immediately, wherever it lands.
+                for (const y of loadedYears) loadYear(roomId, y);
                 setMsg(`Updated ${res.updated} night${res.updated === 1 ? "" : "s"}.`);
               });
             }}
@@ -292,7 +337,8 @@ function EditPanel({
       <p className="text-sm font-bold text-neutral-800">Bulk edit</p>
       {!active ? (
         <p className="text-xs text-neutral-500 mt-2 leading-relaxed">
-          Click a start date, then an end date on the calendar to select a range, then set rates & availability here.
+          Click a start date, then an end date anywhere in the calendar — even a different month or
+          year — to select a range, then set rates &amp; availability here.
         </p>
       ) : (
         <>
