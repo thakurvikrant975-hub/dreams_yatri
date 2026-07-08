@@ -16,7 +16,7 @@ import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button"
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Textarea } from "@/app/(dashboard)/dashboard/(main)/components/ui/textarea";
 import { Badge } from "@/app/(dashboard)/dashboard/(main)/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/app/(dashboard)/dashboard/(main)/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/app/(dashboard)/dashboard/(main)/components/ui/tabs"; 
 import { Switch } from "@/app/(dashboard)/dashboard/(main)/components/ui/switch";
 import { SearchSelect, type Option } from "@/app/(dashboard)/dashboard/(main)/components/dashboard/SearchSelect";
 import { LocationSearchSelect } from "@/app/(dashboard)/dashboard/(main)/components/location/LocationSearchSelect";
