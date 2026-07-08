@@ -16,16 +16,25 @@ import { Textarea } from "@/app/(dashboard)/dashboard/(main)/components/ui/texta
 import { Badge } from "@/app/(dashboard)/dashboard/(main)/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/app/(dashboard)/dashboard/(main)/components/ui/tabs";
 import { Switch } from "@/app/(dashboard)/dashboard/(main)/components/ui/switch";
+import { SearchSelect, type Option } from "@/app/(dashboard)/dashboard/(main)/components/dashboard/SearchSelect";
 import { cn } from "@/app/lib/utils";
 import {
   getQueryDetail,
   saveCustomPackage,
   sendPackageToClient,
   getDestinationCoverImage,
+  getDestinationsForQuery,
+  getDestinationIdByName,
+  searchHotelRoomsForBuilder,
+  searchActivitiesForBuilder,
   type QueryDetail,
   type DayItinerary,
   type ActivityInput,
+  type StopInput,
+  type HotelRoomResult,
+  type ActivityResult,
 } from "../action";
+import type { DestinationOption } from "@/app/(dashboard)/dashboard/(main)/(marketing)/queries/actions";
 import { ItineraryDocument } from "./ItineraryDocument";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -175,8 +184,10 @@ function EditableList({ label, items, onChange, placeholder }: {
 // ─────────────────────────────────────────────────────────────────────────────
 // ActivityListEditor — per-activity title + description, add/remove
 // ─────────────────────────────────────────────────────────────────────────────
-function ActivityListEditor({ activities, onChange }: {
+function ActivityListEditor({ activities, location, destinationId, onChange }: {
   activities: ActivityInput[];
+  location?: string;
+  destinationId?: number | null;
   onChange: (v: ActivityInput[]) => void;
 }) {
   function addActivity() {
@@ -187,6 +198,26 @@ function ActivityListEditor({ activities, onChange }: {
   }
   function removeActivity(idx: number) {
     onChange(activities.filter((_, i) => i !== idx));
+  }
+
+  async function fetchActivityOptions(query: string): Promise<Option[]> {
+    if (!destinationId) return [];
+    const results = await searchActivitiesForBuilder(destinationId, query);
+    return results.map((r): Option & { raw: ActivityResult } => ({
+      id: r.id,
+      label: r.name,
+      description: [r.category, r.durationHours ? `${r.durationHours}h` : null].filter(Boolean).join(" · ") || undefined,
+      raw: r,
+    }));
+  }
+
+  function handleActivitySelect(_id: number | null, option?: Option) {
+    const raw = (option as (Option & { raw: ActivityResult }) | undefined)?.raw;
+    if (!raw) return;
+    onChange([...activities, {
+      title: raw.name,
+      description: [raw.category, raw.durationHours ? `${raw.durationHours}h` : null].filter(Boolean).join(" · "),
+    }]);
   }
 
   return (
@@ -202,9 +233,24 @@ function ActivityListEditor({ activities, onChange }: {
           onClick={addActivity}
           className="h-6 px-2 text-[11px] gap-1 border-dashboard-base-300 rounded-md"
         >
-          <Plus size={11} /> Add
+          <Plus size={11} /> Add Manually
         </Button>
       </div>
+      {location ? (
+        <div className="mb-2">
+          <SearchSelect
+            value={null}
+            onChange={handleActivitySelect}
+            fetchOptions={fetchActivityOptions}
+            placeholder={destinationId ? `Search activities in ${location}…` : "Loading destination…"}
+            disabled={!destinationId}
+          />
+        </div>
+      ) : (
+        <p className="text-[11px] text-dashboard-base-content/40 italic mb-2">
+          Add route stops in Package Details to search real activities here
+        </p>
+      )}
       <div className="space-y-2">
         {activities.map((a, idx) => (
           <div key={idx} className="rounded-lg border border-dashboard-base-300 p-2.5 space-y-1.5">
@@ -240,21 +286,137 @@ function ActivityListEditor({ activities, onChange }: {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// RouteStopsEditor — destination + nights per stop, like the packages route
+// builder. The parent recalculates total nights/days/destination from these.
+// ─────────────────────────────────────────────────────────────────────────────
+function RouteStopsEditor({ stops, destinationOptions, onChange }: {
+  stops: StopInput[];
+  destinationOptions: DestinationOption[];
+  onChange: (v: StopInput[]) => void;
+}) {
+  function addStop() {
+    onChange([...stops, { name: "", nights: 1 }]);
+  }
+  function updateStop(idx: number, patch: Partial<StopInput>) {
+    onChange(stops.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
+  }
+  function removeStop(idx: number) {
+    onChange(stops.filter((_, i) => i !== idx));
+  }
+
+  const totalNights = stops.reduce((sum, s) => sum + (s.nights || 0), 0);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <label className="text-xs font-medium text-dashboard-base-content/90 flex items-center gap-1">
+          <MapPin size={11} /> Route (Destinations & Nights)
+        </label>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={addStop}
+          className="h-6 px-2 text-[11px] gap-1 border-dashboard-base-300 rounded-md"
+        >
+          <Plus size={11} /> Add Stop
+        </Button>
+      </div>
+
+      <div className="space-y-2">
+        {stops.map((stop, idx) => (
+          <div key={idx} className="flex items-center gap-2">
+            <span className="shrink-0 text-xs font-semibold text-dashboard-base-content/40 w-4 text-center">{idx + 1}</span>
+            <Input
+              list="destination-catalog-options"
+              value={stop.name}
+              onChange={(e) => updateStop(idx, { name: e.target.value })}
+              placeholder="e.g. Manali"
+              className="text-sm h-8 flex-1 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+            />
+            <Input
+              type="number" min={0}
+              value={stop.nights}
+              onChange={(e) => updateStop(idx, { nights: +e.target.value })}
+              className="text-sm h-8 w-16 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+            />
+            <span className="text-[11px] text-dashboard-base-content/50 shrink-0 w-2">N</span>
+            <button
+              onClick={() => removeStop(idx)}
+              className="p-1.5 rounded hover:bg-dashboard-error/10 text-dashboard-error/70 hover:text-dashboard-error transition-colors shrink-0"
+            >
+              <Trash2 size={12} />
+            </button>
+          </div>
+        ))}
+        {stops.length === 0 && (
+          <p className="text-xs text-dashboard-base-content/40 italic">
+            No stops added — Duration & Destination(s) below stay manually editable.
+          </p>
+        )}
+      </div>
+
+      {stops.length > 0 && (
+        <p className="text-[11px] text-dashboard-base-content/50 mt-1.5">
+          Auto duration: <span className="font-semibold text-dashboard-base-content">{totalNights + 1}D / {totalNights}N</span> — syncs Duration & Destination(s) below
+        </p>
+      )}
+
+      <datalist id="destination-catalog-options">
+        {destinationOptions.map((d) => <option key={d.id} value={d.name} />)}
+      </datalist>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Day Itinerary Card
 // ─────────────────────────────────────────────────────────────────────────────
-function DayCard({ day, data, onChange, onRemove }: {
+function DayCard({ day, data, location, onChange, onRemove }: {
   day: number;
   data: DayItinerary;
+  location?: string;
   onChange: (d: DayItinerary) => void;
   onRemove: () => void;
 }) {
   const [open, setOpen] = useState(true);
+  const [destinationId, setDestinationId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!location) { setDestinationId(null); return; }
+    let cancelled = false;
+    getDestinationIdByName(location).then((id) => { if (!cancelled) setDestinationId(id); });
+    return () => { cancelled = true; };
+  }, [location]);
 
   function toggleMeal(m: string) {
     const meals = data.meals.includes(m)
       ? data.meals.filter((x) => x !== m)
       : [...data.meals, m];
     onChange({ ...data, meals });
+  }
+
+  async function fetchHotelRooms(query: string): Promise<Option[]> {
+    if (!destinationId) return [];
+    const results = await searchHotelRoomsForBuilder(destinationId, query);
+    return results.map((r): Option & { raw: HotelRoomResult } => ({
+      id: r.id,
+      label: `${r.hotelName} — ${r.roomName}`,
+      description: `₹${r.pricePerNight.toLocaleString("en-IN")}/night${r.mealPlanName ? ` · ${r.mealPlanName}` : ""}`,
+      thumbnail: r.thumbnail ?? undefined,
+      badge: r.category ?? undefined,
+      raw: r,
+    }));
+  }
+
+  function handleHotelRoomSelect(_id: number | null, option?: Option) {
+    const raw = (option as (Option & { raw: HotelRoomResult }) | undefined)?.raw;
+    if (!raw) return;
+    onChange({
+      ...data,
+      accommodation: `${raw.hotelName} — ${raw.roomName}`,
+      hotelMealPlan: raw.mealPlanName ?? data.hotelMealPlan,
+    });
   }
 
   return (
@@ -315,6 +477,24 @@ function DayCard({ day, data, onChange, onRemove }: {
             <label className="text-xs font-medium text-dashboard-base-content/90 flex items-center gap-1 block">
               <Hotel size={11} /> Hotel Info
             </label>
+            {location ? (
+              <div>
+                <SearchSelect
+                  value={null}
+                  onChange={handleHotelRoomSelect}
+                  fetchOptions={fetchHotelRooms}
+                  placeholder={destinationId ? `Search hotel rooms in ${location}…` : "Loading destination…"}
+                  disabled={!destinationId}
+                />
+                <p className="text-[10px] text-dashboard-base-content/40 mt-1">
+                  Searches real inventory in {location} — picking a result fills in the fields below
+                </p>
+              </div>
+            ) : (
+              <p className="text-[11px] text-dashboard-base-content/40 italic">
+                Add route stops in Package Details to search real hotel rooms here
+              </p>
+            )}
             <Input
               value={data.accommodation}
               onChange={(e) => onChange({ ...data, accommodation: e.target.value })}
@@ -395,6 +575,8 @@ function DayCard({ day, data, onChange, onRemove }: {
           {/* Activities */}
           <ActivityListEditor
             activities={data.activities}
+            location={location}
+            destinationId={destinationId}
             onChange={(activities) => onChange({ ...data, activities })}
           />
 
@@ -439,7 +621,38 @@ interface PackageForm {
   flightNotes: string;
   trainIncluded: boolean;
   trainNotes: string;
+  stops: StopInput[];
   itineraries: DayItinerary[];
+}
+
+/** Sum of stop nights → total nights/days + a joined destination string. */
+function recalcFromStops(stops: StopInput[]) {
+  const totalNights = stops.reduce((sum, s) => sum + (s.nights || 0), 0);
+  return {
+    totalNights,
+    totalDays: totalNights + 1,
+    destination: stops.map((s) => s.name).filter(Boolean).join(", "),
+  };
+}
+
+/**
+ * One location name per day, derived from the route stops' night counts —
+ * e.g. stops [Manali·2N, Shimla·1N] → [Manali, Manali, Shimla, Shimla] for a
+ * 4-day trip (the trailing day inherits the last stop, as the departure day).
+ * Powers the hotel/activity search scoping per day without a separate
+ * persisted "day → stop" mapping.
+ */
+function deriveDayLocations(stops: StopInput[], totalDays: number): string[] {
+  if (stops.length === 0) return Array(totalDays).fill("");
+  const locations: string[] = [];
+  for (const stop of stops) {
+    for (let i = 0; i < stop.nights && locations.length < totalDays; i++) {
+      locations.push(stop.name);
+    }
+  }
+  const lastStopName = stops[stops.length - 1]?.name ?? "";
+  while (locations.length < totalDays) locations.push(lastStopName);
+  return locations;
 }
 
 const emptyDay = (day: number): DayItinerary => ({
@@ -462,6 +675,7 @@ export default function PackageBuilderDetailPage() {
   const [packageId, setPackageId] = useState<string | null>(null);
   const [savedOk, setSavedOk] = useState(false);
   const [isFetchingCover, setIsFetchingCover] = useState(false);
+  const [destinationOptions, setDestinationOptions] = useState<DestinationOption[]>([]);
 
   const [isSaving, startSave] = useTransition();
   const [isSending, startSend] = useTransition();
@@ -479,8 +693,14 @@ export default function PackageBuilderDetailPage() {
     flightNotes: "",
     trainIncluded: false,
     trainNotes: "",
+    stops: [],
     itineraries: [emptyDay(1), emptyDay(2), emptyDay(3)],
   });
+
+  // ── Load destination catalog (for the route stop picker) ──────────────────
+  useEffect(() => {
+    getDestinationsForQuery().then(setDestinationOptions);
+  }, []);
 
   // ── Load query ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -521,6 +741,7 @@ export default function PackageBuilderDetailPage() {
           flightNotes: cp.flightNotes ?? "",
           trainIncluded: cp.trainIncluded,
           trainNotes: cp.trainNotes ?? "",
+          stops: cp.stops,
           itineraries: cp.itineraries.length > 0 ? cp.itineraries : f.itineraries,
         }));
       } else {
@@ -655,6 +876,8 @@ export default function PackageBuilderDetailPage() {
   const s = r?.stay;
   const tr = r?.transport;
   const ac = r?.activities;
+
+  const dayLocations = deriveDayLocations(form.stops, form.itineraries.length);
 
   // ─────────────────────────────────────────────────────────────────────────
   // Render
@@ -844,7 +1067,8 @@ export default function PackageBuilderDetailPage() {
                         value={form.destination}
                         onChange={field("destination")}
                         placeholder="Manali, Bhuntar, Kullu"
-                        className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                        disabled={form.stops.length > 0}
+                        className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md disabled:opacity-60"
                       />
                     </div>
                     <div>
@@ -872,12 +1096,13 @@ export default function PackageBuilderDetailPage() {
                           <Input
                             type="number" min={1}
                             value={form.totalDays}
+                            disabled={form.stops.length > 0}
                             onChange={(e) => setForm((f) => ({
                               ...f,
                               totalDays: +e.target.value,
                               totalNights: Math.max(0, +e.target.value - 1),
                             }))}
-                            className="text-sm h-9 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                            className="text-sm h-9 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md disabled:opacity-60"
                           />
                           <p className="text-xs text-dashboard-base-content/50 mt-0.5 text-center">Days</p>
                         </div>
@@ -885,12 +1110,24 @@ export default function PackageBuilderDetailPage() {
                           <Input
                             type="number" min={0}
                             value={form.totalNights}
+                            disabled={form.stops.length > 0}
                             onChange={(e) => setForm((f) => ({ ...f, totalNights: +e.target.value }))}
-                            className="text-sm h-9 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                            className="text-sm h-9 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md disabled:opacity-60"
                           />
                           <p className="text-xs text-dashboard-base-content/50 mt-0.5 text-center">Nights</p>
                         </div>
                       </div>
+                    </div>
+                    <div className="sm:col-span-2 pt-2 border-t border-dashboard-base-300">
+                      <RouteStopsEditor
+                        stops={form.stops}
+                        destinationOptions={destinationOptions}
+                        onChange={(stops) => setForm((f) => ({
+                          ...f,
+                          stops,
+                          ...(stops.length > 0 ? recalcFromStops(stops) : {}),
+                        }))}
+                      />
                     </div>
                   </div>
                 </div>
@@ -1004,6 +1241,7 @@ export default function PackageBuilderDetailPage() {
                     key={`day-${day.day}`}
                     day={day.day}
                     data={day}
+                    location={dayLocations[idx]}
                     onChange={(d) => updateDay(idx, d)}
                     onRemove={() => removeDay(idx)}
                   />

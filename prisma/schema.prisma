@@ -2296,11 +2296,28 @@ model custom_packages {
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
   itineraries     custom_itineraries[]
+  stops           custom_package_stops[]
   query           package_queries      @relation(fields: [queryId], references: [id])
 
   @@index([queryId])
   @@index([builtBy])
   @@index([status])
+}
+
+// A route stop within a custom package — e.g. "Manali, 2 nights" — used to
+// build the day count/destination summary from a sequence of places rather
+// than free-typing a single destination string and a raw night count.
+model custom_package_stops {
+  id              String          @id @default(cuid())
+  customPackageId String
+  name            String
+  nights          Int             @default(1)
+  sortOrder       Int             @default(0)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  package         custom_packages @relation(fields: [customPackageId], references: [id], onDelete: Cascade)
+
+  @@index([customPackageId])
 }
 
 model custom_itineraries {

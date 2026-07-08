@@ -1,8 +1,89 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getCurrentActor } from "@/app/(dashboard)/dashboard/(main)/(marketing)/queries/actions";
+import {
+  getCurrentActor,
+  getDestinationsForQuery as _getDestinationsForQuery,
+  type DestinationOption,
+} from "@/app/(dashboard)/dashboard/(main)/(marketing)/queries/actions";
+import {
+  handleSearchRoomPricings,
+  handleSearchActivities,
+} from "@/app/actions/packages/itinerary-builder.actions";
 import { db } from "@/app/lib/db";
+
+// Async wrapper re-export — "use server" files may only export async
+// functions, so a plain `export { X }` of an imported function isn't safe.
+export async function getDestinationsForQuery(): Promise<DestinationOption[]> {
+  return _getDestinationsForQuery();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Real hotel-room / activity search — reuses the same admin catalog search
+// used by the main package itinerary builder (app/actions/packages/
+// itinerary-builder.actions.ts), scoped to a destination only (no route/stop
+// context, since custom packages don't have package_itineraries/route_stops
+// rows) — so it always takes that function's destination-wide search path.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function getDestinationIdByName(name: string): Promise<number | null> {
+  const trimmed = name.split(",")[0]?.trim();
+  if (!trimmed) return null;
+
+  const destination =
+    (await db.destinations.findFirst({
+      where: { name: { equals: trimmed, mode: "insensitive" } },
+      select: { id: true },
+    })) ??
+    (await db.destinations.findFirst({
+      where: { name: { contains: trimmed, mode: "insensitive" } },
+      select: { id: true },
+    }));
+
+  return destination?.id ?? null;
+}
+
+export interface HotelRoomResult {
+  id:            number;
+  hotelName:     string;
+  roomName:      string;
+  mealPlanName:  string | null;
+  pricePerNight: number;
+  thumbnail:     string | null;
+  category:      string | null;
+}
+
+export async function searchHotelRoomsForBuilder(destinationId: number, query: string): Promise<HotelRoomResult[]> {
+  const result = await handleSearchRoomPricings(destinationId, query);
+  if (!result.success) return [];
+  return result.data.items.map((item) => ({
+    id:            item.id,
+    hotelName:     item.hotel.name,
+    roomName:      item.room?.name ?? "Room",
+    mealPlanName:  item.meal_type?.name ?? null,
+    pricePerNight: item.price_per_night,
+    thumbnail:     item.room?.images?.[0]?.thumbnail ?? item.room?.images?.[0]?.url ?? item.hotel.thumbnail ?? null,
+    category:      item.hotel.category,
+  }));
+}
+
+export interface ActivityResult {
+  id:            number;
+  name:          string;
+  category:      string | null;
+  durationHours: number | null;
+}
+
+export async function searchActivitiesForBuilder(destinationId: number, query: string): Promise<ActivityResult[]> {
+  const result = await handleSearchActivities(destinationId, query);
+  if (!result.success) return [];
+  return result.data.items.map((item) => ({
+    id:            item.id,
+    name:          item.name,
+    category:      item.category,
+    durationHours: item.duration_hours,
+  }));
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared Types (exported so pages can import them)
@@ -38,8 +119,15 @@ export interface QueryDetail extends QueryRow {
     flightNotes:     string | null;
     trainIncluded:   boolean;
     trainNotes:      string | null;
+    stops:           StopInput[];
     itineraries:     DayItinerary[];
   } | null;
+}
+
+export interface StopInput {
+  id?:     string;
+  name:    string;
+  nights:  number;
 }
 
 export interface ActivityInput {
@@ -87,6 +175,7 @@ export interface PackageInput {
   trainIncluded:   boolean;
   trainNotes:      string;
   status:          "DRAFT" | "READY";
+  stops:           StopInput[];
   itineraries:     DayItinerary[];
 }
 
@@ -218,6 +307,10 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
           flightNotes:     true,
           trainIncluded:   true,
           trainNotes:      true,
+          stops: {
+            orderBy: { sortOrder: "asc" },
+            select: { id: true, name: true, nights: true },
+          },
           itineraries: {
             orderBy: { day: "asc" },
             select: {
@@ -261,7 +354,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
       totalDays, totalNights, travelDate, adults, children, infants,
       pricePerPerson, totalPrice, currency, inclusions, exclusions,
       termsNotes, flightsIncluded, flightNotes, trainIncluded, trainNotes,
-      status, itineraries,
+      status, stops, itineraries,
     } = input;
 
     const { teamMemberId, teamMemberName } = await getCurrentActor();
@@ -324,6 +417,23 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         builtByName:     builtByName || null,
       },
     });
+
+    // Replace route stops — delete all then recreate (no nested children, so
+    // createMany is fine here, unlike itineraries below).
+    await db.custom_package_stops.deleteMany({
+      where: { customPackageId: pkg.id },
+    });
+    const namedStops = stops.filter((s) => s.name.trim());
+    if (namedStops.length > 0) {
+      await db.custom_package_stops.createMany({
+        data: namedStops.map((s, idx) => ({
+          customPackageId: pkg.id,
+          name:            s.name,
+          nights:          s.nights,
+          sortOrder:       idx,
+        })),
+      });
+    }
 
     // Replace itineraries (and their nested activities, via cascade) — delete
     // all then recreate. Nested `activities.create` needs one create per day
