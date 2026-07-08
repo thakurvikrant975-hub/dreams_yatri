@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useTransition } from "react";
 import { useParams } from "next/navigation";
+import Image from "next/image";
 import { toast } from "sonner";
 import {
   MapPin, Calendar, Users, Phone, Mail, Hotel, Car, Zap,
@@ -28,12 +29,14 @@ import {
   getDestinationCoverImage,
   searchHotelRoomsForBuilder,
   searchActivitiesForBuilder,
+  searchVehiclesForBuilder,
   type QueryDetail,
   type DayItinerary,
   type ActivityInput,
   type StopInput,
   type HotelRoomResult,
   type ActivityResult,
+  type VehicleResult,
   type PackageCopyPayload,
 } from "../action";
 import { ItineraryDocument } from "./ItineraryDocument";
@@ -183,7 +186,33 @@ function EditableList({ label, items, onChange, placeholder }: {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ActivityListEditor — per-activity title + description, add/remove
+// PhotoPreview — small thumbnail with a remove ("×") button, used for the
+// hotel/cab/activity picks below so a sales exec sees confirmation of what
+// was chosen instead of just text fields.
+// ─────────────────────────────────────────────────────────────────────────────
+function PhotoPreview({ src, alt, onRemove }: { src: string; alt: string; onRemove: () => void }) {
+  return (
+    <div className="relative inline-block shrink-0">
+      <Image
+        src={src}
+        alt={alt}
+        width={64}
+        height={48}
+        className="h-12 w-16 rounded-md object-cover border border-dashboard-base-300"
+      />
+      <button
+        type="button"
+        onClick={onRemove}
+        className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-dashboard-error text-white text-[10px] leading-none flex items-center justify-center hover:bg-dashboard-error/80"
+      >
+        ×
+      </button>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ActivityListEditor — per-activity title + description + photo, add/remove
 // ─────────────────────────────────────────────────────────────────────────────
 function ActivityListEditor({ activities, location, onChange }: {
   activities: ActivityInput[];
@@ -191,7 +220,7 @@ function ActivityListEditor({ activities, location, onChange }: {
   onChange: (v: ActivityInput[]) => void;
 }) {
   function addActivity() {
-    onChange([...activities, { title: "", description: "" }]);
+    onChange([...activities, { title: "", description: "", photo: "" }]);
   }
   function updateActivity(idx: number, patch: Partial<ActivityInput>) {
     onChange(activities.map((a, i) => (i === idx ? { ...a, ...patch } : a)));
@@ -207,6 +236,7 @@ function ActivityListEditor({ activities, location, onChange }: {
       id: r.id,
       label: r.name,
       description: [r.category, r.durationHours ? `${r.durationHours}h` : null].filter(Boolean).join(" · ") || undefined,
+      thumbnail: r.thumbnail ?? undefined,
       raw: r,
     }));
   }
@@ -217,6 +247,7 @@ function ActivityListEditor({ activities, location, onChange }: {
     onChange([...activities, {
       title: raw.name,
       description: [raw.category, raw.durationHours ? `${raw.durationHours}h` : null].filter(Boolean).join(" · "),
+      photo: raw.thumbnail ?? "",
     }]);
   }
 
@@ -253,27 +284,38 @@ function ActivityListEditor({ activities, location, onChange }: {
       <div className="space-y-2">
         {activities.map((a, idx) => (
           <div key={idx} className="rounded-lg border border-dashboard-base-300 p-2.5 space-y-1.5">
-            <div className="flex items-center gap-1.5">
-              <Input
-                value={a.title}
-                onChange={(e) => updateActivity(idx, { title: e.target.value })}
-                placeholder="Activity title, e.g. Paragliding"
-                className="text-sm h-8 flex-1 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-              />
-              <button
-                onClick={() => removeActivity(idx)}
-                className="p-1.5 rounded hover:bg-dashboard-error/10 text-dashboard-error/70 hover:text-dashboard-error transition-colors shrink-0"
-              >
-                <Trash2 size={12} />
-              </button>
+            <div className="flex items-start gap-1.5">
+              {a.photo && (
+                <PhotoPreview
+                  src={a.photo}
+                  alt={a.title || "Activity"}
+                  onRemove={() => updateActivity(idx, { photo: "" })}
+                />
+              )}
+              <div className="flex-1 space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    value={a.title}
+                    onChange={(e) => updateActivity(idx, { title: e.target.value })}
+                    placeholder="Activity title, e.g. Paragliding"
+                    className="text-sm h-8 flex-1 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                  />
+                  <button
+                    onClick={() => removeActivity(idx)}
+                    className="p-1.5 rounded hover:bg-dashboard-error/10 text-dashboard-error/70 hover:text-dashboard-error transition-colors shrink-0"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+                <Textarea
+                  value={a.description}
+                  onChange={(e) => updateActivity(idx, { description: e.target.value })}
+                  placeholder="Short description of the experience…"
+                  rows={2}
+                  className="text-xs resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                />
+              </div>
             </div>
-            <Textarea
-              value={a.description}
-              onChange={(e) => updateActivity(idx, { description: e.target.value })}
-              placeholder="Short description of the experience…"
-              rows={2}
-              className="text-xs resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-            />
           </div>
         ))}
         {activities.length === 0 && (
@@ -412,6 +454,18 @@ function DayCard({ day, data, location, onChange, onRemove }: {
 }) {
   const [open, setOpen] = useState(true);
 
+  // Defaults to the day's auto-derived stop, but stays editable — lets a
+  // sales exec search hotels/activities in a different city than the one
+  // the route stops assigned this day to (e.g. no real inventory there yet).
+  // Resets on every distinct `location` prop change (adjusting state during
+  // render, per React's guidance, rather than via a setState-in-effect).
+  const [searchCity, setSearchCity] = useState(location ?? "");
+  const [prevLocation, setPrevLocation] = useState(location);
+  if (location !== prevLocation) {
+    setPrevLocation(location);
+    setSearchCity(location ?? "");
+  }
+
   function toggleMeal(m: string) {
     const meals = data.meals.includes(m)
       ? data.meals.filter((x) => x !== m)
@@ -420,8 +474,8 @@ function DayCard({ day, data, location, onChange, onRemove }: {
   }
 
   async function fetchHotelRooms(query: string): Promise<Option[]> {
-    if (!location) return [];
-    const results = await searchHotelRoomsForBuilder(location, query);
+    if (!searchCity) return [];
+    const results = await searchHotelRoomsForBuilder(searchCity, query);
     return results.map((r): Option & { raw: HotelRoomResult } => ({
       id: r.id,
       label: `${r.hotelName} — ${r.roomName}`,
@@ -438,7 +492,29 @@ function DayCard({ day, data, location, onChange, onRemove }: {
     onChange({
       ...data,
       accommodation: `${raw.hotelName} — ${raw.roomName}`,
+      accommodationPhoto: raw.thumbnail ?? data.accommodationPhoto,
       hotelMealPlan: raw.mealPlanName ?? data.hotelMealPlan,
+    });
+  }
+
+  async function fetchVehicleOptions(query: string): Promise<Option[]> {
+    const results = await searchVehiclesForBuilder(query);
+    return results.map((v): Option & { raw: VehicleResult } => ({
+      id: v.id,
+      label: v.name,
+      description: `${CAB_LABELS[v.type] ?? v.type} · ${v.passengerCapacity} seats${v.hasAc ? " · AC" : ""}`,
+      thumbnail: v.thumbnail ?? undefined,
+      raw: v,
+    }));
+  }
+
+  function handleVehicleSelect(_id: number | null, option?: Option) {
+    const raw = (option as (Option & { raw: VehicleResult }) | undefined)?.raw;
+    if (!raw) return;
+    onChange({
+      ...data,
+      transport: `${raw.name} (${CAB_LABELS[raw.type] ?? raw.type})`,
+      transportPhoto: raw.thumbnail ?? data.transportPhoto,
     });
   }
 
@@ -500,22 +576,40 @@ function DayCard({ day, data, location, onChange, onRemove }: {
             <label className="text-xs font-medium text-dashboard-base-content/90 flex items-center gap-1 block">
               <Hotel size={11} /> Hotel Info
             </label>
-            {location ? (
-              <div>
-                <SearchSelect
-                  value={null}
-                  onChange={handleHotelRoomSelect}
-                  fetchOptions={fetchHotelRooms}
-                  placeholder={`Search hotel rooms in ${location}…`}
-                />
-                <p className="text-[10px] text-dashboard-base-content/40 mt-1">
-                  Searches real inventory in {location} — picking a result fills in the fields below
+            <div>
+              <label className="text-[11px] text-dashboard-base-content/60 mb-1 block">
+                Search location (city) — defaults to this day&apos;s stop, editable
+              </label>
+              <Input
+                value={searchCity}
+                onChange={(e) => setSearchCity(e.target.value)}
+                placeholder="e.g. Manali"
+                className="text-sm h-8 mb-2 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+              />
+              {searchCity ? (
+                <>
+                  <SearchSelect
+                    value={null}
+                    onChange={handleHotelRoomSelect}
+                    fetchOptions={fetchHotelRooms}
+                    placeholder={`Search hotel rooms in ${searchCity}…`}
+                  />
+                  <p className="text-[10px] text-dashboard-base-content/40 mt-1">
+                    Searches real inventory in {searchCity} — picking a result fills in the fields below
+                  </p>
+                </>
+              ) : (
+                <p className="text-[11px] text-dashboard-base-content/40 italic">
+                  Enter a city above to search real hotel rooms
                 </p>
-              </div>
-            ) : (
-              <p className="text-[11px] text-dashboard-base-content/40 italic">
-                Add route stops in Package Details to search real hotel rooms here
-              </p>
+              )}
+            </div>
+            {data.accommodationPhoto && (
+              <PhotoPreview
+                src={data.accommodationPhoto}
+                alt={data.accommodation || "Hotel"}
+                onRemove={() => onChange({ ...data, accommodationPhoto: "" })}
+              />
             )}
             <Input
               value={data.accommodation}
@@ -563,6 +657,23 @@ function DayCard({ day, data, location, onChange, onRemove }: {
             <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 flex items-center gap-1 block">
               <Car size={11} /> Transport
             </label>
+            <div className="mb-2">
+              <SearchSelect
+                value={null}
+                onChange={handleVehicleSelect}
+                fetchOptions={fetchVehicleOptions}
+                placeholder="Search cab / vehicle fleet…"
+              />
+            </div>
+            {data.transportPhoto && (
+              <div className="mb-2">
+                <PhotoPreview
+                  src={data.transportPhoto}
+                  alt={data.transport || "Vehicle"}
+                  onRemove={() => onChange({ ...data, transportPhoto: "" })}
+                />
+              </div>
+            )}
             <Input
               value={data.transport}
               onChange={(e) => onChange({ ...data, transport: e.target.value })}
@@ -597,7 +708,7 @@ function DayCard({ day, data, location, onChange, onRemove }: {
           {/* Activities */}
           <ActivityListEditor
             activities={data.activities}
-            location={location}
+            location={searchCity}
             onChange={(activities) => onChange({ ...data, activities })}
           />
 
@@ -678,8 +789,8 @@ function deriveDayLocations(stops: StopInput[], totalDays: number): string[] {
 
 const emptyDay = (day: number): DayItinerary => ({
   day, title: "", description: "", activities: [],
-  meals: [], accommodation: "", hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
-  transport: "", notes: "",
+  meals: [], accommodation: "", accommodationPhoto: "", hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
+  transport: "", transportPhoto: "", notes: "",
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

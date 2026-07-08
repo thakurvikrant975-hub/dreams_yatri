@@ -83,6 +83,7 @@ export interface ActivityResult {
   name:          string;
   category:      string | null;
   durationHours: number | null;
+  thumbnail:     string | null;
 }
 
 export async function searchActivitiesForBuilder(cityOrDestinationName: string, query: string): Promise<ActivityResult[]> {
@@ -101,16 +102,62 @@ export async function searchActivitiesForBuilder(cityOrDestinationName: string, 
     select: {
       id: true, name: true, duration_hours: true,
       category: { select: { name: true } },
+      images: {
+        select: { url: true, thumbnail: true },
+        orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
+        take: 1,
+      },
     },
     take: 20,
     orderBy: { name: "asc" },
   });
 
-  return list.map((a) => ({
-    id:            a.id,
-    name:          a.name,
-    category:      a.category?.name ?? null,
-    durationHours: a.duration_hours != null ? Number(a.duration_hours) : null,
+  return list.map((a) => {
+    const rawThumbnail = a.images[0]?.thumbnail ?? a.images[0]?.url ?? null;
+    return {
+      id:            a.id,
+      name:          a.name,
+      category:      a.category?.name ?? null,
+      durationHours: a.duration_hours != null ? Number(a.duration_hours) : null,
+      thumbnail:     rawThumbnail ? getThumbnailImage(rawThumbnail) : null,
+    };
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Vehicle/cab search — not city-scoped (unlike hotels/activities): vehicles
+// are a shared fleet catalog, not tied to a single destination.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface VehicleResult {
+  id:                number;
+  name:              string;
+  type:              string;
+  passengerCapacity: number;
+  hasAc:             boolean;
+  thumbnail:         string | null;
+}
+
+export async function searchVehiclesForBuilder(query: string): Promise<VehicleResult[]> {
+  const list = await db.vehicles.findMany({
+    where: {
+      is_active: true,
+      ...(query ? { name: { contains: query, mode: "insensitive" } } : {}),
+    },
+    select: {
+      id: true, name: true, type: true, passenger_capacity: true, has_ac: true, image_key: true,
+    },
+    take: 20,
+    orderBy: { name: "asc" },
+  });
+
+  return list.map((v) => ({
+    id:                v.id,
+    name:              v.name,
+    type:              v.type,
+    passengerCapacity: v.passenger_capacity,
+    hasAc:             v.has_ac,
+    thumbnail:         v.image_key ? getThumbnailImage(v.image_key) : null,
   }));
 }
 
@@ -163,21 +210,24 @@ export interface ActivityInput {
   id?:          string;
   title:        string;
   description:  string;
+  photo:        string;
 }
 
 export interface DayItinerary {
-  id?:            string;
-  day:            number;
-  title:          string;
-  description:    string;
-  activities:     ActivityInput[];
-  meals:          string[];
-  accommodation:  string;
-  hotelCheckIn:   string;
-  hotelCheckOut:  string;
-  hotelMealPlan:  string;
-  transport:      string;
-  notes:          string;
+  id?:                string;
+  day:                number;
+  title:              string;
+  description:        string;
+  activities:         ActivityInput[];
+  meals:              string[];
+  accommodation:      string;
+  accommodationPhoto: string;
+  hotelCheckIn:       string;
+  hotelCheckOut:      string;
+  hotelMealPlan:      string;
+  transport:          string;
+  transportPhoto:     string;
+  notes:              string;
 }
 
 export interface PackageInput {
@@ -259,21 +309,30 @@ export async function copyPackageIntoDraft(
       transfer?.pickup_name && transfer?.drop_name ? `${transfer.pickup_name} → ${transfer.drop_name}` : null,
     ].filter((p): p is string => !!p);
 
+    const rawHotelPhoto = day.hotel?.room_images?.[0]?.thumbnail ?? day.hotel?.room_images?.[0]?.url
+      ?? day.hotel?.images?.[0]?.thumbnail ?? day.hotel?.images?.[0]?.url ?? null;
+
     return {
-      day:           day.day,
-      title:         day.title,
-      description:   day.description ?? "",
-      activities:    day.activities.map((a) => ({
-        title:       a.name,
-        description: a.description ?? "",
-      })),
-      meals:         day.meals,
-      accommodation: day.hotel ? [day.hotel.name, day.hotel.room_name].filter(Boolean).join(" — ") : "",
-      hotelCheckIn:  day.hotel?.check_in_time ?? "",
-      hotelCheckOut: day.hotel?.check_out_time ?? "",
-      hotelMealPlan: day.hotel?.plan_name ?? day.hotel?.meal_type ?? "",
-      transport:     transportParts.join(" · "),
-      notes:         day.notes.map((n) => n.message).join(" "),
+      day:                day.day,
+      title:              day.title,
+      description:        day.description ?? "",
+      activities:         day.activities.map((a) => {
+        const rawActivityPhoto = a.images?.[0]?.thumbnail ?? a.images?.[0]?.url ?? null;
+        return {
+          title:       a.name,
+          description: a.description ?? "",
+          photo:       rawActivityPhoto ? getThumbnailImage(rawActivityPhoto) : "",
+        };
+      }),
+      meals:              day.meals,
+      accommodation:      day.hotel ? [day.hotel.name, day.hotel.room_name].filter(Boolean).join(" — ") : "",
+      accommodationPhoto: rawHotelPhoto ? getThumbnailImage(rawHotelPhoto) : "",
+      hotelCheckIn:       day.hotel?.check_in_time ?? "",
+      hotelCheckOut:      day.hotel?.check_out_time ?? "",
+      hotelMealPlan:      day.hotel?.plan_name ?? day.hotel?.meal_type ?? "",
+      transport:          transportParts.join(" · "),
+      transportPhoto:     transfer?.vehicle_image_key ? getThumbnailImage(transfer.vehicle_image_key) : "",
+      notes:              day.notes.map((n) => n.message).join(" "),
     };
   });
 
@@ -428,20 +487,22 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
           itineraries: {
             orderBy: { day: "asc" },
             select: {
-              id:            true,
-              day:           true,
-              title:         true,
-              description:   true,
-              meals:         true,
-              accommodation: true,
-              hotelCheckIn:  true,
-              hotelCheckOut: true,
-              hotelMealPlan: true,
-              transport:     true,
-              notes:         true,
+              id:                 true,
+              day:                true,
+              title:              true,
+              description:        true,
+              meals:              true,
+              accommodation:      true,
+              accommodationPhoto: true,
+              hotelCheckIn:       true,
+              hotelCheckOut:      true,
+              hotelMealPlan:      true,
+              transport:          true,
+              transportPhoto:     true,
+              notes:              true,
               activities: {
                 orderBy: { sortOrder: "asc" },
-                select: { id: true, title: true, description: true },
+                select: { id: true, title: true, description: true, photo: true },
               },
             },
           },
@@ -561,23 +622,26 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         itineraries.map((it) =>
           db.custom_itineraries.create({
             data: {
-              customPackageId: pkg.id,
-              day:             it.day,
-              title:           it.title,
-              description:     it.description || null,
-              meals:           it.meals,
-              accommodation:   it.accommodation || null,
-              hotelCheckIn:    it.hotelCheckIn || null,
-              hotelCheckOut:   it.hotelCheckOut || null,
-              hotelMealPlan:   it.hotelMealPlan || null,
-              transport:       it.transport || null,
-              notes:           it.notes || null,
+              customPackageId:    pkg.id,
+              day:                it.day,
+              title:              it.title,
+              description:        it.description || null,
+              meals:              it.meals,
+              accommodation:      it.accommodation || null,
+              accommodationPhoto: it.accommodationPhoto || null,
+              hotelCheckIn:       it.hotelCheckIn || null,
+              hotelCheckOut:      it.hotelCheckOut || null,
+              hotelMealPlan:      it.hotelMealPlan || null,
+              transport:          it.transport || null,
+              transportPhoto:     it.transportPhoto || null,
+              notes:              it.notes || null,
               activities: {
                 create: it.activities
                   .filter((a) => a.title.trim())
                   .map((a, idx) => ({
                     title:       a.title,
                     description: a.description || null,
+                    photo:       a.photo || null,
                     sortOrder:   idx,
                   })),
               },

@@ -46,9 +46,14 @@ function ActivityRow({ activity }: { activity: ActivityInput }) {
   if (!activity.title.trim()) return null;
   return (
     <div className="flex gap-2.5">
-      <span className="flex items-center justify-center size-5 rounded-full bg-primary-100 text-primary-600 shrink-0 mt-0.5">
-        <Sparkles size={11} />
-      </span>
+      {activity.photo ? (
+        /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
+        <img src={activity.photo} alt="" className="size-10 rounded-lg object-cover shrink-0" />
+      ) : (
+        <span className="flex items-center justify-center size-5 rounded-full bg-primary-100 text-primary-600 shrink-0 mt-0.5">
+          <Sparkles size={11} />
+        </span>
+      )}
       <div>
         <p className="text-xs font-semibold text-neutral-800">{activity.title}</p>
         {activity.description && (
@@ -86,11 +91,17 @@ function DayCardPreview({ day }: { day: DayItinerary }) {
         {/* Hotel info */}
         {hasHotel && (
           <div className="rounded-lg bg-primary-50/60 border border-primary-100 p-2.5 space-y-1.5">
-            <div className="flex items-center gap-1.5">
-              <Hotel size={12} className="text-primary-600 shrink-0" />
-              <p className="text-xs font-semibold text-neutral-800">
-                {day.accommodation || "Hotel (TBD)"}
-              </p>
+            <div className="flex items-center gap-2">
+              {day.accommodationPhoto && (
+                /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
+                <img src={day.accommodationPhoto} alt="" className="h-10 w-14 rounded-md object-cover shrink-0" />
+              )}
+              <div className="flex items-center gap-1.5">
+                <Hotel size={12} className="text-primary-600 shrink-0" />
+                <p className="text-xs font-semibold text-neutral-800">
+                  {day.accommodation || "Hotel (TBD)"}
+                </p>
+              </div>
             </div>
             {(day.hotelCheckIn || day.hotelCheckOut) && (
               <div className="flex items-center gap-4 text-[11px] text-neutral-500 pl-4.5">
@@ -110,8 +121,18 @@ function DayCardPreview({ day }: { day: DayItinerary }) {
 
         {/* Transport + meals */}
         {(day.transport || day.meals.length > 0) && (
-          <div className="flex flex-wrap gap-3 text-xs text-neutral-600">
-            {day.transport && <span className="flex items-center gap-1"><Car size={11} className="text-primary-500" /> {day.transport}</span>}
+          <div className="flex flex-wrap items-center gap-3 text-xs text-neutral-600">
+            {day.transport && (
+              <span className="flex items-center gap-1.5">
+                {day.transportPhoto ? (
+                  /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
+                  <img src={day.transportPhoto} alt="" className="h-6 w-9 rounded object-cover shrink-0" />
+                ) : (
+                  <Car size={11} className="text-primary-500" />
+                )}
+                {day.transport}
+              </span>
+            )}
             {day.meals.length > 0 && <span className="flex items-center gap-1"><Utensils size={11} className="text-primary-500" /> {day.meals.join(", ")}</span>}
           </div>
         )}

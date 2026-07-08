@@ -2328,10 +2328,12 @@ model custom_itineraries {
   description     String?
   meals           String[]
   accommodation   String?
+  accommodationPhoto String?
   hotelCheckIn    String?
   hotelCheckOut   String?
   hotelMealPlan   String?
   transport       String?
+  transportPhoto  String?
   notes           String?
   createdAt       DateTime                      @default(now())
   updatedAt       DateTime                      @updatedAt
@@ -2347,6 +2349,7 @@ model custom_itinerary_activities {
   itineraryId String
   title       String
   description String?
+  photo       String?
   sortOrder   Int                @default(0)
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
