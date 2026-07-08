@@ -8,6 +8,7 @@
 // exec can reference or share a premade package.
 
 import { db } from "@/app/lib/db";
+import { fetchPackagePageData } from "@/app/actions/packages/fetch-page-data";
 
 export type LibraryPackage = {
     id:              number;
@@ -73,4 +74,46 @@ export async function getDestinationsForLibraryFilter(): Promise<DestinationFilt
         select:  { id: true, name: true },
         orderBy: { name: "asc" },
     });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// "Use It" — variant picker options (duration/route/stay-category) for a
+// package, so a sales exec can choose which version to copy before it's
+// dropped into their custom itinerary draft.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PackageVariantOptions = {
+    packageId:         number;
+    durations:         { slug: string; label: string; days: number; nights: number; isDefault: boolean }[];
+    routes:            { slug: string; name: string }[];
+    stayCategories:    { slug: string; label: string }[];
+    selectedDurationSlug: string;
+    selectedRouteSlug:    string;
+    selectedStaySlug:     string;
+};
+
+/**
+ * Loads the picker options for one duration of a package. Passing an empty
+ * routeSlug/staySlug lets fetchPackagePageData resolve sensible defaults
+ * (first route, default stay category) — same fallback the live package page
+ * itself relies on.
+ */
+export async function getPackageVariantOptions(
+    packageSlug:  string,
+    durationSlug: string,
+): Promise<PackageVariantOptions | null> {
+    const data = await fetchPackagePageData(packageSlug, durationSlug, "", "");
+    if (!data) return null;
+
+    return {
+        packageId: data.id,
+        durations: data.durations.map((d) => ({
+            slug: d.slug, label: d.label, days: d.days, nights: d.nights, isDefault: d.is_default,
+        })),
+        routes: data.currentDuration.routes.map((r) => ({ slug: r.slug, name: r.name })),
+        stayCategories: data.stay_categories.map((s) => ({ slug: s.slug, label: s.label })),
+        selectedDurationSlug: data.currentDuration.slug,
+        selectedRouteSlug:    data.selectedRoute?.slug ?? "",
+        selectedStaySlug:     data.selectedStay?.slug ?? "",
+    };
 }

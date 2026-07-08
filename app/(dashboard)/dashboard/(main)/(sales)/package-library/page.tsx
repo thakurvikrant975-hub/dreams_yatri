@@ -11,6 +11,7 @@ import { getSalesPackageLibrary, getDestinationsForLibraryFilter } from "./actio
 import { PackageLibraryClient } from "./PackageLibraryClient";
 import type { Metadata } from "next";
 import { PageHeader } from "../../components/dashboard/PageHeader";
+import { getPackageBuilderQueries } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 
 export const dynamic = "force-dynamic";
 
@@ -43,11 +44,18 @@ function LibrarySkeleton() {
 }
 
 async function PackageLibraryData() {
-    const [packages, destinations] = await Promise.all([
+    const [packages, destinations, pendingQueriesPage] = await Promise.all([
         getSalesPackageLibrary(),
         getDestinationsForLibraryFilter(),
+        getPackageBuilderQueries({ size: 100 }),
     ]);
-    return <PackageLibraryClient packages={packages} destinations={destinations} />;
+    return (
+        <PackageLibraryClient
+            packages={packages}
+            destinations={destinations}
+            pendingQueries={pendingQueriesPage.queries}
+        />
+    );
 }
 
 export default function PackageLibraryPage() {

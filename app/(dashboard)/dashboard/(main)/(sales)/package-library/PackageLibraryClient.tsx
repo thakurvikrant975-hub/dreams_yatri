@@ -3,8 +3,9 @@
 import { useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { MapPin, ExternalLink, Search, ImageOff } from "lucide-react";
+import { MapPin, ExternalLink, Search, ImageOff, Sparkles } from "lucide-react";
 import { Input } from "../../components/ui/input";
+import { Button } from "../../components/ui/button";
 import {
     Select, SelectContent, SelectItem,
     SelectTrigger, SelectValue,
@@ -12,13 +13,18 @@ import {
 import { Badge } from "../../components/ui/badge";
 import { TableEmptyState } from "../../components/dashboard/TableEmptyState";
 import type { LibraryPackage, DestinationFilterOption } from "./actions";
+import type { QueryRow } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
+import { UsePackageDialog } from "./UsePackageDialog";
+import { getCardImage } from "@/app/lib/imageUrl";
 
 export function PackageLibraryClient({
     packages,
     destinations,
+    pendingQueries,
 }: {
-    packages:     LibraryPackage[];
-    destinations: DestinationFilterOption[];
+    packages:       LibraryPackage[];
+    destinations:   DestinationFilterOption[];
+    pendingQueries: QueryRow[];
 }) {
     const [search, setSearch] = useState("");
     const [destinationId, setDestinationId] = useState<string>("all");
@@ -75,7 +81,7 @@ export function PackageLibraryClient({
                             >
                                 <div className="h-36 bg-dashboard-base-200 relative">
                                     {pkg.thumbnail ? (
-                                        <Image src={pkg.thumbnail} alt={pkg.title} fill className="object-cover" />
+                                        <Image src={getCardImage(pkg.thumbnail)} alt={pkg.title} fill className="object-cover" />
                                     ) : (
                                         <div className="h-full w-full flex items-center justify-center text-dashboard-base-content/30">
                                             <ImageOff size={22} />
@@ -91,14 +97,21 @@ export function PackageLibraryClient({
                                     {pkg.description && (
                                         <p className="text-xs text-dashboard-base-content/50 line-clamp-2">{pkg.description}</p>
                                     )}
-                                    <Link
-                                        href={liveUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1 text-xs font-medium text-dashboard-primary hover:underline pt-1"
-                                    >
-                                        View live package <ExternalLink size={11} />
-                                    </Link>
+                                    <div className="flex items-center justify-between gap-2 pt-1">
+                                        <Link
+                                            href={liveUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1 text-xs font-medium text-dashboard-primary hover:underline"
+                                        >
+                                            View live <ExternalLink size={11} />
+                                        </Link>
+                                        <UsePackageDialog pkg={pkg} pendingQueries={pendingQueries}>
+                                            <Button size="sm" className="h-7 gap-1 text-xs rounded-md">
+                                                <Sparkles size={11} /> Use It
+                                            </Button>
+                                        </UsePackageDialog>
+                                    </div>
                                 </div>
                             </div>
                         );

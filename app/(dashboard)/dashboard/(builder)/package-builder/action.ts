@@ -1,47 +1,36 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import {
-  getCurrentActor,
-  getDestinationsForQuery as _getDestinationsForQuery,
-  type DestinationOption,
-} from "@/app/(dashboard)/dashboard/(main)/(marketing)/queries/actions";
-import {
-  handleSearchRoomPricings,
-  handleSearchActivities,
-} from "@/app/actions/packages/itinerary-builder.actions";
+import { getCurrentActor } from "@/app/(dashboard)/dashboard/(main)/(marketing)/queries/actions";
+import { fetchPackagePageData } from "@/app/actions/packages/fetch-page-data";
+import { getHeroImage, getThumbnailImage } from "@/app/lib/imageUrl";
 import { db } from "@/app/lib/db";
 
-// Async wrapper re-export — "use server" files may only export async
-// functions, so a plain `export { X }` of an imported function isn't safe.
-export async function getDestinationsForQuery(): Promise<DestinationOption[]> {
-  return _getDestinationsForQuery();
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
-// Real hotel-room / activity search — reuses the same admin catalog search
-// used by the main package itinerary builder (app/actions/packages/
-// itinerary-builder.actions.ts), scoped to a destination only (no route/stop
-// context, since custom packages don't have package_itineraries/route_stops
-// rows) — so it always takes that function's destination-wide search path.
+// Real hotel-room / activity search, scoped by city name.
+//
+// Note: real hotel/activity rows in this catalog are keyed by the free-text
+// `city` field, not `destination_id` (that FK is only populated on a handful
+// of test rows) — so unlike the admin package-builder's search (which filters
+// by destination_id), this searches `city` directly against the route stop's
+// name, with destination.name as a secondary match for any rows that *do*
+// have destination_id set. Hotels are restricted to LIVE listings only, since
+// this assigns real inventory straight into a document sent to a client.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function getDestinationIdByName(name: string): Promise<number | null> {
-  const trimmed = name.split(",")[0]?.trim();
-  if (!trimmed) return null;
-
-  const destination =
-    (await db.destinations.findFirst({
-      where: { name: { equals: trimmed, mode: "insensitive" } },
-      select: { id: true },
-    })) ??
-    (await db.destinations.findFirst({
-      where: { name: { contains: trimmed, mode: "insensitive" } },
-      select: { id: true },
-    }));
-
-  return destination?.id ?? null;
-}
+const HOTEL_ROOM_SELECT = {
+  id: true,
+  plan_name: true,
+  price_per_night: true,
+  meal_type: { select: { name: true } },
+  hotel: { select: { name: true, category: true, thumbnail: true } },
+  room: {
+    select: {
+      name: true,
+      images: { select: { url: true, thumbnail: true }, orderBy: { sort_order: "asc" as const }, take: 1 },
+    },
+  },
+} as const;
 
 export interface HotelRoomResult {
   id:            number;
@@ -53,18 +42,40 @@ export interface HotelRoomResult {
   category:      string | null;
 }
 
-export async function searchHotelRoomsForBuilder(destinationId: number, query: string): Promise<HotelRoomResult[]> {
-  const result = await handleSearchRoomPricings(destinationId, query);
-  if (!result.success) return [];
-  return result.data.items.map((item) => ({
-    id:            item.id,
-    hotelName:     item.hotel.name,
-    roomName:      item.room?.name ?? "Room",
-    mealPlanName:  item.meal_type?.name ?? null,
-    pricePerNight: item.price_per_night,
-    thumbnail:     item.room?.images?.[0]?.thumbnail ?? item.room?.images?.[0]?.url ?? item.hotel.thumbnail ?? null,
-    category:      item.hotel.category,
-  }));
+export async function searchHotelRoomsForBuilder(cityOrDestinationName: string, query: string): Promise<HotelRoomResult[]> {
+  const city = cityOrDestinationName.split(",")[0]?.trim();
+  if (!city) return [];
+
+  const list = await db.hotel_room_pricing.findMany({
+    where: {
+      is_active: true,
+      hotel: {
+        is_active: true,
+        listing_status: "LIVE",
+        OR: [
+          { city: { contains: city, mode: "insensitive" } },
+          { destination: { name: { contains: city, mode: "insensitive" } } },
+        ],
+        ...(query ? { name: { contains: query, mode: "insensitive" } } : {}),
+      },
+    },
+    select: HOTEL_ROOM_SELECT,
+    take: 20,
+    orderBy: [{ hotel: { name: "asc" } }, { sort_order: "asc" }],
+  });
+
+  return list.map((item) => {
+    const rawThumbnail = item.room?.images?.[0]?.thumbnail ?? item.room?.images?.[0]?.url ?? item.hotel.thumbnail ?? null;
+    return {
+      id:            item.id,
+      hotelName:     item.hotel.name,
+      roomName:      item.room?.name ?? "Room",
+      mealPlanName:  item.meal_type?.name ?? null,
+      pricePerNight: Number(item.price_per_night),
+      thumbnail:     rawThumbnail ? getThumbnailImage(rawThumbnail) : null,
+      category:      item.hotel.category,
+    };
+  });
 }
 
 export interface ActivityResult {
@@ -74,14 +85,32 @@ export interface ActivityResult {
   durationHours: number | null;
 }
 
-export async function searchActivitiesForBuilder(destinationId: number, query: string): Promise<ActivityResult[]> {
-  const result = await handleSearchActivities(destinationId, query);
-  if (!result.success) return [];
-  return result.data.items.map((item) => ({
-    id:            item.id,
-    name:          item.name,
-    category:      item.category,
-    durationHours: item.duration_hours,
+export async function searchActivitiesForBuilder(cityOrDestinationName: string, query: string): Promise<ActivityResult[]> {
+  const city = cityOrDestinationName.split(",")[0]?.trim();
+  if (!city) return [];
+
+  const list = await db.activities.findMany({
+    where: {
+      is_active: true,
+      OR: [
+        { city: { contains: city, mode: "insensitive" } },
+        { destination: { name: { contains: city, mode: "insensitive" } } },
+      ],
+      ...(query ? { name: { contains: query, mode: "insensitive" } } : {}),
+    },
+    select: {
+      id: true, name: true, duration_hours: true,
+      category: { select: { name: true } },
+    },
+    take: 20,
+    orderBy: { name: "asc" },
+  });
+
+  return list.map((a) => ({
+    id:            a.id,
+    name:          a.name,
+    category:      a.category?.name ?? null,
+    durationHours: a.duration_hours != null ? Number(a.duration_hours) : null,
   }));
 }
 
@@ -187,6 +216,90 @@ export interface PaginatedQueries {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// "Use It" — copy a real catalog package's content into a draft-shaped
+// payload the builder form can merge in directly. Deliberately leaves out
+// anything traveller/query-specific (travelDate, adults/children/infants,
+// pricing, flight/train inclusion, status) — those belong to the actual
+// lead, not the catalog package, so copying-in shouldn't overwrite them.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface PackageCopyPayload {
+  title:         string;
+  description:   string;
+  coverImage:    string;
+  destination:   string;
+  startingPoint: string;
+  totalDays:     number;
+  totalNights:   number;
+  inclusions:    string[];
+  exclusions:    string[];
+  termsNotes:    string;
+  stops:         StopInput[];
+  itineraries:   DayItinerary[];
+}
+
+export async function copyPackageIntoDraft(
+  packageSlug:  string,
+  durationSlug: string,
+  routeSlug:    string,
+  staySlug:     string,
+): Promise<PackageCopyPayload | null> {
+  const data = await fetchPackagePageData(packageSlug, durationSlug, routeSlug, staySlug);
+  if (!data) return null;
+
+  const stops: StopInput[] = (data.selectedRoute?.stops ?? []).map((s) => ({
+    name:   s.place_name,
+    nights: s.stay_days,
+  }));
+
+  const itineraries: DayItinerary[] = data.itinerary.map((day) => {
+    const transfer = day.transfers[0];
+    const transportParts = [
+      transfer?.vehicle_name ?? null,
+      transfer?.pickup_name && transfer?.drop_name ? `${transfer.pickup_name} → ${transfer.drop_name}` : null,
+    ].filter((p): p is string => !!p);
+
+    return {
+      day:           day.day,
+      title:         day.title,
+      description:   day.description ?? "",
+      activities:    day.activities.map((a) => ({
+        title:       a.name,
+        description: a.description ?? "",
+      })),
+      meals:         day.meals,
+      accommodation: day.hotel ? [day.hotel.name, day.hotel.room_name].filter(Boolean).join(" — ") : "",
+      hotelCheckIn:  day.hotel?.check_in_time ?? "",
+      hotelCheckOut: day.hotel?.check_out_time ?? "",
+      hotelMealPlan: day.hotel?.plan_name ?? day.hotel?.meal_type ?? "",
+      transport:     transportParts.join(" · "),
+      notes:         day.notes.map((n) => n.message).join(" "),
+    };
+  });
+
+  const termsNotes = data.policies
+    .map((p) => `${p.title}:\n${p.points.map((pt) => `• ${pt}`).join("\n")}`)
+    .join("\n\n");
+
+  const rawCover = data.thumbnail ?? data.images[0]?.url ?? "";
+
+  return {
+    title:         data.title,
+    description:   data.description ?? "",
+    coverImage:    rawCover ? getHeroImage(rawCover) : "",
+    destination:   stops.length > 0 ? stops.map((s) => s.name).join(", ") : data.destination.name,
+    startingPoint: "",
+    totalDays:     data.currentDuration.days,
+    totalNights:   data.currentDuration.nights,
+    inclusions:    data.inclusions,
+    exclusions:    data.exclusions,
+    termsNotes,
+    stops,
+    itineraries,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 1. List all IN_PROGRESS queries pending package creation
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getPackageBuilderQueries({
@@ -267,7 +380,8 @@ export async function getDestinationCoverImage(destinationName: string): Promise
       select: { cover_image: true, thumbnail: true },
     }));
 
-  return destination?.cover_image ?? destination?.thumbnail ?? null;
+  const raw = destination?.cover_image ?? destination?.thumbnail ?? null;
+  return raw ? getHeroImage(raw) : null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

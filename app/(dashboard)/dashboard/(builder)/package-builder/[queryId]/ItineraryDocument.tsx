@@ -3,9 +3,8 @@
 import {
   Calendar, Hotel, Car, Utensils, CheckCircle, XCircle,
   IndianRupee, Users, MapPin, Info, LogIn, LogOut,
-  Plane, TrainFront, Sparkles, Phone, Mail, Printer,
+  Plane, TrainFront, Sparkles, Phone, Mail,
 } from "lucide-react";
-import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import DyLogo from "@/app/components/ui/DyLogo";
 import type { DayItinerary, ActivityInput, StopInput } from "../action";
 
@@ -161,17 +160,6 @@ export function ItineraryDocument({ form }: { form: PreviewData }) {
   return (
     <div>
       <style>{PRINT_STYLES}</style>
-
-      <div className="no-print flex justify-end mb-3">
-        <Button
-          type="button"
-          size="sm"
-          onClick={() => window.print()}
-          className="h-8 gap-1.5 bg-primary-500 hover:bg-primary-600 text-white rounded-md"
-        >
-          <Printer size={13} /> Print / Save as PDF
-        </Button>
-      </div>
 
       {/* ── A4 page ─────────────────────────────────────────────────────────── */}
       <div

@@ -2,13 +2,14 @@
 
 import React, { useEffect, useState, useTransition } from "react";
 import { useParams } from "next/navigation";
+import { toast } from "sonner";
 import {
   MapPin, Calendar, Users, Phone, Mail, Hotel, Car, Zap,
-  Utensils, ChevronDown, ChevronUp, Plus, Trash2,
+  Utensils, ChevronDown, ChevronUp, Plus, Trash2, Pencil,
   Save, Send, CheckCircle, AlertCircle, Loader2,
   Package, User, Info, IndianRupee, ArrowLeft,
   Eye, EyeOff, ListChecks, Plane, TrainFront, LogIn, LogOut,
-  Image as ImageIcon,
+  Image as ImageIcon, Printer,
 } from "lucide-react";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
@@ -17,14 +18,14 @@ import { Badge } from "@/app/(dashboard)/dashboard/(main)/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/app/(dashboard)/dashboard/(main)/components/ui/tabs";
 import { Switch } from "@/app/(dashboard)/dashboard/(main)/components/ui/switch";
 import { SearchSelect, type Option } from "@/app/(dashboard)/dashboard/(main)/components/dashboard/SearchSelect";
+import { LocationSearchSelect } from "@/app/(dashboard)/dashboard/(main)/components/location/LocationSearchSelect";
+import { ROUTE_STOP_TYPES, type LocationValue } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";
 import { cn } from "@/app/lib/utils";
 import {
   getQueryDetail,
   saveCustomPackage,
   sendPackageToClient,
   getDestinationCoverImage,
-  getDestinationsForQuery,
-  getDestinationIdByName,
   searchHotelRoomsForBuilder,
   searchActivitiesForBuilder,
   type QueryDetail,
@@ -33,8 +34,8 @@ import {
   type StopInput,
   type HotelRoomResult,
   type ActivityResult,
+  type PackageCopyPayload,
 } from "../action";
-import type { DestinationOption } from "@/app/(dashboard)/dashboard/(main)/(marketing)/queries/actions";
 import { ItineraryDocument } from "./ItineraryDocument";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -184,10 +185,9 @@ function EditableList({ label, items, onChange, placeholder }: {
 // ─────────────────────────────────────────────────────────────────────────────
 // ActivityListEditor — per-activity title + description, add/remove
 // ─────────────────────────────────────────────────────────────────────────────
-function ActivityListEditor({ activities, location, destinationId, onChange }: {
+function ActivityListEditor({ activities, location, onChange }: {
   activities: ActivityInput[];
   location?: string;
-  destinationId?: number | null;
   onChange: (v: ActivityInput[]) => void;
 }) {
   function addActivity() {
@@ -201,8 +201,8 @@ function ActivityListEditor({ activities, location, destinationId, onChange }: {
   }
 
   async function fetchActivityOptions(query: string): Promise<Option[]> {
-    if (!destinationId) return [];
-    const results = await searchActivitiesForBuilder(destinationId, query);
+    if (!location) return [];
+    const results = await searchActivitiesForBuilder(location, query);
     return results.map((r): Option & { raw: ActivityResult } => ({
       id: r.id,
       label: r.name,
@@ -242,8 +242,7 @@ function ActivityListEditor({ activities, location, destinationId, onChange }: {
             value={null}
             onChange={handleActivitySelect}
             fetchOptions={fetchActivityOptions}
-            placeholder={destinationId ? `Search activities in ${location}…` : "Loading destination…"}
-            disabled={!destinationId}
+            placeholder={`Search activities in ${location}…`}
           />
         </div>
       ) : (
@@ -289,11 +288,14 @@ function ActivityListEditor({ activities, location, destinationId, onChange }: {
 // RouteStopsEditor — destination + nights per stop, like the packages route
 // builder. The parent recalculates total nights/days/destination from these.
 // ─────────────────────────────────────────────────────────────────────────────
-function RouteStopsEditor({ stops, destinationOptions, onChange }: {
+function RouteStopsEditor({ stops, onChange }: {
   stops: StopInput[];
-  destinationOptions: DestinationOption[];
   onChange: (v: StopInput[]) => void;
 }) {
+  // Per-row toggle: pick from the real locations catalog (default) vs a
+  // plain free-text field, for places not in the catalog yet.
+  const [manualRows, setManualRows] = useState<Set<number>>(new Set());
+
   function addStop() {
     onChange([...stops, { name: "", nights: 1 }]);
   }
@@ -302,6 +304,18 @@ function RouteStopsEditor({ stops, destinationOptions, onChange }: {
   }
   function removeStop(idx: number) {
     onChange(stops.filter((_, i) => i !== idx));
+    setManualRows((prev) => {
+      const next = new Set<number>();
+      prev.forEach((i) => { if (i < idx) next.add(i); else if (i > idx) next.add(i - 1); });
+      return next;
+    });
+  }
+  function toggleManualRow(idx: number) {
+    setManualRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
   }
 
   const totalNights = stops.reduce((sum, s) => sum + (s.nights || 0), 0);
@@ -324,31 +338,52 @@ function RouteStopsEditor({ stops, destinationOptions, onChange }: {
       </div>
 
       <div className="space-y-2">
-        {stops.map((stop, idx) => (
-          <div key={idx} className="flex items-center gap-2">
-            <span className="shrink-0 text-xs font-semibold text-dashboard-base-content/40 w-4 text-center">{idx + 1}</span>
-            <Input
-              list="destination-catalog-options"
-              value={stop.name}
-              onChange={(e) => updateStop(idx, { name: e.target.value })}
-              placeholder="e.g. Manali"
-              className="text-sm h-8 flex-1 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-            />
-            <Input
-              type="number" min={0}
-              value={stop.nights}
-              onChange={(e) => updateStop(idx, { nights: +e.target.value })}
-              className="text-sm h-8 w-16 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-            />
-            <span className="text-[11px] text-dashboard-base-content/50 shrink-0 w-2">N</span>
-            <button
-              onClick={() => removeStop(idx)}
-              className="p-1.5 rounded hover:bg-dashboard-error/10 text-dashboard-error/70 hover:text-dashboard-error transition-colors shrink-0"
-            >
-              <Trash2 size={12} />
-            </button>
-          </div>
-        ))}
+        {stops.map((stop, idx) => {
+          const isManual = manualRows.has(idx);
+          return (
+            <div key={idx} className="flex items-center gap-2">
+              <span className="shrink-0 text-xs font-semibold text-dashboard-base-content/40 w-4 text-center">{idx + 1}</span>
+              <div className="flex-1 min-w-0">
+                {isManual ? (
+                  <Input
+                    value={stop.name}
+                    onChange={(e) => updateStop(idx, { name: e.target.value })}
+                    placeholder="Type a destination name…"
+                    className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                  />
+                ) : (
+                  <LocationSearchSelect
+                    value={stop.name ? { id: `stop-${idx}`, name: stop.name, type: "CITY", breadcrumb: stop.name, slug: "" } : null}
+                    onChange={(loc: LocationValue | null) => updateStop(idx, { name: loc?.name ?? "" })}
+                    types={ROUTE_STOP_TYPES}
+                    placeholder="Search a location…"
+                  />
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => toggleManualRow(idx)}
+                title={isManual ? "Choose from locations" : "Can't find it? Type it instead"}
+                className="p-1.5 rounded hover:bg-dashboard-base-300 text-dashboard-base-content/50 hover:text-dashboard-base-content transition-colors shrink-0"
+              >
+                {isManual ? <MapPin size={12} /> : <Pencil size={12} />}
+              </button>
+              <Input
+                type="number" min={0}
+                value={stop.nights}
+                onChange={(e) => updateStop(idx, { nights: +e.target.value })}
+                className="text-sm h-8 w-16 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+              />
+              <span className="text-[11px] text-dashboard-base-content/50 shrink-0 w-2">N</span>
+              <button
+                onClick={() => removeStop(idx)}
+                className="p-1.5 rounded hover:bg-dashboard-error/10 text-dashboard-error/70 hover:text-dashboard-error transition-colors shrink-0"
+              >
+                <Trash2 size={12} />
+              </button>
+            </div>
+          );
+        })}
         {stops.length === 0 && (
           <p className="text-xs text-dashboard-base-content/40 italic">
             No stops added — Duration & Destination(s) below stay manually editable.
@@ -361,10 +396,6 @@ function RouteStopsEditor({ stops, destinationOptions, onChange }: {
           Auto duration: <span className="font-semibold text-dashboard-base-content">{totalNights + 1}D / {totalNights}N</span> — syncs Duration & Destination(s) below
         </p>
       )}
-
-      <datalist id="destination-catalog-options">
-        {destinationOptions.map((d) => <option key={d.id} value={d.name} />)}
-      </datalist>
     </div>
   );
 }
@@ -380,14 +411,6 @@ function DayCard({ day, data, location, onChange, onRemove }: {
   onRemove: () => void;
 }) {
   const [open, setOpen] = useState(true);
-  const [destinationId, setDestinationId] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (!location) { setDestinationId(null); return; }
-    let cancelled = false;
-    getDestinationIdByName(location).then((id) => { if (!cancelled) setDestinationId(id); });
-    return () => { cancelled = true; };
-  }, [location]);
 
   function toggleMeal(m: string) {
     const meals = data.meals.includes(m)
@@ -397,8 +420,8 @@ function DayCard({ day, data, location, onChange, onRemove }: {
   }
 
   async function fetchHotelRooms(query: string): Promise<Option[]> {
-    if (!destinationId) return [];
-    const results = await searchHotelRoomsForBuilder(destinationId, query);
+    if (!location) return [];
+    const results = await searchHotelRoomsForBuilder(location, query);
     return results.map((r): Option & { raw: HotelRoomResult } => ({
       id: r.id,
       label: `${r.hotelName} — ${r.roomName}`,
@@ -483,8 +506,7 @@ function DayCard({ day, data, location, onChange, onRemove }: {
                   value={null}
                   onChange={handleHotelRoomSelect}
                   fetchOptions={fetchHotelRooms}
-                  placeholder={destinationId ? `Search hotel rooms in ${location}…` : "Loading destination…"}
-                  disabled={!destinationId}
+                  placeholder={`Search hotel rooms in ${location}…`}
                 />
                 <p className="text-[10px] text-dashboard-base-content/40 mt-1">
                   Searches real inventory in {location} — picking a result fills in the fields below
@@ -576,7 +598,6 @@ function DayCard({ day, data, location, onChange, onRemove }: {
           <ActivityListEditor
             activities={data.activities}
             location={location}
-            destinationId={destinationId}
             onChange={(activities) => onChange({ ...data, activities })}
           />
 
@@ -675,7 +696,6 @@ export default function PackageBuilderDetailPage() {
   const [packageId, setPackageId] = useState<string | null>(null);
   const [savedOk, setSavedOk] = useState(false);
   const [isFetchingCover, setIsFetchingCover] = useState(false);
-  const [destinationOptions, setDestinationOptions] = useState<DestinationOption[]>([]);
 
   const [isSaving, startSave] = useTransition();
   const [isSending, startSend] = useTransition();
@@ -696,11 +716,6 @@ export default function PackageBuilderDetailPage() {
     stops: [],
     itineraries: [emptyDay(1), emptyDay(2), emptyDay(3)],
   });
-
-  // ── Load destination catalog (for the route stop picker) ──────────────────
-  useEffect(() => {
-    getDestinationsForQuery().then(setDestinationOptions);
-  }, []);
 
   // ── Load query ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -751,6 +766,27 @@ export default function PackageBuilderDetailPage() {
         if (destinationName) {
           const suggested = await getDestinationCoverImage(destinationName);
           if (suggested) setForm((f) => ({ ...f, coverImage: suggested }));
+        }
+      }
+
+      // ── "Use It" from the Package Library — a copy payload waiting in
+      // sessionStorage from the redirect. Confirm before clobbering an
+      // existing saved draft; a brand-new query just applies it directly.
+      const copyKey = `pkgCopyPayload:${queryId}`;
+      const rawCopyPayload = sessionStorage.getItem(copyKey);
+      if (rawCopyPayload) {
+        sessionStorage.removeItem(copyKey);
+        const proceed = !data.customPackage || window.confirm(
+          "This will replace your current draft's title, itinerary, inclusions/exclusions and terms with the package you picked. Continue?",
+        );
+        if (proceed) {
+          try {
+            const payload = JSON.parse(rawCopyPayload) as PackageCopyPayload;
+            setForm((f) => ({ ...f, ...payload }));
+            toast.success(`Copied "${payload.title}" into this draft`);
+          } catch (err) {
+            console.error("Failed to apply copied package payload", err);
+          }
         }
       }
 
@@ -937,6 +973,16 @@ export default function PackageBuilderDetailPage() {
             </Button>
 
             <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 border-dashboard-base-300 hover:bg-dashboard-base-200 text-dashboard-base-content rounded-md"
+              onClick={() => window.print()}
+            >
+              <Printer size={13} />
+              <span className="hidden sm:inline text-xs">Print / Save as PDF</span>
+            </Button>
+
+            <Button
               size="sm"
               className="h-8 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
               onClick={handleSend}
@@ -978,7 +1024,7 @@ export default function PackageBuilderDetailPage() {
         )}
 
         {/* ── RIGHT: Tabbed Editor ──────────────────────────────────────────────── */}
-        <main className="w-full lg:w-95 xl:w-105 shrink-0 overflow-y-auto h-full">
+        <main className="w-full lg:w-100 xl:w-140 shrink-0 overflow-y-auto h-full">
           <div className="px-4 pt-5 pb-4">
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-4">
@@ -1121,7 +1167,6 @@ export default function PackageBuilderDetailPage() {
                     <div className="sm:col-span-2 pt-2 border-t border-dashboard-base-300">
                       <RouteStopsEditor
                         stops={form.stops}
-                        destinationOptions={destinationOptions}
                         onChange={(stops) => setForm((f) => ({
                           ...f,
                           stops,
