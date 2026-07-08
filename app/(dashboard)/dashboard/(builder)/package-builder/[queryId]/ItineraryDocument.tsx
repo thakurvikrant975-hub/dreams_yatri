@@ -23,7 +23,7 @@ export interface PreviewData {
   pricePerPerson: string;
   totalPrice: string;
   currency: string;
-  inclusions: string[];
+  inclusions: string[];   
   exclusions: string[];
   termsNotes: string;
   flightsIncluded: boolean;
