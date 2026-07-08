@@ -117,10 +117,12 @@ export default function RoomListClient({
   hotelId,
   hotelName,
   rooms,
+  isHomestay,
 }: {
   hotelId: number;
   hotelName: string;
   rooms: RoomListItem[];
+  isHomestay?: boolean;
 }) {
   return (
     <div className="space-y-5">
@@ -142,7 +144,9 @@ export default function RoomListClient({
 
       {rooms.length === 0 ? (
         <div className="rounded-xl border border-dashed border-neutral-300 p-10 text-center text-sm text-neutral-500">
-          No active rooms yet. Add a room to manage its rates &amp; availability.
+          {isHomestay
+            ? "Set your base rate in the Pricing step of the listing wizard to activate rates & availability here."
+            : "No active rooms yet. Add a room to manage its rates & availability."}
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 gap-4">

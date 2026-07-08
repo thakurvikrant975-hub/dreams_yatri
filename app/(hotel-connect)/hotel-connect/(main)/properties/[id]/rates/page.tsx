@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { hotelConnectAuth } from "@/app/lib/auth-hotel-connect";
 import { db } from "@/app/lib/db";
+import { ensureHomestayRoom } from "@/app/lib/hotel-inventory/homestay-room-sync";
 import ConnectHeader from "../../../components/ConnectHeader";
 import RoomListClient, { type RoomListItem } from "./RoomListClient";
 
@@ -14,9 +15,18 @@ export default async function RatesPage({ params }: { params: Promise<{ id: stri
 
   const hotel = await db.hotels.findFirst({
     where: { id: hotelId, owner_id: ownerId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, property_category: true },
   });
   if (!hotel) notFound();
+
+  // Homestays never get a hotel_rooms row from the wizard itself — it's
+  // normally provisioned at Submit for Review. An owner should be able to
+  // set rates/availability while still editing, so lazily ensure it here
+  // too. Idempotent and a no-op until the wizard's pricing step is done
+  // (ensureHomestayRoom requires prop_base_rate to be set).
+  if (hotel.property_category === "HOMESTAY_VILLA") {
+    await ensureHomestayRoom(hotelId);
+  }
 
   const rooms = await db.hotel_rooms.findMany({
     where: { hotel_id: hotelId, is_active: true },
@@ -50,7 +60,12 @@ export default async function RatesPage({ params }: { params: Promise<{ id: stri
       <ConnectHeader title="Rates & Availability" />
       <div className="flex-1 overflow-y-auto">
         <div className="p-6 mx-auto w-full max-w-5xl">
-          <RoomListClient hotelId={hotel.id} hotelName={hotel.name} rooms={roomItems} />
+          <RoomListClient
+            hotelId={hotel.id}
+            hotelName={hotel.name}
+            rooms={roomItems}
+            isHomestay={hotel.property_category === "HOMESTAY_VILLA"}
+          />
         </div>
       </div>
     </>

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { hotelConnectAuth } from "@/app/lib/auth-hotel-connect";
 import { db } from "@/app/lib/db";
 import { getRoomARI } from "@/app/lib/hotel-inventory/rates";
+import { ensureHomestayRoom } from "@/app/lib/hotel-inventory/homestay-room-sync";
 import ConnectHeader from "../../../components/ConnectHeader";
 import CalendarClient from "./CalendarClient";
 
@@ -23,6 +24,18 @@ export default async function CalendarPage({
 
   const session = await hotelConnectAuth();
   const ownerId = session!.user.id;
+
+  const hotelCheck = await db.hotels.findFirst({
+    where: { id: hotelId, owner_id: ownerId },
+    select: { property_category: true },
+  });
+  if (!hotelCheck) notFound();
+
+  // See rates/page.tsx for why this is needed — homestays only get a
+  // hotel_rooms row from the wizard at Submit for Review otherwise.
+  if (hotelCheck.property_category === "HOMESTAY_VILLA") {
+    await ensureHomestayRoom(hotelId);
+  }
 
   const hotel = await db.hotels.findFirst({
     where: { id: hotelId, owner_id: ownerId },
