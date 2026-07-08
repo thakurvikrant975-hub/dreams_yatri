@@ -132,6 +132,7 @@ export default function SwimmingPoolModal({ hotelId, initial, poolNumber, poolTa
   const [photos, setPhotos] = useState<HotelPhoto[]>([]);
   const [photosLoading, setPhotosLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [pendingUploads, setPendingUploads] = useState(0);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [photoCountError, setPhotoCountError] = useState<string | null>(null);
   // Photos uploaded during this modal session, not yet attached to a saved
@@ -154,6 +155,7 @@ export default function SwimmingPoolModal({ hotelId, initial, poolNumber, poolTa
     const files = e.target.files;
     if (!files?.length) return;
     setUploading(true);
+    setPendingUploads(files.length);
     setPhotoError(null);
     const fd = new FormData();
     for (const f of files) fd.append("photos", f);
@@ -169,6 +171,7 @@ export default function SwimmingPoolModal({ hotelId, initial, poolNumber, poolTa
       setPhotoError(err instanceof Error ? err.message : "Upload failed.");
     } finally {
       setUploading(false);
+      setPendingUploads(0);
       e.target.value = "";
     }
   }
@@ -405,6 +408,10 @@ export default function SwimmingPoolModal({ hotelId, initial, poolNumber, poolTa
                     </div>
                   ))
                 )}
+
+                {uploading && Array.from({ length: pendingUploads }).map((_, i) => (
+                  <div key={`pending-${i}`} className="w-20 h-16 rounded-lg bg-neutral-100 animate-pulse shrink-0" />
+                ))}
 
                 <input
                   ref={fileInputRef}
