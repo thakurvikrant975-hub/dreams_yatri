@@ -29,14 +29,14 @@ export default async function KitchenEditPage({
   if (hotel.property_category !== "HOMESTAY_VILLA")
     redirect(`/hotel-connect/properties/${hotelId}/edit?tab=3`);
   if (!hotel.hs_kitchen_details)
-    redirect(`/hotel-connect/properties/${hotelId}/edit?tab=3`);
+    redirect(`/hotel-connect/properties/${hotelId}/edit?tab=4`);
 
   const detail = hotel.hs_kitchen_details as KitchenDetail;
 
   return (
     <WizardShell
       hotel={hotel}
-      currentTab={3}
+      currentTab={4}
       tabFormId={undefined}
       effectiveWizardStep={Math.max(hotel.wizard_step, 2)}
       hideNextButton={true}

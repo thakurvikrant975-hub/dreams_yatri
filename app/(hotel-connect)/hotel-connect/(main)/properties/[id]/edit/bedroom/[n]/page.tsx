@@ -38,7 +38,7 @@ export default async function BedroomEditPage({
   return (
     <WizardShell
       hotel={hotel}
-      currentTab={3}
+      currentTab={4}
       tabFormId={undefined}
       effectiveWizardStep={Math.max(hotel.wizard_step, 2)}
       hideNextButton={true}

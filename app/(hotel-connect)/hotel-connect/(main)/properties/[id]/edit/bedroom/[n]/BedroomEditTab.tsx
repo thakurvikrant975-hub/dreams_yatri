@@ -98,7 +98,7 @@ function StepSection({
             isCompleted && !isActive
               ? "bg-emerald-500 text-white cursor-pointer"
               : isActive
-                ? "bg-primary-600 text-white ring-2 ring-primary-200"
+                ? "bg-primary-500 text-white ring-2 ring-primary-200"
                 : "bg-neutral-200 text-neutral-500 cursor-not-allowed"
           )}
         >
@@ -128,8 +128,8 @@ function StepSection({
         </button>
 
         {isActive && (
-          <div className="mt-4 bg-white border border-neutral-200 rounded-xl overflow-hidden">
-            <div className="p-5 space-y-5">
+          <div className="mt-4  rounded-xl overflow-hidden">
+            <div className="px-5 space-y-5">
               {children}
             </div>
           </div>
@@ -220,7 +220,7 @@ export default function BedroomEditTab({
     });
     setStepReached(newReached);
     if (nextStep === "back") {
-      router.push(`/hotel-connect/properties/${hotelId}/edit?tab=3`);
+      router.push(`/hotel-connect/properties/${hotelId}/edit?tab=4`);
     } else {
       setCurrentStep(nextStep);
     }
@@ -241,7 +241,7 @@ export default function BedroomEditTab({
     <div >
       <SectionCard title={`Bedroom ${n} of ${total}`}>
         <Link
-          href={`/hotel-connect/properties/${hotelId}/edit?tab=3`}
+          href={`/hotel-connect/properties/${hotelId}/edit?tab=4`}
           className="inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-800 transition-colors"
         >
           <ArrowLeftIcon size={13} weight="bold" />
@@ -366,7 +366,7 @@ export default function BedroomEditTab({
                 beds, has_extra_bed: hasExtraBed, extra_bed_type: extraBedType,
                 base_adults: baseAdults, max_adults: maxAdults,
               }, 2, 3)}
-              className="px-5 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
+              className="px-5 py-2 text-sm font-semibold text-white bg-primary-500 rounded-lg hover:bg-primary-600 disabled:opacity-50 transition-colors"
             >
               Next
             </button>
@@ -464,7 +464,7 @@ export default function BedroomEditTab({
                 has_balcony: hasBalcony, balcony_furniture: balconyFurniture,
                 amenities,
               }, 3, 4)}
-              className="px-5 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
+              className="px-5 py-2 text-sm font-semibold text-white bg-primary-500 rounded-lg hover:bg-primary-600 disabled:opacity-50 transition-colors"
             >
               Next
             </button>
@@ -559,7 +559,7 @@ export default function BedroomEditTab({
                 size_value: sizeValue ? Number(sizeValue) : null,
                 size_unit: sizeUnit, floor_level: floorLevel,
               }, 4, "back")}
-              className="px-5 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
+              className="px-5 py-2 text-sm font-semibold text-white bg-primary-500 rounded-lg hover:bg-primary-600 disabled:opacity-50 transition-colors"
             >
               {isPending ? "Saving…" : "Save & Continue"}
             </button>
