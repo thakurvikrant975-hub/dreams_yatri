@@ -4,7 +4,7 @@ import {
   Calendar, Hotel, Car, Utensils, CheckCircle, XCircle,
   IndianRupee, Users, MapPin, Info, Eye,
 } from "lucide-react";
-import { Badge } from "../../../components/ui/badge";
+import { Badge } from "@/app/(dashboard)/dashboard/(main)/components/ui/badge";
 import type { DayItinerary } from "../action";
 
 export interface PreviewData {

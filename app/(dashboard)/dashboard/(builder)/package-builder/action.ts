@@ -2,7 +2,7 @@
 
 import { Prisma } from "@/app/generated/prisma";
 import { revalidatePath } from "next/cache";
-import { getCurrentActor } from "../../(marketing)/queries/actions";
+import { getCurrentActor } from "@/app/(dashboard)/dashboard/(main)/(marketing)/queries/actions";
 import { db } from "@/app/lib/db";
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -9,11 +9,11 @@ import {
   Package, User, Info, IndianRupee, ArrowLeft,
   Eye, EyeOff, ListChecks,
 } from "lucide-react";
-import { Button } from "../../../components/ui/button";
-import { Input } from "../../../components/ui/input";
-import { Textarea } from "../../../components/ui/textarea";
-import { Badge } from "../../../components/ui/badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../../components/ui/tabs";
+import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
+import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
+import { Textarea } from "@/app/(dashboard)/dashboard/(main)/components/ui/textarea";
+import { Badge } from "@/app/(dashboard)/dashboard/(main)/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/app/(dashboard)/dashboard/(main)/components/ui/tabs";
 import { cn } from "@/app/lib/utils";
 import {
   getQueryDetail,
@@ -611,7 +611,7 @@ export default function PackageBuilderDetailPage() {
       <div className="flex relative h-[calc(100vh-2.5rem)]">
 
         {/* ── LEFT: Live Preview (persistent on desktop) ───────────────────────── */}
-        <aside className="hidden lg:block lg:w-[42%] xl:w-[38%] shrink-0 border-r border-dashboard-base-300 overflow-y-auto h-full">
+        <aside className="hidden lg:block flex-1 border-r border-dashboard-base-300 overflow-y-auto h-full">
           <div className="px-5 py-5">
             <PackagePreviewContent form={form} />
           </div>
@@ -633,8 +633,8 @@ export default function PackageBuilderDetailPage() {
         )}
 
         {/* ── RIGHT: Tabbed Editor ──────────────────────────────────────────────── */}
-        <main className="flex-1 overflow-y-auto h-full">
-          <div className="max-w-3xl mx-auto px-4 pb-4">
+        <main className="w-full lg:w-95 xl:w-105 shrink-0 overflow-y-auto h-full">
+          <div className="px-4 pb-4">
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-4">
               <TabsList className="w-full sm:w-fit overflow-x-auto sticky top-0 z-10 bg-dashboard-base-200/95 backdrop-blur">
