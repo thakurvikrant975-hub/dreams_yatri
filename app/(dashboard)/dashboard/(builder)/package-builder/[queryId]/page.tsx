@@ -7,13 +7,14 @@ import {
   Utensils, ChevronDown, ChevronUp, Plus, Trash2,
   Save, Send, CheckCircle, AlertCircle, Loader2,
   Package, User, Info, IndianRupee, ArrowLeft,
-  Eye, EyeOff, ListChecks,
+  Eye, EyeOff, ListChecks, Plane, TrainFront, LogIn, LogOut,
 } from "lucide-react";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Textarea } from "@/app/(dashboard)/dashboard/(main)/components/ui/textarea";
 import { Badge } from "@/app/(dashboard)/dashboard/(main)/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/app/(dashboard)/dashboard/(main)/components/ui/tabs";
+import { Switch } from "@/app/(dashboard)/dashboard/(main)/components/ui/switch";
 import { cn } from "@/app/lib/utils";
 import {
   getQueryDetail,
@@ -21,6 +22,7 @@ import {
   sendPackageToClient,
   type QueryDetail,
   type DayItinerary,
+  type ActivityInput,
 } from "../action";
 import { PackagePreviewContent } from "./PackagePreviewContent";
 
@@ -169,6 +171,73 @@ function EditableList({ label, items, onChange, placeholder }: {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ActivityListEditor — per-activity title + description, add/remove
+// ─────────────────────────────────────────────────────────────────────────────
+function ActivityListEditor({ activities, onChange }: {
+  activities: ActivityInput[];
+  onChange: (v: ActivityInput[]) => void;
+}) {
+  function addActivity() {
+    onChange([...activities, { title: "", description: "" }]);
+  }
+  function updateActivity(idx: number, patch: Partial<ActivityInput>) {
+    onChange(activities.map((a, i) => (i === idx ? { ...a, ...patch } : a)));
+  }
+  function removeActivity(idx: number) {
+    onChange(activities.filter((_, i) => i !== idx));
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <label className="text-xs font-medium text-dashboard-base-content/90 flex items-center gap-1">
+          <Zap size={11} /> Activities
+        </label>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={addActivity}
+          className="h-6 px-2 text-[11px] gap-1 border-dashboard-base-300 rounded-md"
+        >
+          <Plus size={11} /> Add
+        </Button>
+      </div>
+      <div className="space-y-2">
+        {activities.map((a, idx) => (
+          <div key={idx} className="rounded-lg border border-dashboard-base-300 p-2.5 space-y-1.5">
+            <div className="flex items-center gap-1.5">
+              <Input
+                value={a.title}
+                onChange={(e) => updateActivity(idx, { title: e.target.value })}
+                placeholder="Activity title, e.g. Paragliding"
+                className="text-sm h-8 flex-1 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+              />
+              <button
+                onClick={() => removeActivity(idx)}
+                className="p-1.5 rounded hover:bg-dashboard-error/10 text-dashboard-error/70 hover:text-dashboard-error transition-colors shrink-0"
+              >
+                <Trash2 size={12} />
+              </button>
+            </div>
+            <Textarea
+              value={a.description}
+              onChange={(e) => updateActivity(idx, { description: e.target.value })}
+              placeholder="Short description of the experience…"
+              rows={2}
+              className="text-xs resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+            />
+          </div>
+        ))}
+        {activities.length === 0 && (
+          <p className="text-xs text-dashboard-base-content/40 italic">No activities added for this day.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Day Itinerary Card
 // ─────────────────────────────────────────────────────────────────────────────
 function DayCard({ day, data, onChange, onRemove }: {
@@ -239,30 +308,63 @@ function DayCard({ day, data, onChange, onRemove }: {
             />
           </div>
 
-          {/* Accommodation + Transport */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 flex items-center gap-1 block">
-                <Hotel size={11} /> Accommodation
-              </label>
-              <Input
-                value={data.accommodation}
-                onChange={(e) => onChange({ ...data, accommodation: e.target.value })}
-                placeholder="Hotel name / type"
-                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-              />
+          {/* Accommodation */}
+          <div className="rounded-lg border border-dashboard-base-300 p-3 space-y-3">
+            <label className="text-xs font-medium text-dashboard-base-content/90 flex items-center gap-1 block">
+              <Hotel size={11} /> Hotel Info
+            </label>
+            <Input
+              value={data.accommodation}
+              onChange={(e) => onChange({ ...data, accommodation: e.target.value })}
+              placeholder="Hotel name / type"
+              className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] text-dashboard-base-content/60 mb-1 flex items-center gap-1 block">
+                  <LogIn size={10} /> Check-In
+                </label>
+                <Input
+                  value={data.hotelCheckIn}
+                  onChange={(e) => onChange({ ...data, hotelCheckIn: e.target.value })}
+                  placeholder="2:00 PM"
+                  className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-dashboard-base-content/60 mb-1 flex items-center gap-1 block">
+                  <LogOut size={10} /> Check-Out
+                </label>
+                <Input
+                  value={data.hotelCheckOut}
+                  onChange={(e) => onChange({ ...data, hotelCheckOut: e.target.value })}
+                  placeholder="11:00 AM"
+                  className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                />
+              </div>
             </div>
             <div>
-              <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 flex items-center gap-1 block">
-                <Car size={11} /> Transport
-              </label>
+              <label className="text-[11px] text-dashboard-base-content/60 mb-1 block">Meal Plan</label>
               <Input
-                value={data.transport}
-                onChange={(e) => onChange({ ...data, transport: e.target.value })}
-                placeholder="Cab type / route"
-                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                value={data.hotelMealPlan}
+                onChange={(e) => onChange({ ...data, hotelMealPlan: e.target.value })}
+                placeholder="MAP - Breakfast & Dinner"
+                className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
               />
             </div>
+          </div>
+
+          {/* Transport */}
+          <div>
+            <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 flex items-center gap-1 block">
+              <Car size={11} /> Transport
+            </label>
+            <Input
+              value={data.transport}
+              onChange={(e) => onChange({ ...data, transport: e.target.value })}
+              placeholder="Cab type / route"
+              className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+            />
           </div>
 
           {/* Meals */}
@@ -289,22 +391,10 @@ function DayCard({ day, data, onChange, onRemove }: {
           </div>
 
           {/* Activities */}
-          <div>
-            <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 flex items-center gap-1 block">
-              <Zap size={11} /> Activities
-            </label>
-            <Input
-              value={data.activities.join(", ")}
-              onChange={(e) =>
-                onChange({
-                  ...data,
-                  activities: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
-                })
-              }
-              placeholder="Paragliding, River Rafting, Trekking… (comma separated)"
-              className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-            />
-          </div>
+          <ActivityListEditor
+            activities={data.activities}
+            onChange={(activities) => onChange({ ...data, activities })}
+          />
 
           {/* Notes */}
           <div>
@@ -341,12 +431,17 @@ interface PackageForm {
   inclusions: string[];
   exclusions: string[];
   termsNotes: string;
+  flightsIncluded: boolean;
+  flightNotes: string;
+  trainIncluded: boolean;
+  trainNotes: string;
   itineraries: DayItinerary[];
 }
 
 const emptyDay = (day: number): DayItinerary => ({
   day, title: "", description: "", activities: [],
-  meals: [], accommodation: "", transport: "", notes: "",
+  meals: [], accommodation: "", hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
+  transport: "", notes: "",
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -375,6 +470,10 @@ export default function PackageBuilderDetailPage() {
     inclusions: DEFAULT_INCLUSIONS,
     exclusions: DEFAULT_EXCLUSIONS,
     termsNotes: "Package price is subject to availability. 50% advance required to confirm booking.",
+    flightsIncluded: false,
+    flightNotes: "",
+    trainIncluded: false,
+    trainNotes: "",
     itineraries: [emptyDay(1), emptyDay(2), emptyDay(3)],
   });
 
@@ -411,6 +510,10 @@ export default function PackageBuilderDetailPage() {
           title: cp.title,
           pricePerPerson: cp.pricePerPerson?.toString() ?? "",
           totalPrice: cp.totalPrice?.toString() ?? "",
+          flightsIncluded: cp.flightsIncluded,
+          flightNotes: cp.flightNotes ?? "",
+          trainIncluded: cp.trainIncluded,
+          trainNotes: cp.trainNotes ?? "",
           itineraries: cp.itineraries.length > 0 ? cp.itineraries : f.itineraries,
         }));
       }
@@ -762,6 +865,49 @@ export default function PackageBuilderDetailPage() {
                       />
                     </div>
                   </div>
+                </div>
+
+                {/* Flights & Train */}
+                <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 p-5 space-y-4">
+                  <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
+                    <Plane size={15} className="text-dashboard-primary" /> Flights & Train
+                  </h2>
+                  <div className="flex items-center justify-between gap-3">
+                    <label className="text-xs font-medium text-dashboard-base-content/90 flex items-center gap-1.5">
+                      <Plane size={12} /> Flights included in this package
+                    </label>
+                    <Switch
+                      checked={form.flightsIncluded}
+                      onCheckedChange={(v) => setForm((f) => ({ ...f, flightsIncluded: v }))}
+                    />
+                  </div>
+                  {form.flightsIncluded && (
+                    <Input
+                      value={form.flightNotes}
+                      onChange={field("flightNotes")}
+                      placeholder="e.g. Delhi ⇄ Leh round-trip economy class"
+                      className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                    />
+                  )}
+                  <div className="flex items-center justify-between gap-3 pt-1 border-t border-dashboard-base-300">
+                    <label className="text-xs font-medium text-dashboard-base-content/90 flex items-center gap-1.5 pt-3">
+                      <TrainFront size={12} /> Train tickets included
+                    </label>
+                    <div className="pt-3">
+                      <Switch
+                        checked={form.trainIncluded}
+                        onCheckedChange={(v) => setForm((f) => ({ ...f, trainIncluded: v }))}
+                      />
+                    </div>
+                  </div>
+                  {form.trainIncluded && (
+                    <Input
+                      value={form.trainNotes}
+                      onChange={field("trainNotes")}
+                      placeholder="e.g. AC 2-tier, New Delhi ⇄ Udhampur"
+                      className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                    />
+                  )}
                 </div>
               </TabsContent>
 

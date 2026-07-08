@@ -1,6 +1,5 @@
 "use server";
 
-import { Prisma } from "@/app/generated/prisma";
 import { revalidatePath } from "next/cache";
 import { getCurrentActor } from "@/app/(dashboard)/dashboard/(main)/(marketing)/queries/actions";
 import { db } from "@/app/lib/db";
@@ -28,46 +27,63 @@ export interface QueryRow {
 export interface QueryDetail extends QueryRow {
   message: string | null;
   customPackage: {
-    id:            string;
-    status:        string;
-    title:         string;
-    pricePerPerson: number | null;
-    totalPrice:    number | null;
-    itineraries:   DayItinerary[];
+    id:              string;
+    status:          string;
+    title:           string;
+    pricePerPerson:  number | null;
+    totalPrice:      number | null;
+    flightsIncluded: boolean;
+    flightNotes:     string | null;
+    trainIncluded:   boolean;
+    trainNotes:      string | null;
+    itineraries:     DayItinerary[];
   } | null;
 }
 
+export interface ActivityInput {
+  id?:          string;
+  title:        string;
+  description:  string;
+}
+
 export interface DayItinerary {
-  id?:           string;
-  day:           number;
-  title:         string;
-  description:   string;
-  activities:    string[];
-  meals:         string[];
-  accommodation: string;
-  transport:     string;
-  notes:         string;
+  id?:            string;
+  day:            number;
+  title:          string;
+  description:    string;
+  activities:     ActivityInput[];
+  meals:          string[];
+  accommodation:  string;
+  hotelCheckIn:   string;
+  hotelCheckOut:  string;
+  hotelMealPlan:  string;
+  transport:      string;
+  notes:          string;
 }
 
 export interface PackageInput {
-  queryId:        string;
-  title:          string;
-  destination:    string;
-  startingPoint:  string;
-  totalDays:      number;
-  totalNights:    number;
-  travelDate:     string;
-  adults:         number;
-  children:       number;
-  infants:        number;
-  pricePerPerson: number | null;
-  totalPrice:     number | null;
-  currency:       string;
-  inclusions:     string[];
-  exclusions:     string[];
-  termsNotes:     string;
-  status:         "DRAFT" | "READY";
-  itineraries:    DayItinerary[];
+  queryId:         string;
+  title:           string;
+  destination:     string;
+  startingPoint:   string;
+  totalDays:       number;
+  totalNights:     number;
+  travelDate:      string;
+  adults:          number;
+  children:        number;
+  infants:         number;
+  pricePerPerson:  number | null;
+  totalPrice:      number | null;
+  currency:        string;
+  inclusions:      string[];
+  exclusions:      string[];
+  termsNotes:      string;
+  flightsIncluded: boolean;
+  flightNotes:     string;
+  trainIncluded:   boolean;
+  trainNotes:      string;
+  status:          "DRAFT" | "READY";
+  itineraries:     DayItinerary[];
 }
 
 export interface PaginatedQueries {
@@ -166,11 +182,15 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
       // to-many relations.
       custom_packages: {
         select: {
-          id:             true,
-          status:         true,
-          title:          true,
-          pricePerPerson: true,
-          totalPrice:     true,
+          id:              true,
+          status:          true,
+          title:           true,
+          pricePerPerson:  true,
+          totalPrice:      true,
+          flightsIncluded: true,
+          flightNotes:     true,
+          trainIncluded:   true,
+          trainNotes:      true,
           itineraries: {
             orderBy: { day: "asc" },
             select: {
@@ -178,11 +198,17 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
               day:           true,
               title:         true,
               description:   true,
-              activities:    true,
               meals:         true,
               accommodation: true,
+              hotelCheckIn:  true,
+              hotelCheckOut: true,
+              hotelMealPlan: true,
               transport:     true,
               notes:         true,
+              activities: {
+                orderBy: { sortOrder: "asc" },
+                select: { id: true, title: true, description: true },
+              },
             },
           },
         },
@@ -207,7 +233,8 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
       queryId, title, destination, startingPoint,
       totalDays, totalNights, travelDate, adults, children, infants,
       pricePerPerson, totalPrice, currency, inclusions, exclusions,
-      termsNotes, status, itineraries,
+      termsNotes, flightsIncluded, flightNotes, trainIncluded, trainNotes,
+      status, itineraries,
     } = input;
 
     const { teamMemberId, teamMemberName } = await getCurrentActor();
@@ -215,72 +242,97 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
     const builtByName = teamMemberName ?? "Sales Executive";
 
     // Upsert the custom package (unique on queryId)
-    const pkg = await (Prisma as any).custom_packages.upsert({
+    const pkg = await db.custom_packages.upsert({
       where:  { queryId },
       create: {
         queryId,
         title,
         destination,
-        startingPoint:  startingPoint || null,
+        startingPoint:   startingPoint || null,
         totalDays,
         totalNights,
-        travelDate:     travelDate ? new Date(travelDate) : null,
+        travelDate:      travelDate ? new Date(travelDate) : null,
         adults,
         children,
         infants,
-        pricePerPerson: pricePerPerson ?? null,
-        totalPrice:     totalPrice ?? null,
+        pricePerPerson:  pricePerPerson ?? null,
+        totalPrice:      totalPrice ?? null,
         currency,
         inclusions,
         exclusions,
-        termsNotes:     termsNotes || null,
+        termsNotes:      termsNotes || null,
+        flightsIncluded,
+        flightNotes:     flightNotes || null,
+        trainIncluded,
+        trainNotes:      trainNotes || null,
         status,
         builtBy,
-        builtByName:    builtByName || null,
+        builtByName:     builtByName || null,
       },
       update: {
         title,
         destination,
-        startingPoint:  startingPoint || null,
+        startingPoint:   startingPoint || null,
         totalDays,
         totalNights,
-        travelDate:     travelDate ? new Date(travelDate) : null,
+        travelDate:      travelDate ? new Date(travelDate) : null,
         adults,
         children,
         infants,
-        pricePerPerson: pricePerPerson ?? null,
-        totalPrice:     totalPrice ?? null,
+        pricePerPerson:  pricePerPerson ?? null,
+        totalPrice:      totalPrice ?? null,
         currency,
         inclusions,
         exclusions,
-        termsNotes:     termsNotes || null,
+        termsNotes:      termsNotes || null,
+        flightsIncluded,
+        flightNotes:     flightNotes || null,
+        trainIncluded,
+        trainNotes:      trainNotes || null,
         status,
-        builtByName:    builtByName || null,
+        builtByName:     builtByName || null,
       },
     });
 
-    // Replace itineraries — delete all then recreate
-    await (Prisma as any).custom_itineraries.deleteMany({
+    // Replace itineraries (and their nested activities, via cascade) — delete
+    // all then recreate. Nested `activities.create` needs one create per day
+    // rather than createMany, since createMany can't take nested writes.
+    await db.custom_itineraries.deleteMany({
       where: { customPackageId: pkg.id },
     });
 
     if (itineraries.length > 0) {
-      await (Prisma as any).custom_itineraries.createMany({
-        data: itineraries.map((it) => ({
-          customPackageId: pkg.id,
-          day:             it.day,
-          title:           it.title,
-          description:     it.description || null,
-          activities:      it.activities,
-          meals:           it.meals,
-          accommodation:   it.accommodation || null,
-          transport:       it.transport || null,
-          notes:           it.notes || null,
-        })),
-      });
+      await db.$transaction(
+        itineraries.map((it) =>
+          db.custom_itineraries.create({
+            data: {
+              customPackageId: pkg.id,
+              day:             it.day,
+              title:           it.title,
+              description:     it.description || null,
+              meals:           it.meals,
+              accommodation:   it.accommodation || null,
+              hotelCheckIn:    it.hotelCheckIn || null,
+              hotelCheckOut:   it.hotelCheckOut || null,
+              hotelMealPlan:   it.hotelMealPlan || null,
+              transport:       it.transport || null,
+              notes:           it.notes || null,
+              activities: {
+                create: it.activities
+                  .filter((a) => a.title.trim())
+                  .map((a, idx) => ({
+                    title:       a.title,
+                    description: a.description || null,
+                    sortOrder:   idx,
+                  })),
+              },
+            },
+          }),
+        ),
+      );
     }
 
-    revalidatePath("/package-builder");
+    revalidatePath("/dashboard/package-builder");
 
     return { id: pkg.id, success: true };
   } catch (err) {
@@ -298,7 +350,7 @@ export async function sendPackageToClient(packageId: string): Promise<{
   error?:       string;
 }> {
   try {
-    const pkg = await (Prisma as any).custom_packages.findUnique({
+    const pkg = await db.custom_packages.findUnique({
       where:   { id: packageId },
       include: {
         query:       true,
@@ -328,6 +380,11 @@ export async function sendPackageToClient(packageId: string): Promise<{
       ? `${pkg.currency} ${Number(pkg.totalPrice).toLocaleString("en-IN")}`
       : "To be confirmed";
 
+    const transportLine = [
+      pkg.flightsIncluded ? "✈️ Flights included" : null,
+      pkg.trainIncluded ? "🚆 Train included" : null,
+    ].filter(Boolean).join(" · ");
+
     const message = [
       `Hi ${pkg.query.name} 👋`,
       ``,
@@ -339,6 +396,7 @@ export async function sendPackageToClient(packageId: string): Promise<{
       `🌙 *Duration:* ${pkg.totalDays} Days / ${pkg.totalNights} Nights`,
       `👥 *Travellers:* ${paxLine}`,
       `💰 *Total Price:* ${priceStr}`,
+      ...(transportLine ? [transportLine] : []),
       ``,
       `Please check your email for the detailed itinerary PDF.`,
       `Let us know if you'd like any changes! 🙏`,
@@ -348,7 +406,7 @@ export async function sendPackageToClient(packageId: string): Promise<{
 
     // ── Update DB ────────────────────────────────────────────────────────────
     await db.$transaction([
-      (Prisma as any).custom_packages.update({
+      db.custom_packages.update({
         where: { id: packageId },
         data:  { status: "SENT", sentAt: new Date() },
       }),
@@ -363,7 +421,7 @@ export async function sendPackageToClient(packageId: string): Promise<{
     //   await sendPackageEmail({ to: pkg.query.email, name: pkg.query.name, pkg });
     // }
 
-    revalidatePath("/package-builder");
+    revalidatePath("/dashboard/package-builder");
 
     return { success: true, whatsappUrl };
   } catch (err) {

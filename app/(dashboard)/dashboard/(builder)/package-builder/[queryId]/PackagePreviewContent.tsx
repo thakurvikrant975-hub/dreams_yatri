@@ -2,10 +2,11 @@
 
 import {
   Calendar, Hotel, Car, Utensils, CheckCircle, XCircle,
-  IndianRupee, Users, MapPin, Info, Eye,
+  IndianRupee, Users, MapPin, Info, Eye, LogIn, LogOut,
+  Plane, TrainFront, Sparkles,
 } from "lucide-react";
 import { Badge } from "@/app/(dashboard)/dashboard/(main)/components/ui/badge";
-import type { DayItinerary } from "../action";
+import type { DayItinerary, ActivityInput } from "../action";
 
 export interface PreviewData {
   title: string;
@@ -23,7 +24,95 @@ export interface PreviewData {
   inclusions: string[];
   exclusions: string[];
   termsNotes: string;
+  flightsIncluded: boolean;
+  flightNotes: string;
+  trainIncluded: boolean;
+  trainNotes: string;
   itineraries: DayItinerary[];
+}
+
+function ActivityRow({ activity }: { activity: ActivityInput }) {
+  if (!activity.title.trim()) return null;
+  return (
+    <div className="flex gap-2">
+      <Sparkles size={12} className="text-dashboard-primary shrink-0 mt-0.5" />
+      <div>
+        <p className="text-xs font-semibold text-dashboard-base-content">{activity.title}</p>
+        {activity.description && (
+          <p className="text-xs text-dashboard-base-content/60 mt-0.5">{activity.description}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DayCardPreview({ day }: { day: DayItinerary }) {
+  const activities = day.activities.filter((a) => a.title.trim());
+  const hasHotel = day.accommodation || day.hotelCheckIn || day.hotelCheckOut || day.hotelMealPlan;
+
+  return (
+    <div className="rounded-xl border border-dashboard-base-300 overflow-hidden">
+      {/* Day header — pill + title */}
+      <div className="flex items-center gap-3 px-3.5 py-3 border-b border-dashboard-base-300 bg-dashboard-base-200/40">
+        <span className="shrink-0 bg-dashboard-primary text-dashboard-primary-content text-xs font-semibold px-2.5 py-1 rounded-full">
+          Day {day.day}
+        </span>
+        <p className="text-sm font-semibold text-dashboard-base-content truncate">
+          {day.title || `Day ${day.day}`}
+        </p>
+      </div>
+
+      <div className="px-3.5 py-3 space-y-3">
+        {day.description && (
+          <p className="text-xs text-dashboard-base-content/70 leading-relaxed">{day.description}</p>
+        )}
+
+        {/* Hotel info */}
+        {hasHotel && (
+          <div className="rounded-lg bg-dashboard-base-200/40 p-2.5 space-y-1.5">
+            <div className="flex items-center gap-1.5">
+              <Hotel size={12} className="text-dashboard-primary shrink-0" />
+              <p className="text-xs font-semibold text-dashboard-base-content">
+                {day.accommodation || "Hotel (TBD)"}
+              </p>
+            </div>
+            {(day.hotelCheckIn || day.hotelCheckOut) && (
+              <div className="flex items-center gap-4 text-[11px] text-dashboard-base-content/60 pl-4.5">
+                {day.hotelCheckIn && (
+                  <span className="flex items-center gap-1"><LogIn size={10} /> Check-in {day.hotelCheckIn}</span>
+                )}
+                {day.hotelCheckOut && (
+                  <span className="flex items-center gap-1"><LogOut size={10} /> Check-out {day.hotelCheckOut}</span>
+                )}
+              </div>
+            )}
+            {day.hotelMealPlan && (
+              <p className="text-[11px] text-dashboard-base-content/60 pl-4.5">{day.hotelMealPlan}</p>
+            )}
+          </div>
+        )}
+
+        {/* Transport + meals */}
+        {(day.transport || day.meals.length > 0) && (
+          <div className="flex flex-wrap gap-3 text-xs text-dashboard-base-content/70">
+            {day.transport && <span className="flex items-center gap-1"><Car size={11} /> {day.transport}</span>}
+            {day.meals.length > 0 && <span className="flex items-center gap-1"><Utensils size={11} /> {day.meals.join(", ")}</span>}
+          </div>
+        )}
+
+        {/* Activities */}
+        {activities.length > 0 && (
+          <div className="space-y-2 pt-1 border-t border-dashboard-base-300">
+            {activities.map((a, i) => <ActivityRow key={i} activity={a} />)}
+          </div>
+        )}
+
+        {day.notes && (
+          <p className="text-[11px] text-dashboard-base-content/50 italic">{day.notes}</p>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function PackagePreviewContent({ form }: { form: PreviewData }) {
@@ -74,21 +163,29 @@ export function PackagePreviewContent({ form }: { form: PreviewData }) {
         </div>
       </div>
 
+      {/* Flights & Train inclusion */}
+      {(form.flightsIncluded || form.trainIncluded) && (
+        <div className="flex flex-wrap gap-2">
+          {form.flightsIncluded && (
+            <div className="flex items-center gap-1.5 rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 px-2.5 py-1.5 text-xs text-dashboard-base-content">
+              <Plane size={12} className="text-dashboard-primary" />
+              <span className="font-medium">Flights included</span>
+              {form.flightNotes && <span className="text-dashboard-base-content/50">· {form.flightNotes}</span>}
+            </div>
+          )}
+          {form.trainIncluded && (
+            <div className="flex items-center gap-1.5 rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 px-2.5 py-1.5 text-xs text-dashboard-base-content">
+              <TrainFront size={12} className="text-dashboard-primary" />
+              <span className="font-medium">Train included</span>
+              {form.trainNotes && <span className="text-dashboard-base-content/50">· {form.trainNotes}</span>}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="space-y-3">
         <h3 className="text-xs font-bold uppercase tracking-wide text-dashboard-base-content/50">Day-wise Itinerary</h3>
-        {form.itineraries.map((d) => (
-          <div key={d.day} className="rounded-lg border border-dashboard-base-300 p-3">
-            <p className="text-sm font-semibold text-dashboard-base-content">
-              Day {d.day}{d.title ? `: ${d.title}` : ""}
-            </p>
-            {d.description && <p className="text-xs text-dashboard-base-content/60 mt-1">{d.description}</p>}
-            <div className="flex flex-wrap gap-3 mt-2 text-xs text-dashboard-base-content/70">
-              {d.accommodation && <span className="flex items-center gap-1"><Hotel size={11} /> {d.accommodation}</span>}
-              {d.transport && <span className="flex items-center gap-1"><Car size={11} /> {d.transport}</span>}
-              {d.meals.length > 0 && <span className="flex items-center gap-1"><Utensils size={11} /> {d.meals.join(", ")}</span>}
-            </div>
-          </div>
-        ))}
+        {form.itineraries.map((d) => <DayCardPreview key={d.day} day={d} />)}
       </div>
 
       <div className="grid sm:grid-cols-2 gap-4">

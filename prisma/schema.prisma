@@ -2282,15 +2282,19 @@ model custom_packages {
   inclusions     String[]
   exclusions     String[]
   termsNotes     String?
-  status         CustomPackageStatus  @default(DRAFT)
-  builtBy        String
-  builtByName    String?
-  sentAt         DateTime?
-  pdfUrl         String?
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
-  itineraries    custom_itineraries[]
-  query          package_queries      @relation(fields: [queryId], references: [id])
+  status          CustomPackageStatus  @default(DRAFT)
+  builtBy         String
+  builtByName     String?
+  sentAt          DateTime?
+  pdfUrl          String?
+  flightsIncluded Boolean              @default(false)
+  flightNotes     String?
+  trainIncluded   Boolean              @default(false)
+  trainNotes      String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  itineraries     custom_itineraries[]
+  query           package_queries      @relation(fields: [queryId], references: [id])
 
   @@index([queryId])
   @@index([builtBy])
@@ -2298,22 +2302,38 @@ model custom_packages {
 }
 
 model custom_itineraries {
-  id              String          @id @default(cuid())
+  id              String                        @id @default(cuid())
   customPackageId String
   day             Int
   title           String
   description     String?
-  activities      String[]
   meals           String[]
   accommodation   String?
+  hotelCheckIn    String?
+  hotelCheckOut   String?
+  hotelMealPlan   String?
   transport       String?
   notes           String?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  package         custom_packages @relation(fields: [customPackageId], references: [id], onDelete: Cascade)
+  createdAt       DateTime                      @default(now())
+  updatedAt       DateTime                      @updatedAt
+  package         custom_packages               @relation(fields: [customPackageId], references: [id], onDelete: Cascade)
+  activities      custom_itinerary_activities[]
 
   @@index([customPackageId])
   @@index([day])
+}
+
+model custom_itinerary_activities {
+  id          String             @id @default(cuid())
+  itineraryId String
+  title       String
+  description String?
+  sortOrder   Int                @default(0)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  itinerary   custom_itineraries @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
+
+  @@index([itineraryId])
 }
 
 model blog_posts {
