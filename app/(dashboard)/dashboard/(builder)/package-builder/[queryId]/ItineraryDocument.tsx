@@ -17,7 +17,7 @@ export interface PreviewData {
   totalDays: number;
   totalNights: number;
   travelDate: string;
-  adults: number;
+  adults: number;  
   children: number;
   infants: number;
   pricePerPerson: string;
