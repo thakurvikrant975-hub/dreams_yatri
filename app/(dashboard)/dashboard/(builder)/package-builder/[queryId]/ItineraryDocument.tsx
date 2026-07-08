@@ -4,7 +4,7 @@ import {
   Calendar, Hotel, Car, Utensils, CheckCircle, XCircle,
   IndianRupee, Users, MapPin, Info, LogIn, LogOut,
   Plane, TrainFront, Sparkles, Phone, Mail,
-} from "lucide-react";
+} from "lucide-react";   
 import DyLogo from "@/app/components/ui/DyLogo";
 import type { DayItinerary, ActivityInput, StopInput } from "../action";
 
