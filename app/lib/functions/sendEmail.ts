@@ -13,7 +13,7 @@ type EmailPayload = {
 export async function sendEmail({ to, subject, html }: EmailPayload): Promise<boolean> {
   try {
     const { error } = await resend.emails.send({
-      from: "onboarding@resend.dev",
+      from: process.env.MAIL_FROM || "onboarding@resend.dev",
       to,
       subject,
       html,
