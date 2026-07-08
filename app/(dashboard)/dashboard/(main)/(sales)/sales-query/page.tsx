@@ -29,18 +29,19 @@ export const metadata: Metadata = {
 function TableSkeleton() {
     return (
         <div className="rounded-xl border bg-card overflow-hidden">
-            <div className="bg-muted/50 px-4 py-3 grid grid-cols-8 gap-4">
-                {Array.from({ length: 8 }).map((_, i) => (
+            <div className="bg-muted/50 px-4 py-3 grid grid-cols-9 gap-4">
+                {Array.from({ length: 9 }).map((_, i) => (
                     <Skeleton key={i} className="h-4" />
                 ))}
             </div>
             {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="px-4 py-3 grid grid-cols-8 gap-4 border-t items-center">
+                <div key={i} className="px-4 py-3 grid grid-cols-9 gap-4 border-t items-center">
                     <div className="space-y-1">
                         <Skeleton className="h-4 w-28" />
                         <Skeleton className="h-3 w-24" />
                     </div>
                     <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-7 w-24 rounded-md mx-auto" />
                     <Skeleton className="h-5 w-20 rounded-full" />
                     <Skeleton className="h-4 w-16" />
                     <Skeleton className="h-4 w-14" />

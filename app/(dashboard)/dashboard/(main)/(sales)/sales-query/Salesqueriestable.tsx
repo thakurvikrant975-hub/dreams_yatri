@@ -5,8 +5,8 @@ import { format, formatDistanceToNow, isToday } from "date-fns";
 import {
     CalendarClock, Eye, Phone, Mail,
     MapPin, Users, Calendar, StickyNote, TrendingUp,
-    RotateCcw, ClipboardList, Inbox, Send, Clock, UserCheck, CheckCircle2,
-    CircleX, Package, FileText
+    RotateCcw, ClipboardList, Inbox, Send, Clock, UserCheck,
+    CircleX, Package
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
@@ -26,6 +26,7 @@ import type { SalesQueryRow } from "./actions";
 import type { PackageQueryType, CloseReason, RejectionReason, PackageRequirements } from "../../(marketing)/queries/actions";
 import { SalesQueryStatus } from "./query-status";
 import { StatCard, StatGrid } from "../../components/dashboard/Statcard";
+import { cn } from "@/app/lib/utils";
 import Image from "next/image";
 import { TableEmptyState } from "../../components/dashboard/TableEmptyState";
 
@@ -284,32 +285,41 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                             <p className="text-xs text-muted-foreground truncate max-w-40">{q.packageName}</p>
                         )
                     )}
-                    {!q.destination && !q.packageName && !q.customPackage && (
+                    {!q.destination && !q.packageName && (
                         <span className="text-xs text-muted-foreground italic">—</span>
                     )}
-                    {q.customPackage && (
-                        <a
-                            href={`/dashboard/package-builder/${q.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className={`flex items-center gap-1 text-[11px] font-medium mt-1 truncate max-w-44 hover:underline ${
-                                q.customPackage.status === "SENT"
-                                    ? "text-green-700 dark:text-green-400"
-                                    : "text-muted-foreground"
-                            }`}
-                        >
-                            {q.customPackage.status === "SENT" ? (
-                                <CheckCircle2 className="h-3 w-3 shrink-0" />
-                            ) : (
-                                <Package className="h-3 w-3 shrink-0" />
-                            )}
-                            <span className="truncate">
-                                {q.customPackage.status === "SENT" ? "Sent: " : "Draft: "}{q.customPackage.title}
-                            </span>
-                            {q.customPackage.pdfUrl && <FileText className="h-3 w-3 shrink-0" />}
-                        </a>
-                    )}
+                </div>
+            ),
+        },
+        {
+            header: "Package",
+            align: "center" as const,
+            width: "w-[140px]",
+            cell: (q) => (
+                <div onClick={(e) => e.stopPropagation()}>
+                    <a
+                        href={`/dashboard/package-builder/${q.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={cn(
+                            "inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition-colors",
+                            !q.customPackage
+                                ? "text-primary border-primary/30 bg-primary/5 hover:bg-primary/10"
+                                : q.customPackage.status === "SENT"
+                                    ? "text-green-700 border-green-300 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:border-green-900 dark:bg-green-950/30"
+                                    : "text-amber-700 border-amber-300 bg-amber-50 hover:bg-amber-100 dark:text-amber-400 dark:border-amber-900 dark:bg-amber-950/20"
+                        )}
+                    >
+                        {!q.customPackage ? (
+                            <>
+                                <Package className="h-3 w-3" /> Create Package
+                            </>
+                        ) : (
+                            <>
+                                <Eye className="h-3 w-3" /> View Package
+                            </>
+                        )}
+                    </a>
                 </div>
             ),
         },
