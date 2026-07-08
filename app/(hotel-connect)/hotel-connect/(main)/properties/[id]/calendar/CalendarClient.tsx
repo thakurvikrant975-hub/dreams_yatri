@@ -332,6 +332,8 @@ export default function CalendarClient({
 }
 
 function EditPanel({
+  hotelId,
+  roomId,
   rangeLo,
   rangeHi,
   saving,
@@ -442,6 +444,14 @@ function EditPanel({
               </button>
               <button onClick={onClear} className="h-10 px-3 rounded-lg border border-neutral-200 text-sm text-neutral-600 hover:bg-neutral-50">Clear</button>
             </div>
+            {roomId != null && (
+              <Link
+                href={`/hotel-connect/properties/${hotelId}/rates/${roomId}?from=${rangeLo}&to=${rangeHi}`}
+                className="block text-center text-xs font-semibold text-primary-600 hover:text-primary-700 mt-2"
+              >
+                Manage Rates for this range →
+              </Link>
+            )}
           </div>
         </>
       )}

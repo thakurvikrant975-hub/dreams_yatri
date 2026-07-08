@@ -36,6 +36,8 @@ export type RangePatch = {
   stopSell?: boolean;
   minLos?: number | null;
   maxLos?: number | null;
+  minAdvanceDays?: number | null;
+  maxAdvanceDays?: number | null;
   closedToArrival?: boolean;
   closedToDeparture?: boolean;
 };
@@ -80,6 +82,17 @@ export async function saveAvailabilityRange(
   if (patch.minLos != null && patch.maxLos != null && patch.minLos > patch.maxLos) {
     return { error: "Minimum stay can't be greater than maximum stay." };
   }
+  if (patch.minAdvanceDays !== undefined && patch.minAdvanceDays !== null &&
+      (!Number.isFinite(patch.minAdvanceDays) || patch.minAdvanceDays < 0)) {
+    return { error: "Minimum advance booking window can't be negative." };
+  }
+  if (patch.maxAdvanceDays !== undefined && patch.maxAdvanceDays !== null &&
+      (!Number.isFinite(patch.maxAdvanceDays) || patch.maxAdvanceDays < 0)) {
+    return { error: "Maximum advance booking window can't be negative." };
+  }
+  if (patch.minAdvanceDays != null && patch.maxAdvanceDays != null && patch.minAdvanceDays > patch.maxAdvanceDays) {
+    return { error: "Minimum advance window can't be greater than maximum." };
+  }
 
   // Nights are inclusive of both ends → walk to the day after `toISO`.
   const toExclusive = new Date(`${toISO}T00:00:00.000Z`);
@@ -109,6 +122,8 @@ export async function saveAvailabilityRange(
   if (patch.stopSell !== undefined) data.stop_sell = patch.stopSell;
   if (patch.minLos !== undefined) data.min_los = patch.minLos;
   if (patch.maxLos !== undefined) data.max_los = patch.maxLos;
+  if (patch.minAdvanceDays !== undefined) data.min_advance_days = patch.minAdvanceDays;
+  if (patch.maxAdvanceDays !== undefined) data.max_advance_days = patch.maxAdvanceDays;
   if (patch.closedToArrival !== undefined) data.closed_to_arrival = patch.closedToArrival;
   if (patch.closedToDeparture !== undefined) data.closed_to_departure = patch.closedToDeparture;
   if (Object.keys(data).length === 0) return { error: "Nothing to update." };

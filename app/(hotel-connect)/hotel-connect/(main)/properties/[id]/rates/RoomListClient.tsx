@@ -103,7 +103,7 @@ function RoomCard({ hotelId, room }: { hotelId: number; room: RoomListItem }) {
           )}
         </div>
         <Link
-          href={`/hotel-connect/properties/${hotelId}/calendar?room=${room.id}`}
+          href={`/hotel-connect/properties/${hotelId}/rates/${room.id}`}
           className="text-xs font-semibold text-primary-600 hover:text-primary-700"
         >
           {hasRate ? "Manage all rates" : "Add rates"}
