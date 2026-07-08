@@ -85,8 +85,25 @@ export async function assignQuery(
 
 // ── Sales READ ────────────────────────────────────────────────────────────────
 
+export type SentPackageInfo = {
+    id:             string;
+    title:          string;
+    status:         string;
+    sentAt:         Date | null;
+    totalPrice:     number | null;
+    pricePerPerson: number | null;
+    pdfUrl:         string | null;
+};
+
+export type SalesQueryRow = PackageQuery & { customPackage: SentPackageInfo | null };
+
+const CUSTOM_PACKAGE_SELECT = {
+    id: true, title: true, status: true, sentAt: true,
+    totalPrice: true, pricePerPerson: true, pdfUrl: true,
+} as const;
+
 /** Returns only queries assigned to the currently logged-in sales exec */
-export async function getSalesQueries(): Promise<PackageQuery[]> {
+export async function getSalesQueries(): Promise<SalesQueryRow[]> {
     const { teamMemberId } = await getCurrentActor();
 
     const queries = await db.package_queries.findMany({
@@ -94,6 +111,7 @@ export async function getSalesQueries(): Promise<PackageQuery[]> {
         include: {
             rejection_reasons: { select: { id: true, label: true } },
             _count:            { select: { queryFollowUps: true, notes: true } },
+            custom_packages:   { select: CUSTOM_PACKAGE_SELECT },
         },
         orderBy: { assignedAt: "desc" },
     }) as any[];
@@ -102,7 +120,8 @@ export async function getSalesQueries(): Promise<PackageQuery[]> {
         ...q,
         rejectionReason:  q.rejection_reasons ?? null,
         totalLeadQueries: 1,
-    })) as PackageQuery[];
+        customPackage:    q.custom_packages ?? null,
+    })) as SalesQueryRow[];
 }
 
 export async function getSalesQueryById(id: string) {
@@ -115,9 +134,10 @@ export async function getSalesQueryById(id: string) {
                 where:   teamMemberId ? { createdById: teamMemberId } : {},
                 orderBy: { createdAt: "asc" },
             },
-            notes:    { orderBy: { createdAt: "asc" } },
-            timeline: { orderBy: { createdAt: "asc" } },
-            _count:   { select: { queryFollowUps: true, notes: true } },
+            notes:            { orderBy: { createdAt: "asc" } },
+            timeline:         { orderBy: { createdAt: "asc" } },
+            _count:           { select: { queryFollowUps: true, notes: true } },
+            custom_packages:  { select: CUSTOM_PACKAGE_SELECT },
         },
     });
 }

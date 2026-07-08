@@ -8,7 +8,6 @@ import {
     BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "../../components/ui/breadcrumb";
 import { getSalesQueries, getCloseReasons, getRejectionReasons } from "./actions";
-import { PackageQueryType } from "../../(marketing)/queries/actions";
 import { SalesQueriesTable } from "./Salesqueriestable";
 import type { Metadata } from "next";
 import { PageHeader } from "../../components/dashboard/PageHeader";
@@ -65,7 +64,7 @@ async function SalesQueriesData() {
     ]);
     return (
         <SalesQueriesTable
-            queries={queries as PackageQueryType[]}
+            queries={queries}
             closeReasons={closeReasons}
             rejectionReasons={rejectionReasons}
         />

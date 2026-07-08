@@ -6,7 +6,7 @@ import {
     CalendarClock, Eye, Phone, Mail,
     MapPin, Users, Calendar, StickyNote, TrendingUp,
     RotateCcw, ClipboardList, Inbox, Send, Clock, UserCheck, CheckCircle2,
-    CircleX
+    CircleX, Package, FileText
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
@@ -22,6 +22,7 @@ import { AddFollowUpDialog } from "./Addfollowupdialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { SalesQueryDetailSheet } from "./Salesquerydetailsheet";
 import { reopenSalesQuery, getSalesQueryById } from "./actions";
+import type { SalesQueryRow } from "./actions";
 import type { PackageQueryType, CloseReason, RejectionReason, PackageRequirements } from "../../(marketing)/queries/actions";
 import { SalesQueryStatus } from "./query-status";
 import { StatCard, StatGrid } from "../../components/dashboard/Statcard";
@@ -30,7 +31,7 @@ import { TableEmptyState } from "../../components/dashboard/TableEmptyState";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type SalesQueryWithDetails = PackageQueryType & {
+type SalesQueryWithDetails = SalesQueryRow & {
     // queryFollowUps from DB mapped to followUps for the sheet
     followUps: Array<{
         id: string;
@@ -44,7 +45,7 @@ type SalesQueryWithDetails = PackageQueryType & {
 };
 
 type Props = {
-    queries: PackageQueryType[];
+    queries: SalesQueryRow[];
     closeReasons: CloseReason[];
     rejectionReasons: RejectionReason[];
 };
@@ -173,10 +174,11 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
             if (!full) return;
 
             const normalized: SalesQueryWithDetails = {
-                ...(full as unknown as PackageQueryType),
+                ...(full as unknown as SalesQueryRow),
                 // Map queryFollowUps → followUps for the detail sheet
                 followUps: (full as any).queryFollowUps ?? [],
                 notes: (full as any).notes ?? [],
+                customPackage: (full as any).custom_packages ?? null,
             };
 
             setDetailQuery(normalized);
@@ -227,7 +229,7 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
     const convRate = totalCount > 0 ? Math.round((bookedCount / totalCount) * 100) : 0;
 
     // ── Columns ───────────────────────────────────────────────────────────────
-    const columns: ColumnDef<PackageQueryType>[] = [
+    const columns: ColumnDef<SalesQueryRow>[] = [
         {
             header: "Lead",
             width: "w-[200px]",
@@ -282,8 +284,31 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                             <p className="text-xs text-muted-foreground truncate max-w-40">{q.packageName}</p>
                         )
                     )}
-                    {!q.destination && !q.packageName && (
+                    {!q.destination && !q.packageName && !q.customPackage && (
                         <span className="text-xs text-muted-foreground italic">—</span>
+                    )}
+                    {q.customPackage && (
+                        <a
+                            href={`/dashboard/package-builder/${q.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className={`flex items-center gap-1 text-[11px] font-medium mt-1 truncate max-w-44 hover:underline ${
+                                q.customPackage.status === "SENT"
+                                    ? "text-green-700 dark:text-green-400"
+                                    : "text-muted-foreground"
+                            }`}
+                        >
+                            {q.customPackage.status === "SENT" ? (
+                                <CheckCircle2 className="h-3 w-3 shrink-0" />
+                            ) : (
+                                <Package className="h-3 w-3 shrink-0" />
+                            )}
+                            <span className="truncate">
+                                {q.customPackage.status === "SENT" ? "Sent: " : "Draft: "}{q.customPackage.title}
+                            </span>
+                            {q.customPackage.pdfUrl && <FileText className="h-3 w-3 shrink-0" />}
+                        </a>
                     )}
                 </div>
             ),
@@ -490,6 +515,7 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                     onRowClick={(q) => openDetail(q)}
                     rowClassName={(q) => {
                         if (isClosedStatus(q.status as SalesQueryStatus)) return "opacity-60 hover:opacity-80";
+                        if (q.customPackage?.status === "SENT") return "bg-green-50/60 dark:bg-green-950/20 hover:bg-green-100/70 dark:hover:bg-green-900/30";
                         if (q.status === "SUBMITTED") return "bg-amber-50/40 dark:bg-amber-950/10";
                         return "";
                     }}

@@ -6,6 +6,7 @@ import {
     Phone, Mail, MapPin, Users, Calendar,
     CalendarClock, XCircle,
     Globe, RotateCcw, ClipboardList,
+    Package, CheckCircle2, FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
@@ -23,6 +24,7 @@ import { CloseQueryDialog } from "./Closequerydialog";
 import { RejectQueryDialog } from "./Rejectquerydialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { reopenSalesQuery } from "./actions";
+import type { SentPackageInfo } from "./actions";
 import { PackageRequirements } from "../../(marketing)/queries/actions";
 import { CloseReason, RejectionReason } from "../../(marketing)/queries/actions";
 
@@ -71,6 +73,7 @@ export type SalesQuery = {
   closedAt: Date | null;
   requirements: unknown;
   _count: { queryFollowUps: number };
+  customPackage: SentPackageInfo | null;
 };
 
 function InfoRow({
@@ -253,6 +256,61 @@ export function SalesQueryDetailSheet({
                                 {format(new Date(query.assignedAt), "dd MMM yyyy")} at{" "}
                                 {format(new Date(query.assignedAt), "hh:mm a")}
                             </p>
+                        </div>
+                    )}
+
+                    {/* Custom package status */}
+                    {query.customPackage && (
+                        <div
+                            className={`mt-2 rounded-lg border px-3 py-2 ${
+                                query.customPackage.status === "SENT"
+                                    ? "border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30"
+                                    : "border-border bg-muted/40"
+                            }`}
+                        >
+                            <div className="flex items-center justify-between gap-2">
+                                <p
+                                    className={`text-[11px] font-semibold uppercase tracking-wide mb-0.5 flex items-center gap-1 ${
+                                        query.customPackage.status === "SENT"
+                                            ? "text-green-700 dark:text-green-400"
+                                            : "text-muted-foreground"
+                                    }`}
+                                >
+                                    {query.customPackage.status === "SENT" ? (
+                                        <CheckCircle2 className="h-3 w-3" />
+                                    ) : (
+                                        <Package className="h-3 w-3" />
+                                    )}
+                                    {query.customPackage.status === "SENT" ? "Package Sent" : "Package Draft"}
+                                </p>
+                                <a
+                                    href={`/dashboard/package-builder/${query.id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[11px] text-primary hover:underline shrink-0"
+                                >
+                                    Open Builder
+                                </a>
+                            </div>
+                            <p className="text-sm font-medium">{query.customPackage.title}</p>
+                            <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+                                {query.customPackage.totalPrice != null && (
+                                    <span>₹{Number(query.customPackage.totalPrice).toLocaleString("en-IN")}</span>
+                                )}
+                                {query.customPackage.sentAt && (
+                                    <span>· Sent {formatDistanceToNow(new Date(query.customPackage.sentAt), { addSuffix: true })}</span>
+                                )}
+                                {query.customPackage.pdfUrl && (
+                                    <a
+                                        href={query.customPackage.pdfUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-0.5 text-primary hover:underline"
+                                    >
+                                        <FileText className="h-3 w-3" /> PDF
+                                    </a>
+                                )}
+                            </div>
                         </div>
                     )}
                 </SheetHeader>
