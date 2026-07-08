@@ -64,16 +64,9 @@ const DEFAULT_EXCLUSIONS = [
 // ─────────────────────────────────────────────────────────────────────────────
 // Small UI helpers
 // ─────────────────────────────────────────────────────────────────────────────
-function Pill({ label, color = "default" }: { label: string; color?: string }) {
-  const map: Record<string, string> = {
-    blue: "bg-dashboard-secondary/10 text-dashboard-secondary border-dashboard-secondary/30",
-    green: "bg-dashboard-success/10 text-dashboard-success border-dashboard-success/30",
-    amber: "bg-dashboard-warning/10 text-dashboard-warning-content border-dashboard-warning/30",
-    violet: "bg-dashboard-primary/10 text-dashboard-primary border-dashboard-primary/30",
-    default: "bg-dashboard-base-200 text-dashboard-base-content/60 border-dashboard-base-300",
-  };
+function Pill({ label }: { label: string }) {
   return (
-    <span className={cn("text-xs px-2 py-0.5 rounded-full border font-medium", map[color] ?? map.default)}>
+    <span className="text-xs px-2 py-0.5 rounded-full border font-medium bg-dashboard-base-200 text-dashboard-base-content/70 border-dashboard-base-300">
       {label}
     </span>
   );
@@ -84,21 +77,21 @@ function SectionCard({
 }: { title: string; icon: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 overflow-hidden">
+    <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 shadow-xs overflow-hidden">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-dashboard-neutral transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-dashboard-base-200/60 transition-colors cursor-pointer"
       >
-        <div className="flex items-center gap-2 text-sm font-semibold text-dashboard-neutral-content">
-          <span className="text-dashboard-neutral-content">{icon}</span>
+        <div className="flex items-center gap-2 text-sm font-semibold text-dashboard-base-content">
+          <span className="text-dashboard-primary">{icon}</span>
           {title}
         </div>
         {open
-          ? <ChevronUp size={14} className="text-dashboard-neutral-content  cursor-pointer" />
-          : <ChevronDown size={14} className="text-dashboard-neutral-content  cursor-pointer" />}
+          ? <ChevronUp size={14} className="text-dashboard-base-content/40" />
+          : <ChevronDown size={14} className="text-dashboard-base-content/40" />}
       </button>
       {open && (
-        <div className="px-4 pb-4 pt-1 space-y-2 border-t border-r border-l border-b border-dashboard-base-300">
+        <div className="px-4 pb-4 pt-1 space-y-2 border-t border-dashboard-base-300">
           {children}
         </div>
       )}
@@ -152,7 +145,7 @@ function EditableList({ label, items, onChange, placeholder }: {
           variant="outline"
           size="sm"
           onClick={add}
-          className="h-9 px-3 border-dashboard-base-300 rounded-md bg-dashboard-primary text-dashboard-accent-content"
+          className="h-9 px-3 border-dashboard-base-300 rounded-md bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90"
         >
           <Plus size={16} />
         </Button>
@@ -541,7 +534,7 @@ export default function PackageBuilderDetailPage() {
     <div className="min-h-screen flex flex-col">
 
       {/* ── Top Bar ─────────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30 border-b border-dashboard-base-300 bg-dashboard-base-100/95 backdrop-blur rounded-xl mb-6">
+      <header className="sticky top-0 z-30 border-b border-dashboard-base-300 bg-dashboard-base-100/95 backdrop-blur shadow-xs">
         <div className="flex items-center justify-between px-4 h-14 gap-3">
           {/* Left */}
           <div className="flex items-center gap-3 min-w-0">
@@ -608,7 +601,7 @@ export default function PackageBuilderDetailPage() {
       </header>
 
       {/* ── Body: Preview (left) + Tabbed Editor (right) ─────────────────────────── */}
-      <div className="flex relative h-[calc(100vh-2.5rem)]">
+      <div className="flex relative h-[calc(100vh-3.5rem)]">
 
         {/* ── LEFT: Live Preview (persistent on desktop) ───────────────────────── */}
         <aside className="hidden lg:block flex-1 border-r border-dashboard-base-300 overflow-y-auto h-full">
@@ -634,7 +627,7 @@ export default function PackageBuilderDetailPage() {
 
         {/* ── RIGHT: Tabbed Editor ──────────────────────────────────────────────── */}
         <main className="w-full lg:w-95 xl:w-105 shrink-0 overflow-y-auto h-full">
-          <div className="px-4 pb-4">
+          <div className="px-4 pt-5 pb-4">
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-4">
               <TabsList className="w-full sm:w-fit overflow-x-auto sticky top-0 z-10 bg-dashboard-base-200/95 backdrop-blur">
@@ -919,7 +912,7 @@ function ClientDetailsSidebar({ query, j, t, b, s, tr, ac }: {
           {j.destinations?.length > 0 && (
             <InfoRow label="Destinations" value={
               <div className="flex flex-wrap gap-1">
-                {j.destinations.map((d: string) => <Pill key={d} label={d} color="blue" />)}
+                {j.destinations.map((d: string) => <Pill key={d} label={d} />)}
               </div>
             } />
           )}
@@ -959,7 +952,7 @@ function ClientDetailsSidebar({ query, j, t, b, s, tr, ac }: {
           {s.types?.length > 0 && (
             <InfoRow label="Types" value={
               <div className="flex flex-wrap gap-1">
-                {s.types.map((x: string) => <Pill key={x} label={STAY_LABELS[x] ?? x} color="violet" />)}
+                {s.types.map((x: string) => <Pill key={x} label={STAY_LABELS[x] ?? x} />)}
               </div>
             } />
           )}
@@ -967,7 +960,7 @@ function ClientDetailsSidebar({ query, j, t, b, s, tr, ac }: {
             <InfoRow label="Meals" value={
               <div className="flex flex-wrap gap-1">
                 {s.mealTypes.map((m: string) => (
-                  <Pill key={m} label={m === "VEG" ? "🌿 Veg" : "🍗 Non-Veg"} color="green" />
+                  <Pill key={m} label={m === "VEG" ? "🌿 Veg" : "🍗 Non-Veg"} />
                 ))}
               </div>
             } />
@@ -982,7 +975,7 @@ function ClientDetailsSidebar({ query, j, t, b, s, tr, ac }: {
           {tr.cabTypes?.length > 0 && (
             <InfoRow label="Cabs" value={
               <div className="flex flex-wrap gap-1">
-                {tr.cabTypes.map((c: string) => <Pill key={c} label={CAB_LABELS[c] ?? c} color="amber" />)}
+                {tr.cabTypes.map((c: string) => <Pill key={c} label={CAB_LABELS[c] ?? c} />)}
               </div>
             } />
           )}
@@ -997,7 +990,7 @@ function ClientDetailsSidebar({ query, j, t, b, s, tr, ac }: {
           <InfoRow label="Activities" value={
             <div className="flex flex-wrap gap-1">
               {ac.selected?.map((a: string) => (
-                <Pill key={a} label={ACTIVITY_LABELS[a] ?? a} color="blue" />
+                <Pill key={a} label={ACTIVITY_LABELS[a] ?? a} />
               ))}
               {ac.custom?.map((a: string) => (
                 <Pill key={a} label={a} />
