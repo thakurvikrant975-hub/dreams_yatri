@@ -7,12 +7,13 @@ import {
   Utensils, ChevronDown, ChevronUp, Plus, Trash2,
   Save, Send, CheckCircle, AlertCircle, Loader2,
   Package, User, Info, IndianRupee, ArrowLeft,
-  Eye, EyeOff,
+  Eye, EyeOff, ListChecks,
 } from "lucide-react";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { Textarea } from "../../../components/ui/textarea";
 import { Badge } from "../../../components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../../components/ui/tabs";
 import { cn } from "@/app/lib/utils";
 import {
   getQueryDetail,
@@ -21,7 +22,7 @@ import {
   type QueryDetail,
   type DayItinerary,
 } from "../action";
-import { PackagePreviewDialog } from "./PackagePreviewDialog";
+import { PackagePreviewContent } from "./PackagePreviewContent";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -364,10 +365,10 @@ export default function PackageBuilderDetailPage() {
 
   const [query, setQuery] = useState<QueryDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [sideOpen, setSideOpen] = useState(false);
+  const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("client");
   const [packageId, setPackageId] = useState<string | null>(null);
   const [savedOk, setSavedOk] = useState(false);
-  const [previewOpen, setPreviewOpen] = useState(false);
 
   const [isSaving, startSave] = useTransition();
   const [isSending, startSend] = useTransition();
@@ -565,11 +566,11 @@ export default function PackageBuilderDetailPage() {
             <Button
               variant="outline"
               size="sm"
-              className="sm:hidden h-8 gap-1 border-dashboard-base-300 hover:bg-dashboard-base-200 rounded-md"
-              onClick={() => setSideOpen(!sideOpen)}
+              className="lg:hidden h-8 gap-1 border-dashboard-base-300 hover:bg-dashboard-base-200 rounded-md"
+              onClick={() => setMobilePreviewOpen(true)}
             >
-              {sideOpen ? <EyeOff size={13} /> : <Eye size={13} />}
-              <span className="text-xs">Details</span>
+              <Eye size={13} />
+              <span className="text-xs">Preview</span>
             </Button>
 
             <Button
@@ -592,15 +593,6 @@ export default function PackageBuilderDetailPage() {
 
             <Button
               size="sm"
-              className="h-8 gap-1.5 bg-dashboard-secondary text-dashboard-secondary-content hover:bg-dashboard-secondary/90 rounded-md"
-              onClick={() => setPreviewOpen(true)}
-            >
-              <Eye size={13} />
-              <span className="hidden sm:inline text-xs">Live Preview</span>
-            </Button>
-
-            <Button
-              size="sm"
               className="h-8 gap-1.5 bg-dashboard-success text-dashboard-success-content hover:bg-dashboard-success/90 rounded-md"
               onClick={handleSend}
               disabled={isSending || isSaving}
@@ -615,223 +607,239 @@ export default function PackageBuilderDetailPage() {
         </div>
       </header>
 
-      {/* ── Body ──────────────────────────────────────────────────────────────── */}
+      {/* ── Body: Preview (left) + Tabbed Editor (right) ─────────────────────────── */}
       <div className="flex relative h-[calc(100vh-2.5rem)]">
 
-
-        {/* ── LEFT SIDEBAR ────────────────────────────────────────────────────── */}
-        <aside className="w-80 lg:w-96 shrink-0 hidden sm:block overflow-y-auto h-full">
-          <div className="px-4 pb-4 space-y-3">
-            <ClientDetailsSidebar query={query} j={j} t={t} b={b} s={s} tr={tr} ac={ac} />
+        {/* ── LEFT: Live Preview (persistent on desktop) ───────────────────────── */}
+        <aside className="hidden lg:block lg:w-[42%] xl:w-[38%] shrink-0 border-r border-dashboard-base-300 overflow-y-auto h-full">
+          <div className="px-5 py-5">
+            <PackagePreviewContent form={form} />
           </div>
         </aside>
 
-        {/* Mobile sidebar overlay */}
-        {sideOpen && (
-          <div
-            className="sm:hidden fixed inset-0 z-20 flex"
-            onClick={() => setSideOpen(false)}
-          >
-            <aside
-              className="w-80 max-w-[85vw] bg-dashboard-base-100 border-r border-dashboard-base-300 overflow-y-auto shadow-xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between px-4 py-3 border-b border-dashboard-base-300 sticky top-0 bg-dashboard-base-100">
-                <span className="text-sm font-semibold text-dashboard-base-content">Client Details</span>
-                <button onClick={() => setSideOpen(false)}>
-                  <EyeOff size={15} className="text-dashboard-base-content/50" />
-                </button>
-              </div>
-              <div className="px-4 pb-4 space-y-3">
-                <ClientDetailsSidebar query={query} j={j} t={t} b={b} s={s} tr={tr} ac={ac} />
-              </div>
-            </aside>
-            <div className="flex-1 bg-dashboard-neutral/40" />
+        {/* Mobile preview overlay */}
+        {mobilePreviewOpen && (
+          <div className="lg:hidden fixed inset-0 z-30 bg-dashboard-base-100 overflow-y-auto">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-dashboard-base-300 sticky top-0 bg-dashboard-base-100 z-10">
+              <span className="text-sm font-semibold text-dashboard-base-content">Live Preview</span>
+              <button onClick={() => setMobilePreviewOpen(false)}>
+                <EyeOff size={16} className="text-dashboard-base-content/50" />
+              </button>
+            </div>
+            <div className="px-4 py-5">
+              <PackagePreviewContent form={form} />
+            </div>
           </div>
         )}
 
-        {/* ── RIGHT: Package Builder ─────────────────────────────────────────── */}
+        {/* ── RIGHT: Tabbed Editor ──────────────────────────────────────────────── */}
         <main className="flex-1 overflow-y-auto h-full">
-          <div className="max-w-5xl mx-auto px-4 pb-4 space-y-6">
+          <div className="max-w-3xl mx-auto px-4 pb-4">
 
-            {/* Package Overview */}
-            <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 p-5 space-y-4">
-              <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
-                <Package size={15} className="text-dashboard-primary" /> Package Overview
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="sm:col-span-2">
-                  <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block ">Package Title *</label>
-                  <Input
-                    value={form.title}
-                    onChange={field("title")}
-                    placeholder="e.g. Manali Adventure Package"
-                    className="text-sm border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">Destination(s)</label>
-                  <Input
-                    value={form.destination}
-                    onChange={field("destination")}
-                    placeholder="Manali, Bhuntar, Kullu"
-                    className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">Starting Point</label>
-                  <Input
-                    value={form.startingPoint}
-                    onChange={field("startingPoint")}
-                    placeholder="Delhi"
-                    className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">Travel Date</label>
-                  <Input
-                    type="date"
-                    value={form.travelDate}
-                    onChange={field("travelDate")}
-                    className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">Duration</label>
-                  <div className="flex gap-2">
-                    <div className="flex-1">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-4">
+              <TabsList className="w-full sm:w-fit overflow-x-auto sticky top-0 z-10 bg-dashboard-base-200/95 backdrop-blur">
+                <TabsTrigger value="client" className="gap-1.5">
+                  <User size={13} /> Client Info
+                </TabsTrigger>
+                <TabsTrigger value="details" className="gap-1.5">
+                  <Package size={13} /> Package Details
+                </TabsTrigger>
+                <TabsTrigger value="itinerary" className="gap-1.5">
+                  <Calendar size={13} /> Itinerary
+                </TabsTrigger>
+                <TabsTrigger value="inclusions" className="gap-1.5">
+                  <ListChecks size={13} /> Inclusions & Terms
+                </TabsTrigger>
+              </TabsList>
+
+              {/* ── Tab: Client Info ─────────────────────────────────────────────── */}
+              <TabsContent value="client" className="space-y-3">
+                <ClientDetailsSidebar query={query} j={j} t={t} b={b} s={s} tr={tr} ac={ac} />
+              </TabsContent>
+
+              {/* ── Tab: Package Details ─────────────────────────────────────────── */}
+              <TabsContent value="details" className="space-y-6">
+                {/* Package Overview */}
+                <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 p-5 space-y-4">
+                  <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
+                    <Package size={15} className="text-dashboard-primary" /> Package Overview
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="sm:col-span-2">
+                      <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block ">Package Title *</label>
                       <Input
-                        type="number" min={1}
-                        value={form.totalDays}
-                        onChange={(e) => setForm((f) => ({
-                          ...f,
-                          totalDays: +e.target.value,
-                          totalNights: Math.max(0, +e.target.value - 1),
-                        }))}
-                        className="text-sm h-9 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                        value={form.title}
+                        onChange={field("title")}
+                        placeholder="e.g. Manali Adventure Package"
+                        className="text-sm border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
                       />
-                      <p className="text-xs text-dashboard-base-content/50 mt-0.5 text-center">Days</p>
                     </div>
-                    <div className="flex-1">
+                    <div>
+                      <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">Destination(s)</label>
+                      <Input
+                        value={form.destination}
+                        onChange={field("destination")}
+                        placeholder="Manali, Bhuntar, Kullu"
+                        className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">Starting Point</label>
+                      <Input
+                        value={form.startingPoint}
+                        onChange={field("startingPoint")}
+                        placeholder="Delhi"
+                        className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">Travel Date</label>
+                      <Input
+                        type="date"
+                        value={form.travelDate}
+                        onChange={field("travelDate")}
+                        className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">Duration</label>
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <Input
+                            type="number" min={1}
+                            value={form.totalDays}
+                            onChange={(e) => setForm((f) => ({
+                              ...f,
+                              totalDays: +e.target.value,
+                              totalNights: Math.max(0, +e.target.value - 1),
+                            }))}
+                            className="text-sm h-9 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                          />
+                          <p className="text-xs text-dashboard-base-content/50 mt-0.5 text-center">Days</p>
+                        </div>
+                        <div className="flex-1">
+                          <Input
+                            type="number" min={0}
+                            value={form.totalNights}
+                            onChange={(e) => setForm((f) => ({ ...f, totalNights: +e.target.value }))}
+                            className="text-sm h-9 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                          />
+                          <p className="text-xs text-dashboard-base-content/50 mt-0.5 text-center">Nights</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Travellers & Pricing */}
+                <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 p-5 space-y-4">
+                  <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
+                    <IndianRupee size={15} className="text-dashboard-primary" /> Travellers & Pricing
+                  </h2>
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+                    {(["adults", "children", "infants"] as const).map((key) => (
+                      <div key={key}>
+                        <label className="text-xs font-medium text-dashboard-base-content/75 mb-1.5 block capitalize">{key}</label>
+                        <Input
+                          type="number" min={0}
+                          value={form[key]}
+                          onChange={(e) => setForm((f) => ({ ...f, [key]: +e.target.value }))}
+                          className="text-sm h-9 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                        />
+                      </div>
+                    ))}
+                    <div>
+                      <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">₹ / Person</label>
                       <Input
                         type="number" min={0}
-                        value={form.totalNights}
-                        onChange={(e) => setForm((f) => ({ ...f, totalNights: +e.target.value }))}
-                        className="text-sm h-9 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                        value={form.pricePerPerson}
+                        onChange={field("pricePerPerson")}
+                        placeholder="0"
+                        className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
                       />
-                      <p className="text-xs text-dashboard-base-content/50 mt-0.5 text-center">Nights</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">Total ₹</label>
+                      <Input
+                        type="number" min={0}
+                        value={form.totalPrice}
+                        onChange={field("totalPrice")}
+                        placeholder="Auto"
+                        className="text-sm h-9 bg-dashboard-base-200 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                      />
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
+              </TabsContent>
 
-            {/* Travellers & Pricing */}
-            <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 p-5 space-y-4">
-              <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
-                <IndianRupee size={15} className="text-dashboard-primary" /> Travellers & Pricing
-              </h2>
-              <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
-                {(["adults", "children", "infants"] as const).map((key) => (
-                  <div key={key}>
-                    <label className="text-xs font-medium text-dashboard-base-content/75 mb-1.5 block capitalize">{key}</label>
-                    <Input
-                      type="number" min={0}
-                      value={form[key]}
-                      onChange={(e) => setForm((f) => ({ ...f, [key]: +e.target.value }))}
-                      className="text-sm h-9 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                    />
-                  </div>
+              {/* ── Tab: Itinerary ───────────────────────────────────────────────── */}
+              <TabsContent value="itinerary" className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
+                    <Calendar size={15} className="text-dashboard-primary" />
+                    Day-wise Itinerary
+                    <Badge variant="outline" className="text-xs font-normal border-dashboard-base-300 text-dashboard-base-content/50">
+                      {form.itineraries.length} days
+                    </Badge>
+                  </h2>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1 border-dashboard-base-300 duration-300 transition-transform hover:scale-105 text-dashboard-base-content rounded-md"
+                    onClick={addDay}
+                  >
+                    <Plus size={13} /> Add Day
+                  </Button>
+                </div>
+
+                {form.itineraries.map((day, idx) => (
+                  <DayCard
+                    key={`day-${day.day}`}
+                    day={day.day}
+                    data={day}
+                    onChange={(d) => updateDay(idx, d)}
+                    onRemove={() => removeDay(idx)}
+                  />
                 ))}
-                <div>
-                  <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">₹ / Person</label>
-                  <Input
-                    type="number" min={0}
-                    value={form.pricePerPerson}
-                    onChange={field("pricePerPerson")}
-                    placeholder="0"
-                    className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+              </TabsContent>
+
+              {/* ── Tab: Inclusions & Terms ──────────────────────────────────────── */}
+              <TabsContent value="inclusions" className="space-y-6">
+                <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 p-5 space-y-5">
+                  <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
+                    <CheckCircle size={15} className="text-dashboard-primary" /> Inclusions & Exclusions
+                  </h2>
+                  <EditableList
+                    label="Inclusions"
+                    items={form.inclusions}
+                    onChange={(v) => setForm((f) => ({ ...f, inclusions: v }))}
+                    placeholder="Add inclusion…"
+                  />
+                  <EditableList
+                    label="Exclusions"
+                    items={form.exclusions}
+                    onChange={(v) => setForm((f) => ({ ...f, exclusions: v }))}
+                    placeholder="Add exclusion…"
                   />
                 </div>
-                <div>
-                  <label className="text-xs font-medium text-dashboard-base-content/90 mb-1.5 block">Total ₹</label>
-                  <Input
-                    type="number" min={0}
-                    value={form.totalPrice}
-                    onChange={field("totalPrice")}
-                    placeholder="Auto"
-                    className="text-sm h-9 bg-dashboard-base-200 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+
+                <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 p-5 space-y-3">
+                  <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
+                    <Info size={15} className="text-dashboard-primary" /> Terms & Notes
+                  </h2>
+                  <Textarea
+                    value={form.termsNotes}
+                    onChange={field("termsNotes")}
+                    rows={4}
+                    placeholder="Payment terms, cancellation policy, important notes…"
+                    className="text-sm resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
                   />
                 </div>
-              </div>
-            </div>
-
-            {/* Day-wise Itinerary */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
-                  <Calendar size={15} className="text-dashboard-primary" />
-                  Day-wise Itinerary
-                  <Badge variant="outline" className="text-xs font-normal border-dashboard-base-300 text-dashboard-base-content/50">
-                    {form.itineraries.length} days
-                  </Badge>
-                </h2>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 gap-1 border-dashboard-base-300 duration-300 transition-transform hover:scale-105 text-dashboard-base-content rounded-md"
-                  onClick={addDay}
-                >
-                  <Plus size={13} /> Add Day
-                </Button>
-              </div>
-
-              {form.itineraries.map((day, idx) => (
-                <DayCard
-                  key={`day-${day.day}`}
-                  day={day.day}
-                  data={day}
-                  onChange={(d) => updateDay(idx, d)}
-                  onRemove={() => removeDay(idx)}
-                />
-              ))}
-            </div>
-
-            {/* Inclusions & Exclusions */}
-            <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 p-5 space-y-5">
-              <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
-                <CheckCircle size={15} className="text-dashboard-primary" /> Inclusions & Exclusions
-              </h2>
-              <EditableList
-                label="Inclusions"
-                items={form.inclusions}
-                onChange={(v) => setForm((f) => ({ ...f, inclusions: v }))}
-                placeholder="Add inclusion…"
-              />
-              <EditableList
-                label="Exclusions"
-                items={form.exclusions}
-                onChange={(v) => setForm((f) => ({ ...f, exclusions: v }))}
-                placeholder="Add exclusion…"
-              />
-            </div>
-
-            {/* Terms & Notes */}
-            <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 p-5 space-y-3">
-              <h2 className="text-sm font-bold flex items-center gap-2 text-dashboard-base-content">
-                <Info size={15} className="text-dashboard-primary" /> Terms & Notes
-              </h2>
-              <Textarea
-                value={form.termsNotes}
-                onChange={field("termsNotes")}
-                rows={4}
-                placeholder="Payment terms, cancellation policy, important notes…"
-                className="text-sm resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-              />
-            </div>
+              </TabsContent>
+            </Tabs>
 
             {/* Bottom action bar */}
-            <div className="flex flex-wrap items-center justify-end gap-3 pt-2 pb-10">
+            <div className="flex flex-wrap items-center justify-end gap-3 pt-6 pb-10">
               <Button
                 variant="outline"
                 onClick={() => handleSave("DRAFT")}
@@ -840,13 +848,6 @@ export default function PackageBuilderDetailPage() {
               >
                 {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                 Save Draft
-              </Button>
-              <Button
-                className="gap-2 bg-dashboard-secondary text-dashboard-secondary-content hover:bg-dashboard-secondary/90"
-                onClick={() => setPreviewOpen(true)}
-              >
-                <Eye size={14} />
-                Live Preview
               </Button>
               <Button
                 variant="outline"
@@ -869,8 +870,6 @@ export default function PackageBuilderDetailPage() {
           </div>
         </main>
       </div>
-
-      <PackagePreviewDialog open={previewOpen} onOpenChange={setPreviewOpen} form={form} />
     </div>
   );
 }
