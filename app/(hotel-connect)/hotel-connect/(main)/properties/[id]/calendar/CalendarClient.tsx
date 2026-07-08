@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { cn } from "@/app/lib/utils";
 import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
   NoSymbolIcon,
   TagIcon,
   ListBulletIcon,
@@ -47,6 +49,7 @@ function MonthGrid({
   rangeLo,
   rangeHi,
   onClickDay,
+  gridRef,
 }: {
   year: number;
   month0: number;
@@ -54,6 +57,7 @@ function MonthGrid({
   rangeLo: string | null;
   rangeHi: string | null;
   onClickDay: (date: string) => void;
+  gridRef?: (el: HTMLDivElement | null) => void;
 }) {
   const daysInMonth = new Date(Date.UTC(year, month0 + 1, 0)).getUTCDate();
   const firstWeekday = new Date(Date.UTC(year, month0, 1)).getUTCDay();
@@ -67,7 +71,7 @@ function MonthGrid({
   }
 
   return (
-    <div>
+    <div ref={gridRef}>
       <p className="text-sm font-semibold text-neutral-800 px-4 pt-4 pb-2">{MONTHS[month0]} {year}</p>
       <div className="grid grid-cols-7">
         {cells.map((date, i) => {
@@ -124,14 +128,14 @@ export default function CalendarClient({
   initialDays: DayCell[];
 }) {
   const [roomId, setRoomId] = useState<number | null>(initialRoomId);
-  const [loadedYears, setLoadedYears] = useState<number[]>([initialYear]);
+  const [year, setYear] = useState(initialYear);
   const [days, setDays] = useState<DayCell[]>(initialDays);
   const [selStart, setSelStart] = useState<string | null>(null);
   const [selEnd, setSelEnd] = useState<string | null>(null);
   const [loading, startLoad] = useTransition();
   const [saving, startSave] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const monthRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
   const byDate = useMemo(() => {
     const m = new Map<string, DayCell>();
@@ -143,6 +147,9 @@ export default function CalendarClient({
     ? selStart <= selEnd ? [selStart, selEnd] : [selEnd, selStart]
     : selStart ? [selStart, selStart] : [null, null];
 
+  // Only one year's worth of rows is ever held in state — keeping every
+  // scrolled-past year around got out of hand fast, so switching years
+  // replaces the data instead of accumulating it.
   function loadYear(rId: number | null, y: number) {
     if (rId == null) return;
     const { from, toExclusive } = yearBounds(y);
@@ -152,15 +159,20 @@ export default function CalendarClient({
         setMsg(res.error);
         return;
       }
-      setDays((prev) => [...prev.filter((d) => !d.date.startsWith(String(y))), ...(res.days ?? [])]);
+      setDays(res.days ?? []);
     });
+  }
+
+  function changeYear(delta: number) {
+    const y = year + delta;
+    setYear(y);
+    loadYear(roomId, y);
   }
 
   function pickRoom(rId: number) {
     setRoomId(rId);
     setSelStart(null); setSelEnd(null); setMsg(null);
-    setDays([]);
-    setLoadedYears([initialYear]);
+    setYear(initialYear);
     loadYear(rId, initialYear);
   }
 
@@ -171,26 +183,13 @@ export default function CalendarClient({
     setMsg(null);
   }
 
-  // Scrolling to the bottom of the loaded months loads the next year — this
-  // is the only way further-out months become available, replacing the old
-  // per-month Prev/Next buttons that reset any in-progress selection.
+  // Land on the current month, not January, whenever the real "current"
+  // year is showing (initial load, or navigating back to it).
   useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting && !loading) {
-          const nextYear = Math.max(...loadedYears) + 1;
-          setLoadedYears((prev) => [...prev, nextYear]);
-          loadYear(roomId, nextYear);
-        }
-      },
-      { rootMargin: "400px" },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadedYears, roomId, loading]);
+    if (year !== initialYear) return;
+    const realCurrentMonth = new Date().getUTCMonth();
+    monthRefs.current[realCurrentMonth]?.scrollIntoView({ block: "start" });
+  }, [year, initialYear]);
 
   return (
     <div className="space-y-5">
@@ -228,30 +227,37 @@ export default function CalendarClient({
         </div>
       ) : (
         <div className="grid lg:grid-cols-[1fr_300px] gap-5">
-          {/* Calendar — all loaded months stacked, scroll for more */}
+          {/* Calendar — one year's months stacked, buttons to switch years */}
           <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100">
+              <button onClick={() => changeYear(-1)} className="w-8 h-8 rounded-lg hover:bg-neutral-100 flex items-center justify-center">
+                <ChevronLeftIcon className="w-4 h-4 text-neutral-600" />
+              </button>
+              <p className="text-sm font-semibold text-neutral-800">
+                {year} {loading && <span className="text-neutral-400 font-normal">· loading…</span>}
+              </p>
+              <button onClick={() => changeYear(1)} className="w-8 h-8 rounded-lg hover:bg-neutral-100 flex items-center justify-center">
+                <ChevronRightIcon className="w-4 h-4 text-neutral-600" />
+              </button>
+            </div>
+
             <div className="grid grid-cols-7 text-center text-[10px] font-semibold uppercase tracking-wide text-neutral-400 border-b border-neutral-100 sticky top-0 bg-white z-10">
               {WEEKDAYS.map((w) => <div key={w} className="py-2">{w}</div>)}
             </div>
 
             <div className="max-h-[75vh] overflow-y-auto divide-y divide-neutral-100">
-              {loadedYears.map((y) =>
-                Array.from({ length: 12 }, (_, month0) => (
-                  <MonthGrid
-                    key={`${y}-${month0}`}
-                    year={y}
-                    month0={month0}
-                    byDate={byDate}
-                    rangeLo={rangeLo}
-                    rangeHi={rangeHi}
-                    onClickDay={clickDay}
-                  />
-                )),
-              )}
-              <div ref={sentinelRef} className="h-4" />
-              {loading && (
-                <p className="text-center text-xs text-neutral-400 py-3">Loading more months…</p>
-              )}
+              {Array.from({ length: 12 }, (_, month0) => (
+                <MonthGrid
+                  key={month0}
+                  year={year}
+                  month0={month0}
+                  byDate={byDate}
+                  rangeLo={rangeLo}
+                  rangeHi={rangeHi}
+                  onClickDay={clickDay}
+                  gridRef={(el) => { monthRefs.current[month0] = el; }}
+                />
+              ))}
             </div>
 
             <div className="flex flex-wrap gap-3 px-4 py-2.5 border-t border-neutral-100 text-[10px] text-neutral-400">
@@ -276,9 +282,7 @@ export default function CalendarClient({
                 const res = await saveAvailabilityRange(hotelId, roomId, rangeLo, rangeHi, patch);
                 if (res.error) { setMsg(res.error); return; }
                 setSelStart(null); setSelEnd(null);
-                // Refresh every currently-loaded year so the range's new
-                // values show immediately, wherever it lands.
-                for (const y of loadedYears) loadYear(roomId, y);
+                loadYear(roomId, year);
                 setMsg(`Updated ${res.updated} night${res.updated === 1 ? "" : "s"}.`);
               });
             }}
@@ -337,8 +341,9 @@ function EditPanel({
       <p className="text-sm font-bold text-neutral-800">Bulk edit</p>
       {!active ? (
         <p className="text-xs text-neutral-500 mt-2 leading-relaxed">
-          Click a start date, then an end date anywhere in the calendar — even a different month or
-          year — to select a range, then set rates &amp; availability here.
+          Click a start date, then an end date — even in a different month — to select a range,
+          then set rates &amp; availability here. Use the arrows above the calendar to switch years
+          if your range crosses a year boundary.
         </p>
       ) : (
         <>
