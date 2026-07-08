@@ -576,6 +576,11 @@ export default function PhotosTab({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [tagError, setTagError] = useState<string | null>(null);
   const [showTagError, setShowTagError] = useState(false);
+  // Which check the current error is about — so the auto-clear effect below
+  // only clears it once *that specific* condition is resolved, instead of
+  // wiping e.g. a "not enough total photos" error the instant the (already
+  // tagged) photos happen to have zero untagged among them.
+  const [tagErrorKind, setTagErrorKind] = useState<"count" | "untagged" | "roomTag" | null>(null);
   const untaggedRef = useRef<HTMLDivElement>(null);
 
   const boundProceed = proceedPhotos.bind(null, hotelId);
@@ -604,19 +609,35 @@ export default function PhotosTab({
   const tagGroups = groupPhotosByTag(tagged);
   const total = photosState.length;
 
-  // Auto-clear tag error once all photos have been tagged
+  const roomTaggedCount = photosState.filter((p) => p.tags.includes(ROOM_TAG)).length;
+
+  // Auto-clear the tag error once the *specific* condition it was raised for
+  // is resolved — keyed off tagErrorKind so a "not enough total photos" or
+  // "not enough Bedroom-tagged photos" error doesn't get silently wiped just
+  // because untagged.length happens to be 0.
   useEffect(() => {
-    if (showTagError && untagged.length === 0) {
+    if (!showTagError) return;
+    if (tagErrorKind === "untagged" && untagged.length === 0) {
       setTagError(null);
       setShowTagError(false);
+      setTagErrorKind(null);
+    } else if (tagErrorKind === "count" && total >= MIN_TOTAL_PHOTOS) {
+      setTagError(null);
+      setShowTagError(false);
+      setTagErrorKind(null);
+    } else if (tagErrorKind === "roomTag" && roomTaggedCount >= MIN_ROOM_TAGGED_PHOTOS) {
+      setTagError(null);
+      setShowTagError(false);
+      setTagErrorKind(null);
     }
-  }, [untagged.length, showTagError]);
+  }, [untagged.length, total, roomTaggedCount, showTagError, tagErrorKind]);
 
   function handleFormSubmit(e: React.FormEvent<HTMLFormElement>) {
     if (total < MIN_TOTAL_PHOTOS) {
       e.preventDefault();
       setTagError(`At least ${MIN_TOTAL_PHOTOS} photos are required. You've uploaded ${total}.`);
       setShowTagError(true);
+      setTagErrorKind("count");
       return;
     }
     if (untagged.length > 0) {
@@ -625,20 +646,22 @@ export default function PhotosTab({
         `${untagged.length} photo${untagged.length > 1 ? "s are" : " is"} missing a tag. Add at least one tag to each photo to continue.`
       );
       setShowTagError(true);
+      setTagErrorKind("untagged");
       untaggedRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
-    const roomTaggedCount = photosState.filter((p) => p.tags.includes(ROOM_TAG)).length;
     if (roomTaggedCount < MIN_ROOM_TAGGED_PHOTOS) {
       e.preventDefault();
       setTagError(
         `At least ${MIN_ROOM_TAGGED_PHOTOS} photos tagged "${ROOM_TAG}" are required (currently ${roomTaggedCount}).`
       );
       setShowTagError(true);
+      setTagErrorKind("roomTag");
       return;
     }
     setTagError(null);
     setShowTagError(false);
+    setTagErrorKind(null);
   }
 
   // ── Upload handlers ──────────────────────────────────────────────────────────

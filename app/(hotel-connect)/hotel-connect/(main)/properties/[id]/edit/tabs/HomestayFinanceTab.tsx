@@ -357,6 +357,10 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
         onSubmit={(e) => {
           if (accountConf !== accountNo) {
             e.preventDefault();
+            // Section 3 may be collapsed (e.g. a returning host who never
+            // reopened it) — force it open so the mismatch message below
+            // is actually visible instead of silently blocking the submit.
+            setOpen(3);
             return;
           }
         }}

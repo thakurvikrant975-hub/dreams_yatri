@@ -18,13 +18,16 @@ import FinanceTab, { type FinanceHotelData } from "./tabs/FinanceTab";
 import HomestayFinanceTab, { type HomestayFinanceData } from "./tabs/HomestayFinanceTab";
 import TabPlaceholder from "./tabs/TabPlaceholder";
 
-// Hotels: tabs 1–3, 6–7 render a wizard-form; tab 4 (Rooms) self-manages; tab 5 (Photos) upload-only.
+// Hotels: tabs 1–3, 5–7 render a real server-action wizard-form; tab 4 (Rooms) renders a
+// hidden client-only "wizard-form" too (RoomsTab.tsx) purely to gate the footer's
+// "Save & Continue" button on "at least one room added" — rooms themselves are saved
+// individually via createRoom/updateRoom, not through this form.
 // Homestay: tabs 1–3, 6–8 render a wizard-form (tab 6=Pricing, 7=Policies, 8=Finance). Tab 4
 // (Rooms & Spaces) renders its own "wizard-form" too, but only once Phase 2 (per-room detail
 // editing) is showing — Phase 1 (counts) hides the footer button entirely via hideNextButton,
 // so including it here has no effect until then.
 // TABS_WITH_FORM is resolved dynamically below after isHomestay is known.
-const HOTEL_TABS_WITH_FORM    = new Set([1, 2, 3, 5, 6, 7]);
+const HOTEL_TABS_WITH_FORM    = new Set([1, 2, 3, 4, 5, 6, 7]);
 const HOMESTAY_TABS_WITH_FORM = new Set([1, 2, 3, 4, 5, 6, 7, 8]);
 
 export default async function EditPropertyPage({

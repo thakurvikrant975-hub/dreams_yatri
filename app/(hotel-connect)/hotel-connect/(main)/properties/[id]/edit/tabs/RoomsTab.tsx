@@ -10,6 +10,7 @@ import { cn } from "@/app/lib/utils";
 import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
 import { Card } from "@/app/components/ui/Card";
 import { SearchSelect, MultiSearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
+import { PricingRangeCalendarPicker, type DateRange } from "@/app/(dashboard)/dashboard/(main)/components/ui/pricing-range-calendar";
 import { createRoom, updateRoom, deleteRoom, fetchRoomForEdit, type RoomEditPayload } from "./room-actions";
 import {
   ROOM_TYPES, GUEST_HOUSE_ROOM_TYPES, ROOM_VIEWS, BED_TYPES, MULTI_ROOM_TYPES,
@@ -827,11 +828,24 @@ function Section3({ data, onChange, errors }: {
 
 // ── Section 4 — Meal Plan ─────────────────────────────────────────────────────
 
+function toDateObj(str: string): Date | undefined {
+  if (!str) return undefined;
+  const d = new Date(str + "T00:00:00");
+  return isNaN(d.getTime()) ? undefined : d;
+}
+
+function fromDateObj(d: Date | undefined): string {
+  if (!d) return "";
+  const y   = d.getFullYear();
+  const m   = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function Section4({ data, onChange, errors }: {
   data: RoomFormData; onChange: (d: RoomFormData) => void; errors: FieldErrors;
 }) {
   const set = <K extends keyof RoomFormData>(k: K, v: RoomFormData[K]) => onChange({ ...data, [k]: v });
-  const today = new Date().toISOString().split("T")[0];
 
   return (
     <div className="px-5 pt-5 pb-4 space-y-6">
@@ -920,26 +934,23 @@ function Section4({ data, onChange, errors }: {
           <p className="text-sm font-semibold text-neutral-700">Inventory Calendar</p>
           <p className="text-xs text-neutral-400 mt-0.5">Set the validity period for these rates</p>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <FieldRow label="Start Date" required error={errors.rate_start_date}>
-            <input
-              type="date"
-              value={data.rate_start_date}
-              min={today}
-              onChange={(e) => set("rate_start_date", e.target.value)}
-              className={cn(inputBase, "h-10 rounded-lg")}
-            />
-          </FieldRow>
-          <FieldRow label="End Date" required error={errors.rate_end_date}>
-            <input
-              type="date"
-              value={data.rate_end_date}
-              min={data.rate_start_date || today}
-              onChange={(e) => set("rate_end_date", e.target.value)}
-              className={cn(inputBase, "h-10 rounded-lg")}
-            />
-          </FieldRow>
-        </div>
+        <FieldRow
+          label="Rate Validity Period"
+          required
+          error={errors.rate_start_date ?? errors.rate_end_date}
+        >
+          <PricingRangeCalendarPicker
+            value={{ from: toDateObj(data.rate_start_date), to: toDateObj(data.rate_end_date) } as DateRange}
+            onChange={(range) => onChange({
+              ...data,
+              rate_start_date: fromDateObj(range?.from),
+              rate_end_date: fromDateObj(range?.to),
+            })}
+            placeholder="Select start & end date"
+            error={!!(errors.rate_start_date || errors.rate_end_date)}
+            triggerClassName="h-10 rounded-lg"
+          />
+        </FieldRow>
       </div>
 
     </div>
@@ -1544,6 +1555,22 @@ type TabMode =
 export default function RoomsTab({ hotelId, rooms, propertySubType }: { hotelId: number; rooms: RoomSummary[]; propertySubType: string | null }) {
   const roomTypes = propertySubType === "GUEST_HOUSE" ? GUEST_HOUSE_ROOM_TYPES : ROOM_TYPES;
   const [mode, setMode] = useState<TabMode>({ kind: "list" });
+  const router = useRouter();
+  const [continueError, setContinueError] = useState<string | null>(null);
+
+  // Tab 4 has no server action of its own (rooms are saved individually via
+  // createRoom/updateRoom) — this hidden form only exists so the WizardShell
+  // footer's "Save & Continue" button (wired to id="wizard-form") has
+  // something to validate against instead of navigating unconditionally.
+  function handleContinueSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (rooms.length === 0) {
+      setContinueError("Add at least one room type before continuing.");
+      return;
+    }
+    setContinueError(null);
+    router.push(`/hotel-connect/properties/${hotelId}/edit?tab=5`);
+  }
 
   async function handleEdit(roomId: number) {
     setMode({ kind: "loading" });
@@ -1579,7 +1606,15 @@ export default function RoomsTab({ hotelId, rooms, propertySubType }: { hotelId:
     );
   }
 
-  return rooms.length === 0
-    ? <EmptyRooms onAdd={() => setMode({ kind: "create" })} />
-    : <RoomsList hotelId={hotelId} rooms={rooms} onAdd={() => setMode({ kind: "create" })} onEdit={handleEdit} />;
+  return (
+    <div className="space-y-3">
+      {continueError && (
+        <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{continueError}</p>
+      )}
+      {rooms.length === 0
+        ? <EmptyRooms onAdd={() => setMode({ kind: "create" })} />
+        : <RoomsList hotelId={hotelId} rooms={rooms} onAdd={() => setMode({ kind: "create" })} onEdit={handleEdit} />}
+      <form id="wizard-form" onSubmit={handleContinueSubmit} className="hidden" />
+    </div>
+  );
 }
