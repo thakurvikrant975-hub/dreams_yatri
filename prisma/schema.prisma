@@ -1261,6 +1261,9 @@ model hotel_room_pricing_season {
   updated_at              DateTime                              @updatedAt
   extra_bed_rate          Decimal?                              @db.Decimal(10, 2)
   weekend_price_per_night Decimal?                              @db.Decimal(10, 2)
+  // Per-season child rate — the parent hotel_room_pricing has this but a
+  // season previously couldn't override it for its own date range.
+  extra_child_rate        Decimal?                              @db.Decimal(10, 2)
   occupancy_prices        hotel_room_pricing_season_occupancy[]
   pricing                 hotel_room_pricing                    @relation(fields: [pricing_id], references: [id], onDelete: Cascade)
 
@@ -1383,6 +1386,10 @@ model hotel_room_availability {
   price_override      Decimal?    @db.Decimal(10, 2)
   min_los             Int?
   max_los             Int?
+  // Days before check-in a booking must/can be made — e.g. min 1 blocks
+  // same-day bookings, max limits how far out a "last-minute only" rate sells.
+  min_advance_days    Int?
+  max_advance_days    Int?
   closed_to_arrival   Boolean     @default(false)
   closed_to_departure Boolean     @default(false)
   note                String?

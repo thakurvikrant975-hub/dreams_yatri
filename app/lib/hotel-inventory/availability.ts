@@ -28,6 +28,8 @@ export type NightAvailability = {
   priceOverride: number | null;
   minLos: number | null;
   maxLos: number | null;
+  minAdvanceDays: number | null;
+  maxAdvanceDays: number | null;
   closedToArrival: boolean;
   closedToDeparture: boolean;
 };
@@ -130,6 +132,8 @@ export async function getRoomAvailability(
       priceOverride: r.price_override ? Number(r.price_override) : null,
       minLos: r.min_los,
       maxLos: r.max_los,
+      minAdvanceDays: r.min_advance_days,
+      maxAdvanceDays: r.max_advance_days,
       closedToArrival: r.closed_to_arrival,
       closedToDeparture: r.closed_to_departure,
     };
@@ -138,16 +142,28 @@ export async function getRoomAvailability(
 
 /**
  * Pure check: can `units` rooms be booked for this stay?
- * Verifies units on every night, LOS bounds, and CTA/CTD on the boundary nights.
+ * Verifies units on every night, LOS bounds, advance-booking window, and
+ * CTA/CTD on the boundary nights. `bookingDate` is "now" by default — the
+ * moment the booking attempt is made, not the stay's check-in date.
  */
-export function evaluateStay(nights: NightAvailability[], units: number): StayEvaluation {
+export function evaluateStay(nights: NightAvailability[], units: number, bookingDate: Date = new Date()): StayEvaluation {
   if (nights.length === 0) return { ok: false, reason: "No nights in range" };
   const los = nights.length;
+  const bookingDay = toUtcDate(ymd(bookingDate));
 
   for (const n of nights) {
     if (n.stopSell) return { ok: false, reason: `Sold out on ${n.date}` };
     if (n.available < units) return { ok: false, reason: `Only ${n.available} left on ${n.date}` };
     if (n.minLos && los < n.minLos) return { ok: false, reason: `Minimum stay ${n.minLos} nights` };
+    if (n.minAdvanceDays != null || n.maxAdvanceDays != null) {
+      const daysOut = Math.round((toUtcDate(n.date).getTime() - bookingDay.getTime()) / 86400000);
+      if (n.minAdvanceDays != null && daysOut < n.minAdvanceDays) {
+        return { ok: false, reason: `Must book at least ${n.minAdvanceDays} day(s) before ${n.date}` };
+      }
+      if (n.maxAdvanceDays != null && daysOut > n.maxAdvanceDays) {
+        return { ok: false, reason: `Can't book more than ${n.maxAdvanceDays} day(s) before ${n.date}` };
+      }
+    }
     if (n.maxLos && los > n.maxLos) return { ok: false, reason: `Maximum stay ${n.maxLos} nights` };
   }
   if (nights[0].closedToArrival) return { ok: false, reason: `No arrivals on ${nights[0].date}` };
