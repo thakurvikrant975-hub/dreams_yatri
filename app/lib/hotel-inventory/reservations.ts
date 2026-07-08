@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/app/lib/db";
 import { Prisma, type hotel_reservation } from "@/app/generated/prisma/client";
-import { stayNights, holdNightsTx, releaseNightsTx, HoldConflict } from "./availability";
+import { stayNights, holdNightsTx, releaseNightsTx, HoldConflict, getRoomAvailability, evaluateStay } from "./availability";
 import { enqueueAriPushIfConnected } from "./sync";
 
 /** Best-effort ARI push after inventory changes — never breaks the reservation. */
@@ -71,6 +71,20 @@ export async function createReservation(input: CreateReservationInput): Promise<
     select: { hotel_id: true, num_rooms: true },
   });
   if (!room) return { ok: false, reason: "Room not found" };
+
+  // Min/max LOS and closed-to-arrival/departure are shown to hosts in the
+  // calendar as if they were enforced, but holdNightsTx below only guards
+  // unit-count + stop-sell — a 1-night booking could silently bypass a
+  // 3-night minimum. Check the real restrictions before holding — but skip
+  // this for an idempotent retry of an already-existing reservation (a
+  // restriction added after the original hold shouldn't retroactively
+  // invalidate a booking that already succeeded).
+  const alreadyExists = await db.hotel_reservation.findUnique({ where: { hold_key: input.holdKey } });
+  if (!alreadyExists) {
+    const nightsAvail = await getRoomAvailability(input.roomId, input.checkIn, input.checkOut);
+    const evalResult = evaluateStay(nightsAvail, units);
+    if (!evalResult.ok) return { ok: false, reason: evalResult.reason! };
+  }
 
   try {
     const result = await db.$transaction(async (tx) => {

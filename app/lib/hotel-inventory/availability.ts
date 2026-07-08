@@ -183,6 +183,13 @@ export async function holdInventory(
   });
   if (!room) return { ok: false, reason: "Room not found" };
 
+  // holdNightsTx only guards unit-count + stop-sell — check the real
+  // min/max-LOS and CTA/CTD restrictions before holding (mirrors the same
+  // check in reservations.ts's createReservation).
+  const nightsAvail = await getRoomAvailability(roomId, checkIn, checkOut);
+  const evalResult = evaluateStay(nightsAvail, units);
+  if (!evalResult.ok) return evalResult;
+
   try {
     await db.$transaction((tx) =>
       holdNightsTx(tx, roomId, room.hotel_id, room.num_rooms, nights, units),
