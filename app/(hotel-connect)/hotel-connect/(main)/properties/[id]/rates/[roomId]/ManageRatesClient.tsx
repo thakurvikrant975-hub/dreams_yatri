@@ -22,6 +22,67 @@ const EMPTY_DETAIL: RoomRateDetail = {
   minLos: null, maxLos: null, minAdvanceDays: null, maxAdvanceDays: null,
 };
 
+const FIELD_LABEL = "text-sm font-medium text-neutral-800";
+const FIELD_SUB = "text-xs text-neutral-400";
+const FIELD_INPUT_WRAP = "h-10 w-36 rounded-lg border flex items-center px-2.5 gap-1 text-sm";
+const FIELD_INPUT = "w-full outline-none bg-transparent";
+
+// Module-scope, not defined inside ManageRatesClient — an inline function
+// component gets a new identity every parent render, so React would unmount
+// and remount the <input> (and its focus) on every keystroke.
+function RateField({
+  value, title, subtitle, onChange,
+}: {
+  value: number | null; title: string; subtitle?: string; onChange: (raw: string) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between py-3 border-b border-neutral-100 last:border-0">
+      <div>
+        <p className={FIELD_LABEL}>{title}</p>
+        {subtitle && <p className={FIELD_SUB}>{subtitle}</p>}
+      </div>
+      <div className={`${FIELD_INPUT_WRAP} border-red-200`}>
+        <span className="text-neutral-400">₹</span>
+        <input
+          type="number"
+          min={0}
+          step="1"
+          value={value ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Enter Rate"
+          className={FIELD_INPUT}
+        />
+      </div>
+    </div>
+  );
+}
+
+function RestrictionField({
+  value, title, subtitle, onChange,
+}: {
+  value: number | null; title: string; subtitle?: string; onChange: (raw: string) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between py-3 border-b border-neutral-100 last:border-0">
+      <div>
+        <p className={FIELD_LABEL}>{title}</p>
+        {subtitle && <p className={FIELD_SUB}>{subtitle}</p>}
+      </div>
+      <div className={`${FIELD_INPUT_WRAP} border-neutral-300`}>
+        <input
+          type="number"
+          min={0}
+          step="1"
+          value={value ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="—"
+          className={FIELD_INPUT}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function ManageRatesClient({
   hotelId,
   roomId,
@@ -91,58 +152,6 @@ export default function ManageRatesClient({
     });
   }
 
-  const label = "text-sm font-medium text-neutral-800";
-  const sub = "text-xs text-neutral-400";
-  const inputWrap = "h-10 w-36 rounded-lg border flex items-center px-2.5 gap-1 text-sm";
-  const inputCls = "w-full outline-none bg-transparent";
-
-  function RateField({ fieldKey, title, subtitle }: { fieldKey: keyof RoomRateDetail; title: string; subtitle?: string }) {
-    const v = detail[fieldKey];
-    return (
-      <div className="flex items-center justify-between py-3 border-b border-neutral-100 last:border-0">
-        <div>
-          <p className={label}>{title}</p>
-          {subtitle && <p className={sub}>{subtitle}</p>}
-        </div>
-        <div className={`${inputWrap} border-red-200`}>
-          <span className="text-neutral-400">₹</span>
-          <input
-            type="number"
-            min={0}
-            step="1"
-            value={v ?? ""}
-            onChange={(e) => setField(fieldKey, e.target.value)}
-            placeholder="Enter Rate"
-            className={inputCls}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  function RestrictionField({ fieldKey, title, subtitle }: { fieldKey: keyof RoomRateDetail; title: string; subtitle?: string }) {
-    const v = detail[fieldKey];
-    return (
-      <div className="flex items-center justify-between py-3 border-b border-neutral-100 last:border-0">
-        <div>
-          <p className={label}>{title}</p>
-          {subtitle && <p className={sub}>{subtitle}</p>}
-        </div>
-        <div className={`${inputWrap} border-neutral-300`}>
-          <input
-            type="number"
-            min={0}
-            step="1"
-            value={v ?? ""}
-            onChange={(e) => setField(fieldKey, e.target.value)}
-            placeholder="—"
-            className={inputCls}
-          />
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-5">
       <div>
@@ -176,10 +185,10 @@ export default function ManageRatesClient({
             </div>
             <div className="px-4 py-1">
               <p className="text-[11px] font-bold uppercase tracking-wide text-neutral-400 pt-3">Rates</p>
-              <RateField fieldKey="basePrice" title="2 Adults" subtitle="Base" />
-              <RateField fieldKey="oneAdultPrice" title="1 Adult" />
-              <RateField fieldKey="childRate" title="Per child (7-17yrs)" subtitle="Child (0-6) — Free" />
-              <RateField fieldKey="extraAdultRate" title="Per Extra Adult" />
+              <RateField value={detail.basePrice} title="2 Adults" subtitle="Base" onChange={(v) => setField("basePrice", v)} />
+              <RateField value={detail.oneAdultPrice} title="1 Adult" onChange={(v) => setField("oneAdultPrice", v)} />
+              <RateField value={detail.childRate} title="Per child (7-17yrs)" subtitle="Child (0-6) — Free" onChange={(v) => setField("childRate", v)} />
+              <RateField value={detail.extraAdultRate} title="Per Extra Adult" onChange={(v) => setField("extraAdultRate", v)} />
             </div>
             <div className="flex items-start gap-2 mx-4 mb-4 mt-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
               <InformationCircleIcon className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
@@ -196,10 +205,10 @@ export default function ManageRatesClient({
               <p className="text-sm font-bold text-neutral-800">Restrictions</p>
             </div>
             <div className="px-4 py-1">
-              <RestrictionField fieldKey="minAdvanceDays" title="Minimum Advance Booking Window" subtitle="Days before check-in a booking must be made" />
-              <RestrictionField fieldKey="maxAdvanceDays" title="Maximum Advance Booking Window" subtitle="Number of days" />
-              <RestrictionField fieldKey="minLos" title="Minimum Length of Stay" subtitle="Number of nights" />
-              <RestrictionField fieldKey="maxLos" title="Maximum Length of Stay" subtitle="Number of nights" />
+              <RestrictionField value={detail.minAdvanceDays} title="Minimum Advance Booking Window" subtitle="Days before check-in a booking must be made" onChange={(v) => setField("minAdvanceDays", v)} />
+              <RestrictionField value={detail.maxAdvanceDays} title="Maximum Advance Booking Window" subtitle="Number of days" onChange={(v) => setField("maxAdvanceDays", v)} />
+              <RestrictionField value={detail.minLos} title="Minimum Length of Stay" subtitle="Number of nights" onChange={(v) => setField("minLos", v)} />
+              <RestrictionField value={detail.maxLos} title="Maximum Length of Stay" subtitle="Number of nights" onChange={(v) => setField("maxLos", v)} />
             </div>
           </div>
 
