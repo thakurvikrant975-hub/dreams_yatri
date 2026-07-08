@@ -500,16 +500,13 @@ export default function FinanceTab({ hotel }: { hotel: FinanceHotelData }) {
             </div>
             <div>
               <FieldLabel required>Business Type</FieldLabel>
-              <select
+              <SearchSelect
                 value={businessType}
-                onChange={(e) => setBusinessType(e.target.value)}
-                className="w-full h-9 rounded-lg border border-neutral-200 bg-white px-3 pr-8 text-xs text-neutral-800 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300 appearance-none"
-              >
-                <option value="">Select business type</option>
-                {Object.entries(BUSINESS_TYPE_LABELS).map(([v, l]) => (
-                  <option key={v} value={v}>{l}</option>
-                ))}
-              </select>
+                onChange={setBusinessType}
+                options={Object.entries(BUSINESS_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+                placeholder="Select business type"
+                showSearch={false}
+              />
             </div>
           </div>
 

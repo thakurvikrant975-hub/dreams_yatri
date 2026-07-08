@@ -10,6 +10,7 @@ import {
 import { saveBedroomStep } from "./bedroom-actions";
 import type { BedroomDetail } from "./bedroom-types";
 import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
+import { SearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
 import { cn } from "@/app/lib/utils";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -323,16 +324,14 @@ export default function BedroomEditTab({
                 {hasExtraBed && (
                   <div>
                     <label className="block text-xs font-medium text-neutral-600 mb-1">Extra bed type</label>
-                    <select
+                    <SearchSelect
                       value={extraBedType}
-                      onChange={e => setExtraBedType(e.target.value)}
-                      className="w-full max-w-xs px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300"
-                    >
-                      <option value="">Select type</option>
-                      {["Roll-away bed", "Cot / Baby crib", "Sofa bed", "Floor mattress"].map(t => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                    </select>
+                      onChange={setExtraBedType}
+                      options={["Roll-away bed", "Cot / Baby crib", "Sofa bed", "Floor mattress"]}
+                      placeholder="Select type"
+                      showSearch={false}
+                      className="max-w-xs"
+                    />
                   </div>
                 )}
               </div>
@@ -389,14 +388,14 @@ export default function BedroomEditTab({
             {hasBathroom && (
               <div>
                 <label className="block text-xs font-semibold text-neutral-700 mb-1.5">Select the attached bathroom</label>
-                <select
+                <SearchSelect
                   value={bathroomType}
-                  onChange={e => setBathroomType(e.target.value)}
-                  className="w-full max-w-xs px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300"
-                >
-                  <option value="">Select</option>
-                  {BATHROOM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
+                  onChange={setBathroomType}
+                  options={BATHROOM_TYPES}
+                  placeholder="Select"
+                  showSearch={false}
+                  className="max-w-xs"
+                />
               </div>
             )}
 
@@ -497,14 +496,13 @@ export default function BedroomEditTab({
                 <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
                   Room View <span className="font-normal text-neutral-400">(Optional)</span>
                 </label>
-                <select
+                <SearchSelect
                   value={view}
-                  onChange={e => setView(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300"
-                >
-                  <option value="">Select View</option>
-                  {VIEW_OPTIONS.map(v => <option key={v} value={v}>{v}</option>)}
-                </select>
+                  onChange={setView}
+                  options={VIEW_OPTIONS}
+                  placeholder="Select View"
+                  showSearch={false}
+                />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
@@ -541,14 +539,13 @@ export default function BedroomEditTab({
               <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
                 Floor Level <span className="font-normal text-neutral-400">(Optional)</span>
               </label>
-              <select
+              <SearchSelect
                 value={floorLevel}
-                onChange={e => setFloorLevel(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300"
-              >
-                <option value="">Select</option>
-                {FLOOR_LEVELS.map(f => <option key={f} value={f}>{f}</option>)}
-              </select>
+                onChange={setFloorLevel}
+                options={FLOOR_LEVELS}
+                placeholder="Select"
+                showSearch={false}
+              />
             </div>
 
             <button

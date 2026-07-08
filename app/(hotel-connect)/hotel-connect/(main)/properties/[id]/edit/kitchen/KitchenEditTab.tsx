@@ -7,6 +7,7 @@ import { ArrowLeftIcon, CheckIcon } from "@phosphor-icons/react/dist/ssr";
 import { saveHomestayKitchenDetail } from "../tabs/homestay-rooms-crud-actions";
 import type { KitchenDetail } from "../tabs/homestay-rooms-types";
 import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
+import { SearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
 import { cn } from "@/app/lib/utils";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -291,15 +292,14 @@ export default function KitchenEditTab({
               >
                 What type of meals can guests prepare in the kitchen?
               </label>
-              <select
-                id="kitchen-meal-types"
+              <SearchSelect
+                name="kitchen-meal-types"
                 value={mealTypes}
-                onChange={e => setMealTypes(e.target.value)}
-                className="w-full px-3 py-2.5 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300"
-              >
-                <option value="">Select meal type</option>
-                {MEAL_TYPES.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
+                onChange={setMealTypes}
+                options={MEAL_TYPES}
+                placeholder="Select meal type"
+                showSearch={false}
+              />
             </div>
 
             {/* Staff help */}
