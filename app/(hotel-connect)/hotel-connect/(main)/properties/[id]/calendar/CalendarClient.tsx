@@ -87,7 +87,7 @@ function MonthGrid({
               onClick={() => onClickDay(date)}
               disabled={past}
               className={cn(
-                "aspect-square border-b border-r border-neutral-100 p-1.5 text-left flex flex-col transition-colors relative",
+                "aspect-square border-b border-r border-neutral-100 p-1 sm:p-1.5 text-left flex flex-col transition-colors relative",
                 past ? "bg-neutral-50/60 text-neutral-300 cursor-not-allowed" : "hover:bg-primary-50/40",
                 selected && "bg-primary-100/70 ring-1 ring-inset ring-primary-300",
               )}
@@ -136,6 +136,7 @@ export default function CalendarClient({
   const [saving, startSave] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
   const monthRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const listRef = useRef<HTMLDivElement | null>(null);
 
   const byDate = useMemo(() => {
     const m = new Map<string, DayCell>();
@@ -184,11 +185,19 @@ export default function CalendarClient({
   }
 
   // Land on the current month, not January, whenever the real "current"
-  // year is showing (initial load, or navigating back to it).
+  // year is showing (initial load, or navigating back to it). Scrolled
+  // manually within the month list's own container — el.scrollIntoView()
+  // walks up every scrollable ancestor, so on a short mobile viewport it
+  // was also scrolling the outer page and hiding the header/year-switcher
+  // above the fold.
   useEffect(() => {
     if (year !== initialYear) return;
     const realCurrentMonth = new Date().getUTCMonth();
-    monthRefs.current[realCurrentMonth]?.scrollIntoView({ block: "start" });
+    const el = monthRefs.current[realCurrentMonth];
+    const container = listRef.current;
+    if (el && container) {
+      container.scrollTop = el.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
+    }
   }, [year, initialYear]);
 
   return (
@@ -245,7 +254,7 @@ export default function CalendarClient({
               {WEEKDAYS.map((w) => <div key={w} className="py-2">{w}</div>)}
             </div>
 
-            <div className="max-h-[75vh] overflow-y-auto divide-y divide-neutral-100">
+            <div ref={listRef} className="max-h-[75vh] overflow-y-auto divide-y divide-neutral-100">
               {Array.from({ length: 12 }, (_, month0) => (
                 <MonthGrid
                   key={month0}

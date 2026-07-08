@@ -43,7 +43,12 @@ function BookableToggle({ hotelId, room }: { hotelId: number; room: RoomListItem
       className="flex items-center gap-2 shrink-0 disabled:opacity-60"
       title={checked ? "Open — click to close for sale" : "Closed — click to open for sale"}
     >
-      <span className={checked ? "text-xs font-semibold text-emerald-600" : "text-xs font-semibold text-neutral-400"}>
+      <span
+        className={
+          "hidden sm:inline text-xs font-semibold " +
+          (checked ? "text-emerald-600" : "text-neutral-400")
+        }
+      >
         {checked ? "Open" : "Closed"}
       </span>
       <span
