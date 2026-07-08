@@ -981,6 +981,9 @@ model hotels {
   contact_email               String?
   contact_mobile_cc           String?                    @default("+91")
   contact_mobile              String?
+  // OTP verification is skipped in the wizard for now (SMS delivery isn't
+  // wired up in every environment) — reserved for when it is re-enabled.
+  contact_mobile_verified     Boolean                    @default(false)
   whatsapp_same_as_mobile     Boolean                    @default(false)
   contact_whatsapp            String?
   contact_landline            String?

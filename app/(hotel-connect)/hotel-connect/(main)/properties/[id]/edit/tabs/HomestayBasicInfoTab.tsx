@@ -2,10 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { saveHomestayBasicInfo } from "./homestay-basic-info-actions";
-import {
-  sendEmailOtp, verifyEmailOtp,
-  sendMobileOtp, verifyMobileOtp,
-} from "./verification-actions";
+import { sendEmailOtp, verifyEmailOtp } from "./verification-actions";
 import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
 import { Input } from "../../../../components/ui/input";
 import { Label } from "../../../../components/ui/label";
@@ -339,14 +336,6 @@ export default function HomestayBasicInfoTab({ hotel, owner }: { hotel: Homestay
   const [emailOtpErr,  setEmailOtpErr]  = useState("");
   const [emailLoading, setEmailLoading] = useState(false);
 
-  // ── Mobile verification state ──────────────────────────────────────────────
-  const [mobileStep,    setMobileStep]    = useState<VerifyStep>(hotel.contact_mobile ? "verified" : "idle");
-  const [mobileOtp,     setMobileOtp]     = useState("");
-  const [mobileToken,   setMobileToken]   = useState("");
-  const [mobileDevOtp,  setMobileDevOtp]  = useState("");
-  const [mobileOtpErr,  setMobileOtpErr]  = useState("");
-  const [mobileLoading, setMobileLoading] = useState(false);
-
   // ── Field errors ───────────────────────────────────────────────────────────
   const [clientErrors, setClientErrors] = useState<NonNullable<HomestayBasicInfoState["fieldErrors"]>>({});
 
@@ -397,46 +386,16 @@ export default function HomestayBasicInfoTab({ hotel, owner }: { hotel: Homestay
   }
 
   // ── Mobile helpers ─────────────────────────────────────────────────────────
-
-  function resetMobile() {
-    setMobileStep("idle");
-    setMobileOtp("");
-    setMobileToken("");
-    setMobileDevOtp("");
-    setMobileOtpErr("");
-  }
+  // OTP verification is intentionally not required here — see contact_mobile_verified
+  // on the hotels model, reserved for when SMS delivery is wired up everywhere.
 
   function onMobileChange(v: string) {
     setMobileInput(v);
-    if (mobileStep !== "idle") resetMobile();
     if (/^\d{10}$/.test(v) && mobileCC === "+91") clearError("contact_mobile");
   }
 
   function onMobileCCChange(v: string) {
     setMobileCC(v);
-    if (mobileStep !== "idle") resetMobile();
-  }
-
-  async function handleSendMobileOtp() {
-    setMobileLoading(true);
-    setMobileOtpErr("");
-    const res = await sendMobileOtp(mobileCC, mobileInput);
-    setMobileLoading(false);
-    if (!res.ok) { setMobileOtpErr(res.error ?? "Failed to send OTP"); return; }
-    setMobileToken(res.token!);
-    setMobileStep("otp_sent");
-    if (res.devOtp) { setMobileDevOtp(res.devOtp); setMobileOtp(res.devOtp); }
-  }
-
-  async function handleVerifyMobileOtp() {
-    setMobileLoading(true);
-    setMobileOtpErr("");
-    const res = await verifyMobileOtp(mobileCC, mobileInput, mobileOtp, mobileToken);
-    setMobileLoading(false);
-    if (!res.ok) { setMobileOtpErr(res.error ?? "Verification failed"); return; }
-    setMobileStep("verified");
-    setMobileDevOtp("");
-    clearError("contact_mobile");
   }
 
   // ── Validation ─────────────────────────────────────────────────────────────
@@ -486,7 +445,6 @@ export default function HomestayBasicInfoTab({ hotel, owner }: { hotel: Homestay
   // ── Derived ────────────────────────────────────────────────────────────────
 
   const canVerifyEmail  = isValidEmail(emailInput)  && emailStep !== "verified";
-  const canVerifyMobile = isValidMobile(mobileCC, mobileInput) && mobileStep !== "verified";
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -675,21 +633,8 @@ export default function HomestayBasicInfoTab({ hotel, owner }: { hotel: Homestay
         </FieldRow>
 
         {/* ── Mobile ── */}
-        <FieldRow
-          label="Mobile Number"
-          error={fe.contact_mobile}
-          action={
-            mobileStep === "verified"
-              ? <VerifiedBadge onReset={() => { resetMobile(); setMobileInput(""); }} />
-              : <VerifyButton
-                  step={mobileStep}
-                  canSend={canVerifyMobile}
-                  loading={mobileLoading}
-                  onSend={handleSendMobileOtp}
-                />
-          }
-        >
-          {/* Hidden inputs ensure values are always submitted — disabled inputs are excluded from FormData */}
+        <FieldRow label="Mobile Number" error={fe.contact_mobile}>
+          {/* Hidden inputs ensure values are always submitted — SearchSelect/Input below aren't native named fields */}
           <input type="hidden" name="contact_mobile_cc" value={mobileCC} />
           <input type="hidden" name="contact_mobile" value={mobileInput} />
           <div className="flex gap-2">
@@ -701,7 +646,7 @@ export default function HomestayBasicInfoTab({ hotel, owner }: { hotel: Homestay
               searchPlaceholder="Search country..."
               compact
               dropdownMinWidth={240}
-              disabled={isPending || mobileStep === "verified"}
+              disabled={isPending}
               className="w-24 shrink-0"
             />
             <Input
@@ -710,24 +655,11 @@ export default function HomestayBasicInfoTab({ hotel, owner }: { hotel: Homestay
               value={mobileInput}
               onChange={(e) => onMobileChange(e.target.value.replace(/\D/g, ""))}
               placeholder="Enter number"
-              disabled={isPending || mobileStep === "verified"}
+              disabled={isPending}
               className="flex-1"
               aria-invalid={!!fe.contact_mobile}
             />
           </div>
-          {mobileStep === "otp_sent" && (
-            <OtpEntry
-              otp={mobileOtp}
-              devOtp={mobileDevOtp}
-              loading={mobileLoading}
-              error={mobileOtpErr}
-              onChange={(v) => { setMobileOtp(v); setMobileOtpErr(""); }}
-              onConfirm={handleVerifyMobileOtp}
-            />
-          )}
-          {mobileStep !== "otp_sent" && mobileOtpErr && (
-            <p className="text-xs text-red-500">{mobileOtpErr}</p>
-          )}
           <label className="flex items-center gap-2.5 text-sm text-neutral-700 cursor-pointer select-none mt-0.5">
             <input
               type="checkbox"
