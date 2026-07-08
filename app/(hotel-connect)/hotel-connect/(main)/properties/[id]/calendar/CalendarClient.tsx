@@ -1,12 +1,14 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { cn } from "@/app/lib/utils";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
   NoSymbolIcon,
   TagIcon,
+  ListBulletIcon,
 } from "@heroicons/react/24/outline";
 import { fetchRoomCalendar, saveAvailabilityRange, type RangePatch } from "./calendar-actions";
 
@@ -125,17 +127,26 @@ export default function CalendarClient({
           <p className="text-sm text-neutral-500">{hotelName}</p>
           <h1 className="text-lg font-bold text-neutral-800">Rates & Availability</h1>
         </div>
-        {rooms.length > 0 && (
-          <select
-            value={roomId ?? ""}
-            onChange={(e) => pickRoom(Number(e.target.value))}
-            className="h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-800 shadow-sm focus:ring-2 focus:ring-primary-500/20"
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/hotel-connect/properties/${hotelId}/rates`}
+            className="h-10 flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-600 shadow-sm hover:bg-neutral-50 transition-colors"
           >
-            {rooms.map((r) => (
-              <option key={r.id} value={r.id}>{r.name} ({r.num_rooms} rooms)</option>
-            ))}
-          </select>
-        )}
+            <ListBulletIcon className="w-4 h-4" />
+            List View
+          </Link>
+          {rooms.length > 0 && (
+            <select
+              value={roomId ?? ""}
+              onChange={(e) => pickRoom(Number(e.target.value))}
+              className="h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-800 shadow-sm focus:ring-2 focus:ring-primary-500/20"
+            >
+              {rooms.map((r) => (
+                <option key={r.id} value={r.id}>{r.name} ({r.num_rooms} rooms)</option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
 
       {rooms.length === 0 ? (
@@ -219,8 +230,11 @@ export default function CalendarClient({
               startSave(async () => {
                 const res = await saveAvailabilityRange(hotelId, roomId, rangeLo, rangeHi, patch);
                 if (res.error) { setMsg(res.error); return; }
-                setMsg(`Updated ${res.updated} night${res.updated === 1 ? "" : "s"}.`);
+                // loadMonth() clears msg as part of its own reset — set the
+                // success message *after* calling it, not before, or it gets
+                // wiped in the same tick and is never actually visible.
                 loadMonth(roomId, year, month0);
+                setMsg(`Updated ${res.updated} night${res.updated === 1 ? "" : "s"}.`);
               });
             }}
           />
@@ -251,6 +265,7 @@ function EditPanel({
   const [units, setUnits] = useState("");
   const [openState, setOpenState] = useState<"" | "open" | "closed">("");
   const [minLos, setMinLos] = useState("");
+  const [maxLos, setMaxLos] = useState("");
   const [cta, setCta] = useState<"" | "yes" | "no">("");
   const [ctd, setCtd] = useState<"" | "yes" | "no">("");
 
@@ -263,6 +278,7 @@ function EditPanel({
     if (units.trim() !== "") patch.totalUnits = Number(units);
     if (openState) patch.stopSell = openState === "closed";
     if (minLos.trim() !== "") patch.minLos = Number(minLos);
+    if (maxLos.trim() !== "") patch.maxLos = Number(maxLos);
     if (cta) patch.closedToArrival = cta === "yes";
     if (ctd) patch.closedToDeparture = ctd === "yes";
     onSave(patch);
@@ -303,11 +319,17 @@ function EditPanel({
                 <option value="closed">Stop sell (close)</option>
               </select>
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className={label}>Min LOS</label>
                 <input type="number" min={1} step="1" value={minLos} onChange={(e) => setMinLos(e.target.value)} placeholder="—" className={input} />
               </div>
+              <div>
+                <label className={label}>Max LOS</label>
+                <input type="number" min={1} step="1" value={maxLos} onChange={(e) => setMaxLos(e.target.value)} placeholder="—" className={input} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className={label}>CTA</label>
                 <select value={cta} onChange={(e) => setCta(e.target.value as "" | "yes" | "no")} className={input}>

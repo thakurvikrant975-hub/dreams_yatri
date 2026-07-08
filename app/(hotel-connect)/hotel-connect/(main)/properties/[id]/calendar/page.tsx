@@ -11,8 +11,15 @@ function monthBounds(year: number, month0: number) {
   return { from, toExclusive };
 }
 
-export default async function CalendarPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function CalendarPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ room?: string }>;
+}) {
   const { id } = await params;
+  const { room: roomParam } = await searchParams;
   const hotelId = parseInt(id, 10);
   if (isNaN(hotelId)) notFound();
 
@@ -38,7 +45,11 @@ export default async function CalendarPage({ params }: { params: Promise<{ id: s
   const month0 = now.getUTCMonth();
   const { from, toExclusive } = monthBounds(year, month0);
 
-  const firstRoom = hotel.hotelRooms[0] ?? null;
+  const requestedRoomId = roomParam ? parseInt(roomParam, 10) : NaN;
+  const requestedRoom = !isNaN(requestedRoomId)
+    ? hotel.hotelRooms.find((r) => r.id === requestedRoomId) ?? null
+    : null;
+  const firstRoom = requestedRoom ?? hotel.hotelRooms[0] ?? null;
   const initialDays = firstRoom ? await getRoomARI(firstRoom.id, from, toExclusive) : [];
 
   return (
