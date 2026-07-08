@@ -2,22 +2,40 @@ import { notFound } from "next/navigation";
 import { hotelConnectAuth } from "@/app/lib/auth-hotel-connect";
 import { db } from "@/app/lib/db";
 import { getRoomARI } from "@/app/lib/hotel-inventory/rates";
+import { ensureHomestayRoom } from "@/app/lib/hotel-inventory/homestay-room-sync";
 import ConnectHeader from "../../../components/ConnectHeader";
 import CalendarClient from "./CalendarClient";
 
-function monthBounds(year: number, month0: number) {
-  const from = new Date(Date.UTC(year, month0, 1)).toISOString().slice(0, 10);
-  const toExclusive = new Date(Date.UTC(year, month0 + 1, 1)).toISOString().slice(0, 10);
-  return { from, toExclusive };
+function yearBounds(year: number) {
+  return { from: `${year}-01-01`, toExclusive: `${year + 1}-01-01` };
 }
 
-export default async function CalendarPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function CalendarPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ room?: string }>;
+}) {
   const { id } = await params;
+  const { room: roomParam } = await searchParams;
   const hotelId = parseInt(id, 10);
   if (isNaN(hotelId)) notFound();
 
   const session = await hotelConnectAuth();
   const ownerId = session!.user.id;
+
+  const hotelCheck = await db.hotels.findFirst({
+    where: { id: hotelId, owner_id: ownerId },
+    select: { property_category: true },
+  });
+  if (!hotelCheck) notFound();
+
+  // See rates/page.tsx for why this is needed — homestays only get a
+  // hotel_rooms row from the wizard at Submit for Review otherwise.
+  if (hotelCheck.property_category === "HOMESTAY_VILLA") {
+    await ensureHomestayRoom(hotelId);
+  }
 
   const hotel = await db.hotels.findFirst({
     where: { id: hotelId, owner_id: ownerId },
@@ -33,12 +51,14 @@ export default async function CalendarPage({ params }: { params: Promise<{ id: s
   });
   if (!hotel) notFound();
 
-  const now = new Date();
-  const year = now.getUTCFullYear();
-  const month0 = now.getUTCMonth();
-  const { from, toExclusive } = monthBounds(year, month0);
+  const year = new Date().getUTCFullYear();
+  const { from, toExclusive } = yearBounds(year);
 
-  const firstRoom = hotel.hotelRooms[0] ?? null;
+  const requestedRoomId = roomParam ? parseInt(roomParam, 10) : NaN;
+  const requestedRoom = !isNaN(requestedRoomId)
+    ? hotel.hotelRooms.find((r) => r.id === requestedRoomId) ?? null
+    : null;
+  const firstRoom = requestedRoom ?? hotel.hotelRooms[0] ?? null;
   const initialDays = firstRoom ? await getRoomARI(firstRoom.id, from, toExclusive) : [];
 
   return (
@@ -52,7 +72,6 @@ export default async function CalendarPage({ params }: { params: Promise<{ id: s
             rooms={hotel.hotelRooms}
             initialRoomId={firstRoom?.id ?? null}
             initialYear={year}
-            initialMonth0={month0}
             initialDays={initialDays}
           />
         </div>

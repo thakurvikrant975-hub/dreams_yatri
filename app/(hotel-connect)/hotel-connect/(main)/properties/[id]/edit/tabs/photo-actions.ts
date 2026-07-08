@@ -5,6 +5,7 @@ import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { hotelConnectAuth } from "@/app/lib/auth-hotel-connect";
 import { db } from "@/app/lib/db";
 import { uploadToR2 } from "@/app/lib/r2/r2upload";
+import { deleteFromR2 } from "@/app/lib/r2/r2delete";
 import { r2, R2_BUCKET } from "@/app/lib/r2/r2";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -25,6 +26,12 @@ export type PhotoCategory = {
   is_system: boolean;
   photos: HotelPhoto[];
 };
+
+// ── Upload limits ─────────────────────────────────────────────────────────────
+
+const MAX_FILE_BYTES = 15 * 1024 * 1024; // 15MB per file
+const MAX_PHOTOS_PER_HOTEL = 60;
+const ALLOWED_TYPE_PREFIXES = ["image/", "video/"];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -88,37 +95,57 @@ export async function fetchHotelPhotos(hotelId: number): Promise<{
 export async function uploadHotelPhotos(
   hotelId: number,
   formData: FormData,
-): Promise<{ error?: string; count?: number }> {
+  tags: string[] = [],
+): Promise<{ error?: string; count?: number; photos?: HotelPhoto[] }> {
   const session = await hotelConnectAuth();
   if (!session) redirect("/hotel-connect/login");
   if (!(await assertOwner(hotelId, session.user.id))) return { error: "Property not found." };
 
   const files = formData.getAll("photos") as File[];
-  const valid = files.filter((f) => f.size > 0);
-  if (!valid.length) return { error: "No files selected." };
+  const sizeRejected = files.filter((f) => f.size > 0 && f.size > MAX_FILE_BYTES);
+  const typeRejected = files.filter((f) =>
+    f.size > 0 && f.size <= MAX_FILE_BYTES && !ALLOWED_TYPE_PREFIXES.some((p) => f.type.startsWith(p))
+  );
+  const valid = files.filter((f) =>
+    f.size > 0 && f.size <= MAX_FILE_BYTES && ALLOWED_TYPE_PREFIXES.some((p) => f.type.startsWith(p))
+  );
+  if (!valid.length) {
+    if (sizeRejected.length) return { error: `File too large (max ${MAX_FILE_BYTES / (1024 * 1024)}MB per file).` };
+    if (typeRejected.length) return { error: "Only image or video files are allowed." };
+    return { error: "No files selected." };
+  }
+
+  const existingCount = await db.hotel_images.count({ where: { hotel_id: hotelId } });
+  if (existingCount >= MAX_PHOTOS_PER_HOTEL) {
+    return { error: `This property already has the maximum of ${MAX_PHOTOS_PER_HOTEL} photos.` };
+  }
+  const room = MAX_PHOTOS_PER_HOTEL - existingCount;
+  const toUpload = valid.slice(0, room);
 
   const categoryId = await getDefaultCategory(hotelId);
-  const existingCount = await db.hotel_images.count({ where: { hotel_id: hotelId } });
 
   let count = 0;
-  const failed: string[] = [];
+  const failed: string[] = [...sizeRejected.map((f) => f.name), ...typeRejected.map((f) => f.name)];
+  const created: HotelPhoto[] = [];
 
-  for (const file of valid) {
+  for (const file of toUpload) {
+    let uploadedKey: string | null = null;
     try {
       const buffer = Buffer.from(await file.arrayBuffer());
-      const { url } = await uploadToR2({
+      const { key, url } = await uploadToR2({
         file: buffer,
         folder: "hotels",
         fileName: file.name,
         contentType: file.type || "image/jpeg",
       });
+      uploadedKey = key;
       const isPrimary = existingCount === 0 && count === 0;
-      await db.hotel_images.create({
+      const image = await db.hotel_images.create({
         data: {
           hotel_id: hotelId,
           category_id: categoryId,
           url,
-          tags: [],
+          tags,
           sort_order: existingCount + count,
           is_primary: isPrimary,
         },
@@ -126,9 +153,23 @@ export async function uploadHotelPhotos(
       if (isPrimary) {
         await db.hotels.update({ where: { id: hotelId }, data: { thumbnail: url } });
       }
+      created.push({
+        id: image.id,
+        url: image.url,
+        thumbnail: image.thumbnail,
+        tags: image.tags,
+        is_primary: image.is_primary,
+        category_id: image.category_id,
+        sort_order: image.sort_order,
+      });
       count++;
     } catch (err) {
       console.error("[uploadHotelPhotos] file error:", file.name, err);
+      // If the DB record failed after the R2 upload already succeeded, don't
+      // leave the object orphaned in the bucket.
+      if (uploadedKey) {
+        await deleteFromR2(uploadedKey).catch(() => {});
+      }
       failed.push(file.name);
     }
   }
@@ -139,10 +180,32 @@ export async function uploadHotelPhotos(
   if (failed.length > 0) {
     return {
       count,
+      photos: created,
       error: `${count} photo${count > 1 ? "s" : ""} uploaded. ${failed.length} failed — ${failed.join(", ")}`,
     };
   }
-  return { count };
+  return { count, photos: created };
+}
+
+export async function getPhotosByTag(hotelId: number, tag: string): Promise<HotelPhoto[]> {
+  const session = await hotelConnectAuth();
+  if (!session) redirect("/hotel-connect/login");
+  if (!(await assertOwner(hotelId, session.user.id))) return [];
+
+  const images = await db.hotel_images.findMany({
+    where: { hotel_id: hotelId, tags: { has: tag } },
+    orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
+  });
+
+  return images.map((img) => ({
+    id: img.id,
+    url: img.url,
+    thumbnail: img.thumbnail,
+    tags: img.tags,
+    is_primary: img.is_primary,
+    category_id: img.category_id,
+    sort_order: img.sort_order,
+  }));
 }
 
 export async function setCoverPhoto(
@@ -177,6 +240,7 @@ export async function savePhotoTags(
 ): Promise<{ error?: string }> {
   const session = await hotelConnectAuth();
   if (!session) redirect("/hotel-connect/login");
+  if (!(await assertOwner(hotelId, session.user.id))) return { error: "Property not found." };
 
   try {
     await db.hotel_images.update({
@@ -188,6 +252,10 @@ export async function savePhotoTags(
     return { error: "Failed to save tags." };
   }
 }
+
+const MIN_TOTAL_PHOTOS = 6;
+const MIN_ROOM_TAGGED_PHOTOS = 2;
+const ROOM_TAG = "Bedroom";
 
 export async function proceedPhotos(
   hotelId: number,
@@ -205,6 +273,9 @@ export async function proceedPhotos(
 
   const totalImages = await db.hotel_images.count({ where: { hotel_id: hotelId } });
   if (totalImages === 0) return { error: "Upload at least one photo before continuing." };
+  if (totalImages < MIN_TOTAL_PHOTOS) {
+    return { error: `At least ${MIN_TOTAL_PHOTOS} photos are required. You've uploaded ${totalImages}.` };
+  }
 
   const allImages = await db.hotel_images.findMany({
     where: { hotel_id: hotelId },
@@ -217,6 +288,15 @@ export async function proceedPhotos(
   if (untaggedCount > 0) {
     return {
       error: `${untaggedCount} photo${untaggedCount > 1 ? "s are" : " is"} missing a tag. Add at least one tag to each photo.`,
+    };
+  }
+
+  const roomTaggedCount = allImages.filter((img) =>
+    (img.tags as string[]).includes(ROOM_TAG)
+  ).length;
+  if (roomTaggedCount < MIN_ROOM_TAGGED_PHOTOS) {
+    return {
+      error: `At least ${MIN_ROOM_TAGGED_PHOTOS} photos tagged "${ROOM_TAG}" are required (currently ${roomTaggedCount}).`,
     };
   }
 
@@ -264,7 +344,10 @@ export async function deleteHotelPhoto(
         orderBy: [{ sort_order: "asc" }],
         select: { id: true, url: true },
       });
+      // Reset all rows first (matches setCoverPhoto's pattern) so a concurrent
+      // setCoverPhoto call can't race this into leaving two rows is_primary.
       await db.$transaction([
+        db.hotel_images.updateMany({ where: { hotel_id: hotelId }, data: { is_primary: false } }),
         ...(next ? [db.hotel_images.update({ where: { id: next.id }, data: { is_primary: true } })] : []),
         db.hotels.update({ where: { id: hotelId }, data: { thumbnail: next?.url ?? null } }),
       ]);

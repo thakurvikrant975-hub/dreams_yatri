@@ -10,6 +10,10 @@ import {
   CheckCircleIcon, EyeIcon, EyeSlashIcon,
   LockSimpleIcon,
 } from "@phosphor-icons/react/dist/ssr";
+import { Card } from "@/app/components/ui/Card";
+import { Input } from "../../../../components/ui/input";
+import { Label } from "../../../../components/ui/label";
+import { SearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -94,35 +98,10 @@ const INDIAN_BANKS = [
 
 function FieldLabel({ children, required }: { children: React.ReactNode; required?: boolean }) {
   return (
-    <label className="block text-xs font-medium text-neutral-600 mb-1.5">
+    <Label className="mb-1.5">
       {children}
       {required && <span className="text-red-400 ml-0.5">*</span>}
-    </label>
-  );
-}
-
-function TextInput({
-  value, onChange, placeholder, maxLength, disabled, className,
-}: {
-  value: string; onChange?: (v: string) => void;
-  placeholder?: string; maxLength?: number;
-  disabled?: boolean; className?: string;
-}) {
-  return (
-    <input
-      type="text"
-      value={value}
-      onChange={(e) => onChange?.(e.target.value)}
-      placeholder={placeholder}
-      maxLength={maxLength}
-      disabled={disabled}
-      className={cn(
-        "w-full h-9 rounded-lg border border-neutral-200 bg-white px-3 text-xs text-neutral-800 placeholder:text-neutral-400",
-        "focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300 transition-colors",
-        disabled && "bg-neutral-50 text-neutral-400 cursor-not-allowed",
-        className,
-      )}
-    />
+    </Label>
   );
 }
 
@@ -134,14 +113,13 @@ function SelectInput({
   options: { value: string; label: string }[];
 }) {
   return (
-    <select
+    <SearchSelect
+      options={options}
       value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="w-full h-9 rounded-lg border border-neutral-200 bg-white px-3 pr-8 text-xs text-neutral-700 focus:outline-none focus:ring-2 focus:ring-primary-300 appearance-none"
-    >
-      <option value="">{placeholder ?? "Select…"}</option>
-      {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-    </select>
+      onChange={onChange}
+      placeholder={placeholder ?? "Select…"}
+      searchPlaceholder="Search…"
+    />
   );
 }
 
@@ -172,9 +150,9 @@ function Section({
   children: React.ReactNode; complete?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
+    <Card variant="elevated" radius="md" className="overflow-hidden p-px">
       <button type="button" onClick={onToggle}
-        className="w-full flex items-start gap-4 px-5 py-4 text-left hover:bg-neutral-50/50 transition-colors">
+        className="w-full flex items-start gap-4 px-5 py-4 text-left rounded-t-[inherit] hover:bg-neutral-50/50 transition-colors">
         <div className={cn(
           "size-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold transition-colors",
           complete ? "bg-emerald-500 text-white" : expanded ? "bg-primary-500 text-white" : "bg-neutral-100 text-neutral-500",
@@ -183,14 +161,14 @@ function Section({
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-neutral-800">{title}</p>
-          <p className="text-[11px] text-neutral-400 mt-0.5">{description}</p>
+          <p className="text-xs text-neutral-600/90 mt-0.5">{description}</p>
         </div>
         <div className="shrink-0 text-neutral-400 mt-1">
           {expanded ? <CaretUpIcon size={14} /> : <CaretDownIcon size={14} />}
         </div>
       </button>
       {expanded && <div className="border-t border-neutral-100">{children}</div>}
-    </div>
+    </Card>
   );
 }
 
@@ -347,12 +325,11 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
     if (IFSC_BANK_MAP[prefix]) setBankName(IFSC_BANK_MAP[prefix]);
   }
 
-  // Auto-fill PAN from GSTIN (chars 2-11)
+  // Auto-fill PAN from GSTIN (chars 2-11) — convenience only; PAN stays freely editable.
   function handleGstin(v: string) {
     const upper = v.toUpperCase().slice(0, 15);
     setGstin(upper);
     if (upper.length >= 12) setPanNumber(upper.slice(2, 12));
-    else setPanNumber("");
   }
 
   // Completeness checks for section indicators
@@ -363,7 +340,9 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
       : !!docs["registration_doc"]
   );
   const sec2Complete = !!idProofType && !!docs["id_proof"];
-  const sec3Complete = !!accountNo && !!ifsc && !!bankName;
+  // PAN is required to submit for review (see review-actions.submitForReview),
+  // so it must factor into this section's own "complete" indicator too.
+  const sec3Complete = !!accountNo && !!ifsc && !!bankName && !!panNumber;
 
   // Property address string for the upload note
   const addressParts = [hotel.address, hotel.city, hotel.state, hotel.country].filter(Boolean);
@@ -374,9 +353,14 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
       <form
         id="wizard-form"
         action={formAction}
+        className="space-y-4 py-5"
         onSubmit={(e) => {
           if (accountConf !== accountNo) {
             e.preventDefault();
+            // Section 3 may be collapsed (e.g. a returning host who never
+            // reopened it) — force it open so the mismatch message below
+            // is actually visible instead of silently blocking the submit.
+            setOpen(3);
             return;
           }
         }}
@@ -533,20 +517,20 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
 
             {/* Bank account */}
             <div className="space-y-4">
-              <p className="text-xs font-semibold text-neutral-700 flex items-center gap-1.5">
+              <Label className="flex items-center gap-1.5 normal-case tracking-normal">
                 <LockSimpleIcon size={12} className="text-neutral-400" />
                 Bank Account
-              </p>
+              </Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <FieldLabel required>Account Number</FieldLabel>
                   <div className="relative">
-                    <input
+                    <Input
                       type={showAcct ? "text" : "password"}
                       value={accountNo}
                       onChange={(e) => setAccountNo(e.target.value)}
                       placeholder="Enter Account Number"
-                      className="w-full h-9 rounded-lg border border-neutral-200 bg-white px-3 pr-9 text-xs text-neutral-800 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300"
+                      className="pr-9"
                     />
                     <button
                       type="button"
@@ -559,9 +543,9 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
                 </div>
                 <div>
                   <FieldLabel required>Re-enter Account Number</FieldLabel>
-                  <TextInput
+                  <Input
                     value={accountConf}
-                    onChange={setAccountConf}
+                    onChange={(e) => setAccountConf(e.target.value)}
                     placeholder="Enter Account Number"
                   />
                   {(accountConf || accountNo) && accountConf !== accountNo && (
@@ -573,9 +557,9 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <FieldLabel>IFSC Code</FieldLabel>
-                  <TextInput
+                  <Input
                     value={ifsc}
-                    onChange={handleIfsc}
+                    onChange={(e) => handleIfsc(e.target.value)}
                     placeholder="Enter IFSC Code"
                     maxLength={11}
                     className="uppercase"
@@ -583,26 +567,39 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
                 </div>
                 <div>
                   <FieldLabel>Bank Name</FieldLabel>
-                  <select
+                  <SearchSelect
+                    options={INDIAN_BANKS}
                     value={bankName}
-                    onChange={(e) => setBankName(e.target.value)}
-                    className="w-full h-9 rounded-lg border border-neutral-200 bg-white px-3 pr-8 text-xs text-neutral-700 focus:outline-none focus:ring-2 focus:ring-primary-300 appearance-none"
-                  >
-                    <option value="">Select</option>
-                    {INDIAN_BANKS.map((b) => <option key={b} value={b}>{b}</option>)}
-                  </select>
+                    onChange={setBankName}
+                    placeholder="Select your bank"
+                    searchPlaceholder="Search bank…"
+                  />
                 </div>
               </div>
             </div>
 
             <div className="h-px bg-neutral-100" />
 
-            {/* GSTIN / PAN */}
+            {/* PAN — always required for payouts/tax reporting, regardless of GSTIN */}
+            <div>
+              <FieldLabel required>PAN Number</FieldLabel>
+              <Input
+                value={panNumber}
+                onChange={(e) => setPanNumber(e.target.value.toUpperCase().slice(0, 10))}
+                placeholder="ABCDE1234F"
+                maxLength={10}
+                className="uppercase"
+              />
+            </div>
+
+            <div className="h-px bg-neutral-100" />
+
+            {/* GSTIN (optional) */}
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-4">
-                <p className="text-xs font-medium text-neutral-700">Do you have a GSTIN?</p>
+                <Label>Do you have a GSTIN?</Label>
                 <div className="flex rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
-                  <button type="button" onClick={() => { setHasGstin(false); setGstin(""); setPanNumber(""); }}
+                  <button type="button" onClick={() => { setHasGstin(false); setGstin(""); }}
                     className={cn("px-4 py-1.5 transition-colors",
                       !hasGstin ? "bg-neutral-700 text-white" : "text-neutral-500 hover:bg-neutral-50")}>
                     No
@@ -617,26 +614,16 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
               </div>
 
               {hasGstin && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-0">
-                  <div>
-                    <FieldLabel>Enter GSTIN</FieldLabel>
-                    <TextInput
-                      value={gstin}
-                      onChange={handleGstin}
-                      placeholder="Enter the 15-digit GSTIN"
-                      maxLength={15}
-                      className="uppercase"
-                    />
-                  </div>
-                  <div>
-                    <FieldLabel>Enter PAN</FieldLabel>
-                    <TextInput
-                      value={panNumber}
-                      placeholder="Your PAN will be filled in automatically"
-                      disabled
-                      className="uppercase"
-                    />
-                  </div>
+                <div>
+                  <FieldLabel>Enter GSTIN</FieldLabel>
+                  <Input
+                    value={gstin}
+                    onChange={(e) => handleGstin(e.target.value)}
+                    placeholder="Enter the 15-digit GSTIN"
+                    maxLength={15}
+                    className="uppercase"
+                  />
+                  <p className="text-[11px] text-neutral-400 mt-1">This will auto-fill your PAN above — you can still edit it.</p>
                 </div>
               )}
             </div>
@@ -646,7 +633,7 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
             {/* TAN */}
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-4">
-                <p className="text-xs font-medium text-neutral-700">Do you have a TAN?</p>
+                <Label>Do you have a TAN?</Label>
                 <div className="flex rounded-lg border border-neutral-200 overflow-hidden shrink-0 text-xs font-medium">
                   <button type="button" onClick={() => { setHasTan(false); setTanNumber(""); }}
                     className={cn("px-4 py-1.5 transition-colors",
@@ -665,9 +652,9 @@ export default function HomestayFinanceTab({ hotel }: { hotel: HomestayFinanceDa
               {hasTan && (
                 <div className="max-w-xs">
                   <FieldLabel>Enter TAN</FieldLabel>
-                  <TextInput
+                  <Input
                     value={tanNumber}
-                    onChange={(v) => setTanNumber(v.toUpperCase())}
+                    onChange={(e) => setTanNumber(e.target.value.toUpperCase())}
                     placeholder="Enter 10-digit TAN"
                     maxLength={10}
                     className="uppercase"

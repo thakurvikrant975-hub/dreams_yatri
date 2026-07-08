@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { hotelConnectAuth } from "@/app/lib/auth-hotel-connect";
 import { db } from "@/app/lib/db";
 import WizardShell from "./WizardShell";
@@ -18,11 +18,17 @@ import FinanceTab, { type FinanceHotelData } from "./tabs/FinanceTab";
 import HomestayFinanceTab, { type HomestayFinanceData } from "./tabs/HomestayFinanceTab";
 import TabPlaceholder from "./tabs/TabPlaceholder";
 
-// Hotels: tabs 1–3, 6–7 render a wizard-form; tab 4 (Rooms) self-manages; tab 5 (Photos) upload-only.
-// Homestay: tabs 1–3, 6–8 render a wizard-form (tab 6=Pricing, 7=Policies, 8=Finance).
+// Hotels: tabs 1–3, 5–7 render a real server-action wizard-form; tab 4 (Rooms) renders a
+// hidden client-only "wizard-form" too (RoomsTab.tsx) purely to gate the footer's
+// "Save & Continue" button on "at least one room added" — rooms themselves are saved
+// individually via createRoom/updateRoom, not through this form.
+// Homestay: tabs 1–3, 6–8 render a wizard-form (tab 6=Pricing, 7=Policies, 8=Finance). Tab 4
+// (Rooms & Spaces) renders its own "wizard-form" too, but only once Phase 2 (per-room detail
+// editing) is showing — Phase 1 (counts) hides the footer button entirely via hideNextButton,
+// so including it here has no effect until then.
 // TABS_WITH_FORM is resolved dynamically below after isHomestay is known.
-const HOTEL_TABS_WITH_FORM    = new Set([1, 2, 3, 5, 6, 7]);
-const HOMESTAY_TABS_WITH_FORM = new Set([1, 2, 3, 5, 6, 7, 8]);
+const HOTEL_TABS_WITH_FORM    = new Set([1, 2, 3, 4, 5, 6, 7]);
+const HOMESTAY_TABS_WITH_FORM = new Set([1, 2, 3, 4, 5, 6, 7, 8]);
 
 export default async function EditPropertyPage({
   params,
@@ -43,7 +49,9 @@ export default async function EditPropertyPage({
     select: {
       id: true,
       name: true,
+      slug: true,
       listing_status: true,
+      rejection_reason: true,
       wizard_step: true,
       property_category: true,
       property_sub_type: true,
@@ -236,7 +244,17 @@ export default async function EditPropertyPage({
     return Math.max(h.wizard_step, 5);
   }
 
-  const currentTab = Math.max(1, Math.min(maxTab, parseInt(tab ?? "1", 10) || 1));
+  const requestedTab = Math.max(1, Math.min(maxTab, parseInt(tab ?? "1", 10) || 1));
+  const reachedStep = effectiveWizardStep();
+
+  // Can't skip ahead of the next step that hasn't actually been validated yet
+  // (mirrors the lock shown in the tab bar) — bounce back to the furthest
+  // reachable tab instead of rendering content for a step that isn't ready.
+  if (requestedTab > reachedStep + 1) {
+    redirect(`/hotel-connect/properties/${hotelId}/edit?tab=${reachedStep + 1}`);
+  }
+
+  const currentTab = requestedTab;
 
   // Both Homestay and Hotels now have Photos at tab 5
   const photosTab = 5;
@@ -334,7 +352,7 @@ export default async function EditPropertyPage({
       hotel={h}
       currentTab={currentTab}
       tabFormId={tabFormId}
-      effectiveWizardStep={effectiveWizardStep()}
+      effectiveWizardStep={reachedStep}
       hideNextButton={isHomestayRoomsCountsPending}
     >
       {tabContent}

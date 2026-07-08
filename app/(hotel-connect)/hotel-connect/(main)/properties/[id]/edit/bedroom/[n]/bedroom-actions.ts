@@ -26,11 +26,20 @@ export async function saveBedroomStep(
   const idx = n - 1;
   if (idx < 0 || idx >= total) return { ok: false };
 
+  // Defense-in-depth — the client already constrains these (Steppers, numeric
+  // input filtering), but this action can be called directly with an
+  // arbitrary payload, so re-check the fields with real invariants.
+  const patch = { ...data };
+  if (patch.base_adults != null) patch.base_adults = Math.min(50, Math.max(1, Math.trunc(patch.base_adults)));
+  if (patch.max_adults != null) patch.max_adults = Math.min(50, Math.max(patch.base_adults ?? 1, Math.trunc(patch.max_adults)));
+  if (patch.size_value != null && (!Number.isFinite(patch.size_value) || patch.size_value < 0)) patch.size_value = null;
+  if (patch.step_reached != null) patch.step_reached = Math.min(4, Math.max(0, Math.trunc(patch.step_reached)));
+
   const existing = (hotel.hs_bedroom_details as BedroomDetail[] | null) ?? [];
   const updated: BedroomDetail[] = Array.from({ length: total }, (_, i) =>
     existing[i] ?? defaultBedroom(i + 1)
   );
-  updated[idx] = { ...updated[idx], ...data };
+  updated[idx] = { ...updated[idx], ...patch };
 
   await db.hotels.update({
     where: { id: hotelId },

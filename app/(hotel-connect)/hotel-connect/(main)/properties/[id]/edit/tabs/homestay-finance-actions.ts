@@ -46,11 +46,17 @@ export async function saveHomestayFinance(
   const tan_number   = (formData.get("tan_number")   as string | null)?.trim().toUpperCase() || null;
 
   // Format validation
+  if (bank_account_number && !/^\d{6,20}$/.test(bank_account_number)) {
+    return { error: "Bank account number must be 6-20 digits, numbers only." };
+  }
   if (bank_ifsc_code && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(bank_ifsc_code)) {
     return { error: "Invalid IFSC code format. Example: SBIN0001234" };
   }
   if (gstin_number && !/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(gstin_number)) {
     return { error: "Invalid GSTIN format. Example: 27AAPFU0939F1ZV" };
+  }
+  if (pan_number && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan_number)) {
+    return { error: "Invalid PAN format. Example: ABCDE1234F" };
   }
   if (tan_number && !/^[A-Z]{4}[0-9]{5}[A-Z]$/.test(tan_number)) {
     return { error: "Invalid TAN format. Example: PDES03028F" };

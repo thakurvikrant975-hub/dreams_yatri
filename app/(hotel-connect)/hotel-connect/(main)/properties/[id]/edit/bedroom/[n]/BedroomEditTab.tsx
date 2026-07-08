@@ -10,6 +10,7 @@ import {
 import { saveBedroomStep } from "./bedroom-actions";
 import type { BedroomDetail } from "./bedroom-types";
 import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
+import { SearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
 import { cn } from "@/app/lib/utils";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -98,7 +99,7 @@ function StepSection({
             isCompleted && !isActive
               ? "bg-emerald-500 text-white cursor-pointer"
               : isActive
-                ? "bg-primary-600 text-white ring-2 ring-primary-200"
+                ? "bg-primary-500 text-white ring-2 ring-primary-200"
                 : "bg-neutral-200 text-neutral-500 cursor-not-allowed"
           )}
         >
@@ -128,8 +129,8 @@ function StepSection({
         </button>
 
         {isActive && (
-          <div className="mt-4 bg-white border border-neutral-200 rounded-xl overflow-hidden">
-            <div className="p-5 space-y-5">
+          <div className="mt-4  rounded-xl overflow-hidden">
+            <div className="px-5 space-y-5">
               {children}
             </div>
           </div>
@@ -220,7 +221,7 @@ export default function BedroomEditTab({
     });
     setStepReached(newReached);
     if (nextStep === "back") {
-      router.push(`/hotel-connect/properties/${hotelId}/edit?tab=3`);
+      router.push(`/hotel-connect/properties/${hotelId}/edit?tab=4`);
     } else {
       setCurrentStep(nextStep);
     }
@@ -241,7 +242,7 @@ export default function BedroomEditTab({
     <div >
       <SectionCard title={`Bedroom ${n} of ${total}`}>
         <Link
-          href={`/hotel-connect/properties/${hotelId}/edit?tab=3`}
+          href={`/hotel-connect/properties/${hotelId}/edit?tab=4`}
           className="inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-800 transition-colors"
         >
           <ArrowLeftIcon size={13} weight="bold" />
@@ -318,21 +319,19 @@ export default function BedroomEditTab({
               <div className="px-4 pb-4 border-t border-neutral-100 pt-3 space-y-3">
                 <div className="flex items-center justify-between gap-4">
                   <p className="text-sm text-neutral-700">Extra bed available?</p>
-                  <YesNoRadio value={hasExtraBed} onChange={setHasExtraBed} />
+                  <YesNoRadio value={hasExtraBed} onChange={v => { setHasExtraBed(v); if (!v) setExtraBedType(""); }} />
                 </div>
                 {hasExtraBed && (
                   <div>
                     <label className="block text-xs font-medium text-neutral-600 mb-1">Extra bed type</label>
-                    <select
+                    <SearchSelect
                       value={extraBedType}
-                      onChange={e => setExtraBedType(e.target.value)}
-                      className="w-full max-w-xs px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300"
-                    >
-                      <option value="">Select type</option>
-                      {["Roll-away bed", "Cot / Baby crib", "Sofa bed", "Floor mattress"].map(t => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                    </select>
+                      onChange={setExtraBedType}
+                      options={["Roll-away bed", "Cot / Baby crib", "Sofa bed", "Floor mattress"]}
+                      placeholder="Select type"
+                      showSearch={false}
+                      className="max-w-xs"
+                    />
                   </div>
                 )}
               </div>
@@ -341,18 +340,28 @@ export default function BedroomEditTab({
             {/* Occupancy */}
             <div className="space-y-3">
               <p className="text-sm font-semibold text-neutral-800">Occupancy</p>
-              {[
-                { label: "Base Adults", sub: "Ideal number of adults that can be accommodated in this property", val: baseAdults, set: setBaseAdults },
-                { label: "Maximum Adults", sub: "Maximum number of adults that can be accommodated in this property", val: maxAdults, set: setMaxAdults },
-              ].map(row => (
-                <div key={row.label} className="flex items-center justify-between gap-4 border border-neutral-200 rounded-lg px-4 py-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-neutral-800">{row.label}</p>
-                    <p className="text-xs text-neutral-400 leading-tight">{row.sub}</p>
-                  </div>
-                  <Stepper value={row.val} onChange={row.set} min={1} max={50} disabled={isPending} />
+              <div className="flex items-center justify-between gap-4 border border-neutral-200 rounded-lg px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-neutral-800">Base Adults</p>
+                  <p className="text-xs text-neutral-400 leading-tight">Ideal number of adults that can be accommodated in this property</p>
                 </div>
-              ))}
+                <Stepper
+                  value={baseAdults}
+                  onChange={v => { setBaseAdults(v); if (maxAdults < v) setMaxAdults(v); }}
+                  min={1} max={50} disabled={isPending}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-4 border border-neutral-200 rounded-lg px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-neutral-800">Maximum Adults</p>
+                  <p className="text-xs text-neutral-400 leading-tight">Maximum number of adults that can be accommodated in this property</p>
+                </div>
+                <Stepper
+                  value={maxAdults}
+                  onChange={v => setMaxAdults(Math.max(baseAdults, v))}
+                  min={1} max={50} disabled={isPending}
+                />
+              </div>
               <div className="flex items-start gap-2 bg-blue-50 rounded-lg px-3 py-2.5">
                 <span className="text-blue-500 text-xs mt-0.5">ℹ</span>
                 <p className="text-xs text-blue-700">To increase the maximum occupancy, please add details in the Extra Beds section.</p>
@@ -361,12 +370,12 @@ export default function BedroomEditTab({
 
             <button
               type="button"
-              disabled={isPending}
+              disabled={isPending || (hasExtraBed && !extraBedType)}
               onClick={() => save({
                 beds, has_extra_bed: hasExtraBed, extra_bed_type: extraBedType,
                 base_adults: baseAdults, max_adults: maxAdults,
               }, 2, 3)}
-              className="px-5 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
+              className="px-5 py-2 text-sm font-semibold text-white bg-primary-500 rounded-lg hover:bg-primary-600 disabled:opacity-50 transition-colors"
             >
               Next
             </button>
@@ -384,19 +393,19 @@ export default function BedroomEditTab({
                 <p className="text-sm font-semibold text-neutral-800">Does the room have an attached bathroom?</p>
                 <p className="text-xs text-neutral-400">Attached or en suite bathrooms have a private entrance inside the bedroom</p>
               </div>
-              <YesNoRadio value={hasBathroom} onChange={setHasBathroom} />
+              <YesNoRadio value={hasBathroom} onChange={v => { setHasBathroom(v); if (!v) setBathroomType(""); }} />
             </div>
             {hasBathroom && (
               <div>
                 <label className="block text-xs font-semibold text-neutral-700 mb-1.5">Select the attached bathroom</label>
-                <select
+                <SearchSelect
                   value={bathroomType}
-                  onChange={e => setBathroomType(e.target.value)}
-                  className="w-full max-w-xs px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300"
-                >
-                  <option value="">Select</option>
-                  {BATHROOM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
+                  onChange={setBathroomType}
+                  options={BATHROOM_TYPES}
+                  placeholder="Select"
+                  showSearch={false}
+                  className="max-w-xs"
+                />
               </div>
             )}
 
@@ -405,7 +414,7 @@ export default function BedroomEditTab({
                 <p className="text-sm font-semibold text-neutral-800">Does the room come with an attached balcony?</p>
                 <p className="text-xs text-neutral-400">Attached or en suite bathrooms have a private entrance inside the bedroom</p>
               </div>
-              <YesNoRadio value={hasBalcony} onChange={setHasBalcony} />
+              <YesNoRadio value={hasBalcony} onChange={v => { setHasBalcony(v); if (!v) setBalconyFurniture(false); }} />
             </div>
             {hasBalcony && (
               <div className="flex items-center justify-between gap-4">
@@ -458,13 +467,13 @@ export default function BedroomEditTab({
 
             <button
               type="button"
-              disabled={isPending}
+              disabled={isPending || (hasBathroom && !bathroomType)}
               onClick={() => save({
                 has_bathroom: hasBathroom, bathroom_type: bathroomType,
                 has_balcony: hasBalcony, balcony_furniture: balconyFurniture,
                 amenities,
               }, 3, 4)}
-              className="px-5 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
+              className="px-5 py-2 text-sm font-semibold text-white bg-primary-500 rounded-lg hover:bg-primary-600 disabled:opacity-50 transition-colors"
             >
               Next
             </button>
@@ -497,14 +506,13 @@ export default function BedroomEditTab({
                 <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
                   Room View <span className="font-normal text-neutral-400">(Optional)</span>
                 </label>
-                <select
+                <SearchSelect
                   value={view}
-                  onChange={e => setView(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300"
-                >
-                  <option value="">Select View</option>
-                  {VIEW_OPTIONS.map(v => <option key={v} value={v}>{v}</option>)}
-                </select>
+                  onChange={setView}
+                  options={VIEW_OPTIONS}
+                  placeholder="Select View"
+                  showSearch={false}
+                />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
@@ -515,7 +523,7 @@ export default function BedroomEditTab({
                   <input
                     type="number"
                     value={sizeValue}
-                    onChange={e => setSizeValue(e.target.value)}
+                    onChange={e => { if (e.target.value === "" || /^\d*\.?\d*$/.test(e.target.value)) setSizeValue(e.target.value); }}
                     placeholder="00"
                     min={0}
                     className="w-16 px-2 py-2 text-sm border border-r-0 border-neutral-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary-300"
@@ -541,14 +549,13 @@ export default function BedroomEditTab({
               <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
                 Floor Level <span className="font-normal text-neutral-400">(Optional)</span>
               </label>
-              <select
+              <SearchSelect
                 value={floorLevel}
-                onChange={e => setFloorLevel(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300"
-              >
-                <option value="">Select</option>
-                {FLOOR_LEVELS.map(f => <option key={f} value={f}>{f}</option>)}
-              </select>
+                onChange={setFloorLevel}
+                options={FLOOR_LEVELS}
+                placeholder="Select"
+                showSearch={false}
+              />
             </div>
 
             <button
@@ -559,7 +566,7 @@ export default function BedroomEditTab({
                 size_value: sizeValue ? Number(sizeValue) : null,
                 size_unit: sizeUnit, floor_level: floorLevel,
               }, 4, "back")}
-              className="px-5 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
+              className="px-5 py-2 text-sm font-semibold text-white bg-primary-500 rounded-lg hover:bg-primary-600 disabled:opacity-50 transition-colors"
             >
               {isPending ? "Saving…" : "Save & Continue"}
             </button>

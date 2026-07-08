@@ -23,7 +23,7 @@ check("bad gender fails", !checkoutSchema.safeParse({ ...base, travellers: [{ ..
 check("bad email fails", !checkoutSchema.safeParse({ ...base, contact: { email: "nope", phone: base.contact.phone } }).success);
 check("short phone fails", !checkoutSchema.safeParse({ ...base, contact: { email: "a@b.com", phone: "12" } }).success);
 check("no travellers fails", !checkoutSchema.safeParse({ ...base, travellers: [] }).success);
-check("CHILD/INFANT types accepted", checkoutSchema.safeParse({ ...base, travellers: [validTraveller, { ...validTraveller, type: "CHILD" }, { ...validTraveller, type: "INFANT" }] }).success);
+check("CHILD/INFANT types accepted", checkoutSchema.safeParse({ ...base, travellers: [validTraveller, { ...validTraveller, type: "CHILD", dob: "2018-01-01" }, { ...validTraveller, type: "INFANT", dob: "2025-06-01" }] }).success);
 
 console.log(`\n${passed} passed, ${failures.length} failed`);
 if (failures.length > 0) process.exit(1);

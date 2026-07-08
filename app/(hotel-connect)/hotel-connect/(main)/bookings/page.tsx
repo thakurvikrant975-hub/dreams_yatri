@@ -51,10 +51,13 @@ type Stats = {
 
 // ── Data fetch ────────────────────────────────────────────────────────────────
 
+const PAGE_SIZE = 20;
+
 async function getOwnerBookings(
   ownerId: string,
   filter: string,
-): Promise<{ bookings: BookingSummary[]; stats: Stats }> {
+  page: number,
+): Promise<{ bookings: BookingSummary[]; stats: Stats; totalCount: number }> {
   const ownerHotels = await db.hotels.findMany({
     where: { owner_id: ownerId },
     select: { id: true },
@@ -67,7 +70,7 @@ async function getOwnerBookings(
     completed: 0, cancelled: 0, revenue: 0,
   };
 
-  if (!hotelIds.length) return { bookings: [], stats: emptyStats };
+  if (!hotelIds.length) return { bookings: [], stats: emptyStats, totalCount: 0 };
 
   // Get all unique booking IDs touching this owner's hotels
   const links = await db.bookingHotel.findMany({
@@ -76,7 +79,7 @@ async function getOwnerBookings(
     distinct: ["bookingId"],
   });
 
-  if (!links.length) return { bookings: [], stats: emptyStats };
+  if (!links.length) return { bookings: [], stats: emptyStats, totalCount: 0 };
 
   const allBookingIds = links.map((l) => l.bookingId);
 
@@ -88,59 +91,67 @@ async function getOwnerBookings(
     cancelled: ["CANCELLED", "REJECTED"],
   };
   const statusFilter = STATUS_FILTER[filter];
+  const baseWhere = { id: { in: allBookingIds } };
+  const filteredWhere = { ...baseWhere, ...(statusFilter ? { status: { in: statusFilter } } : {}) };
 
-  // Fetch bookings with traveller + hotel data
-  const raw = await db.booking.findMany({
-    where: {
-      id: { in: allBookingIds },
-      ...(statusFilter ? { status: { in: statusFilter } } : {}),
-    },
-    select: {
-      id: true,
-      bookingNumber: true,
-      status: true,
-      totalAmount: true,
-      travellers: true,
-      contactEmail: true,
-      startDate: true,
-      endDate: true,
-      createdAt: true,
-      travellersList: {
-        where: { isLead: true },
-        take: 1,
-        select: { fullName: true, firstName: true, lastName: true },
-      },
-      hotelBookings: {
-        where: { hotelId: { in: hotelIds } },
-        orderBy: { checkInDate: "asc" },
-        take: 1,
-        select: {
-          checkInDate: true,
-          checkOutDate: true,
-          roomType: true,
-          roomsCount: true,
-          hotel: { select: { name: true, city: true } },
+  // Counts + revenue are aggregated in the DB rather than loading every
+  // booking row into memory — this stays cheap regardless of how many
+  // bookings an owner accumulates over time.
+  const [
+    totalCount, upcomingCount, ongoingCount, completedCount, cancelledCount, revenueAgg, raw,
+  ] = await Promise.all([
+    db.booking.count({ where: filteredWhere }),
+    db.booking.count({ where: { ...baseWhere, status: { in: ["UPCOMING", "CONFIRMED"] } } }),
+    db.booking.count({ where: { ...baseWhere, status: "ONGOING" } }),
+    db.booking.count({ where: { ...baseWhere, status: "COMPLETED" } }),
+    db.booking.count({ where: { ...baseWhere, status: { in: ["CANCELLED", "REJECTED"] } } }),
+    db.booking.aggregate({
+      where: { ...baseWhere, status: { notIn: ["CANCELLED", "REJECTED", "PENDING_REVIEW"] } },
+      _sum: { totalAmount: true },
+    }),
+    db.booking.findMany({
+      where: filteredWhere,
+      select: {
+        id: true,
+        bookingNumber: true,
+        status: true,
+        totalAmount: true,
+        travellers: true,
+        contactEmail: true,
+        startDate: true,
+        endDate: true,
+        createdAt: true,
+        travellersList: {
+          where: { isLead: true },
+          take: 1,
+          select: { fullName: true, firstName: true, lastName: true },
+        },
+        hotelBookings: {
+          where: { hotelId: { in: hotelIds } },
+          orderBy: { checkInDate: "asc" },
+          take: 1,
+          select: {
+            checkInDate: true,
+            checkOutDate: true,
+            roomType: true,
+            roomsCount: true,
+            hotel: { select: { name: true, city: true } },
+          },
         },
       },
-    },
-    orderBy: { startDate: "desc" },
-  });
-
-  // Compute stats from all bookings regardless of tab filter
-  const allRaw = await db.booking.findMany({
-    where: { id: { in: allBookingIds } },
-    select: { status: true, totalAmount: true },
-  });
+      orderBy: { startDate: "desc" },
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
+    }),
+  ]);
 
   const stats: Stats = {
-    total:     allRaw.length,
-    upcoming:  allRaw.filter((b) => (["UPCOMING","CONFIRMED"] as string[]).includes(b.status)).length,
-    ongoing:   allRaw.filter((b) => b.status === "ONGOING").length,
-    completed: allRaw.filter((b) => b.status === "COMPLETED").length,
-    cancelled: allRaw.filter((b) => (["CANCELLED","REJECTED"] as string[]).includes(b.status)).length,
-    revenue:   allRaw
-      .filter((b) => !(["CANCELLED","REJECTED","PENDING_REVIEW"] as string[]).includes(b.status))
-      .reduce((sum, b) => sum + Number(b.totalAmount), 0),
+    total:     await db.booking.count({ where: baseWhere }),
+    upcoming:  upcomingCount,
+    ongoing:   ongoingCount,
+    completed: completedCount,
+    cancelled: cancelledCount,
+    revenue:   Number(revenueAgg._sum.totalAmount ?? 0),
   };
 
   const bookings: BookingSummary[] = raw.map((b) => {
@@ -166,7 +177,7 @@ async function getOwnerBookings(
     };
   });
 
-  return { bookings, stats };
+  return { bookings, stats, totalCount };
 }
 
 // ── Status config ─────────────────────────────────────────────────────────────
@@ -401,13 +412,15 @@ function EmptyState({ filter }: { filter: string }) {
 export default async function HotelConnectBookingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; page?: string }>;
 }) {
   const session = await hotelConnectAuth();
   const ownerId = session!.user.id;
-  const { tab = "all" } = await searchParams;
+  const { tab = "all", page: pageParam } = await searchParams;
+  const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
 
-  const { bookings, stats } = await getOwnerBookings(ownerId, tab);
+  const { bookings, stats, totalCount } = await getOwnerBookings(ownerId, tab, page);
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   const TABS = [
     { id: "all",       label: "All",        count: stats.total     },
@@ -500,11 +513,40 @@ export default async function HotelConnectBookingsPage({
 
             {/* Footer */}
             {bookings.length > 0 && (
-              <div className="px-5 py-3 border-t border-neutral-100 bg-neutral-50/50">
+              <div className="px-5 py-3 border-t border-neutral-100 bg-neutral-50/50 flex items-center justify-between gap-4">
                 <p className="text-xs text-neutral-400">
-                  Showing {bookings.length} booking{bookings.length !== 1 ? "s" : ""}
+                  Showing {(page - 1) * PAGE_SIZE + 1}–{(page - 1) * PAGE_SIZE + bookings.length} of {totalCount} booking{totalCount !== 1 ? "s" : ""}
                   {tab !== "all" ? ` · ${TABS.find((t) => t.id === tab)?.label ?? ""}` : ""}
                 </p>
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Link
+                      href={`?tab=${tab}&page=${Math.max(1, page - 1)}`}
+                      aria-disabled={page <= 1}
+                      className={cn(
+                        "text-xs font-medium px-2.5 py-1 rounded-lg border transition-colors",
+                        page <= 1
+                          ? "text-neutral-300 border-neutral-100 pointer-events-none"
+                          : "text-neutral-600 border-neutral-200 hover:bg-neutral-100"
+                      )}
+                    >
+                      Previous
+                    </Link>
+                    <span className="text-xs text-neutral-400">Page {page} of {totalPages}</span>
+                    <Link
+                      href={`?tab=${tab}&page=${Math.min(totalPages, page + 1)}`}
+                      aria-disabled={page >= totalPages}
+                      className={cn(
+                        "text-xs font-medium px-2.5 py-1 rounded-lg border transition-colors",
+                        page >= totalPages
+                          ? "text-neutral-300 border-neutral-100 pointer-events-none"
+                          : "text-neutral-600 border-neutral-200 hover:bg-neutral-100"
+                      )}
+                    >
+                      Next
+                    </Link>
+                  </div>
+                )}
               </div>
             )}
           </Card>

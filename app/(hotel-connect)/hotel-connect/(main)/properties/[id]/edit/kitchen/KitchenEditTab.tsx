@@ -7,6 +7,7 @@ import { ArrowLeftIcon, CheckIcon } from "@phosphor-icons/react/dist/ssr";
 import { saveHomestayKitchenDetail } from "../tabs/homestay-rooms-crud-actions";
 import type { KitchenDetail } from "../tabs/homestay-rooms-types";
 import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
+import { SearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
 import { cn } from "@/app/lib/utils";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -88,7 +89,7 @@ function StepSection({
             isCompleted && !isActive
               ? "bg-emerald-500 text-white cursor-pointer"
               : isActive
-                ? "bg-primary-600 text-white ring-2 ring-primary-200"
+                ? "bg-primary-500 text-white ring-2 ring-primary-200"
                 : "bg-neutral-200 text-neutral-500 cursor-not-allowed"
           )}
         >
@@ -119,8 +120,8 @@ function StepSection({
         </button>
 
         {isActive && (
-          <div className="mt-4 bg-white border border-neutral-200 rounded-xl overflow-hidden">
-            <div className="p-5 space-y-5">
+          <div className="mt-4  rounded-xl overflow-hidden">
+            <div className="px-5 space-y-5">
               {children}
             </div>
           </div>
@@ -185,7 +186,7 @@ export default function KitchenEditTab({
     });
     setStepReached(newReached);
     if (nextStep === "back") {
-      router.push(`/hotel-connect/properties/${hotelId}/edit?tab=3`);
+      router.push(`/hotel-connect/properties/${hotelId}/edit?tab=4`);
     } else {
       setCurrentStep(nextStep);
     }
@@ -212,7 +213,7 @@ export default function KitchenEditTab({
     <div>
       <SectionCard title="Kitchen Details" desc="Describe the kitchen type, guest access, and available amenities.">
         <Link
-          href={`/hotel-connect/properties/${hotelId}/edit?tab=3`}
+          href={`/hotel-connect/properties/${hotelId}/edit?tab=4`}
           className="inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-800 transition-colors"
         >
           <ArrowLeftIcon size={13} weight="bold" />
@@ -291,15 +292,14 @@ export default function KitchenEditTab({
               >
                 What type of meals can guests prepare in the kitchen?
               </label>
-              <select
-                id="kitchen-meal-types"
+              <SearchSelect
+                name="kitchen-meal-types"
                 value={mealTypes}
-                onChange={e => setMealTypes(e.target.value)}
-                className="w-full px-3 py-2.5 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300"
-              >
-                <option value="">Select meal type</option>
-                {MEAL_TYPES.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
+                onChange={setMealTypes}
+                options={MEAL_TYPES}
+                placeholder="Select meal type"
+                showSearch={false}
+              />
             </div>
 
             {/* Staff help */}
@@ -444,7 +444,7 @@ export default function KitchenEditTab({
               type="button"
               disabled={isPending}
               onClick={() => save({ appliances, appliance_details: applianceDetails, description }, 2, "back")}
-              className="px-5 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
+              className="px-5 py-2 text-sm font-semibold text-white bg-primary-500 rounded-lg hover:bg-primary-600 disabled:opacity-50 transition-colors"
             >
               {isPending ? "Saving…" : "Save & Continue"}
             </button>

@@ -50,6 +50,22 @@ export const fullRoomSchema = z.object({
   // Section 5
   room_amenities:        z.array(z.string()),
   room_amenity_details:  z.record(z.string(), z.union([z.string(), z.array(z.string())])).optional(),
+}).superRefine((data, ctx) => {
+  // These are only enforced client-side today (RoomsTab's own step
+  // validators) — re-checked here so a direct call to createRoom/updateRoom
+  // can't persist internally-inconsistent occupancy/date data.
+  if (data.max_adults < data.base_adults) {
+    ctx.addIssue({ code: "custom", path: ["max_adults"], message: "Max adults can't be less than base adults." });
+  }
+  if (data.max_children < data.base_children) {
+    ctx.addIssue({ code: "custom", path: ["max_children"], message: "Max children can't be less than base children." });
+  }
+  if (data.max_occupancy < data.max_adults) {
+    ctx.addIssue({ code: "custom", path: ["max_occupancy"], message: "Max occupancy can't be less than max adults." });
+  }
+  if (data.rate_end_date && data.rate_start_date && data.rate_end_date <= data.rate_start_date) {
+    ctx.addIssue({ code: "custom", path: ["rate_end_date"], message: "End date must be after the start date." });
+  }
 });
 
 export type FullRoomData = z.infer<typeof fullRoomSchema>;

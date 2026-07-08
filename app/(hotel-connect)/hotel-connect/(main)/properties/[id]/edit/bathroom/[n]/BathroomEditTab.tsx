@@ -12,6 +12,7 @@ import {
 import { saveHomestayBathroomDetail } from "../../tabs/homestay-rooms-crud-actions";
 import type { BathroomDetail } from "../../tabs/homestay-rooms-types";
 import SectionCard from "@/app/(hotel-connect)/hotel-connect/(main)/components/SectionCard";
+import { SearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
 import { cn } from "@/app/lib/utils";
 
 // ── Amenity data ──────────────────────────────────────────────────────────────
@@ -89,7 +90,7 @@ function StepSection({
             isCompleted && !isActive
               ? "bg-emerald-500 text-white cursor-pointer"
               : isActive
-                ? "bg-primary-600 text-white ring-2 ring-primary-200"
+                ? "bg-primary-500 text-white ring-2 ring-primary-200"
                 : "bg-neutral-200 text-neutral-500 cursor-not-allowed"
           )}
         >
@@ -120,8 +121,8 @@ function StepSection({
         </button>
 
         {isActive && (
-          <div className="mt-4 bg-white border border-neutral-200 rounded-xl overflow-hidden">
-            <div className="p-5 space-y-5">
+          <div className="mt-4  rounded-xl overflow-hidden">
+            <div className="px-5 space-y-5">
               {children}
             </div>
           </div>
@@ -240,7 +241,7 @@ export default function BathroomEditTab({
         floor_level: floorLevel,
         step_reached: 3,
       });
-      router.push(`/hotel-connect/properties/${hotelId}/edit?tab=3`);
+      router.push(`/hotel-connect/properties/${hotelId}/edit?tab=4`);
     });
   }
 
@@ -258,7 +259,7 @@ export default function BathroomEditTab({
       >
         {/* Back link */}
         <Link
-          href={`/hotel-connect/properties/${hotelId}/edit?tab=3`}
+          href={`/hotel-connect/properties/${hotelId}/edit?tab=4`}
           className="inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-800 transition-colors"
         >
           <ArrowLeftIcon size={13} weight="bold" />
@@ -433,7 +434,7 @@ export default function BathroomEditTab({
               type="button"
               disabled={isPending}
               onClick={() => advance(2, { amenities, ...toDetailFields(amenities) })}
-              className="px-5 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
+              className="px-5 py-2 text-sm font-semibold text-white bg-primary-500 rounded-lg hover:bg-primary-600 disabled:opacity-50 transition-colors"
             >
               {isPending ? "Saving…" : "Next"}
             </button>
@@ -468,7 +469,7 @@ export default function BathroomEditTab({
                   <input
                     type="number"
                     value={sizeValue}
-                    onChange={e => setSizeValue(e.target.value)}
+                    onChange={e => { if (e.target.value === "" || /^\d*\.?\d*$/.test(e.target.value)) setSizeValue(e.target.value); }}
                     placeholder="00"
                     min={0}
                     className="w-20 px-2 py-2 text-sm border border-r-0 border-neutral-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary-300"
@@ -492,16 +493,13 @@ export default function BathroomEditTab({
                 <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
                   Floor Level <span className="font-normal text-neutral-400">(Optional)</span>
                 </label>
-                <select
+                <SearchSelect
                   value={floorLevel}
-                  onChange={e => setFloorLevel(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-300"
-                >
-                  <option value="">Select</option>
-                  {["Ground Floor","1st Floor","2nd Floor","3rd Floor","4th Floor","5th Floor","6th Floor+"].map(f => (
-                    <option key={f} value={f}>{f}</option>
-                  ))}
-                </select>
+                  onChange={setFloorLevel}
+                  options={["Ground Floor","1st Floor","2nd Floor","3rd Floor","4th Floor","5th Floor","6th Floor+"]}
+                  placeholder="Select"
+                  showSearch={false}
+                />
               </div>
             </div>
 

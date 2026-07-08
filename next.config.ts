@@ -21,6 +21,10 @@ const nextConfig: NextConfig = {
     middlewareClientMaxBodySize: "50mb",
   },
   images: {
+    // The Next 16 dev image optimizer 500s on remote images locally (sharp is
+    // fine; the originals load directly). Serve originals unoptimized in dev;
+    // production (Vercel) still optimizes.
+    unoptimized: process.env.NODE_ENV === "development",
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "plus.unsplash.com" },

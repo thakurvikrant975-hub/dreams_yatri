@@ -6,7 +6,7 @@ import {
   MessageCircleQuestion, ClockCheck, Mails, Forward, BadgePercent, Banknote,
   ChartSpline, BanknoteArrowDown, BanknoteX, Car, Bed, ChartNoAxesCombined,
   BellRing, PackagePlus, ChartNoAxesGantt, Star, IndianRupee,
-  X, Map, CirclePile, MapPinned, TicketCheck, ClipboardList,
+  X, Map, CirclePile, MapPinned, TicketCheck, ClipboardList, ClipboardCheck,
 } from "lucide-react";
 import {
   GlobeHemisphereEastIcon, MapPinIcon, BuildingIcon, TagIcon,
@@ -51,6 +51,7 @@ export const NAV_GROUPS = [
     items: [
       { title: "Hotels", href: "/dashboard/hotels", icon: BuildingIcon, phosphor: true },
       { title: "Hotel Directory", href: "/dashboard/hotels/overview", icon: Map },
+      { title: "Property Submissions", href: "/dashboard/property-submissions", icon: ClipboardCheck },
       { title: "Meal Types", href: "/dashboard/hotels/meal-types", icon: KeyRound },
       { title: "Diet Types", href: "/dashboard/hotels/diet-types", icon: IdCardLanyard },
       { title: "Verify Hotels", href: "/dashboard/verify-hotels", icon: Bed },

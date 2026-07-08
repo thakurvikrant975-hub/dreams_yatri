@@ -55,7 +55,12 @@ export default function LoginForm() {
 
         {/* Password */}
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="password">Password</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="password">Password</Label>
+            <Link href="/hotel-connect/forgot-password" className="text-xs font-medium text-primary-600 hover:text-primary-700 transition-colors">
+              Forgot password?
+            </Link>
+          </div>
           <div className="relative">
             <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
             <Input

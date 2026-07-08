@@ -68,7 +68,7 @@ export async function saveMealsPricing(
     return { error: "Availability end date must be after start date." };
   }
 
-  // Validate rates are non-negative
+  // Validate rates are positive (a free/negative nightly rate can't be real)
   for (const [label, val] of [
     ["Base rate", prop_base_rate],
     ["Extra adult charge", prop_extra_adult],
@@ -77,6 +77,27 @@ export async function saveMealsPricing(
     if (val !== null && parseFloat(val) < 0) {
       return { error: `${label} cannot be negative.` };
     }
+  }
+  if (!prop_base_rate || parseFloat(prop_base_rate) <= 0) {
+    return { error: "Base rate is required and must be greater than zero." };
+  }
+
+  // Occupancy/unit counts — these gate a guest-facing quote, so 0/negative
+  // (or simply missing where required) can't silently pass through.
+  if (prop_num_units < 1) {
+    return { error: "Number of units must be at least 1." };
+  }
+  if (prop_base_occupancy !== null && prop_base_occupancy < 1) {
+    return { error: "Base occupancy must be at least 1." };
+  }
+  if (prop_max_adults !== null && prop_max_adults < 1) {
+    return { error: "Max adults must be at least 1." };
+  }
+  if (prop_max_children !== null && prop_max_children < 0) {
+    return { error: "Max children can't be negative." };
+  }
+  if (prop_max_occupancy !== null && prop_max_adults !== null && prop_max_occupancy < prop_max_adults) {
+    return { error: "Max occupancy can't be less than max adults." };
   }
 
   try {

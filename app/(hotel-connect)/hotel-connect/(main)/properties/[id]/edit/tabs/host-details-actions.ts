@@ -34,6 +34,22 @@ const hostDetailsSchema = z.object({
   ),
   business_description: z.string().max(2000).optional().or(z.literal("")),
   logo_url:             z.string().optional().or(z.literal("")),
+}).superRefine((data, ctx) => {
+  const checkPhone = (field: "phone" | "whatsapp", cc: string) => {
+    const value = data[field];
+    if (!value) return;
+    const isIndia = cc === "+91";
+    const valid = isIndia ? /^\d{10}$/.test(value) : /^\d{5,15}$/.test(value);
+    if (!valid) {
+      ctx.addIssue({
+        code: "custom",
+        path: [field],
+        message: isIndia ? "Enter a valid 10-digit number" : "Enter a valid number",
+      });
+    }
+  };
+  checkPhone("phone", data.phone_cc);
+  checkPhone("whatsapp", data.whatsapp_cc);
 });
 
 // ── Actions ───────────────────────────────────────────────────────────────────

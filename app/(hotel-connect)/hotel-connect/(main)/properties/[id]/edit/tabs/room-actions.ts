@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { Prisma } from "@/app/generated/prisma/client";
 import { hotelConnectAuth } from "@/app/lib/auth-hotel-connect";
 import { db } from "@/app/lib/db";
@@ -314,10 +315,44 @@ export async function deleteRoom(
   });
   if (!hotel) return { error: "Property not found." };
 
-  await db.hotel_rooms.update({
-    where: { id: roomId, hotel_id: hotelId },
-    data:  { is_active: false },
-  });
+  try {
+    await db.hotel_rooms.update({
+      where: { id: roomId, hotel_id: hotelId },
+      data:  { is_active: false },
+    });
+  } catch (err) {
+    console.error("[deleteRoom]", err);
+    return { error: "Failed to delete room. It may have already been removed." };
+  }
 
+  return {};
+}
+
+/** Owner-facing Open/Closed toggle — distinct from deleteRoom's is_active soft-delete. */
+export async function setRoomBookable(
+  hotelId: number,
+  roomId: number,
+  bookable: boolean,
+): Promise<{ error?: string }> {
+  const session = await hotelConnectAuth();
+  if (!session) redirect("/hotel-connect/login");
+
+  const hotel = await db.hotels.findFirst({
+    where: { id: hotelId, owner_id: session.user.id },
+    select: { id: true },
+  });
+  if (!hotel) return { error: "Property not found." };
+
+  try {
+    await db.hotel_rooms.update({
+      where: { id: roomId, hotel_id: hotelId },
+      data: { is_bookable: bookable },
+    });
+  } catch (err) {
+    console.error("[setRoomBookable]", err);
+    return { error: "Failed to update room status." };
+  }
+
+  revalidatePath(`/hotel-connect/properties/${hotelId}/rates`);
   return {};
 }

@@ -23,6 +23,7 @@ export const ALL_HREFS = [
   // Hotels
   "/dashboard/hotels",
   "/dashboard/hotels/overview",
+  "/dashboard/property-submissions",
   "/dashboard/hotels/meal-types",
   "/dashboard/hotels/diet-types",
   "/dashboard/verify-hotels",

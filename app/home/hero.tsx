@@ -75,12 +75,14 @@ interface HeroProps {
 // ─── Shared field label styling ───────────────────────────────────────────────
 const FIELD_LABEL_CLASS = 'text-xs sm:text-sm font-medium font-heading text-inverse pl-1'
 
-// ─── Hero search tabs (Holidays live; Hotels & Cabs coming soon) ──────────────
+// ─── Hero search tabs (Holidays & Hotels live; Cabs coming soon) ──────────────
 const HERO_TABS = [
     { key: 'holidays', label: 'Holidays', Icon: IslandIcon, soon: false },
-    { key: 'hotels', label: 'Hotels', Icon: BedIcon, soon: true },
+    { key: 'hotels', label: 'Hotels', Icon: BedIcon, soon: false },
     { key: 'cabs', label: 'Cabs', Icon: CarProfileIcon, soon: true },
 ] as const
+
+type HeroTabKey = (typeof HERO_TABS)[number]['key']
 
 // Branded "coming soon" toast card
 function comingSoonToast(label: string) {
@@ -133,7 +135,10 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
     const [currentIndex, setCurrentIndex] = useState(0)
     const [prevIndex, setPrevIndex] = useState<number | null>(null)
 
-    // Search form state
+    // Active hero search tab
+    const [activeTab, setActiveTab] = useState<HeroTabKey>('holidays')
+
+    // Holidays search form state
     const [fromLoc, setFromLoc] = useState<LocationValue | null>(null)
     const [toLoc, setToLoc] = useState<LocationValue | null>(null)
     const [departDate, setDepartDate] = useState<Date | null>(null)
@@ -156,6 +161,30 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
         params.set('adults', String(travellers.adults))
         if (travellers.childrenAges.length) params.set('children', travellers.childrenAges.join(','))
         startTransition(() => { router.push(`/packages?${params.toString()}`) })
+    }
+
+    // Hotels search form state
+    const [hotelCity, setHotelCity] = useState<LocationValue | null>(null)
+    const [checkIn, setCheckIn] = useState<Date | null>(null)
+    const [checkOut, setCheckOut] = useState<Date | null>(null)
+    const [hotelGuests, setHotelGuests] = useState<TravellersValue>({ adults: 2, childrenAges: [] })
+
+    function ymd(d: Date): string {
+        const y = d.getFullYear()
+        const m = String(d.getMonth() + 1).padStart(2, '0')
+        const day = String(d.getDate()).padStart(2, '0')
+        return `${y}-${m}-${day}`
+    }
+
+    function handleHotelSearch() {
+        if (!hotelCity) { toast.error('Please choose a city to search hotels in.'); return }
+        const params = new URLSearchParams()
+        params.set('city', hotelCity.name)
+        if (checkIn) params.set('in', ymd(checkIn))
+        if (checkOut && (!checkIn || checkOut > checkIn)) params.set('out', ymd(checkOut))
+        params.set('adults', String(hotelGuests.adults))
+        if (hotelGuests.childrenAges.length) params.set('children', hotelGuests.childrenAges.join(','))
+        startTransition(() => { router.push(`/hotels?${params.toString()}`) })
     }
 
     const bgImages = images && images.length > 0 ? images : DEFAULT_IMAGES
@@ -266,14 +295,14 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
                             <div className="flex justify-center -mt-12 mb-6">
                                 <div role="tablist" aria-label="Search type" className="inline-flex items-stretch gap-1 rounded-2xl bg-white p-1.5 shadow-xl shadow-black/15">
                                     {HERO_TABS.map(({ key, label, Icon, soon }) => {
-                                        const active = key === 'holidays'
+                                        const active = key === activeTab
                                         return (
                                             <button
                                                 key={key}
                                                 type="button"
                                                 role="tab"
                                                 aria-selected={active}
-                                                onClick={() => { if (soon) comingSoonToast(label) }}
+                                                onClick={() => { if (soon) comingSoonToast(label); else setActiveTab(key) }}
                                                 className={`flex flex-col items-center justify-center gap-1 rounded-xl px-5 sm:px-7 py-2 transition-colors cursor-pointer ${active
                                                     ? 'bg-primary-500 text-white'
                                                     : 'text-neutral-700 hover:bg-neutral-100'
@@ -287,6 +316,7 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
                                 </div>
                             </div>
 
+                            {activeTab === 'holidays' && (
                             <form
                                 role="search"
                                 aria-label="Search holiday packages"
@@ -350,6 +380,75 @@ function Hero({ images, titles, slideInterval = 5000 }: HeroProps) {
                                 </Button>
                             </div>
                             </form>
+                            )}
+
+                            {activeTab === 'hotels' && (
+                            <form
+                                role="search"
+                                aria-label="Search hotels"
+                                onSubmit={(e) => { e.preventDefault(); if (!isPending) handleHotelSearch() }}
+                            >
+                            {/* Fields */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+
+                                {/* City */}
+                                <div className="flex flex-col gap-1.5">
+                                    <label className={FIELD_LABEL_CLASS}>City / Destination</label>
+                                    <LocationSearchSelect
+                                        value={hotelCity}
+                                        onChange={setHotelCity}
+                                        placeholder="Where are you going?"
+                                        showCurrentLocation
+                                    />
+                                </div>
+
+                                {/* Check-in */}
+                                <div className="flex flex-col gap-1.5">
+                                    <label className={FIELD_LABEL_CLASS}>Check-in</label>
+                                    <DatePickerField
+                                        className='cursor-pointer'
+                                        value={checkIn}
+                                        onChange={(d) => { setCheckIn(d); if (d && checkOut && checkOut <= d) setCheckOut(null) }}
+                                        placeholder="Add date"
+                                    />
+                                </div>
+
+                                {/* Check-out */}
+                                <div className="flex flex-col gap-1.5">
+                                    <label className={FIELD_LABEL_CLASS}>Check-out</label>
+                                    <DatePickerField
+                                        className='cursor-pointer'
+                                        value={checkOut}
+                                        onChange={setCheckOut}
+                                        minDate={checkIn ?? undefined}
+                                        placeholder="Add date"
+                                    />
+                                </div>
+
+                                {/* Guests */}
+                                <div className="flex flex-col gap-1.5">
+                                    <label className={FIELD_LABEL_CLASS}>Guests</label>
+                                    <TravellersField value={hotelGuests} onChange={setHotelGuests} />
+                                </div>
+
+                            </div>
+
+                            {/* Search */}
+                            <div className="flex flex-col items-center mt-7 translate-y-1/2">
+                                <Button
+                                    type="submit"
+                                    variant="premium"
+                                    size="lg"
+                                    loading={isPending}
+                                    disabled={isPending}
+                                    className="rounded-pill  font-bold text-base shadow-lg shadow-red-400/40 hover:shadow-red-400/60 hover:scale-105 flex items-center gap-2"
+                                >
+                                    <MagnifyingGlassIcon weight="bold" className="size-5" />
+                                    {isPending ? 'Searching…' : 'Search Hotels'}
+                                </Button>
+                            </div>
+                            </form>
+                            )}
                         </div>
                     </div>
                 </div>

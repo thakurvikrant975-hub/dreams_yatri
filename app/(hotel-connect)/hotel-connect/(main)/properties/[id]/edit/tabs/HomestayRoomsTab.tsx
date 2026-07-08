@@ -316,6 +316,7 @@ function ListEditView({ hotel }: { hotel: HomestayRoomsData }) {
   const [kitchenOpen,   setKitchenOpen]   = useState(true);
   const [spacesOpen,    setSpacesOpen]    = useState(true);
   const [spaceDropdownOpen, setSpaceDropdownOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const boundAction = saveHomestayRooms.bind(null, hotel.id);
   const [state, formAction] = useActionState<HomestayRoomsState, FormData>(boundAction, {});
@@ -331,7 +332,12 @@ function ListEditView({ hotel }: { hotel: HomestayRoomsData }) {
 
   function mutate(fn: () => Promise<unknown>) {
     startTransition(async () => {
-      await fn();
+      const result = await fn();
+      if (result && typeof result === "object" && "error" in result && result.error) {
+        setDeleteError(result.error as string);
+      } else {
+        setDeleteError(null);
+      }
       router.refresh();
     });
   }
@@ -340,6 +346,21 @@ function ListEditView({ hotel }: { hotel: HomestayRoomsData }) {
     <div className="p-5 space-y-4">
       {/* Hidden form — WizardShell "Save & Continue" footer submits this */}
       <form id="wizard-form" action={formAction} className="hidden" />
+
+      {state.error && (
+        <div className="flex items-start gap-2.5 rounded-lg px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
+          <WarningIcon size={15} className="shrink-0 mt-0.5" />
+          <span className="flex-1">{state.error}</span>
+        </div>
+      )}
+
+      {deleteError && (
+        <div className="flex items-start gap-2.5 rounded-lg px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
+          <WarningIcon size={15} className="shrink-0 mt-0.5" />
+          <span className="flex-1">{deleteError}</span>
+          <button type="button" onClick={() => setDeleteError(null)} className="shrink-0 text-red-400 hover:text-red-600">×</button>
+        </div>
+      )}
 
       {/* ── Bedrooms ── */}
       <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
@@ -394,7 +415,7 @@ function ListEditView({ hotel }: { hotel: HomestayRoomsData }) {
                 key={i}
                 name={b.name || `Bathroom ${i + 1}`}
                 summary={b.type || undefined}
-                hasDetails={(b.step_reached ?? 0) >= 1}
+                hasDetails={(b.step_reached ?? 0) >= 3}
                 editHref={`/hotel-connect/properties/${hotel.id}/edit/bathroom/${i + 1}`}
                 isDeleting={isPending}
                 onDelete={() => mutate(() => deleteHomestayBathroom(hotel.id, i + 1))}

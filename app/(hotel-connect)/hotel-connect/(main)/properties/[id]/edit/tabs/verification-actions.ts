@@ -3,9 +3,18 @@
 import { createHmac, randomInt } from "crypto";
 import { sendOtpEmail } from "@/app/lib/functions/sendOtpEmail";
 import { sendOtpSms } from "@/app/lib/functions/sendOtpSms";
+import { checkRateLimit } from "@/app/lib/rate-limit";
 
 const SECRET = process.env.OTP_SECRET ?? "dev-hotel-otp-secret-2025";
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+// A 6-digit OTP has ~1M possibilities — without a verify-attempt cap it's
+// brute-forceable well within its 10-minute TTL. Send is capped separately
+// so a resend button can't be used to run up SMS/email costs.
+const VERIFY_ATTEMPT_LIMIT = 8;
+const VERIFY_WINDOW_SECONDS = 10 * 60;
+const SEND_ATTEMPT_LIMIT = 5;
+const SEND_WINDOW_SECONDS = 60 * 60;
 
 function signOtp(target: string, otp: string): string {
   const expiry = Date.now() + OTP_TTL_MS;
@@ -46,6 +55,9 @@ export async function sendEmailOtp(
     return { ok: false, error: "Enter a valid email address first" };
   }
 
+  const { allowed } = await checkRateLimit(`ratelimit:otp-send:email:${trimmed}`, SEND_ATTEMPT_LIMIT, SEND_WINDOW_SECONDS);
+  if (!allowed) return { ok: false, error: "Too many OTP requests. Please wait a while and try again." };
+
   const isDev = process.env.NODE_ENV === "development";
   const otp = isDev ? "123456" : makeOtp();
   const token = signOtp(`email:${trimmed}`, otp);
@@ -65,6 +77,10 @@ export async function verifyEmailOtp(
 ): Promise<{ ok: boolean; error?: string }> {
   const trimmed = email.trim();
   if (!otp.trim() || !token) return { ok: false, error: "OTP is required" };
+
+  const { allowed } = await checkRateLimit(`ratelimit:otp-verify:email:${trimmed}`, VERIFY_ATTEMPT_LIMIT, VERIFY_WINDOW_SECONDS);
+  if (!allowed) return { ok: false, error: "Too many attempts. Please request a new OTP." };
+
   if (!checkOtpToken(`email:${trimmed}`, otp.trim(), token)) {
     return { ok: false, error: "Invalid or expired OTP. Try resending." };
   }
@@ -84,6 +100,9 @@ export async function sendMobileOtp(
   if (cc !== "+91" && !/^\d{5,15}$/.test(trimmed)) {
     return { ok: false, error: "Enter a valid mobile number first" };
   }
+
+  const { allowed } = await checkRateLimit(`ratelimit:otp-send:mobile:${cc}${trimmed}`, SEND_ATTEMPT_LIMIT, SEND_WINDOW_SECONDS);
+  if (!allowed) return { ok: false, error: "Too many OTP requests. Please wait a while and try again." };
 
   const isDev = process.env.NODE_ENV === "development";
   const otp = isDev ? "123456" : makeOtp();
@@ -105,6 +124,10 @@ export async function verifyMobileOtp(
 ): Promise<{ ok: boolean; error?: string }> {
   const trimmed = mobile.trim();
   if (!otp.trim() || !token) return { ok: false, error: "OTP is required" };
+
+  const { allowed } = await checkRateLimit(`ratelimit:otp-verify:mobile:${cc}${trimmed}`, VERIFY_ATTEMPT_LIMIT, VERIFY_WINDOW_SECONDS);
+  if (!allowed) return { ok: false, error: "Too many attempts. Please request a new OTP." };
+
   if (!checkOtpToken(`mobile:${cc}${trimmed}`, otp.trim(), token)) {
     return { ok: false, error: "Invalid or expired OTP. Try resending." };
   }

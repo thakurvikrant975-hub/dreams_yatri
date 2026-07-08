@@ -313,6 +313,7 @@ export default function PropertyTypeSelector() {
   const [category, setCategory] = useState<PropertyCategory>("HOTEL");
   const [selected, setSelected] = useState<PropertySubType | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
   const visibleTypes = SUB_TYPES.filter((t) => t.category === category);
 
@@ -323,8 +324,10 @@ export default function PropertyTypeSelector() {
 
   function handleContinue() {
     if (!selected) return;
+    setError(null);
     startTransition(async () => {
-      await createDraftProperty(selected);
+      const result = await createDraftProperty(selected);
+      if (result?.error) setError(result.error);
     });
   }
 
@@ -361,6 +364,9 @@ export default function PropertyTypeSelector() {
       </div>
 
       {/* Continue */}
+      {error && (
+        <p className="text-sm text-red-600 text-right">{error}</p>
+      )}
       <div className="flex justify-end pt-2">
         <Button
           onClick={handleContinue}

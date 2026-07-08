@@ -34,6 +34,18 @@ export default function SignupForm() {
   const [state, formAction, isPending] = useActionState(signupAction, initialState);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [clientMismatch, setClientMismatch] = useState(false);
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    if (confirmPassword && password !== confirmPassword) {
+      e.preventDefault();
+      setClientMismatch(true);
+      return;
+    }
+    setClientMismatch(false);
+  }
 
   return (
     <div className="w-full">
@@ -46,7 +58,7 @@ export default function SignupForm() {
         </p>
       </div>
 
-      <form action={formAction} className="space-y-4">
+      <form action={formAction} onSubmit={handleSubmit} className="space-y-4">
         {state.error && (
           <div className="rounded-lg px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
             {state.error}
@@ -133,6 +145,8 @@ export default function SignupForm() {
                 required
                 autoComplete="new-password"
                 className="pl-9 pr-9"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 aria-invalid={!!state.fieldErrors?.password}
               />
               <button
@@ -145,7 +159,11 @@ export default function SignupForm() {
             </div>
           </Field>
 
-          <Field id="confirmPassword" label="Confirm" error={state.fieldErrors?.confirmPassword}>
+          <Field
+            id="confirmPassword"
+            label="Confirm"
+            error={state.fieldErrors?.confirmPassword ?? (clientMismatch ? ["Passwords do not match."] : undefined)}
+          >
             <div className="relative">
               <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
               <Input
@@ -156,7 +174,9 @@ export default function SignupForm() {
                 required
                 autoComplete="new-password"
                 className="pl-9 pr-9"
-                aria-invalid={!!state.fieldErrors?.confirmPassword}
+                value={confirmPassword}
+                onChange={(e) => { setConfirmPassword(e.target.value); setClientMismatch(false); }}
+                aria-invalid={!!state.fieldErrors?.confirmPassword || clientMismatch}
               />
               <button
                 type="button"
