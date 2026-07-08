@@ -247,8 +247,18 @@ export async function saveHomestayBathroomDetail(
     const items = (hotel.hs_bathroom_details as BathroomDetail[] | null) ?? [];
     const idx = n - 1;
     if (idx < 0 || idx >= items.length) return { ok: false };
+    // Defense-in-depth — re-check fields with real invariants since this
+    // action can be called directly with an arbitrary payload.
+    const patch = { ...data };
+    if (patch.size_value != null && (!Number.isFinite(patch.size_value) || patch.size_value < 0)) patch.size_value = null;
+    if (patch.step_reached != null) patch.step_reached = Math.min(3, Math.max(0, Math.trunc(patch.step_reached)));
+
     const updated = [...items];
-    updated[idx] = { ...updated[idx], ...data, step_reached: 1 };
+    // step_reached comes from the caller's patch (BathroomEditTab.tsx's advance()
+    // already computes max(current, justCompletedStep)) — must not be clobbered
+    // here, or progress resets to "step 1" on every save and the tab-level
+    // completeness gate below never sees steps 2/3 as done.
+    updated[idx] = { ...updated[idx], ...patch };
     await tx.hotels.update({ where: { id: hotelId }, data: { hs_bathroom_details: updated } });
     return { ok: true };
   });

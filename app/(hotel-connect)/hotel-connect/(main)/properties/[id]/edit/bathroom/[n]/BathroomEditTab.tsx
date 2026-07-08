@@ -469,7 +469,7 @@ export default function BathroomEditTab({
                   <input
                     type="number"
                     value={sizeValue}
-                    onChange={e => setSizeValue(e.target.value)}
+                    onChange={e => { if (e.target.value === "" || /^\d*\.?\d*$/.test(e.target.value)) setSizeValue(e.target.value); }}
                     placeholder="00"
                     min={0}
                     className="w-20 px-2 py-2 text-sm border border-r-0 border-neutral-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary-300"

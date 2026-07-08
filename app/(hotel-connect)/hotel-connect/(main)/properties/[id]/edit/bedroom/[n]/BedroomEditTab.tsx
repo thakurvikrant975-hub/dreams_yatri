@@ -319,7 +319,7 @@ export default function BedroomEditTab({
               <div className="px-4 pb-4 border-t border-neutral-100 pt-3 space-y-3">
                 <div className="flex items-center justify-between gap-4">
                   <p className="text-sm text-neutral-700">Extra bed available?</p>
-                  <YesNoRadio value={hasExtraBed} onChange={setHasExtraBed} />
+                  <YesNoRadio value={hasExtraBed} onChange={v => { setHasExtraBed(v); if (!v) setExtraBedType(""); }} />
                 </div>
                 {hasExtraBed && (
                   <div>
@@ -340,18 +340,28 @@ export default function BedroomEditTab({
             {/* Occupancy */}
             <div className="space-y-3">
               <p className="text-sm font-semibold text-neutral-800">Occupancy</p>
-              {[
-                { label: "Base Adults", sub: "Ideal number of adults that can be accommodated in this property", val: baseAdults, set: setBaseAdults },
-                { label: "Maximum Adults", sub: "Maximum number of adults that can be accommodated in this property", val: maxAdults, set: setMaxAdults },
-              ].map(row => (
-                <div key={row.label} className="flex items-center justify-between gap-4 border border-neutral-200 rounded-lg px-4 py-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-neutral-800">{row.label}</p>
-                    <p className="text-xs text-neutral-400 leading-tight">{row.sub}</p>
-                  </div>
-                  <Stepper value={row.val} onChange={row.set} min={1} max={50} disabled={isPending} />
+              <div className="flex items-center justify-between gap-4 border border-neutral-200 rounded-lg px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-neutral-800">Base Adults</p>
+                  <p className="text-xs text-neutral-400 leading-tight">Ideal number of adults that can be accommodated in this property</p>
                 </div>
-              ))}
+                <Stepper
+                  value={baseAdults}
+                  onChange={v => { setBaseAdults(v); if (maxAdults < v) setMaxAdults(v); }}
+                  min={1} max={50} disabled={isPending}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-4 border border-neutral-200 rounded-lg px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-neutral-800">Maximum Adults</p>
+                  <p className="text-xs text-neutral-400 leading-tight">Maximum number of adults that can be accommodated in this property</p>
+                </div>
+                <Stepper
+                  value={maxAdults}
+                  onChange={v => setMaxAdults(Math.max(baseAdults, v))}
+                  min={1} max={50} disabled={isPending}
+                />
+              </div>
               <div className="flex items-start gap-2 bg-blue-50 rounded-lg px-3 py-2.5">
                 <span className="text-blue-500 text-xs mt-0.5">ℹ</span>
                 <p className="text-xs text-blue-700">To increase the maximum occupancy, please add details in the Extra Beds section.</p>
@@ -360,7 +370,7 @@ export default function BedroomEditTab({
 
             <button
               type="button"
-              disabled={isPending}
+              disabled={isPending || (hasExtraBed && !extraBedType)}
               onClick={() => save({
                 beds, has_extra_bed: hasExtraBed, extra_bed_type: extraBedType,
                 base_adults: baseAdults, max_adults: maxAdults,
@@ -383,7 +393,7 @@ export default function BedroomEditTab({
                 <p className="text-sm font-semibold text-neutral-800">Does the room have an attached bathroom?</p>
                 <p className="text-xs text-neutral-400">Attached or en suite bathrooms have a private entrance inside the bedroom</p>
               </div>
-              <YesNoRadio value={hasBathroom} onChange={setHasBathroom} />
+              <YesNoRadio value={hasBathroom} onChange={v => { setHasBathroom(v); if (!v) setBathroomType(""); }} />
             </div>
             {hasBathroom && (
               <div>
@@ -404,7 +414,7 @@ export default function BedroomEditTab({
                 <p className="text-sm font-semibold text-neutral-800">Does the room come with an attached balcony?</p>
                 <p className="text-xs text-neutral-400">Attached or en suite bathrooms have a private entrance inside the bedroom</p>
               </div>
-              <YesNoRadio value={hasBalcony} onChange={setHasBalcony} />
+              <YesNoRadio value={hasBalcony} onChange={v => { setHasBalcony(v); if (!v) setBalconyFurniture(false); }} />
             </div>
             {hasBalcony && (
               <div className="flex items-center justify-between gap-4">
@@ -457,7 +467,7 @@ export default function BedroomEditTab({
 
             <button
               type="button"
-              disabled={isPending}
+              disabled={isPending || (hasBathroom && !bathroomType)}
               onClick={() => save({
                 has_bathroom: hasBathroom, bathroom_type: bathroomType,
                 has_balcony: hasBalcony, balcony_furniture: balconyFurniture,
@@ -513,7 +523,7 @@ export default function BedroomEditTab({
                   <input
                     type="number"
                     value={sizeValue}
-                    onChange={e => setSizeValue(e.target.value)}
+                    onChange={e => { if (e.target.value === "" || /^\d*\.?\d*$/.test(e.target.value)) setSizeValue(e.target.value); }}
                     placeholder="00"
                     min={0}
                     className="w-16 px-2 py-2 text-sm border border-r-0 border-neutral-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-primary-300"

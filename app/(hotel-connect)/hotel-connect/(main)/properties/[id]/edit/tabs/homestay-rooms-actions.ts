@@ -33,7 +33,8 @@ export async function saveHomestayRooms(
   const spaces    = (hotel.hs_space_items      as SpaceItem[]      | null) ?? [];
 
   const incompleteBedrooms  = bedrooms.filter((b) => (b.step_reached ?? 0) < 4).length;
-  const incompleteBathrooms = bathrooms.filter((b) => (b.step_reached ?? 0) < 1).length;
+  // Bathroom's editor has 3 steps (Access/Amenities/Name & Size), same shape as Bedroom's 4.
+  const incompleteBathrooms = bathrooms.filter((b) => (b.step_reached ?? 0) < 3).length;
   const kitchenMissing      = hotel.hs_has_kitchen && !kitchen?.type;
   const incompleteSpaces    = spaces.filter((s) => !s.details_added).length;
 

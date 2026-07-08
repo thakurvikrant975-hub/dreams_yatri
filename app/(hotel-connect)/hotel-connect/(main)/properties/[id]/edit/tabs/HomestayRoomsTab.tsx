@@ -415,7 +415,7 @@ function ListEditView({ hotel }: { hotel: HomestayRoomsData }) {
                 key={i}
                 name={b.name || `Bathroom ${i + 1}`}
                 summary={b.type || undefined}
-                hasDetails={(b.step_reached ?? 0) >= 1}
+                hasDetails={(b.step_reached ?? 0) >= 3}
                 editHref={`/hotel-connect/properties/${hotel.id}/edit/bathroom/${i + 1}`}
                 isDeleting={isPending}
                 onDelete={() => mutate(() => deleteHomestayBathroom(hotel.id, i + 1))}
