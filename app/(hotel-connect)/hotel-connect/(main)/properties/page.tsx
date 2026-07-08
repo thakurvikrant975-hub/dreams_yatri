@@ -239,7 +239,7 @@ export default async function PropertiesPage({
                           Edit Listing
                         </Link>
                         <Link
-                          href={`/hotel-connect/properties/${hotel.id}/calendar`}
+                          href={`/hotel-connect/properties/${hotel.id}/rates`}
                           title="Rates & Availability"
                           className="flex items-center gap-1 py-2 px-3 rounded-lg text-xs font-semibold border border-neutral-200 text-neutral-600/90 hover:bg-neutral-50 transition-colors"
                         >

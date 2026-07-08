@@ -21,7 +21,7 @@ export default async function CalendarEntryPage() {
   });
 
   if (hotels.length === 1) {
-    redirect(`/hotel-connect/properties/${hotels[0].id}/calendar`);
+    redirect(`/hotel-connect/properties/${hotels[0].id}/rates`);
   }
 
   return (
@@ -47,7 +47,7 @@ export default async function CalendarEntryPage() {
               {hotels.map((h) => (
                 <Link
                   key={h.id}
-                  href={`/hotel-connect/properties/${h.id}/calendar`}
+                  href={`/hotel-connect/properties/${h.id}/rates`}
                   className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-white px-4 py-3.5 hover:border-primary-300 hover:bg-primary-50/40 transition-colors"
                 >
                   <div className="min-w-0">
