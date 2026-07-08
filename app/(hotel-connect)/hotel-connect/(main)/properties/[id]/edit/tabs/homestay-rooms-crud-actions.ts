@@ -159,17 +159,25 @@ export async function addHomestayBedroom(hotelId: number): Promise<{ n: number }
   return result;
 }
 
-export async function deleteHomestayBedroom(hotelId: number, n: number): Promise<void> {
+export async function deleteHomestayBedroom(hotelId: number, n: number): Promise<{ error?: string }> {
   const session = await hotelConnectAuth();
   if (!session) redirect("/hotel-connect/login");
   if (!Number.isInteger(n) || n < 1) {
     console.error("[deleteHomestayBedroom] invalid index:", n);
-    return;
+    return {};
   }
 
+  let error: string | undefined;
   await withLockedHotel(hotelId, session.user.id, async (tx, hotel) => {
     const items = (hotel.hs_bedroom_details as BedroomDetail[] | null) ?? [];
     if (n > items.length) return; // stale/out-of-range request — no-op, nothing to delete
+    // A homestay is always listed as a single "Entire property" unit built
+    // from its bedrooms — Phase 1's counts form enforces min 1, so deleting
+    // down to 0 here would silently break that invariant.
+    if (items.length <= 1) {
+      error = "A homestay must have at least one bedroom.";
+      return;
+    }
     const updated = items
       .filter((_, i) => i !== n - 1)
       .map((b, i) => ({ ...b, name: b.name.startsWith("Bedroom ") ? `Bedroom ${i + 1}` : b.name }));
@@ -178,6 +186,7 @@ export async function deleteHomestayBedroom(hotelId: number, n: number): Promise
       data: { hs_bedroom_details: updated, hs_bedrooms: updated.length },
     });
   });
+  return { error };
 }
 
 // ── Bathroom CRUD ──────────────────────────────────────────────────────────
@@ -199,17 +208,24 @@ export async function addHomestayBathroom(hotelId: number): Promise<{ n: number 
   return result;
 }
 
-export async function deleteHomestayBathroom(hotelId: number, n: number): Promise<void> {
+export async function deleteHomestayBathroom(hotelId: number, n: number): Promise<{ error?: string }> {
   const session = await hotelConnectAuth();
   if (!session) redirect("/hotel-connect/login");
   if (!Number.isInteger(n) || n < 1) {
     console.error("[deleteHomestayBathroom] invalid index:", n);
-    return;
+    return {};
   }
 
+  let error: string | undefined;
   await withLockedHotel(hotelId, session.user.id, async (tx, hotel) => {
     const items = (hotel.hs_bathroom_details as BathroomDetail[] | null) ?? [];
     if (n > items.length) return;
+    // Mirrors deleteHomestayBedroom's guard — Phase 1's counts form enforces
+    // a minimum of 1 bathroom, so this must too.
+    if (items.length <= 1) {
+      error = "A homestay must have at least one bathroom.";
+      return;
+    }
     const updated = items
       .filter((_, i) => i !== n - 1)
       .map((b, i) => ({ ...b, name: b.name.startsWith("Bathroom ") ? `Bathroom ${i + 1}` : b.name }));
@@ -218,6 +234,7 @@ export async function deleteHomestayBathroom(hotelId: number, n: number): Promis
       data: { hs_bathroom_details: updated, hs_bathrooms: updated.length },
     });
   });
+  return { error };
 }
 
 export async function saveHomestayBathroomDetail(

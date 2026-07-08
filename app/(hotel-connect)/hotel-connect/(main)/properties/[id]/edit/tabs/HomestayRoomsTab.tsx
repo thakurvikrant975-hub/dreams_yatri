@@ -316,6 +316,7 @@ function ListEditView({ hotel }: { hotel: HomestayRoomsData }) {
   const [kitchenOpen,   setKitchenOpen]   = useState(true);
   const [spacesOpen,    setSpacesOpen]    = useState(true);
   const [spaceDropdownOpen, setSpaceDropdownOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const boundAction = saveHomestayRooms.bind(null, hotel.id);
   const [state, formAction] = useActionState<HomestayRoomsState, FormData>(boundAction, {});
@@ -331,7 +332,12 @@ function ListEditView({ hotel }: { hotel: HomestayRoomsData }) {
 
   function mutate(fn: () => Promise<unknown>) {
     startTransition(async () => {
-      await fn();
+      const result = await fn();
+      if (result && typeof result === "object" && "error" in result && result.error) {
+        setDeleteError(result.error as string);
+      } else {
+        setDeleteError(null);
+      }
       router.refresh();
     });
   }
@@ -345,6 +351,14 @@ function ListEditView({ hotel }: { hotel: HomestayRoomsData }) {
         <div className="flex items-start gap-2.5 rounded-lg px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
           <WarningIcon size={15} className="shrink-0 mt-0.5" />
           <span className="flex-1">{state.error}</span>
+        </div>
+      )}
+
+      {deleteError && (
+        <div className="flex items-start gap-2.5 rounded-lg px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
+          <WarningIcon size={15} className="shrink-0 mt-0.5" />
+          <span className="flex-1">{deleteError}</span>
+          <button type="button" onClick={() => setDeleteError(null)} className="shrink-0 text-red-400 hover:text-red-600">×</button>
         </div>
       )}
 
