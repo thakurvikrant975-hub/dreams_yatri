@@ -233,23 +233,67 @@ function DayCardPreview({ day, adults, childCount }: { day: DayItinerary; adults
         )}
 
         {/* Transport */}
-        {day.transport && (
-          <div className="rounded-lg bg-neutral-50 border border-neutral-200 p-2.5 space-y-1.5">
+        {(day.transport || day.transportPickup || day.transportDrop) && (
+          <div className="rounded-lg bg-neutral-50 border border-neutral-200 p-2.5 space-y-2">
             <div className="flex items-center gap-1.5">
               <Car size={12} className="text-primary-600 shrink-0" />
               <p className="text-xs font-semibold text-neutral-800">Transport</p>
+              {(day.transportDistanceKm || (day.transportPickup && day.transportDrop)) && (
+                <span className="text-[11px] text-neutral-400 truncate">
+                  · {[
+                    day.transportDistanceKm ? `${day.transportDistanceKm} km` : null,
+                    day.transportPickup && day.transportDrop ? `${day.transportPickup} → ${day.transportDrop}` : null,
+                  ].filter(Boolean).join(" · ")}
+                </span>
+              )}
             </div>
-            {day.transportPhoto ? (
-              <div className="relative rounded-lg overflow-hidden w-40">
-                {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */}
-                <img src={day.transportPhoto} alt="" className="w-40 h-24 object-cover" />
-                <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 via-black/20 to-transparent px-2 py-1.5 pt-4">
-                  <p className="text-[11px] text-white font-medium truncate">{day.transport}</p>
-                </div>
+
+            <div className="flex gap-3">
+              <div className="flex-1 min-w-0 space-y-2">
+                {day.transport && (
+                  <p className="text-sm font-semibold text-neutral-800">
+                    {day.transport}
+                    {day.transportVehicleType && <span className="font-normal text-neutral-500"> · {day.transportVehicleType}</span>}
+                    {day.transportSeats && <span className="font-normal text-neutral-500"> · {day.transportSeats} Seats</span>}
+                  </p>
+                )}
+
+                {(day.transportPickup || day.transportDrop) && (
+                  <div className="flex gap-2">
+                    <div className="flex flex-col items-center pt-1">
+                      <span className="size-2 rounded-full border-2 border-primary-500 shrink-0" />
+                      <span className="w-px flex-1 bg-neutral-300 my-0.5" />
+                      <span className="size-2 rounded-full border-2 border-primary-500 shrink-0" />
+                    </div>
+                    <div className="flex-1 min-w-0 flex flex-col justify-between text-[11px] py-0.5">
+                      <p className="text-neutral-600">
+                        <span className="text-neutral-400">Pickup: </span>
+                        <span className="font-semibold text-neutral-800">{day.transportPickup || "—"}</span>
+                      </p>
+                      {day.transportDistanceKm && (
+                        <p className="text-neutral-400">{day.transportDistanceKm} km</p>
+                      )}
+                      <p className="text-neutral-600">
+                        <span className="text-neutral-400">Drop: </span>
+                        <span className="font-semibold text-neutral-800">{day.transportDrop || "—"}</span>
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
-            ) : (
-              <p className="text-xs text-neutral-600">{day.transport}</p>
-            )}
+
+              {day.transportPhoto && (
+                <div className="relative rounded-lg overflow-hidden w-32 h-24 shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */}
+                  <img src={day.transportPhoto} alt="" className="w-32 h-24 object-cover" />
+                  {day.transport && (
+                    <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 via-black/20 to-transparent px-2 py-1 pt-4">
+                      <p className="text-[10px] text-white font-medium truncate">{day.transport}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )}
 

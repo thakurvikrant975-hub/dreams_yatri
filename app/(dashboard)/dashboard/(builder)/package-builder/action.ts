@@ -260,6 +260,11 @@ export interface DayItinerary {
   hotelMealPlan:      string;
   transport:          string;
   transportPhoto:     string;
+  transportVehicleType: string;
+  transportSeats:     number | null;
+  transportPickup:    string;
+  transportDrop:      string;
+  transportDistanceKm: number | null;
   notes:              string;
 }
 
@@ -337,10 +342,6 @@ export async function copyPackageIntoDraft(
 
   const itineraries: DayItinerary[] = data.itinerary.map((day) => {
     const transfer = day.transfers[0];
-    const transportParts = [
-      transfer?.vehicle_name ?? null,
-      transfer?.pickup_name && transfer?.drop_name ? `${transfer.pickup_name} → ${transfer.drop_name}` : null,
-    ].filter((p): p is string => !!p);
 
     const rawHotelPhoto = day.hotel?.images?.[0]?.thumbnail ?? day.hotel?.images?.[0]?.url ?? null;
     const rawRoomPhotos = (day.hotel?.room_images ?? [])
@@ -375,8 +376,13 @@ export async function copyPackageIntoDraft(
       hotelCheckIn:       day.hotel?.check_in_time ?? "",
       hotelCheckOut:      day.hotel?.check_out_time ?? "",
       hotelMealPlan:      day.hotel?.plan_name ?? day.hotel?.meal_type ?? "",
-      transport:          transportParts.join(" · "),
+      transport:          transfer?.vehicle_name ?? "",
       transportPhoto:     transfer?.vehicle_image_key ? getThumbnailImage(transfer.vehicle_image_key) : "",
+      transportVehicleType: transfer?.vehicle_type ?? "",
+      transportSeats:     transfer?.vehicle_capacity ?? null,
+      transportPickup:    transfer?.pickup_name ?? "",
+      transportDrop:      transfer?.drop_name ?? "",
+      transportDistanceKm: transfer?.distance_km ?? null,
       notes:              day.notes.map((n) => n.message).join(" "),
     };
   });
@@ -548,6 +554,11 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
               hotelMealPlan:      true,
               transport:          true,
               transportPhoto:     true,
+              transportVehicleType: true,
+              transportSeats:     true,
+              transportPickup:    true,
+              transportDrop:      true,
+              transportDistanceKm: true,
               notes:              true,
               activities: {
                 orderBy: { sortOrder: "asc" },
@@ -687,6 +698,11 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
               hotelMealPlan:      it.hotelMealPlan || null,
               transport:          it.transport || null,
               transportPhoto:     it.transportPhoto || null,
+              transportVehicleType: it.transportVehicleType || null,
+              transportSeats:     it.transportSeats ?? null,
+              transportPickup:    it.transportPickup || null,
+              transportDrop:      it.transportDrop || null,
+              transportDistanceKm: it.transportDistanceKm ?? null,
               notes:              it.notes || null,
               activities: {
                 create: it.activities

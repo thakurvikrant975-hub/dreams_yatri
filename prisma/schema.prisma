@@ -2417,6 +2417,11 @@ model custom_itineraries {
   hotelMealPlan   String?
   transport       String?
   transportPhoto  String?
+  transportVehicleType String?
+  transportSeats  Int?
+  transportPickup String?
+  transportDrop   String?
+  transportDistanceKm Float?
   notes           String?
   createdAt       DateTime                      @default(now())
   updatedAt       DateTime                      @updatedAt

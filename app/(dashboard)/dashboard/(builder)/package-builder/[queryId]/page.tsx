@@ -572,8 +572,10 @@ function DayCard({ day, data, location, onChange, onRemove }: {
     if (!raw) return;
     onChange({
       ...data,
-      transport: `${raw.name} (${CAB_LABELS[raw.type] ?? raw.type})`,
+      transport: raw.name,
       transportPhoto: raw.thumbnail ?? data.transportPhoto,
+      transportVehicleType: CAB_LABELS[raw.type] ?? raw.type,
+      transportSeats: raw.passengerCapacity,
     });
   }
 
@@ -752,12 +754,50 @@ function DayCard({ day, data, location, onChange, onRemove }: {
                 />
               </div>
             )}
-            <Input
-              value={data.transport}
-              onChange={(e) => onChange({ ...data, transport: e.target.value })}
-              placeholder="Cab type / route"
-              className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-            />
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <Input
+                value={data.transport}
+                onChange={(e) => onChange({ ...data, transport: e.target.value })}
+                placeholder="Vehicle name"
+                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+              />
+              <Input
+                value={data.transportVehicleType}
+                onChange={(e) => onChange({ ...data, transportVehicleType: e.target.value })}
+                placeholder="Type, e.g. SUV"
+                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <Input
+                value={data.transportPickup}
+                onChange={(e) => onChange({ ...data, transportPickup: e.target.value })}
+                placeholder="Pickup point"
+                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+              />
+              <Input
+                value={data.transportDrop}
+                onChange={(e) => onChange({ ...data, transportDrop: e.target.value })}
+                placeholder="Drop point"
+                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                type="number"
+                value={data.transportSeats ?? ""}
+                onChange={(e) => onChange({ ...data, transportSeats: e.target.value ? Number(e.target.value) : null })}
+                placeholder="Seats"
+                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+              />
+              <Input
+                type="number"
+                value={data.transportDistanceKm ?? ""}
+                onChange={(e) => onChange({ ...data, transportDistanceKm: e.target.value ? Number(e.target.value) : null })}
+                placeholder="Distance (km)"
+                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+              />
+            </div>
           </div>
 
           {/* Meals */}
@@ -870,7 +910,9 @@ const emptyDay = (day: number): DayItinerary => ({
   meals: [], accommodation: "", accommodationPhoto: "", accommodationRoomPhotos: [],
   accommodationLocation: "", accommodationRoomSpecs: "", accommodationRoomCapacity: null,
   hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
-  transport: "", transportPhoto: "", notes: "",
+  transport: "", transportPhoto: "", transportVehicleType: "", transportSeats: null,
+  transportPickup: "", transportDrop: "", transportDistanceKm: null,
+  notes: "",
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
