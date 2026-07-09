@@ -2408,6 +2408,7 @@ model custom_itineraries {
   meals           String[]
   accommodation   String?
   accommodationPhoto String?
+  accommodationRoomPhotos String[] @default([])
   hotelCheckIn    String?
   hotelCheckOut   String?
   hotelMealPlan   String?

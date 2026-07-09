@@ -14,20 +14,28 @@ import { db } from "@/app/lib/db";
 // of test rows) — so unlike the admin package-builder's search (which filters
 // by destination_id), this searches `city` directly against the route stop's
 // name, with destination.name as a secondary match for any rows that *do*
-// have destination_id set. Hotels are restricted to LIVE listings only, since
-// this assigns real inventory straight into a document sent to a client.
+// have destination_id set. Not restricted to LIVE listing_status — this is
+// an internal sales/ops tool, and virtually all real hotels sit in DRAFT
+// (that status gates customer-facing visibility, not internal usability).
 // ─────────────────────────────────────────────────────────────────────────────
+
+const HOTEL_IMAGE_ORDER = [{ is_primary: "desc" as const }, { sort_order: "asc" as const }];
 
 const HOTEL_ROOM_SELECT = {
   id: true,
   plan_name: true,
   price_per_night: true,
   meal_type: { select: { name: true } },
-  hotel: { select: { name: true, category: true, thumbnail: true } },
+  hotel: {
+    select: {
+      name: true, category: true, thumbnail: true,
+      images: { select: { url: true, thumbnail: true }, orderBy: HOTEL_IMAGE_ORDER, take: 1 },
+    },
+  },
   room: {
     select: {
       name: true,
-      images: { select: { url: true, thumbnail: true }, orderBy: { sort_order: "asc" as const }, take: 1 },
+      images: { select: { url: true, thumbnail: true }, orderBy: HOTEL_IMAGE_ORDER, take: 3 },
     },
   },
 } as const;
@@ -39,6 +47,10 @@ export interface HotelRoomResult {
   mealPlanName:  string | null;
   pricePerNight: number;
   thumbnail:     string | null;
+  /** The hotel's own main photo — shown first in the picked-hotel gallery. */
+  hotelPhoto:    string | null;
+  /** Up to 3 photos of the specific room booked. */
+  roomPhotos:    string[];
   category:      string | null;
 }
 
@@ -51,7 +63,6 @@ export async function searchHotelRoomsForBuilder(cityOrDestinationName: string, 
       is_active: true,
       hotel: {
         is_active: true,
-        listing_status: "LIVE",
         OR: [
           { city: { contains: city, mode: "insensitive" } },
           { destination: { name: { contains: city, mode: "insensitive" } } },
@@ -65,7 +76,9 @@ export async function searchHotelRoomsForBuilder(cityOrDestinationName: string, 
   });
 
   return list.map((item) => {
-    const rawThumbnail = item.room?.images?.[0]?.thumbnail ?? item.room?.images?.[0]?.url ?? item.hotel.thumbnail ?? null;
+    const rawHotelPhoto = item.hotel.images[0]?.thumbnail ?? item.hotel.images[0]?.url ?? item.hotel.thumbnail ?? null;
+    const rawRoomPhotos = (item.room?.images ?? []).map((img) => img.thumbnail ?? img.url).filter((u): u is string => !!u);
+    const rawThumbnail = rawRoomPhotos[0] ?? rawHotelPhoto ?? null;
     return {
       id:            item.id,
       hotelName:     item.hotel.name,
@@ -73,6 +86,8 @@ export async function searchHotelRoomsForBuilder(cityOrDestinationName: string, 
       mealPlanName:  item.meal_type?.name ?? null,
       pricePerNight: Number(item.price_per_night),
       thumbnail:     rawThumbnail ? getThumbnailImage(rawThumbnail) : null,
+      hotelPhoto:    rawHotelPhoto ? getThumbnailImage(rawHotelPhoto) : null,
+      roomPhotos:    rawRoomPhotos.map((u) => getThumbnailImage(u)),
       category:      item.hotel.category,
     };
   });
@@ -222,6 +237,7 @@ export interface DayItinerary {
   meals:              string[];
   accommodation:      string;
   accommodationPhoto: string;
+  accommodationRoomPhotos: string[];
   hotelCheckIn:       string;
   hotelCheckOut:      string;
   hotelMealPlan:      string;
@@ -309,8 +325,11 @@ export async function copyPackageIntoDraft(
       transfer?.pickup_name && transfer?.drop_name ? `${transfer.pickup_name} → ${transfer.drop_name}` : null,
     ].filter((p): p is string => !!p);
 
-    const rawHotelPhoto = day.hotel?.room_images?.[0]?.thumbnail ?? day.hotel?.room_images?.[0]?.url
-      ?? day.hotel?.images?.[0]?.thumbnail ?? day.hotel?.images?.[0]?.url ?? null;
+    const rawHotelPhoto = day.hotel?.images?.[0]?.thumbnail ?? day.hotel?.images?.[0]?.url ?? null;
+    const rawRoomPhotos = (day.hotel?.room_images ?? [])
+      .slice(0, 3)
+      .map((img) => img.thumbnail ?? img.url)
+      .filter((u): u is string => !!u);
 
     return {
       day:                day.day,
@@ -327,6 +346,7 @@ export async function copyPackageIntoDraft(
       meals:              day.meals,
       accommodation:      day.hotel ? [day.hotel.name, day.hotel.room_name].filter(Boolean).join(" — ") : "",
       accommodationPhoto: rawHotelPhoto ? getThumbnailImage(rawHotelPhoto) : "",
+      accommodationRoomPhotos: rawRoomPhotos.map((u) => getThumbnailImage(u)),
       hotelCheckIn:       day.hotel?.check_in_time ?? "",
       hotelCheckOut:      day.hotel?.check_out_time ?? "",
       hotelMealPlan:      day.hotel?.plan_name ?? day.hotel?.meal_type ?? "",
@@ -494,6 +514,7 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
               meals:              true,
               accommodation:      true,
               accommodationPhoto: true,
+              accommodationRoomPhotos: true,
               hotelCheckIn:       true,
               hotelCheckOut:      true,
               hotelMealPlan:      true,
@@ -629,6 +650,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
               meals:              it.meals,
               accommodation:      it.accommodation || null,
               accommodationPhoto: it.accommodationPhoto || null,
+              accommodationRoomPhotos: it.accommodationRoomPhotos ?? [],
               hotelCheckIn:       it.hotelCheckIn || null,
               hotelCheckOut:      it.hotelCheckOut || null,
               hotelMealPlan:      it.hotelMealPlan || null,

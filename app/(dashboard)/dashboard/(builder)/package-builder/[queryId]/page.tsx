@@ -212,6 +212,61 @@ function PhotoPreview({ src, alt, onRemove }: { src: string; alt: string; onRemo
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// HotelPhotoGallery — the hotel's main photo plus up to 3 room photos, shown
+// together once a real hotel room is picked so the builder reads as a photo
+// gallery instead of just text fields.
+// ─────────────────────────────────────────────────────────────────────────────
+function HotelPhotoGallery({ hotelPhoto, roomPhotos, alt, onClear }: {
+  hotelPhoto?: string;
+  roomPhotos: string[];
+  alt: string;
+  onClear: () => void;
+}) {
+  if (!hotelPhoto && roomPhotos.length === 0) return null;
+  return (
+    <div className="relative rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-2.5">
+      <button
+        type="button"
+        onClick={onClear}
+        className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-dashboard-error text-white text-xs leading-none flex items-center justify-center hover:bg-dashboard-error/80 z-10"
+      >
+        ×
+      </button>
+      <div className="flex gap-2">
+        {hotelPhoto && (
+          <div className="shrink-0">
+            <Image
+              src={hotelPhoto}
+              alt={alt}
+              width={140}
+              height={112}
+              className="h-24 w-32 rounded-lg object-cover border border-dashboard-base-300"
+            />
+            <p className="text-[9px] text-dashboard-base-content/40 mt-1 text-center">Hotel</p>
+          </div>
+        )}
+        {roomPhotos.length > 0 && (
+          <div className="grid grid-cols-3 gap-1.5 flex-1 min-w-0">
+            {roomPhotos.slice(0, 3).map((src, i) => (
+              <div key={i}>
+                <Image
+                  src={src}
+                  alt={`${alt} — room photo ${i + 1}`}
+                  width={100}
+                  height={112}
+                  className="h-24 w-full rounded-lg object-cover border border-dashboard-base-300"
+                />
+                {i === 1 && <p className="text-[9px] text-dashboard-base-content/40 mt-1 text-center">Room</p>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ActivityListEditor — per-activity title + description + photo, add/remove
 // ─────────────────────────────────────────────────────────────────────────────
 function ActivityListEditor({ activities, location, onChange }: {
@@ -492,7 +547,8 @@ function DayCard({ day, data, location, onChange, onRemove }: {
     onChange({
       ...data,
       accommodation: `${raw.hotelName} — ${raw.roomName}`,
-      accommodationPhoto: raw.thumbnail ?? data.accommodationPhoto,
+      accommodationPhoto: raw.hotelPhoto ?? data.accommodationPhoto,
+      accommodationRoomPhotos: raw.roomPhotos.length > 0 ? raw.roomPhotos : data.accommodationRoomPhotos,
       hotelMealPlan: raw.mealPlanName ?? data.hotelMealPlan,
     });
   }
@@ -604,13 +660,12 @@ function DayCard({ day, data, location, onChange, onRemove }: {
                 </p>
               )}
             </div>
-            {data.accommodationPhoto && (
-              <PhotoPreview
-                src={data.accommodationPhoto}
-                alt={data.accommodation || "Hotel"}
-                onRemove={() => onChange({ ...data, accommodationPhoto: "" })}
-              />
-            )}
+            <HotelPhotoGallery
+              hotelPhoto={data.accommodationPhoto || undefined}
+              roomPhotos={data.accommodationRoomPhotos}
+              alt={data.accommodation || "Hotel"}
+              onClear={() => onChange({ ...data, accommodationPhoto: "", accommodationRoomPhotos: [] })}
+            />
             <Input
               value={data.accommodation}
               onChange={(e) => onChange({ ...data, accommodation: e.target.value })}
@@ -789,7 +844,7 @@ function deriveDayLocations(stops: StopInput[], totalDays: number): string[] {
 
 const emptyDay = (day: number): DayItinerary => ({
   day, title: "", description: "", activities: [],
-  meals: [], accommodation: "", accommodationPhoto: "", hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
+  meals: [], accommodation: "", accommodationPhoto: "", accommodationRoomPhotos: [], hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
   transport: "", transportPhoto: "", notes: "",
 });
 

@@ -91,18 +91,24 @@ function DayCardPreview({ day }: { day: DayItinerary }) {
         {/* Hotel info */}
         {hasHotel && (
           <div className="rounded-lg bg-primary-50/60 border border-primary-100 p-2.5 space-y-1.5">
-            <div className="flex items-center gap-2">
-              {day.accommodationPhoto && (
-                /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
-                <img src={day.accommodationPhoto} alt="" className="h-10 w-14 rounded-md object-cover shrink-0" />
-              )}
-              <div className="flex items-center gap-1.5">
-                <Hotel size={12} className="text-primary-600 shrink-0" />
-                <p className="text-xs font-semibold text-neutral-800">
-                  {day.accommodation || "Hotel (TBD)"}
-                </p>
-              </div>
+            <div className="flex items-center gap-1.5">
+              <Hotel size={12} className="text-primary-600 shrink-0" />
+              <p className="text-xs font-semibold text-neutral-800">
+                {day.accommodation || "Hotel (TBD)"}
+              </p>
             </div>
+            {(day.accommodationPhoto || day.accommodationRoomPhotos.length > 0) && (
+              <div className="flex gap-1.5">
+                {day.accommodationPhoto && (
+                  /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
+                  <img src={day.accommodationPhoto} alt="Hotel" className="h-16 w-20 rounded-md object-cover shrink-0" />
+                )}
+                {day.accommodationRoomPhotos.slice(0, 3).map((src, i) => (
+                  /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
+                  <img key={i} src={src} alt={`Room ${i + 1}`} className="h-16 flex-1 rounded-md object-cover" />
+                ))}
+              </div>
+            )}
             {(day.hotelCheckIn || day.hotelCheckOut) && (
               <div className="flex items-center gap-4 text-[11px] text-neutral-500 pl-4.5">
                 {day.hotelCheckIn && (
