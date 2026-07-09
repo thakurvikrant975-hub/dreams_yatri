@@ -194,3 +194,154 @@ export async function setRatePlanActive(
   revalidatePath(`/hotel-connect/properties/${hotelId}/calendar`);
   return {};
 }
+
+// ── Default (non-seasonal) rates & inventory ─────────────────────────────────
+//
+// The pricing engine (app/lib/hotel-inventory/rates.ts) already falls back to
+// a plan's base price_per_night/occupancy_prices/extra_bed_rate/extra_child_rate
+// whenever no season matches a date — these ARE the "default rates" a guest is
+// quoted for any date the owner hasn't set up a season for. There was just no
+// screen to edit the occupancy-tiered/child/extra-adult values directly; only
+// the flat price_per_night was settable outside of a date-ranged season.
+// "Default Inventory" is the same idea for hotel_rooms.num_rooms, which
+// ensureAvailability() already uses whenever a date's ledger row doesn't
+// exist yet.
+
+export type DefaultRatesDetail = {
+  basePrice: number; // occupancy = 2, i.e. price_per_night itself
+  occupancyPrices: Record<number, number | null>; // keyed by occupancy, excludes 2
+  extraChildRate: number | null;
+  extraAdultRate: number | null;
+  maxAdults: number;
+};
+
+export async function getDefaultRates(
+  hotelId: number,
+  roomId: number,
+  pricingId: number,
+): Promise<{ error?: string; detail?: DefaultRatesDetail }> {
+  const session = await hotelConnectAuth();
+  if (!session) redirect("/hotel-connect/login");
+  if (!(await ownsRoom(hotelId, roomId, session.user.id))) return { error: "Room not found." };
+
+  const room = await db.hotel_rooms.findFirst({
+    where: { id: roomId, hotel_id: hotelId },
+    select: { max_adults: true },
+  });
+  if (!room) return { error: "Room not found." };
+
+  const pricing = await db.hotel_room_pricing.findFirst({
+    where: { id: pricingId, room_id: roomId },
+    select: {
+      price_per_night: true, extra_bed_rate: true, extra_child_rate: true,
+      occupancy_prices: { select: { occupancy: true, price_per_night: true } },
+    },
+  });
+  if (!pricing) return { error: "Rate plan not found." };
+
+  const occupancyPrices: Record<number, number | null> = {};
+  for (const o of pricing.occupancy_prices) occupancyPrices[o.occupancy] = Number(o.price_per_night);
+
+  return {
+    detail: {
+      basePrice: Number(pricing.price_per_night),
+      occupancyPrices,
+      extraChildRate: pricing.extra_child_rate != null ? Number(pricing.extra_child_rate) : null,
+      extraAdultRate: pricing.extra_bed_rate != null ? Number(pricing.extra_bed_rate) : null,
+      maxAdults: room.max_adults,
+    },
+  };
+}
+
+export type DefaultRatesInput = {
+  basePrice: number;
+  occupancyPrices: Record<number, number | null>; // null clears that tier's override
+  extraChildRate: number | null;
+  extraAdultRate: number | null;
+};
+
+export async function saveDefaultRates(
+  hotelId: number,
+  roomId: number,
+  pricingId: number,
+  input: DefaultRatesInput,
+): Promise<{ error?: string }> {
+  const session = await hotelConnectAuth();
+  if (!session) redirect("/hotel-connect/login");
+  if (!(await ownsRoom(hotelId, roomId, session.user.id))) return { error: "Room not found." };
+
+  if (!Number.isFinite(input.basePrice) || input.basePrice <= 0) {
+    return { error: "Base rate (2 adults) is required and must be a positive number." };
+  }
+  const extraChecks: [string, number | null][] = [
+    ["Extra adult charge", input.extraAdultRate],
+    ["Paid child rate", input.extraChildRate],
+  ];
+  for (const [label, v] of extraChecks) {
+    if (v != null && (!Number.isFinite(v) || v < 0)) return { error: `${label} must be zero or a positive number.` };
+  }
+  for (const [occStr, price] of Object.entries(input.occupancyPrices)) {
+    if (price != null && (!Number.isFinite(price) || price <= 0)) {
+      return { error: `Rate for ${occStr} adults must be a positive number.` };
+    }
+  }
+
+  const pricing = await db.hotel_room_pricing.findFirst({
+    where: { id: pricingId, room_id: roomId },
+    select: { id: true },
+  });
+  if (!pricing) return { error: "Rate plan not found." };
+
+  await db.$transaction(async (tx) => {
+    await tx.hotel_room_pricing.update({
+      where: { id: pricingId },
+      data: {
+        price_per_night: input.basePrice,
+        extra_bed_rate: input.extraAdultRate,
+        extra_child_rate: input.extraChildRate,
+      },
+    });
+
+    for (const [occStr, price] of Object.entries(input.occupancyPrices)) {
+      const occupancy = Number(occStr);
+      if (price == null) {
+        await tx.hotel_room_occupancy_prices.deleteMany({ where: { pricing_id: pricingId, occupancy } });
+      } else {
+        await tx.hotel_room_occupancy_prices.upsert({
+          where: { pricing_id_occupancy: { pricing_id: pricingId, occupancy } },
+          update: { price_per_night: price },
+          create: { pricing_id: pricingId, occupancy, price_per_night: price },
+        });
+      }
+    }
+  });
+
+  revalidatePath(`/hotel-connect/properties/${hotelId}/rates`);
+  revalidatePath(`/hotel-connect/properties/${hotelId}/calendar`);
+  return {};
+}
+
+// ── Default inventory (hotel_rooms.num_rooms) ────────────────────────────────
+
+export async function setDefaultInventory(
+  hotelId: number,
+  roomId: number,
+  numRooms: number,
+): Promise<{ error?: string }> {
+  const session = await hotelConnectAuth();
+  if (!session) redirect("/hotel-connect/login");
+  if (!(await ownsRoom(hotelId, roomId, session.user.id))) return { error: "Room not found." };
+
+  if (!Number.isInteger(numRooms) || numRooms < 1) {
+    return { error: "Default inventory must be a whole number of at least 1." };
+  }
+
+  await db.hotel_rooms.update({
+    where: { id: roomId },
+    data: { num_rooms: numRooms },
+  });
+
+  revalidatePath(`/hotel-connect/properties/${hotelId}/rates`);
+  revalidatePath(`/hotel-connect/properties/${hotelId}/rates/default`);
+  return {};
+}

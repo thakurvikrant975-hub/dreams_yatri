@@ -199,13 +199,21 @@ export default function RoomListClient({
           <h1 className="text-lg font-bold text-neutral-800">Rates & Availability</h1>
         </div>
         {rooms.length > 0 && (
-          <Link
-            href={`/hotel-connect/properties/${hotelId}/calendar?room=${rooms[0].id}`}
-            className="h-10 flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-600 shadow-sm hover:bg-neutral-50 transition-colors"
-          >
-            <CalendarBlankIcon size={16} />
-            Calendar View
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/hotel-connect/properties/${hotelId}/rates/default`}
+              className="h-10 flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-600 shadow-sm hover:bg-neutral-50 transition-colors"
+            >
+              Default Rates & Inventory
+            </Link>
+            <Link
+              href={`/hotel-connect/properties/${hotelId}/calendar?room=${rooms[0].id}`}
+              className="h-10 flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-600 shadow-sm hover:bg-neutral-50 transition-colors"
+            >
+              <CalendarBlankIcon size={16} />
+              Calendar View
+            </Link>
+          </div>
         )}
       </div>
 
