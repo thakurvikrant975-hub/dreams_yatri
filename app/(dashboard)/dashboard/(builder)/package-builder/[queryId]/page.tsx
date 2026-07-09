@@ -1043,10 +1043,16 @@ export default function PackageBuilderDetailPage() {
         if (proceed) {
           try {
             const payload = JSON.parse(rawCopyPayload) as PackageCopyPayload;
-            // An empty payload.coverImage (picked package has no photo) should
-            // never blank out whatever cover is already showing — only
-            // overwrite it when the package actually has one.
-            setForm((f) => ({ ...f, ...payload, coverImage: payload.coverImage || f.coverImage }));
+            // An empty payload.coverImage/startingPoint (the catalog package
+            // has no photo, and never carries a query-specific starting
+            // point) should never blank out what's already there — only
+            // overwrite when the package actually supplies a value.
+            setForm((f) => ({
+              ...f,
+              ...payload,
+              coverImage: payload.coverImage || f.coverImage,
+              startingPoint: payload.startingPoint || f.startingPoint,
+            }));
             toast.success(`Copied "${payload.title}" into this draft`);
           } catch (err) {
             console.error("Failed to apply copied package payload", err);

@@ -6,6 +6,7 @@ import {
   Plane, TrainFront, Sparkles, Phone, Mail,
   Coffee, Soup, UtensilsCrossed,
 } from "lucide-react";
+import { ItineraryMap } from "./ItineraryMap";
 
 /** "1 Room | 2 Adults, 1 Child" — computed against room capacity so it
  * always reflects the query's actual traveller count, not stale text. */
@@ -92,7 +93,7 @@ function ActivityRow({ activity }: { activity: ActivityInput }) {
             {gallery.slice(0, 3).map((src, i) => (
               <div key={i} className="relative rounded-lg overflow-hidden">
                 {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */}
-                <img src={src} alt={activity.photoLabels[i] || activity.title} className="w-full h-20 object-cover" />
+                <img src={src} alt={activity.photoLabels[i] || activity.title} className="w-full h-30 object-cover" />
                 <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 via-black/10 to-transparent px-1.5 py-1 pt-3">
                   <p className="text-[9px] text-white font-medium truncate">{activity.photoLabels[i] || activity.title}</p>
                 </div>
@@ -222,16 +223,16 @@ function DayCardPreview({ day, adults, childCount }: { day: DayItinerary; adults
               </div>
 
               {hasPhotos && (
-                <div className="w-28 shrink-0 space-y-1">
+                <div className="w-40 shrink-0 space-y-1">
                   {day.accommodationPhoto && (
                     /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
-                    <img src={day.accommodationPhoto} alt="Hotel" className="w-28 h-20 rounded-lg object-cover" />
+                    <img src={day.accommodationPhoto} alt="Hotel" className="w-40 h-24 rounded-lg object-cover" />
                   )}
                   {day.accommodationRoomPhotos.length > 0 && (
                     <div className="grid grid-cols-2 gap-1">
                       {day.accommodationRoomPhotos.slice(0, 2).map((src, i) => (
                         /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
-                        <img key={i} src={src} alt={`Room ${i + 1}`} className="h-10 w-full rounded-md object-cover" />
+                        <img key={i} src={src} alt={`Room ${i + 1}`} className="h-14 w-full rounded-md object-cover" />
                       ))}
                     </div>
                   )}
@@ -292,12 +293,12 @@ function DayCardPreview({ day, adults, childCount }: { day: DayItinerary; adults
               </div>
 
               {day.transportPhoto && (
-                <div className="relative rounded-lg overflow-hidden w-32 h-24 shrink-0">
+                <div className="relative rounded-lg overflow-hidden w-52 h-36 shrink-0">
                   {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */}
-                  <img src={day.transportPhoto} alt="" className="w-32 h-24 object-cover" />
+                  <img src={day.transportPhoto} alt="" className="w-52 h-36 object-cover" />
                   {day.transport && (
-                    <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 via-black/20 to-transparent px-2 py-1 pt-4">
-                      <p className="text-[10px] text-white font-medium truncate">{day.transport}</p>
+                    <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 via-black/20 to-transparent px-2 py-1.5 pt-6">
+                      <p className="text-xs text-white font-medium truncate">{day.transport}</p>
                     </div>
                   )}
                 </div>
@@ -448,6 +449,12 @@ export function ItineraryDocument({ form }: { form: PreviewData }) {
               ))}
             </div>
           </div>
+
+          <ItineraryMap
+            startingPoint={form.startingPoint}
+            stops={form.stops}
+            itineraries={form.itineraries}
+          />
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="rounded-xl border border-neutral-200 bg-white p-4">
