@@ -220,7 +220,7 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
           <CardDescription>Hotel name, location and category</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4"> 
             <div id="field-name" className="space-y-1.5">
               <Label>Hotel Name <span className="text-destructive">*</span></Label>
               <Input

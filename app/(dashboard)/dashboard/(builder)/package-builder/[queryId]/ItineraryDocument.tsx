@@ -4,7 +4,8 @@ import {
   Calendar, Hotel, Car, Utensils, CheckCircle, XCircle,
   IndianRupee, Users, MapPin, Info, LogIn, LogOut,
   Plane, TrainFront, Sparkles, Phone, Mail,
-} from "lucide-react";   
+  Coffee, Soup, UtensilsCrossed,
+} from "lucide-react";
 import DyLogo from "@/app/components/ui/DyLogo";
 import type { DayItinerary, ActivityInput, StopInput } from "../action";
 
@@ -45,21 +46,67 @@ function Kicker({ label }: { label: string }) {
 function ActivityRow({ activity }: { activity: ActivityInput }) {
   if (!activity.title.trim()) return null;
   return (
-    <div className="flex gap-2.5">
-      {activity.photo ? (
-        /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
-        <img src={activity.photo} alt="" className="size-10 rounded-lg object-cover shrink-0" />
-      ) : (
+    <div className="space-y-2">
+      <div className="flex items-start gap-2">
         <span className="flex items-center justify-center size-5 rounded-full bg-primary-100 text-primary-600 shrink-0 mt-0.5">
           <Sparkles size={11} />
         </span>
-      )}
-      <div>
-        <p className="text-xs font-semibold text-neutral-800">{activity.title}</p>
-        {activity.description && (
-          <p className="text-xs text-neutral-500 mt-0.5">{activity.description}</p>
-        )}
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold text-neutral-800">{activity.title}</p>
+          {activity.description && (
+            <p className="text-xs text-neutral-500 mt-0.5">{activity.description}</p>
+          )}
+        </div>
       </div>
+      {activity.photo && (
+        <div className="relative rounded-xl overflow-hidden ml-7">
+          {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */}
+          <img src={activity.photo} alt={activity.title} className="w-full h-28 object-cover" />
+          <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 via-black/20 to-transparent px-2 py-1.5 pt-4">
+            <p className="text-[11px] text-white font-medium truncate">{activity.title}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const MEAL_CHIPS = [
+  { key: "breakfast", label: "Breakfast", icon: Coffee },
+  { key: "lunch", label: "Lunch", icon: Soup },
+  { key: "dinner", label: "Dinner", icon: UtensilsCrossed },
+] as const;
+
+function MealsRow({ meals }: { meals: string[] }) {
+  const extras = meals.filter((m) => !MEAL_CHIPS.some((c) => m.toLowerCase().includes(c.key)));
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-stretch gap-1.5">
+        {MEAL_CHIPS.map(({ key, label, icon: Icon }) => {
+          const included = meals.some((m) => m.toLowerCase().includes(key));
+          return (
+            <div
+              key={key}
+              className={`flex-1 flex items-center justify-between gap-1 px-2 py-1.5 rounded-lg border text-[11px] font-medium ${
+                included
+                  ? "bg-emerald-50/60 border-emerald-200 text-neutral-700"
+                  : "bg-neutral-50 border-neutral-200 text-neutral-400"
+              }`}
+            >
+              <span className="flex items-center gap-1">
+                <Icon size={12} className={included ? "text-emerald-600" : "text-neutral-400"} />
+                {label}
+              </span>
+              {included
+                ? <CheckCircle size={12} className="text-emerald-600 shrink-0" />
+                : <XCircle size={12} className="text-neutral-300 shrink-0" />}
+            </div>
+          );
+        })}
+      </div>
+      {extras.length > 0 && (
+        <p className="text-[10px] text-neutral-500">+ {extras.join(", ")}</p>
+      )}
     </div>
   );
 }
@@ -90,58 +137,74 @@ function DayCardPreview({ day }: { day: DayItinerary }) {
 
         {/* Hotel info */}
         {hasHotel && (
-          <div className="rounded-lg bg-primary-50/60 border border-primary-100 p-2.5 space-y-1.5">
+          <div className="rounded-lg bg-primary-50/60 border border-primary-100 p-2.5 space-y-2">
             <div className="flex items-center gap-1.5">
               <Hotel size={12} className="text-primary-600 shrink-0" />
               <p className="text-xs font-semibold text-neutral-800">
                 {day.accommodation || "Hotel (TBD)"}
               </p>
             </div>
-            {(day.accommodationPhoto || day.accommodationRoomPhotos.length > 0) && (
-              <div className="flex gap-1.5">
-                {day.accommodationPhoto && (
-                  /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
-                  <img src={day.accommodationPhoto} alt="Hotel" className="h-16 w-20 rounded-md object-cover shrink-0" />
+
+            {day.accommodationPhoto && (
+              <div className="space-y-1">
+                {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */}
+                <img src={day.accommodationPhoto} alt="Hotel" className="w-full h-32 rounded-lg object-cover" />
+                {day.accommodationRoomPhotos.length > 0 && (
+                  <div className="grid grid-cols-3 gap-1">
+                    {day.accommodationRoomPhotos.slice(0, 3).map((src, i) => (
+                      /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
+                      <img key={i} src={src} alt={`Room ${i + 1}`} className="h-14 w-full rounded-md object-cover" />
+                    ))}
+                  </div>
                 )}
-                {day.accommodationRoomPhotos.slice(0, 3).map((src, i) => (
-                  /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
-                  <img key={i} src={src} alt={`Room ${i + 1}`} className="h-16 flex-1 rounded-md object-cover" />
-                ))}
               </div>
             )}
+
             {(day.hotelCheckIn || day.hotelCheckOut) && (
-              <div className="flex items-center gap-4 text-[11px] text-neutral-500 pl-4.5">
-                {day.hotelCheckIn && (
-                  <span className="flex items-center gap-1"><LogIn size={10} /> Check-in {day.hotelCheckIn}</span>
-                )}
-                {day.hotelCheckOut && (
-                  <span className="flex items-center gap-1"><LogOut size={10} /> Check-out {day.hotelCheckOut}</span>
-                )}
+              <div className="flex items-center gap-2 pt-1">
+                <div className="flex flex-col items-center gap-0.5 shrink-0">
+                  <LogIn size={12} className="text-primary-500" />
+                  <span className="text-[8px] text-neutral-400 font-medium uppercase tracking-wide">Check-in</span>
+                  <span className="text-[11px] font-semibold text-neutral-700">{day.hotelCheckIn || "—"}</span>
+                </div>
+                <div className="flex-1 border-t border-dashed border-neutral-300 self-center" />
+                <div className="flex flex-col items-center gap-0.5 shrink-0">
+                  <LogOut size={12} className="text-primary-500" />
+                  <span className="text-[8px] text-neutral-400 font-medium uppercase tracking-wide">Check-out</span>
+                  <span className="text-[11px] font-semibold text-neutral-700">{day.hotelCheckOut || "—"}</span>
+                </div>
               </div>
             )}
+
             {day.hotelMealPlan && (
-              <p className="text-[11px] text-neutral-500 pl-4.5">{day.hotelMealPlan}</p>
+              <p className="text-[11px] text-neutral-500 flex items-center gap-1"><Utensils size={10} className="text-primary-400" /> {day.hotelMealPlan}</p>
             )}
           </div>
         )}
 
-        {/* Transport + meals */}
-        {(day.transport || day.meals.length > 0) && (
-          <div className="flex flex-wrap items-center gap-3 text-xs text-neutral-600">
-            {day.transport && (
-              <span className="flex items-center gap-1.5">
-                {day.transportPhoto ? (
-                  /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
-                  <img src={day.transportPhoto} alt="" className="h-6 w-9 rounded object-cover shrink-0" />
-                ) : (
-                  <Car size={11} className="text-primary-500" />
-                )}
-                {day.transport}
-              </span>
+        {/* Transport */}
+        {day.transport && (
+          <div className="rounded-lg bg-neutral-50 border border-neutral-200 p-2.5 space-y-1.5">
+            <div className="flex items-center gap-1.5">
+              <Car size={12} className="text-primary-600 shrink-0" />
+              <p className="text-xs font-semibold text-neutral-800">Transport</p>
+            </div>
+            {day.transportPhoto ? (
+              <div className="relative rounded-lg overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */}
+                <img src={day.transportPhoto} alt="" className="w-full h-20 object-cover" />
+                <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 via-black/20 to-transparent px-2 py-1.5 pt-4">
+                  <p className="text-[11px] text-white font-medium truncate">{day.transport}</p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-neutral-600">{day.transport}</p>
             )}
-            {day.meals.length > 0 && <span className="flex items-center gap-1"><Utensils size={11} className="text-primary-500" /> {day.meals.join(", ")}</span>}
           </div>
         )}
+
+        {/* Meals */}
+        {day.meals.length > 0 && <MealsRow meals={day.meals} />}
 
         {/* Activities */}
         {activities.length > 0 && (
