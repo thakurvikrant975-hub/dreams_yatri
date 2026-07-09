@@ -265,22 +265,15 @@ export type ReportsData = {
 // ── Hotel dept full report ─────────────────────────────────────────────────
 
 async function getHotelDeptReport(range: { gte: Date; lte: Date }): Promise<HotelDeptReportData> {
-  // 1. Find hotel department (case-insensitive name match)
-  const hotelDept = await db.department.findFirst({
-    where: { name: { contains: "hotel", mode: "insensitive" } },
-    select: { id: true },
-  });
-
-  // 2. All members in hotel dept + summary stats in parallel
+  // 1. All members in hotel dept + summary stats in parallel
+  // Department grouping lives on team_roles, not the (unused) department relation.
   const [allMembers, hotelsAdded, roomsAdded, imagesAdded, pricingAdded, hotelsWithoutRooms] =
     await Promise.all([
-      hotelDept
-        ? db.teamMember.findMany({
-            where: { departmentId: hotelDept.id },
-            select: { id: true, name: true, profilePicUrl: true, designation: true, isActive: true },
-            orderBy: { name: "asc" },
-          })
-        : ([] as { id: string; name: string; profilePicUrl: string | null; designation: string | null; isActive: boolean }[]),
+      db.teamMember.findMany({
+        where: { teamRole: { name: "Hotel Department" } },
+        select: { id: true, name: true, profilePicUrl: true, designation: true, isActive: true },
+        orderBy: { name: "asc" },
+      }),
       db.hotels.count({ where: { created_at: range } }),
       db.hotel_rooms.count({ where: { created_at: range } }),
       db.hotel_images.count({ where: { created_at: range } }),
@@ -401,21 +394,14 @@ async function getHotelDeptReport(range: { gte: Date; lte: Date }): Promise<Hote
 // ── Travel dept full report ────────────────────────────────────────────────
 
 async function getTravelDeptReport(range: { gte: Date; lte: Date }): Promise<TravelDeptReportData> {
-  // 1. Find travel-expert department
-  const travelDept = await db.department.findFirst({
-    where: { name: { contains: "travel", mode: "insensitive" } },
-    select: { id: true },
-  });
-
-  // 2. Dept members + packages + activities in parallel
+  // 1. Dept members + packages + activities in parallel
+  // Department grouping lives on team_roles, not the (unused) department relation.
   const [allMembers, packagesInPeriod, activityDailyRaw] = await Promise.all([
-    travelDept
-      ? db.teamMember.findMany({
-          where: { departmentId: travelDept.id },
-          select: { id: true, name: true, profilePicUrl: true, designation: true, isActive: true },
-          orderBy: { name: "asc" },
-        })
-      : ([] as { id: string; name: string; profilePicUrl: string | null; designation: string | null; isActive: boolean }[]),
+    db.teamMember.findMany({
+      where: { teamRole: { name: "Travel Expert" } },
+      select: { id: true, name: true, profilePicUrl: true, designation: true, isActive: true },
+      orderBy: { name: "asc" },
+    }),
     db.packages.findMany({
       where: { created_at: range },
       select: {
@@ -562,21 +548,14 @@ async function getTravelDeptReport(range: { gte: Date; lte: Date }): Promise<Tra
 // ── Cab dept full report ───────────────────────────────────────────────────
 
 async function getCabDeptReport(range: { gte: Date; lte: Date }): Promise<CabDeptReportData> {
-  // 1. Find cab department
-  const cabDept = await db.department.findFirst({
-    where: { name: { contains: "cab", mode: "insensitive" } },
-    select: { id: true },
-  });
-
-  // 2. Dept members + drivers in period + pricing counts in parallel
+  // 1. Dept members + drivers in period + pricing counts in parallel
+  // Department grouping lives on team_roles, not the (unused) department relation.
   const [allMembers, driversInPeriod, pricingByCreator] = await Promise.all([
-    cabDept
-      ? db.teamMember.findMany({
-          where: { departmentId: cabDept.id },
-          select: { id: true, name: true, profilePicUrl: true, designation: true, isActive: true },
-          orderBy: { name: "asc" },
-        })
-      : ([] as { id: string; name: string; profilePicUrl: string | null; designation: string | null; isActive: boolean }[]),
+    db.teamMember.findMany({
+      where: { teamRole: { name: "Cab Department" } },
+      select: { id: true, name: true, profilePicUrl: true, designation: true, isActive: true },
+      orderBy: { name: "asc" },
+    }),
     db.cab_drivers.findMany({
       where: { created_at: range },
       select: {

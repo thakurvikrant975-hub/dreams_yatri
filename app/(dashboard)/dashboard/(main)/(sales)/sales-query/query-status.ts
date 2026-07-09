@@ -6,6 +6,7 @@ export type QueryStatus =
     | "REJECTED"
     | "ASSIGNED"
     | "IN_PROGRESS"
+    | "FOLLOW_UP"
     | "PACKAGE_SENT"
     | "CLIENT_ACCEPTED"
     | "CLIENT_DECLINED"
@@ -19,6 +20,7 @@ export type SalesQueryStatus =
   | "REJECTED"
   | "ASSIGNED"
   | "IN_PROGRESS"
+  | "FOLLOW_UP"
   | "PACKAGE_SENT"
   | "CLIENT_ACCEPTED"
   | "CLIENT_DECLINED"
@@ -32,6 +34,7 @@ export function isActiveQuery(status: SalesQueryStatus) {
     status === "VERIFIED" ||
     status === "ASSIGNED" ||
     status === "IN_PROGRESS" ||
+    status === "FOLLOW_UP" ||
     status === "PACKAGE_SENT" ||
     status === "CLIENT_ACCEPTED" ||
     status === "CLIENT_DECLINED" ||

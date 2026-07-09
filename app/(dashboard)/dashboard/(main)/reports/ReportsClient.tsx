@@ -103,7 +103,7 @@ export function ReportsClient({
                 key={opt.value}
                 onClick={() => handlePeriodClick(opt.value)}
                 className={cn(
-                  "px-3 py-1.5 rounded-md text-xs font-semibold transition-all",
+                  "px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer",
                   period === opt.value
                     ? "bg-dashboard-primary text-dashboard-primary-content shadow-sm"
                     : "text-dashboard-base-content/60 hover:text-dashboard-base-content hover:bg-dashboard-base-100",
@@ -133,7 +133,7 @@ export function ReportsClient({
               <button
                 onClick={handleCustomApply}
                 disabled={!customFrom || !customTo}
-                className="h-8 px-3 rounded-md bg-dashboard-primary text-dashboard-primary-content text-xs font-semibold disabled:opacity-40"
+                className="h-8 px-3 rounded-md bg-dashboard-primary text-dashboard-primary-content text-xs font-semibold disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
               >
                 Apply
               </button>

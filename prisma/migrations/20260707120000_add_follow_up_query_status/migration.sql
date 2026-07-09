@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "QueryStatus" ADD VALUE IF NOT EXISTS 'FOLLOW_UP';

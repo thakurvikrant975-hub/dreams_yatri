@@ -9,6 +9,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/app/lib/db";
 import { z } from "zod";
 import { Prisma } from "@/app/generated/prisma";
+import { tryCreateBookingFromConvertedQuery } from "@/app/lib/bookings/create-from-query";
 
 // ── Import shared types from marketing actions ────────────────────────────────
 // Types are erased at runtime so this import is safe even across route groups.
@@ -84,8 +85,25 @@ export async function assignQuery(
 
 // ── Sales READ ────────────────────────────────────────────────────────────────
 
+export type SentPackageInfo = {
+    id:             string;
+    title:          string;
+    status:         string;
+    sentAt:         Date | null;
+    totalPrice:     number | null;
+    pricePerPerson: number | null;
+    pdfUrl:         string | null;
+};
+
+export type SalesQueryRow = PackageQuery & { customPackage: SentPackageInfo | null };
+
+const CUSTOM_PACKAGE_SELECT = {
+    id: true, title: true, status: true, sentAt: true,
+    totalPrice: true, pricePerPerson: true, pdfUrl: true,
+} as const;
+
 /** Returns only queries assigned to the currently logged-in sales exec */
-export async function getSalesQueries(): Promise<PackageQuery[]> {
+export async function getSalesQueries(): Promise<SalesQueryRow[]> {
     const { teamMemberId } = await getCurrentActor();
 
     const queries = await db.package_queries.findMany({
@@ -93,6 +111,7 @@ export async function getSalesQueries(): Promise<PackageQuery[]> {
         include: {
             rejection_reasons: { select: { id: true, label: true } },
             _count:            { select: { queryFollowUps: true, notes: true } },
+            custom_packages:   { select: CUSTOM_PACKAGE_SELECT },
         },
         orderBy: { assignedAt: "desc" },
     }) as any[];
@@ -101,7 +120,8 @@ export async function getSalesQueries(): Promise<PackageQuery[]> {
         ...q,
         rejectionReason:  q.rejection_reasons ?? null,
         totalLeadQueries: 1,
-    })) as PackageQuery[];
+        customPackage:    q.custom_packages ?? null,
+    })) as SalesQueryRow[];
 }
 
 export async function getSalesQueryById(id: string) {
@@ -114,9 +134,10 @@ export async function getSalesQueryById(id: string) {
                 where:   teamMemberId ? { createdById: teamMemberId } : {},
                 orderBy: { createdAt: "asc" },
             },
-            notes:    { orderBy: { createdAt: "asc" } },
-            timeline: { orderBy: { createdAt: "asc" } },
-            _count:   { select: { queryFollowUps: true, notes: true } },
+            notes:            { orderBy: { createdAt: "asc" } },
+            timeline:         { orderBy: { createdAt: "asc" } },
+            _count:           { select: { queryFollowUps: true, notes: true } },
+            custom_packages:  { select: CUSTOM_PACKAGE_SELECT },
         },
     });
 }
@@ -151,7 +172,7 @@ export async function getMyFollowUps(packageQueryId?: string) {
 // ── Follow-up — upsert (one per exec per query) ───────────────────────────────
 
 const followUpSchema = z.object({
-    note:       z.string().min(1, "Note is required").max(2000, "Note too long"),
+    note:       z.string().max(2000, "Note too long").optional(),
     followUpAt: z.string().optional(),
 });
 
@@ -179,7 +200,7 @@ export async function addFollowUp(packageQueryId: string, formData: FormData): P
             await db.queryFollowUp.update({
                 where: { id: existing.id },
                 data: {
-                    note:       parsed.data.note,
+                    note:       parsed.data.note ?? "",
                     followUpAt: parsed.data.followUpAt ? new Date(parsed.data.followUpAt) : null,
                 },
             });
@@ -187,7 +208,7 @@ export async function addFollowUp(packageQueryId: string, formData: FormData): P
             await db.queryFollowUp.create({
                 data: {
                     packageQueryId,
-                    note:          parsed.data.note,
+                    note:          parsed.data.note ?? "",
                     followUpAt:    parsed.data.followUpAt ? new Date(parsed.data.followUpAt) : null,
                     createdById:   teamMemberId,
                     createdByName: teamMemberName,
@@ -202,11 +223,24 @@ export async function addFollowUp(packageQueryId: string, formData: FormData): P
             });
         }
 
-        // ASSIGNED → IN_PROGRESS when exec first engages
+        // Move the query into FOLLOW_UP so the team can see it's being worked at a
+        // glance — but never downgrade a query that's already further along the
+        // funnel (e.g. package already sent, payment started, closed).
         const currentQuery = await db.package_queries.findUnique({
             where:  { id: packageQueryId },
             select: { status: true },
         });
+
+        const terminalOrLaterStatuses = [
+            "PACKAGE_SENT", "CLIENT_ACCEPTED", "CLIENT_DECLINED",
+            "PAYMENT_INITIATED", "CONVERTED", "CLOSED",
+        ];
+        if (currentQuery && !terminalOrLaterStatuses.includes(currentQuery.status)) {
+            await db.package_queries.update({
+                where: { id: packageQueryId },
+                data:  { status: "FOLLOW_UP" },
+            });
+        }
 
         await logTimeline(
             packageQueryId,
@@ -293,8 +327,16 @@ export async function closeSalesQuery(packageQueryId: string, formData: FormData
             teamMemberName ?? undefined,
         );
 
+        let convertedMessage = "Marked as Converted!";
+        if (isConverted) {
+            const bookingResult = await tryCreateBookingFromConvertedQuery(packageQueryId, teamMemberId, teamMemberName);
+            convertedMessage = bookingResult.created
+                ? `Marked as Converted! Booking ${bookingResult.bookingNumber} created — pending ops review.`
+                : `Marked as Converted! Booking couldn't be auto-created (${bookingResult.reason}) — create it manually via Package Bookings.`;
+        }
+
         revalidatePath("/dashboard/sales-query");
-        return { success: true, data: undefined, message: isConverted ? "Marked as Converted!" : "Closed successfully" };
+        return { success: true, data: undefined, message: isConverted ? convertedMessage : "Closed successfully" };
     } catch (err) {
         console.error("closeSalesQuery error:", err);
         return { success: false, message: "Failed to close query" };
@@ -359,6 +401,7 @@ const packageRequirementsSchema = z.object({
         required:       z.boolean(),
         cabTypes:       z.array(z.string()),
         includeFlights: z.boolean(),
+        includeTrain:   z.boolean(),
         specialDemands: z.string().optional(),
     }),
     activities: z.object({

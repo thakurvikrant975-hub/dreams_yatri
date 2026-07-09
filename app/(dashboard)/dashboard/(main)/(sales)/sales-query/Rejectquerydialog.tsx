@@ -22,9 +22,10 @@ type Props = {
     leadName:         string;
     reasons:          RejectionReason[];
     children:         React.ReactNode;
+    onDone?:          () => void;
 };
 
-export function RejectQueryDialog({ queryId, leadName, reasons, children }: Props) {
+export function RejectQueryDialog({ queryId, leadName, reasons, children, onDone }: Props) {
     const [open, setOpen] = useState(false);
     const [isPending, startTransition] = useTransition();
     const [selectedReason, setSelectedReason] = useState("");
@@ -47,6 +48,7 @@ export function RejectQueryDialog({ queryId, leadName, reasons, children }: Prop
                 setOpen(false);
                 setSelectedReason("");
                 setErrors({});
+                onDone?.();
             } else if (result.errors) {
                 setErrors(result.errors);
             } else {

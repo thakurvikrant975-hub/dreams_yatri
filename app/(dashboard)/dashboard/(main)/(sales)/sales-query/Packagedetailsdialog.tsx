@@ -93,7 +93,7 @@ function defaultRequirements(query: PackageQueryType): PackageRequirements {
     return {
         travellers: {
             leadName: query.name,
-            adults: query.groupSize ?? 2,
+            adults: query.groupSize ?? 1,
             children: 0,
             infants: 0,
             specialDemands: "",
@@ -121,6 +121,7 @@ function defaultRequirements(query: PackageQueryType): PackageRequirements {
             required: true,
             cabTypes: [],
             includeFlights: false,
+            includeTrain: false,
             specialDemands: "",
         },
         activities: {
@@ -271,6 +272,10 @@ type Props = {
     children: React.ReactNode;
     onDone?: () => void;
     initialRequirements?: PackageRequirements | null;
+    /** Optional controlled open state — e.g. for deep-opening from the
+     * follow-up reminder popup. Falls back to internal state when omitted. */
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
 };
 
 export function PackageDetailsDialog({
@@ -278,8 +283,12 @@ export function PackageDetailsDialog({
     children,
     onDone,
     initialRequirements,
+    open: controlledOpen,
+    onOpenChange: setControlledOpen,
 }: Props) {
-    const [open, setOpen] = useState(false);
+    const [internalOpen, setInternalOpen] = useState(false);
+    const open = controlledOpen ?? internalOpen;
+    const setOpen = setControlledOpen ?? setInternalOpen;
     const [activeTab, setActiveTab] = useState<TabId>("travellers");
     const [isPending, startTransition] = useTransition();
     const [reqs, setReqs] = useState<PackageRequirements>(() =>
@@ -817,6 +826,24 @@ export function PackageDetailsDialog({
                                                 </ToggleButton>
                                             </div>
                                         </div>
+
+                                        <div className="space-y-2">
+                                            <Label>Train Ticket</Label>
+                                            <div className="flex gap-2">
+                                                <ToggleButton
+                                                    selected={reqs.transport.includeTrain === false}
+                                                    onClick={() => update("transport", { includeTrain: false })}
+                                                >
+                                                    No Train
+                                                </ToggleButton>
+                                                <ToggleButton
+                                                    selected={reqs.transport.includeTrain === true}
+                                                    onClick={() => update("transport", { includeTrain: true })}
+                                                >
+                                                    Train Ticket Required
+                                                </ToggleButton>
+                                            </div>
+                                        </div>
                                     </>
                                 )}
 
@@ -977,17 +1004,17 @@ export function PackageDetailsDialog({
                                     <div className="rounded-lg bg-violet-200/60 border border-primary/20 px-4 py-3">
                                         <p className="text-xs text-violet-700 mb-0.5">Budget Range</p>
                                         <p className="text-lg font-semibold text-primary">
-                                            ₹{(reqs.budget.min ?? 0).toLocaleString("en-IN")}
-                                            {" — "}
-                                            ₹{(reqs.budget.max ?? 0).toLocaleString("en-IN")}
+                                            {reqs.budget.min ? `₹${reqs.budget.min.toLocaleString("en-IN")}` : null}
+                                            {reqs.budget.min && reqs.budget.max ? " — " : null}
+                                            {reqs.budget.max ? `₹${reqs.budget.max.toLocaleString("en-IN")}` : null}
                                         </p>
                                         <p className="text-xs text-violet-700 mt-0.5">
                                             {reqs.budget.type === "PER_PERSON" ? "per person" : "total for the group"}
                                             {reqs.budget.type === "PER_PERSON" && totalPax > 0 && (
                                                 <span className="ml-1">
-                                                    (≈ ₹{((reqs.budget.min ?? 0) * totalPax).toLocaleString("en-IN")}
-                                                    {" — "}
-                                                    ₹{((reqs.budget.max ?? 0) * totalPax).toLocaleString("en-IN")} total)
+                                                    (≈ {reqs.budget.min ? `₹${(reqs.budget.min * totalPax).toLocaleString("en-IN")}` : null}
+                                                    {reqs.budget.min && reqs.budget.max ? " — " : null}
+                                                    {reqs.budget.max ? `₹${(reqs.budget.max * totalPax).toLocaleString("en-IN")}` : null} total)
                                                 </span>
                                             )}
                                         </p>

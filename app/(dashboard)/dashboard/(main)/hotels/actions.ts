@@ -193,6 +193,7 @@ export async function getAllHotelsForOverview() {
       state: true,
       country: true,
       is_active: true,
+      created_by: true,
       destination: { select: { name: true, latitude: true, longitude: true } },
       location: { select: { latitude: true, longitude: true, name: true } },
       _count: { select: { hotelRooms: true, images: true } },
@@ -209,6 +210,47 @@ export async function getAllHotelsForOverview() {
        : h.destination?.longitude ? Number(h.destination.longitude)
        : null,
   }));
+}
+
+// ── Team contribution breakdown ─────────────────────────────────────────────
+// Every active team member, including those with zero hotels added — so no one
+// is silently hidden just because they haven't contributed yet.
+
+export type HotelTeamMemberStat = {
+  id: string;
+  name: string;
+  role: string;
+  hotelCount: number;
+  lastAddedAt: Date | null;
+};
+
+export async function getHotelTeamBreakdown(): Promise<HotelTeamMemberStat[]> {
+  const [roster, byCreator] = await Promise.all([
+    db.teamMember.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, teamRole: { select: { name: true } } },
+      orderBy: { name: "asc" },
+    }),
+    db.hotels.groupBy({
+      by: ["created_by"],
+      where: { created_by: { not: null } },
+      _count: { _all: true },
+      _max: { created_at: true },
+    }),
+  ]);
+
+  const countMap = new Map(byCreator.map((r) => [r.created_by as string, r._count._all]));
+  const lastAddedMap = new Map(byCreator.map((r) => [r.created_by as string, r._max.created_at]));
+
+  return roster
+    .map((m) => ({
+      id: m.id,
+      name: m.name,
+      role: m.teamRole?.name ?? "—",
+      hotelCount: countMap.get(m.id) ?? 0,
+      lastAddedAt: lastAddedMap.get(m.id) ?? null,
+    }))
+    .sort((a, b) => b.hotelCount - a.hotelCount || a.name.localeCompare(b.name));
 }
 
 export async function getDestinationsForHotelFilter() {

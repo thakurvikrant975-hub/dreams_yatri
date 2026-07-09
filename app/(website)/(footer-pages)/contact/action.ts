@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/app/lib/db";
+import { autoAssignLead } from "@/app/lib/queries/auto-assign";
 import { z } from "zod";
 import { headers } from "next/headers";
 
@@ -96,7 +97,7 @@ export async function submitContactForm(
 
     // 4. Write to DB
     try {
-        await db.package_queries.create({
+        const created = await db.package_queries.create({
             data: {
                 name,
                 email: email || null,
@@ -108,6 +109,8 @@ export async function submitContactForm(
                 pageUrl: pageUrl ?? null,
             },
         });
+
+        await autoAssignLead(created.id);
 
         return {
             success: true,

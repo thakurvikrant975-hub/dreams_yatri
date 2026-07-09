@@ -3,39 +3,14 @@
 import { useState } from "react";
 import {
   Car, Users, IndianRupee, CheckCircle2,
-  TrendingUp, Phone, MapPin, ShieldCheck, AlertCircle,
+  Phone, MapPin, ShieldCheck, AlertCircle,
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { TrendAreaChart, type TrendSeries } from "../components/dashboard/charts/TrendAreaChart";
+import { MemberAvatar, StatChip, memberPalette } from "./memberVisuals";
 import type { CabDeptReportData, CabDeptMember, DriverRowDetail } from "./actions";
 
-// ── Constants ──────────────────────────────────────────────────────────────
-
-const CHART_COLORS = [
-  "#6366f1", "#f59e0b", "#10b981", "#3b82f6", "#ef4444",
-  "#8b5cf6", "#f97316", "#06b6d4", "#84cc16", "#ec4899",
-];
-
 // ── Helpers ────────────────────────────────────────────────────────────────
-
-function initials(name: string) {
-  return name.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
-}
-
-const AVATAR_COLORS = [
-  "bg-indigo-100 text-indigo-700",
-  "bg-amber-100 text-amber-700",
-  "bg-emerald-100 text-emerald-700",
-  "bg-blue-100 text-blue-700",
-  "bg-rose-100 text-rose-700",
-  "bg-violet-100 text-violet-700",
-];
-
-function avatarColor(name: string) {
-  let h = 0;
-  for (const c of name) h = (h * 31 + c.charCodeAt(0)) & 0xffff;
-  return AVATAR_COLORS[h % AVATAR_COLORS.length];
-}
 
 function fmtDate(iso: string) {
   return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" }).format(new Date(iso));
@@ -63,92 +38,60 @@ function SummaryCard({
   );
 }
 
-function MemberAvatar({ member, size = "md" }: { member: CabDeptMember; size?: "sm" | "md" | "lg" }) {
-  const sz = size === "sm" ? "h-8 w-8 text-xs" : size === "lg" ? "h-14 w-14 text-lg" : "h-11 w-11 text-sm";
-  if (member.profilePicUrl) {
-    return (
-      <img
-        src={member.profilePicUrl}
-        alt={member.name}
-        className={cn("rounded-full object-cover shrink-0 ring-2 ring-white", sz)}
-      />
-    );
-  }
-  return (
-    <div className={cn("rounded-full flex items-center justify-center font-bold shrink-0 ring-2 ring-white", sz, avatarColor(member.name))}>
-      {initials(member.name)}
-    </div>
-  );
-}
-
-function StatPill({ value, label, color }: { value: number; label: string; color: string }) {
-  return (
-    <div className="flex flex-col items-center px-2.5 py-2 rounded-lg bg-dashboard-base-200/60 min-w-[56px]">
-      <span className={cn("text-lg font-bold leading-none", color)}>{value}</span>
-      <span className="text-[10px] text-dashboard-base-content/50 mt-1 text-center leading-tight">{label}</span>
-    </div>
-  );
-}
-
 function MemberCard({
-  member, index, isSelected, onSelect,
+  member, isSelected, onSelect,
 }: {
-  member: CabDeptMember; index: number;
+  member: CabDeptMember;
   isSelected: boolean; onSelect: () => void;
 }) {
-  const accentColor = CHART_COLORS[index % CHART_COLORS.length];
-  const hasActivity = member.driversAdded > 0 || member.pricingAdded > 0;
+  const p = memberPalette(member.id);
+  const total = member.driversAdded + member.pricingAdded;
+  const hasActivity = total > 0;
 
   return (
     <button
       type="button"
       onClick={onSelect}
       className={cn(
-        "w-full text-left rounded-xl border transition-all",
+        "w-full text-left rounded-xl border px-2.5 py-2 transition-all cursor-pointer",
         isSelected
-          ? "border-dashboard-info bg-dashboard-info/5 shadow-md"
-          : "border-dashboard-base-300 bg-dashboard-base-100 hover:border-dashboard-base-content/30 hover:shadow-sm",
+          ? cn(p.border, p.bg, "shadow-sm")
+          : "border-dashboard-base-300 bg-dashboard-base-100 hover:border-dashboard-base-content/30",
         !hasActivity && "opacity-60",
       )}
     >
-      <div className="p-4 space-y-3">
-        {/* Header */}
-        <div className="flex items-start gap-3">
-          <div className="relative">
-            <MemberAvatar member={member} />
-            <span
-              className={cn(
-                "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white",
-                member.isActive ? "bg-emerald-500" : "bg-gray-400",
-              )}
-            />
+      <div className="flex items-start gap-2">
+        <div className="relative shrink-0 mt-0.5">
+          <MemberAvatar member={member} size="sm" />
+          <span
+            className={cn(
+              "absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border border-dashboard-base-100",
+              member.isActive ? "bg-dashboard-success" : "bg-dashboard-base-content/30",
+            )}
+          />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-1.5">
+            <p className="text-xs font-semibold text-dashboard-base-content truncate">{member.name}</p>
+            {hasActivity && (
+              <span className={cn("shrink-0 text-[11px] font-bold tabular-nums", p.text)}>
+                {total}
+              </span>
+            )}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-dashboard-base-content truncate">{member.name}</p>
-            <p className="text-xs text-dashboard-base-content/50 truncate">{member.designation ?? "Cab Department"}</p>
-          </div>
-          {hasActivity && (
-            <div className="flex items-center gap-1 text-xs font-bold shrink-0" style={{ color: accentColor }}>
-              <TrendingUp className="h-3 w-3" />
-              {member.driversAdded + member.pricingAdded}
+          <p className="text-[10px] text-dashboard-base-content/45 truncate">{member.designation ?? "Cab Department"}</p>
+          {hasActivity ? (
+            <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-1">
+              <StatChip value={member.driversAdded}       label="drivers"    color="text-dashboard-info" />
+              <StatChip value={member.driversVerified}    label="verified"   color="text-dashboard-success" />
+              <StatChip value={member.driversWithVehicle} label="w/ vehicle" color="text-dashboard-primary" />
+              <StatChip value={member.pricingAdded}       label="pricing"    color="text-dashboard-warning" />
             </div>
+          ) : (
+            <p className="text-[10px] text-dashboard-base-content/35 italic mt-1">No activity yet</p>
           )}
         </div>
-
-        {/* Stats */}
-        <div className="flex gap-2 flex-wrap">
-          <StatPill value={member.driversAdded}      label="Drivers"    color="text-dashboard-info" />
-          <StatPill value={member.driversVerified}   label="Verified"   color="text-emerald-600" />
-          <StatPill value={member.driversWithVehicle} label="w/ Vehicle" color="text-dashboard-primary" />
-          <StatPill value={member.pricingAdded}      label="Pricing"    color="text-amber-600" />
-        </div>
       </div>
-
-      {isSelected && (
-        <div className="px-4 pb-2">
-          <div className="h-0.5 rounded-full" style={{ backgroundColor: accentColor }} />
-        </div>
-      )}
     </button>
   );
 }
@@ -194,7 +137,7 @@ function DriverTable({ drivers, memberName }: { drivers: DriverRowDetail[]; memb
                   <div className="h-8 w-8 rounded-full bg-dashboard-info/10 flex items-center justify-center shrink-0">
                     <Car className="h-3.5 w-3.5 text-dashboard-info" />
                   </div>
-                  <span className="font-medium text-dashboard-base-content truncate max-w-[160px]">{d.name}</span>
+                  <span className="font-medium text-dashboard-base-content truncate max-w-40">{d.name}</span>
                 </div>
               </td>
               <td className="px-4 py-3 text-dashboard-base-content/60 font-mono text-xs">{d.mobile}</td>
@@ -203,18 +146,18 @@ function DriverTable({ drivers, memberName }: { drivers: DriverRowDetail[]; memb
               </td>
               <td className="px-4 py-3 text-center">
                 {d.hasVehicle ? (
-                  <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-dashboard-success bg-dashboard-success/10 px-2 py-0.5 rounded-full">
                     <CheckCircle2 className="h-3 w-3" /> Assigned
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-dashboard-warning bg-dashboard-warning/15 px-2 py-0.5 rounded-full">
                     <AlertCircle className="h-3 w-3" /> None
                   </span>
                 )}
               </td>
               <td className="px-4 py-3 text-center">
                 {d.isVerified ? (
-                  <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-dashboard-success bg-dashboard-success/10 px-2 py-0.5 rounded-full">
                     <ShieldCheck className="h-3 w-3" /> Yes
                   </span>
                 ) : (
@@ -225,7 +168,7 @@ function DriverTable({ drivers, memberName }: { drivers: DriverRowDetail[]; memb
               </td>
               <td className="px-4 py-3 text-center">
                 {d.isActive ? (
-                  <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-dashboard-success bg-dashboard-success/10 px-2 py-0.5 rounded-full">
                     Active
                   </span>
                 ) : (
@@ -255,10 +198,10 @@ export function CabReportTab({ data }: { data: CabDeptReportData }) {
 
   const selectedMember = members.find((m) => m.id === selectedMemberId);
 
-  const chartSeries: TrendSeries[] = activeMembers.map((m, i) => ({
+  const chartSeries: TrendSeries[] = activeMembers.map((m) => ({
     key: m.id,
     label: m.name.split(" ")[0],
-    color: CHART_COLORS[i % CHART_COLORS.length],
+    color: memberPalette(m.id).css,
   }));
 
   return (
@@ -267,9 +210,9 @@ export function CabReportTab({ data }: { data: CabDeptReportData }) {
       {/* ── Summary stat cards ─────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <SummaryCard label="Drivers Added"       value={summary.driversAdded}       icon={Car}           colorClass="text-dashboard-info"    bg="bg-dashboard-info/10" />
-        <SummaryCard label="Drivers Verified"     value={summary.driversVerified}    icon={ShieldCheck}   colorClass="text-emerald-600"       bg="bg-emerald-100" />
+        <SummaryCard label="Drivers Verified"     value={summary.driversVerified}    icon={ShieldCheck}   colorClass="text-dashboard-success" bg="bg-dashboard-success/10" />
         <SummaryCard label="Drivers w/ Vehicle"   value={summary.driversWithVehicle} icon={CheckCircle2}  colorClass="text-dashboard-primary" bg="bg-dashboard-primary/10" />
-        <SummaryCard label="Pricing Entries"      value={summary.pricingAdded}       icon={IndianRupee}   colorClass="text-amber-600"         bg="bg-amber-100" />
+        <SummaryCard label="Pricing Entries"      value={summary.pricingAdded}       icon={IndianRupee}   colorClass="text-dashboard-warning" bg="bg-dashboard-warning/10" />
       </div>
 
       {/* ── Team members grid ──────────────────────────────────────────────── */}
@@ -290,12 +233,11 @@ export function CabReportTab({ data }: { data: CabDeptReportData }) {
             <p className="text-xs text-dashboard-base-content/30 mt-1">Make sure a department named "Cab" or "Cab Department" exists.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {members.map((m, i) => (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+            {members.map((m) => (
               <MemberCard
                 key={m.id}
                 member={m}
-                index={i}
                 isSelected={selectedMemberId === m.id}
                 onSelect={() => setSelectedMemberId(m.id)}
               />
@@ -309,30 +251,34 @@ export function CabReportTab({ data }: { data: CabDeptReportData }) {
         <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 overflow-hidden">
           {/* Tab bar */}
           <div className="flex overflow-x-auto border-b border-dashboard-base-300 bg-dashboard-base-200/40 scrollbar-none">
-            {members.map((m, i) => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => setSelectedMemberId(m.id)}
-                className={cn(
-                  "flex items-center gap-2 px-4 py-3 text-xs font-semibold whitespace-nowrap shrink-0 border-b-2 transition-all",
-                  selectedMemberId === m.id
-                    ? "border-dashboard-info text-dashboard-info bg-dashboard-base-100"
-                    : "border-transparent text-dashboard-base-content/50 hover:text-dashboard-base-content hover:bg-dashboard-base-200/60",
-                )}
-              >
-                <MemberAvatar member={m} size="sm" />
-                <span>{m.name.split(" ")[0]}</span>
-                <span className={cn(
-                  "flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full text-[10px] font-bold",
-                  m.driversAdded > 0
-                    ? "bg-dashboard-info text-white"
-                    : "bg-dashboard-base-300 text-dashboard-base-content/40",
-                )}>
-                  {m.driversAdded}
-                </span>
-              </button>
-            ))}
+            {members.map((m) => {
+              const p = memberPalette(m.id);
+              const isTabSelected = selectedMemberId === m.id;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setSelectedMemberId(m.id)}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-3 text-xs font-semibold whitespace-nowrap shrink-0 border-b-2 transition-all cursor-pointer",
+                    isTabSelected
+                      ? cn(p.border, p.text, "bg-dashboard-base-100")
+                      : "border-transparent text-dashboard-base-content/50 hover:text-dashboard-base-content hover:bg-dashboard-base-200/60",
+                  )}
+                >
+                  <MemberAvatar member={m} size="sm" />
+                  <span>{m.name.split(" ")[0]}</span>
+                  <span className={cn(
+                    "flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full text-[10px] font-bold",
+                    m.driversAdded > 0
+                      ? cn(p.bg, p.text)
+                      : "bg-dashboard-base-300 text-dashboard-base-content/40",
+                  )}>
+                    {m.driversAdded}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Selected member header */}
@@ -347,13 +293,13 @@ export function CabReportTab({ data }: { data: CabDeptReportData }) {
                 <span className="flex items-center gap-1 font-medium text-dashboard-info">
                   <Car className="h-3.5 w-3.5" /> {selectedMember.driversAdded} drivers
                 </span>
-                <span className="flex items-center gap-1 font-medium text-emerald-600">
+                <span className="flex items-center gap-1 font-medium text-dashboard-success">
                   <ShieldCheck className="h-3.5 w-3.5" /> {selectedMember.driversVerified} verified
                 </span>
                 <span className="flex items-center gap-1 font-medium text-dashboard-primary">
                   <CheckCircle2 className="h-3.5 w-3.5" /> {selectedMember.driversWithVehicle} w/ vehicle
                 </span>
-                <span className="flex items-center gap-1 font-medium text-amber-600">
+                <span className="flex items-center gap-1 font-medium text-dashboard-warning">
                   <IndianRupee className="h-3.5 w-3.5" /> {selectedMember.pricingAdded} pricing
                 </span>
               </div>

@@ -2347,6 +2347,8 @@ model custom_packages {
   id             String               @id @default(cuid())
   queryId        String               @unique
   title          String
+  description    String?
+  coverImage     String?
   destination    String
   startingPoint  String?
   totalDays      Int
@@ -2361,38 +2363,78 @@ model custom_packages {
   inclusions     String[]
   exclusions     String[]
   termsNotes     String?
-  status         CustomPackageStatus  @default(DRAFT)
-  builtBy        String
-  builtByName    String?
-  sentAt         DateTime?
-  pdfUrl         String?
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
-  itineraries    custom_itineraries[]
-  query          package_queries      @relation(fields: [queryId], references: [id])
+  status          CustomPackageStatus  @default(DRAFT)
+  builtBy         String
+  builtByName     String?
+  sentAt          DateTime?
+  pdfUrl          String?
+  flightsIncluded Boolean              @default(false)
+  flightNotes     String?
+  trainIncluded   Boolean              @default(false)
+  trainNotes      String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  itineraries     custom_itineraries[]
+  stops           custom_package_stops[]
+  query           package_queries      @relation(fields: [queryId], references: [id])
 
   @@index([queryId])
   @@index([builtBy])
   @@index([status])
 }
 
-model custom_itineraries {
+// A route stop within a custom package — e.g. "Manali, 2 nights" — used to
+// build the day count/destination summary from a sequence of places rather
+// than free-typing a single destination string and a raw night count.
+model custom_package_stops {
   id              String          @id @default(cuid())
   customPackageId String
-  day             Int
-  title           String
-  description     String?
-  activities      String[]
-  meals           String[]
-  accommodation   String?
-  transport       String?
-  notes           String?
+  name            String
+  nights          Int             @default(1)
+  sortOrder       Int             @default(0)
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   package         custom_packages @relation(fields: [customPackageId], references: [id], onDelete: Cascade)
 
   @@index([customPackageId])
+}
+
+model custom_itineraries {
+  id              String                        @id @default(cuid())
+  customPackageId String
+  day             Int
+  title           String
+  description     String?
+  meals           String[]
+  accommodation   String?
+  accommodationPhoto String?
+  hotelCheckIn    String?
+  hotelCheckOut   String?
+  hotelMealPlan   String?
+  transport       String?
+  transportPhoto  String?
+  notes           String?
+  createdAt       DateTime                      @default(now())
+  updatedAt       DateTime                      @updatedAt
+  package         custom_packages               @relation(fields: [customPackageId], references: [id], onDelete: Cascade)
+  activities      custom_itinerary_activities[]
+
+  @@index([customPackageId])
   @@index([day])
+}
+
+model custom_itinerary_activities {
+  id          String             @id @default(cuid())
+  itineraryId String
+  title       String
+  description String?
+  photo       String?
+  sortOrder   Int                @default(0)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  itinerary   custom_itineraries @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
+
+  @@index([itineraryId])
 }
 
 model blog_posts {
@@ -2740,6 +2782,7 @@ enum QueryStatus {
   REJECTED
   ASSIGNED
   IN_PROGRESS
+  FOLLOW_UP
   PACKAGE_SENT
   CLIENT_ACCEPTED
   CLIENT_DECLINED
@@ -2951,4 +2994,15 @@ model permits {
   @@index([category])
   @@index([is_active])
   @@map("permits")
+}
+
+// Generic key-value store for small, global toggles (e.g. "is auto-assign on?")
+// that don't warrant their own dedicated table.
+model SystemSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  @@map("system_settings")
 }
