@@ -1,6 +1,7 @@
 import { hotelConnectAuth } from "@/app/lib/auth-hotel-connect";
 import { db } from "@/app/lib/db";
 import ConnectHeader from "./components/ConnectHeader";
+import EmailVerifyBanner from "./components/EmailVerifyBanner";
 import Link from "next/link";
 import {
   BuildingsIcon,
@@ -161,6 +162,11 @@ export default async function HotelConnectDashboard() {
   const { hotels, stats, recentBookings, alerts } = await getDashboardData(ownerId);
   const hasHotels = hotels.length > 0;
 
+  const owner = await db.hotelOwner.findUnique({
+    where: { id: ownerId },
+    select: { email_verified: true },
+  });
+
   const today = new Date().toLocaleDateString("en-IN", {
     weekday: "long", day: "numeric", month: "long", year: "numeric",
   });
@@ -190,6 +196,8 @@ export default async function HotelConnectDashboard() {
               </Link>
             )}
           </div>
+
+          {owner?.email_verified === false && <EmailVerifyBanner />}
 
           {/* Alerts */}
           {alerts.length > 0 && (
