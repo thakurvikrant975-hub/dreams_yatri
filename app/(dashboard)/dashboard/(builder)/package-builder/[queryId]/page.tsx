@@ -838,6 +838,7 @@ export default function PackageBuilderDetailPage() {
       const r = data.requirements;
       const j = r?.journey;
       const t = r?.travellers;
+      const tr = r?.transport;
 
       setForm((f) => ({
         ...f,
@@ -850,6 +851,11 @@ export default function PackageBuilderDetailPage() {
         adults: t?.adults ?? 1,
         children: t?.children ?? 0,
         infants: t?.infants ?? 0,
+        // Pre-select flight/train inclusion from what the client asked for
+        // when the query was created — a sales exec can still flip these
+        // off below if the customer's requirements change.
+        flightsIncluded: tr?.includeFlights ?? f.flightsIncluded,
+        trainIncluded: tr?.includeTrain ?? f.trainIncluded,
         itineraries: Array.from({ length: j?.noOfDays ?? 3 }, (_, i) => emptyDay(i + 1)),
       }));
 
