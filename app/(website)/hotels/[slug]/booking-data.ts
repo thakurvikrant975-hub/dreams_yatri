@@ -140,19 +140,22 @@ export async function getRoomBookingContext(
   roomId: number,
   checkIn: string,
   checkOut: string,
+  pricingId?: number,
 ): Promise<RoomBookingContext | null> {
   const room = await db.hotel_rooms.findFirst({
     where: { id: roomId, hotel: { slug } },
     select: {
       id: true, name: true,
       hotel: { select: { id: true, name: true, cancellation_policy: true } },
-      pricing: { where: { is_active: true }, orderBy: { sort_order: "asc" }, take: 1, select: { cancellation_policy: true } },
+      pricing: pricingId != null
+        ? { where: { id: pricingId }, take: 1, select: { cancellation_policy: true } }
+        : { where: { is_active: true }, orderBy: { sort_order: "asc" }, take: 1, select: { cancellation_policy: true } },
     },
   });
   if (!room) return null;
 
   const { getStayQuote } = await import("@/app/lib/hotel-inventory/rates");
-  const quote = await getStayQuote(roomId, checkIn, checkOut, undefined);
+  const quote = await getStayQuote(roomId, checkIn, checkOut, undefined, pricingId);
   const nights = nightsBetween(checkIn, checkOut);
   const policy = effectivePolicy(
     (room.pricing[0]?.cancellation_policy as CancellationPolicy | null) ?? null,

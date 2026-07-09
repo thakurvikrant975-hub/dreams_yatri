@@ -7,14 +7,7 @@ import { db } from "@/app/lib/db";
 import { getRoomARI, type DailyRate } from "@/app/lib/hotel-inventory/rates";
 import { ensureAvailability, stayNights } from "@/app/lib/hotel-inventory/availability";
 import { enqueueAriPushIfConnected } from "@/app/lib/hotel-inventory/sync";
-
-async function ownsRoom(hotelId: number, roomId: number, ownerId: string): Promise<boolean> {
-  const room = await db.hotel_rooms.findFirst({
-    where: { id: roomId, hotel_id: hotelId, hotel: { owner_id: ownerId } },
-    select: { id: true },
-  });
-  return !!room;
-}
+import { ownsRoom } from "@/app/lib/hotel-inventory/owns-room";
 
 /** Per-night ARI for one room over `[fromISO, toExclusiveISO)` (a month window). */
 export async function fetchRoomCalendar(
@@ -22,11 +15,12 @@ export async function fetchRoomCalendar(
   roomId: number,
   fromISO: string,
   toExclusiveISO: string,
+  pricingId?: number,
 ): Promise<{ error?: string; days?: DailyRate[] }> {
   const session = await hotelConnectAuth();
   if (!session) redirect("/hotel-connect/login");
   if (!(await ownsRoom(hotelId, roomId, session.user.id))) return { error: "Room not found." };
-  const days = await getRoomARI(roomId, fromISO, toExclusiveISO);
+  const days = await getRoomARI(roomId, fromISO, toExclusiveISO, undefined, pricingId);
   return { days };
 }
 

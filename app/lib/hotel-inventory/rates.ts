@@ -14,9 +14,10 @@ import { getRoomAvailability, type NightAvailability } from "./availability";
  *   - weekend = Sat/Sun uses `weekend_price_per_night` when set,
  *   - occupancy overrides come from the season, else the base rate plan.
  *
- * Scope: resolves the room's **lead** rate plan (lowest sort_order) at a given occupancy —
- * the "room rate" a calendar / channel needs. Per-rate-plan channel pricing is refined in
- * Phase 5 (mapping). A per-date `price_override` on the ledger wins over everything.
+ * Resolves either a specific rate plan (pass `pricingId`) or, when omitted, the room's
+ * **lead** rate plan (lowest sort_order) — the "room rate" a calendar / channel needs by
+ * default when no particular plan is in play. A per-date `price_override` on the ledger
+ * wins over everything, regardless of which plan was resolved.
  */
 
 export type PriceSource = "override" | "weekend" | "season" | "base" | "none";
@@ -35,7 +36,7 @@ type Season = {
   weekend_price_per_night: unknown;
   occupancy_prices: OccPrice[];
 };
-type LeadPlan = {
+type ResolvedPlan = {
   plan_name: string | null;
   price_per_night: unknown;
   occupancy_prices: OccPrice[];
@@ -57,7 +58,7 @@ function pickOcc(occPrices: OccPrice[], occupancy: number | null): number | null
  * following the same rules as the package-pricing service.
  */
 function resolvePlanNight(
-  plan: LeadPlan,
+  plan: ResolvedPlan,
   night: Date,
   occupancy: number | null,
 ): { price: number; source: PriceSource } {
@@ -88,44 +89,46 @@ function resolvePlanNight(
 /**
  * Per-night ARI for a room over `[checkIn, checkOut)`.
  * `occupancy` defaults to the room's `base_adults`. Ledger `price_override` wins.
+ * `pricingId`, when given, resolves that specific rate plan instead of the lead plan —
+ * every existing caller omits it and keeps today's lead-plan behavior unchanged.
  */
 export async function getRoomARI(
   roomId: number,
   checkIn: string,
   checkOut: string,
   occupancy?: number,
+  pricingId?: number,
 ): Promise<DailyRate[]> {
   const nights = await getRoomAvailability(roomId, checkIn, checkOut);
   if (nights.length === 0) return [];
+
+  const pricingSelect = {
+    plan_name: true,
+    price_per_night: true,
+    occupancy_prices: { select: { occupancy: true, price_per_night: true } },
+    seasons: {
+      where: { is_active: true },
+      select: {
+        valid_from: true,
+        valid_to: true,
+        price_per_night: true,
+        weekend_price_per_night: true,
+        occupancy_prices: { select: { occupancy: true, price_per_night: true } },
+      },
+    },
+  } as const;
 
   const room = await db.hotel_rooms.findUnique({
     where: { id: roomId },
     select: {
       base_adults: true,
-      pricing: {
-        where: { is_active: true },
-        orderBy: { sort_order: "asc" },
-        take: 1,
-        select: {
-          plan_name: true,
-          price_per_night: true,
-          occupancy_prices: { select: { occupancy: true, price_per_night: true } },
-          seasons: {
-            where: { is_active: true },
-            select: {
-              valid_from: true,
-              valid_to: true,
-              price_per_night: true,
-              weekend_price_per_night: true,
-              occupancy_prices: { select: { occupancy: true, price_per_night: true } },
-            },
-          },
-        },
-      },
+      pricing: pricingId != null
+        ? { where: { id: pricingId }, take: 1, select: pricingSelect }
+        : { where: { is_active: true }, orderBy: { sort_order: "asc" }, take: 1, select: pricingSelect },
     },
   });
 
-  const lead = room?.pricing[0] as LeadPlan | undefined;
+  const resolved = room?.pricing[0] as ResolvedPlan | undefined;
   const occ = occupancy ?? room?.base_adults ?? null;
 
   return nights.map((n) => {
@@ -133,22 +136,23 @@ export async function getRoomARI(
     // (saveAvailabilityRange validates this), but never trust legacy/raw
     // data enough to quote a guest a zero or negative price.
     if (n.priceOverride != null && Number(n.priceOverride) > 0) {
-      return { ...n, price: n.priceOverride, priceSource: "override", planName: lead?.plan_name ?? null };
+      return { ...n, price: n.priceOverride, priceSource: "override", planName: resolved?.plan_name ?? null };
     }
-    if (!lead) return { ...n, price: null, priceSource: "none", planName: null };
-    const { price, source } = resolvePlanNight(lead, new Date(`${n.date}T00:00:00.000Z`), occ);
-    return { ...n, price, priceSource: source, planName: lead.plan_name ?? null };
+    if (!resolved) return { ...n, price: null, priceSource: "none", planName: null };
+    const { price, source } = resolvePlanNight(resolved, new Date(`${n.date}T00:00:00.000Z`), occ);
+    return { ...n, price, priceSource: source, planName: resolved.plan_name ?? null };
   });
 }
 
-/** Lead nightly price + total for a stay (sum of bookable nights). Null if any night unpriced. */
+/** Nightly price + total for a stay (sum of bookable nights). Null if any night unpriced. */
 export async function getStayQuote(
   roomId: number,
   checkIn: string,
   checkOut: string,
   occupancy?: number,
+  pricingId?: number,
 ): Promise<{ nights: DailyRate[]; total: number | null; allAvailable: boolean }> {
-  const nights = await getRoomARI(roomId, checkIn, checkOut, occupancy);
+  const nights = await getRoomARI(roomId, checkIn, checkOut, occupancy, pricingId);
   const allAvailable = nights.length > 0 && nights.every((n) => n.available > 0);
   const anyUnpriced = nights.some((n) => n.price == null);
   const total = anyUnpriced ? null : nights.reduce((s, n) => s + (n.price ?? 0), 0);

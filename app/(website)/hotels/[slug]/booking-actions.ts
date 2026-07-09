@@ -19,6 +19,8 @@ export async function holdRoomReservation(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
   const phone = String(formData.get("phone") ?? "").trim();
+  const pricingIdRaw = String(formData.get("pricingId") ?? "").trim();
+  let pricingId = pricingIdRaw && /^\d+$/.test(pricingIdRaw) ? Number(pricingIdRaw) : undefined;
 
   const room = await db.hotel_rooms.findFirst({
     where: { id: roomId, hotel: { slug } },
@@ -26,13 +28,24 @@ export async function holdRoomReservation(formData: FormData) {
   });
   if (!room || !slug || !checkIn || !checkOut) redirect(`/hotels/${slug}`);
 
+  // Defense in depth: a tampered/stale pricingId that doesn't actually belong
+  // to this room must never resolve some other room's/hotel's rate plan —
+  // silently fall back to lead-plan behavior rather than erroring.
+  if (pricingId != null) {
+    const ownedPlan = await db.hotel_room_pricing.findFirst({
+      where: { id: pricingId, room_id: roomId },
+      select: { id: true },
+    });
+    if (!ownedPlan) pricingId = undefined;
+  }
+
   const back = (msg: string) =>
-    `/hotels/${slug}/book?room=${roomId}&in=${checkIn}&out=${checkOut}&error=${encodeURIComponent(msg)}`;
+    `/hotels/${slug}/book?room=${roomId}&in=${checkIn}&out=${checkOut}&plan=${pricingId ?? ""}&error=${encodeURIComponent(msg)}`;
 
   if (!name || !email || !phone) redirect(back("Please fill in your name, email and phone."));
 
   // Server-authoritative price snapshot.
-  const quote = await getStayQuote(roomId, checkIn, checkOut, undefined);
+  const quote = await getStayQuote(roomId, checkIn, checkOut, undefined, pricingId);
   if (!quote.allAvailable) redirect(back("Sorry, those dates are no longer available."));
 
   const res = await createReservation({

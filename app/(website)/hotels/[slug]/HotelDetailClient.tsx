@@ -663,7 +663,7 @@ export default function HotelDetailClient({ hotel, checkIn, checkOut }: { hotel:
 
   function selectRate(roomId: string, plan: RatePlan) {
     setSelected({ roomId, plan });
-    const q = new URLSearchParams({ room: roomId, in: checkIn, out: checkOut });
+    const q = new URLSearchParams({ room: roomId, in: checkIn, out: checkOut, plan: plan.id });
     router.push(`/hotels/${hotel.slug}/book?${q.toString()}`);
   }
 

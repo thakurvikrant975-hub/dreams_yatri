@@ -45,21 +45,36 @@ export default async function CalendarPage({
       hotelRooms: {
         where: { is_active: true },
         orderBy: { sort_order: "asc" },
-        select: { id: true, name: true, num_rooms: true },
+        select: {
+          id: true, name: true, num_rooms: true,
+          pricing: {
+            where: { is_active: true },
+            orderBy: { sort_order: "asc" },
+            select: { id: true, plan_name: true, meal_type: { select: { name: true } } },
+          },
+        },
       },
     },
   });
   if (!hotel) notFound();
+
+  const rooms = hotel.hotelRooms.map((r) => ({
+    id: r.id,
+    name: r.name,
+    num_rooms: r.num_rooms,
+    plans: r.pricing.map((p) => ({ id: p.id, label: p.plan_name || p.meal_type?.name || "Room Only" })),
+  }));
 
   const year = new Date().getUTCFullYear();
   const { from, toExclusive } = yearBounds(year);
 
   const requestedRoomId = roomParam ? parseInt(roomParam, 10) : NaN;
   const requestedRoom = !isNaN(requestedRoomId)
-    ? hotel.hotelRooms.find((r) => r.id === requestedRoomId) ?? null
+    ? rooms.find((r) => r.id === requestedRoomId) ?? null
     : null;
-  const firstRoom = requestedRoom ?? hotel.hotelRooms[0] ?? null;
-  const initialDays = firstRoom ? await getRoomARI(firstRoom.id, from, toExclusive) : [];
+  const firstRoom = requestedRoom ?? rooms[0] ?? null;
+  const firstPlanId = firstRoom?.plans[0]?.id ?? null;
+  const initialDays = firstRoom ? await getRoomARI(firstRoom.id, from, toExclusive, undefined, firstPlanId ?? undefined) : [];
 
   return (
     <>
@@ -69,8 +84,9 @@ export default async function CalendarPage({
           <CalendarClient
             hotelId={hotel.id}
             hotelName={hotel.name}
-            rooms={hotel.hotelRooms}
+            rooms={rooms}
             initialRoomId={firstRoom?.id ?? null}
+            initialPlanId={firstPlanId}
             initialYear={year}
             initialDays={initialDays}
           />

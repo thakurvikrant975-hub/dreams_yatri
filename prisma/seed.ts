@@ -44,6 +44,14 @@ async function main() {
   const [mealEP, mealCP] = await Promise.all([
     db.meal_types.upsert({ where: { name: "EP (Room Only)" }, update: {}, create: { name: "EP (Room Only)" } }),
     db.meal_types.upsert({ where: { name: "CP (Breakfast)" }, update: {}, create: { name: "CP (Breakfast)" } }),
+    db.meal_types.upsert({
+      where: { name: "MAP (Breakfast + 1 meal)" }, update: {},
+      create: { name: "MAP (Breakfast + 1 meal)", covered_meals: ["breakfast", "lunch"] },
+    }),
+    db.meal_types.upsert({
+      where: { name: "AP (All Meals Included)" }, update: {},
+      create: { name: "AP (All Meals Included)", covered_meals: ["breakfast", "lunch", "dinner"] },
+    }),
   ]);
 
   // ── 4. Hotels ──────────────────────────────────────────────────────────────
