@@ -885,8 +885,15 @@ export default function PackageBuilderDetailPage() {
 
   // ── Load query ─────────────────────────────────────────────────────────────
   useEffect(() => {
+    // Guards against React Strict Mode's dev-only double-invocation: without
+    // this, the first (soon-to-be-cancelled) run could still consume the
+    // "Use It" sessionStorage payload and apply it, and then the second run's
+    // slower async destination-cover fetch resolves afterwards and clobbers
+    // the correctly-applied package cover with the generic destination one.
+    let cancelled = false;
     (async () => {
       const data = await getQueryDetail(queryId);
+      if (cancelled) return;
       setQuery(data);
       if (!data) { setLoading(false); return; }
 
@@ -937,6 +944,7 @@ export default function PackageBuilderDetailPage() {
         const destinationName = j?.destinations?.[0] ?? data.destination;
         if (destinationName) {
           const suggested = await getDestinationCoverImage(destinationName);
+          if (cancelled) return;
           if (suggested) setForm((f) => ({ ...f, coverImage: suggested }));
         }
       }
@@ -954,7 +962,10 @@ export default function PackageBuilderDetailPage() {
         if (proceed) {
           try {
             const payload = JSON.parse(rawCopyPayload) as PackageCopyPayload;
-            setForm((f) => ({ ...f, ...payload }));
+            // An empty payload.coverImage (picked package has no photo) should
+            // never blank out whatever cover is already showing — only
+            // overwrite it when the package actually has one.
+            setForm((f) => ({ ...f, ...payload, coverImage: payload.coverImage || f.coverImage }));
             toast.success(`Copied "${payload.title}" into this draft`);
           } catch (err) {
             console.error("Failed to apply copied package payload", err);
@@ -964,6 +975,7 @@ export default function PackageBuilderDetailPage() {
 
       setLoading(false);
     })();
+    return () => { cancelled = true; };
   }, [queryId]);
 
   // ── Auto-calc total price ──────────────────────────────────────────────────
