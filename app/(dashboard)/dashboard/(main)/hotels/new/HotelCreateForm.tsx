@@ -21,7 +21,7 @@ import { COUNTRY_CODES, DEFAULT_COUNTRY } from "@/app/lib/assets/country-codes";
 import { cn } from "@/app/lib/utils";
 
 type Destination = {
-  id: number;
+  id: number; 
   name: string;
   region: { name: string };
 };
