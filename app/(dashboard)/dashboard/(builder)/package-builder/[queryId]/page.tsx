@@ -549,6 +549,9 @@ function DayCard({ day, data, location, onChange, onRemove }: {
       accommodation: `${raw.hotelName} — ${raw.roomName}`,
       accommodationPhoto: raw.hotelPhoto ?? data.accommodationPhoto,
       accommodationRoomPhotos: raw.roomPhotos.length > 0 ? raw.roomPhotos : data.accommodationRoomPhotos,
+      accommodationLocation: raw.location ?? data.accommodationLocation,
+      accommodationRoomSpecs: raw.roomSpecs ?? data.accommodationRoomSpecs,
+      accommodationRoomCapacity: raw.roomCapacity ?? data.accommodationRoomCapacity,
       hotelMealPlan: raw.mealPlanName ?? data.hotelMealPlan,
     });
   }
@@ -672,6 +675,26 @@ function DayCard({ day, data, location, onChange, onRemove }: {
               placeholder="Hotel name / type"
               className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
             />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] text-dashboard-base-content/60 mb-1 block">Location</label>
+                <Input
+                  value={data.accommodationLocation}
+                  onChange={(e) => onChange({ ...data, accommodationLocation: e.target.value })}
+                  placeholder="City, State"
+                  className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-dashboard-base-content/60 mb-1 block">Room Specs</label>
+                <Input
+                  value={data.accommodationRoomSpecs}
+                  onChange={(e) => onChange({ ...data, accommodationRoomSpecs: e.target.value })}
+                  placeholder="1 Double Bed | Mountain View"
+                  className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                />
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-[11px] text-dashboard-base-content/60 mb-1 flex items-center gap-1 block">
@@ -844,7 +867,9 @@ function deriveDayLocations(stops: StopInput[], totalDays: number): string[] {
 
 const emptyDay = (day: number): DayItinerary => ({
   day, title: "", description: "", activities: [],
-  meals: [], accommodation: "", accommodationPhoto: "", accommodationRoomPhotos: [], hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
+  meals: [], accommodation: "", accommodationPhoto: "", accommodationRoomPhotos: [],
+  accommodationLocation: "", accommodationRoomSpecs: "", accommodationRoomCapacity: null,
+  hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
   transport: "", transportPhoto: "", notes: "",
 });
 

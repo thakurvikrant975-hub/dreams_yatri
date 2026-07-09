@@ -2409,6 +2409,9 @@ model custom_itineraries {
   accommodation   String?
   accommodationPhoto String?
   accommodationRoomPhotos String[] @default([])
+  accommodationLocation String?
+  accommodationRoomSpecs String?
+  accommodationRoomCapacity Int?
   hotelCheckIn    String?
   hotelCheckOut   String?
   hotelMealPlan   String?

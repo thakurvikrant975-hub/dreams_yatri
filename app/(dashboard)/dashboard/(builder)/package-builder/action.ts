@@ -28,13 +28,13 @@ const HOTEL_ROOM_SELECT = {
   meal_type: { select: { name: true } },
   hotel: {
     select: {
-      name: true, category: true, thumbnail: true,
+      name: true, category: true, thumbnail: true, city: true, state: true,
       images: { select: { url: true, thumbnail: true }, orderBy: HOTEL_IMAGE_ORDER, take: 1 },
     },
   },
   room: {
     select: {
-      name: true,
+      name: true, bed_type: true, view_type: true, area_sqft: true, max_occupancy: true,
       images: { select: { url: true, thumbnail: true }, orderBy: HOTEL_IMAGE_ORDER, take: 3 },
     },
   },
@@ -52,6 +52,11 @@ export interface HotelRoomResult {
   /** Up to 3 photos of the specific room booked. */
   roomPhotos:    string[];
   category:      string | null;
+  /** "City, State" — shown under the hotel name in the preview. */
+  location:      string | null;
+  /** e.g. "1 Double Bed | Mountain View | 250 sq.ft" */
+  roomSpecs:     string | null;
+  roomCapacity:  number | null;
 }
 
 export async function searchHotelRoomsForBuilder(cityOrDestinationName: string, query: string): Promise<HotelRoomResult[]> {
@@ -79,6 +84,8 @@ export async function searchHotelRoomsForBuilder(cityOrDestinationName: string, 
     const rawHotelPhoto = item.hotel.images[0]?.thumbnail ?? item.hotel.images[0]?.url ?? item.hotel.thumbnail ?? null;
     const rawRoomPhotos = (item.room?.images ?? []).map((img) => img.thumbnail ?? img.url).filter((u): u is string => !!u);
     const rawThumbnail = rawRoomPhotos[0] ?? rawHotelPhoto ?? null;
+    const roomSpecs = [item.room?.bed_type, item.room?.view_type, item.room?.area_sqft ? `${item.room.area_sqft} sq.ft` : null]
+      .filter(Boolean).join(" | ") || null;
     return {
       id:            item.id,
       hotelName:     item.hotel.name,
@@ -89,6 +96,9 @@ export async function searchHotelRoomsForBuilder(cityOrDestinationName: string, 
       hotelPhoto:    rawHotelPhoto ? getThumbnailImage(rawHotelPhoto) : null,
       roomPhotos:    rawRoomPhotos.map((u) => getThumbnailImage(u)),
       category:      item.hotel.category,
+      location:      [item.hotel.city, item.hotel.state].filter(Boolean).join(", ") || null,
+      roomSpecs,
+      roomCapacity:  item.room?.max_occupancy ?? null,
     };
   });
 }
@@ -242,6 +252,9 @@ export interface DayItinerary {
   accommodation:      string;
   accommodationPhoto: string;
   accommodationRoomPhotos: string[];
+  accommodationLocation: string;
+  accommodationRoomSpecs: string;
+  accommodationRoomCapacity: number | null;
   hotelCheckIn:       string;
   hotelCheckOut:      string;
   hotelMealPlan:      string;
@@ -334,6 +347,11 @@ export async function copyPackageIntoDraft(
       .slice(0, 3)
       .map((img) => img.thumbnail ?? img.url)
       .filter((u): u is string => !!u);
+    const roomSpecs = [
+      day.hotel?.room_bed_type,
+      day.hotel?.room_view,
+      day.hotel?.room_area_sqft ? `${day.hotel.room_area_sqft} sq.ft` : null,
+    ].filter(Boolean).join(" | ");
 
     return {
       day:                day.day,
@@ -351,6 +369,9 @@ export async function copyPackageIntoDraft(
       accommodation:      day.hotel ? [day.hotel.name, day.hotel.room_name].filter(Boolean).join(" — ") : "",
       accommodationPhoto: rawHotelPhoto ? getThumbnailImage(rawHotelPhoto) : "",
       accommodationRoomPhotos: rawRoomPhotos.map((u) => getThumbnailImage(u)),
+      accommodationLocation: day.hotel?.location ?? "",
+      accommodationRoomSpecs: roomSpecs,
+      accommodationRoomCapacity: day.hotel?.room_capacity ?? null,
       hotelCheckIn:       day.hotel?.check_in_time ?? "",
       hotelCheckOut:      day.hotel?.check_out_time ?? "",
       hotelMealPlan:      day.hotel?.plan_name ?? day.hotel?.meal_type ?? "",
@@ -519,6 +540,9 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
               accommodation:      true,
               accommodationPhoto: true,
               accommodationRoomPhotos: true,
+              accommodationLocation: true,
+              accommodationRoomSpecs: true,
+              accommodationRoomCapacity: true,
               hotelCheckIn:       true,
               hotelCheckOut:      true,
               hotelMealPlan:      true,
@@ -655,6 +679,9 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
               accommodation:      it.accommodation || null,
               accommodationPhoto: it.accommodationPhoto || null,
               accommodationRoomPhotos: it.accommodationRoomPhotos ?? [],
+              accommodationLocation: it.accommodationLocation || null,
+              accommodationRoomSpecs: it.accommodationRoomSpecs || null,
+              accommodationRoomCapacity: it.accommodationRoomCapacity ?? null,
               hotelCheckIn:       it.hotelCheckIn || null,
               hotelCheckOut:      it.hotelCheckOut || null,
               hotelMealPlan:      it.hotelMealPlan || null,
