@@ -1,6 +1,7 @@
 import { hotelConnectAuth } from "@/app/lib/auth-hotel-connect";
 import { Bell } from "@phosphor-icons/react/dist/ssr";
 import UserMenu from "./UserMenu";
+import MobileMenuButton from "./MobileMenuButton";
 
 export default async function ConnectHeader({
   title,
@@ -15,8 +16,9 @@ export default async function ConnectHeader({
 
   return (
     <header className="h-14 flex items-center justify-between px-6 border-b border-neutral-100 bg-white sticky top-0 z-20 shrink-0">
-      {/* Left: page title + optional badge */}
+      {/* Left: mobile menu trigger + page title + optional badge */}
       <div className="flex items-center gap-2.5">
+        <MobileMenuButton />
         {title && (
           <h1 className="text-sm font-semibold text-neutral-800">{title}</h1>
         )}

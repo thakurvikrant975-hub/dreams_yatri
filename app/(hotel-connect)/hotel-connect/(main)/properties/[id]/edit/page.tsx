@@ -208,6 +208,15 @@ export default async function EditPropertyPage({
       })
     : null;
 
+  // Account email verification is encouraged but doesn't block the wizard —
+  // fetched separately (not just on the homestay-only ownerRecord above) so
+  // the Submit for Review strip can show a reminder regardless of property type.
+  const owner = await db.hotelOwner.findUnique({
+    where: { id: ownerId },
+    select: { email_verified: true },
+  });
+  const ownerEmailVerified = owner?.email_verified ?? false;
+
   // Prisma returns Decimal objects for lat/lng and pricing fields — convert to
   // plain primitives so they serialize across the RSC boundary.
   const h = {
@@ -354,6 +363,7 @@ export default async function EditPropertyPage({
       tabFormId={tabFormId}
       effectiveWizardStep={reachedStep}
       hideNextButton={isHomestayRoomsCountsPending}
+      ownerEmailVerified={ownerEmailVerified}
     >
       {tabContent}
     </WizardShell>
