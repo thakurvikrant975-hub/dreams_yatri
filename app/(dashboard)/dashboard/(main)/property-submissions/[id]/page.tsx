@@ -32,20 +32,59 @@ export default async function PropertySubmissionDetailPage({
 
     // Prisma Decimal fields aren't plain-serializable across the RSC boundary —
     // convert to numbers before handing off to the client component.
+    const numOrNull = (v: unknown) => (v != null ? Number(v) : null);
     const detail = {
         ...raw,
-        latitude: raw.latitude != null ? Number(raw.latitude) : null,
-        longitude: raw.longitude != null ? Number(raw.longitude) : null,
-        prop_base_rate: raw.prop_base_rate != null ? Number(raw.prop_base_rate) : null,
-        prop_extra_adult: raw.prop_extra_adult != null ? Number(raw.prop_extra_adult) : null,
-        prop_child_rate: raw.prop_child_rate != null ? Number(raw.prop_child_rate) : null,
+        latitude: numOrNull(raw.latitude),
+        longitude: numOrNull(raw.longitude),
+        prop_base_rate: numOrNull(raw.prop_base_rate),
+        prop_extra_adult: numOrNull(raw.prop_extra_adult),
+        prop_child_rate: numOrNull(raw.prop_child_rate),
         hotelRooms: raw.hotelRooms.map((r) => ({
             ...r,
             pricing: r.pricing.map((p) => ({
                 ...p,
                 price_per_night: Number(p.price_per_night),
+                original_price: numOrNull(p.original_price),
+                extra_bed_rate: numOrNull(p.extra_bed_rate),
+                extra_child_rate: numOrNull(p.extra_child_rate),
                 gst_percentage: Number(p.gst_percentage),
+                occupancy_prices: p.occupancy_prices.map((o) => ({
+                    ...o,
+                    price_per_night: Number(o.price_per_night),
+                    original_price: numOrNull(o.original_price),
+                })),
+                seasons: p.seasons.map((s) => ({
+                    ...s,
+                    price_per_night: Number(s.price_per_night),
+                    weekend_price_per_night: numOrNull(s.weekend_price_per_night),
+                    original_price: numOrNull(s.original_price),
+                    extra_bed_rate: numOrNull(s.extra_bed_rate),
+                    extra_child_rate: numOrNull(s.extra_child_rate),
+                    occupancy_prices: s.occupancy_prices.map((o) => ({
+                        ...o,
+                        price_per_night: Number(o.price_per_night),
+                        original_price: numOrNull(o.original_price),
+                    })),
+                })),
             })),
+        })),
+        meal_pricing: raw.meal_pricing.map((m) => ({
+            ...m,
+            price: Number(m.price),
+            weekend_price: numOrNull(m.weekend_price),
+            veg_price: numOrNull(m.veg_price),
+            non_veg_price: numOrNull(m.non_veg_price),
+            seasons: m.seasons.map((s) => ({
+                ...s,
+                price: Number(s.price),
+                weekend_price: numOrNull(s.weekend_price),
+            })),
+        })),
+        addons: raw.addons.map((a) => ({
+            ...a,
+            price: Number(a.price),
+            weekend_price: numOrNull(a.weekend_price),
         })),
     };
 
