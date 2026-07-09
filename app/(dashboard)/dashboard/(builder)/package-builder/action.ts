@@ -109,6 +109,9 @@ export interface ActivityResult {
   category:      string | null;
   durationHours: number | null;
   thumbnail:     string | null;
+  /** Up to 3 gallery photos — "Glimpses of the experience" style. */
+  photos:        string[];
+  photoLabels:   string[];
 }
 
 export async function searchActivitiesForBuilder(cityOrDestinationName: string, query: string): Promise<ActivityResult[]> {
@@ -132,9 +135,9 @@ export async function searchActivitiesForBuilder(cityOrDestinationName: string, 
       id: true, name: true, duration_hours: true,
       category: { select: { name: true } },
       images: {
-        select: { url: true, thumbnail: true },
+        select: { url: true, thumbnail: true, label: true },
         orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
-        take: 1,
+        take: 3,
       },
     },
     take: 20,
@@ -142,13 +145,16 @@ export async function searchActivitiesForBuilder(cityOrDestinationName: string, 
   });
 
   return list.map((a) => {
-    const rawThumbnail = a.images[0]?.thumbnail ?? a.images[0]?.url ?? null;
+    const photos = a.images.map((img) => img.thumbnail ?? img.url).filter((u): u is string => !!u);
+    const photoLabels = a.images.map((img) => img.label ?? "");
     return {
       id:            a.id,
       name:          a.name,
       category:      a.category?.name ?? null,
       durationHours: a.duration_hours != null ? Number(a.duration_hours) : null,
-      thumbnail:     rawThumbnail ? getThumbnailImage(rawThumbnail) : null,
+      thumbnail:     photos[0] ? getThumbnailImage(photos[0]) : null,
+      photos:        photos.map((u) => getThumbnailImage(u)),
+      photoLabels,
     };
   });
 }
@@ -240,6 +246,9 @@ export interface ActivityInput {
   title:        string;
   description:  string;
   photo:        string;
+  /** Up to 3 gallery photos — "Glimpses of the experience" style. */
+  photos:       string[];
+  photoLabels:  string[];
 }
 
 export interface DayItinerary {
@@ -359,11 +368,17 @@ export async function copyPackageIntoDraft(
       title:              day.title,
       description:        day.description ?? "",
       activities:         day.activities.map((a) => {
-        const rawActivityPhoto = a.images?.[0]?.thumbnail ?? a.images?.[0]?.url ?? null;
+        const rawPhotos = (a.images ?? []).slice(0, 3);
+        const photos = rawPhotos
+          .map((img) => (img.thumbnail ?? img.url ? getThumbnailImage((img.thumbnail ?? img.url)!) : null))
+          .filter((u): u is string => !!u);
+        const photoLabels = rawPhotos.map((img) => img.label ?? "");
         return {
           title:       a.name,
           description: a.description ?? "",
-          photo:       rawActivityPhoto ? getThumbnailImage(rawActivityPhoto) : "",
+          photo:       photos[0] ?? "",
+          photos,
+          photoLabels,
         };
       }),
       meals:              day.meals,
@@ -562,7 +577,7 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
               notes:              true,
               activities: {
                 orderBy: { sortOrder: "asc" },
-                select: { id: true, title: true, description: true, photo: true },
+                select: { id: true, title: true, description: true, photo: true, photos: true, photoLabels: true },
               },
             },
           },
@@ -711,6 +726,8 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
                     title:       a.title,
                     description: a.description || null,
                     photo:       a.photo || null,
+                    photos:      a.photos ?? [],
+                    photoLabels: a.photoLabels ?? [],
                     sortOrder:   idx,
                   })),
               },

@@ -2438,6 +2438,8 @@ model custom_itinerary_activities {
   title       String
   description String?
   photo       String?
+  photos      String[]           @default([])
+  photoLabels String[]           @default([])
   sortOrder   Int                @default(0)
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt

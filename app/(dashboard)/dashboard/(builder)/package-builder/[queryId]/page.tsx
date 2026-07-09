@@ -275,7 +275,7 @@ function ActivityListEditor({ activities, location, onChange }: {
   onChange: (v: ActivityInput[]) => void;
 }) {
   function addActivity() {
-    onChange([...activities, { title: "", description: "", photo: "" }]);
+    onChange([...activities, { title: "", description: "", photo: "", photos: [], photoLabels: [] }]);
   }
   function updateActivity(idx: number, patch: Partial<ActivityInput>) {
     onChange(activities.map((a, i) => (i === idx ? { ...a, ...patch } : a)));
@@ -303,6 +303,8 @@ function ActivityListEditor({ activities, location, onChange }: {
       title: raw.name,
       description: [raw.category, raw.durationHours ? `${raw.durationHours}h` : null].filter(Boolean).join(" · "),
       photo: raw.thumbnail ?? "",
+      photos: raw.photos,
+      photoLabels: raw.photoLabels,
     }]);
   }
 
@@ -339,38 +341,50 @@ function ActivityListEditor({ activities, location, onChange }: {
       <div className="space-y-2">
         {activities.map((a, idx) => (
           <div key={idx} className="rounded-lg border border-dashboard-base-300 p-2.5 space-y-1.5">
-            <div className="flex items-start gap-1.5">
-              {a.photo && (
-                <PhotoPreview
-                  src={a.photo}
-                  alt={a.title || "Activity"}
-                  onRemove={() => updateActivity(idx, { photo: "" })}
-                />
-              )}
-              <div className="flex-1 space-y-1.5">
-                <div className="flex items-center gap-1.5">
-                  <Input
-                    value={a.title}
-                    onChange={(e) => updateActivity(idx, { title: e.target.value })}
-                    placeholder="Activity title, e.g. Paragliding"
-                    className="text-sm h-8 flex-1 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                  />
-                  <button
-                    onClick={() => removeActivity(idx)}
-                    className="p-1.5 rounded hover:bg-dashboard-error/10 text-dashboard-error/70 hover:text-dashboard-error transition-colors shrink-0"
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-                <Textarea
-                  value={a.description}
-                  onChange={(e) => updateActivity(idx, { description: e.target.value })}
-                  placeholder="Short description of the experience…"
-                  rows={2}
-                  className="text-xs resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                />
-              </div>
+            <div className="flex items-center gap-1.5">
+              <Input
+                value={a.title}
+                onChange={(e) => updateActivity(idx, { title: e.target.value })}
+                placeholder="Activity title, e.g. Paragliding"
+                className="text-sm h-8 flex-1 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+              />
+              <button
+                onClick={() => removeActivity(idx)}
+                className="p-1.5 rounded hover:bg-dashboard-error/10 text-dashboard-error/70 hover:text-dashboard-error transition-colors shrink-0"
+              >
+                <Trash2 size={12} />
+              </button>
             </div>
+            <Textarea
+              value={a.description}
+              onChange={(e) => updateActivity(idx, { description: e.target.value })}
+              placeholder="Short description of the experience…"
+              rows={2}
+              className="text-xs resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+            />
+            {a.photos.length > 0 && (
+              <div className="relative rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-2">
+                <button
+                  type="button"
+                  onClick={() => updateActivity(idx, { photo: "", photos: [], photoLabels: [] })}
+                  className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-dashboard-error text-white text-xs leading-none flex items-center justify-center hover:bg-dashboard-error/80 z-10"
+                >
+                  ×
+                </button>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {a.photos.slice(0, 3).map((src, i) => (
+                    <Image
+                      key={i}
+                      src={src}
+                      alt={a.photoLabels[i] || a.title || "Activity"}
+                      width={100}
+                      height={80}
+                      className="h-16 w-full rounded-md object-cover border border-dashboard-base-300"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ))}
         {activities.length === 0 && (

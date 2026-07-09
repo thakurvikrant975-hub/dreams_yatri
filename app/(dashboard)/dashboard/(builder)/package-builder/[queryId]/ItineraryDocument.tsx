@@ -70,6 +70,8 @@ function Kicker({ label }: { label: string }) {
 
 function ActivityRow({ activity }: { activity: ActivityInput }) {
   if (!activity.title.trim()) return null;
+  const gallery = activity.photos.length > 0 ? activity.photos : (activity.photo ? [activity.photo] : []);
+
   return (
     <div className="space-y-2">
       <div className="flex items-start gap-2">
@@ -83,12 +85,19 @@ function ActivityRow({ activity }: { activity: ActivityInput }) {
           )}
         </div>
       </div>
-      {activity.photo && (
-        <div className="relative rounded-xl overflow-hidden ml-7 w-40">
-          {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */}
-          <img src={activity.photo} alt={activity.title} className="w-40 h-28 object-cover" />
-          <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 via-black/20 to-transparent px-2 py-1.5 pt-4">
-            <p className="text-[11px] text-white font-medium truncate">{activity.title}</p>
+      {gallery.length > 0 && (
+        <div className="ml-7 space-y-1.5">
+          <p className="text-[9px] font-bold uppercase tracking-widest text-primary-600">Glimpses of the experience</p>
+          <div className="grid grid-cols-3 gap-1.5">
+            {gallery.slice(0, 3).map((src, i) => (
+              <div key={i} className="relative rounded-lg overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */}
+                <img src={src} alt={activity.photoLabels[i] || activity.title} className="w-full h-20 object-cover" />
+                <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 via-black/10 to-transparent px-1.5 py-1 pt-3">
+                  <p className="text-[9px] text-white font-medium truncate">{activity.photoLabels[i] || activity.title}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
