@@ -38,13 +38,13 @@ export default function SubmitReviewStrip({
             </ul>
           </div>
         )}
-        {!ownerEmailVerified && (
+        {missing.length === 0 && !ownerEmailVerified && (
           <div className="mb-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5">
             <p className="text-xs font-semibold text-amber-800 flex items-center gap-1.5">
-              <WarningCircleIcon size={14} weight="fill" /> Your account email isn&apos;t verified yet
+              <WarningCircleIcon size={14} weight="fill" /> Verify your email to go live
             </p>
             <p className="text-xs text-amber-700 mt-0.5">
-              This won&apos;t stop you from submitting — verify whenever it&apos;s convenient.
+              You can fill out every step without this — but publishing needs a verified account email.
             </p>
             <ResendVerificationLink />
           </div>
@@ -53,15 +53,20 @@ export default function SubmitReviewStrip({
           <div className="flex items-center gap-2.5 min-w-0">
             <CheckCircleIcon size={18} weight="fill" className="text-emerald-500 shrink-0" />
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-emerald-800 leading-none">All sections complete!</p>
+              <p className="text-sm font-semibold text-emerald-800 leading-none">
+                {ownerEmailVerified ? "All sections complete!" : "Almost there!"}
+              </p>
               <p className="text-xs text-emerald-600 mt-0.5 truncate">
-                Submit for review — approved properties go live with a public page.
+                {ownerEmailVerified
+                  ? "Submit for review — approved properties go live with a public page."
+                  : "Verify your email above to publish this listing."}
               </p>
             </div>
           </div>
           <Button
             type="submit"
             loading={pending}
+            disabled={!ownerEmailVerified}
             variant="primary"
             size="sm"
             className="bg-emerald-500 hover:bg-emerald-600 border-emerald-500 hover:border-emerald-600 shrink-0"

@@ -8,7 +8,7 @@ export default function EmailVerifyBanner() {
       <div>
         <p className="font-medium text-amber-800">Your account email isn&apos;t verified yet</p>
         <p className="text-xs text-amber-700 mt-0.5">
-          This doesn&apos;t block anything — your listings can go live either way. Verify whenever it&apos;s convenient.
+          You can fill out and save your listings without this — but a listing can&apos;t go live until your email is verified.
         </p>
         <ResendVerificationLink />
       </div>

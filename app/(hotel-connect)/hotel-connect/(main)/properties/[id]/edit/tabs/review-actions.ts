@@ -123,11 +123,14 @@ export async function submitForReview(
     imageCount: h.images.length,
     roomTaggedImageCount: h.images.filter((img) => img.tags.includes(ROOM_TAG)).length,
   });
-  // Account email verification is encouraged, not required — our team often
-  // fills in listing details on a hotel owner's behalf, and the owner may not
-  // get around to clicking the verification link right away. Don't let that
-  // block submission; the UI surfaces a non-blocking reminder instead.
   if (missing.length > 0) return { ok: false, missing, ownerEmailVerified };
+
+  // Our team often fills in every other field on a hotel owner's behalf, so
+  // email verification is never a wizard-filling blocker — but the listing
+  // still can't go live on an unverified account. Kept as its own check
+  // (rather than folded into `missing`) so the UI can show a clear, distinct
+  // message instead of burying it in the field-completeness bullet list.
+  if (!ownerEmailVerified) return { ok: false, missing: [], ownerEmailVerified };
 
   // Give it a clean public slug if it still has the auto-generated draft slug.
   const needsSlug = !h.slug || h.slug.startsWith("draft-");
