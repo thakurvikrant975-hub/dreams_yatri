@@ -111,6 +111,10 @@ export async function searchActivitiesForBuilder(cityOrDestinationName: string, 
       OR: [
         { city: { contains: city, mode: "insensitive" } },
         { destination: { name: { contains: city, mode: "insensitive" } } },
+        // `city`/`destination_id` are unpopulated on virtually every real
+        // activity row — the city instead lives as a suffix in the name
+        // itself (e.g. "Tea Garden Walk munnar"), so match against that too.
+        { name: { contains: city, mode: "insensitive" } },
       ],
       ...(query ? { name: { contains: query, mode: "insensitive" } } : {}),
     },
