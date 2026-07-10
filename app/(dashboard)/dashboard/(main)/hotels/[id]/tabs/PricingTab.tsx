@@ -290,174 +290,24 @@ function SeasonsInlineList({
         </div>
       )}
 
-      {seasons.map(s => {
-        const hasOverlap = overlapping.has(s.tempId);
-        const dateRange: DateRange | undefined =
-          s.valid_from && s.valid_to
-            ? { from: toDateObj(s.valid_from), to: toDateObj(s.valid_to) }
-            : s.valid_from
-            ? { from: toDateObj(s.valid_from), to: undefined }
-            : undefined;
-
-        const rangeLabel =
-          s.valid_from && s.valid_to
-            ? `${fmtMonthDay(s.valid_from)} → ${fmtMonthDay(s.valid_to)}`
-            : "";
-
-        return (
-          <div
-            key={s.tempId}
-            className={cn(
-              "border rounded-xl p-3 space-y-3",
-              hasOverlap
-                ? "border-dashboard-error/40 bg-dashboard-error/5"
-                : "border-dashboard-base-content/20 bg-dashboard-base-200/50",
-            )}
-          >
-            {/* Card header */}
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-muted-foreground">
-                {rangeLabel || "New season"}
-              </span>
-              <div className="flex items-center gap-1">
-                {hasOverlap && (
-                  <span className="text-[10px] text-destructive flex items-center gap-0.5">
-                    <AlertTriangle className="h-3 w-3" /> Overlap
-                  </span>
-                )}
-                <Button
-                  type="button" size="icon" variant="ghost"
-                  className="h-6 w-6 text-destructive hover:text-destructive"
-                  onClick={() => removeSeason(s.tempId)}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </div>
-
-            {/* Price/Night + Extra Bed */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">
-                  Weekday Price / Night (₹) <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  type="number"
-                  className={cn("h-8 text-sm", !s.price_per_night && "border-destructive/50")}
-                  placeholder="e.g. 4500"
-                  value={s.price_per_night}
-                  onChange={e => updSeason(s.tempId, "price_per_night", e.target.value)}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Extra Bed (₹)</Label>
-                <Input
-                  type="number"
-                  className="h-8 text-sm"
-                  placeholder="optional"
-                  value={s.extra_bed_rate}
-                  onChange={e => updSeason(s.tempId, "extra_bed_rate", e.target.value)}
-                />
-              </div>
-            </div>
-
-            {/* Weekend rate */}
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id={`weekend-${s.tempId}`}
-                  checked={!!s.weekend_price_per_night}
-                  onChange={e => {
-                    if (!e.target.checked) updSeason(s.tempId, "weekend_price_per_night", "");
-                    else updSeason(s.tempId, "weekend_price_per_night", s.price_per_night);
-                  }}
-                  className="h-3.5 w-3.5 accent-primary"
-                />
-                <Label htmlFor={`weekend-${s.tempId}`} className="text-xs cursor-pointer">
-                  Weekend rate (Sat &amp; Sun)
-                  {s.price_per_night && (
-                    <span className="text-muted-foreground ml-1">(base ₹{Number(s.price_per_night).toLocaleString("en-IN")}/night)</span>
-                  )}
-                </Label>
-              </div>
-              {s.weekend_price_per_night !== "" && (
-                <Input
-                  type="number"
-                  className="h-8 text-sm"
-                  placeholder="Same as weekday"
-                  value={s.weekend_price_per_night}
-                  onChange={e => updSeason(s.tempId, "weekend_price_per_night", e.target.value)}
-                />
-              )}
-            </div>
-
-            {/* Occupancy prices for this season — same 1/2/3/4P tiers as the
-                plan-level fallback, but scoped to just this date range. */}
-            <div className="space-y-1.5 border-t border-dashboard-base-content/10 pt-2.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1">
-                <Users className="h-3 w-3" /> Occupancy Prices for this range
-                <span className="font-normal normal-case text-muted-foreground/60">— optional</span>
-              </p>
-              {OCCUPANCY_OPTIONS.map(occ => {
-                const entry = s.occupancy_prices.find(e => e.occupancy === occ.value);
-                return (
-                  <div key={occ.value} className="flex items-center gap-2">
-                    <span className="text-xs w-20 shrink-0 text-muted-foreground">{occ.label}</span>
-                    <Input
-                      type="number"
-                      className="h-7 text-xs flex-1"
-                      placeholder="Price"
-                      value={entry?.price ?? ""}
-                      onChange={e => {
-                        const price = e.target.value;
-                        const rest = s.occupancy_prices.filter(x => x.occupancy !== occ.value);
-                        const next = price
-                          ? [...rest, { occupancy: occ.value, price, original: entry?.original ?? "" }].sort((a, b) => a.occupancy - b.occupancy)
-                          : rest;
-                        updSeason(s.tempId, "occupancy_prices", next);
-                      }}
-                    />
-                    <Input
-                      type="number"
-                      className="h-7 text-xs flex-1"
-                      placeholder="MRP (optional)"
-                      value={entry?.original ?? ""}
-                      onChange={e => {
-                        const original = e.target.value;
-                        if (!entry?.price) return;
-                        const rest = s.occupancy_prices.filter(x => x.occupancy !== occ.value);
-                        const next = [...rest, { occupancy: occ.value, price: entry.price, original }].sort((a, b) => a.occupancy - b.occupancy);
-                        updSeason(s.tempId, "occupancy_prices", next);
-                      }}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Calendar date range picker */}
-            <div className="space-y-1">
-              <Label className="text-xs">
-                Date Range <span className="text-destructive">*</span>
-              </Label>
-              <PricingRangeCalendarPicker
-                value={dateRange}
-                onChange={range => {
-                  onChange(seasons.map(s2 =>
-                    s2.tempId === s.tempId
-                      ? { ...s2, valid_from: fromDateObj(range?.from), valid_to: fromDateObj(range?.to) }
-                      : s2,
-                  ));
-                }}
-                seasons={calendarSeasons}
-                basePrice={basePricePerNight}
-                error={hasOverlap}
-              />
-            </div>
-          </div>
-        );
-      })}
+      {seasons.map(s => (
+        <SeasonCard
+          key={s.tempId}
+          season={s}
+          hasOverlap={overlapping.has(s.tempId)}
+          onUpdate={(key, value) => updSeason(s.tempId, key, value)}
+          onDateRangeChange={range => {
+            onChange(seasons.map(s2 =>
+              s2.tempId === s.tempId
+                ? { ...s2, valid_from: fromDateObj(range?.from), valid_to: fromDateObj(range?.to) }
+                : s2,
+            ));
+          }}
+          onRemove={() => removeSeason(s.tempId)}
+          calendarSeasons={calendarSeasons}
+          basePricePerNight={basePricePerNight}
+        />
+      ))}
 
       <Button
         type="button" variant="outline" size="sm"
@@ -466,6 +316,203 @@ function SeasonsInlineList({
       >
         <Plus className="h-3.5 w-3.5" /> Add Season
       </Button>
+    </div>
+  );
+}
+
+// ── One season card — local state for the collapsible occupancy section ──
+
+function SeasonCard({
+  season: s,
+  hasOverlap,
+  onUpdate,
+  onDateRangeChange,
+  onRemove,
+  calendarSeasons,
+  basePricePerNight,
+}: {
+  season:             SeasonEntry;
+  hasOverlap:         boolean;
+  onUpdate:           <K extends keyof Omit<SeasonEntry, "tempId">>(key: K, value: Omit<SeasonEntry, "tempId">[K]) => void;
+  onDateRangeChange:  (range: DateRange | undefined) => void;
+  onRemove:           () => void;
+  calendarSeasons:    SeasonRange[];
+  basePricePerNight:  number;
+}) {
+  // Local, not persisted — derived once from whatever was already saved so
+  // editing an existing season with occupancy prices opens with them visible.
+  const [showOccupancy, setShowOccupancy] = useState(s.occupancy_prices.length > 0);
+
+  const dateRange: DateRange | undefined =
+    s.valid_from && s.valid_to
+      ? { from: toDateObj(s.valid_from), to: toDateObj(s.valid_to) }
+      : s.valid_from
+      ? { from: toDateObj(s.valid_from), to: undefined }
+      : undefined;
+
+  const rangeLabel =
+    s.valid_from && s.valid_to
+      ? `${fmtMonthDay(s.valid_from)} → ${fmtMonthDay(s.valid_to)}`
+      : "";
+
+  return (
+    <div
+      className={cn(
+        "border rounded-xl p-3 space-y-3",
+        hasOverlap
+          ? "border-dashboard-error/40 bg-dashboard-error/5"
+          : "border-dashboard-base-content/20 bg-dashboard-base-200/50",
+      )}
+    >
+      {/* Card header */}
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-muted-foreground">
+          {rangeLabel || "New season"}
+        </span>
+        <div className="flex items-center gap-1">
+          {hasOverlap && (
+            <span className="text-[10px] text-destructive flex items-center gap-0.5">
+              <AlertTriangle className="h-3 w-3" /> Overlap
+            </span>
+          )}
+          <Button
+            type="button" size="icon" variant="ghost"
+            className="h-6 w-6 text-destructive hover:text-destructive"
+            onClick={onRemove}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Price/Night + Extra Bed */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label className="text-xs">
+            Weekday Price / Night (₹) <span className="text-destructive">*</span>
+          </Label>
+          <Input
+            type="number"
+            className={cn("h-8 text-sm", !s.price_per_night && "border-destructive/50")}
+            placeholder="e.g. 4500"
+            value={s.price_per_night}
+            onChange={e => onUpdate("price_per_night", e.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Extra Bed (₹)</Label>
+          <Input
+            type="number"
+            className="h-8 text-sm"
+            placeholder="optional"
+            value={s.extra_bed_rate}
+            onChange={e => onUpdate("extra_bed_rate", e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Weekend rate */}
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id={`weekend-${s.tempId}`}
+            checked={!!s.weekend_price_per_night}
+            onChange={e => {
+              if (!e.target.checked) onUpdate("weekend_price_per_night", "");
+              else onUpdate("weekend_price_per_night", s.price_per_night);
+            }}
+            className="h-3.5 w-3.5 accent-primary"
+          />
+          <Label htmlFor={`weekend-${s.tempId}`} className="text-xs cursor-pointer">
+            Weekend rate (Sat &amp; Sun)
+            {s.price_per_night && (
+              <span className="text-muted-foreground ml-1">(base ₹{Number(s.price_per_night).toLocaleString("en-IN")}/night)</span>
+            )}
+          </Label>
+        </div>
+        {s.weekend_price_per_night !== "" && (
+          <Input
+            type="number"
+            className="h-8 text-sm"
+            placeholder="Same as weekday"
+            value={s.weekend_price_per_night}
+            onChange={e => onUpdate("weekend_price_per_night", e.target.value)}
+          />
+        )}
+      </div>
+
+      {/* Occupancy prices for this season — same 1/2/3/4P tiers as the
+          plan-level fallback, but scoped to just this date range. Hidden
+          behind a checkbox since most seasons won't need a per-occupancy
+          override and the four rows take up real space. */}
+      <div className="space-y-1.5 border-t border-dashboard-base-content/10 pt-2.5">
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id={`occupancy-${s.tempId}`}
+            checked={showOccupancy}
+            onChange={e => {
+              setShowOccupancy(e.target.checked);
+              if (!e.target.checked) onUpdate("occupancy_prices", []);
+            }}
+            className="h-3.5 w-3.5 accent-primary"
+          />
+          <Label htmlFor={`occupancy-${s.tempId}`} className="text-xs cursor-pointer flex items-center gap-1">
+            <Users className="h-3 w-3" /> Occupancy prices for this range
+            <span className="text-muted-foreground font-normal">— optional</span>
+          </Label>
+        </div>
+        {showOccupancy && OCCUPANCY_OPTIONS.map(occ => {
+          const entry = s.occupancy_prices.find(e => e.occupancy === occ.value);
+          return (
+            <div key={occ.value} className="flex items-center gap-2">
+              <span className="text-xs w-20 shrink-0 text-muted-foreground">{occ.label}</span>
+              <Input
+                type="number"
+                className="h-7 text-xs flex-1"
+                placeholder="Price"
+                value={entry?.price ?? ""}
+                onChange={e => {
+                  const price = e.target.value;
+                  const rest = s.occupancy_prices.filter(x => x.occupancy !== occ.value);
+                  const next = price
+                    ? [...rest, { occupancy: occ.value, price, original: entry?.original ?? "" }].sort((a, b) => a.occupancy - b.occupancy)
+                    : rest;
+                  onUpdate("occupancy_prices", next);
+                }}
+              />
+              <Input
+                type="number"
+                className="h-7 text-xs flex-1"
+                placeholder="MRP (optional)"
+                value={entry?.original ?? ""}
+                onChange={e => {
+                  const original = e.target.value;
+                  if (!entry?.price) return;
+                  const rest = s.occupancy_prices.filter(x => x.occupancy !== occ.value);
+                  const next = [...rest, { occupancy: occ.value, price: entry.price, original }].sort((a, b) => a.occupancy - b.occupancy);
+                  onUpdate("occupancy_prices", next);
+                }}
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Calendar date range picker */}
+      <div className="space-y-1">
+        <Label className="text-xs">
+          Date Range <span className="text-destructive">*</span>
+        </Label>
+        <PricingRangeCalendarPicker
+          value={dateRange}
+          onChange={onDateRangeChange}
+          seasons={calendarSeasons}
+          basePrice={basePricePerNight}
+          error={hasOverlap}
+        />
+      </div>
     </div>
   );
 }
