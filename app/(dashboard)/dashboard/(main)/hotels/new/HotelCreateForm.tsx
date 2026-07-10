@@ -8,7 +8,7 @@ import { Textarea } from "../../components/ui/textarea";
 import { Button } from "../../components/ui/button";
 import { Switch } from "../../components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card";
-import {Select, SelectContent, SelectItem,SelectTrigger, SelectValue,} from "../../components/ui/select";
+import {Select, SelectContent, SelectItem,SelectTrigger, SelectValue,} from "../../components/ui/select"; 
 import { ImageUpload, type UploadedImage } from "../../components/dashboard/ImageUpload";
 import { LocationSearchSelect } from "../../components/location/LocationSearchSelect";
 import type { LocationValue } from "../../components/location/location.types";
@@ -21,7 +21,7 @@ import { COUNTRY_CODES, DEFAULT_COUNTRY } from "@/app/lib/assets/country-codes";
 import { cn } from "@/app/lib/utils";
 
 type Destination = {
-  id: number;
+  id: number; 
   name: string;
   region: { name: string };
 };
@@ -220,7 +220,7 @@ export function HotelCreateForm({ destinations }: { destinations: Destination[] 
           <CardDescription>Hotel name, location and category</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4"> 
             <div id="field-name" className="space-y-1.5">
               <Label>Hotel Name <span className="text-destructive">*</span></Label>
               <Input
