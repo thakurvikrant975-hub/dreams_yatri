@@ -28,7 +28,8 @@ type DayCell = {
   planName: string | null;
 };
 
-type Room = { id: number; name: string; num_rooms: number };
+type RatePlanOption = { id: number; label: string };
+type Room = { id: number; name: string; num_rooms: number; plans: RatePlanOption[] };
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -117,6 +118,7 @@ export default function CalendarClient({
   hotelName,
   rooms,
   initialRoomId,
+  initialPlanId,
   initialYear,
   initialDays,
 }: {
@@ -124,10 +126,12 @@ export default function CalendarClient({
   hotelName: string;
   rooms: Room[];
   initialRoomId: number | null;
+  initialPlanId: number | null;
   initialYear: number;
   initialDays: DayCell[];
 }) {
   const [roomId, setRoomId] = useState<number | null>(initialRoomId);
+  const [planId, setPlanId] = useState<number | null>(initialPlanId);
   const [year, setYear] = useState(initialYear);
   const [days, setDays] = useState<DayCell[]>(initialDays);
   const [selStart, setSelStart] = useState<string | null>(null);
@@ -151,11 +155,11 @@ export default function CalendarClient({
   // Only one year's worth of rows is ever held in state — keeping every
   // scrolled-past year around got out of hand fast, so switching years
   // replaces the data instead of accumulating it.
-  function loadYear(rId: number | null, y: number) {
+  function loadYear(rId: number | null, y: number, pId: number | null) {
     if (rId == null) return;
     const { from, toExclusive } = yearBounds(y);
     startLoad(async () => {
-      const res = await fetchRoomCalendar(hotelId, rId, from, toExclusive);
+      const res = await fetchRoomCalendar(hotelId, rId, from, toExclusive, pId ?? undefined);
       if (res.error) {
         setMsg(res.error);
         return;
@@ -167,14 +171,23 @@ export default function CalendarClient({
   function changeYear(delta: number) {
     const y = year + delta;
     setYear(y);
-    loadYear(roomId, y);
+    loadYear(roomId, y, planId);
   }
 
   function pickRoom(rId: number) {
+    const room = rooms.find((r) => r.id === rId);
+    const firstPlanId = room?.plans[0]?.id ?? null;
     setRoomId(rId);
+    setPlanId(firstPlanId);
     setSelStart(null); setSelEnd(null); setMsg(null);
     setYear(initialYear);
-    loadYear(rId, initialYear);
+    loadYear(rId, initialYear, firstPlanId);
+  }
+
+  function pickPlan(pId: number) {
+    setPlanId(pId);
+    setSelStart(null); setSelEnd(null); setMsg(null);
+    loadYear(roomId, year, pId);
   }
 
   function clickDay(date: string) {
@@ -227,6 +240,21 @@ export default function CalendarClient({
               ))}
             </select>
           )}
+          {(() => {
+            const currentRoom = rooms.find((r) => r.id === roomId);
+            if (!currentRoom || currentRoom.plans.length <= 1) return null;
+            return (
+              <select
+                value={planId ?? ""}
+                onChange={(e) => pickPlan(Number(e.target.value))}
+                className="h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-800 shadow-sm focus:ring-2 focus:ring-primary-500/20"
+              >
+                {currentRoom.plans.map((p) => (
+                  <option key={p.id} value={p.id}>{p.label}</option>
+                ))}
+              </select>
+            );
+          })()}
         </div>
       </div>
 
@@ -280,6 +308,8 @@ export default function CalendarClient({
           <EditPanel
             hotelId={hotelId}
             roomId={roomId}
+            planId={planId}
+            multiPlan={(rooms.find((r) => r.id === roomId)?.plans.length ?? 0) > 1}
             rangeLo={rangeLo}
             rangeHi={rangeHi}
             saving={saving}
@@ -329,7 +359,7 @@ export default function CalendarClient({
                   setMsg(res.error);
                   return;
                 }
-                loadYear(targetRoomId, year);
+                loadYear(targetRoomId, year, planId);
                 setMsg(`Updated ${res.updated} night${res.updated === 1 ? "" : "s"}.`);
               });
             }}
@@ -343,6 +373,8 @@ export default function CalendarClient({
 function EditPanel({
   hotelId,
   roomId,
+  planId,
+  multiPlan,
   rangeLo,
   rangeHi,
   saving,
@@ -352,6 +384,8 @@ function EditPanel({
 }: {
   hotelId: number;
   roomId: number | null;
+  planId: number | null;
+  multiPlan: boolean;
   rangeLo: string | null;
   rangeHi: string | null;
   saving: boolean;
@@ -406,6 +440,9 @@ function EditPanel({
               {price.trim() !== "" && (
                 <button onClick={() => setPrice("")} className="text-[10px] text-neutral-400 hover:text-primary-600 mt-1">clear override → use season price</button>
               )}
+              {multiPlan && (
+                <p className="text-[10px] text-amber-600 mt-1">This overrides the price shown for every rate plan on these dates.</p>
+              )}
             </div>
             <div>
               <label className={label}>Rooms available (total)</label>
@@ -455,7 +492,7 @@ function EditPanel({
             </div>
             {roomId != null && (
               <Link
-                href={`/hotel-connect/properties/${hotelId}/rates/${roomId}?from=${rangeLo}&to=${rangeHi}`}
+                href={`/hotel-connect/properties/${hotelId}/rates/${roomId}?${planId != null ? `plan=${planId}&` : ""}from=${rangeLo}&to=${rangeHi}`}
                 className="block text-center text-xs font-semibold text-primary-600 hover:text-primary-700 mt-2"
               >
                 Manage Rates for this range →

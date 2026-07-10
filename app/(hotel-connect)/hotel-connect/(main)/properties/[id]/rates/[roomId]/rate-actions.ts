@@ -4,14 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { hotelConnectAuth } from "@/app/lib/auth-hotel-connect";
 import { db } from "@/app/lib/db";
-
-async function ownsRoom(hotelId: number, roomId: number, ownerId: string): Promise<boolean> {
-  const room = await db.hotel_rooms.findFirst({
-    where: { id: roomId, hotel_id: hotelId, hotel: { owner_id: ownerId } },
-    select: { id: true },
-  });
-  return !!room;
-}
+import { ownsRoom } from "@/app/lib/hotel-inventory/owns-room";
 
 export type RoomRateDetail = {
   basePrice: number | null;
@@ -32,6 +25,7 @@ export type RoomRateDetail = {
 export async function getRoomRateDetail(
   hotelId: number,
   roomId: number,
+  pricingId: number,
   fromISO: string,
   toISO: string,
 ): Promise<{ error?: string; detail?: RoomRateDetail }> {
@@ -40,10 +34,10 @@ export async function getRoomRateDetail(
   if (!(await ownsRoom(hotelId, roomId, session.user.id))) return { error: "Room not found." };
 
   const pricing = await db.hotel_room_pricing.findFirst({
-    where: { room_id: roomId, is_active: true },
-    orderBy: { sort_order: "asc" },
+    where: { id: pricingId, room_id: roomId },
     select: { id: true },
   });
+  if (!pricing) return { error: "Rate plan not found." };
 
   const season = pricing
     ? await db.hotel_room_pricing_season.findFirst({
@@ -100,6 +94,7 @@ export type RoomRatesPatch = {
 export async function saveRoomRates(
   hotelId: number,
   roomId: number,
+  pricingId: number,
   fromISO: string,
   toISO: string,
   patch: RoomRatesPatch,
@@ -129,23 +124,16 @@ export async function saveRoomRates(
     }
   }
 
-  let pricing = await db.hotel_room_pricing.findFirst({
-    where: { room_id: roomId, is_active: true },
-    orderBy: { sort_order: "asc" },
+  // Not filtered to is_active — lets an owner adjust rates on a temporarily
+  // deactivated plan without needing to reactivate it first.
+  const pricing = await db.hotel_room_pricing.findFirst({
+    where: { id: pricingId, room_id: roomId },
     select: { id: true },
   });
-  if (!pricing) {
-    // Shouldn't normally happen — the listing wizard always creates one —
-    // but handle it gracefully rather than erroring on a legitimately new room.
-    pricing = await db.hotel_room_pricing.create({
-      data: { hotel_id: hotelId, room_id: roomId, price_per_night: patch.basePrice },
-      select: { id: true },
-    });
-  }
+  if (!pricing) return { error: "Rate plan not found." };
 
   const validFrom = new Date(`${fromISO}T00:00:00.000Z`);
   const validTo = new Date(`${toISO}T00:00:00.000Z`);
-  const pricingId = pricing.id;
 
   await db.$transaction(async (tx) => {
     const existing = await tx.hotel_room_pricing_season.findFirst({

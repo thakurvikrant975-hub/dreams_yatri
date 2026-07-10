@@ -99,8 +99,9 @@ export async function getSubmissionDetail(hotelId: number) {
       // Basic Info
       property_category: true, property_sub_type: true, star_rating: true,
       year_built: true, booking_since_year: true, hosted_as: true, host_lives_at_property: true,
-      contact_email: true, contact_mobile_cc: true, contact_mobile: true,
-      contact_whatsapp: true, contact_landline: true,
+      has_channel_manager: true, channel_manager_name: true,
+      contact_email: true, contact_mobile_cc: true, contact_mobile: true, contact_mobile_verified: true,
+      whatsapp_same_as_mobile: true, contact_whatsapp: true, contact_landline: true,
 
       // Location
       address: true, city: true, state: true, country: true, pincode: true, landmark: true,
@@ -116,32 +117,107 @@ export async function getSubmissionDetail(hotelId: number) {
       // Meals, Pricing & Availability (homestay)
       prop_num_units: true, prop_meal_option: true, prop_base_occupancy: true,
       prop_max_adults: true, prop_max_children: true, prop_max_occupancy: true,
+      prop_avail_from: true, prop_avail_to: true,
       prop_base_rate: true, prop_extra_adult: true, prop_child_rate: true,
 
-      // Policies
+      // Meal rack prices (flat, non-tiered)
+      meal_price_breakfast: true, meal_price_lunch: true, meal_price_dinner: true,
+
+      // Extra bed / cot / mattress details
+      extra_bed_included: true, provide_bed_extra_adults: true, provide_bed_extra_kids: true,
+      extra_bed_adults_avail: true, extra_bed_adults_types: true,
+      extra_cot_charge_adult: true, extra_mattress_charge_adult: true, extra_sofa_charge_adult: true,
+      extra_bed_kids_avail: true, extra_bed_kids_types: true,
+      extra_cot_charge_child: true, extra_mattress_charge_child: true, extra_sofa_charge_child: true,
+      extra_crib_charge_child: true,
+
+      // Policies (shared)
       check_in_time: true, check_out_time: true, has_check_in_end_time: true, check_in_end_time: true,
       cancellation_policy: true, custom_policy: true,
       allow_unmarried_couples: true, show_couple_tag: true, allow_guests_below_18: true,
-      allow_male_only_groups: true, smoking_allowed: true, parties_events_allowed: true,
-      wheelchair_accessible: true, allow_outside_visitors: true, pets_allowed: true, pets_on_property: true,
+      allow_male_only_groups: true, allow_same_city_id: true,
+      smoking_allowed: true, parties_events_allowed: true,
+      wheelchair_accessible: true, allow_outside_visitors: true,
+      pets_allowed: true, pets_on_property: true, allowed_pet_types: true, pet_extra_charges: true,
+      pets_restricted_areas: true, pets_without_leash: true, pet_food_available: true,
+      checkin_24_hours: true, acceptable_id_proofs: true,
+      infant_free_occupancy: true, infant_complimentary_food: true,
 
-      // Finance & Legal
+      // Homestay-specific policy fields
+      smoking_areas: true, entry_exit_restrictions: true, noise_policy: true,
+      pet_charge_amount: true, pet_count: true, food_kitchen_available: true,
+      caretaker_stays: true, caretaker_details: true, caretaker_availability: true,
+      caretaker_services: true, caretaker_knowledge: true, caretaker_helps_cleaning: true,
+      self_checkin_smart_door: true, host_greets_helps: true, caretaker_greets_helps: true,
+      building_staff_keys: true,
+
+      // Finance & Legal (shared)
       bank_account_number: true, bank_ifsc_code: true, bank_name: true,
       gstin_number: true, pan_number: true, business_type: true, msme_number: true,
       property_documents: true,
 
-      // Rooms (hotel-type)
+      // Homestay-specific finance fields
+      ownership_type: true, has_registration_doc: true, relationship_doc_type: true,
+      id_proof_type: true, tan_number: true,
+
+      // Rooms (hotel-type) — full detail + occupancy tiers + seasons + images
       hotelRooms: {
         where: { is_active: true },
         orderBy: { sort_order: "asc" },
         select: {
-          id: true, name: true, bed_type: true, area_sqft: true,
+          id: true, name: true, room_type: true, bed_type: true, beds: true, bed_count: true,
+          area_sqft: true, area_unit: true, view_type: true,
           max_adults: true, max_children: true, max_occupancy: true,
+          base_adults: true, base_children: true, num_rooms: true, num_bedrooms: true, num_living_rooms: true,
+          extra_bed_capacity: true, child_cot_available: true, meal_plan: true,
+          amenities: true, features: true, bathroom: true, facilities: true, description: true,
+          is_bookable: true,
+          images: {
+            orderBy: [{ is_primary: "desc" }, { sort_order: "asc" }],
+            select: { id: true, url: true, thumbnail: true, is_primary: true },
+          },
           pricing: {
             where: { is_active: true },
-            select: { id: true, plan_name: true, price_per_night: true, gst_percentage: true },
+            select: {
+              id: true, plan_name: true, price_per_night: true, original_price: true,
+              extra_bed_rate: true, extra_child_rate: true, gst_percentage: true,
+              valid_from: true, valid_to: true, cancellation_policy: true,
+              occupancy_prices: { select: { occupancy: true, price_per_night: true, original_price: true } },
+              seasons: {
+                where: { is_active: true },
+                orderBy: { valid_from: "asc" },
+                select: {
+                  id: true, season_name: true, valid_from: true, valid_to: true,
+                  price_per_night: true, weekend_price_per_night: true, original_price: true,
+                  extra_bed_rate: true, extra_child_rate: true,
+                  occupancy_prices: { select: { occupancy: true, price_per_night: true, original_price: true } },
+                },
+              },
+            },
           },
         },
+      },
+
+      // Meal pricing (tiered veg/non-veg + seasons) — applies to both hotel & homestay
+      meal_pricing: {
+        where: { is_active: true },
+        orderBy: { sort_order: "asc" },
+        select: {
+          id: true, meal_type: true, label: true, price: true, weekend_price: true,
+          veg_price: true, non_veg_price: true,
+          seasons: {
+            where: { is_active: true },
+            orderBy: { valid_from: "asc" },
+            select: { id: true, season_name: true, valid_from: true, valid_to: true, price: true, weekend_price: true },
+          },
+        },
+      },
+
+      // Add-ons
+      addons: {
+        where: { is_active: true },
+        orderBy: { sort_order: "asc" },
+        select: { id: true, label: true, description: true, charge_type: true, price: true, weekend_price: true },
       },
 
       // Photos

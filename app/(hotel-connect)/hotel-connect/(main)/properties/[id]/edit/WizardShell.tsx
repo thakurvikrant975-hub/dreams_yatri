@@ -253,6 +253,7 @@ export default function WizardShell({
   tabFormId,
   effectiveWizardStep,
   hideNextButton,
+  ownerEmailVerified,
   children,
 }: {
   hotel: HotelSummary;
@@ -260,6 +261,7 @@ export default function WizardShell({
   tabFormId?: string;
   effectiveWizardStep: number;
   hideNextButton?: boolean;
+  ownerEmailVerified?: boolean;
   children: React.ReactNode;
 }) {
   const router = useRouter();
@@ -350,7 +352,9 @@ export default function WizardShell({
       </div>
 
       {/* ── Submit for Review strip ───────────────────────────────────── */}
-      {allComplete && isDraft && <SubmitReviewStrip hotelId={hotel.id} />}
+      {allComplete && isDraft && (
+        <SubmitReviewStrip hotelId={hotel.id} ownerEmailVerified={ownerEmailVerified} />
+      )}
 
       {/* ── Bottom navigation ─────────────────────────────────────────── */}
       <footer className="shrink-0 bg-white border-t border-neutral-200 py-3.5">

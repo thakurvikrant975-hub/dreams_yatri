@@ -14,7 +14,7 @@ import { ensureHomestayRoom } from "@/app/lib/hotel-inventory/homestay-room-sync
  */
 const AUTO_APPROVE = process.env.HOTEL_AUTO_APPROVE === "true";
 
-export type PublishResult = { ok: boolean; missing?: string[]; url?: string };
+export type PublishResult = { ok: boolean; missing?: string[]; url?: string; ownerEmailVerified?: boolean };
 
 function slugify(s: string): string {
   return s
@@ -56,7 +56,6 @@ function validate(h: {
   roomsWithPricing: number;
   imageCount: number;
   roomTaggedImageCount: number;
-  ownerEmailVerified: boolean;
 }): string[] {
   const m: string[] = [];
   const isHomestay = h.property_category === "HOMESTAY_VILLA";
@@ -82,7 +81,6 @@ function validate(h: {
   if (!h.cancellation_policy) m.push("Cancellation policy");
   if (!h.bank_account_number || !h.bank_ifsc_code) m.push("Bank account details");
   if (!h.pan_number) m.push("PAN number");
-  if (!h.ownerEmailVerified) m.push("Verify your account email (check your inbox for the verification link)");
   return m;
 }
 
@@ -112,6 +110,7 @@ export async function submitForReview(
     },
   });
   if (!h) return { ok: false, missing: ["Property not found"] };
+  const ownerEmailVerified = h.owner?.email_verified ?? false;
 
   // Already submitted / live — just go back.
   if (h.listing_status !== "DRAFT" && h.listing_status !== "REJECTED") {
@@ -123,9 +122,15 @@ export async function submitForReview(
     roomsWithPricing: h.hotelRooms.filter((r) => r.pricing.length > 0).length,
     imageCount: h.images.length,
     roomTaggedImageCount: h.images.filter((img) => img.tags.includes(ROOM_TAG)).length,
-    ownerEmailVerified: h.owner?.email_verified ?? false,
   });
-  if (missing.length > 0) return { ok: false, missing };
+  if (missing.length > 0) return { ok: false, missing, ownerEmailVerified };
+
+  // Our team often fills in every other field on a hotel owner's behalf, so
+  // email verification is never a wizard-filling blocker — but the listing
+  // still can't go live on an unverified account. Kept as its own check
+  // (rather than folded into `missing`) so the UI can show a clear, distinct
+  // message instead of burying it in the field-completeness bullet list.
+  if (!ownerEmailVerified) return { ok: false, missing: [], ownerEmailVerified };
 
   // Give it a clean public slug if it still has the auto-generated draft slug.
   const needsSlug = !h.slug || h.slug.startsWith("draft-");
