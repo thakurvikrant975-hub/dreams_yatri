@@ -170,7 +170,7 @@ function RoomCard({ hotelId, room }: { hotelId: number; room: RoomListItem }) {
         )}
         <Link
           href={`/hotel-connect/properties/${hotelId}/rates/${room.id}/plans/new`}
-          className="flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-700 pt-1"
+          className="flex items-center gap-1.5 text-xs font-semibold text-primary-500 hover:text-primary-600 pt-1"
         >
           <PlusCircleIcon size={14} weight="fill" />
           Add Rate Plan

@@ -75,6 +75,7 @@ interface HeroProps {
 // ─── Shared field label styling ───────────────────────────────────────────────
 const FIELD_LABEL_CLASS = 'text-xs sm:text-sm font-medium font-heading text-inverse pl-1'
 
+
 // ─── Hero search tabs (Holidays & Hotels live; Cabs coming soon) ──────────────
 const HERO_TABS = [
     { key: 'holidays', label: 'Holidays', Icon: IslandIcon, soon: false },
