@@ -120,7 +120,10 @@ const EnquiryForm: React.FC<EnquiryFormProps> = ({ packageName, destination }) =
               placeholder="Your name"
               value={formData.name}
               error={errors.name}
-              onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
+              onChange={e => {
+                const v = e.target.value;
+                setFormData(p => ({ ...p, name: v ? v.charAt(0).toUpperCase() + v.slice(1) : v }));
+              }}
               onBlur={e => validateField('name', e.target.value)}
             />
           </div>
@@ -133,7 +136,7 @@ const EnquiryForm: React.FC<EnquiryFormProps> = ({ packageName, destination }) =
               placeholder="example@email.com"
               value={formData.email}
               error={errors.email}
-              onChange={e => setFormData(p => ({ ...p, email: e.target.value }))}
+              onChange={e => setFormData(p => ({ ...p, email: e.target.value.toLowerCase() }))}
               onBlur={e => validateField('email', e.target.value)}
             />
           </div>

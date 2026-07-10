@@ -9,6 +9,7 @@
 
 import { db } from "@/app/lib/db";
 import { fetchPackagePageData } from "@/app/actions/packages/fetch-page-data";
+import { computePackagePrice } from "@/app/services/package-pricing.service";
 
 export type LibraryPackage = {
     id:              number;
@@ -66,6 +67,137 @@ export async function getSalesPackageLibrary(params: {
         durationSlug:    r.durations[0]?.slug ?? null,
         routeSlug:       r.durations[0]?.routes[0]?.slug ?? null,
     }));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// "Create Package" popup — a searchable, paginated (load-more) package list
+// with enough of a summary (route, stay categories, duration) to pick a
+// template without leaving the dialog. Search matches title, destination, and
+// region, so pre-filling it with a query's destination gets a relevant first
+// page while staying editable.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type TemplatePackage = LibraryPackage & {
+    totalDays:           number | null;
+    totalNights:         number | null;
+    routeSummary:        string | null;
+    stayCategorySummary: string | null;
+    estimatedPrice:      number | null;
+    pricePerAdult:       number | null;
+};
+
+export async function searchPackageLibraryForTemplate(params: {
+    search?:     string;
+    page?:       number;
+    size?:       number;
+    travelDate?: string | null;
+    adults?:     number;
+    children?:   number;
+    infants?:    number;
+} = {}): Promise<{ packages: TemplatePackage[]; total: number }> {
+    const {
+        search = "", page = 1, size = 12,
+        travelDate = null, adults = 2, children = 0, infants = 0,
+    } = params;
+    const safeSize = Math.min(size, 50);
+    const skip = (page - 1) * safeSize;
+
+    const where = {
+        is_active: true,
+        ...(search ? {
+            OR: [
+                { title:       { contains: search, mode: "insensitive" as const } },
+                { destination: { name: { contains: search, mode: "insensitive" as const } } },
+                { destination: { region: { name: { contains: search, mode: "insensitive" as const } } } },
+            ],
+        } : {}),
+    };
+
+    const [total, rows] = await Promise.all([
+        db.packages.count({ where }),
+        db.packages.findMany({
+            where,
+            orderBy: { title: "asc" },
+            skip,
+            take: safeSize,
+            select: {
+                id:          true,
+                title:       true,
+                slug:        true,
+                thumbnail:   true,
+                description: true,
+                destination: { select: { name: true, region: { select: { name: true } } } },
+                stay_categories: {
+                    where:   { is_active: true },
+                    orderBy: { sort_order: "asc" },
+                    select:  { id: true, label: true, is_default: true },
+                },
+                durations: {
+                    where:  { is_default: true },
+                    take:   1,
+                    select: {
+                        id: true, slug: true, days: true, nights: true,
+                        routes: {
+                            orderBy: { sort_order: "asc" },
+                            take:    1,
+                            select:  {
+                                id:    true,
+                                slug:  true,
+                                stops: { orderBy: { sort_order: "asc" }, select: { place_name: true } },
+                            },
+                        },
+                    },
+                },
+            },
+        }),
+    ]);
+
+    const packages: TemplatePackage[] = await Promise.all(rows.map(async (r) => {
+        const duration = r.durations[0];
+        const route = duration?.routes[0];
+        const stayCategory = r.stay_categories.find((s) => s.is_default) ?? r.stay_categories[0];
+
+        let estimatedPrice: number | null = null;
+        let pricePerAdult: number | null = null;
+        if (duration && route && stayCategory) {
+            try {
+                const breakdown = await computePackagePrice({
+                    package_id:       r.id,
+                    duration_id:      duration.id,
+                    route_id:         route.id,
+                    stay_category_id: stayCategory.id,
+                    adults, children, infants,
+                    travel_date: travelDate,
+                });
+                if (!breakdown.missing_pricing_config) {
+                    estimatedPrice = breakdown.final_price;
+                    pricePerAdult = breakdown.price_per_adult;
+                }
+            } catch {
+                // Pricing config incomplete for this package/variant — show it without a price.
+            }
+        }
+
+        return {
+            id:              r.id,
+            title:           r.title,
+            slug:            r.slug,
+            thumbnail:       r.thumbnail,
+            description:     r.description,
+            destinationName: r.destination.name,
+            regionName:      r.destination.region?.name ?? null,
+            durationSlug:    duration?.slug ?? null,
+            routeSlug:       route?.slug ?? null,
+            totalDays:       duration?.days ?? null,
+            totalNights:     duration?.nights ?? null,
+            routeSummary:    route?.stops.map((s) => s.place_name).join(" → ") || null,
+            stayCategorySummary: r.stay_categories.map((s) => s.label).join(", ") || null,
+            estimatedPrice,
+            pricePerAdult,
+        };
+    }));
+
+    return { packages, total };
 }
 
 export async function getDestinationsForLibraryFilter(): Promise<DestinationFilterOption[]> {

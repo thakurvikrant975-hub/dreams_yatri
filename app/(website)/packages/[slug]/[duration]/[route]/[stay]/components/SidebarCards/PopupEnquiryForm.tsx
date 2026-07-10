@@ -77,7 +77,10 @@ export default function PopupEnquiryForm({ packageName, destination, onSuccess }
                         placeholder="Your full name"
                         value={formData.name}
                         error={errors.name}
-                        onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
+                        onChange={e => {
+                            const v = e.target.value;
+                            setFormData(p => ({ ...p, name: v ? v.charAt(0).toUpperCase() + v.slice(1) : v }));
+                        }}
                         onBlur={() => {
                             if (!formData.name.trim()) setErrors(p => ({ ...p, name: 'Name is required.' }));
                             else setErrors(p => ({ ...p, name: undefined }));

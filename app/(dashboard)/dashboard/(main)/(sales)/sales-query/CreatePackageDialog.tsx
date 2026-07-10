@@ -1,0 +1,238 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
+import {
+    Package, Search, MapPin, Route, BedDouble, CalendarDays, Loader2, Sparkles, ArrowRight, IndianRupee,
+} from "lucide-react";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import {
+    Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger,
+} from "../../components/ui/dialog";
+import { TableEmptyState } from "../../components/dashboard/TableEmptyState";
+import { getCardImage } from "@/app/lib/imageUrl";
+import { searchPackageLibraryForTemplate, type TemplatePackage } from "../package-library/actions";
+import { copyPackageIntoDraft } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
+
+const PAGE_SIZE = 12;
+
+export function CreatePackageDialog({ queryId, destination, travelDate, travellers, children }: {
+    queryId:     string;
+    destination: string | null;
+    travelDate?: string | null;
+    travellers?: { adults: number; children: number; infants: number } | null;
+    children:    React.ReactNode;
+}) {
+    const router = useRouter();
+    const [open, setOpen] = useState(false);
+
+    const pax = {
+        adults:   travellers?.adults ?? 2,
+        children: travellers?.children ?? 0,
+        infants:  travellers?.infants ?? 0,
+    };
+
+    const [search, setSearch] = useState("");
+    const [packages, setPackages] = useState<TemplatePackage[]>([]);
+    const [total, setTotal] = useState(0);
+    const [page, setPage] = useState(1);
+    const [loading, setLoading] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [applyingSlug, setApplyingSlug] = useState<string | null>(null);
+
+    // Debounce guard so a fast-typing search doesn't race an older request
+    // into overwriting a newer one's results.
+    const requestId = useRef(0);
+
+    useEffect(() => {
+        if (!open) return;
+        setSearch(destination ?? "");
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open]);
+
+    useEffect(() => {
+        if (!open) return;
+        const id = ++requestId.current;
+        setLoading(true);
+        const timer = setTimeout(async () => {
+            const result = await searchPackageLibraryForTemplate({
+                search, page: 1, size: PAGE_SIZE,
+                travelDate, ...pax,
+            });
+            if (id !== requestId.current) return;
+            setPackages(result.packages);
+            setTotal(result.total);
+            setPage(1);
+            setLoading(false);
+        }, search ? 300 : 0);
+        return () => clearTimeout(timer);
+    }, [open, search]);
+
+    async function loadMore() {
+        setLoadingMore(true);
+        const next = page + 1;
+        const result = await searchPackageLibraryForTemplate({
+            search, page: next, size: PAGE_SIZE,
+            travelDate, ...pax,
+        });
+        setPackages((prev) => [...prev, ...result.packages]);
+        setTotal(result.total);
+        setPage(next);
+        setLoadingMore(false);
+    }
+
+    async function handleUseTemplate(pkg: TemplatePackage) {
+        setApplyingSlug(pkg.slug);
+        try {
+            const payload = await copyPackageIntoDraft(pkg.slug, pkg.durationSlug ?? "", pkg.routeSlug ?? "", "");
+            if (payload) {
+                sessionStorage.setItem(`pkgCopyPayload:${queryId}`, JSON.stringify(payload));
+            }
+            setOpen(false);
+            router.push(`/dashboard/package-builder/${queryId}`);
+        } finally {
+            setApplyingSlug(null);
+        }
+    }
+
+    function handleSkip() {
+        setOpen(false);
+        router.push(`/dashboard/package-builder/${queryId}`);
+    }
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>{children}</DialogTrigger>
+            <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col" onOpenAutoFocus={(e) => e.preventDefault()}>
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        <Package size={16} className="text-primary" /> Create Package
+                    </DialogTitle>
+                    <DialogDescription>
+                        Start from a package library template, or skip and build from scratch.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="relative shrink-0">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="Search by title, location, or destination…"
+                        className="pl-9 h-9 text-sm"
+                    />
+                </div>
+
+                <div className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1">
+                    {loading ? (
+                        <div className="flex items-center justify-center py-10 text-muted-foreground text-sm gap-2">
+                            <Loader2 size={14} className="animate-spin" /> Loading templates…
+                        </div>
+                    ) : packages.length === 0 ? (
+                        <div className="py-6">
+                            <TableEmptyState
+                                title="No matching packages"
+                                description={search ? `Nothing found for "${search}" — try a different search.` : "No packages in the library yet."}
+                            />
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-1">
+                            {packages.map((pkg) => (
+                                <div
+                                    key={pkg.id}
+                                    className="rounded-xl border border-border overflow-hidden hover:shadow-sm transition-shadow flex flex-col"
+                                >
+                                    <div className="h-28 bg-muted relative shrink-0">
+                                        {pkg.thumbnail ? (
+                                            <Image src={getCardImage(pkg.thumbnail)} alt={pkg.title} fill className="object-cover" />
+                                        ) : (
+                                            <div className="h-full w-full flex items-center justify-center text-muted-foreground/40">
+                                                <Package size={20} />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="p-3 space-y-1.5 flex-1 flex flex-col">
+                                        <h4 className="text-sm font-bold text-foreground line-clamp-1">{pkg.title}</h4>
+                                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                            <MapPin size={10} /> {pkg.destinationName}
+                                            {pkg.regionName && <span className="text-muted-foreground/60">· {pkg.regionName}</span>}
+                                        </p>
+                                        {pkg.routeSummary && (
+                                            <p className="text-[11px] text-muted-foreground flex items-center gap-1 line-clamp-1">
+                                                <Route size={10} className="shrink-0" /> {pkg.routeSummary}
+                                            </p>
+                                        )}
+                                        {pkg.stayCategorySummary && (
+                                            <p className="text-[11px] text-muted-foreground flex items-center gap-1 line-clamp-1">
+                                                <BedDouble size={10} className="shrink-0" /> {pkg.stayCategorySummary}
+                                            </p>
+                                        )}
+                                        {(pkg.totalDays || pkg.totalNights) && (
+                                            <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                                <CalendarDays size={10} /> {pkg.totalDays}D / {pkg.totalNights}N
+                                            </p>
+                                        )}
+                                        {pkg.estimatedPrice != null ? (
+                                            <p className="text-[13px] font-bold text-foreground flex items-center gap-0.5 pt-0.5">
+                                                <IndianRupee size={11} />
+                                                {pkg.estimatedPrice.toLocaleString("en-IN")}
+                                                <span className="text-[10px] font-normal text-muted-foreground ml-1">
+                                                    for {pax.adults + pax.children} pax
+                                                </span>
+                                            </p>
+                                        ) : (
+                                            <p className="text-[11px] text-muted-foreground/70 italic pt-0.5">
+                                                Pricing not configured
+                                            </p>
+                                        )}
+                                        <div className="pt-1 mt-auto">
+                                            <Button
+                                                size="sm"
+                                                className="w-full h-7 gap-1 text-xs rounded-md"
+                                                disabled={applyingSlug !== null}
+                                                onClick={() => handleUseTemplate(pkg)}
+                                            >
+                                                {applyingSlug === pkg.slug ? (
+                                                    <Loader2 size={11} className="animate-spin" />
+                                                ) : (
+                                                    <Sparkles size={11} />
+                                                )}
+                                                Use Template
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {!loading && packages.length > 0 && packages.length < total && (
+                        <div className="flex justify-center py-3">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={loadMore}
+                                disabled={loadingMore}
+                                className="h-8 text-xs gap-1.5"
+                            >
+                                {loadingMore && <Loader2 size={12} className="animate-spin" />}
+                                Load more ({packages.length} of {total})
+                            </Button>
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex items-center justify-between gap-2 pt-2 border-t border-border shrink-0">
+                    <p className="text-[11px] text-muted-foreground">
+                        {total > 0 ? `${total} package${total !== 1 ? "s" : ""} available` : ""}
+                    </p>
+                    <Button type="button" variant="ghost" onClick={handleSkip} className="gap-1.5 text-xs h-8">
+                        Skip — start blank <ArrowRight size={12} />
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
