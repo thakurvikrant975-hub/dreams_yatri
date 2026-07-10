@@ -129,8 +129,9 @@ export function ItineraryMap({ startingPoint, stops, itineraries }: {
 }) {
   const mapRef         = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<import("leaflet").Map | null>(null);
-  const [geocoded, setGeocoded] = useState<GeocodedPoint[] | null>(null);
-  const [failed, setFailed]     = useState(false);
+  const [geocoded, setGeocoded]     = useState<GeocodedPoint[] | null>(null);
+  const [failed, setFailed]         = useState(false);
+  const [routeSource, setRouteSource] = useState<"road" | "straight" | null>(null);
 
   const points = buildPoints(startingPoint, stops, itineraries);
   const pointsKey = points.map((p) => `${p.kind}:${p.query}`).join("|");
@@ -163,6 +164,7 @@ export function ItineraryMap({ startingPoint, stops, itineraries }: {
   useEffect(() => {
     if (!mapRef.current || !geocoded || geocoded.length === 0) return;
     let cancelled = false;
+    setRouteSource(null);
 
     import("leaflet").then((L) => {
       if (cancelled || !mapRef.current) return;
@@ -190,12 +192,16 @@ export function ItineraryMap({ startingPoint, stops, itineraries }: {
 
       // Route line through the geographic journey (start → stops → end) only —
       // hotels/activities are markers, not part of the travelled path.
+      // Draw a straight-line placeholder immediately, then swap it for the
+      // real road route once Mapbox Directions responds (below).
       const routePoints = geocoded.filter((p) => p.kind === "start" || p.kind === "stop" || p.kind === "end");
       const routeCoords: [number, number][] = routePoints.map((p) => [p.lat, p.lng]);
-      if (routeCoords.length > 1) {
-        L.polyline(routeCoords, { color: "#ffffff", weight: 7, opacity: 0.9 }).addTo(map);
-        L.polyline(routeCoords, { color: "#2563eb", weight: 3.5, dashArray: "9 6", opacity: 0.9 }).addTo(map);
-      }
+      let outlineLine = routeCoords.length > 1
+        ? L.polyline(routeCoords, { color: "#ffffff", weight: 7, opacity: 0.9 }).addTo(map)
+        : null;
+      let routeLine = routeCoords.length > 1
+        ? L.polyline(routeCoords, { color: "#2563eb", weight: 3.5, dashArray: "9 6", opacity: 0.9 }).addTo(map)
+        : null;
 
       geocoded.forEach((p) => {
         const icon = L.divIcon({
@@ -214,6 +220,46 @@ export function ItineraryMap({ startingPoint, stops, itineraries }: {
         map.fitBounds(L.latLngBounds(allCoords), { padding: [36, 36] });
       } else {
         map.setView(allCoords[0], 11);
+      }
+
+      // ── Mapbox road route — replaces the straight-line placeholder above
+      // once it loads, so point-to-point travel follows real roads. ─────────
+      const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+      if (token && routePoints.length >= 2) {
+        const mbCoords = routePoints.map((p) => `${p.lng},${p.lat}`).join(";");
+        fetch(
+          `https://api.mapbox.com/directions/v5/mapbox/driving/${mbCoords}` +
+          `?access_token=${token}&geometries=geojson&overview=full&steps=false`,
+        )
+          .then((r) => r.json())
+          .then((data) => {
+            if (cancelled || !mapInstanceRef.current) return;
+            const route = data.routes?.[0];
+            if (route?.geometry?.coordinates) {
+              outlineLine?.remove();
+              routeLine?.remove();
+
+              const roadCoords = (route.geometry.coordinates as [number, number][]).map(
+                ([lng, lat]) => [lat, lng] as [number, number],
+              );
+
+              outlineLine = L.polyline(roadCoords, { color: "#ffffff", weight: 8, opacity: 0.95 }).addTo(mapInstanceRef.current);
+              routeLine = L.polyline(roadCoords, { color: "#2563eb", weight: 4, opacity: 1 }).addTo(mapInstanceRef.current);
+
+              mapInstanceRef.current.eachLayer((layer) => {
+                if ((layer as import("leaflet").Marker).getIcon) {
+                  (layer as unknown as { bringToFront?: () => void }).bringToFront?.();
+                }
+              });
+
+              setRouteSource("road");
+            } else {
+              setRouteSource("straight");
+            }
+          })
+          .catch(() => setRouteSource("straight"));
+      } else if (routeCoords.length > 1) {
+        setRouteSource("straight");
       }
     });
 
@@ -257,6 +303,12 @@ export function ItineraryMap({ startingPoint, stops, itineraries }: {
                     {KIND_LEGEND[k]}
                   </span>
                 ))}
+                {routeSource && (
+                  <span className="flex items-center gap-1 pl-2 border-l border-neutral-200">
+                    <span className="inline-block w-4 h-0.5 rounded-full bg-[#2563eb]" />
+                    {routeSource === "road" ? "Road route" : "Estimated path"}
+                  </span>
+                )}
               </div>
             )}
           </div>

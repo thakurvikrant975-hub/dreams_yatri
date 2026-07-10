@@ -456,7 +456,7 @@ export function ItineraryDocument({ form }: { form: PreviewData }) {
             itineraries={form.itineraries}
           />
 
-          <div className="grid sm:grid-cols-2 gap-4">
+          <div className="grid gap-4">
             <div className="rounded-xl border border-neutral-200 bg-white p-4">
               <h3 className="text-xs font-bold uppercase tracking-wide text-emerald-700 mb-2.5 flex items-center gap-1.5">
                 <span className="flex items-center justify-center size-5 rounded-full bg-emerald-100"><CheckCircle size={12} className="text-emerald-600" /></span>
