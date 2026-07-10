@@ -6,6 +6,7 @@ import Link from "next/link";
 import { cancellationLabel, type CancellationPolicy } from "@/app/lib/hotel-inventory/cancellation";
 import { createRatePlan, updateRatePlanDetails, setRatePlanActive, type RatePlanInput } from "../plan-actions";
 import { RateField } from "../../rate-fields";
+import { SearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
 
 const CANCELLATION_POLICIES: CancellationPolicy[] = [
   "FREE_TILL_CHECKIN", "FREE_TILL_24H", "FREE_TILL_48H", "FREE_TILL_72H", "FREE_TILL_7D", "NON_REFUNDABLE",
@@ -107,7 +108,7 @@ export default function PlanFormClient({
     <div className="space-y-5">
       <div>
         <Link href={`/hotel-connect/properties/${hotelId}/rates`} className="text-xs text-neutral-400 hover:text-neutral-600">
-          ← Back to Rates &amp; Availability
+          ← Back to Rates &amp; Inventory
         </Link>
         <h1 className="text-lg font-bold text-neutral-800 mt-1">{isEdit ? "Edit Rate Plan" : "Add Rate Plan"}</h1>
       </div>
@@ -126,45 +127,31 @@ export default function PlanFormClient({
 
         <div>
           <label className="block text-sm font-medium text-neutral-800 mb-1">Meal Plan</label>
-          <select
-            value={mealTypeId ?? ""}
-            onChange={(e) => onMealTypeChange(e.target.value)}
-            className="h-10 w-full rounded-lg border border-neutral-300 px-3 text-sm bg-white outline-none focus:ring-2 focus:ring-primary-500/20"
-          >
-            <option value="">Room Only (no meals)</option>
-            {mealTypes.map((m) => (
-              <option key={m.id} value={m.id}>{m.name}</option>
-            ))}
-          </select>
+          <SearchSelect
+            options={[{ value: "", label: "Room Only (no meals)" }, ...mealTypes.map((m) => ({ value: String(m.id), label: m.name }))]}
+            value={mealTypeId != null ? String(mealTypeId) : ""}
+            onChange={onMealTypeChange}
+          />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-neutral-800 mb-1">Diet Type</label>
-          <select
-            value={dietTypeId ?? ""}
-            onChange={(e) => setDietTypeId(e.target.value === "" ? null : Number(e.target.value))}
+          <SearchSelect
+            options={[{ value: "", label: "Not specified" }, ...dietTypes.map((d) => ({ value: String(d.id), label: d.name }))]}
+            value={dietTypeId != null ? String(dietTypeId) : ""}
+            onChange={(v) => setDietTypeId(v === "" ? null : Number(v))}
             disabled={isRoomOnly}
-            className="h-10 w-full rounded-lg border border-neutral-300 px-3 text-sm bg-white outline-none focus:ring-2 focus:ring-primary-500/20 disabled:bg-neutral-50 disabled:text-neutral-400"
-          >
-            <option value="">Not specified</option>
-            {dietTypes.map((d) => (
-              <option key={d.id} value={d.id}>{d.name}</option>
-            ))}
-          </select>
+          />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-neutral-800 mb-1">Cancellation Policy</label>
-          <select
-            value={cancellationPolicy}
-            onChange={(e) => setCancellationPolicy(e.target.value as CancellationPolicy | "")}
-            className="h-10 w-full rounded-lg border border-neutral-300 px-3 text-sm bg-white outline-none focus:ring-2 focus:ring-primary-500/20"
-          >
-            <option value="">Same as hotel policy</option>
-            {CANCELLATION_POLICIES.map((p) => (
-              <option key={p} value={p}>{cancellationLabel(p)}</option>
-            ))}
-          </select>
+          <SearchSelect
+            options={[{ value: "", label: "Same as hotel policy" }, ...CANCELLATION_POLICIES.map((p) => ({ value: p, label: cancellationLabel(p) }))]}
+            value={cancellationPolicy || ""}
+            onChange={(v) => setCancellationPolicy(v as CancellationPolicy | "")}
+            showSearch={false}
+          />
         </div>
 
         <div className="flex items-center justify-between py-1">

@@ -196,7 +196,7 @@ export default function RoomListClient({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm text-neutral-500">{hotelName}</p>
-          <h1 className="text-lg font-bold text-neutral-800">Rates & Availability</h1>
+          <h1 className="text-lg font-bold text-neutral-800">Rates & Inventory</h1>
         </div>
         {rooms.length > 0 && (
           <div className="flex items-center gap-2">
@@ -220,8 +220,8 @@ export default function RoomListClient({
       {rooms.length === 0 ? (
         <div className="rounded-xl border border-dashed border-neutral-300 p-10 text-center text-sm text-neutral-500">
           {isHomestay
-            ? "Set your base rate in the Pricing step of the listing wizard to activate rates & availability here."
-            : "No active rooms yet. Add a room to manage its rates & availability."}
+            ? "Set your base rate in the Pricing step of the listing wizard to activate rates & inventory here."
+            : "No active rooms yet. Add a room to manage its rates & inventory."}
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 gap-4">

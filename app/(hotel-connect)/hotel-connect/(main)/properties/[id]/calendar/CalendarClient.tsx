@@ -11,6 +11,7 @@ import {
   ListBulletIcon,
 } from "@heroicons/react/24/outline";
 import { fetchRoomCalendar, saveAvailabilityRange, type RangePatch } from "./calendar-actions";
+import { SearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
 
 type DayCell = {
   date: string;
@@ -219,7 +220,7 @@ export default function CalendarClient({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm text-neutral-500">{hotelName}</p>
-          <h1 className="text-lg font-bold text-neutral-800">Rates & Availability</h1>
+          <h1 className="text-lg font-bold text-neutral-800">Rates & Inventory</h1>
         </div>
         <div className="flex items-center gap-2">
           <Link
@@ -230,29 +231,25 @@ export default function CalendarClient({
             List View
           </Link>
           {rooms.length > 0 && (
-            <select
-              value={roomId ?? ""}
-              onChange={(e) => pickRoom(Number(e.target.value))}
-              className="h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-800 shadow-sm focus:ring-2 focus:ring-primary-500/20"
-            >
-              {rooms.map((r) => (
-                <option key={r.id} value={r.id}>{r.name} ({r.num_rooms} rooms)</option>
-              ))}
-            </select>
+            <SearchSelect
+              options={rooms.map((r) => ({ value: String(r.id), label: `${r.name} (${r.num_rooms} rooms)` }))}
+              value={roomId != null ? String(roomId) : undefined}
+              onChange={(v) => pickRoom(Number(v))}
+              showSearch={rooms.length > 6}
+              className="w-56"
+            />
           )}
           {(() => {
             const currentRoom = rooms.find((r) => r.id === roomId);
             if (!currentRoom || currentRoom.plans.length <= 1) return null;
             return (
-              <select
-                value={planId ?? ""}
-                onChange={(e) => pickPlan(Number(e.target.value))}
-                className="h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-800 shadow-sm focus:ring-2 focus:ring-primary-500/20"
-              >
-                {currentRoom.plans.map((p) => (
-                  <option key={p.id} value={p.id}>{p.label}</option>
-                ))}
-              </select>
+              <SearchSelect
+                options={currentRoom.plans.map((p) => ({ value: String(p.id), label: p.label }))}
+                value={planId != null ? String(planId) : undefined}
+                onChange={(v) => pickPlan(Number(v))}
+                showSearch={false}
+                className="w-48"
+              />
             );
           })()}
         </div>
@@ -260,7 +257,7 @@ export default function CalendarClient({
 
       {rooms.length === 0 ? (
         <div className="rounded-xl border border-dashed border-neutral-300 p-10 text-center text-sm text-neutral-500">
-          No active rooms yet. Add a room to manage its rates & availability.
+          No active rooms yet. Add a room to manage its rates & inventory.
         </div>
       ) : (
         <div className="grid lg:grid-cols-[1fr_300px] gap-5">
@@ -425,7 +422,7 @@ function EditPanel({
       {!active ? (
         <p className="text-xs text-neutral-500 mt-2 leading-relaxed">
           Click a start date, then an end date — even in a different month — to select a range,
-          then set rates &amp; availability here. Use the arrows above the calendar to switch years
+          then set rates &amp; inventory here. Use the arrows above the calendar to switch years
           if your range crosses a year boundary.
         </p>
       ) : (
@@ -450,11 +447,12 @@ function EditPanel({
             </div>
             <div>
               <label className={label}>Availability</label>
-              <select value={openState} onChange={(e) => setOpenState(e.target.value as "" | "open" | "closed")} className={input}>
-                <option value="">Unchanged</option>
-                <option value="open">Open for sale</option>
-                <option value="closed">Stop sell (close)</option>
-              </select>
+              <SearchSelect
+                options={[{ value: "", label: "Unchanged" }, { value: "open", label: "Open for sale" }, { value: "closed", label: "Stop sell (close)" }]}
+                value={openState}
+                onChange={(v) => setOpenState(v as "" | "open" | "closed")}
+                showSearch={false}
+              />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
@@ -469,19 +467,21 @@ function EditPanel({
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className={label}>CTA</label>
-                <select value={cta} onChange={(e) => setCta(e.target.value as "" | "yes" | "no")} className={input}>
-                  <option value="">—</option>
-                  <option value="yes">Closed</option>
-                  <option value="no">Open</option>
-                </select>
+                <SearchSelect
+                  options={[{ value: "", label: "—" }, { value: "yes", label: "Closed" }, { value: "no", label: "Open" }]}
+                  value={cta}
+                  onChange={(v) => setCta(v as "" | "yes" | "no")}
+                  showSearch={false}
+                />
               </div>
               <div>
                 <label className={label}>CTD</label>
-                <select value={ctd} onChange={(e) => setCtd(e.target.value as "" | "yes" | "no")} className={input}>
-                  <option value="">—</option>
-                  <option value="yes">Closed</option>
-                  <option value="no">Open</option>
-                </select>
+                <SearchSelect
+                  options={[{ value: "", label: "—" }, { value: "yes", label: "Closed" }, { value: "no", label: "Open" }]}
+                  value={ctd}
+                  onChange={(v) => setCtd(v as "" | "yes" | "no")}
+                  showSearch={false}
+                />
               </div>
             </div>
             <div className="flex gap-2 pt-1">

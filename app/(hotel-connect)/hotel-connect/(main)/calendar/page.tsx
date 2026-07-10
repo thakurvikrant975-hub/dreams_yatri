@@ -6,7 +6,7 @@ import { Card } from "@/app/components/ui/Card";
 import ConnectHeader from "../components/ConnectHeader";
 import { CalendarBlankIcon, ArrowRightIcon } from "@phosphor-icons/react/dist/ssr";
 
-// Entry point for the sidebar's "Rates & Availability" link. The calendar
+// Entry point for the sidebar's "Rates & Inventory" link. The calendar
 // itself lives at /properties/[id]/calendar (per property) — this route
 // resolves which property to send the owner to, since the sidebar has no
 // per-property context to link to directly.
@@ -26,7 +26,7 @@ export default async function CalendarEntryPage() {
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <ConnectHeader title="Rates & Availability" />
+      <ConnectHeader title="Rates & Inventory" />
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-2xl mx-auto">
           {hotels.length === 0 ? (
@@ -43,7 +43,7 @@ export default async function CalendarEntryPage() {
             </Card>
           ) : (
             <div className="space-y-2">
-              <p className="text-sm text-neutral-500 mb-3">Select a property to manage its rates &amp; availability.</p>
+              <p className="text-sm text-neutral-500 mb-3">Select a property to manage its rates &amp; inventory.</p>
               {hotels.map((h) => (
                 <Link
                   key={h.id}

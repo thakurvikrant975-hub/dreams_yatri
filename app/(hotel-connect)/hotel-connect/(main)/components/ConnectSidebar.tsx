@@ -20,29 +20,61 @@ import { useMobileNav } from "./MobileNavContext";
 
 type HeroIcon = React.ComponentType<React.SVGProps<SVGSVGElement>>;
 
-export const navItems: {
+export type NavItem = {
   href: string;
   label: string;
   icon: HeroIcon;
   exact?: boolean;
-}[] = [
+  // Extra URL patterns that should also light up this item — for pages that
+  // live outside this item's own href prefix (e.g. Rates & Inventory's real
+  // pages are nested under /properties/[id]/rates and /properties/[id]/calendar,
+  // not under this item's own /calendar href).
+  matchPatterns?: RegExp[];
+};
+
+export const navItems: NavItem[] = [
   { href: "/hotel-connect",            label: "Dashboard",     icon: HomeIcon, exact: true },
   { href: "/hotel-connect/properties", label: "My Properties", icon: BuildingOffice2Icon },
-  { href: "/hotel-connect/calendar",   label: "Rates & Availability", icon: TableCellsIcon },
+  {
+    href: "/hotel-connect/calendar", label: "Rates & Inventory", icon: TableCellsIcon,
+    matchPatterns: [/^\/hotel-connect\/properties\/\d+\/(rates|calendar)(\/|$)/],
+  },
   { href: "/hotel-connect/bookings",   label: "Bookings",      icon: CalendarDaysIcon },
   { href: "/hotel-connect/revenue",    label: "Revenue",       icon: CurrencyRupeeIcon },
   { href: "/hotel-connect/reviews",    label: "Reviews",       icon: StarIcon },
   { href: "/hotel-connect/inbox",      label: "Group Inbox",   icon: ChatBubbleLeftRightIcon },
 ];
 
-export function isNavActive(pathname: string, href: string, exact?: boolean) {
-  if (exact) return pathname === href;
-  return pathname === href || pathname.startsWith(href + "/");
+/**
+ * Picks exactly one "winning" nav item for a pathname. Nav items are checked
+ * independently by href-prefix elsewhere in the app, which breaks down when
+ * two items' prefixes overlap (e.g. "My Properties" at /properties also
+ * prefix-matches Rates & Inventory's real pages at /properties/[id]/rates,
+ * so both would light up, or the more specific one never would). An item's
+ * explicit matchPatterns (most specific) win over generic href-prefix
+ * matches; among prefix matches, the longest href wins.
+ */
+export function resolveActiveHref(pathname: string, items: NavItem[]): string | null {
+  for (const item of items) {
+    if (item.exact && pathname === item.href) return item.href;
+  }
+  for (const item of items) {
+    if (item.matchPatterns?.some((p) => p.test(pathname))) return item.href;
+  }
+  let best: { href: string; len: number } | null = null;
+  for (const item of items) {
+    if (item.exact) continue;
+    if (pathname === item.href || pathname.startsWith(item.href + "/")) {
+      if (!best || item.href.length > best.len) best = { href: item.href, len: item.href.length };
+    }
+  }
+  return best?.href ?? null;
 }
 
 export default function ConnectSidebar() {
   const pathname = usePathname();
   const { open, setOpen } = useMobileNav();
+  const activeHref = resolveActiveHref(pathname, navItems);
 
   return (
     <>
@@ -79,8 +111,8 @@ export default function ConnectSidebar() {
 
         {/* Nav */}
         <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
-          {navItems.map(({ href, label, icon: Icon, exact }) => {
-            const active = isNavActive(pathname, href, exact);
+          {navItems.map(({ href, label, icon: Icon }) => {
+            const active = href === activeHref;
             return (
               <Link
                 key={href}

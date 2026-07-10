@@ -60,7 +60,7 @@ export default async function RatesPage({ params }: { params: Promise<{ id: stri
 
   return (
     <>
-      <ConnectHeader title="Rates & Availability" />
+      <ConnectHeader title="Rates & Inventory" />
       <div className="flex-1 overflow-y-auto">
         <div className="p-6 mx-auto w-full max-w-5xl">
           <RoomListClient

@@ -11,31 +11,33 @@ import {
 } from "@heroicons/react/24/solid";
 import { cn } from "@/app/lib/utils";
 import { useMobileNav } from "./MobileNavContext";
-import { isNavActive } from "./ConnectSidebar";
-
-type HeroIcon = React.ComponentType<React.SVGProps<SVGSVGElement>>;
+import { resolveActiveHref, type NavItem } from "./ConnectSidebar";
 
 // Only the most-used destinations get a permanent tab — everything else
 // (Revenue, Reviews, Group Inbox, Sign out) lives behind "More", which opens
 // the same drawer as the header's hamburger button.
-const TABS: { href: string; label: string; icon: HeroIcon; exact?: boolean }[] = [
+const TABS: NavItem[] = [
   { href: "/hotel-connect",            label: "Home",       icon: HomeIcon, exact: true },
   { href: "/hotel-connect/properties", label: "Properties", icon: BuildingOffice2Icon },
-  { href: "/hotel-connect/calendar",   label: "Rates",       icon: TableCellsIcon },
+  {
+    href: "/hotel-connect/calendar", label: "Rates", icon: TableCellsIcon,
+    matchPatterns: [/^\/hotel-connect\/properties\/\d+\/(rates|calendar)(\/|$)/],
+  },
   { href: "/hotel-connect/bookings",   label: "Bookings",    icon: CalendarDaysIcon },
 ];
 
 export default function MobileBottomNav() {
   const pathname = usePathname();
   const { setOpen } = useMobileNav();
+  const activeHref = resolveActiveHref(pathname, TABS);
 
   return (
     <nav
       className="lg:hidden fixed bottom-0 inset-x-0 z-20 h-16 bg-white border-t border-neutral-200 flex items-stretch"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      {TABS.map(({ href, label, icon: Icon, exact }) => {
-        const active = isNavActive(pathname, href, exact);
+      {TABS.map(({ href, label, icon: Icon }) => {
+        const active = href === activeHref;
         return (
           <Link
             key={href}

@@ -11,6 +11,7 @@ import {
 import { saveAvailabilityRange } from "../../calendar/calendar-actions";
 import { getRoomRateDetail, saveRoomRates, type RoomRateDetail } from "./rate-actions";
 import { RateField, RestrictionField } from "../rate-fields";
+import { SearchSelect } from "@/app/(hotel-connect)/hotel-connect/(main)/components/ui/search-select";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const toISO = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -113,21 +114,19 @@ export default function ManageRatesClient({
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <Link href={`/hotel-connect/properties/${hotelId}/rates`} className="text-xs text-neutral-400 hover:text-neutral-600">
-            ← Back to Rates &amp; Availability
+            ← Back to Rates &amp; Inventory
           </Link>
           <h1 className="text-lg font-bold text-neutral-800 mt-1">{roomName}</h1>
           <p className="text-xs text-neutral-400">Manage All Rates</p>
         </div>
         {plans.length > 1 && (
-          <select
-            value={pricingId}
-            onChange={(e) => switchPlan(Number(e.target.value))}
-            className="h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-800 shadow-sm focus:ring-2 focus:ring-primary-500/20"
-          >
-            {plans.map((p) => (
-              <option key={p.id} value={p.id}>{p.label}</option>
-            ))}
-          </select>
+          <SearchSelect
+            options={plans.map((p) => ({ value: String(p.id), label: p.label }))}
+            value={String(pricingId)}
+            onChange={(v) => switchPlan(Number(v))}
+            showSearch={false}
+            className="w-48"
+          />
         )}
       </div>
 

@@ -165,7 +165,7 @@ export default function DefaultRatesClient({
           href={`/hotel-connect/properties/${hotelId}/rates`}
           className="h-10 flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-600 shadow-sm hover:bg-neutral-50 transition-colors"
         >
-          ← Back to Rates & Availability
+          ← Back to Rates & Inventory
         </Link>
       </div>
 
