@@ -38,10 +38,8 @@ export default async function RatesPage({ params }: { params: Promise<{ id: stri
       is_bookable: true,
       images: { where: { is_primary: true }, take: 1, select: { thumbnail: true, url: true } },
       pricing: {
-        where: { is_active: true },
         orderBy: { sort_order: "asc" },
-        take: 1,
-        select: { price_per_night: true },
+        select: { id: true, plan_name: true, price_per_night: true, is_active: true, meal_type: { select: { name: true } } },
       },
     },
   });
@@ -52,7 +50,12 @@ export default async function RatesPage({ params }: { params: Promise<{ id: stri
     numRooms: r.num_rooms,
     isBookable: r.is_bookable,
     thumbnail: r.images[0]?.thumbnail ?? r.images[0]?.url ?? null,
-    baseRate: r.pricing[0]?.price_per_night != null ? Number(r.pricing[0].price_per_night) : null,
+    ratePlans: r.pricing.map((p) => ({
+      id: p.id,
+      label: p.plan_name || p.meal_type?.name || "Room Only",
+      price: Number(p.price_per_night),
+      isActive: p.is_active,
+    })),
   }));
 
   return (

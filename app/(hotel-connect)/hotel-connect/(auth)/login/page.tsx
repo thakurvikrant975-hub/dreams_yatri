@@ -34,8 +34,8 @@ export default async function HotelConnectLoginPage() {
         {/* Logo */}
         <div className="relative z-10">
           <div className="flex items-center gap-2.5">
-            <DyLogo className="h-7 text-white" />
-            <span className="text-[9px] font-bold tracking-[0.2em] uppercase text-white/60 border border-white/20 px-1.5 py-0.5 rounded">
+            <DyLogo className="h-10 text-primary-500" />
+            <span className="text-[8px] font-bold tracking-[0.2em] uppercase text-emerald-500 border border-white/20 px-1.5 py-0.5 rounded">
               CONNECT
             </span>
           </div>

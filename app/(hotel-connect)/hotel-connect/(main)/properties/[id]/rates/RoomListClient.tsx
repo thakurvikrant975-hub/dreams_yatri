@@ -5,11 +5,15 @@ import Link from "next/link";
 import Image from "next/image";
 import { Card } from "@/app/components/ui/Card";
 import { setRoomBookable } from "../edit/tabs/room-actions";
+import { setRatePlanActive } from "./[roomId]/plan-actions";
 import {
   BuildingsIcon,
   WarningCircleIcon,
   CalendarBlankIcon,
+  PlusCircleIcon,
 } from "@phosphor-icons/react/dist/ssr";
+
+export type RatePlanListItem = { id: number; label: string; price: number; isActive: boolean };
 
 export type RoomListItem = {
   id: number;
@@ -17,7 +21,7 @@ export type RoomListItem = {
   numRooms: number;
   isBookable: boolean;
   thumbnail: string | null;
-  baseRate: number | null;
+  ratePlans: RatePlanListItem[];
 };
 
 const money = (n: number) => `₹${n.toLocaleString("en-IN")}`;
@@ -68,8 +72,56 @@ function BookableToggle({ hotelId, room }: { hotelId: number; room: RoomListItem
   );
 }
 
+function RatePlanRow({
+  hotelId, roomId, index, plan, onReactivated,
+}: {
+  hotelId: number; roomId: number; index: number; plan: RatePlanListItem;
+  onReactivated: (planId: number) => void;
+}) {
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function reactivate() {
+    setError(null);
+    startTransition(async () => {
+      const result = await setRatePlanActive(hotelId, roomId, plan.id, true);
+      if (result.error) { setError(result.error); return; }
+      onReactivated(plan.id);
+    });
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-2 text-sm">
+      <Link
+        href={`/hotel-connect/properties/${hotelId}/rates/${roomId}/plans/${plan.id}`}
+        className={
+          "min-w-0 flex-1 truncate hover:underline " +
+          (plan.isActive ? "text-neutral-700" : "text-neutral-400 line-through")
+        }
+      >
+        {index + 1}. {plan.label} — {money(plan.price)}
+      </Link>
+      {plan.isActive ? (
+        <span className="text-xs text-neutral-400 shrink-0">active</span>
+      ) : (
+        <button
+          type="button"
+          onClick={reactivate}
+          disabled={pending}
+          className="text-xs font-semibold text-primary-600 hover:text-primary-700 shrink-0 disabled:opacity-60"
+        >
+          {pending ? "…" : "Reactivate"}
+        </button>
+      )}
+      {error && <span className="text-[10px] text-red-600 shrink-0">{error}</span>}
+    </div>
+  );
+}
+
 function RoomCard({ hotelId, room }: { hotelId: number; room: RoomListItem }) {
-  const hasRate = room.baseRate != null;
+  const [plans, setPlans] = useState(room.ratePlans);
+  const hasAnyActive = plans.some((p) => p.isActive);
+
   return (
     <Card variant="elevated" radius="md" className="overflow-hidden p-px">
       <div className="flex items-center gap-3 p-4">
@@ -89,29 +141,39 @@ function RoomCard({ hotelId, room }: { hotelId: number; room: RoomListItem }) {
         <BookableToggle hotelId={hotelId} room={room} />
       </div>
 
-      {!hasRate && (
+      {!hasAnyActive && (
         <div className="mx-4 mb-3 flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
           <WarningCircleIcon size={14} weight="fill" className="text-red-500 shrink-0" />
-          <span className="flex-1 text-xs text-red-700">This room has no rates. Add rates to start selling.</span>
+          <span className="flex-1 text-xs text-red-700">This room has no active rate plan. Add one to start selling.</span>
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-neutral-100">
-        <div>
-          <p className="text-xs font-semibold text-neutral-700">Nightly Rate</p>
-          {hasRate ? (
-            <p className="text-sm font-bold text-neutral-800 mt-0.5">{money(room.baseRate!)}</p>
-          ) : (
-            <span className="inline-block mt-0.5 text-[10px] font-bold uppercase tracking-wide bg-red-100 text-red-600 rounded px-1.5 py-0.5">
-              Rate Missing
-            </span>
-          )}
-        </div>
+      <div className="px-4 py-3 border-t border-neutral-100 space-y-2">
+        <p className="text-xs font-semibold text-neutral-700">Rate Plans</p>
+        {plans.length === 0 ? (
+          <span className="inline-block text-[10px] font-bold uppercase tracking-wide bg-red-100 text-red-600 rounded px-1.5 py-0.5">
+            Rate Missing
+          </span>
+        ) : (
+          <div className="space-y-1.5">
+            {plans.map((plan, i) => (
+              <RatePlanRow
+                key={plan.id}
+                hotelId={hotelId}
+                roomId={room.id}
+                index={i}
+                plan={plan}
+                onReactivated={(planId) => setPlans((prev) => prev.map((p) => p.id === planId ? { ...p, isActive: true } : p))}
+              />
+            ))}
+          </div>
+        )}
         <Link
-          href={`/hotel-connect/properties/${hotelId}/rates/${room.id}`}
-          className="text-xs font-semibold text-primary-600 hover:text-primary-700"
+          href={`/hotel-connect/properties/${hotelId}/rates/${room.id}/plans/new`}
+          className="flex items-center gap-1.5 text-xs font-semibold text-primary-500 hover:text-primary-600 pt-1"
         >
-          {hasRate ? "Manage all rates" : "Add rates"}
+          <PlusCircleIcon size={14} weight="fill" />
+          Add Rate Plan
         </Link>
       </div>
     </Card>
@@ -137,13 +199,21 @@ export default function RoomListClient({
           <h1 className="text-lg font-bold text-neutral-800">Rates & Availability</h1>
         </div>
         {rooms.length > 0 && (
-          <Link
-            href={`/hotel-connect/properties/${hotelId}/calendar?room=${rooms[0].id}`}
-            className="h-10 flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-600 shadow-sm hover:bg-neutral-50 transition-colors"
-          >
-            <CalendarBlankIcon size={16} />
-            Calendar View
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/hotel-connect/properties/${hotelId}/rates/default`}
+              className="h-10 flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-600 shadow-sm hover:bg-neutral-50 transition-colors"
+            >
+              Default Rates & Inventory
+            </Link>
+            <Link
+              href={`/hotel-connect/properties/${hotelId}/calendar?room=${rooms[0].id}`}
+              className="h-10 flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-600 shadow-sm hover:bg-neutral-50 transition-colors"
+            >
+              <CalendarBlankIcon size={16} />
+              Calendar View
+            </Link>
+          </div>
         )}
       </div>
 

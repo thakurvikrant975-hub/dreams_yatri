@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { InformationCircleIcon } from "@heroicons/react/24/outline";
 import {
   PricingRangeCalendarPicker,
@@ -9,6 +10,7 @@ import {
 } from "@/app/(dashboard)/dashboard/(main)/components/ui/pricing-range-calendar";
 import { saveAvailabilityRange } from "../../calendar/calendar-actions";
 import { getRoomRateDetail, saveRoomRates, type RoomRateDetail } from "./rate-actions";
+import { RateField, RestrictionField } from "../rate-fields";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const toISO = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -22,71 +24,14 @@ const EMPTY_DETAIL: RoomRateDetail = {
   minLos: null, maxLos: null, minAdvanceDays: null, maxAdvanceDays: null,
 };
 
-const FIELD_LABEL = "text-sm font-medium text-neutral-800";
-const FIELD_SUB = "text-xs text-neutral-400";
-const FIELD_INPUT_WRAP = "h-10 w-36 rounded-lg border flex items-center px-2.5 gap-1 text-sm";
-const FIELD_INPUT = "w-full outline-none bg-transparent";
-
-// Module-scope, not defined inside ManageRatesClient — an inline function
-// component gets a new identity every parent render, so React would unmount
-// and remount the <input> (and its focus) on every keystroke.
-function RateField({
-  value, title, subtitle, onChange,
-}: {
-  value: number | null; title: string; subtitle?: string; onChange: (raw: string) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between py-3 border-b border-neutral-100 last:border-0">
-      <div>
-        <p className={FIELD_LABEL}>{title}</p>
-        {subtitle && <p className={FIELD_SUB}>{subtitle}</p>}
-      </div>
-      <div className={`${FIELD_INPUT_WRAP} border-red-200`}>
-        <span className="text-neutral-400">₹</span>
-        <input
-          type="number"
-          min={0}
-          step="1"
-          value={value ?? ""}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="Enter Rate"
-          className={FIELD_INPUT}
-        />
-      </div>
-    </div>
-  );
-}
-
-function RestrictionField({
-  value, title, subtitle, onChange,
-}: {
-  value: number | null; title: string; subtitle?: string; onChange: (raw: string) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between py-3 border-b border-neutral-100 last:border-0">
-      <div>
-        <p className={FIELD_LABEL}>{title}</p>
-        {subtitle && <p className={FIELD_SUB}>{subtitle}</p>}
-      </div>
-      <div className={`${FIELD_INPUT_WRAP} border-neutral-300`}>
-        <input
-          type="number"
-          min={0}
-          step="1"
-          value={value ?? ""}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="—"
-          className={FIELD_INPUT}
-        />
-      </div>
-    </div>
-  );
-}
+export type RatePlanOption = { id: number; label: string };
 
 export default function ManageRatesClient({
   hotelId,
   roomId,
   roomName,
+  pricingId,
+  plans,
   initialFrom,
   initialTo,
   initialDetail,
@@ -94,10 +39,13 @@ export default function ManageRatesClient({
   hotelId: number;
   roomId: number;
   roomName: string;
+  pricingId: number;
+  plans: RatePlanOption[];
   initialFrom: string | null;
   initialTo: string | null;
   initialDetail: RoomRateDetail | null;
 }) {
+  const router = useRouter();
   const [range, setRange] = useState<DateRange | undefined>(
     initialFrom && initialTo ? { from: fromISOToDate(initialFrom), to: fromISOToDate(initialTo) } : undefined,
   );
@@ -110,6 +58,14 @@ export default function ManageRatesClient({
   const toISOStr = range?.to ? toISO(range.to) : null;
   const hasRange = !!(fromISO && toISOStr);
 
+  function switchPlan(nextPlanId: number) {
+    const params = new URLSearchParams();
+    params.set("plan", String(nextPlanId));
+    if (fromISO) params.set("from", fromISO);
+    if (toISOStr) params.set("to", toISOStr);
+    router.push(`/hotel-connect/properties/${hotelId}/rates/${roomId}?${params.toString()}`);
+  }
+
   function handleRangeChange(next: DateRange | undefined) {
     setRange(next);
     setMsg(null);
@@ -117,7 +73,7 @@ export default function ManageRatesClient({
     const t = next?.to ? toISO(next.to) : null;
     if (!f || !t) { setDetail(EMPTY_DETAIL); return; }
     startLoad(async () => {
-      const res = await getRoomRateDetail(hotelId, roomId, f, t);
+      const res = await getRoomRateDetail(hotelId, roomId, pricingId, f, t);
       if (res.error) { setMsg(res.error); setDetail(EMPTY_DETAIL); return; }
       setDetail(res.detail ?? EMPTY_DETAIL);
     });
@@ -132,7 +88,7 @@ export default function ManageRatesClient({
     if (detail.basePrice == null) { setMsg("Base rate (2 Adults) is required."); return; }
     setMsg(null);
     startSave(async () => {
-      const rateRes = await saveRoomRates(hotelId, roomId, fromISO, toISOStr, {
+      const rateRes = await saveRoomRates(hotelId, roomId, pricingId, fromISO, toISOStr, {
         basePrice: detail.basePrice!,
         oneAdultPrice: detail.oneAdultPrice,
         childRate: detail.childRate,
@@ -154,12 +110,25 @@ export default function ManageRatesClient({
 
   return (
     <div className="space-y-5">
-      <div>
-        <Link href={`/hotel-connect/properties/${hotelId}/rates`} className="text-xs text-neutral-400 hover:text-neutral-600">
-          ← Back to Rates &amp; Availability
-        </Link>
-        <h1 className="text-lg font-bold text-neutral-800 mt-1">{roomName}</h1>
-        <p className="text-xs text-neutral-400">Manage All Rates</p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <Link href={`/hotel-connect/properties/${hotelId}/rates`} className="text-xs text-neutral-400 hover:text-neutral-600">
+            ← Back to Rates &amp; Availability
+          </Link>
+          <h1 className="text-lg font-bold text-neutral-800 mt-1">{roomName}</h1>
+          <p className="text-xs text-neutral-400">Manage All Rates</p>
+        </div>
+        {plans.length > 1 && (
+          <select
+            value={pricingId}
+            onChange={(e) => switchPlan(Number(e.target.value))}
+            className="h-10 rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-800 shadow-sm focus:ring-2 focus:ring-primary-500/20"
+          >
+            {plans.map((p) => (
+              <option key={p.id} value={p.id}>{p.label}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm p-4">

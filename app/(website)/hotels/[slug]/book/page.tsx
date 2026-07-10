@@ -13,7 +13,7 @@ export default async function BookPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ room?: string; in?: string; out?: string; error?: string }>;
+  searchParams: Promise<{ room?: string; in?: string; out?: string; plan?: string; error?: string }>;
 }) {
   const { slug } = await params;
   const sp = await searchParams;
@@ -21,7 +21,13 @@ export default async function BookPage({
   const { checkIn, checkOut } = resolveDates(sp);
   if (!roomId) notFound();
 
-  const ctx = await getRoomBookingContext(slug, roomId, checkIn, checkOut);
+  // The synthetic "${roomId}-base" id (used when a room has no real pricing
+  // row yet) isn't a real pricingId — only a genuine numeric id is threaded
+  // through; anything else falls back to lead-plan behavior, same as before
+  // rate plans existed.
+  const pricingId = sp.plan && /^\d+$/.test(sp.plan) ? Number(sp.plan) : undefined;
+
+  const ctx = await getRoomBookingContext(slug, roomId, checkIn, checkOut, pricingId);
   if (!ctx) notFound();
 
   const input = "h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm shadow-sm focus:ring-2 focus:ring-primary-500/20 outline-none";
@@ -42,6 +48,7 @@ export default async function BookPage({
             <input type="hidden" name="checkIn" value={ctx.checkIn} />
             <input type="hidden" name="checkOut" value={ctx.checkOut} />
             <input type="hidden" name="units" value={1} />
+            <input type="hidden" name="pricingId" value={pricingId ?? ""} />
 
             {sp.error && (
               <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{sp.error}</div>

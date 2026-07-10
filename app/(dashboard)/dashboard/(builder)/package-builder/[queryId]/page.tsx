@@ -212,6 +212,61 @@ function PhotoPreview({ src, alt, onRemove }: { src: string; alt: string; onRemo
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// HotelPhotoGallery — the hotel's main photo plus up to 3 room photos, shown
+// together once a real hotel room is picked so the builder reads as a photo
+// gallery instead of just text fields.
+// ─────────────────────────────────────────────────────────────────────────────
+function HotelPhotoGallery({ hotelPhoto, roomPhotos, alt, onClear }: {
+  hotelPhoto?: string;
+  roomPhotos: string[];
+  alt: string;
+  onClear: () => void;
+}) {
+  if (!hotelPhoto && roomPhotos.length === 0) return null;
+  return (
+    <div className="relative rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-2.5">
+      <button
+        type="button"
+        onClick={onClear}
+        className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-dashboard-error text-white text-xs leading-none flex items-center justify-center hover:bg-dashboard-error/80 z-10"
+      >
+        ×
+      </button>
+      <div className="flex gap-2">
+        {hotelPhoto && (
+          <div className="shrink-0">
+            <Image
+              src={hotelPhoto}
+              alt={alt}
+              width={140}
+              height={112}
+              className="h-24 w-32 rounded-lg object-cover border border-dashboard-base-300"
+            />
+            <p className="text-[9px] text-dashboard-base-content/40 mt-1 text-center">Hotel</p>
+          </div>
+        )}
+        {roomPhotos.length > 0 && (
+          <div className="grid grid-cols-3 gap-1.5 flex-1 min-w-0">
+            {roomPhotos.slice(0, 3).map((src, i) => (
+              <div key={i}>
+                <Image
+                  src={src}
+                  alt={`${alt} — room photo ${i + 1}`}
+                  width={100}
+                  height={112}
+                  className="h-24 w-full rounded-lg object-cover border border-dashboard-base-300"
+                />
+                {i === 1 && <p className="text-[9px] text-dashboard-base-content/40 mt-1 text-center">Room</p>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ActivityListEditor — per-activity title + description + photo, add/remove
 // ─────────────────────────────────────────────────────────────────────────────
 function ActivityListEditor({ activities, location, onChange }: {
@@ -220,7 +275,7 @@ function ActivityListEditor({ activities, location, onChange }: {
   onChange: (v: ActivityInput[]) => void;
 }) {
   function addActivity() {
-    onChange([...activities, { title: "", description: "", photo: "" }]);
+    onChange([...activities, { title: "", description: "", photo: "", photos: [], photoLabels: [] }]);
   }
   function updateActivity(idx: number, patch: Partial<ActivityInput>) {
     onChange(activities.map((a, i) => (i === idx ? { ...a, ...patch } : a)));
@@ -248,6 +303,8 @@ function ActivityListEditor({ activities, location, onChange }: {
       title: raw.name,
       description: [raw.category, raw.durationHours ? `${raw.durationHours}h` : null].filter(Boolean).join(" · "),
       photo: raw.thumbnail ?? "",
+      photos: raw.photos,
+      photoLabels: raw.photoLabels,
     }]);
   }
 
@@ -284,38 +341,50 @@ function ActivityListEditor({ activities, location, onChange }: {
       <div className="space-y-2">
         {activities.map((a, idx) => (
           <div key={idx} className="rounded-lg border border-dashboard-base-300 p-2.5 space-y-1.5">
-            <div className="flex items-start gap-1.5">
-              {a.photo && (
-                <PhotoPreview
-                  src={a.photo}
-                  alt={a.title || "Activity"}
-                  onRemove={() => updateActivity(idx, { photo: "" })}
-                />
-              )}
-              <div className="flex-1 space-y-1.5">
-                <div className="flex items-center gap-1.5">
-                  <Input
-                    value={a.title}
-                    onChange={(e) => updateActivity(idx, { title: e.target.value })}
-                    placeholder="Activity title, e.g. Paragliding"
-                    className="text-sm h-8 flex-1 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                  />
-                  <button
-                    onClick={() => removeActivity(idx)}
-                    className="p-1.5 rounded hover:bg-dashboard-error/10 text-dashboard-error/70 hover:text-dashboard-error transition-colors shrink-0"
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-                <Textarea
-                  value={a.description}
-                  onChange={(e) => updateActivity(idx, { description: e.target.value })}
-                  placeholder="Short description of the experience…"
-                  rows={2}
-                  className="text-xs resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                />
-              </div>
+            <div className="flex items-center gap-1.5">
+              <Input
+                value={a.title}
+                onChange={(e) => updateActivity(idx, { title: e.target.value })}
+                placeholder="Activity title, e.g. Paragliding"
+                className="text-sm h-8 flex-1 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+              />
+              <button
+                onClick={() => removeActivity(idx)}
+                className="p-1.5 rounded hover:bg-dashboard-error/10 text-dashboard-error/70 hover:text-dashboard-error transition-colors shrink-0"
+              >
+                <Trash2 size={12} />
+              </button>
             </div>
+            <Textarea
+              value={a.description}
+              onChange={(e) => updateActivity(idx, { description: e.target.value })}
+              placeholder="Short description of the experience…"
+              rows={2}
+              className="text-xs resize-none border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+            />
+            {a.photos.length > 0 && (
+              <div className="relative rounded-lg border border-dashboard-base-300 bg-dashboard-base-200/40 p-2">
+                <button
+                  type="button"
+                  onClick={() => updateActivity(idx, { photo: "", photos: [], photoLabels: [] })}
+                  className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-dashboard-error text-white text-xs leading-none flex items-center justify-center hover:bg-dashboard-error/80 z-10"
+                >
+                  ×
+                </button>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {a.photos.slice(0, 3).map((src, i) => (
+                    <Image
+                      key={i}
+                      src={src}
+                      alt={a.photoLabels[i] || a.title || "Activity"}
+                      width={100}
+                      height={80}
+                      className="h-16 w-full rounded-md object-cover border border-dashboard-base-300"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ))}
         {activities.length === 0 && (
@@ -492,7 +561,11 @@ function DayCard({ day, data, location, onChange, onRemove }: {
     onChange({
       ...data,
       accommodation: `${raw.hotelName} — ${raw.roomName}`,
-      accommodationPhoto: raw.thumbnail ?? data.accommodationPhoto,
+      accommodationPhoto: raw.hotelPhoto ?? data.accommodationPhoto,
+      accommodationRoomPhotos: raw.roomPhotos.length > 0 ? raw.roomPhotos : data.accommodationRoomPhotos,
+      accommodationLocation: raw.location ?? data.accommodationLocation,
+      accommodationRoomSpecs: raw.roomSpecs ?? data.accommodationRoomSpecs,
+      accommodationRoomCapacity: raw.roomCapacity ?? data.accommodationRoomCapacity,
       hotelMealPlan: raw.mealPlanName ?? data.hotelMealPlan,
     });
   }
@@ -513,8 +586,10 @@ function DayCard({ day, data, location, onChange, onRemove }: {
     if (!raw) return;
     onChange({
       ...data,
-      transport: `${raw.name} (${CAB_LABELS[raw.type] ?? raw.type})`,
+      transport: raw.name,
       transportPhoto: raw.thumbnail ?? data.transportPhoto,
+      transportVehicleType: CAB_LABELS[raw.type] ?? raw.type,
+      transportSeats: raw.passengerCapacity,
     });
   }
 
@@ -604,19 +679,38 @@ function DayCard({ day, data, location, onChange, onRemove }: {
                 </p>
               )}
             </div>
-            {data.accommodationPhoto && (
-              <PhotoPreview
-                src={data.accommodationPhoto}
-                alt={data.accommodation || "Hotel"}
-                onRemove={() => onChange({ ...data, accommodationPhoto: "" })}
-              />
-            )}
+            <HotelPhotoGallery
+              hotelPhoto={data.accommodationPhoto || undefined}
+              roomPhotos={data.accommodationRoomPhotos}
+              alt={data.accommodation || "Hotel"}
+              onClear={() => onChange({ ...data, accommodationPhoto: "", accommodationRoomPhotos: [] })}
+            />
             <Input
               value={data.accommodation}
               onChange={(e) => onChange({ ...data, accommodation: e.target.value })}
               placeholder="Hotel name / type"
               className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
             />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] text-dashboard-base-content/60 mb-1 block">Location</label>
+                <Input
+                  value={data.accommodationLocation}
+                  onChange={(e) => onChange({ ...data, accommodationLocation: e.target.value })}
+                  placeholder="City, State"
+                  className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] text-dashboard-base-content/60 mb-1 block">Room Specs</label>
+                <Input
+                  value={data.accommodationRoomSpecs}
+                  onChange={(e) => onChange({ ...data, accommodationRoomSpecs: e.target.value })}
+                  placeholder="1 Double Bed | Mountain View"
+                  className="text-sm h-8 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+                />
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-[11px] text-dashboard-base-content/60 mb-1 flex items-center gap-1 block">
@@ -674,12 +768,50 @@ function DayCard({ day, data, location, onChange, onRemove }: {
                 />
               </div>
             )}
-            <Input
-              value={data.transport}
-              onChange={(e) => onChange({ ...data, transport: e.target.value })}
-              placeholder="Cab type / route"
-              className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-            />
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <Input
+                value={data.transport}
+                onChange={(e) => onChange({ ...data, transport: e.target.value })}
+                placeholder="Vehicle name"
+                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+              />
+              <Input
+                value={data.transportVehicleType}
+                onChange={(e) => onChange({ ...data, transportVehicleType: e.target.value })}
+                placeholder="Type, e.g. SUV"
+                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <Input
+                value={data.transportPickup}
+                onChange={(e) => onChange({ ...data, transportPickup: e.target.value })}
+                placeholder="Pickup point"
+                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+              />
+              <Input
+                value={data.transportDrop}
+                onChange={(e) => onChange({ ...data, transportDrop: e.target.value })}
+                placeholder="Drop point"
+                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                type="number"
+                value={data.transportSeats ?? ""}
+                onChange={(e) => onChange({ ...data, transportSeats: e.target.value ? Number(e.target.value) : null })}
+                placeholder="Seats"
+                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+              />
+              <Input
+                type="number"
+                value={data.transportDistanceKm ?? ""}
+                onChange={(e) => onChange({ ...data, transportDistanceKm: e.target.value ? Number(e.target.value) : null })}
+                placeholder="Distance (km)"
+                className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+              />
+            </div>
           </div>
 
           {/* Meals */}
@@ -789,8 +921,12 @@ function deriveDayLocations(stops: StopInput[], totalDays: number): string[] {
 
 const emptyDay = (day: number): DayItinerary => ({
   day, title: "", description: "", activities: [],
-  meals: [], accommodation: "", accommodationPhoto: "", hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
-  transport: "", transportPhoto: "", notes: "",
+  meals: [], accommodation: "", accommodationPhoto: "", accommodationRoomPhotos: [],
+  accommodationLocation: "", accommodationRoomSpecs: "", accommodationRoomCapacity: null,
+  hotelCheckIn: "", hotelCheckOut: "", hotelMealPlan: "",
+  transport: "", transportPhoto: "", transportVehicleType: "", transportSeats: null,
+  transportPickup: "", transportDrop: "", transportDistanceKm: null,
+  notes: "",
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -830,14 +966,22 @@ export default function PackageBuilderDetailPage() {
 
   // ── Load query ─────────────────────────────────────────────────────────────
   useEffect(() => {
+    // Guards against React Strict Mode's dev-only double-invocation: without
+    // this, the first (soon-to-be-cancelled) run could still consume the
+    // "Use It" sessionStorage payload and apply it, and then the second run's
+    // slower async destination-cover fetch resolves afterwards and clobbers
+    // the correctly-applied package cover with the generic destination one.
+    let cancelled = false;
     (async () => {
       const data = await getQueryDetail(queryId);
+      if (cancelled) return;
       setQuery(data);
       if (!data) { setLoading(false); return; }
 
       const r = data.requirements;
       const j = r?.journey;
       const t = r?.travellers;
+      const tr = r?.transport;
 
       setForm((f) => ({
         ...f,
@@ -850,6 +994,11 @@ export default function PackageBuilderDetailPage() {
         adults: t?.adults ?? 1,
         children: t?.children ?? 0,
         infants: t?.infants ?? 0,
+        // Pre-select flight/train inclusion from what the client asked for
+        // when the query was created — a sales exec can still flip these
+        // off below if the customer's requirements change.
+        flightsIncluded: tr?.includeFlights ?? f.flightsIncluded,
+        trainIncluded: tr?.includeTrain ?? f.trainIncluded,
         itineraries: Array.from({ length: j?.noOfDays ?? 3 }, (_, i) => emptyDay(i + 1)),
       }));
 
@@ -876,6 +1025,7 @@ export default function PackageBuilderDetailPage() {
         const destinationName = j?.destinations?.[0] ?? data.destination;
         if (destinationName) {
           const suggested = await getDestinationCoverImage(destinationName);
+          if (cancelled) return;
           if (suggested) setForm((f) => ({ ...f, coverImage: suggested }));
         }
       }
@@ -893,7 +1043,16 @@ export default function PackageBuilderDetailPage() {
         if (proceed) {
           try {
             const payload = JSON.parse(rawCopyPayload) as PackageCopyPayload;
-            setForm((f) => ({ ...f, ...payload }));
+            // An empty payload.coverImage/startingPoint (the catalog package
+            // has no photo, and never carries a query-specific starting
+            // point) should never blank out what's already there — only
+            // overwrite when the package actually supplies a value.
+            setForm((f) => ({
+              ...f,
+              ...payload,
+              coverImage: payload.coverImage || f.coverImage,
+              startingPoint: payload.startingPoint || f.startingPoint,
+            }));
             toast.success(`Copied "${payload.title}" into this draft`);
           } catch (err) {
             console.error("Failed to apply copied package payload", err);
@@ -903,6 +1062,7 @@ export default function PackageBuilderDetailPage() {
 
       setLoading(false);
     })();
+    return () => { cancelled = true; };
   }, [queryId]);
 
   // ── Auto-calc total price ──────────────────────────────────────────────────

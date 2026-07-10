@@ -4,7 +4,34 @@ import {
   Calendar, Hotel, Car, Utensils, CheckCircle, XCircle,
   IndianRupee, Users, MapPin, Info, LogIn, LogOut,
   Plane, TrainFront, Sparkles, Phone, Mail,
-} from "lucide-react";   
+  Coffee, Soup, UtensilsCrossed,
+} from "lucide-react";
+import { ItineraryMap } from "./ItineraryMap";
+
+/** "1 Room | 2 Adults, 1 Child" — computed against room capacity so it
+ * always reflects the query's actual traveller count, not stale text. */
+function occupancyText(capacity: number | null, adults: number, children: number): string {
+  const totalPax = adults + children;
+  const rooms = capacity && capacity > 0 ? Math.max(1, Math.ceil(totalPax / capacity)) : 1;
+  return `${rooms} Room${rooms !== 1 ? "s" : ""} | ${adults} Adult${adults !== 1 ? "s" : ""}` +
+    (children > 0 ? `, ${children} Child${children !== 1 ? "ren" : ""}` : "");
+}
+
+/** Parses free-text meal-plan strings ("MAP - Breakfast & Dinner") into a
+ * clean "Breakfast & Dinner included" summary line. */
+function mealIncludedText(planText: string): string | null {
+  if (!planText) return null;
+  const lower = planText.toLowerCase();
+  const found: string[] = [];
+  if (lower.includes("breakfast")) found.push("Breakfast");
+  if (lower.includes("lunch")) found.push("Lunch");
+  if (lower.includes("dinner")) found.push("Dinner");
+  if (found.length === 0) return null;
+  const joined = found.length <= 2
+    ? found.join(" & ")
+    : `${found.slice(0, -1).join(", ")} & ${found[found.length - 1]}`;
+  return `${joined} included`;
+}
 import DyLogo from "@/app/components/ui/DyLogo";
 import type { DayItinerary, ActivityInput, StopInput } from "../action";
 
@@ -44,29 +71,86 @@ function Kicker({ label }: { label: string }) {
 
 function ActivityRow({ activity }: { activity: ActivityInput }) {
   if (!activity.title.trim()) return null;
+  const gallery = activity.photos.length > 0 ? activity.photos : (activity.photo ? [activity.photo] : []);
+
   return (
-    <div className="flex gap-2.5">
-      {activity.photo ? (
-        /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
-        <img src={activity.photo} alt="" className="size-10 rounded-lg object-cover shrink-0" />
-      ) : (
+    <div className="space-y-2">
+      <div className="flex items-start gap-2">
         <span className="flex items-center justify-center size-5 rounded-full bg-primary-100 text-primary-600 shrink-0 mt-0.5">
           <Sparkles size={11} />
         </span>
-      )}
-      <div>
-        <p className="text-xs font-semibold text-neutral-800">{activity.title}</p>
-        {activity.description && (
-          <p className="text-xs text-neutral-500 mt-0.5">{activity.description}</p>
-        )}
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold text-neutral-800">{activity.title}</p>
+          {activity.description && (
+            <p className="text-xs text-neutral-500 mt-0.5">{activity.description}</p>
+          )}
+        </div>
       </div>
+      {gallery.length > 0 && (
+        <div className="ml-7 space-y-1.5">
+          <p className="text-[9px] font-bold uppercase tracking-widest text-primary-600">Glimpses of the experience</p>
+          <div className="grid grid-cols-3 gap-1.5">
+            {gallery.slice(0, 3).map((src, i) => (
+              <div key={i} className="relative rounded-lg overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */}
+                <img src={src} alt={activity.photoLabels[i] || activity.title} className="w-full h-30 object-cover" />
+                <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 via-black/10 to-transparent px-1.5 py-1 pt-3">
+                  <p className="text-[9px] text-white font-medium truncate">{activity.photoLabels[i] || activity.title}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function DayCardPreview({ day }: { day: DayItinerary }) {
+const MEAL_CHIPS = [
+  { key: "breakfast", label: "Breakfast", icon: Coffee },
+  { key: "lunch", label: "Lunch", icon: Soup },
+  { key: "dinner", label: "Dinner", icon: UtensilsCrossed },
+] as const;
+
+function MealsRow({ meals }: { meals: string[] }) {
+  const extras = meals.filter((m) => !MEAL_CHIPS.some((c) => m.toLowerCase().includes(c.key)));
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-stretch gap-1.5">
+        {MEAL_CHIPS.map(({ key, label, icon: Icon }) => {
+          const included = meals.some((m) => m.toLowerCase().includes(key));
+          return (
+            <div
+              key={key}
+              className={`flex-1 flex items-center justify-between gap-1 px-2 py-1.5 rounded-lg border text-[11px] font-medium ${
+                included
+                  ? "bg-emerald-50/60 border-emerald-200 text-neutral-700"
+                  : "bg-neutral-50 border-neutral-200 text-neutral-400"
+              }`}
+            >
+              <span className="flex items-center gap-1">
+                <Icon size={12} className={included ? "text-emerald-600" : "text-neutral-400"} />
+                {label}
+              </span>
+              {included
+                ? <CheckCircle size={12} className="text-emerald-600 shrink-0" />
+                : <XCircle size={12} className="text-neutral-300 shrink-0" />}
+            </div>
+          );
+        })}
+      </div>
+      {extras.length > 0 && (
+        <p className="text-[10px] text-neutral-500">+ {extras.join(", ")}</p>
+      )}
+    </div>
+  );
+}
+
+function DayCardPreview({ day, adults, childCount }: { day: DayItinerary; adults: number; childCount: number }) {
   const activities = day.activities.filter((a) => a.title.trim());
   const hasHotel = day.accommodation || day.hotelCheckIn || day.hotelCheckOut || day.hotelMealPlan;
+  const mealText = mealIncludedText(day.hotelMealPlan);
+  const hasPhotos = day.accommodationPhoto || day.accommodationRoomPhotos.length > 0;
 
   return (
     <div
@@ -90,52 +174,141 @@ function DayCardPreview({ day }: { day: DayItinerary }) {
 
         {/* Hotel info */}
         {hasHotel && (
-          <div className="rounded-lg bg-primary-50/60 border border-primary-100 p-2.5 space-y-1.5">
-            <div className="flex items-center gap-2">
-              {day.accommodationPhoto && (
-                /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
-                <img src={day.accommodationPhoto} alt="" className="h-10 w-14 rounded-md object-cover shrink-0" />
-              )}
-              <div className="flex items-center gap-1.5">
-                <Hotel size={12} className="text-primary-600 shrink-0" />
-                <p className="text-xs font-semibold text-neutral-800">
-                  {day.accommodation || "Hotel (TBD)"}
+          <div className="rounded-lg bg-primary-50/60 border border-primary-100 p-2.5">
+            <div className="flex gap-3">
+              <div className="flex-1 min-w-0 space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Hotel size={12} className="text-primary-600 shrink-0" />
+                  <p className="text-xs font-semibold text-neutral-800">
+                    {day.accommodation || "Hotel (TBD)"}
+                  </p>
+                </div>
+
+                {day.accommodationLocation && (
+                  <p className="text-[11px] text-neutral-500 flex items-center gap-1">
+                    <MapPin size={10} className="text-neutral-400 shrink-0" /> {day.accommodationLocation}
+                  </p>
+                )}
+
+                <p className="text-[11px] text-neutral-500 flex items-center gap-1">
+                  <Users size={10} className="text-neutral-400 shrink-0" />
+                  {occupancyText(day.accommodationRoomCapacity, adults, childCount)}
                 </p>
+
+                {(day.hotelCheckIn || day.hotelCheckOut) && (
+                  <div className="flex items-center gap-2 pt-1">
+                    <div className="flex flex-col items-center gap-0.5 shrink-0">
+                      <LogIn size={12} className="text-primary-500" />
+                      <span className="text-[8px] text-neutral-400 font-medium uppercase tracking-wide">Check-in</span>
+                      <span className="text-[11px] font-semibold text-neutral-700">{day.hotelCheckIn || "—"}</span>
+                    </div>
+                    <div className="flex-1 border-t border-dashed border-neutral-300 self-center" />
+                    <div className="flex flex-col items-center gap-0.5 shrink-0">
+                      <LogOut size={12} className="text-primary-500" />
+                      <span className="text-[8px] text-neutral-400 font-medium uppercase tracking-wide">Check-out</span>
+                      <span className="text-[11px] font-semibold text-neutral-700">{day.hotelCheckOut || "—"}</span>
+                    </div>
+                  </div>
+                )}
+
+                {day.accommodationRoomSpecs && (
+                  <p className="text-[11px] text-neutral-500">({day.accommodationRoomSpecs})</p>
+                )}
+
+                {mealText && (
+                  <p className="text-[11px] text-neutral-500 flex items-center gap-1">
+                    <Utensils size={10} className="text-primary-400 shrink-0" /> {mealText}
+                  </p>
+                )}
               </div>
+
+              {hasPhotos && (
+                <div className="w-40 shrink-0 space-y-1">
+                  {day.accommodationPhoto && (
+                    /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
+                    <img src={day.accommodationPhoto} alt="Hotel" className="w-40 h-24 rounded-lg object-cover" />
+                  )}
+                  {day.accommodationRoomPhotos.length > 0 && (
+                    <div className="grid grid-cols-2 gap-1">
+                      {day.accommodationRoomPhotos.slice(0, 2).map((src, i) => (
+                        /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
+                        <img key={i} src={src} alt={`Room ${i + 1}`} className="h-14 w-full rounded-md object-cover" />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-            {(day.hotelCheckIn || day.hotelCheckOut) && (
-              <div className="flex items-center gap-4 text-[11px] text-neutral-500 pl-4.5">
-                {day.hotelCheckIn && (
-                  <span className="flex items-center gap-1"><LogIn size={10} /> Check-in {day.hotelCheckIn}</span>
-                )}
-                {day.hotelCheckOut && (
-                  <span className="flex items-center gap-1"><LogOut size={10} /> Check-out {day.hotelCheckOut}</span>
-                )}
-              </div>
-            )}
-            {day.hotelMealPlan && (
-              <p className="text-[11px] text-neutral-500 pl-4.5">{day.hotelMealPlan}</p>
-            )}
           </div>
         )}
 
-        {/* Transport + meals */}
-        {(day.transport || day.meals.length > 0) && (
-          <div className="flex flex-wrap items-center gap-3 text-xs text-neutral-600">
-            {day.transport && (
-              <span className="flex items-center gap-1.5">
-                {day.transportPhoto ? (
-                  /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
-                  <img src={day.transportPhoto} alt="" className="h-6 w-9 rounded object-cover shrink-0" />
-                ) : (
-                  <Car size={11} className="text-primary-500" />
+        {/* Transport */}
+        {(day.transport || day.transportPickup || day.transportDrop) && (
+          <div className="rounded-lg bg-neutral-50 border border-neutral-200 p-2.5 space-y-2">
+            <div className="flex items-center gap-1.5">
+              <Car size={12} className="text-primary-600 shrink-0" />
+              <p className="text-xs font-semibold text-neutral-800">Transport</p>
+              {(day.transportDistanceKm || (day.transportPickup && day.transportDrop)) && (
+                <span className="text-[11px] text-neutral-400 truncate">
+                  · {[
+                    day.transportDistanceKm ? `${day.transportDistanceKm} km` : null,
+                    day.transportPickup && day.transportDrop ? `${day.transportPickup} → ${day.transportDrop}` : null,
+                  ].filter(Boolean).join(" · ")}
+                </span>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <div className="flex-1 min-w-0 space-y-2">
+                {day.transport && (
+                  <p className="text-sm font-semibold text-neutral-800">
+                    {day.transport}
+                    {day.transportVehicleType && <span className="font-normal text-neutral-500"> · {day.transportVehicleType}</span>}
+                    {day.transportSeats && <span className="font-normal text-neutral-500"> · {day.transportSeats} Seats</span>}
+                  </p>
                 )}
-                {day.transport}
-              </span>
-            )}
-            {day.meals.length > 0 && <span className="flex items-center gap-1"><Utensils size={11} className="text-primary-500" /> {day.meals.join(", ")}</span>}
+
+                {(day.transportPickup || day.transportDrop) && (
+                  <div className="flex gap-2">
+                    <div className="flex flex-col items-center pt-1">
+                      <span className="size-2 rounded-full border-2 border-primary-500 shrink-0" />
+                      <span className="w-px flex-1 bg-neutral-300 my-0.5" />
+                      <span className="size-2 rounded-full border-2 border-primary-500 shrink-0" />
+                    </div>
+                    <div className="flex-1 min-w-0 flex flex-col justify-between text-[11px] py-0.5">
+                      <p className="text-neutral-600">
+                        <span className="text-neutral-400">Pickup: </span>
+                        <span className="font-semibold text-neutral-800">{day.transportPickup || "—"}</span>
+                      </p>
+                      {day.transportDistanceKm && (
+                        <p className="text-neutral-400">{day.transportDistanceKm} km</p>
+                      )}
+                      <p className="text-neutral-600">
+                        <span className="text-neutral-400">Drop: </span>
+                        <span className="font-semibold text-neutral-800">{day.transportDrop || "—"}</span>
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {day.transportPhoto && (
+                <div className="relative rounded-lg overflow-hidden w-52 h-36 shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */}
+                  <img src={day.transportPhoto} alt="" className="w-52 h-36 object-cover" />
+                  {day.transport && (
+                    <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 via-black/20 to-transparent px-2 py-1.5 pt-6">
+                      <p className="text-xs text-white font-medium truncate">{day.transport}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )}
+
+        {/* Meals */}
+        {day.meals.length > 0 && <MealsRow meals={day.meals} />}
 
         {/* Activities */}
         {activities.length > 0 && (
@@ -271,9 +444,17 @@ export function ItineraryDocument({ form }: { form: PreviewData }) {
           <div className="space-y-3">
             <Kicker label="Itinerary" />
             <div className="space-y-3">
-              {form.itineraries.map((d) => <DayCardPreview key={d.day} day={d} />)}
+              {form.itineraries.map((d) => (
+                <DayCardPreview key={d.day} day={d} adults={form.adults} childCount={form.children} />
+              ))}
             </div>
           </div>
+
+          <ItineraryMap
+            startingPoint={form.startingPoint}
+            stops={form.stops}
+            itineraries={form.itineraries}
+          />
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="rounded-xl border border-neutral-200 bg-white p-4">
