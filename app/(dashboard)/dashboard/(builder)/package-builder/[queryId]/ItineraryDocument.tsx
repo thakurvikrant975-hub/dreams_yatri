@@ -63,6 +63,9 @@ export interface PreviewData {
   trainTo: string;
   stops: StopInput[];
   itineraries: DayItinerary[];
+  execName: string;
+  execEmail: string;
+  execDesignation: string;
 }
 
 function Kicker({ label }: { label: string }) {
@@ -146,6 +149,35 @@ function MealsRow({ meals }: { meals: string[] }) {
       {extras.length > 0 && (
         <p className="text-[10px] text-neutral-500">+ {extras.join(", ")}</p>
       )}
+    </div>
+  );
+}
+
+/** Compact "Day | Hotel | Meals | Cab" grid so the pattern across the whole
+ * trip is visible at a glance, ahead of the detailed per-day cards below. */
+function DaySummaryTable({ itineraries }: { itineraries: DayItinerary[] }) {
+  return (
+    <div className="rounded-xl border border-neutral-200 overflow-hidden">
+      <table className="w-full text-[11px]">
+        <thead>
+          <tr className="bg-neutral-50 text-neutral-500 uppercase tracking-wide text-[9px]">
+            <th className="text-left px-3 py-2 font-semibold">Day</th>
+            <th className="text-left px-3 py-2 font-semibold">Hotel</th>
+            <th className="text-left px-3 py-2 font-semibold">Meals</th>
+            <th className="text-left px-3 py-2 font-semibold">Cab</th>
+          </tr>
+        </thead>
+        <tbody>
+          {itineraries.map((d) => (
+            <tr key={d.day} className="border-t border-neutral-100">
+              <td className="px-3 py-2 font-semibold text-neutral-700 whitespace-nowrap">Day {d.day}</td>
+              <td className="px-3 py-2 text-neutral-600">{d.accommodation || "—"}</td>
+              <td className="px-3 py-2 text-neutral-600">{d.meals.length > 0 ? d.meals.join(", ") : "—"}</td>
+              <td className="px-3 py-2 text-neutral-600">{d.transport || d.transportVehicleType || "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -423,6 +455,23 @@ export function ItineraryDocument({ form }: { form: PreviewData }) {
             </div>
           </div>
 
+          {form.execName && (
+            <div className="rounded-xl border border-primary-100 bg-white p-3 flex items-center justify-between gap-3 text-xs flex-wrap">
+              <div>
+                <p className="text-[10px] text-primary-600/70 font-medium uppercase tracking-wide mb-0.5">Your Travel Manager</p>
+                <p className="font-bold text-neutral-800">
+                  {form.execName}
+                  {form.execDesignation && <span className="font-normal text-neutral-500"> · {form.execDesignation}</span>}
+                </p>
+              </div>
+              {form.execEmail && (
+                <a href={`mailto:${form.execEmail}`} className="flex items-center gap-1 text-primary-600 hover:underline shrink-0">
+                  <Mail size={11} /> {form.execEmail}
+                </a>
+              )}
+            </div>
+          )}
+
           {/* Flights & Train inclusion */}
           {(form.flightsIncluded || form.trainIncluded) && (
             <div className="flex flex-wrap gap-2">
@@ -442,6 +491,11 @@ export function ItineraryDocument({ form }: { form: PreviewData }) {
               )}
             </div>
           )}
+
+          <div className="space-y-3">
+            <Kicker label="Day-wise Summary" />
+            <DaySummaryTable itineraries={form.itineraries} />
+          </div>
 
           <div className="space-y-3">
             <Kicker label="Itinerary" />

@@ -77,14 +77,79 @@ export async function getSalesPackageLibrary(params: {
 // page while staying editable.
 // ─────────────────────────────────────────────────────────────────────────────
 
+export type StayCategoryOption = { id: number; label: string; isDefault: boolean };
+
 export type TemplatePackage = LibraryPackage & {
     totalDays:           number | null;
     totalNights:         number | null;
     routeSummary:        string | null;
     stayCategorySummary: string | null;
+    stayCategoryOptions: StayCategoryOption[];
+    selectedStayCategoryId: number | null;
     estimatedPrice:      number | null;
     pricePerAdult:       number | null;
+    /** Price fits inside the query's stated budget (per-adult vs. total, per `budgetType`) — null when no budget was given. */
+    withinBudget:        boolean | null;
 };
+
+async function priceForPackage(
+    row: {
+        id: number;
+        durations: { id: number; routes: { id: number }[] }[];
+    },
+    stayCategoryId: number | undefined,
+    opts: { adults: number; children: number; infants: number; travelDate: string | null },
+): Promise<{ estimatedPrice: number | null; pricePerAdult: number | null }> {
+    const duration = row.durations[0];
+    const route = duration?.routes[0];
+    if (!duration || !route || !stayCategoryId) return { estimatedPrice: null, pricePerAdult: null };
+
+    try {
+        const breakdown = await computePackagePrice({
+            package_id:       row.id,
+            duration_id:      duration.id,
+            route_id:         route.id,
+            stay_category_id: stayCategoryId,
+            adults:      opts.adults,
+            children:    opts.children,
+            infants:     opts.infants,
+            travel_date: opts.travelDate,
+        });
+        if (breakdown.missing_pricing_config) return { estimatedPrice: null, pricePerAdult: null };
+        return { estimatedPrice: breakdown.final_price, pricePerAdult: breakdown.price_per_adult };
+    } catch {
+        // Pricing config incomplete for this package/variant — show it without a price.
+        return { estimatedPrice: null, pricePerAdult: null };
+    }
+}
+
+/** Recomputes a single package's price against a different stay category —
+ * used when the sales exec switches the stay-category dropdown on a
+ * "Create Package" card instead of accepting the catalog default. */
+export async function getTemplatePackagePriceForCategory(params: {
+    packageId:      number;
+    durationSlug:   string;
+    routeSlug:      string;
+    stayCategoryId: number;
+    travelDate?:    string | null;
+    adults?:        number;
+    children?:      number;
+    infants?:       number;
+}): Promise<{ estimatedPrice: number | null; pricePerAdult: number | null }> {
+    const { packageId, durationSlug, routeSlug, stayCategoryId, travelDate = null, adults = 2, children = 0, infants = 0 } = params;
+
+    const duration = await db.package_durations.findFirst({
+        where:  { package_id: packageId, slug: durationSlug },
+        select: { id: true, routes: { where: { slug: routeSlug }, select: { id: true } } },
+    });
+    if (!duration || !duration.routes[0]) return { estimatedPrice: null, pricePerAdult: null };
+
+    return priceForPackage(
+        { id: packageId, durations: [{ id: duration.id, routes: [{ id: duration.routes[0].id }] }] },
+        stayCategoryId,
+        { adults, children, infants, travelDate },
+    );
+}
 
 export async function searchPackageLibraryForTemplate(params: {
     search?:     string;
@@ -94,13 +159,22 @@ export async function searchPackageLibraryForTemplate(params: {
     adults?:     number;
     children?:   number;
     infants?:    number;
+    /** When set, matching packages are sorted "within budget" first. */
+    budgetMin?:  number;
+    budgetMax?:  number;
+    budgetType?: "PER_PERSON" | "TOTAL";
 } = {}): Promise<{ packages: TemplatePackage[]; total: number }> {
     const {
         search = "", page = 1, size = 12,
         travelDate = null, adults = 2, children = 0, infants = 0,
+        budgetMin, budgetMax, budgetType = "PER_PERSON",
     } = params;
     const safeSize = Math.min(size, 50);
-    const skip = (page - 1) * safeSize;
+    const hasBudget = budgetMin != null || budgetMax != null;
+    // With a budget filter we price every match (catalog is small — capped for
+    // safety) so "within budget" packages can be sorted first across the whole
+    // result set, not just whichever page happened to load first.
+    const PRICE_ALL_CAP = 200;
 
     const where = {
         is_active: true,
@@ -118,8 +192,9 @@ export async function searchPackageLibraryForTemplate(params: {
         db.packages.findMany({
             where,
             orderBy: { title: "asc" },
-            skip,
-            take: safeSize,
+            ...(hasBudget
+                ? { take: PRICE_ALL_CAP }
+                : { skip: (page - 1) * safeSize, take: safeSize }),
             select: {
                 id:          true,
                 title:       true,
@@ -157,25 +232,12 @@ export async function searchPackageLibraryForTemplate(params: {
         const route = duration?.routes[0];
         const stayCategory = r.stay_categories.find((s) => s.is_default) ?? r.stay_categories[0];
 
-        let estimatedPrice: number | null = null;
-        let pricePerAdult: number | null = null;
-        if (duration && route && stayCategory) {
-            try {
-                const breakdown = await computePackagePrice({
-                    package_id:       r.id,
-                    duration_id:      duration.id,
-                    route_id:         route.id,
-                    stay_category_id: stayCategory.id,
-                    adults, children, infants,
-                    travel_date: travelDate,
-                });
-                if (!breakdown.missing_pricing_config) {
-                    estimatedPrice = breakdown.final_price;
-                    pricePerAdult = breakdown.price_per_adult;
-                }
-            } catch {
-                // Pricing config incomplete for this package/variant — show it without a price.
-            }
+        const { estimatedPrice, pricePerAdult } = await priceForPackage(r, stayCategory?.id, { adults, children, infants, travelDate });
+
+        let withinBudget: boolean | null = null;
+        if (hasBudget && estimatedPrice != null) {
+            const compareValue = budgetType === "PER_PERSON" ? (pricePerAdult ?? estimatedPrice) : estimatedPrice;
+            withinBudget = (budgetMin == null || compareValue >= budgetMin) && (budgetMax == null || compareValue <= budgetMax);
         }
 
         return {
@@ -192,12 +254,36 @@ export async function searchPackageLibraryForTemplate(params: {
             totalNights:     duration?.nights ?? null,
             routeSummary:    route?.stops.map((s) => s.place_name).join(" → ") || null,
             stayCategorySummary: r.stay_categories.map((s) => s.label).join(", ") || null,
+            stayCategoryOptions: r.stay_categories.map((s) => ({ id: s.id, label: s.label, isDefault: s.is_default })),
+            selectedStayCategoryId: stayCategory?.id ?? null,
             estimatedPrice,
             pricePerAdult,
+            withinBudget,
         };
     }));
 
-    return { packages, total };
+    if (!hasBudget) {
+        return { packages, total };
+    }
+
+    // Sort within-budget first, then by how close the price is to the budget
+    // (packages with no computed price sort last — we can't tell if they fit).
+    const compareValue = (pkg: TemplatePackage) => budgetType === "PER_PERSON" ? (pkg.pricePerAdult ?? pkg.estimatedPrice) : pkg.estimatedPrice;
+    const sorted = [...packages].sort((a, b) => {
+        if (a.withinBudget !== b.withinBudget) {
+            if (a.withinBudget == null) return 1;
+            if (b.withinBudget == null) return -1;
+            return a.withinBudget ? -1 : 1;
+        }
+        const av = compareValue(a);
+        const bv = compareValue(b);
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        return av - bv;
+    });
+
+    const start = (page - 1) * safeSize;
+    return { packages: sorted.slice(start, start + safeSize), total };
 }
 
 export async function getDestinationsForLibraryFilter(): Promise<DestinationFilterOption[]> {

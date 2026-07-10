@@ -13,16 +13,21 @@ import {
 } from "../../components/ui/dialog";
 import { TableEmptyState } from "../../components/dashboard/TableEmptyState";
 import { getCardImage } from "@/app/lib/imageUrl";
-import { searchPackageLibraryForTemplate, type TemplatePackage } from "../package-library/actions";
+import {
+    searchPackageLibraryForTemplate, getTemplatePackagePriceForCategory, type TemplatePackage,
+} from "../package-library/actions";
 import { copyPackageIntoDraft } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 
 const PAGE_SIZE = 12;
 
-export function CreatePackageDialog({ queryId, destination, travelDate, travellers, children }: {
+export type QueryBudget = { min?: number; max?: number; type: "PER_PERSON" | "TOTAL" };
+
+export function CreatePackageDialog({ queryId, destination, travelDate, travellers, budget, children }: {
     queryId:     string;
     destination: string | null;
     travelDate?: string | null;
     travellers?: { adults: number; children: number; infants: number } | null;
+    budget?:     QueryBudget | null;
     children:    React.ReactNode;
 }) {
     const router = useRouter();
@@ -33,6 +38,7 @@ export function CreatePackageDialog({ queryId, destination, travelDate, travelle
         children: travellers?.children ?? 0,
         infants:  travellers?.infants ?? 0,
     };
+    const hasBudget = budget != null && (budget.min != null || budget.max != null);
 
     const [search, setSearch] = useState("");
     const [packages, setPackages] = useState<TemplatePackage[]>([]);
@@ -41,6 +47,7 @@ export function CreatePackageDialog({ queryId, destination, travelDate, travelle
     const [loading, setLoading] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
     const [applyingSlug, setApplyingSlug] = useState<string | null>(null);
+    const [recomputingId, setRecomputingId] = useState<number | null>(null);
 
     // Debounce guard so a fast-typing search doesn't race an older request
     // into overwriting a newer one's results.
@@ -60,6 +67,7 @@ export function CreatePackageDialog({ queryId, destination, travelDate, travelle
             const result = await searchPackageLibraryForTemplate({
                 search, page: 1, size: PAGE_SIZE,
                 travelDate, ...pax,
+                budgetMin: budget?.min, budgetMax: budget?.max, budgetType: budget?.type,
             });
             if (id !== requestId.current) return;
             setPackages(result.packages);
@@ -68,6 +76,9 @@ export function CreatePackageDialog({ queryId, destination, travelDate, travelle
             setLoading(false);
         }, search ? 300 : 0);
         return () => clearTimeout(timer);
+        // Deliberately re-runs only on `open`/`search` — pax/travelDate/budget
+        // come from props that don't change while the dialog is open.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, search]);
 
     async function loadMore() {
@@ -76,6 +87,7 @@ export function CreatePackageDialog({ queryId, destination, travelDate, travelle
         const result = await searchPackageLibraryForTemplate({
             search, page: next, size: PAGE_SIZE,
             travelDate, ...pax,
+            budgetMin: budget?.min, budgetMax: budget?.max, budgetType: budget?.type,
         });
         setPackages((prev) => [...prev, ...result.packages]);
         setTotal(result.total);
@@ -94,6 +106,29 @@ export function CreatePackageDialog({ queryId, destination, travelDate, travelle
             router.push(`/dashboard/package-builder/${queryId}`);
         } finally {
             setApplyingSlug(null);
+        }
+    }
+
+    async function handleStayCategoryChange(pkg: TemplatePackage, stayCategoryId: number) {
+        setRecomputingId(pkg.id);
+        try {
+            const { estimatedPrice, pricePerAdult } = await getTemplatePackagePriceForCategory({
+                packageId:    pkg.id,
+                durationSlug: pkg.durationSlug ?? "",
+                routeSlug:    pkg.routeSlug ?? "",
+                stayCategoryId,
+                travelDate, ...pax,
+            });
+            let withinBudget: boolean | null = null;
+            if (hasBudget && estimatedPrice != null) {
+                const compareValue = budget?.type === "TOTAL" ? estimatedPrice : (pricePerAdult ?? estimatedPrice);
+                withinBudget = (budget?.min == null || compareValue >= budget.min) && (budget?.max == null || compareValue <= budget.max);
+            }
+            setPackages((prev) => prev.map((p) =>
+                p.id === pkg.id ? { ...p, selectedStayCategoryId: stayCategoryId, estimatedPrice, pricePerAdult, withinBudget } : p,
+            ));
+        } finally {
+            setRecomputingId(null);
         }
     }
 
@@ -164,24 +199,49 @@ export function CreatePackageDialog({ queryId, destination, travelDate, travelle
                                                 <Route size={10} className="shrink-0" /> {pkg.routeSummary}
                                             </p>
                                         )}
-                                        {pkg.stayCategorySummary && (
-                                            <p className="text-[11px] text-muted-foreground flex items-center gap-1 line-clamp-1">
-                                                <BedDouble size={10} className="shrink-0" /> {pkg.stayCategorySummary}
-                                            </p>
+                                        {pkg.stayCategoryOptions.length > 0 && (
+                                            <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                                <BedDouble size={10} className="shrink-0" />
+                                                <select
+                                                    value={pkg.selectedStayCategoryId ?? ""}
+                                                    disabled={recomputingId === pkg.id}
+                                                    onChange={(e) => handleStayCategoryChange(pkg, Number(e.target.value))}
+                                                    className="flex-1 min-w-0 bg-transparent border-none text-[11px] text-foreground focus:outline-none cursor-pointer disabled:opacity-50"
+                                                >
+                                                    {pkg.stayCategoryOptions.map((o) => (
+                                                        <option key={o.id} value={o.id}>{o.label}</option>
+                                                    ))}
+                                                </select>
+                                            </label>
                                         )}
                                         {(pkg.totalDays || pkg.totalNights) && (
                                             <p className="text-[11px] text-muted-foreground flex items-center gap-1">
                                                 <CalendarDays size={10} /> {pkg.totalDays}D / {pkg.totalNights}N
                                             </p>
                                         )}
-                                        {pkg.estimatedPrice != null ? (
-                                            <p className="text-[13px] font-bold text-foreground flex items-center gap-0.5 pt-0.5">
-                                                <IndianRupee size={11} />
-                                                {pkg.estimatedPrice.toLocaleString("en-IN")}
-                                                <span className="text-[10px] font-normal text-muted-foreground ml-1">
-                                                    for {pax.adults + pax.children} pax
-                                                </span>
+                                        {recomputingId === pkg.id ? (
+                                            <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 pt-0.5">
+                                                <Loader2 size={11} className="animate-spin" /> Recalculating…
                                             </p>
+                                        ) : pkg.estimatedPrice != null ? (
+                                            <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
+                                                <p className="text-[13px] font-bold text-foreground flex items-center gap-0.5">
+                                                    <IndianRupee size={11} />
+                                                    {pkg.estimatedPrice.toLocaleString("en-IN")}
+                                                    <span className="text-[10px] font-normal text-muted-foreground ml-1">
+                                                        for {pax.adults + pax.children} pax
+                                                    </span>
+                                                </p>
+                                                {pkg.withinBudget != null && (
+                                                    <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${
+                                                        pkg.withinBudget
+                                                            ? "bg-emerald-100 text-emerald-700"
+                                                            : "bg-amber-100 text-amber-700"
+                                                    }`}>
+                                                        {pkg.withinBudget ? "Within budget" : "Over budget"}
+                                                    </span>
+                                                )}
+                                            </div>
                                         ) : (
                                             <p className="text-[11px] text-muted-foreground/70 italic pt-0.5">
                                                 Pricing not configured

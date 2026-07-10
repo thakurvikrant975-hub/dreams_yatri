@@ -891,6 +891,9 @@ interface PackageForm {
   trainTo: string;
   stops: StopInput[];
   itineraries: DayItinerary[];
+  execName: string;
+  execEmail: string;
+  execDesignation: string;
 }
 
 /** Sum of stop nights → total nights/days + a joined destination string. */
@@ -970,6 +973,7 @@ export default function PackageBuilderDetailPage() {
     trainTo: "",
     stops: [],
     itineraries: [emptyDay(1), emptyDay(2), emptyDay(3)],
+    execName: "", execEmail: "", execDesignation: "",
   });
 
   // ── Load query ─────────────────────────────────────────────────────────────
@@ -1008,6 +1012,9 @@ export default function PackageBuilderDetailPage() {
         flightsIncluded: tr?.includeFlights ?? f.flightsIncluded,
         trainIncluded: tr?.includeTrain ?? f.trainIncluded,
         itineraries: Array.from({ length: j?.noOfDays ?? 3 }, (_, i) => emptyDay(i + 1)),
+        execName: data.assignedToName ?? "",
+        execEmail: data.execEmail ?? "",
+        execDesignation: data.execDesignation ?? "",
       }));
 
       if (data.customPackage) {

@@ -308,6 +308,11 @@ export function SalesQueriesTable({ queries, closeReasons, rejectionReasons }: P
                                 children: q.requirements.travellers.children,
                                 infants: q.requirements.travellers.infants,
                             } : null}
+                            budget={q.requirements?.budget && (q.requirements.budget.min != null || q.requirements.budget.max != null) ? {
+                                min:  q.requirements.budget.min,
+                                max:  q.requirements.budget.max,
+                                type: q.requirements.budget.type,
+                            } : null}
                         >
                             <button
                                 type="button"

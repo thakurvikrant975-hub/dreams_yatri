@@ -378,6 +378,11 @@ const packageRequirementsSchema = z.object({
         adults:         z.number().min(1),
         children:       z.number().min(0),
         infants:        z.number().min(0),
+        members:        z.array(z.object({
+            type: z.enum(["ADULT", "CHILD", "INFANT"]),
+            name: z.string(),
+            age:  z.number().min(0).max(120),
+        })).optional(),
         specialDemands: z.string().optional(),
     }),
     journey: z.object({

@@ -218,6 +218,9 @@ export interface QueryRow {
 
 export interface QueryDetail extends QueryRow {
   message: string | null;
+  /** Joined from TeamMember — package_queries.assignedTo has no FK relation. */
+  execEmail:       string | null;
+  execDesignation: string | null;
   customPackage: {
     id:              string;
     status:          string;
@@ -590,6 +593,7 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
       destination:    true,
       travelDate:     true,
       groupSize:      true,
+      assignedTo:     true,
       assignedToName: true,
       assignedAt:     true,
       updatedAt:      true,
@@ -658,8 +662,19 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
 
   if (!query) return null;
 
+  // package_queries.assignedTo is a plain string (no FK relation defined),
+  // so the exec's contact details need a separate lookup.
+  const exec = query.assignedTo
+    ? await db.teamMember.findUnique({
+        where:  { id: query.assignedTo },
+        select: { email: true, designation: true },
+      })
+    : null;
+
   return {
     ...(query as any),
+    execEmail:       exec?.email ?? null,
+    execDesignation: exec?.designation ?? null,
     customPackage: query.custom_packages ? {
       ...query.custom_packages,
       itineraries: query.custom_packages.itineraries.map(normalizeItinerary),
