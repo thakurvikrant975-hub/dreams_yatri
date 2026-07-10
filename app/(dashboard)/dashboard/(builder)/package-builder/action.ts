@@ -510,6 +510,64 @@ export async function getDestinationCoverImage(destinationName: string): Promise
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// DB rows store these text/array fields as nullable (`String?`, default-empty
+// arrays aside), so a day/activity saved without every field filled in comes
+// back from Prisma as `null` — normalize to the DayItinerary/ActivityInput
+// contract's non-null defaults here, once, instead of every consumer having
+// to guard against a `string | null` mismatch with its own type.
+// ─────────────────────────────────────────────────────────────────────────────
+function normalizeActivity(a: {
+  id: string; title: string; description: string | null;
+  photo: string | null; photos: string[]; photoLabels: string[];
+}): ActivityInput {
+  return {
+    id:          a.id,
+    title:       a.title ?? "",
+    description: a.description ?? "",
+    photo:       a.photo ?? "",
+    photos:      a.photos ?? [],
+    photoLabels: a.photoLabels ?? [],
+  };
+}
+
+function normalizeItinerary(it: {
+  id: string; day: number; title: string; description: string | null; meals: string[];
+  accommodation: string | null; accommodationPhoto: string | null; accommodationRoomPhotos: string[];
+  accommodationLocation: string | null; accommodationRoomSpecs: string | null; accommodationRoomCapacity: number | null;
+  hotelCheckIn: string | null; hotelCheckOut: string | null; hotelMealPlan: string | null;
+  transport: string | null; transportPhoto: string | null; transportVehicleType: string | null;
+  transportSeats: number | null; transportPickup: string | null; transportDrop: string | null;
+  transportDistanceKm: number | null; notes: string | null;
+  activities: Parameters<typeof normalizeActivity>[0][];
+}): DayItinerary {
+  return {
+    id:                        it.id,
+    day:                       it.day,
+    title:                     it.title ?? "",
+    description:               it.description ?? "",
+    activities:                it.activities.map(normalizeActivity),
+    meals:                     it.meals ?? [],
+    accommodation:             it.accommodation ?? "",
+    accommodationPhoto:        it.accommodationPhoto ?? "",
+    accommodationRoomPhotos:   it.accommodationRoomPhotos ?? [],
+    accommodationLocation:     it.accommodationLocation ?? "",
+    accommodationRoomSpecs:    it.accommodationRoomSpecs ?? "",
+    accommodationRoomCapacity: it.accommodationRoomCapacity ?? null,
+    hotelCheckIn:              it.hotelCheckIn ?? "",
+    hotelCheckOut:             it.hotelCheckOut ?? "",
+    hotelMealPlan:             it.hotelMealPlan ?? "",
+    transport:                 it.transport ?? "",
+    transportPhoto:            it.transportPhoto ?? "",
+    transportVehicleType:      it.transportVehicleType ?? "",
+    transportSeats:            it.transportSeats ?? null,
+    transportPickup:           it.transportPickup ?? "",
+    transportDrop:             it.transportDrop ?? "",
+    transportDistanceKm:       it.transportDistanceKm ?? null,
+    notes:                     it.notes ?? "",
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 3. Get single query detail (with existing custom package if any)
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getQueryDetail(queryId: string): Promise<QueryDetail | null> {
@@ -590,7 +648,10 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
 
   return {
     ...(query as any),
-    customPackage: query.custom_packages ?? null,
+    customPackage: query.custom_packages ? {
+      ...query.custom_packages,
+      itineraries: query.custom_packages.itineraries.map(normalizeItinerary),
+    } : null,
   } as QueryDetail;
 }
 
