@@ -228,8 +228,12 @@ export interface QueryDetail extends QueryRow {
     totalPrice:      number | null;
     flightsIncluded: boolean;
     flightNotes:     string | null;
+    flightFrom:      string | null;
+    flightTo:        string | null;
     trainIncluded:   boolean;
     trainNotes:      string | null;
+    trainFrom:       string | null;
+    trainTo:         string | null;
     stops:           StopInput[];
     itineraries:     DayItinerary[];
   } | null;
@@ -298,8 +302,12 @@ export interface PackageInput {
   termsNotes:      string;
   flightsIncluded: boolean;
   flightNotes:     string;
+  flightFrom:      string;
+  flightTo:        string;
   trainIncluded:   boolean;
   trainNotes:      string;
+  trainFrom:       string;
+  trainTo:         string;
   status:          "DRAFT" | "READY";
   stops:           StopInput[];
   itineraries:     DayItinerary[];
@@ -602,8 +610,12 @@ export async function getQueryDetail(queryId: string): Promise<QueryDetail | nul
           totalPrice:      true,
           flightsIncluded: true,
           flightNotes:     true,
+          flightFrom:      true,
+          flightTo:        true,
           trainIncluded:   true,
           trainNotes:      true,
+          trainFrom:       true,
+          trainTo:         true,
           stops: {
             orderBy: { sortOrder: "asc" },
             select: { id: true, name: true, nights: true },
@@ -664,7 +676,8 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
       queryId, title, description, coverImage, destination, startingPoint,
       totalDays, totalNights, travelDate, adults, children, infants,
       pricePerPerson, totalPrice, currency, inclusions, exclusions,
-      termsNotes, flightsIncluded, flightNotes, trainIncluded, trainNotes,
+      termsNotes, flightsIncluded, flightNotes, flightFrom, flightTo,
+      trainIncluded, trainNotes, trainFrom, trainTo,
       status, stops, itineraries,
     } = input;
 
@@ -696,8 +709,12 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         termsNotes:      termsNotes || null,
         flightsIncluded,
         flightNotes:     flightNotes || null,
+        flightFrom:      flightFrom || null,
+        flightTo:        flightTo || null,
         trainIncluded,
         trainNotes:      trainNotes || null,
+        trainFrom:       trainFrom || null,
+        trainTo:         trainTo || null,
         status,
         builtBy,
         builtByName:     builtByName || null,
@@ -722,8 +739,12 @@ export async function saveCustomPackage(input: PackageInput): Promise<{ id: stri
         termsNotes:      termsNotes || null,
         flightsIncluded,
         flightNotes:     flightNotes || null,
+        flightFrom:      flightFrom || null,
+        flightTo:        flightTo || null,
         trainIncluded,
         trainNotes:      trainNotes || null,
+        trainFrom:       trainFrom || null,
+        trainTo:         trainTo || null,
         status,
         builtByName:     builtByName || null,
       },

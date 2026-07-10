@@ -55,8 +55,12 @@ export interface PreviewData {
   termsNotes: string;
   flightsIncluded: boolean;
   flightNotes: string;
+  flightFrom: string;
+  flightTo: string;
   trainIncluded: boolean;
   trainNotes: string;
+  trainFrom: string;
+  trainTo: string;
   stops: StopInput[];
   itineraries: DayItinerary[];
 }
@@ -454,6 +458,12 @@ export function ItineraryDocument({ form }: { form: PreviewData }) {
             startingPoint={form.startingPoint}
             stops={form.stops}
             itineraries={form.itineraries}
+            flightsIncluded={form.flightsIncluded}
+            flightFrom={form.flightFrom}
+            flightTo={form.flightTo}
+            trainIncluded={form.trainIncluded}
+            trainFrom={form.trainFrom}
+            trainTo={form.trainTo}
           />
 
           <div className="grid gap-4">
